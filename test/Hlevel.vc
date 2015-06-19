@@ -1,0 +1,46 @@
+\function
+isContr (A : \Type0) => \Sigma (a : A) (\Pi (a' : A) -> a = a')
+
+\function
+I-isContr : isContr I => (left, \lam i => path (\lam j => Paths.squeeze i j))
+
+\function
+isProp (A : \Type0) => \Pi (a a' : A) -> a = a'
+
+\function
+isSet (A : \Type0) => \Pi (a a' : A) -> isProp (a = a')
+
+\function
+ofHlevel (n : Nat) (A : \Type0) : \Type0 <= \elim n
+    | zero => isContr A
+    | suc n => \Pi (a a' : A) -> ofHlevel n (a = a')
+
+\function
+ofHlevel1-isProp (A : \Type0) (f : ofHlevel (suc zero) A) : isProp A => \lam a a' => (f a a').1
+
+\function
+isContr-isProp (A : \Type0) (c : isContr A) : isProp A => \lam a a' => Paths.inv (c.2 a) `Paths.(*)` c.2 a'
+
+\function
+isProp-ofHlevel1 (A : \Type0) (f : isProp A) : ofHlevel (suc zero) A => \lam a a' => (Paths.inv (f a a) `Paths.(*)` f a a', Paths.Jl (\lam x q => Paths.inv (f a a) `Paths.(*)` f a x = q) (Paths.inv-concat (f a a)))
+
+\function
+isProp-isSet (A : \Type0) (p : isProp A) : isSet A => \lam a a' => isContr-isProp (a = a') (isProp-ofHlevel1 A p a a')
+
+\function
+isProp-isProp (A : \Type0) : isProp (isProp A) => \lam f g => path (\lam i a a' => isProp-isSet A f a a' (f a a') (g a a') @ i)
+
+\function
+SigmaExt {A : \Type0} (B : A -> \Type0) (x y : \Sigma (a : A) (B a)) (p : x.1 = y.1) (q : Paths.transport B p x.2 = y.2) : x = y
+    => path (\lam i => (p @ i, Paths.pathOver q @ i))
+
+\function
+isContrFun-isProp (A : \Type0) : isProp (isContr A) =>
+    \lam c1 c2 => SigmaExt (\lam a => \Pi (a' : A) -> a = a') c1 c2 (c1.2 (c2.1))
+    (path (\lam i a' => isProp-isSet A (isContr-isProp A c1) (c2.1) a'
+        (Paths.transport (\lam a => \Pi (a' : A) -> a = a') (c1.2 (c2.1)) (c1.2) a') (c2.2 a') @ i))
+
+\function
+ofHlevel-isProp (n : Nat) (A : \Type0) : isProp (ofHlevel n A) <= \elim n
+    | zero => isContrFun-isProp A
+    | suc n => \lam f g => path (\lam i a a' => ofHlevel-isProp n (a = a') (f a a') (g a a') @ i)
