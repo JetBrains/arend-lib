@@ -1,4 +1,5 @@
 \open Paths
+\close Paths(concat)
 \open Data.Empty
 
 \function
@@ -17,10 +18,10 @@ cons-injective {A : \Type0} (x y : A) (xs ys : List A) (p : x :: xs = y :: ys) :
 snoc-injective {A : \Type0} (xs ys : List A) (x y : A) (p : snoc xs x = snoc ys y) : \Sigma (xs = ys) (x = y) <= \elim xs
     | nil <= \elim ys
         | nil => (idp, (cons-injective x y nil nil p).1)
-        | (::) y' ys' => absurd (cons-nil-not-equal y' ys' (inv (cons-injective x nil y (y' :: ys') p).2))
+        | (::) y' ys' => absurd (snoc-nil-not-equal ys' y (inv (cons-injective x y' nil (snoc ys' y) p).2))
         ;
     | (::) x' xs' <= \elim ys
-        | nil => absurd (cons-nil-not-equal x' xs' (cons-injective x (x' :: xs') y nil p).2)
+        | nil => absurd (snoc-nil-not-equal xs' x (cons-injective x' y (snoc xs' x) nil p).2)
         | (::) y' ys' => \let | s1 => cons-injective x' y' (snoc xs' x) (snoc ys' y) p
                               | s2 => snoc-injective xs' ys' x y s1.2
                          \in (pmap2 (::) s1.1 s2.1, s2.2)
@@ -83,47 +84,47 @@ id-is-foldr {A : \Type0} : \Pi (xs : List A) -> xs = foldr (::) nil xs
 
 \function
 append-is-foldr {A : \Type0} (xs ys : List A) =>
-    xs ++ ys                ==< pmap (\lam xs => xs ++ ys) (id-is-foldr xs)                 >==
-    foldr (::) nil xs ++ ys ==< foldr-fusion (\lam xs => xs ++ ys) nil (\lam _ _ => idp) xs >==
+    xs ++ ys                ==< pmap (\lam xs => xs ++ ys) (id-is-foldr xs)                                     >==
+    foldr (::) nil xs ++ ys ==< foldr-fusion (\lam xs => xs ++ ys) (::) (::) (List A).nil (\lam _ _ => idp) xs  >==
     foldr (::) ys xs        !qed
 
 \function
 map-is-foldr {A B : \Type0} (f : A -> B) (xs : List A) =>
-    map f xs                                ==< pmap (map f) (id-is-foldr xs)                   >==
-    map f (foldr (::) nil xs)               ==< foldr-fusion (map f) nil (\lam _ _ => idp) xs   >==
-    foldr (\lam x ys => f x :: ys) nil xs   !qed
+    map f xs                                        ==< pmap (map f) (id-is-foldr xs)                                               >==
+    map f (foldr (::) (List A).nil xs)              ==< foldr-fusion (map f) (::) (\lam x ys => f x :: ys) nil (\lam _ _ => idp) xs >==
+    foldr (\lam x ys => f x :: ys) (List B).nil xs  !qed
 
 \function
 concat-map {A B : \Type0} (f : A -> B) (xs : List (List A)) =>
-    concat (map (map f) xs)                                 ==< pmap concat (map-is-foldr f xs)                          >==
-    concat (foldr (\lam xs ys => map f xs :: ys) nil xs)    ==< foldr-fusion concat nil (\lam _ _ => idp) xs             >==
-    foldr (\lam ys zs => map f ys ++ zs) nil xs             ==< inv (foldr-fusion (map f) nil (map-append-commute f) xs) >==
+    concat (map (map f) xs)                                 ==< pmap (concat {B}) (map-is-foldr (map f) xs)                                                                                             >==
+    concat (foldr (\lam xs ys => map f xs :: ys) nil xs)    ==< foldr-fusion {_} {List (List B)} {List B} concat (\lam xs ys => map f xs :: ys) (\lam ys zs => map f ys ++ zs) nil (\lam _ _ => idp) xs >==
+    foldr (\lam ys zs => map f ys ++ zs) nil xs             ==< inv (foldr-fusion (map f) (++) (\lam ys zs => map f ys ++ zs) nil (map-append-commute f) xs)                                            >==
     map f (concat xs)                                       !qed
 
 \function
 map-id {A : \Type0} (xs : List A) =>
-    map (\lam x => x) xs ==< map-is-foldr xs      >==
-    foldr (::) nil xs    ==< inv (id-is-foldr xs) >==
+    map (\lam x => x) xs ==< map-is-foldr (\lam x => x) xs  >==
+    foldr (::) nil xs    ==< inv (id-is-foldr xs)           >==
     xs                   !qed
 
 \function
 map-compose {A B C : \Type0} (g : B -> C) (f : A -> B) (xs : List A) =>
-    map (\lam x => g (f x)) xs                  ==< pmap (map (\lam x => g (f x))) (id-is-foldr xs)                 >==
-    map (\lam x => g (f x)) (foldr (::) nil xs) ==< foldr-fusion (map (\lam x => g (f x))) nil (\lam _ _ => idp) xs >==
-    foldr (\lam a y => g (f a) :: y) nil xs     ==< inv (foldr-fusion (map g) nil (\lam _ _ => idp) xs)             >==
-    map g (foldr (\lam a y => f a :: y) nil xs) ==< pmap (map g) (inv (map-is-foldr f xs))                          >==
-    map g (map f xs)                            !qed
+    map (\lam x => g (f x)) xs                              ==< pmap (map (\lam (x : A) => g (f x))) (id-is-foldr xs)                                                                   >==
+    map (\lam x => g (f x)) (foldr (::) (List A).nil xs)    ==< foldr-fusion {_} {List A} {List C} (map (\lam x => g (f x))) (::) (\lam a y => g (f a) :: y) nil (\lam _ _ => idp) xs   >==
+    foldr (\lam a y => g (f a) :: y) nil xs                 ==< inv (foldr-fusion (map g) (\lam a y => f a :: y) (\lam a y => g (f a) :: y) nil (\lam _ _ => idp) xs)                   >==
+    map g (foldr (\lam a y => f a :: y) nil xs)             ==< pmap (map g) (inv (map-is-foldr f xs))                                                                                  >==
+    map g (map f xs)                                        !qed
 
 \function
 foldr-pmap {A B : \Type0} (f1 f2 : A -> B -> B) (e1 e2 : B) (p : \Pi (x : A) (y : B) -> f1 x y = f2 x y) (q : e1 = e2) (xs : List A) =>
-    foldr f1 e1 xs                  ==< pmap (foldr f1 e1) (id-is-foldr xs)                                     >==
-    foldr f1 e1 (foldr (::) nil xs) ==< foldr-fusion (foldr f1 e1) nil (\lam x xs => p x (foldr f1 e1 xs)) xs   >==
+    foldr f1 e1 xs                  ==< pmap (foldr f1 e1) (id-is-foldr xs)                                                 >==
+    foldr f1 e1 (foldr (::) nil xs) ==< foldr-fusion (foldr f1 e1) (::) f2 nil (\lam (x : A) xs => p x (foldr f1 e1 xs)) xs >==
     foldr f2 e1 xs                  !qed
 
 \function
 map-pmap {A B : \Type0} (f g : A -> B) (p : \Pi (x : A) -> f x = g x) (xs : List A) =>
-    map f xs                                ==< map-is-foldr xs                                       >==
-    foldr (\lam x ys => f x :: ys) nil xs   ==< foldr-pmap (\lam x ys => pmap2 (::) (p x) idp) idp xs >==
+    map f xs                                ==< map-is-foldr f xs                                     >==
+    foldr (\lam x ys => f x :: ys) nil xs   ==< foldr-pmap {_} {List B} (\lam x ys => f x :: ys) (\lam x ys => g x :: ys) nil nil (\lam x ys => pmap2 (::) (p x) (idpe ys)) idp xs >==
     foldr (\lam x ys => g x :: ys) nil xs   ==< inv (map-is-foldr g xs)                               >==
     map g xs                                !qed
 
@@ -142,7 +143,7 @@ length-map {A B : \Type0} (f : A -> B) (xs : List A) : length (map f xs) = lengt
 \function
 length-append {A : \Type0} (xs ys : List A) : length (xs ++ ys) = length xs + length ys <= \elim xs
     | nil => idp
-    | (::) x xs => pmap suc (length-append xs)
+    | (::) x xs => pmap suc (length-append xs ys)
 
 {-
 \function
@@ -152,16 +153,16 @@ length-gfilter {A B : \Type0} (p : A -> Maybe B) (xs : List A) : length (gfilter
 -}
 
 \function
-unfold-reverse-go {A : \Type0} (xs ys : List A) : foldl (\lam xs x => x :: xs) xs ys = reverse ys ++ xs <= \elim ys
+unfold-reverse-go {A : \Type0} (ys xs : List A) : foldl (\lam xs x => x :: xs) ys xs = reverse ys ++ xs <= \elim ys
     | nil => idp
     | (::) y ys =>
-        foldl (\lam xs x => x :: xs) (y :: xs) ys   ==< unfold-reverse-go (y :: xs) ys                                          >==
+        foldl (\lam xs x => x :: xs) ys (y :: xs)   ==< unfold-reverse-go ys (y :: xs)                                          >==
         reverse ys ++ y :: xs                       ==< inv (append-assoc (reverse ys) (singleton y) xs)                        >==
-        snoc (reverse ys) y ++ xs                   ==< inv (pmap (\lam zs => zs ++ xs) (unfold-reverse-go (singleton y) ys))   >==
+        snoc (reverse ys) y ++ xs                   ==< inv (pmap (\lam zs => zs ++ xs) (unfold-reverse-go ys (singleton y)))   >==
         reverse (y :: ys) ++ xs                     !qed
 
 \function
-unfold-reverse {A : \Type0} (x : A) (xs : List A) : reverse (x :: xs) = snoc (reverse xs) x => unfold-reverse-go (singleton x) xs
+unfold-reverse {A : \Type0} (x : A) (xs : List A) : reverse (x :: xs) = snoc (reverse xs) x => unfold-reverse-go xs (singleton x)
     -- where go = ...
 
 \function
