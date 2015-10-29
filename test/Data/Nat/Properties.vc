@@ -1,12 +1,30 @@
-\open Arith
-\open Data.Nat
+\open Data.Nat.Base
 
 \open Combinators
+\open Data.Bool
 \open Data.Either
 \open Data.Empty
 \open Data.Unit
 \open Paths
 \open Relation
+
+\static \function
+is_zero_b (x : Nat) : Bool <= \elim x
+    | zero => true
+    | _ => false
+
+\static \function
+is_zero : Nat -> \Prop => True `o` is_zero_b
+
+\static \function
+is_suc : Nat -> \Prop => True `o` not `o` is_zero_b
+
+\static \function
+suc_nle_zero {n : Nat} (p : suc n =< zero) : Empty <= \elim p
+
+\static \function
+le_unsuc {n m : Nat} (sn-le-sm : (suc n) =< (suc m)) : n =< m <= \elim sn-le-sm
+  | le_ss p => p
 
 \static \function
 zero-ne-suc {n : Nat} (p : 0 = suc n) : Empty => transport is_zero p unit
@@ -37,20 +55,54 @@ lt-then-le {n m : Nat} (nm : n < m) : n =< m <= \elim n, m
 lt-trans {n m k : Nat} (nm : n < m) (mk : m < k) : n < k => le-trans nm (lt-then-le mk)
 
 \static \function
-cmp (n m : Nat) : Tri (n < m) (n = m) (n > m) <= \elim n, m
-  | zero, zero => tri_eq suc_nle_zero idp suc_nle_zero
-  | zero, suc m' => tri_lt (le_ss le_z) zero-ne-suc suc_nle_zero
-  | suc n', zero => tri_gt suc_nle_zero (\lam p => zero-ne-suc (inv p)) (le_ss le_z)
-  | suc n', suc m' => \case (cmp n' m')
-    | tri_lt lt neq ngt => tri_lt (le_ss lt) (\lam p => neq (pmap pred p)) (ngt `o` le_unsuc)
-    | tri_eq nlt eq ngt => tri_eq (nlt `o` le_unsuc) (pmap suc eq) (ngt `o` le_unsuc)
-    | tri_gt nlt neq gt => tri_gt (nlt `o` le_unsuc) (\lam p => neq (pmap pred p)) (le_ss gt)
-  
+sdec {x y : Nat} (d : Dec (x = y)) : Dec (suc x = suc y) <= \elim d
+    | inl f => inl (\lam p => f $ pmap pred p)
+    | inr p => inr $ pmap suc p
+
 \static \function
-(<?) (n m : Nat) : Dec (n < m) <= \elim n, m
-  | _, zero => inl suc_nle_zero
-  | zero, suc m' => inr (le_ss le_z)
-  | suc n', suc m' => \case (n' <? m')
-    | inl p => inl (\lam q => p (le_unsuc q))
-    | inr q => inr (le_ss q)
-    
+plus-assoc (x y z : Nat) : (x + y) + z = x + (y + z) <= \elim x
+    | zero => path (\lam _ => y + z)
+    | suc x' => path (\lam i => suc (plus-assoc x' y z @ i))
+
+\static \function
+plus-comm0 (y : Nat) : y = y + zero <= \elim y
+    | zero => idp
+    | suc y' => pmap suc (plus-comm0 y')
+
+\static \function
+plus-comm (x y : Nat) : x + y = y + x <= \elim x, y
+    | zero, _ => plus-comm0 y
+    | suc x', zero => inv (plus-comm0 (suc x'))
+    | suc x', suc y' => pmap suc (plus-comm x' (suc y') *> pmap suc (inv (plus-comm x' y')) *> plus-comm (suc x') y')
+
+\static \function
+mul-distr (x y z : Nat) : (x + y) * z = x * z + y * z <= \elim x
+    | zero => idp
+    | suc x' => pmap (\lam t => z + t) (mul-distr x' y z) *> inv (plus-assoc z (x' * z) (y * z))
+
+\static \function
+mul-assoc (x y z : Nat) : (x * y) * z = x * (y * z) => \elim x
+    | zero => idp
+    | suc x' => mul-distr y (x' * y) z *> pmap (\lam t => y * z + t) (mul-assoc x' y z)
+
+\static \function
+mul-comm0 (y : Nat) : zero = y * zero <= \elim y
+    | zero => idp
+    | suc y' => mul-comm0 y'
+
+\static \function
+mul-comm (x y : Nat) : x * y = y * x <= \elim x, y
+    | zero, _ => mul-comm0 y
+    | suc x', zero => inv (mul-comm0 x')
+    | suc x', suc y' => pmap suc (
+            y' + (x' * suc y')      ==< pmap (\lam t => y' + t) (mul-comm x' (suc y'))      >==
+            y' + (x' + y' * x')     ==< inv (plus-assoc y' x' (y' * x'))                    >==
+            y' + x' + y' * x'       ==< pmap (\lam t => t + y' * x') (plus-comm y' x')      >==
+            x' + y' + y' * x'       ==< pmap (\lam t => x' + y' + t) (inv (mul-comm x' y')) >==
+            x' + y' + x' * y'       ==< plus-assoc x' y' (x' * y')                          >==
+            x' + (y' + x' * y')     ==< pmap (\lam t => x' + t) (mul-comm (suc x') y')      >==
+            x' + y' * suc x'        !qed)
+
+\static \class TODO {
+  \abstract pred-assoc (x y : Nat) : pred (x - y) = (pred x) - y
+}
