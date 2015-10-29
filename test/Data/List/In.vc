@@ -1,0 +1,43 @@
+\open Data.List
+\close Data.List (concat)
+\open Paths
+
+\static \data AppearsIn {A : \Type0} (x : A) (xs : List A)
+    | AppearsIn y ((::) x xs) => here (y = x)
+    | AppearsIn y ((::) x xs) => there (p : AppearsIn y xs)
+    
+\open Logic
+\open Data.Either
+    
+\static \function
+appears-in-concat {A : \Type0} (xs ys : List A) (x : A) (in : AppearsIn x (xs ++ ys))
+               : (AppearsIn x xs) || (AppearsIn x ys) <= \elim xs
+    | nil => inr in
+    | (::) x' xs' <= \elim in
+       | here x-is-x' => inl (here x-is-x')
+       | there in' => map-inl there (appears-in-concat xs' ys x in')
+       
+\static \function
+appears-in-split {A : \Type0} {x : A} {xs : List A} (in : AppearsIn x xs)
+    : \Sigma (xs1 : List A) (\Sigma (xs2 : List A) (xs = xs1 ++ (x :: xs2))) <= \elim xs, in
+    -- тут баг! Вместо (\lam x => x :: xs') можно написать (\lam x => x :: xs)
+    | (::) x' xs', here x-is-x' => (nil, (xs', pmap (\lam x => x :: xs') (inv x-is-x')))
+    | (::) x' xs', there in' => \let | pp => appears-in-split in'
+                                     | xs1' => pp.1
+                                     | xs2' => pp.2.1
+                                     | p => pp.2.2
+                                \in ((x' :: xs1'), (xs2', pmap (\lam ys => x' :: ys) p))
+                                
+\static \data Repeats {A : \Type0} (xs : List A)
+    | Repeats ((::) x xs) => rep_here (AppearsIn x xs)
+    | Repeats ((::) x xs) => rep_later (Repeats xs)
+    
+\static \data Lt (n m : Nat)
+  | Lt zero (suc m') => lt_base
+  | Lt (suc n') (suc m') => lt_suc (Lt n' m')
+    
+\static \function
+pigeonhole {A : \Type0} (eq : \Pi (x y : A) -> Dec (x = y)) 
+           (xs ys : List A) (f : \Pi (x : A) -> AppearsIn x xs -> AppearsIn x ys)
+           (l : Lt (length ys) (length xs)) : Repeats xs => {?}
+
