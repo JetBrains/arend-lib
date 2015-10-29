@@ -5,6 +5,7 @@
 \open Data.Either
 \open Data.Empty
 \open Data.Unit
+\open Logic
 \open Paths
 \open Relation
 
@@ -20,39 +21,39 @@ is_zero : Nat -> \Prop => True `o` is_zero_b
 is_suc : Nat -> \Prop => True `o` not `o` is_zero_b
 
 \static \function
-suc_nle_zero {n : Nat} (p : suc n =< zero) : Empty <= \elim p
+suc_nle_zero {n : Nat} (p : suc n `Le` zero) : Empty <= \elim p
 
 \static \function
-le_unsuc {n m : Nat} (sn-le-sm : (suc n) =< (suc m)) : n =< m <= \elim sn-le-sm
+Le_unsuc {n m : Nat} (sn-le-sm : (suc n) `Le` (suc m)) : n `Le` m <= \elim sn-le-sm
   | le_ss p => p
 
 \static \function
 zero-ne-suc {n : Nat} (p : 0 = suc n) : Empty => transport is_zero p unit
 
 \static \function
-n-lt-n-false (n : Nat) (p : n < n) : Empty <= \elim n, p
+n-lt-n-false (n : Nat) (p : n `Lt` n) : Empty <= \elim n, p
   | suc n', le_ss p' => n-lt-n-false n' p'
 
 \static \function
-lt-ngt {n m : Nat} (p : n < m) : (~~) (n > m) <= \elim n, m, p
+lt-ngt {n m : Nat} (p : n `Lt` m) : (~~) (n `Gt` m) <= \elim n, m, p
   | zero, n', m' => \lam q => suc_nle_zero q
-  | suc n', suc m', le_ss p' => \lam q => lt-ngt p' (le_unsuc q)
+  | suc n', suc m', le_ss p' => \lam q => lt-ngt p' (Le_unsuc q)
 
 \static \function
-le-trans {n m k : Nat} (nm : n =< m) (mk : m =< k) : n =< k <= \elim n, m, k
+le-trans {n m k : Nat} (nm : n `Le` m) (mk : m `Le` k) : n `Le` k <= \elim n, m, k
   | zero, m', _ => le_z
   | suc n', zero, _ => absurd (suc_nle_zero nm)
   | suc n', suc m', zero => absurd (suc_nle_zero mk)
-  | suc n', suc m', suc k' => le_ss (le-trans (le_unsuc nm) (le_unsuc mk))
+  | suc n', suc m', suc k' => le_ss (le-trans (Le_unsuc nm) (Le_unsuc mk))
 
 \static \function
-lt-then-le {n m : Nat} (nm : n < m) : n =< m <= \elim n, m
+lt-then-le {n m : Nat} (nm : n `Lt` m) : n `Le` m <= \elim n, m
   | zero, _ => le_z
   | suc n', zero => absurd (suc_nle_zero nm)
-  | suc n', suc m' => le_ss (lt-then-le $ le_unsuc nm)
+  | suc n', suc m' => le_ss (lt-then-le $ Le_unsuc nm)
 
 \static \function
-lt-trans {n m k : Nat} (nm : n < m) (mk : m < k) : n < k => le-trans nm (lt-then-le mk)
+lt-trans {n m k : Nat} (nm : n `Lt` m) (mk : m `Lt` k) : n `Lt` k => le-trans nm (lt-then-le mk)
 
 \static \function
 sdec {x y : Nat} (d : Dec (x = y)) : Dec (suc x = suc y) <= \elim d
@@ -103,6 +104,42 @@ mul-comm (x y : Nat) : x * y = y * x <= \elim x, y
             x' + (y' + x' * y')     ==< pmap (\lam t => x' + t) (mul-comm (suc x') y')      >==
             x' + y' * suc x'        !qed)
 
-\static \class TODO {
-  \abstract pred-assoc (x y : Nat) : pred (x - y) = (pred x) - y
-}
+\static \function
+zero-minus (x : Nat) : 0 - x = 0 <= \elim x
+  | zero => idp
+  | suc x' => pmap pred (zero-minus x')
+
+\static \function
+pred-suc-minus (x y : Nat) : pred (suc x - y) = x - y <= \elim y
+  | zero => idp
+  | suc y' => pmap pred (pred-suc-minus x y')
+
+\static \function
+pred-assoc (x y : Nat) : pred (x - y) = (pred x) - y <= \elim x, y
+  | _, zero => idp
+  | zero, suc y' =>
+      pred (pred (0 - y'))  ==< pmap (pred `o` pred) (zero-minus y') >==
+      pred (pred 0)         ==< pmap pred (inv (zero-minus y')) >==
+      pred (0 - y')         !qed
+  | suc x', suc y' => pmap pred (pred-suc-minus x' y')
+
+\static \function
+le_unsuc {x y : Nat} (le : suc x =< suc y) : x =< y =>
+  transport (\lam a => a = 0) (pred-suc-minus x y) le
+
+\static \function
+le1-then-le2 {x y : Nat} (le : x =< y) : x `Le` y => \elim x, y
+  | zero, _ => le_z
+  | suc x', zero => absurd (zero-ne-suc $ inv le)
+  | suc x', suc y' => le_ss (le1-then-le2 $ le_unsuc le)
+
+\static \function
+le2-then-le1 {x y : Nat} (le : x `Le` y) : x =< y => \elim x, y
+  | zero, zero => idp
+  | zero, suc y' => pmap pred (zero-minus y')
+  | suc x', zero <= (\elim le)
+  | suc x', suc y' <= (\elim le
+    | le_ss le' => transport (\lam a => a = 0) (inv $ pred-suc-minus x' y') (le2-then-le1 le'))
+
+\static \function
+le1-equiv-le2 (x y : Nat) : (x `Le` y) <-> (x =< y) => (le2-then-le1, le1-then-le2)
