@@ -2,20 +2,22 @@
 \open Combinators
 \open Logic
 
-\static \function \infix 2
-(~) {A B : \Type0} (f : A -> B) (g : A -> B) => \Pi (x : A) -> f x = g x
-
-\static \function
-linv {A B : \Type0} (f : A -> B) => \Sigma (g : B -> A) (g `o` f ~ id)
-
-\static \function
-rinv {A B : \Type0} (f : A -> B) => \Sigma (g : B -> A) (f `o` g ~ id)
-
-\static \function
-isequiv {A B : \Type0} (f : A -> B) => \Sigma (linv f) (rinv f)
+-- Equivalence
 
 \static \function \infix 2
-(=~=) (A : \Type0) (B : \Type0) => \Sigma (f : A -> B) (isequiv f)
+(~) {A B : \Type0} (f : A -> B) (g : A -> B) <= \Pi (x : A) -> f x = g x
+
+\static \function
+linv {A B : \Type0} (f : A -> B) <= \Sigma (g : B -> A) (g `o` f ~ id)
+
+\static \function
+rinv {A B : \Type0} (f : A -> B) <= \Sigma (g : B -> A) (f `o` g ~ id)
+
+\static \function
+isequiv {A B : \Type0} (f : A -> B) <= \Sigma (linv f) (rinv f)
+
+\static \function \infix 2
+(=~=) (A : \Type0) (B : \Type0) <= \Sigma (f : A -> B) (isequiv f)
 
 \static \function fun-ext {A B : \Type0} {f g : A -> B} (p : f ~ g) : f = g =>
   path (\lam i => (\lam x => p x @ i))
@@ -26,22 +28,60 @@ isequiv {A B : \Type0} (f : A -> B) => \Sigma (linv f) (rinv f)
 qinv {A B : \Type0} (f : A -> B) => \Sigma (g : B -> A) (g `o` f ~ id) (f `o` g ~ id)
 
 \static \function
-sigma-equiv {A : \Type0} {P : A -> \Type0} {w w' : \Sigma (x : A) (px : P x)} 
-            (y : \Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2)) : w = w' => 
-path (\lam i =>  (y.1 @ i, pathOver y.2 @ i))
+qinv-to-equiv {A B : \Type0} (f : A -> B) (x : qinv f) : isequiv f => 
+  ((x.1, x.2), (x.1, x.3))
 
-\static \function
-qinv-to-equiv {A B : \Type0} {f : A -> B} (x : qinv f) : isequiv f => 
-  ((x.1, x.3), (x.1, x.2))
 
 \static \function
 equiv-to-qinv {A B : \Type0} (f : A -> B) (x : isequiv f) : qinv f => 
   (x.1.1 `o` f `o` x.2.1, 
-   \lam x' => pmap f (x.1.2 $ x.2.1 x') *> x.2.2 x',
-   \lam x' => pmap x.1.1 (x.2.2 $ f x') *> x.1.2 x'
+   \lam x' => pmap x.1.1 (x.2.2 $ f x') *> x.1.2 x',
+   \lam x' => pmap f (x.1.2 $ x.2.1 x') *> x.2.2 x'
   )
 
--- Half Adjoin Equivalences
+-- Equiv Properties
+
+\static \function 
+equiv-refl (A : \Type0) : A =~= A => (id, qinv-to-equiv id (id, (\lam x => idp), (\lam x => idp)))
+
+\static \function 
+equiv-symm {A B : \Type0} (e : A =~= B) : B =~= A =>
+  \let | qe => equiv-to-qinv e.1 e.2 
+  \in (qe.1, qinv-to-equiv qe.1 (e.1, qe.3, qe.2))
+
+\static \function
+equiv-trans {A B C : \Type0} (e : A =~= B) (e' : B =~= C) : A =~= C =>
+  \let | qe : qinv e.1 => equiv-to-qinv e.1 e.2
+       | qe' : qinv e'.1 => equiv-to-qinv e'.1 e'.2
+  \in (e'.1 `o` e.1, qinv-to-equiv (e'.1 `o` e.1) (qe.1 `o` qe'.1, \lam x => pmap qe.1 (qe'.2 (e.1 x)) *> (qe.2 x), \lam x => pmap e'.1 (qe.3 (qe'.1 x)) *> (qe'.3 x)))
+
+-- Sigma
+
+\static \function
+sigma-ext-eq {A : \Type0} (P : A -> \Type0) {w w' : \Sigma (x : A) (px : P x)} 
+            (y : \Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2)) : w = w' => 
+path (\lam i => (y.1 @ i, pathOver y.2 @ i))
+
+\static \function
+sigma-eq-ext {A : \Type0} (P : A -> \Type0) {w w' : \Sigma (x : A) (px : P x)}
+  (q : w = w') : \Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2) =>
+(pmap (\lam r => r.1) q, coe (\lam i => transport P (pmap (\lam r => r.1) (psqueeze q i)) w.2 = (q @ i).2) idp right)
+
+\static \function 
+sigma-equiv {A : \Type0} (P : A -> \Type0) (w w' : \Sigma (x : A) (px : P x)) 
+  : (w = w') =~= (\Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2))
+    => (sigma-eq-ext P, qinv-to-equiv (sigma-eq-ext P) (sigma-ext-eq P,
+           Jl (\lam w' p => sigma-ext-eq P (sigma-eq-ext P p) = p) idp, 
+           \lam y => pmap {_} {\Sigma (gam : w.1 = w'.1) (transport P gam w.2 = w'.2)} (\lam r => (y.1, r)) (
+               Jl (\lam (w1' : A) (y1 : w.1 = w1') => \Pi (w2' : P w1') (y2 : transport P y1 w.2 = w2') -> coe (\lam i => transport P (psqueeze y1 i) w.2 = pathOver y2 @ i) idp right = y2) (
+                 \lam w2' y2 => Jl (\lam w2' y2 => coe (\lam i => w.2 = pathOver {\lam i => P w.1} y2 @ i) idp right = y2) (idp) y2
+               ) y.1 w'.2 y.2
+             )
+         )
+       )
+
+
+-- Half Adjoint Equivalences
 
 \static \function
 hae {A B : \Type0} (f : A -> B) => 
@@ -91,10 +131,35 @@ hae-tau-equiv {A B : \Type0} (f : A -> B) (g : B -> A) (eta : g `o` f ~ id) (eps
 
 \static \function 
 qinv-to-hae{A B : \Type0} (f : A -> B) (x : qinv f) : hae f =>
- (x.1, x.3, \lam (b : B) => inv (x.2 (f $ x.1 b)) *> (pmap f (x.3 (x.1 b))) *> x.2 b, 
-   \lam a => \let | eta-nat : x.2 (x.1 (f a)) = pmap (x.1 `o` f) (x.2 a) => homotopy-comm-lemma (x.1 `o` f) (x.2 a)
-             \in {?}
- )
- 
+  (x.1, x.2, \lam (b : B) => inv (x.3 (f $ x.1 b)) *> (pmap f (x.2 (x.1 b))) *> x.3 b, 
+    \lam a => \let | eta-nat : x.2 (x.1 (f a)) = pmap (x.1 `o` f) (x.2 a) => homotopy-comm-lemma (x.1 `o` f) x.2 a
+                   | almost : (pmap f (x.2 $ x.1 `o` f $ a)) *> x.3 (f a) = x.3 (f `o` x.1 `o` f $ a) *> pmap f (x.2 a) 
+                       => (pmap f (x.2 $ x.1 `o` f $ a)) *> x.3 (f a) 
+                          ==<  pmap (\lam r => pmap f r *> x.3 (f a)) eta-nat >==
+                          pmap (f `o` x.1 `o` f) (x.2 a) *> x.3 (f a)
+                          ==< homotopy-isNatural (f `o` x.1) id x.3 (pmap f (x.2 a)) >==
+                          x.3 (f `o` x.1 `o` f $ a) *> pmap f (x.2 a) !qed
+              \in pmap f (x.2 a)        
+                  ==< inv (concat-idp (pmap f (x.2 a))) >==
+                  idp *> pmap f (x.2 a) 
+                  ==< pmap (\lam r => r *> pmap f (x.2 a)) (inv (inv-concat (x.3 (f `o` x.1 `o` f $ a)))) >==
+                  (inv (x.3 (f `o` x.1 `o` f $ a)) *> x.3 (f `o` x.1 `o` f $ a)) *> pmap f (x.2 a)
+                  ==< concat-assoc (inv (x.3 (f `o` x.1 `o` f $ a))) (x.3 (f `o` x.1 `o` f $ a)) (pmap f (x.2 a)) >==
+                  inv (x.3 (f `o` x.1 `o` f $ a)) *> x.3 (f `o` x.1 `o` f $ a) *> pmap f (x.2 a)
+                  ==< pmap (\lam r => inv (x.3 (f `o` x.1 `o` f $ a)) *> r) (inv almost) >==
+                  inv (x.3 (f `o` x.1 `o` f $ a)) *> (pmap f (x.2 $ x.1 `o` f $ a)) *> x.3 (f a)
+                  !qed
+  )
 
+\static \function
+hae-to-qinv {A B : \Type0} (f : A -> B) (x : hae f) : qinv f => (x.1, x.2, x.3)
 
+\static \function
+fib {A B : \Type0} (f : A -> B) (y : B) => \Sigma (x : A) (f x = y)
+
+\static \function
+fib-equiv {A B : \Type0} (f : A -> B) (y : B) (n m : fib f y) : (n = m) =~= (\Sigma (gam : n.1 = m.1) (pmap f gam *> m.2 = n.2))
+  => \let | e (gam : n.1 = m.1) : (pmap f gam *> m.2 = n.2) == (transport (\lam x => f x = y) gam n.2 = m.2) => 
+             Jl01 (\lam m1 gam => \Pi (m2 : f m1 = y) -> (pmap f gam *> m2 = n.2) == (transport (\lam x => f x = y) gam n.2 = m2))
+             (\lam m2 => pmap1 (\lam r => r = n.2) (pathLift1 (concat-idp m2)) **> path-sym m2 n.2) gam m.2
+    \in coe (\lam i => (n = m) =~= (\Sigma (gam : n.1 = m.1) (inv1 (e gam) @@ i))) (sigma-equiv (\lam x => f x = y) n m) right

@@ -1,6 +1,10 @@
 \static \function
 idp {A : \Type0} {a : A} => path (\lam _ => a)
 
+-- LEVEL POLY
+\static \function
+idp1 {A : \Type1} {a : A} => path1 (\lam _ => a)
+
 \static \function
 idpe {A : \Type0} (a : A) => path (\lam _ => a)
 
@@ -11,13 +15,29 @@ segment : (left = right) => path (\lam i => i)
 pmap {A B : \Type0} (f : A -> B) {a a' : A} (p : a = a')
     => path (\lam i => f (p @ i))
 
+-- LEVEL POLY
+\static \function
+pathLift1 {A : \Type0} {a a' : A} (p : a = a') : a == a'
+    => path1 (\lam i => p @ i) 
+
+-- LEVEL POLY
+\static \function
+pmap1 {A B : \Type1} (f : A -> B) {a a' : A} (p : a == a')
+    => path1 (\lam i => f (p @@ i))
+
 \static \function
 pmap2 {A B C : \Type0} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b')
     => path (\lam i => f (p @ i) (q @ i))
 
 \static \function
 transport {A : \Type0} (B : A -> \Type0) {a a' : A} (p : a = a') (b : B a)
-    => coe (\lam i => B (p @ i)) b right
+    <= coe (\lam i => B (p @ i)) b right
+
+-- LEVEL POLY
+\static \function
+transport1 {A : \Type1} (B : A -> \Type1) {a a' : A} (p : a == a') (b : B a)
+    => coe (\lam i => B (p @@ i)) b right
+
 
 \static \function
 transport2 {A B : \Type0} (C : A -> B -> \Type0) {a a' : A} {b b' : B} (p : a = a') (q : b = b') (c : C a b) : C a' b'
@@ -27,9 +47,19 @@ transport2 {A B : \Type0} (C : A -> B -> \Type0) {a a' : A} {b b' : B} (p : a = 
 inv {A : \Type0} {a a' : A} (p : a = a')
     <= transport (\lam a'' => a'' = a) p idp
 
+-- LEVEL POLY
+\static \function
+inv1 {A : \Type1} {a a' : A} (p : a == a')
+    <= transport1 (\lam a'' => a'' == a) p idp1
+
 \static \function
 concat {A : I -> \Type0} {a : A left} {a' a'' : A right} (p : Path A a a') (q : a' = a'')
     <= transport (Path A a) q p
+
+-- LEVEL POLY
+\static \function
+concat1 {A : I -> \Type1} {a : A left} {a' a'' : A right} (p : Path1 A a a') (q : a' == a'')
+    <= transport1 (Path1 A a) q p 
 
 \static \function \infixr 9
 (*>) {A : \Type0} {a a' a'' : A} (p : a = a') (q : a' = a'')
@@ -38,6 +68,11 @@ concat {A : I -> \Type0} {a : A left} {a' a'' : A right} (p : Path A a a') (q : 
 \static \function \infixr 9
 (<*) {A : \Type0} {a a' a'' : A} (p : a = a') (q : a' = a'')
     <= transport (\lam x => x = a'') (inv p) q
+
+-- LEVEL POLY
+\static \function \infixr 9
+(**>) {A : \Type1} {a a' a'' : A} (p : a == a') (q : a' == a'')
+    <= concat1 p q
 
 \static \function
 squeeze1 (i j : I) : I
@@ -51,6 +86,11 @@ squeeze (i j : I)
 psqueeze {A : \Type0} {a a' : A} (p : a = a') (i : I) : a = p @ i
     => path (\lam j => p @ squeeze i j)
 
+-- LEVEL POLY
+\static \function
+psqueeze1 {A : \Type1} {a a' : A} (p : a == a') (i : I) : a == p @@ i
+    => path1 (\lam j => p @@ squeeze i j)
+
 \static \function
 pmap-concat-commute {A B : \Type0} (f : A -> B) {a a' a'' : A} (p : a = a') (q : a' = a'') 
   : pmap f (concat p q) = concat (pmap f p) (pmap f q)
@@ -59,6 +99,12 @@ pmap-concat-commute {A B : \Type0} (f : A -> B) {a a' a'' : A} (p : a = a') (q :
 \static \function
 Jl {A : \Type0} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type0) (b : B a idp) {a' : A} (p : a = a') : B a' p
     <= coe (\lam i => B (p @ i) (psqueeze p i)) b right
+
+-- LEVEL POLY
+\static \function
+Jl01 {A : \Type0} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type1) (b : B a idp) {a' : A} (p : a = a') : B a' p
+    <= coe (\lam i => B (p @ i) (psqueeze p i)) b right
+
 
 \static \function
 inv-inv {A : \Type0} {a a' : A} (p : a = a') : inv (inv p) = p
@@ -79,6 +125,10 @@ concat-inv-comm {A : \Type0} {a a' a'' : A} (p : a = a') (q : a' = a'') : inv (p
 \static \function
 concat-idp {A : \Type0} {a a' : A} (p : a = a') : idp *> p = p
     <= Jl (\lam _ p => idp *> p = p) idp p
+
+\static \function
+idp-concat {A : \Type0} {a a' : A} (p : a = a') : p *> idp = p
+    <= Jl (\lam _ p => p *> idp = p) idp p
 
 \static \function
 concat-assoc {A : \Type0} {a1 a2 a3 a4 : A} (p : a1 = a2) (q : a2 = a3) (r : a3 = a4) : (p *> q) *> r = p *> (q *> r)
@@ -106,6 +156,14 @@ coePath {A : \Type0} {a1 a2 a3 a4 : A} (p : a2 = a1) (q : a2 = a3) (r : a3 = a4)
     : coe (\lam i => p @ i = r @ i) q right = inv p *> q *> r
     <= coe (\lam j => coe (\lam i => p @ i = r @ i) q j = inv (psqueeze p j) *> q *> psqueeze r j)
            (inv (concat-idp q)) right
+
+\static \function
+transport-psqueeze {A : \Type0} (P : A -> \Type0) {a a' : A} (q : a = a') (pa : P a) : (\lam (i : I) => transport P (psqueeze q i) pa) = (\lam (i : I) => idpOver (\lam (j : I) => P (q @ j)) pa @ i)
+  <= Jl (\lam a' q => (\lam (i : I) => transport P (psqueeze q i) pa) = (\lam (i : I) => idpOver (\lam (j : I) => P (q @ j)) pa @ i)) idp q
+
+\static \function
+path-sym {A : \Type0} (a a' : A) : (a = a') == (a' = a) =>
+  path1 (iso (inv {_} {a} {a'}) (inv {_} {a'} {a}) (inv-inv {_} {a} {a'}) (inv-inv {_} {a'} {a}))
 
 \static \function
 rotate {A : \Type0} {a a' a'' : A} (p : a' = a) {q : a' = a''} (r : a = a'') (t : q = p *> r) : inv p *> q = r =>
