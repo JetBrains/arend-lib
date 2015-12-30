@@ -1,0 +1,75 @@
+\open Circle
+\open Data.Int
+\open Paths
+\open Equiv
+
+\static \function
+helix (i : I) => iso sucZ predZ (\lam (x : Int) => sucZ-predZ-linv x) (\lam (x : Int) => sucZ-predZ-rinv x) i 
+
+\static \function
+code (x : S1) : \Type0 <= \elim x
+     | base => Int
+     | loop i => helix i
+
+\static \function
+wind (x : Int) : (base = base) <= \elim x
+     | pos (suc n) => (wind (pos n)) *> loopP
+     | pos zero => idp
+     | neg (suc n) => (wind (neg n)) *> (inv loopP)
+     | neg zero => idp
+
+\static \function
+inv-loop-transp (n : Int) : (transport code (inv loopP) n = predZ n) => 
+	\let p : \Pi (m : Int) -> transport code (inv loopP) (sucZ m) = predZ (sucZ m) => \lam m => (transp-invpath-linv code loopP m) *> (inv (sucZ-predZ-linv m)) 
+	\in transport code (inv loopP) n ==< pmap (\lam m => transport code (inv loopP) m) (inv (sucZ-predZ-rinv n)) >==
+	    transport code (inv loopP) (sucZ (predZ n)) ==< p (predZ n) >==
+	    predZ (sucZ (predZ n)) ==< pmap predZ (sucZ-predZ-rinv n) >==
+	    predZ n !qed
+
+\static \function
+wind-suc (n : Int) : (wind n *> loopP = wind (sucZ n)) <= \elim n
+     | pos _ => idp
+     | neg (suc n) => concat-assoc (wind (neg n)) (inv loopP) loopP *> pmap (\lam p => (wind (neg n)) *> p) (inv-concat loopP)
+     | neg zero => idp
+
+\static \function
+decode-fam (x : S1) => (code x -> base = x)
+
+\static \function
+decode-fam-loop => funExt (\lam _ => base = base) (transport decode-fam loopP wind) wind
+     (\lam n => (transport decode-fam loopP wind) n ==< transp-funcfibers code ((=) base) loopP wind n >==
+      transport ((=) base) loopP (wind (transport code (inv loopP) n)) ==< transp-pathfibers base loopP (wind (transport code (inv loopP) n)) >==
+      (wind (transport code (inv loopP) n) *> loopP) ==< pmap (\lam p => p *> loopP) (pmap wind (inv-loop-transp n)) >==
+      (wind (predZ n) *> loopP) ==< wind-suc (predZ n) >==
+      wind (sucZ (predZ n)) ==<  pmap wind (sucZ-predZ-rinv n) >==
+      (wind n) !qed)
+
+\static \function
+decode (x : S1) : (decode-fam x) => (S1-ind decode-fam wind decode-fam-loop) x
+
+\static \function
+encode (x : S1) : (base = x -> code x) => \lam p => transport code p zeroZ
+
+\static \function
+encode-decode (x : S1) (p : base = x) : (decode x (encode x p) = p) => Jl (\lam (y : S1) (q : base = y) => decode y (encode y q) = q) 
+	      (decode base zeroZ ==< idp >== (idpe base) !qed) p
+
+\static \function
+encode-wind (n : Int) : (encode base (wind n) = n) <= \elim n
+	| pos (suc m) => encode base (wind (pos m) *> loopP) ==< transp-func code (wind (pos m)) loopP zeroZ >== 
+	      	      	 transport code loopP (encode base (wind (pos m))) ==< pmap (\lam x => transport code loopP x) (encode-wind (pos m)) >==
+			 transport code loopP (pos m) ==< idpe (sucZ (pos m)) >== sucZ (pos m) ==< idp >== pos (suc m) !qed
+	| pos zero => idp
+	| neg zero => idp
+	| neg (suc m) => encode base (wind (neg m) *> (inv loopP)) ==< transp-func code (wind (neg m)) (inv loopP) zeroZ >== 
+	      	      	 transport code (inv loopP) (encode base (wind (neg m))) ==< pmap (\lam x => transport code (inv loopP) x) (encode-wind (neg m)) >==
+			 transport code (inv loopP) (neg m) ==< inv-loop-transp (neg m) >== predZ (neg m) ==< idp >== neg (suc m) !qed
+
+\static \function
+decode-encode-fam (x : S1) => (\Pi (c : code x) -> encode x (decode x c) = c)
+
+\static \function
+decode-encode (x : S1) : (decode-encode-fam x) => (S1-ind decode-encode-fam encode-wind 
+	      (funExt (\lam (c : Int) => encode base (decode base c) = c) (transport decode-encode-fam loopP encode-wind) encode-wind 
+	      	      (\lam c => Int-isSet (encode base (decode base c)) c  ((transport decode-encode-fam loopP encode-wind) c) (encode-wind c)) )) x
+

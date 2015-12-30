@@ -1,0 +1,75 @@
+\open Paths
+\open Logic
+\open Hlevel
+\open Equiv
+\open Combinators
+\open Data.Empty
+
+{-
+	TODO: move logical defs and lemmas to some other, special module
+-}
+
+\static \function
+decidable-eq {A : \Type0} (x y : A) => (x = y) || (x != y)
+
+\static \function
+DN (A : \Type0)  => (~~)((~~) A)
+
+\static \function
+double-neg-eq {A : \Type0} (x y : A) => (DN (x = y)) -> x = y
+
+\static \function
+impl-prop-lemma (A B : \Type0) (p : isProp B) : (isProp (A -> B)) => 
+		\lam f g => funExt (\lam _ => B) f g (\lam x => p (f x) (g x))
+
+\static \function
+Empty-prop-lemma : (isProp Empty) =>
+		 \lam x y => absurd x
+
+\static \function
+DN-prop-lemma {A : \Type0} (x y : A) : (isProp (DN (x = y))) =>
+	      impl-prop-lemma ((~~) (x = y)) Empty Empty-prop-lemma
+
+\static \function
+dec-impl-DN (A : \Type0) (p : A || (~~)A) : ((DN A) -> A) => \case p | inl a => \lam _ => a | inr f => \lam g => absurd (g f)
+	    
+
+\static \function
+axiomK (A : \Type0) => \Pi (x : A) (p : x = x) -> (idp = p)
+
+\static \function
+axK-impl-isSet (A : \Type0) (axK : axiomK A) : (isSet A) => 
+	\lam x y p => (Jl (\lam z (p' : x = z) => \Pi (q : x = z) ->  p' = q) (axK x) p)      
+
+{-
+
+Causes exception!
+
+\static \function
+refl-rel-lemma {A : \Type0} (R : A -> A -> HProp) (r : \Pi (x : A) -> (R x x).1) (R-Eq : \Pi (x y : A) -> ((R x y).1 -> x = y)) : (isSet A) => {?}
+
+-}
+
+\static \function
+refl-rel-lemma {A : \Type0} (R : A -> A -> \Type0) (r : \Pi (x : A) -> R x x) (R-mere : \Pi (x y : A) -> isProp (R x y)) (f : \Pi (x y : A) -> (R x y -> x = y)) : (isSet A) => 
+	axK-impl-isSet A ( \lam x p => 
+	 \let  p' : (transport (\lam y => R x y -> x = y) p (f x x) = f x x) => pmapd (\lam y => R x y -> x = y) (\lam y => f x y) p \in
+	 \let  p'' : (\Pi (rp : R x x) -> transport ((=) x) p (f x x rp) = f x x (transport (R x) p rp)) =>
+	        \lam rp => transp-funcfib-paths (R x) ((=) x) p (f x x) (f x x) p' rp \in
+	 \let d : ((f x x (r x)) *> p = f x x (r x)) =>
+	        (f x x (r x)) *> p ==< transp-pathfibers x p (f x x (r x)) >== 
+		transport ((=) x) p (f x x (r x)) ==< p'' (r x) >== 
+		f x x (transport (R x) p (r x)) ==< pmap (\lam q => f x x q) (R-mere x x (transport (R x) p (r x)) (r x)) >==
+		f x x (r x) !qed
+	 \in inv (p ==< (inv (concat-idp p)) *> (pmap (\lam q => q *> p) (inv (inv-concat (f x x (r x))))) *> (concat-assoc (inv (f x x (r x))) (f x x (r x)) p) >==
+	   (inv (f x x (r x))) *> ((f x x (r x)) *> p) ==< pmap (\lam q => (inv (f x x (r x))) *> q) d >==
+	   (inv (f x x (r x))) *> (f x x (r x)) ==< inv-concat (f x x (r x)) >== idp !qed) )
+
+
+
+\static \function
+DN-impl-isSet (A : \Type0) (dn : \Pi (x y : A) -> double-neg-eq x y) : (isSet A) => 
+	      refl-rel-lemma (\lam x y => DN (x = y)) (\lam x => double-neg idp) (\lam x y => DN-prop-lemma x y) dn
+
+\static \function
+Hedberg-thm {A : \Type0} (dec-p : \Pi (x y : A) -> decidable-eq x y) : (isSet A) => DN-impl-isSet A (\lam x y => dec-impl-DN (x = y) (dec-p x y))
