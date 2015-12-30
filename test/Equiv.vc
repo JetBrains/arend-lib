@@ -1,6 +1,7 @@
 \open Paths
 \open Combinators
 \open Logic
+\open Hlevel
 
 -- Equivalence
 
@@ -25,7 +26,7 @@ isequiv {A B : \Type0} (f : A -> B) <= \Sigma (linv f) (rinv f)
 -- Quasi-equivalences
 
 \static \function
-qinv {A B : \Type0} (f : A -> B) => \Sigma (g : B -> A) (g `o` f ~ id) (f `o` g ~ id)
+qinv {A B : \Type0} (f : A -> B) <= \Sigma (g : B -> A) (g `o` f ~ id) (f `o` g ~ id)
 
 \static \function
 qinv-to-equiv {A B : \Type0} (f : A -> B) (x : qinv f) : isequiv f => 
@@ -87,7 +88,6 @@ sigma-equiv {A : \Type0} (P : A -> \Type0) (w w' : \Sigma (x : A) (px : P x))
 hae {A B : \Type0} (f : A -> B) => 
   \Sigma (g : B -> A) (eta : g `o` f ~ id) (eps : f `o` g ~ id) 
     (tau : \Pi (x : A) -> pmap f (eta x) = eps (f x))
-
 \static \function 
 section {A : \Type0} {a a' : A} (p q : a = a') (e : p = q) (i : I) : (p @ i = q @ i) => pmap (\lam p => p @ i) e
 
@@ -163,3 +163,27 @@ fib-equiv {A B : \Type0} (f : A -> B) (y : B) (n m : fib f y) : (n = m) =~= (\Si
              Jl01 (\lam m1 gam => \Pi (m2 : f m1 = y) -> (pmap f gam *> m2 = n.2) == (transport (\lam x => f x = y) gam n.2 = m2))
              (\lam m2 => pmap1 (\lam r => r = n.2) (pathLift1 (concat-idp m2)) **> path-sym m2 n.2) gam m.2
     \in coe (\lam i => (n = m) =~= (\Sigma (gam : n.1 = m.1) (inv1 (e gam) @@ i))) (sigma-equiv (\lam x => f x = y) n m) right
+
+\static \function
+hae-contr {A B : \Type0} (f : A -> B) (h : hae f) (y : B) : isContr (fib f y) 
+  => ((h.1 y, h.3 y), \lam a' => (fib-equiv f y (h.1 y, h.3 y) a').2.1.1 
+    (inv (pmap h.1 a'.2) *> h.2 a'.1,
+      pmap f (inv (pmap h.1 a'.2) *> h.2 a'.1) *> a'.2 ==< pmap (\lam r => r *> a'.2) (pmap-concat-commute f (inv (pmap h.1 a'.2)) (h.2 a'.1)) >==
+      (pmap f (inv (pmap h.1 a'.2)) *> pmap f (h.2 a'.1)) *> a'.2 ==< pmap (\lam r => (pmap f (inv (pmap h.1 a'.2)) *> r) *> a'.2) (h.4 a'.1) >==
+      (pmap f (inv (pmap h.1 a'.2)) *> h.3 (f a'.1)) *> a'.2 ==< concat-assoc (pmap f (inv (pmap h.1 a'.2))) (h.3 (f a'.1)) a'.2 >==
+      pmap f (inv (pmap h.1 a'.2)) *> h.3 (f a'.1) *> a'.2 ==< pmap (\lam r => pmap f (inv (pmap h.1 a'.2)) *> r) (inv (homotopy-isNatural (f `o` h.1) id h.3 a'.2)) >==
+      pmap f (inv (pmap h.1 a'.2)) *> pmap (f `o` h.1) a'.2 *> h.3 y ==< inv (concat-assoc (pmap f (inv (pmap h.1 a'.2))) (pmap (f `o` h.1) a'.2)  (h.3 y)) >==
+      (pmap f (inv (pmap h.1 a'.2)) *> pmap (f `o` h.1) a'.2) *> h.3 y ==< pmap (\lam r => (r *> pmap (f `o` h.1) a'.2) *> h.3 y) (pmap-inv-comm f (pmap h.1 a'.2)) >==
+      (inv (pmap f (pmap h.1 a'.2)) *> pmap (f `o` h.1) a'.2) *> h.3 y ==< pmap (\lam r => r *> h.3 y) (inv-concat (pmap (f `o` h.1) a'.2)) >==
+      idp {_} {f (h.1 y)} *> h.3 y ==< concat-idp (h.3 y) >==
+      h.3 y !qed
+    )
+  )
+
+\static \function
+comp-qinv-l {A B : \Type0} (f : A -> B) (x : qinv f) (C : \Type0) : qinv (o {C} f)
+  => (o x.1, \lam h => path (\lam i => (\lam y => x.2 (h y) @ i)), \lam h => path (\lam i => (\lam y => x.3 (h y) @ i)))
+
+\static \function
+comp-qinv-r {A B : \Type0} (f : A -> B) (x : qinv f) (C : \Type0) : qinv (\lam (h : B -> C) => h `o` f)
+  => (\lam (h : A -> C) => h `o` x.1, \lam h => path (\lam i => \lam y => h (x.3 y @ i)), \lam h => path (\lam i => \lam y => h (x.2 y @ i)))
