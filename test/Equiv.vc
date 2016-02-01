@@ -181,9 +181,83 @@ hae-contr {A B : \Type0} (f : A -> B) (h : hae f) (y : B) : isContr (fib f y)
   )
 
 \function
+contr-fibers {A B : \Type0} (f : A -> B) => \Pi (y : B) -> isContr (fib f y)
+
+\function
 comp-qinv-l {A B : \Type0} (f : A -> B) (x : qinv f) (C : \Type0) : qinv (o {C} f)
   => (o x.1, \lam h => path (\lam i => (\lam y => x.2 (h y) @ i)), \lam h => path (\lam i => (\lam y => x.3 (h y) @ i)))
 
 \function
 comp-qinv-r {A B : \Type0} (f : A -> B) (x : qinv f) (C : \Type0) : qinv (\lam (h : B -> C) => h `o` f)
   => (\lam (h : A -> C) => h `o` x.1, \lam h => path (\lam i => \lam y => h (x.3 y @ i)), \lam h => path (\lam i => \lam y => h (x.2 y @ i)))
+
+-- miscellaneous properties of equivalences
+
+\function
+path-fibration-equiv {A : \Type0} (a : A) (T : \Pi (x : A) -> (x = a) -> \Type0) : ((\Sigma (x : A) (\Sigma (p : x = a) (T x p))) =~= T a idp)
+  => {?}
+
+-- closure properties of equivalences
+
+\function
+contr-spaces-equiv (A B : \Type0) (contrA : isContr A) (contrB : isContr B) (f : A -> B) : (isequiv f)
+  => ((\lam y => contrA.1, \lam x => contrA.2 x), (\lam y => contrA.1, \lam y => inv (contrB.2 (f contrA.1)) *> contrB.2 y))
+
+\function
+total-fun {A : \Type0} (B C : A -> \Type0) (f : \Pi (x : A) -> (B x -> C x)) : (\Sigma (x : A) (B x) -> \Sigma (x : A) (C x))
+  => \lam w => (w.1, f w.1 w.2)
+
+{-
+
+\function
+fiberwise-to-total-equiv {A : \Type0} (B C : A -> \Type0) (f : \Pi (x : A) -> (B x -> C x)) (fb_e : \Pi (x : A) -> qinv (f x)) : (isequiv (total-fun B C f))
+  => qinv-to-equiv (total-fun B C f) (\lam (w : \Sigma (x : A) (C x)) => (w.1, (fb_e w.1).1 w.2), (\lam (v : \Sigma (x : A) (B x)) => sigma-ext-eq B (idp, (fb_e v.1).2 v.2)), (\lam (w : \Sigma (x : A) (C x)) => sigma-ext-eq C (idp, (fb_e w.1).3 w.2)))
+
+\function
+total-fun-fib-lemma {A : \Type0} (B C : A -> \Type0) (f : \Pi (x : A) -> (B x -> C x)) (x : A) (v : C x) : (fib (total-fun B C f) (x, v) =~= fib (f x) v)
+  => \let | T1 => \Sigma (w : \Sigma A B) ((w.1, f w.1 w.2) = (x, v)) | T2 => \Sigma (a : A) (\Sigma (u : B a) ((a, f a u) = (x, v)))
+     	  | T3 => \Sigma (a : A) (\Sigma (p : a = x) (\Sigma (u : B a) (transport C p (f a u) = v))) | T4 => \Sigma (u : B x) (f x u = v)
+     	  | equiv12 : (T1 =~= T2)
+     	      => \let f12 : (T1 -> T2) => \lam t => (t.1.1, (t.1.2, t.2)) 
+	      	 \in (f12, qinv-equiv f12 (\lam t' => ((t'.1, t'.2.1), t'.2.2), (\lam t => idp, \lam t' => idp)))
+	  | equiv23 : (T2 =~= T3)
+	      => \let | F1 (a : A) (u : B a) => ((a, f u a) = (x, v)) | F2 (a : A) (u : B a) => (\Sigma (p : a = x) (transport C p (f a u) = v)) 
+	      	      | F12e (a : A) (u : B a) : (F1 a u =~= F2 a u) => sigma-equiv C (a, f u a) (x, u)
+	      	      | F12e-tot (a : A) : ((\Sigma (u : B a) (F1 a u)) =~= (\Sigma (u : B a) (F2 a u))) 
+		      	  => (fiberwise-to-total-equiv {B a} (F1 a) (F2 a) (\lam u => (F12e a u).1) (\lam u => equiv-to-qinv (F12e a u).1 (F12e a u).2))
+		 \in fiberwise-to-total-equiv (\lam (a : A) => \Sigma (u : B a) (F1 a u)) (\lam (a : A) => \Sigma (u : B a) (F2 a u)) (\lam a => equiv-to-qinv (F12e-tot a).1 (F12e-tot a).2)
+	  | equiv34 : (T3 =~= T4)
+	      => path-fibration-equiv x (\lam (a : A) (p : a = x) => \Sigma (u : B a) (transport C p (f a u) = v))
+     \in equiv-trans equiv12 (equiv-trans equiv23 equiv34)	      
+
+-}
+
+-- \let | f' : (T1 -> T2) => \lam t => \let | a => t.1.1 | u => t.1.2 | pv => t.2 \in
+	      	      	     	    	   	     
+     	      
+
+{-
+\function
+total-to-fib-equiv {A : \Type0} (B C : A -> \Type0) (f : \Pi (x : A) -> (B x -> C x)) (totf_e : contr-fibers (total-fun B C f)) (x : A) : (B x =~= C x)
+  => \let | totf => total_fun B C f | fx => f x
+     	  | totg => totf_e.1 | totg-linv => totf_e.2.1 | totg-rinv => totf_e.2.2	 
+	  | p_to_x (y : B x) : ((totg (x, z)).1 = x) => totg-linv ()
+	  | f-qinv : (qinv (f x)) => (\lam (z : C x) => (totg (x, y)).2, (\lam (y : B x) => totg-linv (x, y), ))
+  (f x, ((\lam (y : B x) => (totf (x, y)).2, \lam (y : B x) => sigma-eq-ext B (totf_e.1.2 (x, y))), ()))
+-}
+
+
+\function
+hlevel-equiv-closed {A B : \Type0} (f_eq : A =~= B) (n : Nat) (hp : ofHlevel n A) : (ofHlevel n B) => {?}
+
+{- 
+   <= 
+  \elim n
+  \let a => hp.1 | f => f_eq.1 | g => f_eq.2.2.1 | g-rinv => f_eq.2.2.2 | g-linv => f_eq.2.2.1 \in
+  | zero => (f a, \lam b => f a ==< pmap f (hp.2 (g b)) >== f (g b) ==< g-rinv b >== b !qed)
+  | suc n => \let | pg : (\Pi (b b' : B) -> (g b = g b' -> b = b')) => \lam b b' q => pmap g q
+    	     	  | pf : (\Pi (b b' : B) -> (b = b' -> g b = g b')) => \lam b b' q => inv (g-rinv b) *> pmap f q *> g-rinv b'
+		  | pg-rinv : (\Pi (b b' : B) -> (pf `o` pg ~ id)) => \lam q => J1 (\lam x q' => )
+		      
+    	     	  | path_eq : (\Pi (b b' : B) -> (b = b') =~= (g b = g b'))
+-}
