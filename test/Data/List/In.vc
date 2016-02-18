@@ -8,49 +8,49 @@
 \open ::Relation
 
 \data AppearsIn {A : \Type0} (x : A) (xs : List A)
-    | AppearsIn y ((::) x xs) => here (y = x)
-    | AppearsIn y ((::) x xs) => there (p : AppearsIn y xs)
+    | AppearsIn y ((:-:) x xs) => here (y = x)
+    | AppearsIn y ((:-:) x xs) => there (p : AppearsIn y xs)
     
 \open ::Logic
 \open ::Data::Either
 
 \function
 appears-in-append-right {A : \Type0} {x : A} {xs : List A} (in : AppearsIn x xs) (ys : List A) : AppearsIn x (xs ++ ys) <= \elim xs, in
-  | (::) x' xs', here p => here p
-  | (::) x' xs', there in' => there (appears-in-append-right in' ys)
+  | (:-:) x' xs', here p => here p
+  | (:-:) x' xs', there in' => there (appears-in-append-right in' ys)
 
 \function
 appears-in-append-left {A : \Type0} {y : A} {ys : List A} (xs : List A) (in : AppearsIn y ys) : AppearsIn y (xs ++ ys) <= \elim xs
   | nil => in
-  | (::) x xs' => there (appears-in-append-left xs' in)
+  | (:-:) x xs' => there (appears-in-append-left xs' in)
     
 \function
 appears-in-concat {A : \Type0} (xs ys : List A) (x : A) (in : AppearsIn x (xs ++ ys))
                : (AppearsIn x xs) || (AppearsIn x ys) <= \elim xs, in
     | nil, _ => inr in
-    | (::) x' xs', here x-is-x' => inl (here x-is-x')
-    | (::) x' xs', there in' => map-inl there (appears-in-concat xs' ys x in')
+    | (:-:) x' xs', here x-is-x' => inl (here x-is-x')
+    | (:-:) x' xs', there in' => map-inl there (appears-in-concat xs' ys x in')
 
 \function
 appears-in-split {A : \Type0} {x : A} {xs : List A} (in : AppearsIn x xs)
-    : \Sigma (xs1 : List A) (\Sigma (xs2 : List A) (xs = xs1 ++ (x :: xs2))) <= \elim xs, in
-    -- тут баг! Вместо (\lam x => x :: xs') можно написать (\lam x => x :: xs)
-    | (::) x' xs', here x-is-x' => (nil, (xs', pmap (\lam x => x :: xs') (inv x-is-x')))
-    | (::) x' xs', there in' => \let | pp => appears-in-split in'
+    : \Sigma (xs1 : List A) (\Sigma (xs2 : List A) (xs = xs1 ++ (x :-: xs2))) <= \elim xs, in
+    -- тут баг! Вместо (\lam x => x :-: xs') можно написать (\lam x => x :-: xs)
+    | (:-:) x' xs', here x-is-x' => (nil, (xs', pmap (\lam x => x :-: xs') (inv x-is-x')))
+    | (:-:) x' xs', there in' => \let | pp => appears-in-split in'
                                      | xs1' => pp.1
                                      | xs2' => pp.2.1
                                      | p => pp.2.2
-                                \in ((x' :: xs1'), (xs2', pmap (\lam ys => x' :: ys) p))
+                                \in ((x' :-: xs1'), (xs2', pmap (\lam ys => x' :-: ys) p))
                                 
 \data Repeats {A : \Type0} (xs : List A)
-    | Repeats ((::) x xs) => rep_here (AppearsIn x xs)
-    | Repeats ((::) x xs) => rep_later (Repeats xs)
+    | Repeats ((:-:) x xs) => rep_here (AppearsIn x xs)
+    | Repeats ((:-:) x xs) => rep_later (Repeats xs)
     
 \function
 decide-in {A : \Type0} (eq : \Pi (x y : A) -> Dec (x = y))
           (x : A) (xs : List A) : Dec (AppearsIn x xs) <= \elim xs
   | nil => inl (\lam p => \case p)
-  | (::) x' xs' => \case (eq x x')
+  | (:-:) x' xs' => \case (eq x x')
     | inl neq => (\case (decide-in eq x xs')
       | inl not-in => inl (\lam in => \case in
         | here p => neq p
@@ -63,20 +63,20 @@ pigeonhole {A : \Type0} (eq : \Pi (x y : A) -> Dec (x = y))
            (xs ys : List A) (f : \Pi (x : A) -> AppearsIn x xs -> AppearsIn x ys)
            (l : (length ys) < (length xs)) : Repeats xs <= \elim xs
   | nil <= absurd (zero-ne-suc (inv l))
-  | (::) x xs' => (\case (decide-in eq x xs')
+  | (:-:) x xs' => (\case (decide-in eq x xs')
     | inl not-in => rep_later (
        \let | x-in-ys => f x (here idp)
             | p => appears-in-split x-in-ys
             | ys1 => p.1
             | ys2 => p.2.1
             | pp => p.2.2
-            -- l : length (ys1 ++ x :: ys2) < length (x :: xs')
+            -- l : length (ys1 ++ x :-: ys2) < length (x :-: xs')
             | ppp => length-remove x ys1 ys2
-            | l' => transport (\lam ys => length ys < length (x :: xs')) pp l
+            | l' => transport (\lam ys => length ys < length (x :-: xs')) pp l
             | l'' : (length (ys1 ++ ys2)) < length (xs') =>
-              le_unsuc (transport (\lam a => a < length (x :: xs')) (inv (length-remove x ys1 ys2)) l')
+              le_unsuc (transport (\lam a => a < length (x :-: xs')) (inv (length-remove x ys1 ys2)) l')
             | f' : \Pi (x' : A) -> AppearsIn x' xs' -> AppearsIn x' (ys1 ++ ys2) => \lam x' x'-in-xs' => (\case (eq x x')
-              | inl x-ne-x' => (\case (appears-in-concat ys1 (x :: ys2) x' (transport (\lam ys => AppearsIn x' ys) pp (f x' (there x'-in-xs'))))
+              | inl x-ne-x' => (\case (appears-in-concat ys1 (x :-: ys2) x' (transport (\lam ys => AppearsIn x' ys) pp (f x' (there x'-in-xs'))))
                 | inl x'-in-ys1 => appears-in-append-right x'-in-ys1 ys2
                 | inr (there x'-in-ys2) => appears-in-append-left ys1 x'-in-ys2
                 | inr (here x'-eq-x) => absurd (x-ne-x' (inv x'-eq-x)))
