@@ -1,0 +1,127 @@
+\open Relation
+\open Combinators
+\open PropLogic
+\open Paths
+\open Equiv
+\open Hlevel
+
+{-
+
+\function
+inS-inv (A : \Set0) (a : TrS A) : A <= \elim a | inS a => a
+
+\function
+inS-isequiv (A : \Set0) : (is_equiv (inS {A}))
+  => qinv-to-equiv (inS {A}) (inS-inv A, \lam a => idp, \lam a => )
+
+-}
+
+\function
+set-isSet (A : \Set0) : (isSet A)
+  => {?}
+
+
+\function
+fibS {A B : \Set0} (f : A -> B) (b : B) : \Set0
+  => \Sigma (x : A) (TrP (f x = b))
+
+\function
+im {A B : \Set0} (f : A -> B) : \Set0
+  => \Sigma (y : B) (isInh (fibS f y))
+
+\function 
+isEpimorph {A B : \Set0} (f : A -> B) : \Prop 
+  => \Pi (C : \Set0) (g h : B -> C) -> (g `o` f = h `o` f -> TrP (g = h))
+
+\function
+isSurj {A B : \Set0} (f : A -> B) : \Prop
+  => \Pi (b : B) -> Exists (\lam (a : A) => TrP (f a = b))
+
+\function
+isEpimorph-isSurj {A B : \Set0} (f : A -> B) (epi_f : isEpimorph f) : (isSurj f)
+  => \let | g : (B -> \Prop) => \lam b => TrueP
+     	  | h : (B -> \Prop) => \lam b => Exists (\lam (a : A) => TrP (f a = b))
+	  | p : (g `o` f = h `o` f) => funExt (\lam (_ : A) => \Prop) (g `o` f) (h `o` f) (\lam a => inv (provable-is-true (inP (a, inP idp))))
+     \in \case (epi_f \Prop g h p) | inP q => \lam b => coe (\lam i => (pmap (\lam (F : B -> \Prop) => F b) q) @ i) trueP right
+
+\data Quotient {A : \Set0} (R : EquivRelP A) : \Set0
+  | cl A
+  | eqQ (a a' : A) (R.1 a a') I
+\with
+  | eqQ a _ _ left => cl a
+  | eqQ _ a' _ right => cl a'
+--  | eqQ a a _ _ => cl a
+
+{-
+
+\function
+quotient-ind {A : \Set0} (R : EquivRelP A) (B : Quotient {A} R -> \Set0) 
+	     (f : \Pi (x : A) -> (B (cl x))) (pf : \Pi (x y : A) (r : R.1 x y) -> transport B (path (eqQ x y r)) (f x) = f y) (z : Quotient {A} R) : (B z)
+  <= \elim z
+       | cl x => f x
+       | eqQ x y r i => pathOver (pf x y r) @ i
+
+\function
+quotient-rec {A : \Set0} (R : EquivRelP A) {B : \Set0} (f : A -> B) (pf : \Pi (x y : A) -> (R.1 x y) -> (f x = f y)) (z : Quotient {A} R) : B
+  => quotient-ind R (\lam _ => B) f (\lam x y r => inv (path (coe (\lam _ => B) (f x))) *> pf x y r) z
+
+\function
+rel-on-classes {A : \Set0} (R : EquivRelP A) (cx : Quotient {A} R) (cy : Quotient {A} R) : \Prop
+  <= \let | f (x : A) : (Quotient {A} R -> \Prop) => 
+              quotient-rec R (\lam y => R.1 x y) (\lam y y' (r : R.1 y y') => prop-ext (\lam (r' : R.1 x y) => R.2.3 x y y' r' r) (\lam (r' : R.1 x y') => R.2.3 x y' y r' (R.2.2 y y' r)))
+	  | g (x x' : A) (r : R.1 x x') (y : A) : (R.1 x y =! R.1 x' y) => prop-ext (\lam (r' : R.1 x y) => R.2.3 x' x y (R.2.2 x x' r) r') (\lam (r' : R.1 x' y) => R.2.3 x x' y r r')
+	  | pf (x x' : A) (r : R.1 x x') : (f x = f x') => 
+ 	      funExt (\lam (_ : Quotient {A} R) => \Prop) (f x) (f x') (quotient-ind R (\lam z' => f x z' = f x' z') (g x x' r)
+	      (\lam y y' r' => set-isSet \Prop (R.1 x y') (R.1 x' y') (transport (\lam z' => f x z' = f x' z') (path (eqQ y y' r')) (g x x' r y)) (g x x' r y')))
+     \in quotient-rec R f pf cx cy
+
+
+\function
+horn-filler {A : \Set0} {bl tl tr br : A} (l : tl = bl) (t : tl = tr) (r : tr = lr) (i j : I) : A
+  => (coe (\lam i' => l @ i' = r @ i') t i) @ j
+
+\function
+square-filler {A : \Set0} {bl tl tr br : A} (l : tl = bl) (t : tl = tr) (r : tr = br) (b : bl = br) (i j : I) : A
+  => (path (\lam i' => horn-filler l t r i' j) *> path (\lam i' => ((set-isSet A bl br (path (horn-filler l t r right)) b) @ i') @ j)) @ i
+
+\function 
+rel-on-classes {A : \Set0} (R : EquivRelP A) (cx cy : TrS (Quotient {A} R)) : \Prop
+  <= \elim cx, cy
+       | inS (cl x), inS (cl y) => R.1 x y
+       | inS (cl x), inS (eqQ y y' p i) => (prop-ext (\lam (q : R.1 x y) => R.2.3 x y y' q p) (\lam (q : R.1 x y') => R.2.3 x y' y q (R.2.2 y y' p))) @ i
+       | inS (eqQ x x' p i), inS (cl y) => (prop-ext (\lam (q : R.1 x y) => R.2.3 x' x y (R.2.2 x x' p) q) (\lam (q : R.1 x' y) => R.2.3 x x' y p q)) @ i
+       | inS (eqQ x x' px i), inS (eqQ y y' py j)
+           => square-filler (prop-ext (\lam (q : R.1 x y) => R.2.3 x' x y (R.2.2 x x' px) q) (\lam (q : R.1 x' y) => R.2.3 x x' y px q))
+	      	   	    (prop-ext (\lam (q : R.1 x y) => R.2.3 x y y' q py) (\lam (q : R.1 x y') => R.2.3 x y' y q (R.2.2 y y' py)))
+			    (prop-ext (\lam (q : R.1 x y') => R.2.3 x' x y' (R.2.2 x x' px) q) (\lam (q : R.1 x' y') => R.2.3 x x' y' px q))
+	  		    (prop-ext (\lam (q : R.1 x' y) => R.2.3 x' y y' q py) (\lam (q : R.1 x' y') => R.2.3 x' y' y q (R.2.2 y y' py))) i j
+
+-}
+
+\function
+QuotientST {A : \Set0} (R : EquivRelP A) <= \Sigma (P : A -> \Prop) (TrP (\Sigma (x : A) (R.1 x = P)))
+-- (\Pi (y : A) -> (R.1 x y <-> P y))))
+
+\function
+clST {A : \Set0} (R : EquivRelP A) (x : A) : (QuotientST {A} R) <= (R.1 x, inP (x, idp))
+
+\function
+eqClassesST-to-rel {A : \Set0} (R : EquivRelP A) (x y : A) (p : clST {A} R x = clST {A} R y) : (R.1 x y)
+  => R.2.2 x y ((prop-eq-to-equiv ((funEqToHom (\lam (_ : A) => \Prop) (sigma-eq-ext (QuotientST {A} R) p).1) x)) (R.2.1 x))
+
+{-
+
+\function
+quotient-as-image {A : \Set0} (R : EquivRelP A) : (QuotientST {A} R =~= im R.1)
+  => fiberwise-to-total-equiv (\lam P => TrP (\Sigma (x : A) (\Pi (y : A) -> (R.1 x y <-> P y)))) (\lam P => isInh (fibS R.1 P))
+     	 	(\lam )
+
+\function
+equivRel-isEffective {A : \Set0} (R : EquivRelP A) (x y : A) : ((R.1 x = R.1 y) <-> R.1 x y)
+  => 
+
+-}
+
+
+
+
