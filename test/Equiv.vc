@@ -1,7 +1,7 @@
-\open Paths
-\open Combinators
-\open Logic
-\open Hlevel
+\open ::Paths
+\open ::Combinators
+\open ::Logic
+\open ::Hlevel
 
 -- Equivalence
 
@@ -25,7 +25,7 @@ isequiv {A B : \Type0} (f : A -> B) <= \Sigma (linv f) (rinv f)
 
 \function 
 path-to-equiv {A B : \Type0} (p : A == B) : (A =~= B)
-  => Jl02 (\lam (X : \Type0) (q : A == X) => A =~= X) (\lam (x : A) => x, ((\lam (x : A) => x, idp), (\lam (x : A) => x, idp))) p
+  => Jl02 (\lam (X : \Type0) (q : A == X) => A =~= X) (\lam (x : A) => x, ((\lam (x : A) => x, \lam _ => idp), (\lam (x : A) => x, \lam _ => idp))) p
 
 -- Quasi-equivalences
 
@@ -40,8 +40,8 @@ qinv-to-equiv {A B : \Type0} (f : A -> B) (x : qinv f) : isequiv f =>
 \function
 equiv-to-qinv {A B : \Type0} (f : A -> B) (x : isequiv f) : qinv f => 
   (x.1.1 `o` f `o` x.2.1, 
-   \lam x' => pmap x.1.1 (x.2.2 $ f x') *> x.1.2 x',
-   \lam x' => pmap f (x.1.2 $ x.2.1 x') *> x.2.2 x'
+   \lam x' => pmap x.1.1 (x.2.2 (f x')) *> x.1.2 x',
+   \lam x' => pmap f (x.1.2 (x.2.1 x')) *> x.2.2 x'
   )
 
 -- Equiv Properties
@@ -70,13 +70,13 @@ path (\lam i => (y.1 @ i, pathOver y.2 @ i))
 \function
 sigma-eq-ext {A : \Type0} (P : A -> \Type0) {w w' : \Sigma (x : A) (px : P x)}
   (q : w = w') : \Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2) =>
-(pmap (\lam r => r.1) q, coe (\lam i => transport P (pmap (\lam r => r.1) (psqueeze q i)) w.2 = (q @ i).2) idp right)
+(pmap (\lam (r : \Sigma (x : A) (px : P x)) => r.1) q, coe (\lam i => transport P (pmap (\lam (r : \Sigma (x : A) (px : P x)) => r.1) (psqueeze q i)) w.2 = (q @ i).2) idp right)
 
 \function 
 sigma-equiv {A : \Type0} (P : A -> \Type0) (w w' : \Sigma (x : A) (px : P x)) 
   : (w = w') =~= (\Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2))
     => (sigma-eq-ext P, qinv-to-equiv (sigma-eq-ext P) (sigma-ext-eq P,
-           Jl (\lam w' p => sigma-ext-eq P (sigma-eq-ext P p) = p) idp, 
+           Jl {\Sigma (x : A) (px : P x)} {w} (\lam w' p => sigma-ext-eq P (sigma-eq-ext P p) = p) idp, 
            \lam y => pmap {_} {\Sigma (gam : w.1 = w'.1) (transport P gam w.2 = w'.2)} (\lam r => (y.1, r)) (
                Jl (\lam (w1' : A) (y1 : w.1 = w1') => \Pi (w2' : P w1') (y2 : transport P y1 w.2 = w2') -> coe (\lam i => transport P (psqueeze y1 i) w.2 = pathOver y2 @ i) idp right = y2) (
                  \lam w2' y2 => Jl (\lam w2' y2 => coe (\lam i => w.2 = pathOver {\lam i => P w.1} y2 @ i) idp right = y2) (idp) y2
@@ -113,16 +113,16 @@ cancel {A : \Type0} {a a' a'' : A} (p q : a = a') (p' q' : a' = a'') (h : p = q)
 hae-tau-equiv {A B : \Type0} (f : A -> B) (g : B -> A) (eta : g `o` f ~ id) (eps : f `o` g ~ id) 
   (tau : \Pi (x : A) -> pmap f (eta x) = eps (f x)) (y : B)
   : pmap g (eps y) = eta (g y) =>
-  \let | d1 : pmap (g `o` f `o` g) (eps y) *> pmap g (eps y) = pmap g (eps `o` f `o` g $ y) *> pmap g (eps y)
+  \let | d1 : pmap (g `o` f `o` g) (eps y) *> pmap g (eps y) = pmap g (eps (f (g y))) *> pmap g (eps y)
            => pmap (g `o` f `o` g) (eps y) *> pmap g (eps y) 
            ==< (inv (pmap-concat-commute g (pmap (f `o` g) (eps y)) (eps y))) >==
            pmap g (pmap (f `o` g) (eps y) *> eps y)
            ==< (pmap (\lam p => pmap g p) (homotopy-isNatural (f `o` g) id eps (eps y))) >==
            pmap g (eps (f `o` g $ y) *> eps y) ==<  pmap-concat-commute g (eps (f `o` g $ y)) (eps y) >==
            pmap g (eps (f `o` g $ y)) *> pmap g (eps y) !qed
-       | d2 : pmap (g `o` f) (eta (g y)) *> pmap g (eps y) = pmap g (eps `o` f `o` g $ y) *> pmap g (eps y)
-           => Jl (\lam _ p => pmap (g `o` f) (eta (g y)) *> pmap g p = pmap g (eps `o` f `o` g $ y) *> pmap g p)
-                tau (eps y)
+       | d2 : pmap (g `o` f) (eta (g y)) *> pmap g (eps y) = pmap g (eps (f (g y))) *> pmap g (eps y)
+           => Jl (\lam _ p => pmap (g `o` f) (eta (g y)) *> pmap g p = pmap g (eps (f (g y))) *> pmap g p)
+                (pmap (pmap g) (tau (g y))) (eps y)
        | d3 : eta (g `o` f `o` g $ y) *> pmap g (eps y) = pmap (g `o` f) (eta (g y)) *> pmap g (eps y)
            => Jl (\lam _ p => eta (g `o` f `o` g $ y) *> pmap g p = pmap (g `o` f) (eta (g y)) *> pmap g p) 
                 (homotopy-comm-lemma (g `o` f) eta (g y)) (eps y)
@@ -137,8 +137,8 @@ hae-tau-equiv {A B : \Type0} (f : A -> B) (g : B -> A) (eta : g `o` f ~ id) (eps
 qinv-to-hae{A B : \Type0} (f : A -> B) (x : qinv f) : hae f =>
   (x.1, x.2, \lam (b : B) => inv (x.3 (f $ x.1 b)) *> (pmap f (x.2 (x.1 b))) *> x.3 b, 
     \lam a => \let | eta-nat : x.2 (x.1 (f a)) = pmap (x.1 `o` f) (x.2 a) => homotopy-comm-lemma (x.1 `o` f) x.2 a
-                   | almost : (pmap f (x.2 $ x.1 `o` f $ a)) *> x.3 (f a) = x.3 (f `o` x.1 `o` f $ a) *> pmap f (x.2 a) 
-                       => (pmap f (x.2 $ x.1 `o` f $ a)) *> x.3 (f a) 
+                   | almost : (pmap f (x.2 (x.1 (f a)))) *> x.3 (f a) = x.3 (f `o` x.1 `o` f $ a) *> pmap f (x.2 a) 
+                       => (pmap f (x.2 (x.1 (f a)))) *> x.3 (f a) 
                           ==<  pmap (\lam r => pmap f r *> x.3 (f a)) eta-nat >==
                           pmap (f `o` x.1 `o` f) (x.2 a) *> x.3 (f a)
                           ==< homotopy-isNatural (f `o` x.1) id x.3 (pmap f (x.2 a)) >==
@@ -151,7 +151,7 @@ qinv-to-hae{A B : \Type0} (f : A -> B) (x : qinv f) : hae f =>
                   ==< concat-assoc (inv (x.3 (f `o` x.1 `o` f $ a))) (x.3 (f `o` x.1 `o` f $ a)) (pmap f (x.2 a)) >==
                   inv (x.3 (f `o` x.1 `o` f $ a)) *> x.3 (f `o` x.1 `o` f $ a) *> pmap f (x.2 a)
                   ==< pmap (\lam r => inv (x.3 (f `o` x.1 `o` f $ a)) *> r) (inv almost) >==
-                  inv (x.3 (f `o` x.1 `o` f $ a)) *> (pmap f (x.2 $ x.1 `o` f $ a)) *> x.3 (f a)
+                  inv (x.3 (f `o` x.1 `o` f $ a)) *> (pmap f (x.2 (x.1 (f a)))) *> x.3 (f a)
                   !qed
   )
 
