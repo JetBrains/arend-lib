@@ -2,6 +2,7 @@
 \open ::LC::Term
 \open ::LC::Either
 
+\open ::Paths
 \open ::Data::Bool
 \open ::Data::Fin
 \open ::Data::Nat::Base
@@ -18,7 +19,7 @@ extend {n : Nat} (env : Ctx n) (x : Nat) : Ctx (suc n) => snoc env x
 -- Предикат "переменная лежит в контексте"
 
 \function
-VarInCtx {n : Nat} (x : Nat) (env : Ctx n) => \Sigma (i : Fin n) (env ! i = x)
+VarInCtx {n : Nat} (x : Nat) (env : Ctx n) => \Sigma (i : Fin n) (env !! i = x)
 
 
 -- Предикат "терм определен в контексте"
@@ -33,7 +34,7 @@ VarInCtx {n : Nat} (x : Nat) (env : Ctx n) => \Sigma (i : Fin n) (env ! i = x)
 
 \data AlphaEq {n : Nat} (t1 : Term) (env1 : Ctx n) (p1 : TermInCtx t1 env1)
                         (t2 : Term) (env2 : Ctx n) (p2 : TermInCtx t2 env2)
-    | AlphaEq (Var x) env1 (Variable p) (Var y) env2 (Variable q)                       => VarEq (p : (env1 ! p.1) = (env2 ! q.1))
+    | AlphaEq (Var x) env1 (Variable p) (Var y) env2 (Variable q)                       => VarEq (p : (env1 !! p.1) = (env2 !! q.1))
     | AlphaEq (App t1 s1) env1 (Application p1 q1) (App t2 s2) env2 (Application p2 q2) => AppEq (p : AlphaEq t1 env1 p1 t2 env2 p2) (q : AlphaEq s1 env1 q1 s2 env2 q2)
     | AlphaEq (Lam x t1) env1 (Abstraction p1) (Lam y t2) env2 (Abstraction p2)         => LamEq (p : AlphaEq t1 (extend env1 x) p1 t2 (extend env2 y) p2)
 
@@ -49,7 +50,7 @@ VarInCtx {n : Nat} (x : Nat) (env : Ctx n) => \Sigma (i : Fin n) (env ! i = x)
 -- Вперед
 
 \function
-phi (t : Term) {n : Nat} (env : Ctx n) (proof : TermInCtx t env) : Term'' n <= \elim t, proof
+phi {n : Nat} (t : Term) (env : Ctx n) (proof : TermInCtx t env) : Term'' n <= \elim t, proof
     | Var x, Variable p             => Var'' (p.1)
     | App t1 t2, Application p q    => App'' (phi t1 env p) (phi t2 env q)
     | Lam x t, Abstraction p        => Lam'' (phi t (extend env x) p)
@@ -68,7 +69,7 @@ gen_env (n : Nat) : RVec n Nat <= \elim n
 psi {n : Nat} (t : Term'' n) : \Sigma (t' : Term) (env : Ctx n) <= \elim t
     | Var'' i       =>  \let
                           | env => gen_env n
-                          | var => env ! i
+                          | var => env !! i
                         \in (Var var, env)
     | App'' t1 t2   =>  \let
                           | p1 => psi t1
@@ -82,6 +83,8 @@ psi {n : Nat} (t : Term'' n) : \Sigma (t' : Term) (env : Ctx n) <= \elim t
                           | xs => rtail env
                         \in (Lam x t', xs)
 
+-- Доказательства
+
 \function
 phi-respects-alpha-eq
     {n : Nat}
@@ -94,5 +97,29 @@ phi-respects-alpha-eq
                                                                                         | ix1 => p.1
                                                                                         | ix2 => q.1
                                                                                     \in Var''Eq {?}
-        | App t1 s1, App t2 s2, Application p1 q1, Application p2 q2, AppEq p q => App''Eq {?} {?}
+        | App t1 s1, App t2 s2, Application p1 q1, Application p2 q2, AppEq p q =>  \let
+                                                                                        | a => phi-respects-alpha-eq env1 env2 t1 t2 p1 p2 p
+                                                                                        | b => phi-respects-alpha-eq env1 env2 s1 s2 q1 q2 q
+                                                                                    \in App''Eq a b
         | Lam x t1, Lam y t2, Abstraction p1, Abstraction p2, LamEq p           => Lam''Eq {?}
+
+
+
+-- Откуда тут брать доказательства???
+-- phi (psi t) == t
+-- \function
+-- phi-psi-id
+--     {n : Nat}
+--     (t : Term'' n) : (Term''Eq (phi (psi t).1 (psi t).2 _)  t) <= \elim t
+--         | Var'' i     => {?}
+--         | App'' t1 t2 => {?}
+--         | Lam'' t     => {?}
+--
+--
+-- -- psi (phi t) == t
+-- \function
+-- psi-phi-id
+--    {n : Nat}
+--    (t : Term)
+--    (env : Ctx n)
+--    (proof : TermInCtx t env) : (AlphaEq (psi (phi t env proof)).1 (psi (phi t env proof)).2 _ t env proof) => {?}
