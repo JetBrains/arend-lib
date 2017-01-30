@@ -63,7 +63,7 @@ gen_env (n : Nat) : RVec n Nat <= \elim n
   | zero  => vnil
   | suc n => snoc (gen_env  n) (pred n)
 
--- Назад
+-- Назад. Еще должна возвращать доказательство, что результтат определен в контексте
 
 \function
 psi {n : Nat} (t : Term'' n) : \Sigma (t' : Term) (env : Ctx n) <= \elim t
@@ -94,14 +94,19 @@ phi-respects-alpha-eq
     (p2 : TermInCtx t2 env2)
     (proof : AlphaEq t1 env1 p1 t2 env2 p2) : Term''Eq (phi t1 env1 p1) (phi t2 env2 p2) <= \elim t1, t2, p1, p2, proof
         | Var x, Var y, Variable p, Variable q, VarEq r                         =>  \let
-                                                                                        | ix1 => p.1
-                                                                                        | ix2 => q.1
-                                                                                    \in Var''Eq {?}
+                                                                                        | ix1 => p.1 -- p.2 : env1 !! ix1 = x
+                                                                                        | ix2 => q.1 -- q.2 : env2 !! ix2 = y
+                                                                                        | p1  => inv p.2  -- x = env1 !! ix1
+                                                                                        | q1  => inv q.2
+                                                                                        | r1  => (p1 *> r) *> q.2 -- x = y
+                                                                                    \in Var''Eq {?} -- тут вообще надо доказать, что ix1 = ix2, но, блин, как?!
         | App t1 s1, App t2 s2, Application p1 q1, Application p2 q2, AppEq p q =>  \let
                                                                                         | a => phi-respects-alpha-eq env1 env2 t1 t2 p1 p2 p
                                                                                         | b => phi-respects-alpha-eq env1 env2 s1 s2 q1 q2 q
                                                                                     \in App''Eq a b
-        | Lam x t1, Lam y t2, Abstraction p1, Abstraction p2, LamEq p           => Lam''Eq {?}
+        | Lam x t1, Lam y t2, Abstraction p1, Abstraction p2, LamEq p           =>  \let
+                                                                                        | pr => phi-respects-alpha-eq (extend env1 x) (extend env2 y) t1 t2 p1 p2 p
+                                                                                    \in Lam''Eq pr
 
 
 
@@ -110,7 +115,8 @@ phi-respects-alpha-eq
 -- \function
 -- phi-psi-id
 --     {n : Nat}
---     (t : Term'' n) : (Term''Eq (phi (psi t).1 (psi t).2 _)  t) <= \elim t
+--     (t : Term'' n)
+--     (pr : TermInCtx (psi t).1 (psi t).2): (Term''Eq (phi (psi t).1 (psi t).2 _)  t) <= \elim t
 --         | Var'' i     => {?}
 --         | App'' t1 t2 => {?}
 --         | Lam'' t     => {?}
