@@ -1,0 +1,43 @@
+\open ::LC::RVec
+\open ::LC::Ctx
+\open ::LC::Term
+\open ::LC::Either
+
+\open ::Paths
+\open ::Data::Bool
+\open ::Data::Fin
+\open ::Data::Nat::Base
+
+\function
+VarInCtx {n : Nat} (x : Nat) (env : Ctx n) => \Sigma (i : Fin n) (env !! i = x)
+
+\data TermInCtx {n : Nat} (t : Term) (env : Ctx n)
+    | TermInCtx (Var x) env     => Variable (p : VarInCtx x env)
+    | TermInCtx (App t1 t2) env => Application (p : TermInCtx t1 env) (q : TermInCtx t2 env)
+    | TermInCtx (Lam x t) env   => Abstraction (p : TermInCtx t (snoc env x))
+
+\function
+psi {n : Nat} (t : Term'' n) : \Sigma (t' : Term) (env : Ctx n) (proof : TermInCtx t' env) <= \elim t
+    | Var'' i       =>  \let
+                          | env => gen_env n
+                          | var => env !! i
+                        \in (Var var, env, Variable (i, idp))
+    | App'' t1 t2   =>  \let
+                          | res1  => psi t1
+                          | res2  => psi t2
+                          | t1    => res1.1
+                          | t2    => res2.1
+                          | env1  => res1.2
+                          | env2  => res2.2
+                          | pr1   => res1.3
+                          | pr2   => res2.3
+                        \in (App t1 t2, env1, Application pr1 {?})
+    | Lam'' t       =>  \let
+                          | res => psi t
+                          | t'  => res.1
+                          | env => res.2
+                          | p   => res.3
+                          | pr  => transport {?} {?}
+                          | x   => rhead env
+                          | xs  => rtail env
+                        \in (Lam x t', xs, Abstraction p)

@@ -1,4 +1,5 @@
-\open ::LC::RVec
+-- \open ::LC::RVec
+\open ::LC::Ctx
 \open ::LC::Term
 \open ::LC::Either
 
@@ -6,15 +7,6 @@
 \open ::Data::Bool
 \open ::Data::Fin
 \open ::Data::Nat::Base
-
--- Контекст
-\function
-Ctx (n : Nat) => RVec n Nat
-
-
-\function
-extend {n : Nat} (env : Ctx n) (x : Nat) : Ctx (suc n) => snoc env x
-
 
 -- Предикат "переменная лежит в контексте"
 
@@ -27,7 +19,7 @@ VarInCtx {n : Nat} (x : Nat) (env : Ctx n) => \Sigma (i : Fin n) (env !! i = x)
 \data TermInCtx {n : Nat} (t : Term) (env : Ctx n)
     | TermInCtx (Var x) env     => Variable (p : VarInCtx x env)
     | TermInCtx (App t1 t2) env => Application (p : TermInCtx t1 env) (q : TermInCtx t2 env)
-    | TermInCtx (Lam x t) env   => Abstraction (p : TermInCtx t (extend env x))
+    | TermInCtx (Lam x t) env   => Abstraction (p : TermInCtx t (snoc env x))
 
 
 -- Альфа-эквивалентность для именованных термов
@@ -36,92 +28,92 @@ VarInCtx {n : Nat} (x : Nat) (env : Ctx n) => \Sigma (i : Fin n) (env !! i = x)
                         (t2 : Term) (env2 : Ctx n) (p2 : TermInCtx t2 env2)
     | AlphaEq (Var x) env1 (Variable p) (Var y) env2 (Variable q)                       => VarEq (p : (env1 !! p.1) = (env2 !! q.1))
     | AlphaEq (App t1 s1) env1 (Application p1 q1) (App t2 s2) env2 (Application p2 q2) => AppEq (p : AlphaEq t1 env1 p1 t2 env2 p2) (q : AlphaEq s1 env1 q1 s2 env2 q2)
-    | AlphaEq (Lam x t1) env1 (Abstraction p1) (Lam y t2) env2 (Abstraction p2)         => LamEq (p : AlphaEq t1 (extend env1 x) p1 t2 (extend env2 y) p2)
+    | AlphaEq (Lam x t1) env1 (Abstraction p1) (Lam y t2) env2 (Abstraction p2)         => LamEq (p : AlphaEq t1 (snoc env1 x) p1 t2 (snoc env2 y) p2)
 
 
 -- Равенство для неименованных термов
 
-\data Term''Eq {n : Nat} (t1 : Term'' n) (t2 : Term'' n)
-    | Term''Eq (Var'' i) (Var'' j)          => Var''Eq (p : i = j)
-    | Term''Eq (App'' t1 s1) (App'' t2 s2)  => App''Eq (p : Term''Eq t1 t2) (q : Term''Eq s1 s2)
-    | Term''Eq (Lam'' t1) (Lam'' t2)        => Lam''Eq (p : Term''Eq t1 t2)
+-- \data Term''Eq {n : Nat} (t1 : Term'' n) (t2 : Term'' n)
+--     | Term''Eq (Var'' i) (Var'' j)          => Var''Eq (p : i = j)
+--     | Term''Eq (App'' t1 s1) (App'' t2 s2)  => App''Eq (p : Term''Eq t1 t2) (q : Term''Eq s1 s2)
+--     | Term''Eq (Lam'' t1) (Lam'' t2)        => Lam''Eq (p : Term''Eq t1 t2)
 
 
 -- Вперед
 
 \function
-phi {n : Nat} (t : Term) (env : Ctx n) (proof : TermInCtx t env) : Term'' n <= \elim t, proof
+phi {n : Nat} (env : Ctx n) (t : Term) (proof : TermInCtx t env) : Term'' n <= \elim t, proof
     | Var x, Variable p             => Var'' (p.1)
-    | App t1 t2, Application p q    => App'' (phi t1 env p) (phi t2 env q)
-    | Lam x t, Abstraction p        => Lam'' (phi t (extend env x) p)
+    | App t1 t2, Application p q    => App'' (phi env t1 p) (phi env t2 q)
+    | Lam x t, Abstraction p        => Lam'' (phi (extend env x) t p)
 
 
--- генерит вектор длины n [0 1 ... n - 1]
-
-\function
-gen_env (n : Nat) : RVec n Nat <= \elim n
-  | zero  => vnil
-  | suc n => snoc (gen_env  n) (pred n)
-
--- Назад. Еще должна возвращать доказательство, что результтат определен в контексте
+-- Назад.
 
 \function
-psi {n : Nat} (t : Term'' n) : \Sigma (t' : Term) (env : Ctx n) <= \elim t
+psi {n : Nat} (t : Term'' n) : \Sigma (t' : Term) (env : Ctx n) (proof : TermInCtx t' env) <= \elim t
     | Var'' i       =>  \let
                           | env => gen_env n
                           | var => env !! i
-                        \in (Var var, env)
+                        \in (Var var, env, Variable (i, idp))
     | App'' t1 t2   =>  \let
-                          | p1 => psi t1
-                          | p2 => psi t2
-                        \in (App p1.1 p2.1, p1.2)
+                          | res1  => psi t1
+                          | res2  => psi t2
+                          | t1    => res1.1
+                          | t2    => res2.1
+                          | env1  => res1.2
+                          | env2  => res2.2
+                          | pr1   => res1.3
+                          | pr2   => res2.3
+                        \in (App t1 t2, env1, Application pr1 {?})
     | Lam'' t       =>  \let
-                          | p => psi t
-                          | t' => p.1
-                          | env => p.2
-                          | x => rhead env
-                          | xs => rtail env
-                        \in (Lam x t', xs)
+                          | res => psi t
+                          | t'  => res.1
+                          | env => res.2
+                          | p   => res.3
+                          | pr  => transport {?} {?}
+                          | x   => rhead env
+                          | xs  => rtail env
+                        \in (Lam x t', xs, Abstraction p)
 
 -- Доказательства
 
-\function
-phi-respects-alpha-eq
-    {n : Nat}
-    (env1 env2 : Ctx n)
-    (t1 t2 : Term)
-    (p1 : TermInCtx t1 env1)
-    (p2 : TermInCtx t2 env2)
-    (proof : AlphaEq t1 env1 p1 t2 env2 p2) : Term''Eq (phi t1 env1 p1) (phi t2 env2 p2) <= \elim t1, t2, p1, p2, proof
-        | Var x, Var y, Variable p, Variable q, VarEq r                         =>  \let
-                                                                                        | ix1 => p.1 -- p.2 : env1 !! ix1 = x
-                                                                                        | ix2 => q.1 -- q.2 : env2 !! ix2 = y
-                                                                                        | p1  => inv p.2  -- x = env1 !! ix1
-                                                                                        | q1  => inv q.2
-                                                                                        | r1  => (p1 *> r) *> q.2 -- x = y
-                                                                                    \in Var''Eq {?} -- тут вообще надо доказать, что ix1 = ix2, но, блин, как?!
-        | App t1 s1, App t2 s2, Application p1 q1, Application p2 q2, AppEq p q =>  \let
-                                                                                        | a => phi-respects-alpha-eq env1 env2 t1 t2 p1 p2 p
-                                                                                        | b => phi-respects-alpha-eq env1 env2 s1 s2 q1 q2 q
-                                                                                    \in App''Eq a b
-        | Lam x t1, Lam y t2, Abstraction p1, Abstraction p2, LamEq p           =>  \let
-                                                                                        | pr => phi-respects-alpha-eq (extend env1 x) (extend env2 y) t1 t2 p1 p2 p
-                                                                                    \in Lam''Eq pr
+-- \function
+-- phi-respects-alpha-eq
+--     {n : Nat}
+--     (env1 env2 : Ctx n)
+--     (t1 t2 : Term)
+--     (p1 : TermInCtx t1 env1)
+--     (p2 : TermInCtx t2 env2)
+--     (proof : AlphaEq t1 env1 p1 t2 env2 p2) : Term''Eq (phi t1 env1 p1) (phi t2 env2 p2) <= \elim t1, t2, p1, p2, proof
+--         | Var x, Var y, Variable p, Variable q, VarEq r                         =>  \let
+--                                                                                         | ix1 => p.1 -- p.2 : env1 !! ix1 = x
+--                                                                                         | ix2 => q.1 -- q.2 : env2 !! ix2 = y
+--                                                                                         | p1  => inv p.2  -- x = env1 !! ix1
+--                                                                                         | q1  => inv q.2
+--                                                                                         | r1  => (p1 *> r) *> q.2 -- x = y
+--                                                                                     \in Var''Eq {?} -- тут вообще надо доказать, что ix1 = ix2, но, блин, как?!
+--         | App t1 s1, App t2 s2, Application p1 q1, Application p2 q2, AppEq p q =>  \let
+--                                                                                         | a => phi-respects-alpha-eq env1 env2 t1 t2 p1 p2 p
+--                                                                                         | b => phi-respects-alpha-eq env1 env2 s1 s2 q1 q2 q
+--                                                                                     \in App''Eq a b
+--         | Lam x t1, Lam y t2, Abstraction p1, Abstraction p2, LamEq p           =>  \let
+--                                                                                         | pr => phi-respects-alpha-eq (extend env1 x) (extend env2 y) t1 t2 p1 p2 p
+--                                                                                     \in Lam''Eq pr
 
 
 
--- Откуда тут брать доказательства???
+
 -- phi (psi t) == t
 -- \function
 -- phi-psi-id
---     {n : Nat}
---     (t : Term'' n)
---     (pr : TermInCtx (psi t).1 (psi t).2): (Term''Eq (phi (psi t).1 (psi t).2 _)  t) <= \elim t
---         | Var'' i     => {?}
---         | App'' t1 t2 => {?}
---         | Lam'' t     => {?}
---
---
+--    {n : Nat}
+--    (t : Term'' n) : phi (psi t).2 (psi t).1 (psi t).3 = t <= \elim t
+--        | Var'' i     => {?}
+--        | App'' t1 t2 => {?}
+--        | Lam'' t     => {?}
+
+
 -- -- psi (phi t) == t
 -- \function
 -- psi-phi-id
