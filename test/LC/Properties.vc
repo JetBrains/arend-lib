@@ -1,15 +1,14 @@
-\open ::LC::RVec
 \open ::LC::Ctx
+\open ::LC::Fun
+\open ::LC::RVec
 \open ::LC::Term
 
-\open ::Paths
-\open ::Hlevel
-\open ::PropLogic
 \open ::Data::Bool
 \open ::Data::Either
 \open ::Data::Fin
 \open ::Data::Nat::Base
-\open ::Data::Unit
+\open ::Paths
+
 
 -- Предикат "переменная лежит в контексте"
 
@@ -116,58 +115,49 @@ psi-phi-id
 -- Все, что связано с FTerm
 
 \function
-map
+fmap
     {V W : \Type}
     (f : V -> W)
     (t : FTerm V) : FTerm W <= \elim t
         | FVar v        => FVar (f v)
-        | FApp t1 t2    => FApp (map f t1) (map f t2)
-        | FLam t        => FLam (map (map-inl f) t)
+        | FApp t1 t2    => FApp (fmap f t1) (fmap f t2)
+        | FLam t        => FLam (fmap (map-inl f) t)
 
 -- bind? --потом
 
--- Попробуем перевести ITerm n в FTerm (Fin n) и обратно
--- Полезно доказать, что типы Either (Fin n) Unit и Fin (suc n) равны(интуитивно это так, даже биекцию можно построить)
--- Надо доказывать, что они равенство сохраняют?
+-- Попробуем перевести ITerm n в FTerm (Fun n) и обратно
 
 \function
 alpha
     {n : Nat}
-    (t : ITerm n) : FTerm (Fin n) <= \elim t
-        | IVar i        => FVar i
+    (t : ITerm n) : FTerm (Fun n) <= \elim t
+        | IVar i        => FVar (from-fin i)
         | IApp t1 t2    => FApp (alpha t1) (alpha t2)
-        | ILam t        => FLam (transport (\lam a => FTerm a) {?} (alpha t))
+        | ILam t        => FLam (alpha t)
 
 
 \function
 beta
     {n : Nat}
-    (t : FTerm (Fin n)) : ITerm n <= \elim t
-        | FVar i        => IVar i
+    (t : FTerm (Fun n)) : ITerm n <= \elim t
+        | FVar f        => IVar (to-fin f)
         | FApp t1 t2    => IApp (beta t1) (beta t2)
-        | FLam t        =>  \let
-                                | ft => transport (\lam a => FTerm a) {Either (Fin n) Unit} {Fin (suc n)} {?} t
-                                | t' => beta ft
-                            \in ILam t'
+        | FLam t        => ILam (beta {suc n} t)
 
 
--- TODO: Надо наверное доказать, что alpha сохраняет равенство
-
-{-
 \function
 alpha-beta-id
     {n : Nat}
-    (t : FTerm (Fin n)) : alpha (beta t) = t <= \elim t
-        | FVar i        => idp
+    (t : FTerm (Fun n)) : alpha (beta t) = t <= \elim t
+        | FVar f        => pmap FVar (from-to-fin-id f)
         | FApp t1 t2    => pmap2 FApp (alpha-beta-id t1) (alpha-beta-id t2)
-        | FLam t        => pmap FLam {?}
+        | FLam t        => pmap FLam (alpha-beta-id {suc n} t)
 
 
 \function
 beta-alpha-id
     {n : Nat}
     (t : ITerm n) : beta (alpha t) = t <= \elim t
-        | IVar i        => idp
+        | IVar i        => pmap IVar (to-from-fin-id i)
         | IApp t1 t2    => pmap2 IApp (beta-alpha-id t1) (beta-alpha-id t2)
-        | ILam t        => pmap ILam {?}
--}
+        | ILam t        => pmap ILam (beta-alpha-id t)
