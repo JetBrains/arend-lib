@@ -6,8 +6,10 @@
 \open ::Hlevel
 \open ::PropLogic
 \open ::Data::Bool
+\open ::Data::Either
 \open ::Data::Fin
 \open ::Data::Nat::Base
+\open ::Data::Unit
 
 -- Предикат "переменная лежит в контексте"
 
@@ -51,7 +53,6 @@ phi
         | NLam x t, Abstraction p        => ILam (phi (extend env x) t p)
 
 
-
 -- Назад.
 
 \function
@@ -68,6 +69,7 @@ psi'
 psi
     {n : Nat}
     (t : ITerm n) : \Sigma (env : Ctx n) (t' : NTerm) (proof : TermInCtx env t') => (gen_env n, (psi' (gen_env n) t).1, (psi' (gen_env n) t).2)
+
 
 -- Доказательства
 
@@ -87,8 +89,6 @@ phi-respects-alpha-eq
         | NLam x t1, NLam y t2, Abstraction p1, Abstraction p2, LamEq p           => \let
                                                                                      | pr => phi-respects-alpha-eq (extend env1 x) (extend env2 y) t1 t2 p1 p2 p
                                                                                    \in pmap ILam pr
-
-
 
 
 -- phi (psi t) == t
@@ -111,3 +111,63 @@ psi-phi-id
         | NVar x, Variable p           => VarEq idp
         | NApp t1 t2, Application p q  => AppEq (psi-phi-id t1 env p) (psi-phi-id t2 env q)
         | NLam x t, Abstraction p      => LamEq (psi-phi-id t (extend env x) p)
+
+
+-- Все, что связано с FTerm
+
+\function
+map
+    {V W : \Type}
+    (f : V -> W)
+    (t : FTerm V) : FTerm W <= \elim t
+        | FVar v        => FVar (f v)
+        | FApp t1 t2    => FApp (map f t1) (map f t2)
+        | FLam t        => FLam (map (map-inl f) t)
+
+-- bind? --потом
+
+-- Попробуем перевести ITerm n в FTerm (Fin n) и обратно
+-- Полезно доказать, что типы Either (Fin n) Unit и Fin (suc n) равны(интуитивно это так, даже биекцию можно построить)
+-- Надо доказывать, что они равенство сохраняют?
+
+\function
+alpha
+    {n : Nat}
+    (t : ITerm n) : FTerm (Fin n) <= \elim t
+        | IVar i        => FVar i
+        | IApp t1 t2    => FApp (alpha t1) (alpha t2)
+        | ILam t        => FLam (transport (\lam a => FTerm a) {?} (alpha t))
+
+
+\function
+beta
+    {n : Nat}
+    (t : FTerm (Fin n)) : ITerm n <= \elim t
+        | FVar i        => IVar i
+        | FApp t1 t2    => IApp (beta t1) (beta t2)
+        | FLam t        =>  \let
+                                | ft => transport (\lam a => FTerm a) {Either (Fin n) Unit} {Fin (suc n)} {?} t
+                                | t' => beta ft
+                            \in ILam t'
+
+
+-- TODO: Надо наверное доказать, что alpha сохраняет равенство
+
+{-
+\function
+alpha-beta-id
+    {n : Nat}
+    (t : FTerm (Fin n)) : alpha (beta t) = t <= \elim t
+        | FVar i        => idp
+        | FApp t1 t2    => pmap2 FApp (alpha-beta-id t1) (alpha-beta-id t2)
+        | FLam t        => pmap FLam {?}
+
+
+\function
+beta-alpha-id
+    {n : Nat}
+    (t : ITerm n) : beta (alpha t) = t <= \elim t
+        | IVar i        => idp
+        | IApp t1 t2    => pmap2 IApp (beta-alpha-id t1) (beta-alpha-id t2)
+        | ILam t        => pmap ILam {?}
+-}
