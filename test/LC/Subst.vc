@@ -2,9 +2,12 @@
 \open ::LC::Ctx
 \open ::LC::Properties
 
-\open ::Data::Vector
+\open ::Data::Either
 \open ::Data::Nat::Base
+\open ::Data::Vector
+\open ::Data::Unit
 
+{-
 \function
 nsubst
     {n m : Nat}
@@ -28,13 +31,48 @@ isubst
         | IVar i => {?}
         | IApp t1 t2 => {?}
         | ILam t => {?}
+-}
+
+-- http://stackoverflow.com/questions/35926898/are-parameterized-lambda-terms-a-monad
+
+\function
+return
+    {V : \Type}
+    (v : V) : FTerm V => FVar v
+
+
+\function
+fmap
+    {V W : \Type}
+    (f : V -> W)
+    (t : FTerm V) : FTerm W <= \elim t
+        | FVar v        => FVar (f v)
+        | FApp t1 t2    => FApp (fmap f t1) (fmap f t2)
+        | FLam t        => FLam (fmap (map-inl f) t)
+
+
+\function
+dist
+    {V : \Type}
+    (x : Either (FTerm V) Unit) : FTerm (Either V Unit) <= \elim x
+        | inl t => fmap inl t
+        | inr unit => FVar (inr unit)
+
+
+-- TODO: gfold(see link above and article in Downloads on laptop)
+
+
+\function
+join
+    {V : \Type}
+    (t : FTerm (FTerm V)) : FTerm V <= \elim t
+        | FVar t => t
+        | FApp t1 t2 => FApp (join t1) (join t2)
+        | FLam t => {?}
 
 
 \function
 bind
     {V W : \Type}
     (t : FTerm V)
-    (k : V -> FTerm W) : FTerm W <= \elim t
-        | FVar v => {?}
-        | FApp t1 t2 => {?}
-        | FLam t => {?}
+    (k : V -> FTerm W) : FTerm W => join (fmap k t)
