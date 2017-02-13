@@ -36,7 +36,6 @@ isubst
         | ILam t        => ILam {?}
 -}
 
--- http://stackoverflow.com/questions/35926898/are-parameterized-lambda-terms-a-monad
 
 \function
 return
@@ -61,30 +60,6 @@ twist
     (x : Either (FTerm V) Unit) : FTerm (Either V Unit) <= \elim x
         | inl t     => fmap inl t
         | inr unit  => FVar (inr unit)
-
-
-{-
-\function
-join
-    {V : \Type}
-    (t : FTerm (FTerm V)) : FTerm V <= \elim t
-        | FVar t        => t
-        | FApp t1 t2    => FApp (join t1) (join t2)
-        | FLam t        => {?} -- FLam (join (fmap twist t)) -- termination =(
-
-
-\function
-bind
-    {V W : \Type}
-    (t : FTerm V)
-    (k : V -> FTerm W) : FTerm W => join (fmap k t)
--}
-
-{-
-e : FTerm (Maybe a)
-k : a -> FTerm b
-? : Fterm (Maybe b)
--}
 
 
 -- Something like Fun n, but parametrized with some type
@@ -129,39 +104,19 @@ twistT
                 {V : \Type}
                 (n : Nat)
                 (t : Either (Telescope n (FTerm V)) Unit) : FTerm (Either (Telescope n V) Unit) <= \elim t
-                    | inl x => {?}
+                    | inl x => fmap {Telescope n V} {Either (Telescope n V) Unit} inl (twistT n x)
                     | inr unit => FVar (inr unit)
 
 
-\function
-bind-helper'
-    {V W : \Type}
-    (n : Nat)
-    (t : FTerm (Telescope n V))
-    (k : V -> FTerm W) : FTerm (Telescope n W) <= \elim t
-        | FVar x         => \let
-                                | x' => fmap-telescope n k x
-                                | x'' => twistT n x'
-                            \in FVar {?}
-        | FApp t1 t2     => FApp (bind-helper' n t1 k) (bind-helper' n t2 k)
-        | FLam t         => FLam (bind-helper' (suc n) t k)
-
-{-
 \function
 bind-helper
     {V W : \Type}
     (n : Nat)
     (t : FTerm (Telescope n V))
-    (k : V -> FTerm W) : FTerm (Telescope n W) <= \elim n, t
-        | zero, FVar x          => twist (map-inl k x)
-        | zero, FApp t1 t2      => FApp (bind-helper zero t1 k) (bind-helper zero t2 k)
-        | zero, FLam t          => FLam (bind-helper (suc zero) t k)
-        | suc n, FVar x         => {?}
-        | suc n, FApp t1 t2     => {?} -- bind-helper n (FApp t1 t2) k
-        | suc n, FLam t         => {?} -- FLam (bind-helper (suc (suc n)) t k)
-
-
-
+    (k : V -> FTerm W) : FTerm (Telescope n W) <= \elim t
+        | FVar x         => twistT n (fmap-telescope n k x)
+        | FApp t1 t2     => FApp (bind-helper n t1 k) (bind-helper n t2 k)
+        | FLam t         => FLam (bind-helper (suc n) t k)
 
 
 \function
@@ -172,4 +127,3 @@ bind
         | FVar x        => k x
         | FApp t1 t2    => FApp (bind t1 k) (bind t2 k)
         | FLam t        => FLam (bind-helper zero t k)
--}
