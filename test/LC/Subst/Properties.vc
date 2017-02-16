@@ -5,6 +5,54 @@
 \open ::Data::Unit
 \open ::Paths
 
+-- Lemmata
+
+
+\function
+twist-lemma
+    {V : \Type}
+    (x : Either V Unit) : twist (map-inl FVar x) = FVar x <= \elim x
+        | inr unit => idp
+        | inl t => idp
+
+
+\function
+twistT-lemma
+    {V : \Type}
+    (n : Nat)
+    (x : Telescope n V) : twistT n (fmap-telescope n FVar x) = FVar x <= \elim n
+        | zero => twist-lemma x
+        | suc y => twistT-helper-lemma y x
+            \where
+                \function
+                    twistT-helper-lemma
+                    {V : \Type}
+                    (n : Nat)
+                    (e : Either (Telescope n V) Unit) : twistT (suc n) (fmap-telescope (suc n) FVar e) = FVar e <= \elim e
+                        | inl a => pmap (fmap inl) (twistT-lemma n a)
+                        | inr unit => idp
+
+
+\function
+return-bind-helper-lemma
+    {V : \Type}
+    (n : Nat)
+    (t : FTerm (Telescope n V)) : bind-helper n t return = t <= \elim t
+        | FVar x        => twistT-lemma n x
+        | FApp t1 t2    => pmap2 FApp (return-bind-helper-lemma n t1) (return-bind-helper-lemma n t2)
+        | FLam t        => pmap FLam (return-bind-helper-lemma (suc n) t)
+
+\function
+bind-assoc-lemma
+    {A B C : \Type}
+    (n : Nat)
+    (f : A -> FTerm B)
+    (g : B -> FTerm C)
+    (t : FTerm (Telescope n A)) : bind-helper n (bind-helper n t f) g = bind-helper n t (\lam x => (f x) `bind` g) <= \elim t
+        | FVar x        => {?}
+        | FApp t1 t2    => pmap2 FApp (bind-assoc-lemma n f g t1) (bind-assoc-lemma n f g t2)
+        | FLam t        => pmap FLam (bind-assoc-lemma (suc n) f g t)
+
 -- Proofs
 
 \function
@@ -13,9 +61,7 @@ return-right-unit
     (t : FTerm V) : t `bind` return = t <= \elim t
         | FVar x => idp
         | FApp t1 t2 => pmap2 FApp (return-right-unit t1) (return-right-unit t2)
-        | FLam t => \let
-                        | p => return-right-unit {Either V Unit} t
-                    \in pmap FLam {?}
+        | FLam t => pmap FLam (return-bind-helper-lemma 0 t)
 
 
 \function
@@ -33,4 +79,4 @@ bind-assoc
     (t : FTerm A) : (t `bind` f) `bind` g = t `bind` (\lam x => (f x) `bind` g) <= \elim t
         | FVar x => idp
         | FApp t1 t2 => pmap2 FApp (bind-assoc f g t1) (bind-assoc f g t2)
-        | FLam t => pmap FLam {?}
+        | FLam t => pmap FLam (bind-assoc-lemma 0 f g t)
