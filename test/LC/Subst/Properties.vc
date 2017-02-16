@@ -9,38 +9,31 @@
 
 
 \function
-twist-lemma
+fun-helper-return-lemma
     {V : \Type}
-    (x : Either V Unit) : twist (map-inl FVar x) = FVar x <= \elim x
+    (n : Nat)
+    (t : Telescope (suc n) V) : fun-helper n (return-helper n) t = FVar t <= \elim t
+        | inl x => idp
         | inr unit => idp
-        | inl t => idp
 
 
 \function
-twistT-lemma
+return-right-unit-lemma
     {V : \Type}
     (n : Nat)
-    (x : Telescope n V) : twistT n (fmap-telescope n FVar x) = FVar x <= \elim n
-        | zero => twist-lemma x
-        | suc y => twistT-helper-lemma y x
-            \where
-                \function
-                    twistT-helper-lemma
-                    {V : \Type}
-                    (n : Nat)
-                    (e : Either (Telescope n V) Unit) : twistT (suc n) (fmap-telescope (suc n) FVar e) = FVar e <= \elim e
-                        | inl a => pmap (fmap inl) (twistT-lemma n a)
-                        | inr unit => idp
-
-
-\function
-return-bind-helper-lemma
-    {V : \Type}
-    (n : Nat)
-    (t : FTerm (Telescope n V)) : bind-helper n t return = t <= \elim t
-        | FVar x        => twistT-lemma n x
-        | FApp t1 t2    => pmap2 FApp (return-bind-helper-lemma n t1) (return-bind-helper-lemma n t2)
-        | FLam t        => pmap FLam (return-bind-helper-lemma (suc n) t)
+    (t : FTerm (Telescope n V)) : bind-helper n t (return-helper n) = t <= \elim t
+        | FVar x        => {?}
+        | FApp t1 t2    => pmap2 FApp (return-right-unit-lemma n t1) (return-right-unit-lemma n t2)
+        | FLam t        => pmap FLam {?}
+{-
+                            \let
+                                | a => fun-helper {V} {V} n (return-helper n)
+                                | b => return-helper {V} (suc n)
+                                | p => return-right-unit-lemma (suc n) t
+                                | q => fun-helper-return-lemma {V} n
+                                | f_ext => funExt (\lam _ => FTerm (Telescope (suc n) V)) a b q
+                            \in pmap FLam (transport (\lam a => bind-helper (suc n) t a = t) (inv f_ext) p)
+-}
 
 \function
 bind-assoc-lemma
@@ -48,20 +41,17 @@ bind-assoc-lemma
     (n : Nat)
     (f : A -> FTerm B)
     (g : B -> FTerm C)
-    (t : FTerm (Telescope n A)) : bind-helper n (bind-helper n t f) g = bind-helper n t (\lam x => (f x) `bind` g) <= \elim t
-        | FVar x        => {?}
+    (t : FTerm (Telescope n A)) : bind-helper n (bind-helper n t f) g = bind-helper n t (\lam x => bind-helper n (f x) g) <= \elim t
+        | FVar t        => {?}
         | FApp t1 t2    => pmap2 FApp (bind-assoc-lemma n f g t1) (bind-assoc-lemma n f g t2)
-        | FLam t        => pmap FLam (bind-assoc-lemma (suc n) f g t)
+        | FLam t        => pmap FLam {?}
 
 -- Proofs
 
 \function
 return-right-unit
     {V : \Type}
-    (t : FTerm V) : t `bind` return = t <= \elim t
-        | FVar x => idp
-        | FApp t1 t2 => pmap2 FApp (return-right-unit t1) (return-right-unit t2)
-        | FLam t => pmap FLam (return-bind-helper-lemma 0 t)
+    (t : FTerm V) : t `bind` return = t => return-right-unit-lemma 0 t
 
 
 \function
@@ -76,7 +66,4 @@ bind-assoc
     {A B C : \Type}
     (f : A -> FTerm B)
     (g : B -> FTerm C)
-    (t : FTerm A) : (t `bind` f) `bind` g = t `bind` (\lam x => (f x) `bind` g) <= \elim t
-        | FVar x => idp
-        | FApp t1 t2 => pmap2 FApp (bind-assoc f g t1) (bind-assoc f g t2)
-        | FLam t => pmap FLam (bind-assoc-lemma 0 f g t)
+    (t : FTerm A) : (t `bind` f) `bind` g = t `bind` (\lam x => (f x) `bind` g) => bind-assoc-lemma zero f g t

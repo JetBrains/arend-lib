@@ -29,7 +29,6 @@ isubst
         | ILam t        => ILam {?}
 -}
 
-
 \function
 return
     {V : \Type}
@@ -45,24 +44,34 @@ fmap
         | FApp t1 t2    => FApp (fmap f t1) (fmap f t2)
         | FLam t        => FLam (fmap (map-inl f) t)
 
-
-
-\function
-twist
-    {V : \Type}
-    (x : Either (FTerm V) Unit) : FTerm (Either V Unit) <= \elim x
-        | inl t     => fmap inl t
-        | inr unit  => FVar (inr unit)
-
-
+{-
 -- Something like Fun n, but parametrized with some type
 -- God damn it, i have no idea how to name these types
 \function
 Telescope
     (n : Nat)
     (V : \Type) : \Type <= \elim n
-        | zero  => Either V Unit
+        | zero  => V
         | suc n => Either (Telescope n V) Unit
+
+
+-- \function Telescope n A => Either A (Fin n)
+
+  -}
+
+\data Telescope (n : Nat) (A : \Type)
+    | Telescope (suc n) A => point
+    | Telescope n A => telescope A
+
+\function
+fun-helper
+    {V W : \Type}
+    (n : Nat)
+    (k : (Telescope n V) -> FTerm (Telescope n W))
+    (arg : Telescope (suc n) V) : FTerm (Telescope (suc n) W) <= \elim arg
+        | inl t => fmap inl (k t)
+        | inr unit => FVar (inr unit)
+
 
 \function
 fmap-telescope
@@ -70,7 +79,7 @@ fmap-telescope
     (n : Nat)
     (f : V -> W)
     (x : Telescope n V) : Telescope n W <= \elim n
-        | zero  => map-inl f x
+        | zero  => f x
         | suc n => fmap-telescope-helper n f x
         \where
             \function
@@ -89,7 +98,7 @@ twistT
     {V : \Type}
     (n : Nat)
     (x : Telescope n (FTerm V)) : FTerm (Telescope n V) <= \elim n
-        | zero  => twist x
+        | zero  => x
         | suc n => twistT-helper n x
         \where
             \function
@@ -107,16 +116,13 @@ bind-helper
     (n : Nat)
     (t : FTerm (Telescope n V))
     (k : V -> FTerm W) : FTerm (Telescope n W) <= \elim t
-        | FVar x         => twistT n (fmap-telescope n k x)
-        | FApp t1 t2     => FApp (bind-helper n t1 k) (bind-helper n t2 k)
-        | FLam t         => FLam (bind-helper (suc n) t k)
+        | FVar x        => twistT n (fmap-telescope n k x)
+        | FApp t1 t2    => FApp (bind-helper n t1 k) (bind-helper n t2 k)
+        | FLam t        => FLam (bind-helper (suc n) t k)
 
 
 \function
 bind
     {V W : \Type}
     (t : FTerm V)
-    (k : V -> FTerm W) : FTerm W <= \elim t
-        | FVar x        => k x
-        | FApp t1 t2    => FApp (bind t1 k) (bind t2 k)
-        | FLam t        => FLam (bind-helper zero t k)
+    (k : V -> FTerm W) : FTerm W => bind-helper zero t k
