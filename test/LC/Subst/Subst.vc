@@ -30,12 +30,6 @@ isubst
 -}
 
 \function
-return
-    {V : \Type}
-    (v : V) : FTerm V => FVar v
-
-
-\function
 fmap
     {V W : \Type}
     (f : V -> W)
@@ -44,7 +38,12 @@ fmap
         | FApp t1 t2    => FApp (fmap f t1) (fmap f t2)
         | FLam t        => FLam (fmap (map-inl f) t)
 
-{-
+\function
+return
+    {V : \Type}
+    (v : V) : FTerm V => FVar v
+
+
 -- Something like Fun n, but parametrized with some type
 -- God damn it, i have no idea how to name these types
 \function
@@ -55,22 +54,14 @@ Telescope
         | suc n => Either (Telescope n V) Unit
 
 
--- \function Telescope n A => Either A (Fin n)
-
-  -}
-
-\data Telescope (n : Nat) (A : \Type)
-    | Telescope (suc n) A => point
-    | Telescope n A => telescope A
-
 \function
-fun-helper
+fmap-telescope-helper
     {V W : \Type}
     (n : Nat)
-    (k : (Telescope n V) -> FTerm (Telescope n W))
-    (arg : Telescope (suc n) V) : FTerm (Telescope (suc n) W) <= \elim arg
-        | inl t => fmap inl (k t)
-        | inr unit => FVar (inr unit)
+    (f : V -> W)
+    (x : Either (Telescope n V) Unit) : Either (Telescope n W) Unit <= \elim x
+        | inl y     => inl (fmap-telescope n f y)
+        | inr unit  => inr unit
 
 
 \function
@@ -81,18 +72,18 @@ fmap-telescope
     (x : Telescope n V) : Telescope n W <= \elim n
         | zero  => f x
         | suc n => fmap-telescope-helper n f x
-        \where
-            \function
-                fmap-telescope-helper
-                    {V W : \Type}
-                    (n : Nat)
-                    (f : V -> W)
-                    (x : Either (Telescope n V) Unit) : Either (Telescope n W) Unit <= \elim x
-                        | inl y     => inl (fmap-telescope n f y)
-                        | inr unit  => inr unit
 
 
 -- T is for Telescope
+\function
+    twistT-helper
+    {V : \Type}
+    (n : Nat)
+    (t : Either (Telescope n (FTerm V)) Unit) : FTerm (Either (Telescope n V) Unit) <= \elim t
+        | inl x => fmap {Telescope n V} {Either (Telescope n V) Unit} inl (twistT n x)
+        | inr unit => FVar (inr unit)
+
+
 \function
 twistT
     {V : \Type}
@@ -100,14 +91,6 @@ twistT
     (x : Telescope n (FTerm V)) : FTerm (Telescope n V) <= \elim n
         | zero  => x
         | suc n => twistT-helper n x
-        \where
-            \function
-                twistT-helper
-                {V : \Type}
-                (n : Nat)
-                (t : Either (Telescope n (FTerm V)) Unit) : FTerm (Either (Telescope n V) Unit) <= \elim t
-                    | inl x => fmap {Telescope n V} {Either (Telescope n V) Unit} inl (twistT n x)
-                    | inr unit => FVar (inr unit)
 
 
 \function
