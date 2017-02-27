@@ -3,10 +3,13 @@
 \open ::LC::Properties
 \open ::LC::RVec
 
-\open ::Data::Either
 \open ::Data::Bool
+\open ::Data::Either
+\open ::Data::Fin
 \open ::Data::Nat::Base
 \open ::Data::Unit
+
+\open ::Paths
 
 
 \function
@@ -26,29 +29,52 @@ isFree
         | NLam v t      => if (v == x) false (isFree x t)
 
 
+\function
+nsubst'
+    (t : NTerm)
+    (y : Nat)
+    (s : NTerm)
+    (rho : Nat -> Nat) : NTerm <= \elim t
+        | NVar x     => if (rho x == y) s (NVar (rho x))
+        | NApp t1 t2 => NApp (nsubst' t1 y s rho) (nsubst' t2 y s rho)
+        | NLam x t   => if (isFree x s) (NLam (suc x) (nsubst' t y s (\lam z => if (z == y) (suc x) (rho y)))) (NLam x (nsubst' t y s rho))
 
 
--- termination checker =(
 \function
 nsubst
-    (t1 : NTerm)
-    (x : Nat)
-    (t2 : NTerm) : NTerm <= \elim t1
-        | NVar v    => if (v == x) t2 (NVar v)
-        | NApp m n  => NApp (nsubst m x t2) (nsubst n x t2)
-        | NLam v t  => {?} -- if (v == x) (NLam v t) (if (isFree v t2) (nsubst (NLam (suc v) (nsubst t v (NVar (suc v)))) x t2 ) (NLam v (nsubst t x t2)))
+    (t : NTerm)
+    (y : Nat)
+    (s : NTerm) : NTerm => nsubst' t y s (\lam x => x)
 
 
+\function
+weak
+    {n : Nat}
+    (t : ITerm n)
+    (m : Nat) : ITerm (n + m) <= \elim t
+        | IVar i => IVar (flift m i)
+        | IApp t1 t2 => IApp (weak t1 m) (weak t2 m)
+        | ILam t => ILam (weak t m)
+
+
+\function
+suc-is-plus-one (n : Nat) : suc n = n + 1 <= \elim n
+    | zero => idp
+    | suc n => pmap suc (suc-is-plus-one n)
 
 
 \function
 isubst
     {n m : Nat}
     (t : ITerm n)
-    (ts : RVec n (ITerm m)) : ITerm m <= \elim t
-        | IVar i        => ts !! i
-        | IApp t1 t2    => IApp (isubst t1 ts) (isubst t2 ts)
-        | ILam t        => ILam {?}
+    (ss : RVec n (ITerm m)) : ITerm m <= \elim t
+        | IVar i        => ss !! i
+        | IApp t1 t2    => IApp (isubst t1 ss) (isubst t2 ss)
+        | ILam t        =>  \let
+                                | ss' => transport (\lam k => RVec n (ITerm k)) (inv (suc-is-plus-one m)) (rmap (\lam s => weak s 1) ss)
+                                | ss'' => snoc ss' (IVar (from-nat m))
+                                | t' => isubst t ss''
+                            \in ILam t'
 
 
 \function
