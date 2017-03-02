@@ -5,10 +5,12 @@
 
 \open ::Data::Bool
 \open ::Data::Either
+\open ::Data::Empty
 \open ::Data::Fin
 \open ::Data::Nat::Base
+\open ::Data::Nat::Compare
 \open ::Data::Unit
-
+\open ::Logic
 \open ::Paths
 
 
@@ -29,15 +31,85 @@ isFree
         | NLam v t      => if (v == x) false (isFree x t)
 
 
+\data
+IsFree (x : Nat) (t : NTerm)
+	| IsFree x (NVar v) 	=> VarIsFree (p : x = v)
+	| IsFree x (NApp t1 t2) => AppLeftIsFree (p : IsFree x t1) 
+    | IsFree x (NApp t1 t2) => AppRightIsFree (p : IsFree x t2)
+	| IsFree x (NLam v t) 	=> LamIsFree (p : x = v -> Empty) (q : IsFree x t)
+
+
+\function
+var-helper-is-free-dec
+    (x v : Nat)
+    (d : Dec (x = v)) : Dec (IsFree x (NVar v)) <= \elim d
+        | inr pro       => inr (VarIsFree pro)
+        | inl contra    => inl (\lam p => \case p | VarIsFree q => contra q)
+
+
+\function
+app-helper-is-free-dec 
+    (x : Nat)
+    (t1 t2 : NTerm)
+    (d1 : Dec (IsFree x t1))
+    (d2 : Dec (IsFree x t2)) : Dec (IsFree x (NApp t1 t2)) <= \elim d1, d2
+        | inr pro1, inr pro2        => inr (AppLeftIsFree pro1)
+        | inr pro1, inl contra2     => inr (AppLeftIsFree pro1)
+        | inl contra1, inr pro2     => inr (AppRightIsFree pro2)
+        | inl contra1, inl contra2  => inl (\lam p => \case p | AppLeftIsFree q1 => contra1 q1 | AppRightIsFree q2 => contra2 q2)
+
+
+\function
+lam-helper-is-free-dec
+    (x v : Nat)
+    (t : NTerm)
+    (dv : Dec (x = v))
+    (dt : Dec (IsFree x t)) : Dec (IsFree x (NLam v t)) <= \elim dv
+        | inr pro       => inl (\lam p => \case p | LamIsFree p q => p pro)
+        | inl contra    => \case dt
+            | inr pro => inr (LamIsFree contra pro)
+            | inl contra => inl (\lam p => \case p | LamIsFree p q => contra q)
+
+
+\function
+isFreeDec 
+    (x : Nat)
+    (t : NTerm) : Dec (IsFree x t) <= \elim t
+        | NVar v        => var-helper-is-free-dec x v (x =? v)
+        | NApp t1 t2    => app-helper-is-free-dec x t1 t2 (isFreeDec x t1) (isFreeDec x t2)
+        | NLam v t      => lam-helper-is-free-dec x v t (x =? v) (isFreeDec x t)
+
+
+\function
+var-helper 
+	(n m : Nat)
+	(d : Dec (n = m))
+	(t1 : NTerm)
+	(t2 : NTerm) : NTerm <= \elim d
+		| inr pro       => t1
+        | inl contra    => t2
+
+
+\function
+lam-helper
+    (x : Nat)
+    (s : NTerm)
+    (d : Dec (IsFree x s))
+    (t1 : NTerm)
+    (t2 : NTerm) : NTerm <= \elim d
+        | inr pro       => t1
+        | inl contra    => t2
+
+
 \function
 nsubst'
     (t : NTerm)
     (y : Nat)
     (s : NTerm)
     (rho : Nat -> Nat) : NTerm <= \elim t
-        | NVar x     => if (rho x == y) s (NVar (rho x))
+        | NVar x     => var-helper (rho x) y (rho x =? y) s (NVar (rho x))
         | NApp t1 t2 => NApp (nsubst' t1 y s rho) (nsubst' t2 y s rho)
-        | NLam x t   => if (isFree x s) (NLam (suc x) (nsubst' t y s (\lam z => if (z == y) (suc x) (rho y)))) (NLam x (nsubst' t y s rho))
+        | NLam x t   => lam-helper x s (isFreeDec x s) (NLam (suc x) (nsubst' t y s (\lam z => \case (z =? y) | inr pro => suc x | inl contra => rho y))) (NLam x (nsubst' t y s rho))
 
 
 \function
@@ -50,17 +122,10 @@ nsubst
 \function
 weak
     {n : Nat}
-    (t : ITerm n)
-    (m : Nat) : ITerm (n + m) <= \elim t
-        | IVar i => IVar (flift m i)
-        | IApp t1 t2 => IApp (weak t1 m) (weak t2 m)
-        | ILam t => ILam (weak t m)
-
-
-\function
-suc-is-plus-one (n : Nat) : suc n = n + 1 <= \elim n
-    | zero => idp
-    | suc n => pmap suc (suc-is-plus-one n)
+    (t : ITerm n) : ITerm (suc n) <= \elim t
+        | IVar i        => IVar (fsuc i)
+        | IApp t1 t2    => IApp (weak t1) (weak t2)
+        | ILam t        => ILam (weak t)
 
 
 \function
@@ -70,11 +135,7 @@ isubst
     (ss : RVec n (ITerm m)) : ITerm m <= \elim t
         | IVar i        => ss !! i
         | IApp t1 t2    => IApp (isubst t1 ss) (isubst t2 ss)
-        | ILam t        =>  \let
-                                | ss' => transport (\lam k => RVec n (ITerm k)) (inv (suc-is-plus-one m)) (rmap (\lam s => weak s 1) ss)
-                                | ss'' => snoc ss' (IVar (from-nat m))
-                                | t' => isubst t ss''
-                            \in ILam t'
+        | ILam t        => ILam (isubst t (snoc (rmap weak ss) (IVar (from-nat m))))
 
 
 \function

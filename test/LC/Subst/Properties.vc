@@ -1,11 +1,108 @@
 \open ::LC::Subst::Subst
 \open ::LC::Term
+\open ::LC::RVec
 
+\open ::Data::Bool
 \open ::Data::Either
+\open ::Data::Empty
+\open ::Data::Fin
 \open ::Data::Nat::Base
+\open ::Data::Nat::Compare
 \open ::Data::Unit
+\open ::Logic
 \open ::Paths
 
+
+-- All named stuff
+
+\function
+nsubst-right-unit-var-helper
+    (y x : Nat)
+    (d : Dec (y = x)) : var-helper y x d (NVar x) (NVar y) = NVar y <= \elim d
+        | inr pro       => pmap NVar (inv pro)
+        | inl contra    => idpe (NVar y)
+
+
+\function
+nsubst-right-unit
+    (t : NTerm)
+    (x : Nat) : nsubst t x (NVar x) = t <= \elim t
+        | NVar y 		=> nsubst-right-unit-var-helper y x (y =? x)
+        | NApp t1 t2	=> pmap2 NApp (nsubst-right-unit t1 x) (nsubst-right-unit t2 x)
+        | NLam y t 		=> {?}
+
+
+\function
+nsubst-left-unit-helper
+    (x : Nat)
+    (d : Dec (x = x))
+    (t : NTerm) : var-helper x x d t (NVar x) = t <= \elim d
+        | inr idp    => idpe t
+        | inl contra => absurd (contra (idpe x))
+
+
+\function
+nsubst-left-unit
+    (x : Nat)
+    (t : NTerm) : nsubst (NVar x) x t = t => nsubst-left-unit-helper x (x =? x) t
+
+{-
+\function
+nsubst-assoc
+    (t : NTerm)
+    (x y : Nat)
+    (M N : NTerm)
+    (p : isFree x M = false) : nsubst (nsubst t x N) y M = nsubst (nsubst t y M) x (nsubst N y M) <= \elim t
+		| NVar v 		=> {?}
+		| NApp t1 t2 	=> pmap2 NApp (nsubst-assoc t1 x y M N p) (nsubst-assoc t2 x y M N p) 
+		| NLam v t 		=> {?}
+
+-}
+
+{-
+\function
+gen-fins
+    (n : Nat) : RVec n (Fin n) <= \elim n
+        | zero => vnil
+        | suc n => snoc (rmap fsuc (gen-fins n)) (from-nat n)
+
+
+-- identity substitution [IVar n - 1, ..., IVar 0]
+\function
+gen-vars
+    (n : Nat) : RVec n (ITerm n) => rmap IVar (rreverse (gen-fins n))
+
+-- All index stuff
+
+\function
+isubst-right-unit
+    {n : Nat}
+    (t : ITerm n) : isubst t (gen-vars n) = t <= \elim t
+        | IVar i => {?}
+        | IApp t1 t2 => pmap2 IApp (isubst-right-unit t1) (isubst-right-unit t2)
+        | ILam t => \let
+                        | p => isubst-right-unit t
+                    \in pmap ILam {?}
+
+
+\function
+isubst-left-unit
+    {n m : Nat}
+    (i : Fin n)
+    (ts : RVec n (ITerm m)) : isubst (IVar i) ts = ts !! i => idp
+
+
+\function
+isubst-assoc
+    {n m k : Nat}
+    (t : ITerm n)
+    (ts : RVec n (ITerm m))
+    (ss : RVec m (ITerm k)) : isubst (isubst t ts) ss = isubst t (rmap (\lam x => isubst x ss) ts) => {?}
+
+-}
+
+{-
+-- All monadic stuff
 -- Lemmata
 
 
@@ -69,3 +166,4 @@ bind-assoc
     (f : A -> FTerm B)
     (g : B -> FTerm C)
     (t : FTerm A) : (t `bind` f) `bind` g = t `bind` (\lam x => (f x) `bind` g) => bind-assoc-lemma zero f g t
+-}
