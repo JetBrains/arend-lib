@@ -14,7 +14,7 @@
 
 
 -- All named stuff
-
+{-
 \function
 nsubst-right-unit-var-helper
     (y x : Nat)
@@ -24,21 +24,30 @@ nsubst-right-unit-var-helper
 
 
 \function
+nsubst-right-unit-lam-helper
+    (y x : Nat)
+    (t : NTerm)
+    (dv : Dec (y = x)) : lam-helper y (NVar x) (var-helper-is-free-dec y x dv) (NLam (suc y) (nsubst' t x (NVar x) (\lam z => \case z =? y | inr p => suc y | inl np => z))) (NLam y (nsubst' t x (NVar x) (\lam x' => x'))) = NLam y t <= \elim dv
+        | inr pro       => transport (\lam k => lam-helper x (NVar x) (var-helper-is-free-dec x x (x =? x)) (NLam (suc x) (nsubst' t x (NVar x) (\lam z => (\case z =? k | inr _ => suc k | inl _ =>  z)))) (NLam x (nsubst' t x (NVar x) (\lam x  => x))) = NLam x t) (inv pro) (nsubst-right-unit (NLam x t) x)
+        | inl contra    => pmap (NLam y) (nsubst-right-unit t x)
+
+
+\function
 nsubst-right-unit
     (t : NTerm)
     (x : Nat) : nsubst t x (NVar x) = t <= \elim t
-        | NVar y 		=> nsubst-right-unit-var-helper y x (y =? x)
-        | NApp t1 t2	=> pmap2 NApp (nsubst-right-unit t1 x) (nsubst-right-unit t2 x)
-        | NLam y t 		=> {?}
-
+        | NVar y        => nsubst-right-unit-var-helper y x (y =? x)
+        | NApp t1 t2    => pmap2 NApp (nsubst-right-unit t1 x) (nsubst-right-unit t2 x)
+        | NLam y t      => nsubst-right-unit-lam-helper y x t (y =? x)
+-}
 
 \function
 nsubst-left-unit-helper
     (x : Nat)
     (d : Dec (x = x))
     (t : NTerm) : var-helper x x d t (NVar x) = t <= \elim d
-        | inr idp    => idpe t
-        | inl contra => absurd (contra (idpe x))
+        | inr idp       => idpe t
+        | inl contra    => absurd (contra (idpe x))
 
 
 \function
@@ -52,19 +61,29 @@ nsubst-assoc
     (t : NTerm)
     (x y : Nat)
     (M N : NTerm)
-    (p : isFree x M = false) : nsubst (nsubst t x N) y M = nsubst (nsubst t y M) x (nsubst N y M) <= \elim t
+    (p : IsFree x t)
+    (q : IsFree x M -> Empty) : nsubst (nsubst t x p N) y _ M = nsubst (nsubst t y _ M) x _ (nsubst N y _ M) <= \elim t
 		| NVar v 		=> {?}
-		| NApp t1 t2 	=> pmap2 NApp (nsubst-assoc t1 x y M N p) (nsubst-assoc t2 x y M N p) 
+		| NApp t1 t2 	=> {?} --pmap2 NApp (nsubst-assoc t1 x y M N p) (nsubst-assoc t2 x y M N p)
 		| NLam v t 		=> {?}
-
 -}
 
-{-
+\function
+plus-one-is-suc
+    (n : Nat) : n + 1 = suc n <= \elim n
+        | zero => idp
+        | suc n => pmap suc (plus-one-is-suc n)
+
+
 \function
 gen-fins
     (n : Nat) : RVec n (Fin n) <= \elim n
         | zero => vnil
-        | suc n => snoc (rmap fsuc (gen-fins n)) (from-nat n)
+        | suc n => snoc (transport (\lam k => RVec n (Fin k)) (plus-one-is-suc n) (rmap (flift 1) (gen-fins n))) (from-nat n)
+
+
+\function
+gen-fs-test : gen-fins 2 = snoc (snoc vnil fzero) (fsuc fzero) => idp 
 
 
 -- identity substitution [IVar n - 1, ..., IVar 0]
@@ -72,17 +91,30 @@ gen-fins
 gen-vars
     (n : Nat) : RVec n (ITerm n) => rmap IVar (rreverse (gen-fins n))
 
+
+\function
+identity2 : gen-vars 2 = snoc (snoc  vnil (IVar (fsuc fzero))) (IVar fzero) => idp
+
+
 -- All index stuff
+
+
+\function
+isubst-right-unit-var-helper 
+    (n : Nat)
+    (i : Fin n) : (gen-vars n) !! i = IVar i <= \elim n, i
+        | suc n, fzero => {?}
+        | suc n, fsuc j => {?}
 
 \function
 isubst-right-unit
     {n : Nat}
     (t : ITerm n) : isubst t (gen-vars n) = t <= \elim t
-        | IVar i => {?}
-        | IApp t1 t2 => pmap2 IApp (isubst-right-unit t1) (isubst-right-unit t2)
-        | ILam t => \let
-                        | p => isubst-right-unit t
-                    \in pmap ILam {?}
+        | IVar i        => isubst-right-unit-var-helper n i
+        | IApp t1 t2    => pmap2 IApp (isubst-right-unit t1) (isubst-right-unit t2)
+        | ILam t        =>  \let
+                                | p => isubst-right-unit t
+                            \in pmap ILam {?}
 
 
 \function
@@ -91,7 +123,7 @@ isubst-left-unit
     (i : Fin n)
     (ts : RVec n (ITerm m)) : isubst (IVar i) ts = ts !! i => idp
 
-
+{-
 \function
 isubst-assoc
     {n m k : Nat}
