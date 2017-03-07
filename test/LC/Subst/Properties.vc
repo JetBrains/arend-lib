@@ -68,42 +68,41 @@ nsubst-assoc
 -}
 
 \function
-plus-one-is-suc
-    (n : Nat) : n + 1 = suc n <= \elim n
-        | zero => idp
-        | suc n => pmap suc (plus-one-is-suc n)
-
-
-\function
-gen-fins
-    (n : Nat) : RVec n (Fin n) <= \elim n
-        | zero => vnil
-        | suc n => snoc (transport (\lam k => RVec n (Fin k)) (plus-one-is-suc n) (rmap (flift 1) (gen-fins n))) (from-nat n)
-
-
-\function
-gen-fs-test : gen-fins 2 = snoc (snoc vnil fzero) (fsuc fzero) => idp
-
-
--- identity substitution [IVar n - 1, ..., IVar 0]
-\function
 gen-vars
-    (n : Nat) : RVec n (ITerm n) => rmap IVar (rreverse (gen-fins n))
+    (n : Nat) : RVec n (ITerm n) <= \elim n
+        | zero => vnil
+        | suc n => snoc (rmap weak (gen-vars n)) (IVar fzero)
 
 
 \function
 identity2 : gen-vars 2 = snoc (snoc  vnil (IVar (fsuc fzero))) (IVar fzero) => idp
 
+\function
+identity3 : gen-vars 3 = snoc (snoc (snoc  vnil (IVar (fsuc (fsuc fzero)))) (IVar (fsuc fzero))) (IVar fzero) => idp
+
 
 -- All index stuff
 
-{-
+\function
+isubst-right-unit-weak-lemma
+    {n m : Nat}
+    (i : Fin n)
+    (ts : RVec n (ITerm m)) : (rmap weak ts) !! i = weak (ts !! i) <= \elim n, i, ts
+        | suc n, fzero, snoc ts t => idp
+        | suc n, fsuc i, snoc ts t => isubst-right-unit-weak-lemma i ts
+
+
 \function
 isubst-right-unit-var-helper
     (n : Nat)
     (i : Fin n) : (gen-vars n) !! i = IVar i <= \elim n, i
-        | suc n, fzero => {?}
-        | suc n, fsuc j => {?}
+        | suc n, fzero => idp
+        | suc n, fsuc j =>  \let
+                                | p => isubst-right-unit-weak-lemma j (gen-vars n)
+                                | rec => isubst-right-unit-var-helper n j
+                                | q => transport (\lam x => (rmap weak (gen-vars n)) !! j = weak x) rec p
+                            \in transport (\lam x => (rmap weak (gen-vars n)) !! j = x) idp q
+
 
 \function
 isubst-right-unit
@@ -111,10 +110,8 @@ isubst-right-unit
     (t : ITerm n) : isubst t (gen-vars n) = t <= \elim t
         | IVar i        => isubst-right-unit-var-helper n i
         | IApp t1 t2    => pmap2 IApp (isubst-right-unit t1) (isubst-right-unit t2)
-        | ILam t        =>  \let
-                                | p => isubst-right-unit t
-                            \in pmap ILam {?}
--}
+        | ILam t        => pmap ILam (isubst-right-unit t)
+
 
 \function
 isubst-left-unit
