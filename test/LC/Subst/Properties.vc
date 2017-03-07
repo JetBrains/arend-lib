@@ -61,8 +61,7 @@ nsubst-assoc
     (t : NTerm)
     (x y : Nat)
     (M N : NTerm)
-    (p : IsFree x t)
-    (q : IsFree x M -> Empty) : nsubst (nsubst t x p N) y _ M = nsubst (nsubst t y _ M) x _ (nsubst N y _ M) <= \elim t
+    (p : IsFree x M -> Empty) : nsubst (nsubst t x N) y M = nsubst (nsubst t y M) x (nsubst N y M) <= \elim t
 		| NVar v 		=> {?}
 		| NApp t1 t2 	=> {?} --pmap2 NApp (nsubst-assoc t1 x y M N p) (nsubst-assoc t2 x y M N p)
 		| NLam v t 		=> {?}
@@ -83,7 +82,7 @@ gen-fins
 
 
 \function
-gen-fs-test : gen-fins 2 = snoc (snoc vnil fzero) (fsuc fzero) => idp 
+gen-fs-test : gen-fins 2 = snoc (snoc vnil fzero) (fsuc fzero) => idp
 
 
 -- identity substitution [IVar n - 1, ..., IVar 0]
@@ -100,7 +99,7 @@ identity2 : gen-vars 2 = snoc (snoc  vnil (IVar (fsuc fzero))) (IVar fzero) => i
 
 {-
 \function
-isubst-right-unit-var-helper 
+isubst-right-unit-var-helper
     (n : Nat)
     (i : Fin n) : (gen-vars n) !! i = IVar i <= \elim n, i
         | suc n, fzero => {?}
@@ -132,48 +131,36 @@ isubst-assoc-var-helper
     (ss : RVec m (ITerm k)) : isubst (ts !! i) ss = rmap (\lam x => isubst x ss) ts !! i <= \elim n, i, ts
         | suc n, fzero, snoc ts t   => idp
         | suc n, fsuc i, snoc ts t  => isubst-assoc-var-helper n m k i ts ss
-                           
-{-
-\function
-isubst-assoc-lam-helper
-    (n m k : Nat)
-    (ts : RVec n (ITerm m))
-    (ss : RVec m (ITerm k)) : snoc (rmap weak (rmap (\lam x => isubst x ss) ts)) (IVar (from-nat k)) = rmap (\lam x => isubst x (snoc (rmap weak ss) (IVar (from-nat k)))) (snoc (rmap weak ts) (IVar (from-nat m))) <= \elim m, ss 
-        | zero, vnil        =>  pmap2 snoc {?} idp
-        | suc m, snoc ss s  => isubst-assoc-lam-helper n m k ts ss --pmap2 snoc {?} {?}
--}       
 
 
 \function
-subst-weak-lemma-helper
+isubst-weak-lemma-helper-helper
     {n m : Nat}
     (i : Fin n)
     (ss : RVec n (ITerm m)) : rmap weak ss !! i = weak (ss !! i) <= \elim n, i, ss
         | suc n, fzero, snoc ss s => idp
-        | suc n, fsuc i, snoc ss s => subst-weak-lemma-helper i ss
+        | suc n, fsuc i, snoc ss s => isubst-weak-lemma-helper-helper i ss
 
 
 \function
-subst-weak-lemma 
+isubst-weak-lemma-helper
     {n m : Nat}
     (t : ITerm n)
-    (ss : RVec n (ITerm m)) : isubst (weak t) (snoc (rmap weak ss) (IVar (from-nat m))) = weak (isubst t ss) <= \elim t
-        | IVar i => subst-weak-lemma-helper i ss
-        | IApp t1 t2 => pmap2 IApp (subst-weak-lemma t1 ss) (subst-weak-lemma t2 ss)
-        | ILam t => pmap ILam (subst-weak-lemma t (snoc (rmap weak ss) (IVar (from-nat m))))
+    (ss : RVec n (ITerm m)) : isubst (weak t) (snoc (rmap weak ss) (IVar fzero)) = weak (isubst t ss) <= \elim t
+        | IVar i => isubst-weak-lemma-helper-helper i ss
+        | IApp t1 t2 => pmap2 IApp (isubst-weak-lemma-helper t1 ss) (isubst-weak-lemma-helper t2 ss)
+        | ILam t => pmap ILam (isubst-weak-lemma-helper t (snoc (rmap weak ss) (IVar fzero)))
 
 
-{-
+\function
+isubst-weak-lemma
+    (n m k : Nat)
+    (ts : RVec n (ITerm m))
+    (ss : RVec m (ITerm k)) : rmap (\lam x => isubst x (snoc (rmap weak ss) (IVar fzero))) (rmap weak ts) = rmap weak (rmap (\lam x => isubst x ss) ts) <= \elim n, ts
+        | zero, vnil => idp
+        | suc n, snoc ts t => pmap2 snoc (isubst-weak-lemma n m k ts ss) (isubst-weak-lemma-helper t ss)
 
-snoc 
-    (rmap (\lam (x : ITerm (suc m)) => isubst x (snoc (rmap weak ss) (IVar (from-nat k)))) (rmap weak ts)) 
-    (snoc (rmap weak ss) (IVar (from-nat k)) !! from-nat m) =
-snoc
-    (rmap weak (rmap (\lam (x : ITerm m) => isubst x ss) ts))
-    (IVar (from-nat k))
--}
 
- 
 \function
 isubst-assoc
     {n m k : Nat}
@@ -183,10 +170,10 @@ isubst-assoc
         | IVar i        => isubst-assoc-var-helper n m k i ts ss
         | IApp t1 t2    => pmap2 IApp (isubst-assoc t1 ts ss) (isubst-assoc t2 ts ss)
         | ILam t        => \let
-                                | ts' => snoc (rmap weak ts) (IVar (from-nat m))
-                                | ss' => snoc (rmap weak ss) (IVar (from-nat k))
+                                | ts' => snoc (rmap weak ts) (IVar fzero)
+                                | ss' => snoc (rmap weak ss) (IVar fzero)
                                 | p => isubst-assoc t ts' ss'
-                                | pt => transport (\lam x => isubst (isubst t ts') ss' = isubst t x) {?} p
+                                | pt => transport (\lam x => isubst (isubst t ts') ss' = isubst t x) (pmap2 snoc (isubst-weak-lemma n m k ts ss) idp) p
                             \in pmap ILam pt
 
 
