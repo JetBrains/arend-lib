@@ -207,16 +207,52 @@ return-right-unit-lemma
 
 {-
 \function
+bind-assoc-lemma-fmap-telescope-helper
+   {A B C : \Type}
+   (n : Nat)
+   (f : A -> FTerm B)
+   (g : B -> FTerm C)
+   (t : Telescope n A) : bind-helper (suc n) (fmap {Telescope n B} {Either (Telescope n B) Unit} inl (twistT n (fmap-telescope n f t))) g =
+       fmap {Telescope n C} {Either (Telescope n C) Unit} inl (twistT n (fmap-telescope n (\lam x => (f x) `bind` g) t)) <= \elim n
+       | zero => {?}
+       | suc n => {?}
+-}
+
+\function
+bind-assoc-lemma-telescope-helper
+    {A B C : \Type}
+    (n : Nat)
+    (f : A -> FTerm B)
+    (g : B -> FTerm C)
+    (t : Either (Telescope n A) Unit) : bind-helper (suc n) (twistT (suc n) (fmap-telescope (suc n) f t)) g = twistT (suc n) (fmap-telescope (suc n) (\lam x => (f x) `bind` g) t) <= \elim t
+        | inr unit => idp
+        | inl t =>  \let
+                        | rec => bind-assoc-lemma-var-helper n f g t
+                    \in {?} --bind-assoc-lemma-fmap-telescope-helper n f g t
+
+
+\function
+bind-assoc-lemma-var-helper
+    {A B C : \Type}
+    (n : Nat)
+    (f : A -> FTerm B)
+    (g : B -> FTerm C)
+    (t : Telescope n A) : bind-helper n (twistT n (fmap-telescope n f t)) g = twistT n (fmap-telescope n (\lam x => (f x) `bind` g) t) <= \elim n
+        | zero => idp
+        | suc n => bind-assoc-lemma-telescope-helper n f g t
+
+
+\function
 bind-assoc-lemma
     {A B C : \Type}
     (n : Nat)
     (f : A -> FTerm B)
     (g : B -> FTerm C)
-    (t : FTerm (Telescope n A)) : bind-helper n (bind-helper n t f) g = bind-helper n t (\lam x => bind (f x) g) <= \elim t
-        | FVar t        => {?}
+    (t : FTerm (Telescope n A)) : bind-helper n (bind-helper n t f) g = bind-helper n t (\lam x => (f x) `bind` g) <= \elim t
+        | FVar t        => bind-assoc-lemma-var-helper n f g t
         | FApp t1 t2    => pmap2 FApp (bind-assoc-lemma n f g t1) (bind-assoc-lemma n f g t2)
         | FLam t        => pmap FLam (bind-assoc-lemma (suc n) f g t)
--}
+
 
 -- Proofs
 
@@ -232,11 +268,10 @@ return-left-unit
     (x : V)
     (k : V -> FTerm W) : ((return x) `bind` k = k x) => idp
 
-{-
+
 \function
 bind-assoc
     {A B C : \Type}
     (f : A -> FTerm B)
     (g : B -> FTerm C)
     (t : FTerm A) : (t `bind` f) `bind` g = t `bind` (\lam x => (f x) `bind` g) => bind-assoc-lemma zero f g t
--}
