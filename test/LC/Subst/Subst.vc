@@ -3,6 +3,7 @@
 \open ::LC::Properties
 \open ::LC::RVec
 
+\open ::Combinators
 \open ::Data::Bool
 \open ::Data::Either
 \open ::Data::Empty
@@ -136,69 +137,24 @@ return
     {V : \Type}
     (v : V) : FTerm V => FVar v
 
-
--- Something like Fun n, but parametrized with some type
--- God damn it, i have no idea how to name these types
-\function
-Telescope
-    (n : Nat)
-    (V : \Type) : \Type <= \elim n
-        | zero  => V
-        | suc n => Either (Telescope n V) Unit
+-- f (Maybe (f a)) -> (a -> f b) -> f (Maybe (f b))
 
 
 \function
-fmap-telescope-helper
+bind-fun-helper
     {V W : \Type}
-    (n : Nat)
-    (f : V -> W)
-    (x : Either (Telescope n V) Unit) : Either (Telescope n W) Unit <= \elim x
-        | inl y     => inl (fmap-telescope n f y)
-        | inr unit  => inr unit
-
-
-\function
-fmap-telescope
-    {V W : \Type}
-    (n : Nat)
-    (f : V -> W)
-    (x : Telescope n V) : Telescope n W <= \elim n
-        | zero  => f x
-        | suc n => fmap-telescope-helper n f x
-
-
--- T is for Telescope
-\function
-    twistT-helper
-    {V : \Type}
-    (n : Nat)
-    (t : Either (Telescope n (FTerm V)) Unit) : FTerm (Either (Telescope n V) Unit) <= \elim t
-        | inl x => fmap {Telescope n V} {Either (Telescope n V) Unit} inl (twistT n x)
+    (k : V -> FTerm W)
+    (e : Either V Unit) : FTerm (Either W Unit) <= \elim e
+        | inl v => fmap {W} {Either W Unit} inl (k v)
         | inr unit => FVar (inr unit)
-
-
-\function
-twistT
-    {V : \Type}
-    (n : Nat)
-    (x : Telescope n (FTerm V)) : FTerm (Telescope n V) <= \elim n
-        | zero  => x
-        | suc n => twistT-helper n x
-
-
-\function
-bind-helper
-    {V W : \Type}
-    (n : Nat)
-    (t : FTerm (Telescope n V))
-    (k : V -> FTerm W) : FTerm (Telescope n W) <= \elim t
-        | FVar x        => twistT n (fmap-telescope n k x)
-        | FApp t1 t2    => FApp (bind-helper n t1 k) (bind-helper n t2 k)
-        | FLam t        => FLam (bind-helper (suc n) t k)
 
 
 \function
 bind
     {V W : \Type}
     (t : FTerm V)
-    (k : V -> FTerm W) : FTerm W => bind-helper zero t k
+    (k : V -> FTerm W) : FTerm W <= \elim t
+        | FVar x        => k x
+        | FApp t1 t2    => FApp (t1 `bind` k) (t2 `bind` k)
+        | FLam t        => FLam (t `bind` (bind-fun-helper k))
+       
