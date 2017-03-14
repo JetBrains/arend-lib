@@ -2,6 +2,7 @@
 \open ::LC::Term
 \open ::LC::RVec
 
+\open ::Combinators
 \open ::Data::Bool
 \open ::Data::Either
 \open ::Data::Empty
@@ -226,9 +227,57 @@ isubst-assoc
 -- Lemmata
 
 
+
+--  fmap props
+\function
+map-inl-respects-id
+    {L R : \Type}
+    (e : Either L R) : map-inl (\lam x => x) e = e <= \elim e
+        | inl l => idp
+        | inr r => idp
+
+
+\function
+map-inl-respects-comp
+    {A B C R : \Type}
+    (f : A -> B)
+    (g : B -> C)
+    (e : Either A R) : map-inl g (map-inl f e) = map-inl (g `o` f) e <= \elim e
+        | inl l => idp
+        | inr r => idp
+
+
+\function
+fmap-respects-id
+    {V : \Type}
+    (t : FTerm V) : fmap (\lam x => x) t = t <= \elim t
+        | FVar v => idp
+        | FApp t1 t2 => pmap2 FApp (fmap-respects-id t1) (fmap-respects-id t2)
+        | FLam t => \let
+                        | rec => fmap-respects-id t
+                        | fext => funExt (\lam _ => Either V Unit) (\lam x => x) (map-inl (\lam x => x)) (\lam e => inv (map-inl-respects-id e))
+                        | rect => transport (\lam x => fmap {Either V Unit} {Either V Unit} x t = t) fext rec
+                    \in pmap FLam rect
+
+
+\function
+fmap-respects-comp
+    {A B C : \Type}
+    (f : A -> B)
+    (g : B -> C)
+    (t : FTerm A) : fmap g (fmap f t) = fmap (g `o` f) t <= \elim t
+        | FVar v => idp
+        | FApp t1 t2 => pmap2 FApp (fmap-respects-comp f g t1) (fmap-respects-comp f g t2)
+        | FLam t => \let
+                        | rec => fmap-respects-comp (map-inl {A} {B} {Unit} f) (map-inl {B} {C} {Unit} g) t
+                        | fext => funExt (\lam _ => Either C Unit) (\lam x => map-inl {B} {C} {Unit} g (map-inl {A} {B} f x)) (map-inl (g `o` f)) (map-inl-respects-comp f g)
+                        | trrec => transport (\lam x => fmap (map-inl {B} {C} {Unit} g) (fmap (\lam (e : Either A Unit) => map-inl {A} {B} {Unit} f e) t) = fmap x t) fext rec
+                    \in pmap FLam trrec
+
+
 \function
 return-right-unit-funext-helper
-    {V : \Type} 
+    {V : \Type}
     (e : Either V Unit) : return e = (bind-fun-helper return) e <= \elim e
         | inl v => idp
         | inr unit => idp
@@ -238,6 +287,7 @@ return-right-unit-funext-helper
 bind (fmap {B} {Either B Unit} inl (f a)) (bind-fun-helper g) = fmap {C} {Either C Unit} inl (bind (f a) g)
 -}
 
+{-
 \function
 fmap-inl-shit
     {A : \Type}
@@ -247,22 +297,54 @@ fmap-inl-shit
         | FApp t1 t2            => {?}
         | FLam t                => {?}
 
-{-
+
 t : FTerm (Either V Unit)
 f' : Either V Unit -> FTerm (Either W Unit)
 fmap (map-inl inl) t >>= helper f'
 fmap (map-inl inl) (t >>= f')
 -}
 
+\function
+Telescope
+    (n : Nat)
+    (A : \Type) : \Type <= \elim n
+        | zero  => A
+        | suc n => Either (Telescope n A) Unit
+
+
+\function
+map-inl-iterate
+    {A : \Type}
+    (n : Nat) : Telescope n A -> Telescope (suc n) A <= \elim n
+        | zero  => inl
+        | suc n => map-inl {_} {_} {Unit} (map-inl-iterate n)
+
+{-
+fmap {Either (Telescope n B) Unit} {Either (Either (Telescope n B) Unit) Unit} inl (f (map-inl-iterate {A} n t)) =
+fmap {Either (Telescope n B) Unit} {Either (Either (Telescope n B) Unit) Unit} (map-inl {Telescope n B} {Either (Telescope n B) Unit} {Unit} (map-inl-iterate {B} n)) (f (inl t))
+-}
+
+
+\function
+bind-fmap-comm-lemma
+    {A B : \Type}
+    (n : Nat)
+    (v : Either (Telescope n A) Unit)
+    (f : Either (Telescope n A) Unit -> FTerm (Either (Telescope n B) Unit)) : (bind-fun-helper f) (map-inl {Telescope n A} {Either (Telescope n A) Unit} {Unit} (map-inl-iterate {A} n) v) = fmap {Either (Telescope n B) Unit} {Either (Either (Telescope n B) Unit) Unit} (map-inl {Telescope n B} {Either (Telescope n B) Unit} {Unit} (map-inl-iterate {B} n)) (f v) <= \elim v
+        | inl t => {?}
+        | inr unit => {?}
+
 
 \function
 bind-fmap-comm
     {A B : \Type}
-    (t : FTerm A)
-    (f : A -> FTerm B) : bind (fmap {A} {Either A Unit} inl t) (bind-fun-helper f) = fmap {B} {Either B Unit} inl (bind t f) <= \elim t
-        | FVar v        => idp
-        | FApp t1 t2    => pmap2 FApp (bind-fmap-comm t1 f) (bind-fmap-comm t2 f)
-        | FLam t        => pmap FLam {?} --(bind-fmap-comm t (bind-fun-helper f))
+    (n : Nat)
+    (t : FTerm (Telescope n A))
+    (f : Telescope n A -> FTerm (Telescope n B)) : bind (fmap {Telescope n A} {Either (Telescope n A) Unit} (map-inl-iterate {A} n) t) (bind-fun-helper f) = fmap {Telescope n B} {Either (Telescope n B) Unit} (map-inl-iterate {B} n) (bind t f) <= \elim n, t
+        | zero, FVar v          => idp
+        | suc n, FVar v         => bind-fmap-comm-lemma n v f
+        | _, FApp t1 t2         => pmap2 FApp (bind-fmap-comm n t1 f) (bind-fmap-comm n t2 f)
+        | _, FLam t             => pmap FLam (bind-fmap-comm (suc n) t (bind-fun-helper f))
 
 
 \function
@@ -271,7 +353,7 @@ bind-assoc-funext-helper
     (f : A -> FTerm B)
     (g : B -> FTerm C)
     (x : Either A Unit) : bind ((bind-fun-helper f) x) (bind-fun-helper g) = bind-fun-helper (\lam a => bind (f a) g) x <= \elim x
-        | inl a     => bind-fmap-comm (f a) g
+        | inl a     => bind-fmap-comm zero (f a) g
         | inr unit  => idp
 
 
