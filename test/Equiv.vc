@@ -73,6 +73,11 @@ equiv-trans {A B C : \Type} (e : A =~= B) (e' : B =~= C) : A =~= C =>
        | qe' : qinv e'.1 => equiv-to-qinv e'.1 e'.2
   \in (e'.1 `o` e.1, qinv-to-equiv (e'.1 `o` e.1) (qe.1 `o` qe'.1, \lam x => pmap qe.1 (qe'.2 (e.1 x)) *> (qe.2 x), \lam x => pmap e'.1 (qe.3 (qe'.1 x)) *> (qe'.3 x)))
 
+\function
+equiv-to-path {A B : \Type} (eq : A =~= B) : A = B => 
+    \let q <= equiv-to-qinv eq.1 eq.2
+    \in path (iso eq.1 q.1 q.2 q.3)
+
 -- Sigma
 
 \function
@@ -98,6 +103,14 @@ sigma-equiv {A : \Type} (P : A -> \Type) (w w' : \Sigma (x : A) (px : P x))
          )
        )
 
+\function
+hom-preserves-limits {A : \Type} (B : A -> \Type) (P : \Pi (x : A) -> B x -> \Type) :
+    (\Pi (x : A) -> \Sigma (y : B x) (P x y)) = (\Sigma (f : \Pi (x : A) -> B x) (\Pi (x : A) -> P x (f x))) => 
+    \let | Z => \Pi (x : A) -> \Sigma (y : B x) (P x y)
+         | W => \Sigma (f : \Pi (x : A) -> B x) (\Pi (x : A) -> P x (f x))
+         | F : Z -> W <= \lam z => (\lam x => (z x).1, \lam x => (z x).2)
+         | G : W -> Z <= \lam w => \lam x => (w.1 x, w.2 x)
+    \in equiv-to-path (F, qinv-to-equiv F (G, \lam z => idp, \lam w => idp))
 
 -- Half Adjoint Equivalences
 
@@ -217,6 +230,22 @@ contr-equiv {A B : \Type} (p : A =~= B) (q : isContr A) : isContr B =>
 linv-contr {A B : \Type} (f : A -> B) (y : qinv f) : isContr (linv f) =>
     contr-equiv (equiv-symm (fun-ext-equiv f))
         (hae-contr (\lam (h : B -> A) => h `o` f) (qinv-to-hae (\lam (h : B -> A) => h `o` f) (comp-qinv-r f y A)) id)
+
+\function
+lcoh {A B : \Type} (f : A -> B) (fl : linv f) <=
+    \Sigma (eps : f `o` fl.1 ~ id) (\Pi (y : B) -> pmap fl.1 (eps y) = fl.2 (fl.1 y))
+
+\function
+rcoh {A B : \Type} (f : A -> B) (fr : rinv f) <= 
+    \Sigma (eta : fr.1 `o` f ~ id) (\Pi (x : A) -> pmap f (eta x) = fr.2 (f x))
+
+\function -- Lemma 4.2.11
+lcoh-fibEq {A B : \Type} (f : A -> B) (g : B -> A) (eta : g `o` f ~ id) :
+    lcoh f (g, eta) = (\Pi (y : B) -> (=) {fib g (g y)} (f (g y), eta (g y)) (y, idp)) => 
+    \let | Yt => \lam y => (=) {fib g (g y)} (f (g y), eta (g y)) (y, idp)
+         | Zt : \Pi (y : B) -> \Type => \lam y => \Sigma (gam : f (g y) = y) (path (\lam (i : I) => g (gam @ i)) = eta (g y))
+    \in inv (pmap-funExt Yt Zt (\lam y => equiv-to-path (fib-equiv g (g y) (f (g y), eta (g y)) (y, idp))) *>
+            hom-preserves-limits {B} (\lam y => f (g y) = y) (\lam y gamma => pmap g gamma = eta (g y)))
 
 -- miscellaneous properties of equivalences
 
