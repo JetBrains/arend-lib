@@ -1,0 +1,117 @@
+\open ::LC::Subst::Subst
+\open ::LC::Term
+\open ::LC::RVec
+
+\open ::Combinators
+\open ::Data::Bool
+\open ::Data::Either
+\open ::Data::Empty
+\open ::Data::Fin
+\open ::Data::Nat::Base
+\open ::Data::Nat::Compare
+\open ::Data::Unit
+\open ::Logic
+\open ::Paths
+
+
+-- Named substitution properties
+
+\function
+nsubst-right-unit-var-helper
+    (y x : Nat)
+    (d : Dec (y = x)) : var-helper y x d (NVar x) (NVar y) = NVar y <= \elim d
+        | inr pro       => pmap NVar (inv pro)
+        | inl contra    => idpe (NVar y)
+
+
+\function
+nsubst-right-unit-lam-helper
+    (y x : Nat)
+    (t : NTerm)
+    (dv : Dec (y = x)) : lam-helper y (NVar x) (var-helper-is-free-dec y x dv) (NLam (suc y) (nsubst' t x (NVar x) (\lam z => \case z =? y | inr p => suc y | inl np => z))) (NLam y (nsubst' t x (NVar x) (\lam x' => x'))) = NLam y t <= \elim dv
+        | inr pro       => transport (\lam k => lam-helper x (NVar x) (var-helper-is-free-dec x x (x =? x)) (NLam (suc x) (nsubst' t x (NVar x) (\lam z => (\case z =? k | inr _ => suc k | inl _ =>  z)))) (NLam x (nsubst' t x (NVar x) (\lam x  => x))) = NLam x t) (inv pro) (nsubst-right-unit (NLam x t) x)
+        | inl contra    => pmap (NLam y) (nsubst-right-unit t x)
+
+
+\function
+nsubst-left-unit-helper
+    (x : Nat)
+    (d : Dec (x = x))
+    (t : NTerm) : var-helper x x d t (NVar x) = t <= \elim d
+        | inr idp       => idpe t
+        | inl contra    => absurd (contra (idpe x))
+
+
+
+\function
+nsubst-not-free-var-id-var-helper
+    (v x : Nat)
+    (d : Dec (v = x))
+    (s : NTerm)
+    (p : IsFree x (NVar v) -> Empty) : var-helper v x d s (NVar v) = NVar v <= \elim d
+        | inr pro       => absurd (p (VarIsFree (inv pro)))
+        | inl contra    => idp
+
+
+\function
+nsubst-not-free-var-id-lam-helper
+    (v x : Nat)
+    (t s : NTerm)
+    (d : Dec (IsFree v s))
+    (p : IsFree x (NLam v t) -> Empty) : lam-helper v s d (NLam (suc v) (nsubst' t x s (\lam (z : Nat) => (\case z =? v | inl _ => z | inr _ => suc v)))) (NLam v (nsubst t x s)) = NLam v t <= \elim d
+        | inr pro       => {?}
+        | inl contra    => {?}
+
+
+\function
+nsubst-not-free-var-id
+    (t : NTerm)
+    (x : Nat)
+    (s : NTerm)
+    (p : IsFree x t -> Empty) : nsubst t x s = t <= \elim t
+        | NVar v        => nsubst-not-free-var-id-var-helper v x (v =? x) s p
+        | NApp t1 t2    =>  \let
+                                | p1 => \lam (q : IsFree x t1) => p (AppLeftIsFree q)
+                                | p2 => \lam (q : IsFree x t2) => p (AppRightIsFree q)
+                            \in pmap2 NApp (nsubst-not-free-var-id t1 x s p1) (nsubst-not-free-var-id t2 x s p2)
+        | NLam v t => nsubst-not-free-var-id-lam-helper v x t s (isFreeDec v s) p
+
+
+\function
+nsubst-assoc-var-helper
+    (v x y : Nat)
+    (d1 : Dec (v = x))
+    (d2 : Dec (v = y))
+    (M N : NTerm)
+    (p : IsFree x M -> Empty) : nsubst (var-helper v x d1 N (NVar v)) y M = nsubst (var-helper v y d2 M (NVar v)) x (nsubst N y M) <= \elim d1, d2
+        | inr pro1, inr pro2 => {?}
+        | inr pro1, inl contra2 => {?}
+        | inl contra1, inr pro2 => {?}
+        | inl contra1, inl contra2 => {?}
+
+
+\function
+nsubst-right-unit
+    (t : NTerm)
+    (x : Nat) : nsubst t x (NVar x) = t <= \elim t
+        | NVar y        => nsubst-right-unit-var-helper y x (y =? x)
+        | NApp t1 t2    => pmap2 NApp (nsubst-right-unit t1 x) (nsubst-right-unit t2 x)
+        | NLam y t      => nsubst-right-unit-lam-helper y x t (y =? x)
+
+
+\function
+nsubst-left-unit
+    (x : Nat)
+    (t : NTerm) : nsubst (NVar x) x t = t => nsubst-left-unit-helper x (x =? x) t
+
+
+\function
+nsubst-assoc
+    (t : NTerm)
+    (x y : Nat)
+    (M N : NTerm)
+    (p : IsFree x M -> Empty) : nsubst (nsubst t x N) y M = nsubst (nsubst t y M) x (nsubst N y M) <= \elim t
+		| NVar v 		=> nsubst-assoc-var-helper v x y (v =? x) (v =? y) M N p
+		| NApp t1 t2 	=> pmap2 NApp (nsubst-assoc t1 x y M N p) (nsubst-assoc t2 x y M N p)
+		| NLam v t 		=> {?}
+
