@@ -87,7 +87,7 @@ map-inl-iterate
     {A : \Type}
     (n : Nat) : Telescope n A -> Telescope (suc n) A <= \elim n
         | zero  => inl
-        | suc n => map-inl {_} {_} {Unit} (map-inl-iterate n)
+        | suc n => map-inl {Telescope n A} {Either (Telescope n A) Unit} {Unit} (map-inl-iterate n)
 
 
 \function
@@ -99,12 +99,43 @@ bind-fun-helper-iterate
         | suc n => bind-fun-helper (bind-fun-helper-iterate n f)
 
 
+{-
+fmap {Either (Either A Unit) Unit} {Either (Either (Either A Unit) Unit) Unit} (map-inl {Either A Unit} {Either (Either A Unit) Unit} {Unit} inl) (fmap {Either A Unit} {Either (Either A Unit) Unit} (map-inl {A} {Either A Unit} {Unit} inl) t) =
+fmap {Either (Either A Unit) Unit} {Either (Either (Either A Unit) Unit) Unit} (map-inl {Either A Unit} {Either (Either A Unit) Unit} {Unit} (map-inl {A} {Either A Unit} {Unit} inl) (fmap {Either A Unit} {Either (Either A Unit) Unit} (map-inl {A} {Either A Unit} {Unit} inl) t)
+
+fmap {Either (Either A Unit) Unit} {Either (Either (Either A Unit) Unit) Unit} inl (fmap {Either A Unit} {Either (Either A Unit) Unit} inl t) =
+fmap {Either (Either A Unit) Unit} {Either (Either (Either A Unit) Unit) Unit} (map-inl {Either A Unit} {Either (Either A Unit) Unit} {Unit} inl) (fmap {Either A Unit} {Either (Either A Unit) Unit} inl t)
+-}
+
+\function
+bind-fun-helper-fmap-comm-helper'
+    {A : \Type}
+    (n : Nat)
+    (t : FTerm (Telescope n A)) : fmap (map-inl-iterate n) (fmap (map-inl-iterate n) t) = fmap (map-inl-iterate (suc n)) (fmap (map-inl-iterate n) t) <= \elim n, t
+        | zero, FVar a          => idp
+        | suc n, FVar a         => idp
+        | _, FApp t1 t2         => pmap2 FApp (bind-fun-helper-fmap-comm-helper' n t1) (bind-fun-helper-fmap-comm-helper' n t2)
+        | _, FLam t             =>  \let
+                                        | rec => bind-fun-helper-fmap-comm-helper' (suc n) t
+                                    \in pmap FLam (bind-fun-helper-fmap-comm-helper' (suc n) t)
+
+\function
+bind-fun-helper-fmap-comm-helper
+    {A : \Type}
+    (t : FTerm A) : fmap {Either A Unit} {Either (Either A Unit) Unit} inl (fmap {A} {Either A Unit} inl t) = fmap {Either A Unit} {Either (Either A Unit) Unit} (map-inl inl) (fmap {A} {Either A Unit} inl t) <= \elim t
+        | FVar a        => idp
+        | FApp t1 t2    => pmap2 FApp (bind-fun-helper-fmap-comm-helper t1) (bind-fun-helper-fmap-comm-helper t2)
+        | FLam t        =>  \let
+                                | rec => bind-fun-helper-fmap-comm-helper t
+                            \in pmap FLam {?}
+
+
 \function
 bind-fun-helper-fmap-comm
     {A B : \Type}
-    (f : A -> FTerm B) 
+    (f : A -> FTerm B)
     (x : Either A Unit) : bind-fun-helper (bind-fun-helper f) (map-inl inl x) = fmap (map-inl inl) (bind-fun-helper f x) <= \elim x
-        | inl a     => {?}
+        | inl a     => bind-fun-helper-fmap-comm-helper (f a)
         | inr unit  => idp
 
 
@@ -113,12 +144,12 @@ bind-fmap-comm-lhs
     {A B : \Type}
     (t : FTerm (Either A Unit))
     (f : A -> FTerm B) : bind (fmap (map-inl inl) t) (bind-fun-helper (bind-fun-helper f)) = bind t (\lam x => bind-fun-helper (bind-fun-helper f) (map-inl inl x)) <= \elim t
-        | FVar (inl a)      => idp 
+        | FVar (inl a)      => idp
         | FVar (inr unit)   => idp
         | FApp t1 t2        => pmap2 FApp (bind-fmap-comm-lhs t1 f) (bind-fmap-comm-lhs t2 f)
         | FLam t            =>  \let
                                     | rec => bind-fmap-comm-lhs t (bind-fun-helper f)
-                                \in pmap FLam {?} 
+                                \in pmap FLam {?}
 
 
 \function
@@ -147,28 +178,6 @@ bind-fmap-comm
                                 | fext => funExt (\lam _ => FTerm (Either (Either B Unit) Unit)) (\lam x => bind-fun-helper (bind-fun-helper f) (map-inl inl x)) (\lam x => fmap (map-inl inl) (bind-fun-helper f x)) (bind-fun-helper-fmap-comm f)
                                 | trans => lhs *> (pmap (bind t) fext) *> (inv rhs)
                            \in pmap FLam trans
-
--- a : A
--- bind ((bind-fun-helper f) (inl a)) (bind-fun-helper g) = bind-fun-helper (\lam a => bind (f a) g) (inl a)
--- bind (fmap inl (f a)) (bind-fun-helper g) = fmap inl (bind (f a) g)
-
-
--- t : Term V
--- g : V -> Term W
--- bind (fmap inl t) (bind-fun-helper g) = fmap inl (bind t g)
-
-
--- bind (fmap (map-inl inl) t) (bind-fun-helper (bind-fun-helper g)) = fmap (map-inl inl) (bind t (bind-fun-helper g))
-
--- LHS: bind t (\lam x => bind-fun-helper (bind-fun-helper g) (map-inl inl x))
--- RHS: bind t (\lam x => fmap (map-inl inl) (bind-fun-helper g x))
-
-
--- g : B -> Term C
--- x : Maybe B
--- _ : Term (Maybe (Maybe C))
--- TODO: bind-fun-helper (bind-fun-helper g) (map-inl inl x) = fmap (map-inl inl) (bind-fun-helper g x)
-
 
 
 \function
