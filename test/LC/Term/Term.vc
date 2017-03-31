@@ -6,13 +6,19 @@
 \open ::Data::Either
 \open ::Data::Nat::Base
 \open ::Data::Nat::Compare
+\open ::Paths
 
 
-\data NTerm : \Type \lp (\max 0 \lh)
+
+-- N is for named
+
+\data NTerm 
     | NVar Nat
     | NApp NTerm NTerm
     | NLam Nat NTerm
 
+
+-- F is for functor. Maybe rename to M because of monad?
 
 \data FTerm (V : \Set)
     | FVar V
@@ -20,29 +26,27 @@
     | FLam (FTerm (Either V Unit))
 
 
+-- I is for index
 
-\data ITerm (n : Nat) : \Type \lp (\max 0 \lh)
+\data ITerm (n : Nat) 
     | IVar (Fin n)
     | IApp (ITerm n) (ITerm n)
     | ILam (ITerm (suc n))
 
 
-\data NTerm' : \oo-Type
-    | NVar' Nat
-    | NApp' NTerm' NTerm'
-    | NLam' Nat NTerm'
-    | trunc (t t' : NTerm') (p : AlphaEq' t t' (\lam x => x)) I
+-- Q is for quotient
+
+\data QTerm {n : Nat} (env : Ctx n) : \oo-Type
+    | QVar (v : Nat) (i : Fin n) (v = env !! i)
+    | QApp (QTerm env) (QTerm env)
+    | QLam (v : Nat) (t : QTerm (extend env v))
+    | trunc (t1 t2 : QTerm env) (p : AlphaEq' env t1 env t2) I
     \with
-        | trunc t _ _ left => t
-        | trunc _ t' _ right => t'
+        | trunc t1  _   _ left     => t1
+        | trunc _   t2  _ right    => t2
 
 
-\data
-AlphaEq' 
-    (t1 : NTerm')
-    (t2 : NTerm')
-    (ren : Nat -> Nat) : \oo-Type 
-        | VarEq' (x : Nat) (t1 = NVar' (ren x)) (t2 = NVar' x)
-        | AppEq' (t1' t2' s1' s2' : NTerm') (p : AlphaEq' t1' t2' ren) (q : AlphaEq' s1' s2' ren) (t1 = NApp' t1' s1') (t2 = NApp' t2' s2')
-        | LamEq' (x : Nat) (t1' t2' : NTerm') (p : AlphaEq' t1' t2' (\lam v => \case (v =? x) | inr pro => ren x | inl _ => v)) (t1 = NLam' (ren x) t1') (t2 = NLam' x t2')
-
+\data AlphaEq' {n : Nat} (env1 : Ctx n) (t1 : QTerm env1) (env2 : Ctx n) (t2 : QTerm env2) : \oo-Type
+    | QVarEq (i j : Fin n) (p : i = j) (t1 = QVar (env1 !! i) i idp) (t2 = QVar (env2 !! j) j idp) 
+    | QAppEq (t1' s1' : QTerm env1) (t2' s2' : QTerm env2) (p : AlphaEq' env1 t1' env2 t2') (q : AlphaEq' env1 s1' env2 s2') (t1 = QApp t1' s1') (t2 = QApp t2' s2')
+    | QLamEq (x y : Nat) (t1' : QTerm (extend env1 x)) (t2' : QTerm (extend env2 y)) (p : AlphaEq' (extend env1 x) t1' (extend env2 y) t2') (t1 = QLam x t1') (t2 = QLam y t2')

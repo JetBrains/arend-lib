@@ -1,0 +1,41 @@
+\open ::LC::Term::NamedTermProperties
+\open ::LC::Term::Term
+\open ::LC::Util::Ctx
+\open ::LC::Util::RVec
+
+\open ::Data::Empty
+\open ::Data::Nat::Base
+\open ::Data::Fin
+\open ::Paths
+
+
+-- Quotient term properties
+
+\function
+gamma
+    {n : Nat}
+    (env : Ctx n)
+    (t : QTerm env) : ITerm n <= \elim t
+        | QVar x i pr       => IVar i
+        | QApp t1 t2        => IApp (gamma env t1) (gamma env t2)
+        | QLam x t          => ILam (gamma (extend env x) t)
+        | trunc t1 t2 pr i  => gamma-respects-alpha-eq env t1 env t2 pr @ i 
+
+-- p : TermInCtx' env (trunc t1 t2 pr i)
+-- ?x : Path (\lam i => TermInCtx' env (trunc t1 t2 pr i) -> ITerm n) (gamma env t1) (gamma env t2)
+-- (?x @ i) p
+
+
+\function
+gamma-respects-alpha-eq
+    {n : Nat}
+    (env1 : Ctx n)
+    (t1 : QTerm env1)
+    (env2 : Ctx n)
+    (t2 : QTerm env2)
+    (proof : AlphaEq' env1 t1 env2 t2) : gamma env1 t1 = gamma env2 t2 <= \elim t1, t2, proof
+        | QVar x i p1, QVar y j p2, QVarEq i j pr idp idp => pmap IVar pr
+        | QApp t1 s1, QApp t2 s2, QAppEq t1 s1 t2 s2 p1 p2 idp idp => pmap2 IApp (gamma-respects-alpha-eq env1 t1 env2 t2 p1) (gamma-respects-alpha-eq env1 s1 env2 s2 p2)
+        | QLam x t1, QLam y t2, QLamEq x y t1 t2 pr idp idp => pmap ILam (gamma-respects-alpha-eq (extend env1 x) t1 (extend env2 y) t2 pr)
+        | trunc t1 t2 p1 i, trunc t3 t4 p2 j, _             => {?}
+        | _, _, _ => {?}
