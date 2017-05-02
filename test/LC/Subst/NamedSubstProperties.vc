@@ -38,7 +38,7 @@ nsubst-left-unit-helper
     (x : Nat)
     (d : Dec (x = x))
     (t : NTerm) : var-helper x x d t (NVar x) = t <= \elim d
-        | inr idp => idpe t
+        | inr pro => idp
         | inl con => absurd (con (idpe x))
 
 
@@ -60,8 +60,10 @@ nsubst-not-free-var-id-lam-helper
     (d : Dec (IsFree v s))
     (p : IsFree x (NLam v t) -> Empty) : var-helper v x dv (NLam v t) (lam-helper v s d (NLam (suc v) (nsubst' t x s (\lam (z : Nat) => (\case z =? v | inl _ => z | inr _ => suc v)))) (NLam v (nsubst t x s))) = NLam v t <= \elim dv, d
         | inr pro1, _           => idp
-        | inl con1, inr pro2    => {?}
-        | inl con1, inl con2    => {?} --pmap (NLam v) (nsubst-not-free-var-id t x s )
+        | inl con1, inl con2    => pmap (NLam v) (nsubst-not-free-var-id t x s (\lam pp => p (LamIsFree (\lam x => con1 (inv x)) pp)))       
+        | inl con1, inr pro2    => \case isFreeDec x t 
+                                    | inr pro => absurd (p (LamIsFree (\lam x => con1 (inv x)) pro))
+                                    | inl con => absurd {?}
 
 
 \function
@@ -128,6 +130,63 @@ nsubst-assoc-var-helper
 
 
 \function
+nsubst-assoc-lam-helper-helper-helper
+    (v x y : Nat)
+    (t M N : NTerm)
+    (d : Dec (IsFree v (nsubst N y M)))
+    (p : IsFree x M -> Empty)
+    (q : x != y) : NLam v (nsubst (nsubst t x N) y M) = lam-helper v (nsubst N y M) d (NLam (suc v) (nsubst' (nsubst t y M) x (nsubst N y M) (\lam z => (\case z =? v | inr _ => suc v | inl _ => z;)))) (NLam v (nsubst (nsubst t y M) x (nsubst N y M))) <= \elim d
+        | inr pro => {?}
+        | inl con => {?} --pmap (NLam v) (nsubst-assoc t x y M N p q)
+
+
+\function
+nsubst-assoc-lam-helper-helper
+    (v x y : Nat)
+    (d1 : Dec (v = x))
+    (con1 : v != x)
+    (d2 : Dec (v = y))
+    (con2 : v != y)
+    (t M N : NTerm)
+    (d3 : Dec (IsFree v N))
+    (con3 : IsFree v N -> Empty)
+    (d4 : Dec (IsFree v M))
+    (con4 : IsFree v M -> Empty)
+    (p : IsFree x M -> Empty)
+    (q : x != y) : var-helper v y d2 (NLam v (nsubst t x N)) (lam-helper v M d4 (NLam (suc v) (nsubst' (nsubst t x N) y M (\lam z => (\case z =? v |inr _ => suc v | inl _ => z;)))) (NLam v (nsubst (nsubst t x N) y M))) = var-helper v x d1 (NLam v (nsubst t y M)) (lam-helper v (nsubst N y M) (isFreeDec v (nsubst N y M)) (NLam (suc v) (nsubst' (nsubst t y M) x (nsubst N y M) (\lam z  => (\case z =? v | inr _ => suc v | inl _ => z;)))) (NLam v (nsubst (nsubst t y M) x (nsubst N y M)))) <= \elim d1, d2, d3, d4
+        | inr pro1, _,        _,        _           => absurd (con1 pro1)
+        | _,        inr pro2, _,        _           => absurd (con2 pro2)
+        | _,        _,        inr pro3, _           => absurd (con3 pro3)
+        | _,        _,        _,        inr pro4    => absurd (con4 pro4)
+        | inl con1, inl con2, inl con3, inl con4    => nsubst-assoc-lam-helper-helper-helper v x y t M N (isFreeDec v (nsubst N y M)) p q
+
+
+\function
+nsubst-assoc-lam-helper
+    (v x y : Nat)
+    (d1 : Dec (v = x))
+    (d2 : Dec (v = y))
+    (t M N : NTerm)
+    (d3 : Dec (IsFree v N))
+    (d4 : Dec (IsFree v M))
+    (p : IsFree x M -> Empty)
+    (q : x != y) : nsubst (var-helper v x d1 (NLam v t) (lam-helper v N d3 (NLam (suc v) (nsubst' t x N (\lam z => (\case z =? v | inl _ => z | inr _ => suc v)))) (NLam v (nsubst t x N)))) y M  = nsubst (var-helper v y d2 (NLam v t) (lam-helper v M d4 (NLam (suc v) (nsubst' t y M (\lam z => (\case z =? v | inl _ => z | inr _ => suc v)))) (NLam v (nsubst t y M )))) x (nsubst N y M) <= \elim d1, d2, d3, d4
+        | inr pro1, inr pro2, _, _ => absurd (q ((inv pro1) *> pro2))
+        | inr pro1, inl con2, inr pro3, inr pro4 => absurd (p (transport (\lam z => IsFree z M) pro1 pro4))
+        | inr pro1, inl con2, inr pro3, inl con4 => {?}
+        | inr pro1, inl con2, inl con3, inr pro4 => absurd (p (transport (\lam z => IsFree z M) pro1 pro4))
+        | inr pro1, inl con2, inl con3, inl con4 => {?}
+        | inl con1, inr pro2, inr pro3, inr pro4 => {?}
+        | inl con1, inr pro2, inr pro3, inl con4 => {?}
+        | inl con1, inr pro2, inl con3, inr pro4 => {?}
+        | inl con1, inr pro2, inl con3, inl con4 => {?}
+        | inl con1, inl con2, inr pro3, inr pro4 => {?}
+        | inl con1, inl con2, inr pro3, inl con4 => {?}
+        | inl con1, inl con2, inl con3, inr pro4 => {?}
+        | inl con1, inl con2, inl con3, inl con4 => nsubst-assoc-lam-helper-helper v x y (v =? x) con1 (v =? y) con2 t M N (isFreeDec v N) con3 (isFreeDec v M) con4 p q
+
+
+\function
 nsubst-right-unit
     (t : NTerm)
     (x : Nat) : nsubst t x (NVar x) = t <= \elim t
@@ -151,5 +210,5 @@ nsubst-assoc
     (q : x != y) : nsubst (nsubst t x N) y M = nsubst (nsubst t y M) x (nsubst N y M) <= \elim t
 		| NVar v 		=> nsubst-assoc-var-helper v x y (v =? x) (v =? y) M N p q
 		| NApp t1 t2 	=> pmap2 NApp (nsubst-assoc t1 x y M N p q) (nsubst-assoc t2 x y M N p q)
-		| NLam v t 		=> {?}
+		| NLam v t 		=> nsubst-assoc-lam-helper v x y (v =? x) (v =? y) t M N (isFreeDec v N) (isFreeDec v M) p q
 
