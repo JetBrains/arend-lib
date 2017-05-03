@@ -1,0 +1,339 @@
+\open ::Combinators
+\open ::Data::Bool
+\open ::Data::Either
+\open ::Data::Empty
+\open ::Data::Fin
+\open ::Data::Nat::Base
+\open ::Data::Nat::Compare
+\open ::Data::Unit
+\open ::Logic
+\open ::Paths
+
+
+\data Term
+    | Var Nat
+    | App Term Term
+    | Lam Nat Term
+
+
+\data AlphaEq (t1 t2 : Term)
+    | AlphaEq (Var x) (Var y)           => VarEq (x = y)
+    | AlphaEq (App t1 s1) (App t2 s2)   => AppEq (p : AlphaEq t1 t2) (q : AlphaEq s1 s2)
+    | AlphaEq (Lam x t1) (Lam y t2)     => LamEq (p : AlphaEq t1 (subst t2 y (Var x)))
+
+
+\function
+alpha-eq-sym
+    (t1 t2 : Term)
+    (p : t1 `AlphaEq` t2) : t2 `AlphaEq` t1 <= \elim t1, t2, p
+        | Var x, Var y, VarEq pr            => VarEq (inv pr)
+        | App t1 s1, App t2 s2, AppEq p q   => AppEq (alpha-eq-sym t1 t2 p) (alpha-eq-sym s1 s2 q)
+        | Lam x1 t1, Lam x2 t2, LamEq p     => LamEq {?}
+
+
+\function
+alpha-eq-refl
+    (t : Term) : t `AlphaEq` t <= \elim t
+        | Var x     => VarEq idp
+        | App t1 t2 => AppEq (alpha-eq-refl t1) (alpha-eq-refl t2)
+        | Lam x t   => LamEq (alpha-eq-sym (subst t x (Var x)) t (subst-right-unit t x))
+
+
+\function
+alpha-eq-trans
+     (t1 t2 t3 : Term)
+     (p1 : t1 `AlphaEq` t2)
+     (p2 : t2 `AlphaEq` t3) : t1 `AlphaEq` t3 <= \elim t1, t2, t3, p1, p2
+        | Var x1, Var x2, Var x3, VarEq p1, VarEq p2                => VarEq (p1 *> p2)
+        | App t1 s1, App t2 s2, App t3 s3, AppEq p1 q1, AppEq p2 q2 => AppEq (alpha-eq-trans t1 t2 t3 p1 p2) (alpha-eq-trans s1 s2 s3 q1 q2)
+        | Lam x1 t1, Lam x2 t2, Lam x3 t3, LamEq p1, LamEq p2       => LamEq {?}
+
+
+\data
+IsFree (x : Nat) (t : Term)
+    | IsFree x (Var v) 	    => VarIsFree (p : x = v)
+    | IsFree x (App t1 t2)  => AppLeftIsFree (p : IsFree x t1)
+    | IsFree x (App t1 t2)  => AppRightIsFree (p : IsFree x t2)
+    | IsFree x (App t1 t2)  => AppBothIsFree (p : IsFree x t1) (q : IsFree x t2)
+    | IsFree x (Lam v t) 	=> LamIsFree (p : x != v) (q : IsFree x t)
+
+
+\function
+var-helper-is-free-dec
+    (x v : Nat)
+    (d : Dec (x = v)) : Dec (IsFree x (Var v)) <= \elim d
+        | inr pro => inr (VarIsFree pro)
+        | inl con => inl (\lam p => \case p | VarIsFree q => con q)
+
+
+\function
+app-helper-is-free-dec
+    (x : Nat)
+    (t1 t2 : Term)
+    (d1 : Dec (IsFree x t1))
+    (d2 : Dec (IsFree x t2)) : Dec (IsFree x (App t1 t2)) <= \elim d1, d2
+        | inr pro1, inr pro2 => inr (AppBothIsFree pro1 pro2)
+        | inr pro1, inl con2 => inr (AppLeftIsFree pro1)
+        | inl con1, inr pro2 => inr (AppRightIsFree pro2)
+        | inl con1, inl con2 => inl (\lam p => \case p | AppLeftIsFree q1 => con1 q1 | AppRightIsFree q2 => con2 q2 | AppBothIsFree p1 q1 => con1 p1)
+
+
+\function
+lam-helper-is-free-dec
+    (x v : Nat)
+    (t : Term)
+    (dv : Dec (x = v))
+    (dt : Dec (IsFree x t)) : Dec (IsFree x (Lam v t)) <= \elim dv
+        | inr pro => inl (\lam p => \case p | LamIsFree p q => p pro)
+        | inl con => \case dt
+            | inr pro => inr (LamIsFree con pro)
+            | inl con => inl (\lam p => \case p | LamIsFree p q => con q)
+
+
+\function
+isFreeDec
+    (x : Nat)
+    (t : Term) : Dec (IsFree x t) <= \elim t
+        | Var v        => var-helper-is-free-dec x v (x =? v)
+        | App t1 t2    => app-helper-is-free-dec x t1 t2 (isFreeDec x t1) (isFreeDec x t2)
+        | Lam v t      => lam-helper-is-free-dec x v t (x =? v) (isFreeDec x t)
+
+
+\function
+var-helper
+	(n m : Nat)
+	(d : Dec (n = m))
+	(t1 : Term)
+	(t2 : Term) : Term <= \elim d
+		| inr pro => t1
+        | inl con => t2
+
+
+\function
+lam-helper
+    (x : Nat)
+    (s : Term)
+    (d : Dec (IsFree x s))
+    (t1 : Term)
+    (t2 : Term) : Term <= \elim d
+        | inr pro => t1
+        | inl con => t2
+
+
+\function
+subst'
+    (t : Term)
+    (y : Nat)
+    (s : Term)
+    (rho : Nat -> Nat) : Term <= \elim t
+        | Var x     => var-helper (rho x) y (rho x =? y) s (Var (rho x))
+        | App t1 t2 => App (subst' t1 y s rho) (subst' t2 y s rho)
+        | Lam x t   => var-helper (rho x) y (rho x =? y) (Lam x t) (lam-helper x s (isFreeDec x s) (Lam (suc x) (subst' t y s (\lam z => \case (z =? x) | inr pro => suc x | inl con => rho z))) (Lam x (subst' t y s rho)))
+
+
+\function
+subst
+    (t : Term)
+    (y : Nat)
+    (s : Term) : Term => subst' t y s (\lam x => x)
+
+
+\function
+subst-left-unit-helper
+    (t : Term)
+    (x : Nat)
+    (d : Dec (x = x)) : AlphaEq (var-helper x x d t (Var x)) t <= \elim d
+        | inr pro => alpha-eq-refl t
+        | inl con => absurd (con (idpe x))
+
+
+\function
+subst-right-unit-var-helper
+    (v x : Nat)
+    (d : Dec (v = x)) : AlphaEq (var-helper v x d (Var x) (Var v)) (Var v) <= \elim d
+        | inr pro => VarEq (inv pro)
+        | inl con => VarEq idp
+
+
+\function
+subst-right-unit-lam-helper
+    (v x : Nat)
+    (t : Term)
+    (d : Dec (v = x)) : AlphaEq (var-helper v x d  (Lam v t) (lam-helper v (Var x) (var-helper-is-free-dec v x d) (Lam (suc v) (subst' t x (Var x) (\lam z => (\case z =? v | inr _ => suc v | inl _ => z;)))) (Lam v (subst t x (Var x))))) (Lam v t) <= \elim d
+        | inr pro => LamEq (alpha-eq-sym (subst t v (Var v)) t (subst-right-unit t v))
+        | inl con =>    \let
+                            | rec1 => subst-right-unit t x
+                            | rec2 => alpha-eq-sym (subst t v (Var v)) t (subst-right-unit t v)
+                        \in LamEq (alpha-eq-trans (subst t x (Var x)) t (subst t v (Var v)) rec1 rec2)
+
+\function
+subst-not-free-var-id-var-helper
+    (v x : Nat)
+    (d : Dec (v = x))
+    (s : Term)
+    (p : IsFree x (Var v) -> Empty) : AlphaEq (var-helper v x d s (Var v)) (Var v) <= \elim d
+        | inr pro => absurd (p (VarIsFree (inv pro)))
+        | inl con => VarEq (idpe v)
+
+
+\function
+subst-sharp-not-free-var-id-var-helper-helper1
+    (v x z : Nat)
+    (s : Term)
+    (p : IsFree x (Var z) -> Empty)
+    (d : Dec (suc v = x))
+    (pr : z = v) : AlphaEq (var-helper (suc v) x d s (Var (suc v))) (Var (suc v)) <= \elim d
+        | inr pro => absurd (p (VarIsFree {?}))
+        | inl con => VarEq (idpe (suc v))
+
+
+\function
+subst-sharp-not-free-var-id-var-helper-helper2
+    (v x z : Nat)
+    (s : Term)
+    (p : IsFree x (Var z) -> Empty)
+    (d : Dec (z = x)) : AlphaEq (var-helper z x d s (Var z)) (Var z) <= \elim d
+        | inr pro => absurd (p (VarIsFree (inv pro)))
+        | inl con => VarEq (idpe z)
+
+
+\function
+subst-sharp-not-free-var-id-var-helper
+    (v x z : Nat)
+    (s : Term)
+    (p : IsFree x (Var z) -> Empty)
+    (d : Dec (z = v)) : AlphaEq (var-helper (\case d | inr _ => suc v | inl _ => z;) x ((\case d | inr _ => suc v  | inl _ => z;) =? x) s (Var (\case d | inr _ => suc v | inl _ => z;))) (var-helper z v d (Var (suc v)) (Var z)) <= \elim d
+        | inr pro => subst-sharp-not-free-var-id-var-helper-helper1 v x z s p (suc v =? x) pro
+        | inl con => subst-sharp-not-free-var-id-var-helper-helper2 v x z s p (z =? x)
+
+
+\function
+subst-sharp-not-free-var-id-lam-helper
+    (v x z : Nat)
+    (t s : Term)
+    (d1 : Dec (z = v))
+    (d2 : Dec (IsFree z s))
+    (d3 : Dec (z = suc v))
+    (p : IsFree x (Lam z t) -> Empty) : AlphaEq (var-helper (\case d1 | inl _ => z | inr _ => suc v;) x ((\case d1 | inl _ => z | inr _ => suc v;) =? x) (Lam z t) (lam-helper z s d2 (Lam (suc z) (subst' t x s (\lam (z' : Nat) => (\case z' =? z | inl _ => \case z' =? v | inl _ => z' | inr _ => suc v; | inr _ => suc z;)))) (Lam z (subst' t x s (\lam (z' : Nat) => (\case z' =? v | inl _ => z' | inr _ => suc v;)))))) (var-helper z v d1 (Lam z t) (lam-helper z (Var (suc v)) (var-helper-is-free-dec z (suc v) d3) (Lam (suc z) (subst' t v (Var (suc v)) (\lam (z' : Nat) => (\case z' =? z | inl _ => z' | inr _ => suc z;)))) (Lam z (subst t v (Var (suc v)))))) <= \elim d1, d2, d3
+        | inr pro1, inr pro2, inr pro3 => {?}
+        | inr pro1, inr pro2, inl con3 => {?}
+        | inr pro1, inl con2, inr pro3 => {?}
+        | inr pro1, inl con2, inl con3 => {?}
+        | inl con1, inr pro2, inr pro3 => {?}
+        | inl con1, inr pro2, inl con3 => {?}
+        | inl con1, inl con2, inr pro3 => {?}
+        | inl con1, inl con2, inl con3 => {?}
+
+
+\function
+subst-sharp-not-free-var-id
+    (v x : Nat)
+    (t s : Term)
+    (p : IsFree x t -> Empty) : AlphaEq (subst' t x s (\lam (z : Nat) => (\case z =? v | inl _ => z | inr _ => suc v;))) (subst t v (Var (suc v))) <= \elim t
+        | Var z     => subst-sharp-not-free-var-id-var-helper v x z s p (z =? v)
+        | App t1 t2 => AppEq (subst-sharp-not-free-var-id v x t1 s (\lam q => p (AppLeftIsFree q))) (subst-sharp-not-free-var-id v x t2 s (\lam q => p (AppRightIsFree q)))
+        | Lam z t   => subst-sharp-not-free-var-id-lam-helper v x z t s (z =? v) (isFreeDec z s) (z =? suc v) p
+
+
+\function
+subst-not-free-var-id-lam-helper
+    (v x : Nat)
+    (d1 : Dec (v = x))
+    (t s : Term)
+    (d2 : Dec (IsFree v s))
+    (p : IsFree x (Lam v t) -> Empty) : AlphaEq (var-helper v x d1 (Lam v t) (lam-helper v s d2 (Lam (suc v) (subst' t x s (\lam z => (\case z =? v | inl _ => z | inr _ => suc v;)))) (Lam v (subst t x s)))) (Lam v t) <= \elim d1, d2
+        | inr pro1, _           => alpha-eq-refl (Lam v t)
+        | inl con1, inr pro2    => LamEq (subst-sharp-not-free-var-id v x t s (\lam pp => p (LamIsFree (\lam qq => con1 (inv qq)) pp)))
+        | inl con1, inl con2    =>  \let
+                                        | rec => subst-not-free-var-id t x s (\lam pp => p (LamIsFree (\lam qq => con1 (inv qq)) pp))
+                                        | unit => subst-right-unit t v
+                                        | sym => alpha-eq-sym (subst t v (Var v)) t unit
+                                    \in LamEq (alpha-eq-trans (subst t x s) t (subst t v (Var v)) rec sym)
+
+
+\function
+subst-not-free-var-id
+    (t : Term)
+    (x : Nat)
+    (s : Term)
+    (p : IsFree x t -> Empty) : (subst t x s) `AlphaEq` t <= \elim t
+        | Var v     => subst-not-free-var-id-var-helper v x (v =? x) s p
+        | App t1 t2 =>  \let
+                            | p1 => (\lam (q : IsFree x t1) => p (AppLeftIsFree q))
+                            | p2 => (\lam (q : IsFree x t2) => p (AppRightIsFree q))
+                        \in AppEq (subst-not-free-var-id t1 x s p1) (subst-not-free-var-id t2 x s p2)
+        | Lam v t   => subst-not-free-var-id-lam-helper v x (v =? x) t s (isFreeDec v s) p
+
+
+\function
+subst-assoc-var-helper1
+    (z x y : Nat)
+    (M N : Term)
+    (d : Dec (z = x))
+    (p : z = x) :  AlphaEq (subst N y M) (var-helper z x d (subst N y M) (Var z)) <= \elim d
+        | inr pro => alpha-eq-refl (subst N y M)
+        | inl con => absurd (con p)
+
+
+\function
+subst-assoc-var-helper2
+    (z x y : Nat)
+    (M N : Term)
+    (d : Dec (z = y))
+    (p : z = y)
+    (q : IsFree x M -> Empty) : AlphaEq (var-helper z y d M (Var z)) (subst M x (subst N y M)) <= \elim d
+        | inr pro => alpha-eq-sym (subst M x (subst N y M)) M (subst-not-free-var-id M x (subst N y M) q)
+        | inl con => absurd (con p)
+
+
+\function
+subst-assoc-var-helper3
+    (z x y : Nat)
+    (M N : Term)
+    (d1 : Dec (z = x))
+    (d2 : Dec (z = y))
+    (c1 : z != x)
+    (c2 : z != y) : AlphaEq (var-helper z y d2 M (Var z)) (var-helper z x d1 (subst N y M) (Var z)) <= \elim d1, d2
+        | inr pro1, _           => absurd (c1 pro1)
+        | _,        inr pro2    => absurd (c2 pro2)
+        | inl con1, inl con2    => alpha-eq-refl (Var z)
+
+
+\function
+subst-assoc-var-helper
+    (z x y : Nat)
+    (M N : Term)
+    (d1 : Dec (z = x))
+    (d2 : Dec (z = y))
+    (p : IsFree x M -> Empty)
+    (q : x != y) : AlphaEq (subst (var-helper z x d1 N (Var z)) y M) (subst (var-helper z y d2 M (Var z)) x (subst N y M)) <= \elim d1, d2
+        | inr pro1, inr pro2 => absurd (q ((inv pro1) *> pro2))
+        | inr pro1, inl con2 => subst-assoc-var-helper1 z x y M N (z =? x) pro1
+        | inl con1, inr pro2 => subst-assoc-var-helper2 z x y M N (z =? y) pro2 p
+        | inl con1, inl con2 => subst-assoc-var-helper3 z x y M N (z =? x) (z =? y) con1 con2
+
+
+\function
+subst-left-unit
+    (t : Term)
+    (x : Nat) : subst (Var x) x t `AlphaEq` t => subst-left-unit-helper t x (x =? x)
+
+
+\function
+subst-right-unit
+   (t : Term)
+   (x : Nat) : subst t x (Var x) `AlphaEq` t <= \elim t
+        | Var v => subst-right-unit-var-helper v x (v =? x)
+        | App t1 t2 => AppEq (subst-right-unit t1 x) (subst-right-unit t2 x)
+        | Lam v t => subst-right-unit-lam-helper v x t (v =? x)
+
+
+\function
+subst-assoc
+    (x y : Nat)
+    (t M N : Term)
+    (p : IsFree x M -> Empty)
+    (q : x != y) : (subst (subst t x N) y M) `AlphaEq` (subst (subst t y M) x (subst N y M)) <= \elim t
+        | Var z     => subst-assoc-var-helper z x y M N (z =? x) (z =? y) p q
+        | App t1 t2 => AppEq (subst-assoc x y t1 M N p q) (subst-assoc x y t2 M N p q)
+        | Lam z t   => {?}
