@@ -1,3 +1,5 @@
+\open ::LC::Relation::AlphaEq
+\open ::LC::Subst::Subst
 \open ::LC::Term::Term
 \open ::LC::Util::Ctx
 \open ::LC::Util::Fun
@@ -10,27 +12,11 @@
 
 -- named term properties
 
-\function
-VarInCtx {n : Nat} (env : Ctx n) (x : Nat) => \Sigma (i : Fin n) (p : env !! i = x)
-
 
 \data TermInCtx {n : Nat} (env : Ctx n) (t : NTerm)
-    | TermInCtx {n} env (NVar x)     => Variable (p : VarInCtx env x)
-    | TermInCtx {n} env (NApp t1 t2) => Application (p : TermInCtx env t1) (q : TermInCtx env t2)
-    | TermInCtx {n} env (NLam x t)   => Abstraction (p : TermInCtx (extend env x) t)
-
-
-\data AlphaEq
-    {n : Nat}
-    (env1 : Ctx n)
-    (t1 : NTerm)
-    (p1 : TermInCtx env1 t1)
-    (env2 : Ctx n)
-    (t2 : NTerm)
-    (p2 : TermInCtx env2 t2)
-        | AlphaEq env1 (NVar x) (Variable p) env2 (NVar y) (Variable q)                       => VarEq (p : p.1 = q.1)
-        | AlphaEq env1 (NApp t1 s1) (Application p1 q1) env2 (NApp t2 s2) (Application p2 q2) => AppEq (p : AlphaEq env1 t1 p1 env2 t2 p2) (q : AlphaEq env1 s1 q1 env2 s2 q2)
-        | AlphaEq env1 (NLam x t1) (Abstraction p1) env2 (NLam y t2) (Abstraction p2)         => LamEq (p : AlphaEq (extend env1 x) t1 p1 (extend env2 y) t2 p2)
+    | TermInCtx {n} env (NVar x)     => VarInCtx (i : Fin n) (p : env !! i = x)
+    | TermInCtx {n} env (NApp t1 t2) => AppInCtx (p : TermInCtx env t1) (q : TermInCtx env t2)
+    | TermInCtx {n} env (NLam x t)   => LamInCtx (p : TermInCtx (extend env x) t)
 
 
 \function
@@ -39,9 +25,9 @@ phi
     (env : Ctx n)
     (t : NTerm)
     (proof : TermInCtx env t) : ITerm n <= \elim t, proof
-        | NVar x, Variable p             => IVar p.1
-        | NApp t1 t2, Application p q    => IApp (phi env t1 p) (phi env t2 q)
-        | NLam x t, Abstraction p        => ILam (phi (extend env x) t p)
+        | NVar x, VarInCtx i p        => IVar i
+        | NApp t1 t2, AppInCtx p q    => IApp (phi env t1 p) (phi env t2 q)
+        | NLam x t, LamInCtx p        => ILam (phi (extend env x) t p)
 
 
 \function
@@ -49,9 +35,9 @@ psi'
     {n : Nat}
     (env : Ctx n)
     (t : ITerm n) : \Sigma (t' : NTerm) (p : TermInCtx env t') <= \elim t
-        | IVar i        => (NVar (env !! i), Variable (i, idp))
-        | IApp t1 t2    => (NApp (psi' env t1).1 (psi' env t2).1, Application (psi' env t1).2 (psi' env t2).2)
-        | ILam t        => (NLam n (psi' (extend env n) t).1, Abstraction (psi' (extend env n) t).2)
+        | IVar i        => (NVar (env !! i), (VarInCtx i idp))
+        | IApp t1 t2    => (NApp (psi' env t1).1 (psi' env t2).1, AppInCtx (psi' env t1).2 (psi' env t2).2)
+        | ILam t        => (NLam n (psi' (extend env n) t).1, LamInCtx (psi' (extend env n) t).2)
 
 
 \function
@@ -63,21 +49,19 @@ psi
 \function
 phi-respects-alpha-eq
     {n : Nat}
-    (env1 env2 : Ctx n)
+    (env : Ctx n)
     (t1 t2 : NTerm)
-    (p1 : TermInCtx env1 t1)
-    (p2 : TermInCtx env2 t2)
-    (proof : AlphaEq env1 t1 p1 env2 t2 p2) : (phi env1 t1 p1) = (phi env2 t2 p2) <= \elim t1, t2, p1, p2, proof
-        | NVar x, NVar y, Variable p, Variable q, VarEq r                         => pmap IVar r
-        | NApp t1 s1, NApp t2 s2, Application p1 q1, Application p2 q2, AppEq p q => \let
-                                                                                     | pr1 => phi-respects-alpha-eq env1 env2 t1 t2 p1 p2 p
-                                                                                     | pr2 => phi-respects-alpha-eq env1 env2 s1 s2 q1 q2 q
-                                                                                   \in pmap2 IApp pr1 pr2
-        | NLam x t1, NLam y t2, Abstraction p1, Abstraction p2, LamEq p           => \let
-                                                                                     | pr => phi-respects-alpha-eq (extend env1 x) (extend env2 y) t1 t2 p1 p2 p
-                                                                                   \in pmap ILam pr
+    (p1 : TermInCtx env t1)
+    (p2 : TermInCtx env t2)
+    (proof : t1 `AlphaEq` t2) : (phi env t1 p1) = (phi env t2 p2) <= \elim t1, t2, p1, p2, proof
+        | NVar x, NVar y, VarInCtx i p, VarInCtx j q, VarEq r                   =>  pmap IVar {?}
+        | NApp t1 s1, NApp t2 s2, AppInCtx p1 q1, AppInCtx p2 q2, AppEq p q     =>  \let
+                                                                                        | pr1 => phi-respects-alpha-eq env t1 t2 p1 p2 p
+                                                                                        | pr2 => phi-respects-alpha-eq env s1 s2 q1 q2 q
+                                                                                    \in pmap2 IApp pr1 pr2
+        | NLam x t1, NLam y t2, LamInCtx p1, LamInCtx p2, LamEq p               => pmap ILam {?}
 
-
+{-
 \function
 phi-psi-id
     {n : Nat}
@@ -92,8 +76,8 @@ psi-phi-id
     {n : Nat}
     (t : NTerm)
     (env : Ctx n)
-    (proof : TermInCtx env t) : (AlphaEq (psi (phi env t proof)).1 (psi (phi env t proof)).2 (psi (phi env t proof)).3 env t proof) <= \elim t, proof
-        | NVar x, Variable p           => VarEq idp
-        | NApp t1 t2, Application p q  => AppEq (psi-phi-id t1 env p) (psi-phi-id t2 env q)
-        | NLam x t, Abstraction p      => LamEq (psi-phi-id t (extend env x) p)
-
+    (proof : TermInCtx env t) : ((psi (phi env t proof)).2 `AlphaEq` t) <= \elim t, proof
+        | NVar x, VarInCtx p        => VarEq {?}
+        | NApp t1 t2, AppInCtx p q  => AppEq (psi-phi-id t1 env p) (psi-phi-id t2 env q)
+        | NLam x t, LamInCtx p      => LamEq {?} --(psi-phi-id t (extend env x) p)
+-}
