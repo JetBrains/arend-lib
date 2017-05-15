@@ -9,6 +9,7 @@
 \open ::Data::Either
 \open ::Data::Empty
 \open ::Data::Fin
+\open ::Data::List \hiding (concat, snoc)
 \open ::Data::Nat::Base
 \open ::Data::Nat::Compare
 \open ::Data::Unit
@@ -18,124 +19,51 @@
 
 -- Named substitution properties
 
--- nsubst (nsubst t x (Var x)) v (Var v) = t
--- nsubst (nsubst t x (Var x)) v (Var v) = (nsubst t x (Var x)) = t
-
+{-
 \function
-nsubst-right-unit-lam-helper
+nsubst-right-unit-var-helper 
     (v x : Nat)
-    (t : NTerm)
-    (d : Dec (v = x)) : AlphaEq (var-helper v x d  (NLam v t) (lam-helper v (NVar x) (var-helper-is-free-dec v x d) (NLam (suc v) (nsubst' t x (NVar x) (\lam z => \case z =? v | inr p => suc v | inl np => z;))) (NLam v (nsubst t x (NVar x))))) (NLam v t) <= \elim d
-        | inr pro => LamEq (nsubst-right-unit t v)
-        | inl con =>    \let
-                            | resp => nsubst-respects-alpha-eq (nsubst t x (NVar x)) t v (NVar v) (nsubst-right-unit t x)
-                        \in LamEq (alpha-eq-trans resp (nsubst-right-unit t v))
+    (d : Dec (x = v)) : AlphaEq (lookup-helper v (x, NVar x) nil d) (NVar v) <= \elim d
+        | inr pro => VarEq pro
+        | inl con => VarEq idp
+-}
 
 
 \function
 nsubst-right-unit-var-helper
     (v x : Nat)
-    (d : Dec (v = x)) : AlphaEq (var-helper v x d (NVar x) (NVar v)) (NVar v) <= \elim d
-        | inr pro => VarEq (inv pro)
+    (d : Dec (x = v)) : AlphaEq (\case d | inr _ => NVar x | inl _ => NVar v) (NVar v) <= \elim d
+        | inr pro => VarEq pro
         | inl con => VarEq idp
-
-
-\function
-nsubst-left-unit-helper
-    (t : NTerm)
-    (x : Nat)
-    (d : Dec (x = x)) : AlphaEq (var-helper x x d t (NVar x)) t <= \elim d
-        | inr pro => alpha-eq-refl
-        | inl con => absurd (con (idpe x))
 
 
 \function
 nsubst-right-unit
    (t : NTerm)
-   (x : Nat) : nsubst t x (NVar x) `AlphaEq` t <= \elim t
-        | NVar v     => nsubst-right-unit-var-helper v x (v =? x)
+   (x : Nat) : nsubst t (singleton (x, (NVar x))) `AlphaEq` t <= \elim t
+        | NVar v     => nsubst-right-unit-var-helper v x (x =? v) 
         | NApp t1 t2 => AppEq (nsubst-right-unit t1 x) (nsubst-right-unit t2 x)
-        | NLam v t   => {?}--nsubst-right-unit-lam-helper v x t (v =? x)
+        | NLam v t   => LamEq {?}
 
+{-
+\function
+nsubst-left-unit-helper
+    (x : Nat)
+    (t : NTerm)
+    (d : Dec (x = x)) : AlphaEq (lookup-helper x (x, t) nil d) t <= \elim d
+        | inr pro => alpha-eq-refl
+        | inl con => absurd (con idp)
 
 \function
 nsubst-left-unit
     (t : NTerm)
-    (x : Nat) : nsubst (NVar x) x t `AlphaEq` t => nsubst-left-unit-helper t x (x =? x)
-
-
+    (x : Nat) : nsubst (NVar x) (singleton (x, t)) `AlphaEq` t => nsubst-left-unit-helper x t (x =? x) 
+-}
+{-
 \function
 nsubst-assoc
     (t N M : NTerm)
     (x y : Nat)
     (p : Not (x = y))
     (pr : Not (IsFree x M)) : nsubst (nsubst t x N) y M `AlphaEq` nsubst (nsubst t y M) x (nsubst N y M) => {?}
-
-
-\function
-nsubst-respects-alpha-eq-var-helper
-    (z x y : Nat)
-    (d1 : Dec (x = z))
-    (d2 : Dec (y = z))
-    (s : NTerm)
-    (pr : x = y) : AlphaEq (var-helper x z d1 s (NVar x)) (var-helper y z d2 s (NVar y)) <= \elim d1, d2
-        | inr pro1, inr pro2 => {?} --alpha-eq-refl 
-        | inr pro1, inl con2 => absurd (con2 ((inv pr) *> pro1))
-        | inl con1, inr pro2 => absurd (con1 (pr *> pro2))
-        | inl con1, inl con2 => VarEq pr
-
-
-\function
-nsubst-respects-alpha-eq-lam-helper-helper1
-    (z x y : Nat)
-    (t1 t2 s : NTerm)
-    (d : Dec (IsFree y s))
-    (pro1 : x = z)
-    (con2 : y != z)
-    (p : AlphaEq (nsubst t1 x (NVar y)) t2) : AlphaEq (NLam x t1) (lam-helper y s d (NLam (suc y) (nsubst' t2 z s (\lam (v : Nat) => (\case v =? y | inl _ => v | inr _ => suc y;)))) (NLam y (nsubst t2 z s))) <= \elim d
-        | inr pro => {?}
-        | inl con => LamEq {?}
-
-
-
-\function
-nsubst-respects-alpha-eq-lam-helper-helper3
-    (z x y : Nat)
-    (t1 t2 s : NTerm)
-    (d1 : Dec (IsFree x s))
-    (d2 : Dec (IsFree y s))
-    (con1 : x != z)
-    (con2 : y != z)
-    (p : AlphaEq (nsubst t1 x (NVar y)) t2) : AlphaEq (lam-helper x s d1 (NLam (suc x) (nsubst' t1 z s (\lam (v : Nat) => (\case v =? x | inl _ => v | inr _ => suc x;)))) (NLam x (nsubst t1 z s))) (lam-helper y s d2 (NLam (suc y) (nsubst' t2 z s (\lam (v : Nat) => (\case v =? y | inl _ => v | inr _ => suc y;)))) (NLam y (nsubst t2 z s))) <= \elim d1, d2
-        | inr pro1, inr pro2 => {?}
-        | inr pro1, inl con2 => {?}
-        | inl con1, inr pro2 => {?}
-        | inl con1, inl con2 => \let
-                                    | assoc => nsubst-assoc t1 s (NVar y) z x (\lam p => con1 (inv p)) (\lam q => \case q | VarIsFree qr => con2 (inv qr))
-                                    | resp => nsubst-respects-alpha-eq (nsubst t1 x (NVar y)) t2 z s p
-                                \in LamEq {?}
-
-
-\function
-nsubst-respects-alpha-eq-lam-helper
-    (z x y : Nat)
-    (t1 t2 s : NTerm)
-    (d1 : Dec (x = z))
-    (d2 : Dec (y = z))
-    (p : AlphaEq (nsubst t1 x (NVar y)) t2) : AlphaEq (var-helper x z d1 (NLam x t1) (lam-helper x s (isFreeDec x s) (NLam (suc x) (nsubst' t1 z s (\lam (v : Nat) => (\case v =? x | inr _ => suc x | inl _ => v;)))) (NLam x (nsubst t1 z s)))) (var-helper y z d2 (NLam y t2) (lam-helper y s (isFreeDec y s) (NLam (suc y) (nsubst' t2 z s (\lam (v : Nat) => (\case v =? y | inr _ => suc y | inl _ => v;)))) (NLam y (nsubst t2 z s)))) <= \elim d1, d2 
-        | inr pro1, inr pro2 => LamEq p
-        | inr pro1, inl con2 => nsubst-respects-alpha-eq-lam-helper-helper1 z x y t1 t2 s (isFreeDec y s) pro1 con2 p
-        | inl con1, inr pro2 => {?}
-        | inl con1, inl con2 => nsubst-respects-alpha-eq-lam-helper-helper3 z x y t1 t2 s (isFreeDec x s) (isFreeDec y s) con1 con2 p
-
-
-\function
-nsubst-respects-alpha-eq
-    (t1 t2 : NTerm)
-    (z : Nat)
-    (s : NTerm)
-    (p : t1 `AlphaEq` t2) : nsubst t1 z s `AlphaEq` nsubst t2 z s <= \elim t1, t2, p
-        | NVar x, NVar y, VarEq pr          => nsubst-respects-alpha-eq-var-helper z x y (x =? z) (y =? z) s pr
-        | NApp t1 s1, NApp t2 s2, AppEq p q => AppEq (nsubst-respects-alpha-eq t1 t2 z s p) (nsubst-respects-alpha-eq s1 s2 z s q)
-        | NLam x t1, NLam y t2, LamEq p     => nsubst-respects-alpha-eq-lam-helper z x y t1 t2 s (x =? z) (y =? z) p
-
+-}
