@@ -7,6 +7,7 @@
 \open ::Data::Either
 \open ::Data::Empty
 \open ::Data::Fin
+\open ::Data::List \hiding(concat, snoc)
 \open ::Data::Nat::Base
 \open ::Data::Nat::Compare
 \open ::Data::Unit
@@ -65,42 +66,53 @@ isFreeDec
 
 
 \function
-var-helper
-	(n m : Nat)
-	(d : Dec (n = m))
-	(t1 : NTerm)
-	(t2 : NTerm) : NTerm <= \elim d
-		| inr pro => t1
-        | inl con => t2
+vars
+    (t : NTerm) : List Nat <= \elim t
+        | NVar x => singleton x
+        | NApp t1 t2 => vars t1 ++ vars t2
+        | NLam x t => x :-: vars t
 
 
 \function
-lam-helper
-    (x : Nat)
-    (s : NTerm)
-    (d : Dec (IsFree x s))
-    (t1 : NTerm)
-    (t2 : NTerm) : NTerm <= \elim d
-        | inr pro => t1
-        | inl con => t2
+maxl
+    (l : List Nat) : Nat => foldr max zero l
 
 
 \function
-nsubst'
+gen-fresh-var
     (t : NTerm)
-    (y : Nat)
-    (s : NTerm)
-    (rho : Nat -> Nat) : NTerm <= \elim t
-        | NVar x     => var-helper (rho x) y (rho x =? y) s (NVar (rho x))
-        | NApp t1 t2 => NApp (nsubst' t1 y s rho) (nsubst' t2 y s rho)
-        | NLam x t   => var-helper (rho x) y (rho x =? y) (NLam x t) (lam-helper x s (isFreeDec x s) (NLam (suc x) (nsubst' t y s (\lam z => \case (z =? x) | inr pro => suc x | inl con => rho z))) (NLam x (nsubst' t y s rho)))
+    (ps : List (\Sigma Nat NTerm)) : Nat => suc (maxl ((concatMap {\Sigma Nat NTerm} {Nat} (\lam p => vars p.2) ps) ++ (vars t)))
+
+
+\function
+lookup-helper
+    (x : Nat)
+    (p : \Sigma Nat NTerm)
+    (ps : List (\Sigma Nat NTerm))
+    (d : Dec (p.1 = x)) : NTerm <= \elim d
+        | inr pro => p.2
+        | inl con => lookup ps x
+
+
+\function
+lookup
+    (ps : List (\Sigma Nat NTerm))
+    (x : Nat) : NTerm <= \elim ps
+        | nil           => NVar x
+        | (:-:) p ps    =>  \case p.1 =? x
+                                | inr _ => p.2
+                                | inl _ => lookup ps x --lookup-helper x p ps (p.1 =? x) 
 
 
 \function
 nsubst
     (t : NTerm)
-    (y : Nat)
-    (s : NTerm) : NTerm => nsubst' t y s id
+    (ps : List (\Sigma Nat NTerm)) : NTerm <= \elim t
+        | NVar x        => lookup ps x 
+        | NApp t1 t2    => NApp (nsubst t1 ps) (nsubst t2 ps)
+        | NLam x t      =>  \let
+                                | x' => gen-fresh-var (NLam x t) ps
+                            \in NLam x' (nsubst t ((x, NVar x') :-: ps))
 
 
 \function

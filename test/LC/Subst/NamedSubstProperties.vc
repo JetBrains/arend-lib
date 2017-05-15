@@ -9,6 +9,7 @@
 \open ::Data::Either
 \open ::Data::Empty
 \open ::Data::Fin
+\open ::Data::List \hiding (concat, snoc)
 \open ::Data::Nat::Base
 \open ::Data::Nat::Compare
 \open ::Data::Unit
@@ -18,65 +19,51 @@
 
 -- Named substitution properties
 
--- nsubst (nsubst t x (Var x)) v (Var v) = t
--- nsubst (nsubst t x (Var x)) v (Var v) = (nsubst t x (Var x)) = t
-
+{-
 \function
-nsubst-right-unit-lam-helper
+nsubst-right-unit-var-helper 
     (v x : Nat)
-    (t : NTerm)
-    (d : Dec (v = x)) : AlphaEq (var-helper v x d  (NLam v t) (lam-helper v (NVar x) (var-helper-is-free-dec v x d) (NLam (suc v) (nsubst' t x (NVar x) (\lam z => \case z =? v | inr p => suc v | inl np => z;))) (NLam v (nsubst t x (NVar x))))) (NLam v t) <= \elim d
-        | inr pro => LamEq (nsubst-right-unit t v)
-        | inl con => LamEq {?} --(alpha-eq-trans (nsubst-right-unit (nsubst t x (NVar x)) v) (nsubst-right-unit t x))
+    (d : Dec (x = v)) : AlphaEq (lookup-helper v (x, NVar x) nil d) (NVar v) <= \elim d
+        | inr pro => VarEq pro
+        | inl con => VarEq idp
+-}
 
 
 \function
 nsubst-right-unit-var-helper
     (v x : Nat)
-    (d : Dec (v = x)) : AlphaEq (var-helper v x d (NVar x) (NVar v)) (NVar v) <= \elim d
-        | inr pro => VarEq (inv pro)
+    (d : Dec (x = v)) : AlphaEq (\case d | inr _ => NVar x | inl _ => NVar v) (NVar v) <= \elim d
+        | inr pro => VarEq pro
         | inl con => VarEq idp
-
-
-\function
-nsubst-left-unit-helper
-    (t : NTerm)
-    (x : Nat)
-    (d : Dec (x = x)) : AlphaEq (var-helper x x d t (NVar x)) t <= \elim d
-        | inr pro => alpha-eq-refl
-        | inl con => absurd (con (idpe x))
 
 
 \function
 nsubst-right-unit
    (t : NTerm)
-   (x : Nat) : nsubst t x (NVar x) `AlphaEq` t <= \elim t
-        | NVar v     => nsubst-right-unit-var-helper v x (v =? x)
+   (x : Nat) : nsubst t (singleton (x, (NVar x))) `AlphaEq` t <= \elim t
+        | NVar v     => nsubst-right-unit-var-helper v x (x =? v) 
         | NApp t1 t2 => AppEq (nsubst-right-unit t1 x) (nsubst-right-unit t2 x)
-        | NLam v t   => nsubst-right-unit-lam-helper v x t (v =? x)
+        | NLam v t   => LamEq {?}
 
+{-
+\function
+nsubst-left-unit-helper
+    (x : Nat)
+    (t : NTerm)
+    (d : Dec (x = x)) : AlphaEq (lookup-helper x (x, t) nil d) t <= \elim d
+        | inr pro => alpha-eq-refl
+        | inl con => absurd (con idp)
 
 \function
 nsubst-left-unit
     (t : NTerm)
-    (x : Nat) : nsubst (NVar x) x t `AlphaEq` t => nsubst-left-unit-helper t x (x =? x)
-
-
+    (x : Nat) : nsubst (NVar x) (singleton (x, t)) `AlphaEq` t => nsubst-left-unit-helper x t (x =? x) 
+-}
+{-
 \function
-nsubst-respects-alpha-eq
-    (t1 t2 : NTerm)
-    (x : Nat)
-    (s : NTerm)
-    (p : t1 `AlphaEq` t2) : nsubst t1 x s `AlphaEq` nsubst t2 x s => {?} {-<= \elim t1, t2, p
-        | NVar x, NVar y, VarEq pr          => {?}
-        | NApp t1 s1, NApp t2 s2, AppEq p q => {?}
-        | NLam x1 t1, NLam x2 t2, LamEq p   => {?}-}
-
-
-\function
-nsubst-inv
-    (t : NTerm)
-    (x y z : Nat) : nsubst (nsubst t x (NVar y)) y (NVar z) `AlphaEq` (nsubst t x (NVar z)) => {?} {-<= \elim t
-        | NVar v     => {?}
-        | NApp t s   => {?}
-        | NLam v t   => {?}-}
+nsubst-assoc
+    (t N M : NTerm)
+    (x y : Nat)
+    (p : Not (x = y))
+    (pr : Not (IsFree x M)) : nsubst (nsubst t x N) y M `AlphaEq` nsubst (nsubst t y M) x (nsubst N y M) => {?}
+-}
