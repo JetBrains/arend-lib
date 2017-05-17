@@ -1,3 +1,4 @@
+\open ::LC::Relation::Fresh
 \open ::LC::Term::Term
 \open ::LC::Util::Ctx
 \open ::LC::Util::RVec
@@ -65,6 +66,16 @@ isFreeDec
         | NLam v t      => lam-helper-is-free-dec x v t (x =? v) (isFreeDec x t)
 
 
+-- t[x -> y]
+\function
+nsubst-var
+    (t : NTerm)
+    (x y : Nat) : NTerm <= \elim t
+        | NVar z        => \case z =? x | inr _ => NVar y | inl _ => NVar z;
+        | NApp t1 t2    => NApp (nsubst-var t1 x y) (nsubst-var t2 x y)
+        | NLam z t      => \case z =? x | inr _ => NLam y (nsubst-var t x y) | inl _ => NLam z (nsubst-var t x y)
+
+
 \function
 vars
     (t : NTerm) : List Nat <= \elim t
@@ -80,18 +91,17 @@ maxl
 
 \function
 gen-fresh-var
-    (t : NTerm)
-    (ps : List (\Sigma Nat NTerm)) : Nat => suc (maxl ((concatMap {\Sigma Nat NTerm} {Nat} (\lam p => vars p.2) ps) ++ (vars t)))
+    (ts : List NTerm) : Nat => suc (maxl (concatMap vars ts))
 
 
 \function
-lookup-helper
-    (x : Nat)
-    (p : \Sigma Nat NTerm)
-    (ps : List (\Sigma Nat NTerm))
-    (d : Dec (p.1 = x)) : NTerm <= \elim d
-        | inr pro => p.2
-        | inl con => lookup ps x
+proofs (v : Nat) (ts : List NTerm) : \Type <= \elim ts
+    | nil => Unit
+    | (:-:) t ts => \Sigma (v # t) (proofs v ts)
+
+
+\function
+gen-fresh-var' (ts : List NTerm) : \Sigma (v : Nat) (proofs v ts) => {?}
 
 
 \function
@@ -101,7 +111,7 @@ lookup
         | nil           => NVar x
         | (:-:) p ps    =>  \case p.1 =? x
                                 | inr _ => p.2
-                                | inl _ => lookup ps x --lookup-helper x p ps (p.1 =? x) 
+                                | inl _ => lookup ps x 
 
 
 \function
@@ -111,7 +121,8 @@ nsubst
         | NVar x        => lookup ps x 
         | NApp t1 t2    => NApp (nsubst t1 ps) (nsubst t2 ps)
         | NLam x t      =>  \let
-                                | x' => gen-fresh-var (NLam x t) ps
+                                | ts => (NLam x t) :-: (map (\lam (p : \Sigma Nat NTerm)  => p.2) ps)
+                                | x' => gen-fresh-var ts
                             \in NLam x' (nsubst t ((x, NVar x') :-: ps))
 
 
