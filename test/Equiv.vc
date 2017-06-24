@@ -51,6 +51,14 @@ fun-ext-equiv {A B : \Type} (f : A -> B) : linv f =~= (\Sigma (h : B -> A) (h `o
     \in (F, qinv-to-equiv F (G, eps, eta))
 
 \function
+fun-ext-equiv2 {A B : \Type} (f : A -> B) : rinv f =~= (\Sigma (h : B -> A) (f `o` h = id)) => 
+    \let | F : \Sigma (h : B -> A) (f `o` h ~ id) -> \Sigma (h : B -> A) (f `o` h = id) <= \lam x => (x.1, fun-ext {_} {_} {f `o` x.1} {id} x.2)
+         | G : \Sigma (h : B -> A) (f `o` h = id) -> \Sigma (h : B -> A) (f `o` h ~ id) <= \lam x => (x.1, fun-ext-inv {_} {_} {f `o` x.1} {id} x.2)
+         | eta : F `o` G ~ id <= \lam x => idp
+         | eps : G `o` F ~ id <= \lam x => idp
+    \in (F, qinv-to-equiv F (G, eps, eta))
+
+\function
 equiv-to-qinv {A B : \Type} (f : A -> B) (x : isequiv f) : qinv f => 
   (x.1.1 `o` f `o` x.2.1, 
    \lam x' => pmap x.1.1 (x.2.2 (f x')) *> x.1.2 x',
@@ -232,6 +240,10 @@ linv-contr {A B : \Type} (f : A -> B) (y : qinv f) : isContr (linv f) =>
         (hae-contr (\lam (h : B -> A) => h `o` f) (qinv-to-hae (\lam (h : B -> A) => h `o` f) (comp-qinv-r f y A)) id)
 
 \function
+rinv-contr {A B : \Type} (f : A -> B) (y : qinv f) : isContr (rinv f) =>
+    contr-equiv (equiv-symm (fun-ext-equiv2 f)) (hae-contr (o {B} f) (qinv-to-hae (o {B} f) (comp-qinv-l f y B)) id)
+
+\function
 lcoh {A B : \Type} (f : A -> B) (fl : linv f) <=
     \Sigma (eps : f `o` fl.1 ~ id) (\Pi (y : B) -> pmap fl.1 (eps y) = fl.2 (fl.1 y))
 
@@ -286,12 +298,21 @@ sigma-preserves-contr {A : \Type} (B : A -> \Type) (c1 : isContr A) (c2 : \Pi (x
              | z2 <= (c2 p.1).2 (coe (\lam i => B (c1.2 p.1 @ i)) (c2 c1.1).1 right)
         \in inv z2 *> z1))
 
+\function
+isProp-isContr (A : \Type) (x : A -> isContr A) : isProp A =>
+    \lam a a' => (
+        \let z <= (x a).2
+        \in inv (z a) *> z a')
+
+
 \function -- Theorem 4.2.13
-hae-is-contr {A B : \Type} (f : A -> B) : isContr (hae f) => 
+hae-is-prop {A B : \Type} (f : A -> B) : isProp (hae f) => 
     \let A0 : hae f = (\Sigma (u : rinv f) (rcoh f (u.1, u.2))) <=
          sigma-assoc2 (B -> A) (\lam g => \Pi (x : A) -> g (f x) = x) (\lam g => \Pi (x : B) -> f (g x) = x)
              (\lam p => \Pi (x : A) -> path (\lam i => f (p.2 x @ i)) = p.3 (f x))
-    \in transport isContr (inv A0) ({?}, {?})
+    \in isProp-isContr (hae f) (\lam (z : hae f) => transport isContr (inv A0)
+            (sigma-preserves-contr {rinv f} (\lam u => rcoh f (u.1, u.2)) (rinv-contr f (hae-to-qinv f z)) (\lam a => rcoh-contr f z a)))
+
 
 -- miscellaneous properties of equivalences
 
