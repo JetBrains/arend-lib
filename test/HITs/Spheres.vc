@@ -6,15 +6,13 @@
 \open ::Data::Either
 \open ::Combinators
 
+\function
+Pointed  => \Sigma (A : \Type) (a : A)
 
 \function
-Pointed => \Sigma (A : \Type) (a : A)
+Omega (A : Pointed) : Pointed => (A.2 = A.2, idp)
 
-\function
-Omega (A : Pointed) : Pointed =>
-    (A.2 = A.2, idp)
-
-\data Susp (A : \Type)
+\data Susp (A : \Type) 
     | south
     | north
     | merid (a : A) (i : I) => \elim i {
@@ -23,56 +21,50 @@ Omega (A : Pointed) : Pointed =>
     }
 
 \function
-meridP {A : \Type} (a : A) : north {A} = south {A} =>
-    path (\lam i => merid a i)
+meridP {A : \Type} (a : A) : north {A} = south {A} => path (\lam i => merid a i)
 
 \function
-meridArcP {A : \Type} (a : A) (i : I) : north {A} = merid a i =>
-    path (\lam j => merid a (squeeze i j))
+meridArcP {A : \Type} (a : A) (i : I) : north {A} = merid a i => path (\lam j => merid a (squeeze i j))
 
 \function
 Susp-ind-hetero {A : \Type} (B : Susp A -> \Type) (n : B north) (s : B south) (l : \Pi (a : A) -> Path (\lam i => B (merid a i)) n s)
-    (x : Susp A) : B x =>
-    \elim x
-        | north => n
-        | south => s
-        | merid a i => l a @ i
+    (x : Susp A) : B x => \elim x
+    | north => n
+    | south => s
+    | merid a i => l a @ i
 
 \function
 Susp-ind-homo {A : \Type} (B : Susp A -> \Type) (n : B north) (s : B south) (l : \Pi (a : A) -> transport B (meridP a) n = s)
-    (x : Susp A) : B x =>
-    \elim x
-        | north => n
-        | south => s
-        | merid a i => pathOver (l a) @ i
+    (x : Susp A) : B x => \elim x
+    | north => n
+    | south => s
+    | merid a i => pathOver (l a) @ i
 
 \function
-lemma_a {A : \Type} {a a' a'' : A} (p : a = a') (q : a'' = a') : (p *> inv q) <* q *> inv p = idp =>
-    concat-hetero-assoc1 _ _ _ *> pmap (\lam x => x *> inv p) (inv (concat-hetero-assoc2 _ _ _)) *>
+lemma_a {A : \Type} {a a' a'' : A} (p : a = a') (q : a'' = a') : (p *> inv q) <* q *> inv p = idp 
+    => concat-hetero-assoc1 _ _ _ *> pmap (\lam x => x *> inv p) (inv (concat-hetero-assoc2 _ _ _)) *>
     pmap (\lam x => (p *> x) *> inv p) (inv-concat2 q) *> pmap (\lam x => x *> inv p) (idp-concat _) *> concat-inv _
 
 \function
-susp2-S1 : Susp Bool =~= S1 =>
-    (f, ((g, p), (g, q)))
-  \where {
+susp2-S1 : Susp Bool =~= S1 => (f, ((g, p), (g, q))) \where {
     \function
-    f (x : Susp Bool) : S1
+    f (x : Susp Bool) : S1 
         | north => base
         | south => base
-        | merid (true) _ => base
-        | merid (false) i => loop i
+        | merid true _ => base
+        | merid false i => loop i
 
     \function
-    g (x : S1) : Susp Bool
+    g (x : S1) : Susp Bool 
         | base => north
-        | loop i => (path (merid false) *> inv (path (merid true))) @ i
+        | loop i => path (merid false) *> inv (path (merid true)) @ i
 
     \function
-    p (x : Susp Bool) : g (f x) = x
+    p (x : Susp Bool) : g (f x) = x 
         | north => idp
         | south => path (merid true)
-        | merid (true) i => meridArcP true i
-        | merid (false) i => 
+        | merid true i => meridArcP true i
+        | merid false i => 
             \let | leftSide : north = north => path (merid false) *> inv (path (merid true))
                  | rightSide : north = south => path (merid false)
                  | bottomSide : north = north => idpe north
@@ -85,26 +77,45 @@ susp2-S1 : Susp Bool =~= S1 =>
             \in mySquare @ i
 
     \function
-    q (x : S1) : f (g x) = x
+    q (x : S1) : f (g x) = x 
         | base => idp
-        | loop i => pmap (\lam x => x @ i) ((pmap-concat-commute f (path (merid false)) (inv (path (merid true)))) *>
-                       (pmap (\lam z => (path loop) *> z) (pmap-inv-comm f (path (merid true)))))
-  }
+        | loop i => pmap (\lam x => x @ i) (pmap-concat-commute f (path (merid false)) (inv (path (merid true))) *>
+            pmap (\lam z => path loop *> z) (pmap-inv-comm f (path (merid true))))
 
-\function based-map (A B : Pointed) => \Sigma (f : A.1 -> B.1) (p : f A.2 = B.2)
+}
 
-\function based-map-eq {A B : Pointed} {f g : based-map A B} (p : f.1 = g.1) : f = g => 
-    \let se => sigma-equiv {A.1 -> B.1} (\lam z => z A.2 = B.2) f g
-    \in se.2.1.1 (p, {?})
+\function
+based-map (A B : Pointed) => \Sigma (f : A.1 -> B.1) (p : f A.2 = B.2)
 
-\function + (A : \Type) : Pointed 
-    => (Either A Unit, inr unit)
+\function
++ (A : \Type) : Pointed => (Either A Unit, inr unit)
 
-\function pointed-adj (A : \Type) (B : Pointed) : based-map (A +`) B =~= (A -> B.1) 
-    => \let | F : based-map (A +`) B -> A -> B.1 => \lam f => f.1 `o inl
-            | G : (A -> B.1) -> based-map (A +`) B => \lam f => (\lam z => (\case z \with {
-                | inl a => f a
-                | inr _ => B.2
-                }), idp)
-            | P : \Pi (bm : based-map (A +`) B) -> G (F bm) = bm => {?}
-       \in (F, ((G, P), (G, \lam x => idp)))
+\function
+pointed-adj (A : \Type) (B : Pointed) : based-map (A +`) B =~= (A -> B.1) => 
+    \let | SE => \lam bm => sigma-equiv {Either A Unit -> B.1} (\lam f => f (inr unit) = B.2) (G (F bm)) bm
+         | eq : \Pi (bm : based-map (A +`) B) -> FG1 bm = bm.1 => \lam bm => fun-ext {_} {_} {FG1 bm} {bm.1} (\lam w => eq bm w)
+         | P : \Pi (bm : based-map (A +`) B) -> G (F bm) = bm => \lam bm => (SE bm).2.1.1
+             (eq bm, coePath (pmap (\lam (w : Either A Unit -> B.1) => w (inr unit)) (eq bm)) (idp {B.1} {B.2}) idp *> inv-inv bm.2)
+    \in (F, ((G, P), (G, \lam x => idp))) \where {
+    \function
+    F {A : \Type} {B : Pointed} (bm : based-map (A +`) B) : A -> B.1 => bm.1 `o inl
+
+    \function
+    G {A : \Type} {B : Pointed} (f : A -> B.1) : based-map (A +`) B => (\lam z => (\case z \with {
+        | inl a => f a
+        | inr _ => B.2
+    }), idp)
+
+    \function
+    FG1 {A : \Type} {B : Pointed} (bm : based-map (A +`) B) (w : Either A Unit) : B.1 => \case w \with {
+        | inl a => F bm a
+        | inr _ => B.2
+    }
+
+    \function
+    eq {A : \Type} {B : Pointed} (bm : based-map (A +`) B) (w : Either A Unit) : FG1 bm w = bm.1 w => \elim w
+        | inl a => idp
+        | inr _ => inv bm.2
+
+}
+
