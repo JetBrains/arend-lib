@@ -6,6 +6,8 @@
 \open ::Data::Either
 \open ::Combinators
 \open ::Hlevel
+\open ::Data::Nat::Base
+\open ::Data::Nat::Properties
 
 \function
 Pointed  => \Sigma (A : \oo-Type) (a : A)
@@ -118,32 +120,32 @@ Susp-UP (A B : \Type) : (Susp A -> B) =~= (\Sigma (b : \Sigma (bn : B) (bs : B))
 based-map (A B : Pointed) => \Sigma (f : A.1 -> B.1) (p : f A.2 = B.2)
 
 \function
-+ (A : \Type) : Pointed => (Either A Unit, inr unit)
+pt (A : \Type) : Pointed => (Either A Unit, inr unit)
 
 \function
-pointed-adj (A : \Type) (B : Pointed) : based-map (A +`) B =~= (A -> B.1) => 
+pointed-adj (A : \Type) (B : Pointed) : based-map (pt A) B =~= (A -> B.1) =>
     \let | SE => \lam bm => sigma-equiv {Either A Unit -> B.1} (\lam f => f (inr unit) = B.2) (G (F bm)) bm
-         | fExt : \Pi (bm : based-map (A +`) B) -> FG1 bm = bm.1 => \lam bm => fun-ext {_} {_} {FG1 bm} {bm.1} (\lam w => eq bm w)
-         | P : \Pi (bm : based-map (A +`) B) -> G (F bm) = bm => \lam bm => (SE bm).2.1.1
+         | fExt : \Pi (bm : based-map (pt A) B) -> FG1 bm = bm.1 => \lam bm => fun-ext {_} {_} {FG1 bm} {bm.1} (\lam w => eq bm w)
+         | P : \Pi (bm : based-map (pt A) B) -> G (F bm) = bm => \lam bm => (SE bm).2.1.1
              (fExt bm, coePath (pmap (\lam (w : Either A Unit -> B.1) => w (inr unit)) (fExt bm)) (idp {B.1} {B.2}) idp *> inv-inv bm.2)
     \in (F, ((G, P), (G, \lam x => idp))) \where {
     \function
-    F {A : \Type} {B : Pointed} (bm : based-map (A +`) B) : A -> B.1 => bm.1 `o inl
+    F {A : \Type} {B : Pointed} (bm : based-map (pt A) B) : A -> B.1 => bm.1 `o inl
 
     \function
-    G {A : \Type} {B : Pointed} (f : A -> B.1) : based-map (A +`) B => (\lam z => (\case z \with {
+    G {A : \Type} {B : Pointed} (f : A -> B.1) : based-map (pt A) B => (\lam z => (\case z \with {
         | inl a => f a
         | inr _ => B.2
     }), idp)
 
     \function
-    FG1 {A : \Type} {B : Pointed} (bm : based-map (A +`) B) (w : Either A Unit) : B.1 => \case w \with {
+    FG1 {A : \Type} {B : Pointed} (bm : based-map (pt A) B) (w : Either A Unit) : B.1 => \case w \with {
         | inl a => F bm a
         | inr _ => B.2
     }
 
     \function
-    eq {A : \Type} {B : Pointed} (bm : based-map (A +`) B) (w : Either A Unit) : FG1 bm w = bm.1 w => \elim w
+    eq {A : \Type} {B : Pointed} (bm : based-map (pt A) B) (w : Either A Unit) : FG1 bm w = bm.1 w => \elim w
         | inl a => idp
         | inr _ => inv bm.2
 
@@ -153,8 +155,8 @@ pointed-adj (A : \Type) (B : Pointed) : based-map (A +`) B =~= (A -> B.1) =>
 BoolP : Pointed => (Bool, false)
 
 \function
-Bool_Unit : BoolP = Unit +` => 
-    \let SE => sigma-equiv (\lam x => x) BoolP (Unit +`)
+Bool_Unit : BoolP = pt Unit =>
+    \let SE => sigma-equiv (\lam x => x) BoolP (pt Unit)
     \in SE.2.1.1 (equiv-to-path (f, ((g, gf_id), (g, fg_id))), idp) \where {
     \function
     f (x : Bool) : Either Unit Unit => \elim x
@@ -218,6 +220,16 @@ S (n : Nat) : Pointed => \elim n
     | zero => BoolP
     | suc n' => SuspP (S n')
 
+\function Omega-plus {B : Pointed} (n k : Nat): Omega n (Omega k B) = Omega (n + k) B => \elim n
+    | zero => idp
+    | suc n' => pmap {Pointed} {Pointed} (\lam X => \let BB => X \in (X.2 = X.2, idp {X.1} {X.2})) (Omega-plus {B} n' k)
+
+\function Omega-comm {B : Pointed} (n k : Nat): Omega n (Omega k B) = Omega k (Omega n B) =>
+ (Omega-plus n k) *> (pmap (\lam x => Omega x B) (plus-comm n k)) *> inv (Omega-plus k n)
+
+
 \function SphereOmega-adj (n : Nat) (B : Pointed): based-map (S n) B = (Omega n B).1 => \elim n
     | zero => S0-smash-unit B
-    | suc n' => {?}
+    | suc n' => \let | A1 => SigmaOmega-adj (S n') B
+                     | A2 => SphereOmega-adj n' (Omega 1 B)
+                     | A3 => Omega-comm {B} n' 1 \in A1 *> A2 *> A3
