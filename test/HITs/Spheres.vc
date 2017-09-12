@@ -9,6 +9,7 @@
 \open ::Data::Nat::Base
 \open ::Data::Nat::Properties
 \open ::PropLogic
+\open ::HedbergTheorem
 
 \function
 Pointed  => \Sigma (A : \oo-Type) (a : A)
@@ -16,7 +17,7 @@ Pointed  => \Sigma (A : \oo-Type) (a : A)
 \function
 Omega (n : Nat) (A : Pointed) : Pointed => \elim n
     | zero => A
-    | suc n' =>
+    | suc n' => 
         \let B => Omega n' A
         \in (B.2 = B.2, idp)
 
@@ -124,7 +125,7 @@ based-map (A B : Pointed) => \Sigma (f : A.1 -> B.1) (p : f A.2 = B.2)
 pt (A : \Type) : Pointed => (Either A Unit, inr unit)
 
 \function
-pointed-adj (A : \Type) (B : Pointed) : based-map (pt A) B =~= (A -> B.1) =>
+pointed-adj (A : \Type) (B : Pointed) : based-map (pt A) B =~= (A -> B.1) => 
     \let | SE => \lam bm => sigma-equiv {Either A Unit -> B.1} (\lam f => f (inr unit) = B.2) (G (F bm)) bm
          | fExt : \Pi (bm : based-map (pt A) B) -> FG1 bm = bm.1 => \lam bm => fun-ext {_} {_} {FG1 bm} {bm.1} (\lam w => eq bm w)
          | P : \Pi (bm : based-map (pt A) B) -> G (F bm) = bm => \lam bm => (SE bm).2.1.1
@@ -156,7 +157,7 @@ pointed-adj (A : \Type) (B : Pointed) : based-map (pt A) B =~= (A -> B.1) =>
 BoolP : Pointed => (Bool, false)
 
 \function
-Bool_Unit : BoolP = pt Unit =>
+Bool_Unit : BoolP = pt Unit => 
     \let SE => sigma-equiv (\lam x => x) BoolP (pt Unit)
     \in SE.2.1.1 (equiv-to-path (f, ((g, gf_id), (g, fg_id))), idp) \where {
     \function
@@ -221,27 +222,64 @@ S (n : Nat) : Pointed => \elim n
     | zero => BoolP
     | suc n' => SuspP (S n')
 
-\function Omega-plus {B : Pointed} (n k : Nat): Omega n (Omega k B) = Omega (n + k) B => \elim n
+\function
+Omega-plus {B : Pointed} (n k : Nat) : Omega n (Omega k B) = Omega (n + k) B => \elim n
     | zero => idp
-    | suc n' => pmap {Pointed} {Pointed} (\lam X => \let BB => X \in (X.2 = X.2, idp {X.1} {X.2})) (Omega-plus {B} n' k)
+    | suc n' => pmap {Pointed} {Pointed} (\lam X => (
+        \let BB => X
+        \in (X.2 = X.2, idp {X.1} {X.2}))) (Omega-plus {B} n' k)
 
-\function Omega-comm {B : Pointed} (n k : Nat): Omega n (Omega k B) = Omega k (Omega n B) =>
- (Omega-plus n k) *> (pmap (\lam x => Omega x B) (plus-comm n k)) *> inv (Omega-plus k n)
+\function
+Omega-comm {B : Pointed} (n k : Nat) : Omega n (Omega k B) = Omega k (Omega n B) 
+    => Omega-plus n k *> pmap (\lam x => Omega x B) (plus-comm n k) *> inv (Omega-plus k n)
 
-
-\function SphereOmega-adj (n : Nat) (B : Pointed): based-map (S n) B = (Omega n B).1 => \elim n
+\function
+SphereOmega-adj (n : Nat) (B : Pointed) : based-map (S n) B = (Omega n B).1 => \elim n
     | zero => S0-smash-unit B
-    | suc n' => \let | A1 => SigmaOmega-adj (S n') B
-                     | A2 => SphereOmega-adj n' (Omega 1 B)
-                     | A3 => pmap {Pointed} (\lam x => x.1) (Omega-comm {B} n' 1) \in A1 *> A2 *> A3
+    | suc n' => 
+        \let | A1 => SigmaOmega-adj (S n') B
+             | A2 => SphereOmega-adj n' (Omega 1 B)
+             | A3 => pmap {Pointed} (\lam x => x.1) (Omega-comm {B} n' 1)
+        \in A1 *> A2 *> A3
 
 \function
 ofHlevel-Omega (X : \Type) (n : Nat) : ofHlevel (suc (suc n)) X = (\Pi (x0 : X) -> ofHlevel (suc n) (x0 = x0)) => 
     \let | n' => suc n
          | A1 : isProp (ofHlevel (suc n') X) => ofHlevel-isProp (suc n') X
          | A2 : isProp (\Pi (x0 : X) -> ofHlevel n' (x0 = x0)) =>
-             \lam y y' => funExt (\lam (x0 : X) => ofHlevel n' (x0 = x0)) y y' (\lam z => ofHlevel-isProp n' (z = z) (y z) (y' z))
+             depfun-preserve-prop (\lam x0 => ofHlevel n' (x0 = x0)) (\lam x0 => ofHlevel-isProp (suc n) (x0 = x0))
          | A3 : ofHlevel (suc n') X -> \Pi (x0 : X) -> ofHlevel n' (x0 = x0) => \lam P x0 => P x0 x0
          | A4 : (\Pi (x0 : X) -> ofHlevel n' (x0 = x0)) -> ofHlevel (suc n') X =>
              \lam P x x' => ofHlevel-map (x = x') n (Jl {X} {x} (\lam x' p => ofHlevel n' (x = x')) (P x) {x'})
     \in prop-eq A1 A2 A3 A4
+
+\function
+isSet-Omega-contr (A : \Type0) : isSet A = (\Pi (a : A) -> isContr (a = a)) => 
+    \let | A1 : isSet A -> \Pi (a : A) -> isContr (a = a) => \lam P a => (idp, \lam p => P a a idp p)
+         | A2 : (\Pi (a : A) -> isContr (a = a)) -> isSet A => \lam P => axK-impl-isSet A (\lam a p => inv ((P a).2 idp) *> (P a).2 p)
+    \in prop-eq (isSet-isProp A) (depfun-preserve-prop (\lam a => isContr (a = a)) (\lam a => isContrFun-isProp (a = a))) A1 A2
+
+\function
+ofHlevel-Omega-contr (A : \Type0) (n : Nat) : ofHlevel (suc n) A = (\Pi (a : A) -> isContr (Omega n (A, a)).1) => \elim n
+    | zero => ofHlevel1-eq-isProp A *> inv (isProp-fun-isContr A)
+    | suc zero => corA A
+    | suc (suc n') => 
+        \let | n'' => suc n'
+             | F1 => \lam (a0 : A) => ofHlevel (suc n'') (a0 = a0)
+             | F2 => \lam (a0 : A) => \Pi (a : a0 = a0) -> isContr (Omega n'' (a0 = a0, a)).1
+             | F3 => \lam (a0 : A) => \Pi (a : a0 = a0) -> isContr (Omega n'' (a0 = a0, idp)).1
+             | E1 => \Pi (a0 : A) -> F1 a0
+             | E2 => \Pi (a0 : A) -> F2 a0
+             | E3 => \Pi (a0 : A) -> F3 a0
+             | A1 : ofHlevel (suc (suc n'')) A = E1 => ofHlevel-Omega A n''
+             | A2 : E1 = E2 => pmap-funExt (\lam a0 => F1 a0) (\lam a0 => F2 a0) (\lam a0 => ofHlevel-Omega-contr (a0 = a0) (suc n'))
+        \in {?} \where {
+    \function
+    LemmaA (A : Pointed) (p : A.2 = A.2) : Omega 1 (A.2 = A.2, idp) = Omega 1 (A.2 = A.2, p) => {?}
+
+    \function
+    corA (A : \Type0) : ofHlevel 2 A = (\Pi (a : A) -> isContr (a = a)) 
+        => `*> {\Type} {ofHlevel 2 A} {isSet A} {\Pi (a : A) -> isContr (a = a)} (ofHlevel2-eq-isSet A) (isSet-Omega-contr A)
+
+}
+
