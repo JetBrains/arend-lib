@@ -1,4 +1,6 @@
 \open ::Paths
+\open ::Combinators
+\open ::Equiv
 
 \function
 isContr (A : \Type) => \Sigma (a : A) (\Pi (a' : A) -> a = a')
@@ -18,13 +20,35 @@ ofHlevel (n : Nat) (A : \Type) : \Type => \elim n
     | suc n => \Pi (a a' : A) -> ofHlevel n (a = a')
 
 \function
+prop-eq {A B : \Type} (pa : isProp A) (pb : isProp B) (f : A -> B) (g : B -> A) : A = B 
+    => equiv-to-path (f, ((g, \lam _ => pa _ _), (g, \lam _ => pb _ _)))
+
+\function
 ofHlevel1-isProp (A : \Type) (f : ofHlevel (suc zero) A) : isProp A => \lam a a' => (f a a').1
 
 \function
 ofHlevel2-isSet (A : \Type) (f : ofHlevel 2 A) : isSet A => \lam a a' => ofHlevel1-isProp (a = a') (f a a')
 
 \function
+ofHlevel1-eq-isProp (A : \Type) : ofHlevel 1 A = isProp A 
+    => prop-eq (ofHlevel-isProp 1 A) (isProp-isProp A) (ofHlevel1-isProp A) (isProp-ofHlevel1 A)
+
+\function
+ofHlevel2-eq-isSet (A : \Type) : ofHlevel 2 A = isSet A 
+    => prop-eq (ofHlevel-isProp 2 A) (isSet-isProp A) (ofHlevel2-isSet A) (isSet-ofHlevel2 A)
+
+\function
 isContr-isProp (A : \Type) (c : isContr A) : isProp A => \lam a a' => inv (c.2 a) *> c.2 a'
+
+\function
+isProp-fun-isContr (A : \Type) : (A -> isContr A) = isProp A => 
+    \let A1 : isProp (A -> isContr A) => \lam y y' => funExt (\lam x0 => isContr A) y y' (\lam z => ofHlevel-isProp 0 A (y z) (y' z))
+    \in prop-eq A1 (isProp-isProp A) (isProp-isContr A) (\lam f a => (a, f a))
+
+\function
+ofHlevel-suc {E : \Type} {n : Nat} (nT : ofHlevel n E) : ofHlevel (suc n) E => \elim n
+    | zero => transport id (inv (ofHlevel1-eq-isProp E)) (isContr-isProp E nT)
+    | suc n' => \lam a a' => ofHlevel-suc {a = a'} {n'} (nT a a')
 
 \function
 isProp-ofHlevel1 (A : \Type) (f : isProp A) : ofHlevel (suc zero) A => \lam a a' => (inv (f a a) *> f a a', Jl (\lam x q => inv (f a a) *> f a x = q) (inv-concat (f a a)))
