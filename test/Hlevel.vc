@@ -124,37 +124,42 @@ eq-sigma-prop {A : \Type} (P : A -> \Type) (pr : \Pi (x : A) -> isProp (P x)) (u
     => sigma-ext-eq P {u} {v} (p, pr v.1 _ _)
 
 \function
-Types-eq (n : Nat) (A B : n Types`) : (A = B) =~= (A.1 = B.1) => 
-    \let | P => \lam C => ofHlevel n C
-         | F => \lam (p : A = B) => (sigma-eq-ext P p).1
-         | G => \lam (p : A.1 = B.1) => eq-sigma-prop P (\lam A => ofHlevel-isProp n A) A B p
-         | A0 => equiv-to-path (sigma-equiv P A B)
+eq-sigma-prop-eq {A : \Type} (P : A -> \Type) (pr : \Pi (x : A) -> isProp (P x)) (u v : \Sigma (a : A) (P a)) : (u = v) =~= (u.1 = v.1) => 
+    \let | F : u = v -> u.1 = v.1 => pmap (\lam (z : \Sigma (a : A) (P a)) => z.1)
+         | G : u.1 = v.1 -> u = v => eq-sigma-prop P pr u v
+         | A0 => equiv-to-path (sigma-equiv P u v)
          | TI => transp-invpath-linv id A0
-    \in (F, ((G, \lam x => inv (TI (G (F x))) *>
-            pmap (\lam z => transport id (inv A0) z) (eq-sigma-prop {A.1 = B.1} (\lam p => transport P p A.2 = B.2)
-                (\lam p => isProp-isSet (ofHlevel n B.1) (ofHlevel-isProp n B.1) _ _) (transport id A0 (G (F x))) (transport id A0 x) idp) *> TI x),
-            (G, \lam x => idp)))
+    \in (F, ((G,
+            \lam z => inv (TI (G (F z))) *> inv (pmap (\lam w => transport id (inv A0) w) (eq-sigma-prop (\lam p => transport P p u.2 = v.2)
+                (\lam (p : u.1 = v.1) => isProp-isSet (P v.1) (pr v.1) (transport P p u.2) v.2) (transport id A0 z)
+                (transport id A0 (G (F z))) idp)) *> TI z), (G, \lam z => idp)))
+
+\function
+Types-eq (n : Nat) (A B : n Types`) : (A = B) =~= (A.1 = B.1) 
+    => eq-sigma-prop-eq (\lam (A : \Type) => ofHlevel n A) (ofHlevel-isProp n) A B
 
 \function
 ofHlevel-embedding {A B : \Type} {n : Nat} (f : A -> B) (e : is_embedding f) (nT : ofHlevel (suc n) B) : ofHlevel (suc n) A 
     => \lam x y => transport (\lam z => ofHlevel n z) (inv (equiv-to-path (pmap f, e x y))) (nT (f x) (f y))
 
 \function
-isequiv-isProp (A B : \Type) (f : A -> B) : isProp (isequiv f) => {?}
+proj-embedding (A B : \Type) : is_embedding (\lam (x : A =~= B) => x.1) 
+    => \lam x y => (eq-sigma-prop-eq (\lam (f : A -> B) => isequiv f) (\lam f => isequiv-is-prop f) x y).2
 
 \function
-proj-embedding (A B : \Type) : is_embedding (\lam (x : A =~= B) => x.1) => \lam x y => (
-    \let | F => \lam (p : x = y) => pmap (\lam (x : A =~= B) => x.1) p
-         | G => \lam (p : x.1 = y.1) => sigma-ext-eq (isequiv {A} {B}) (p, isequiv-is-prop y.1 _ _)
-         | A0 => equiv-to-path (sigma-equiv (\lam (f : A -> B) => isequiv f) x y)
-         | TI => transp-invpath-linv id A0
-         | GFc => \lam (p : x = y) => transport id A0 p
-         | Idc => \lam (p : x = y) => transport id A0 (G (F p))
-         | A2 : \Pi (p : x = y) -> (GFc p).1 = (Idc p).1 => \lam p => idp
-         | PZ : \Pi (p : x.1 = y.1) -> isProp (transport (\lam (f : A -> B) => isequiv f) p x.2 = y.2) => {?}
-         | A3 : GFc ~ Idc => \lam p => eq-sigma-prop (\lam (p : x.1 = y.1) => transport (\lam (f : A -> B) => isequiv f) p x.2 = y.2) PZ (GFc p) (Idc p) idp
-         | A1 : \Pi (p : x = y) -> G (F p) = p => {?}
-    \in ((G, A1), (G, \lam p => idp)))
+ofHlevel-retracts (A B : \Type) (n : Nat) (f : A -> B) (g : B -> A) (retr : g `o f ~ id) (nT : ofHlevel n B) : ofHlevel n A => \elim n
+    | zero => (g nT.1, \lam a => pmap g (nT.2 (f a)) *> retr a)
+    | suc n' => \lam a a' => (
+        \let | F => pmap f
+             | G => \lam (q : f a = f a') => inv (retr a) *> pmap g q <* retr a'
+             | A0 => Jl {A} {a} (\lam a' p => inv (retr a) *> pmap g (pmap f p) <* retr a' = p) (inv-concat (retr a)) {a'}
+             | A1 => ofHlevel-retracts (a = a') (f a = f a') n' F G (\lam (p : a = a') => A0 p)
+        \in A1 (nT (f a) (f a')))
 
 \function
-ofHlevel-Types (n : Nat) : ofHlevel (suc n) (n Types`) => {?}
+ofHlevel-Types (n : Nat) : ofHlevel (suc (suc n)) (suc n Types`) => \lam (X X' : suc n Types`) => (
+    \let | F : X.1 =~= X'.1 -> X.1 -> X'.1 => \lam e => e.1
+         | A0 : (X = X') = (X.1 = X'.1) => equiv-to-path (Types-eq (suc n) X X')
+         | A1 : ofHlevel (suc n) (X.1 -> X'.1) => ofHlevel-codom X.1 (const X'.1) (suc n) (const X'.2)
+         | A2 : ofHlevel (suc n) (X.1 =~= X'.1) => ofHlevel-embedding F (proj-embedding X.1 X'.1) A1
+    \in {?})
