@@ -1,13 +1,191 @@
 \open ::Paths
 \open ::Hlevel
+\open ::HITs::Spheres
+\open ::Combinators
+\open ::Equiv
+\open ::Data::Nat::Base
+\open ::Data::Nat::Properties
 
-\data Squash (A : \Type0)
-	| in A
-	| eq (Squash A) (Squash A) I
-\with
-	| eq a a' left => a
-	| eq a a' right => a'
+\data Trunc (n : Nat) (A : \Type) 
+    | inT A
+    | hT (r : (S n).1 -> Trunc n A)
+    | spokeT (r : (S n).1 -> Trunc n A) (x : (S n).1) (i : I) => \elim i {
+        | left => r x
+        | right => hT r
+    }
 
-\function 
-Squash-isProp {A : \Type0} : isProp (Squash A) => \lam a a' => path (\lam i => eq a a' i) 
+\function
+ofHlevel-Trunc (n : Nat) (A : \Type) : ofHlevel (suc n) (Trunc n A) => 
+    \let TA => Trunc n A
+    \in transport id (inv (ofHlevel-Omega-contr TA n))
+        (\lam (b : TA) => transport id (pmap isContr (SphereOmega-adj n (TA, b))) (
+            \let cb : (S n).1 -> TA => \lam x => b
+            \in ((cb, idp), \lam r => (
+                    \let | P => \lam (f : (S n).1 -> TA) => f (S n).2 = b
+                         | A1 : cb = r.1 => fun-ext (\lam (x : (S n).1) => inv (path (spokeT r.1 x) *> inv (path (spokeT r.1 (S n).2)) *> r.2))
+                         | A2 : transport P A1 idp = r.2 => coePath (pmap (\lam (f : (S n).1 -> TA) => f (S n).2) A1) idp (idpe b) *>
+                             inv-inv _ *> inv (concat-assoc _ _ _) *> pmap (\lam p => p *> r.2) (concat-inv (path (spokeT r.1 (S n).2))) *> concat-idp _
+                    \in sigma-ext-eq P (A1, A2)))))
 
+\function
+Trunc-UP {n : Nat} {A : \Type} {P : Trunc n A -> \Type} (nT : \Pi (x : Trunc n A) -> ofHlevel (suc n) (P x))
+    (g : \Pi (a : A) -> P (inT a)) (x : Trunc n A) : P x => \elim x
+    | inT a => g a
+    | hT r => transport P (path (spokeT r (S n).2)) (Trunc-UP {n} {A} {P} nT g (r (S n).2))
+    | spokeT r x i => pathOver (ofHlevel-sphere-map-contr (nT (hT r))
+        (\lam (z : (S n).1) => transport P (path (spokeT r z)) (Trunc-UP {n} {A} {P} nT g (r z))) x) @ i
+
+\function
+ext {n : Nat} {A E : \Type} (nT : ofHlevel (suc n) E) (f : A -> E) : Trunc n A -> E 
+    => Trunc-UP {n} {A} {\lam _ => E} (\lam _ => nT) f
+
+\function
+uniq {n : Nat} {A E : \Type} (nT : ofHlevel (suc n) E) (f1 f2 : Trunc n A -> E) (eq : \Pi (a : A) -> f1 (inT a) = f2 (inT a)) : f1 ~ f2 
+    => \lam (x : Trunc n A) => Trunc-UP {n} {A} {\lam x => f1 x = f2 x} (\lam x => ofHlevel-suc {E} {suc n} nT (f1 x) (f2 x)) eq x
+
+\function
+Trunc-UP2 {n : Nat} (A B : \Type) (nT : ofHlevel (suc n) B) : isequiv (\lam (g : Trunc n A -> B) => g `o inT) => 
+    \let G => ext {n} {A} {B} nT
+    \in ((G, \lam g => fun-ext (uniq nT (G (g `o inT)) g (\lam _ => idp))),
+            (G, \lam f => fun-ext {A} {B} {G f `o inT} {f} (\lam _ => idp)))
+
+\function
+inM {A B : \Type} (f : A -> B) (n : Nat) : Trunc n A -> Trunc n B => ext (ofHlevel-Trunc n B) (inT `o f)
+
+-- It is obvious that
+--   inM f n (inT a) = inT (f a)
+
+\function
+inM-o {A B C : \Type} (f : A -> B) (g : B -> C) (n : Nat) : inM g n `o inM f n = inM (g `o f) n 
+    => fun-ext (uniq (ofHlevel-Trunc n C) (inM g n `o inM f n) (inM (g `o f) n) (\lam _ => idp))
+
+\function
+inM-id {A : \Type} (n : Nat) : inM (id {A}) n = id {Trunc n A} 
+    => fun-ext (uniq (ofHlevel-Trunc n A) (inM (id {A}) n) (id {Trunc n A}) (\lam _ => idp))
+
+\function
+inH {A B : \Type} (f g : A -> B) (h : f ~ g) (n : Nat) : inM f n ~ inM g n => 
+    \let | A0 : inM f n `o inT = inM g n `o inT => fun-ext (\lam a => pmap (\lam b => inT {n} {B} b) (h a))
+         | A1 => Trunc-UP2 A (Trunc n B) (ofHlevel-Trunc n B)
+    \in fun-ext-inv (inv (A1.1.2 (inM f n)) *> pmap A1.1.1 A0 *> A1.1.2 (inM g n))
+
+\function
+ofHlevel-inT-equiv (A : \Type) (n : Nat) (nT : ofHlevel (suc n) A) : isequiv (inT {n} {A}) => 
+    \let G => ext nT (id {A})
+    \in ((G, \lam _ => idp), (G, uniq (ofHlevel-Trunc n A) (inT `o G) id (\lam _ => idp)))
+
+\function
+inT-equiv-ofHlevel (A : \Type) (n : Nat) (e : isequiv (inT {n} {A})) : ofHlevel (suc n) A 
+    => transport (\lam B => ofHlevel (suc n) B) (inv (equiv-to-path (inT {n} {A}, e))) (ofHlevel-Trunc n A)
+
+\function
+sigma-Trunc (A B : \Type) (n : Nat) : Trunc n (\Sigma A B) =~= (\Sigma (Trunc n A) (Trunc n B)) => 
+    \let | P1 => Trunc n (\Sigma A B)
+         | P2 => \Sigma (Trunc n A) (Trunc n B)
+         | nTP1 => ofHlevel-Trunc n (\Sigma A B)
+         | nTP2 => ofHlevel-sigma {Trunc n A} (\lam _ => Trunc n B) {suc n} (ofHlevel-Trunc n A) (\lam _ => ofHlevel-Trunc n B)
+         | nTM => \lam P (nTP : ofHlevel (suc n) P) => ofHlevel-codom (Trunc n B) (const P) (suc n) (const nTP)
+         | F : P1 -> P2 => ext {n} {\Sigma A B} {\Sigma (Trunc n A) (Trunc n B)} nTP2 (\lam p => (inT p.1, inT p.2))
+         | G : P2 -> P1 => uncurry (ext {n} {A} {Trunc n B -> P1} (nTM P1 nTP1) (\lam a => ext {n} {B} {P1} nTP1 (\lam b => inT (a, b))))
+         | cFG => curry (F `o G)
+         | cId => curry (id {P2})
+    \in (F, ((G, uniq nTP1 (G `o F) id (\lam x => idp)), (G, curry-fun-eq (F `o G) (id {P2})
+            (uniq (nTM P2 nTP2) cFG cId (\lam a => fun-ext (uniq nTP2 (cFG (inT a)) (cId (inT a)) (\lam _ => idp)))))))
+
+\function
+sigma-fibers-Trunc {A : \Type} (P : A -> \Type) (n : Nat) : Trunc n (\Sigma (x : A) (Trunc n (P x))) =~= Trunc n (\Sigma (x : A) (P x)) => 
+    \let | T1 => \Sigma (x : A) (Trunc n (P x))
+         | T2 => \Sigma (x : A) (P x)
+         | P1 => Trunc n T1
+         | P2 => Trunc n T2
+         | F : P1 -> P2 => ext (ofHlevel-Trunc n T2)
+             (uncurry-d (\lam x => Trunc n (P x)) (\lam (x : A) => ext (ofHlevel-Trunc n T2) (\lam (y : P x) => inT (x, y))))
+         | G : P2 -> P1 => inM {T2} {T1} (\lam (p : T2) => (p.1, inT p.2)) n
+    \in (F, ((G, uniq (ofHlevel-Trunc n T1) (G `o F) id (curry-d-fun-eq (\lam x => Trunc n (P x)) (G `o F `o inT) inT
+            (\lam x => fun-ext {Trunc n (P x)} {P1} (uniq (ofHlevel-Trunc n T1) (curry-d (\lam x => Trunc n (P x)) (G `o F `o inT) x)
+                (curry-d (\lam x => Trunc n (P x)) (inT {n} {T1}) x) (\lam _ => idp))))),
+            (G, uniq (ofHlevel-Trunc n T2) (F `o G) id (\lam _ => idp))))
+
+\function
+sigma-base-Trunc {A : \Type} {n : Nat} (nT : ofHlevel (suc n) A) (P : A -> \Type) :
+    (\Sigma (a : A) (Trunc n (P a))) =~= Trunc n (\Sigma (a : A) (P a)) => 
+    \let A0 => equiv-to-path (inT {n} {\Sigma (x : A) (Trunc n (P x))}, ofHlevel-inT-equiv (\Sigma (x : A) (Trunc n (P x))) n
+             (ofHlevel-sigma (\lam a => Trunc n (P a)) {suc n} nT (\lam a => ofHlevel-Trunc n (P a))))
+    \in transport (\lam T => T =~= Trunc n (\Sigma (x : A) (P x))) (inv A0) (sigma-fibers-Trunc P n)
+
+\function
+Trunc-paths (A : \Type) (n : Nat) (x y : A) : isequiv (f n x y) => 
+    \let | TA => Trunc (suc n) A
+         | L : ofHlevel (2 + n) (TA -> suc n Types`) =>
+             ofHlevel-codom TA (const (suc n Types`)) (2 + n) (const (ofHlevel-Types (suc n)))
+         | P : TA -> TA -> suc n Types` => ext {suc n} {A} {TA -> suc n Types`} L
+             (\lam (a : A) => ext {suc n} {A} {suc n Types`} (ofHlevel-Types (suc n)) (\lam (a' : A) => (Trunc n (a = a'), ofHlevel-Trunc n (a = a'))))
+         | L0 : \Pi (u v : TA) -> ofHlevel (suc n) ((P u v).1 -> u = v) =>
+             \lam u v => ofHlevel-codom (P u v).1 (const (u = v)) (suc n) (\lam _ => ofHlevel-Trunc (suc n) A u v)
+         | L1 : \Pi (u : TA) -> ofHlevel (suc n) (\Pi (v : TA) (w : (P u v).1) -> u = v) =>
+             \lam u => ofHlevel-codom TA (\lam v => (P u v).1 -> u = v) (suc n) (L0 u)
+         | decode : \Pi (u v : TA) (w : (P u v).1) -> u = v => Trunc-UP {suc n} {A} {\lam (u : TA) => \Pi (v : TA) (w : (P u v).1) -> u = v}
+             (\lam u => ofHlevel-suc {_} {suc n} (L1 u))
+         (\lam (x : A) => Trunc-UP {suc n} {A} {\lam (v : TA) => (P (inT x) v).1 -> inT x = v} (\lam v => ofHlevel-suc {_} {suc n} (L0 (inT x) v))
+             (\lam (y : A) => f n x y))
+         | r : \Pi (u : TA) -> (P u u).1 =>
+         Trunc-UP {suc n} {A} {\lam u => (P u u).1} (\lam (u : TA) => ofHlevel-suc {_} {suc n} (P u u).2)
+             (\lam x => inT (idpe x))
+         | encode : \Pi {u v : TA} (u = v) -> (P u v).1 => \lam {u} {v} p => transport (\lam (v : TA) => (P u v).1) p (r u)
+         | L2 : ofHlevel (4 + n) TA => ofHlevel-suc {_} {3 + n} (ofHlevel-suc {_} {2 + n} (ofHlevel-Trunc (suc n) A))
+         | A1 : \Pi (u : TA) -> decode u u (encode (idpe u)) = idpe u =>
+         Trunc-UP {suc n} {A} {\lam u => decode u u (encode (idpe u)) = idpe u}
+             (\lam u => L2 u u (decode u u (encode (idpe u))) (idpe u)) (\lam _ => idp)
+         | A2 : \Pi (u v : TA) (p : u = v) -> decode u v (encode p) = p =>
+             \lam u v => Jl {TA} {u} (\lam v p => decode u v (encode p) = p) (A1 u) {v}
+         | L3 : \Pi (u v : TA) -> ofHlevel (2 + n) (P u v).1 => \lam u v => ofHlevel-suc {_} {suc n} (P u v).2
+         | L4 : \Pi (u v : TA) -> ofHlevel (2 + n) (\Pi (x : (P u v).1) -> encode (decode u v x) = x) =>
+         \lam u v => ofHlevel-codom (P u v).1 (\lam x => encode (decode u v x) = x) (2 + n)
+             (\lam x => ofHlevel-suc {_} {2 + n} (L3 u v) (encode (decode u v x)) x)
+         | A3 : \Pi (a b : A) (x : a = b) -> encode (decode (inT a) (inT b) (inT x)) = inT x =>
+         \lam a b x => transport-postcompose (\lam b => a = b) x (Trunc n) (\lam (b : A) (p : a = b) => inT p) (idpe a) *>
+             pmap inT (transp-pathfibers a x (idpe a) *> concat-idp x)
+         | A4 : \Pi (u v : TA) (x : (P u v).1) -> encode (decode u v x) = x =>
+         Trunc-UP {suc n} {A} {\lam u => \Pi (v : TA) (x : (P u v).1) -> encode (decode u v x) = x}
+             (\lam u => ofHlevel-codom TA (\lam v => \Pi (x : (P u v).1) -> encode (decode u v x) = x) (2 + n) (L4 u))
+         (\lam (a : A) => Trunc-UP {suc n} {A} {\lam v => \Pi (x : (P (inT a) v).1) -> encode (decode (inT a) v x) = x} (L4 (inT a))
+             (\lam (b : A) => Trunc-UP {n} {a = b} {\lam x => encode (decode (inT a) (inT b) x) = x}
+                 (\lam x => L3 (inT a) (inT b) (encode (decode (inT a) (inT b) x)) x) (A3 a b)))
+         | A5 : \Pi (u v : TA) -> (P u v).1 =~= (u = v) => \lam u v => (decode u v, ((encode {u} {v}, A4 u v), (encode {u} {v}, A2 u v)))
+    \in (A5 (inT x) (inT y)).2 \where {
+    \function
+    f {A : \Type} (n : Nat) (x y : A) : Trunc n (x = y) -> inT {suc n} x = inT {suc n} y 
+        => ext {n} {x = y} (ofHlevel-Trunc (suc n) A (inT {suc n} x) (inT {suc n} y)) (\lam p => pmap inT p)
+
+}
+
+\function
+Trunc-Omega (A : Pointed) (n : Nat) : Trunc n (Omega 1 A).1 = (Omega 1 (Trunc (suc n) A.1, inT A.2)).1 
+    => equiv-to-path (Trunc-paths.f n A.2 A.2, Trunc-paths A.1 n A.2 A.2)
+
+\function
+TruncP (n : Nat) (A : Pointed) : Pointed => (Trunc n A.1, inT A.2)
+
+\function
+TruncP-Omega (A : Pointed) (n : Nat) : TruncP n (Omega 1 A) = Omega 1 (TruncP (suc n) A) 
+    => sigma-ext-eq {\oo-Type} id {TruncP n (Omega 1 A)} {Omega 1 (TruncP (suc n) A)} (Trunc-Omega A n, idp)
+
+\function
+Trunc-Omega-it (A : Pointed) (n k : Nat) : TruncP n (Omega k A) = Omega k (TruncP (k + n) A) => \elim k
+    | zero => idp
+    | suc k' => pmap (\lam (T : Pointed) => TruncP n T) (Omega-suc k' A) *> Trunc-Omega-it (Omega 1 A) n k' *>
+        pmap (Omega k') (TruncP-Omega A (k' + n)) *> inv (Omega-suc k' (TruncP (suc (k' + n)) A))
+
+\function
+Trunc-cumulative (k d : Nat) (A : \Type) : Trunc k (Trunc (k + d) A) = Trunc k A => 
+    \let | P1 => Trunc k (Trunc (k + d) A)
+         | P2 => Trunc k A
+         | L1 : ofHlevel (suc (k + d)) (Trunc k A) =>
+             transport (\lam s => ofHlevel s (Trunc k A)) (plus-comm d (suc k)) (ofHlevel-plus d (ofHlevel-Trunc k A))
+         | L2 : ofHlevel (suc (k + d)) P1 =>
+             transport (\lam s => ofHlevel s P1) (plus-comm d (suc k)) (ofHlevel-plus d (ofHlevel-Trunc k (Trunc (k + d) A)))
+         | L3 : ofHlevel (suc k) P1 => ofHlevel-Trunc k (Trunc (k + d) A)
+         | F : P1 -> P2 => ext (ofHlevel-Trunc k A) (ext L1 (\lam a => inT a))
+         | G : P2 -> P1 => ext L3 (\lam a => inT {k} {Trunc (k + d) A} (inT {k + d} {A} a))
+    \in equiv-to-path (F, ((G, uniq L3 (G `o F) id (uniq L2 (G `o F `o inT) inT (\lam a => idp))),
+            (G, uniq (ofHlevel-Trunc k A) (F `o G) id (\lam a => idp))))

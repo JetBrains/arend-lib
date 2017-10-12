@@ -1,0 +1,306 @@
+\open ::Paths
+\open ::Data::Bool
+\open ::Equiv
+\open ::HITs::Circle
+\open ::Data::Unit
+\open ::Data::Either
+\open ::Combinators
+\open ::Hlevel
+\open ::Data::Nat::Base
+\open ::Data::Nat::Properties
+\open ::PropLogic
+\open ::HedbergTheorem
+
+\function
+Pointed  => \Sigma (A : \oo-Type) (a : A)
+
+\function
+Omega (n : Nat) (A : Pointed) : Pointed => \elim n
+    | zero => A
+    | suc n' => 
+        \let B => Omega n' A
+        \in (B.2 = B.2, idp)
+
+\data Susp (A : \Type) 
+    | south
+    | north
+    | merid (a : A) (i : I) => \elim i {
+        | left => north
+        | right => south
+    }
+
+\function
+meridP {A : \Type} (a : A) : north {A} = south {A} => path (\lam i => merid a i)
+
+\function
+meridArcP {A : \Type} (a : A) (i : I) : north {A} = merid a i => path (\lam j => merid a (squeeze i j))
+
+\function
+Susp-ind-hetero {A : \Type} (B : Susp A -> \Type) (n : B north) (s : B south) (l : \Pi (a : A) -> Path (\lam i => B (merid a i)) n s)
+    (x : Susp A) : B x => \elim x
+    | north => n
+    | south => s
+    | merid a i => l a @ i
+
+\function
+Susp-ind-homo {A : \Type} (B : Susp A -> \Type) (n : B north) (s : B south) (l : \Pi (a : A) -> transport B (meridP a) n = s)
+    (x : Susp A) : B x => \elim x
+    | north => n
+    | south => s
+    | merid a i => pathOver (l a) @ i
+
+\function
+lemma_a {A : \Type} {a a' a'' : A} (p : a = a') (q : a'' = a') : (p *> inv q) <* q *> inv p = idp 
+    => concat-hetero-assoc1 _ _ _ *> pmap (\lam x => x *> inv p) (inv (concat-hetero-assoc2 _ _ _)) *>
+    pmap (\lam x => (p *> x) *> inv p) (inv-concat2 q) *> pmap (\lam x => x *> inv p) (idp-concat _) *> concat-inv _
+
+\function
+susp2-S1 : Susp Bool =~= S1 => (f, ((g, p), (g, q))) \where {
+    \function
+    f (x : Susp Bool) : S1 
+        | north => base
+        | south => base
+        | merid true _ => base
+        | merid false i => loop i
+
+    \function
+    g (x : S1) : Susp Bool 
+        | base => north
+        | loop i => (path (merid false) *> inv (path (merid true))) @ i
+
+    \function
+    p (x : Susp Bool) : g (f x) = x 
+        | north => idp
+        | south => path (merid true)
+        | merid true i => meridArcP true i
+        | merid false i => 
+            \let | leftSide : north = north => path (merid false) *> inv (path (merid true))
+                 | rightSide : north = south => path (merid false)
+                 | bottomSide : north = north => idpe north
+                 | topSide : north = south => path (merid true)
+                 | squareType => square leftSide rightSide bottomSide topSide
+                 | squarePath => bottomSide = leftSide <* topSide *> inv rightSide
+                 | pathProof : squarePath => inv (lemma_a rightSide topSide)
+                 | squareEquality : squarePath = squareType => square-path leftSide rightSide bottomSide topSide
+                 | mySquare : Path (\lam i => leftSide @ i = rightSide @ i) bottomSide topSide => transport (\lam x => x) squareEquality pathProof
+            \in mySquare @ i
+
+    \function
+    q (x : S1) : f (g x) = x 
+        | base => idp
+        | loop i => pmap (\lam x => x @ i) (pmap-concat-commute f (path (merid false)) (inv (path (merid true))) *>
+            pmap (\lam z => path loop *> z) (pmap-inv-comm f (path (merid true))))
+
+}
+
+\function
+Susp-UP (A B : \Type) : (Susp A -> B) =~= (\Sigma (b : \Sigma (bn : B) (bs : B)) (A -> b.1 = b.2)) 
+    => (F, ((G, \lam f => fun-ext (\lam x => FG_id f x)), (G, GF_id))) \where {
+    \function
+    F {A B : \Type} (f : Susp A -> B) : \Sigma (b : \Sigma (bn : B) (bs : B)) (A -> b.1 = b.2) 
+        => ((f north, f south), \lam a => pmap f (meridP a))
+
+    \function
+    G {A B : \Type} (g : \Sigma (b : \Sigma (bn : B) (bs : B)) (A -> b.1 = b.2)) (x : Susp A) : B => \elim x
+        | north => g.1.1
+        | south => g.1.2
+        | merid a i => g.2 a @ i
+
+    \function
+    GF_id {A B : \Type} (g : \Sigma (b : \Sigma (bn : B) (bs : B)) (A -> b.1 = b.2)) : F (G g) = g 
+        => (sigma-equiv (\lam (b : \Sigma (bn : B) (bs : B)) => A -> b.1 = b.2) (F (\lam x => G g x)) g).2.1.1 (idp, idp)
+
+    \function
+    FG_id {A B : \Type} (f : Susp A -> B) (x : Susp A) : G (F f) x = f x => \elim x
+        | north => idp
+        | south => idp
+        | merid a i => idp
+
+}
+
+\function
+based-map (A B : Pointed) => \Sigma (f : A.1 -> B.1) (p : f A.2 = B.2)
+
+\function
+pt (A : \Type) : Pointed => (Either A Unit, inr unit)
+
+\function
+pointed-adj (A : \Type) (B : Pointed) : based-map (pt A) B =~= (A -> B.1) => 
+    \let | SE => \lam bm => sigma-equiv {Either A Unit -> B.1} (\lam f => f (inr unit) = B.2) (G (F bm)) bm
+         | fExt : \Pi (bm : based-map (pt A) B) -> FG1 bm = bm.1 => \lam bm => fun-ext {_} {_} {FG1 bm} {bm.1} (\lam w => eq bm w)
+         | P : \Pi (bm : based-map (pt A) B) -> G (F bm) = bm => \lam bm => (SE bm).2.1.1
+             (fExt bm, coePath (pmap (\lam (w : Either A Unit -> B.1) => w (inr unit)) (fExt bm)) (idp {B.1} {B.2}) idp *> inv-inv bm.2)
+    \in (F, ((G, P), (G, \lam x => idp))) \where {
+    \function
+    F {A : \Type} {B : Pointed} (bm : based-map (pt A) B) : A -> B.1 => bm.1 `o inl
+
+    \function
+    G {A : \Type} {B : Pointed} (f : A -> B.1) : based-map (pt A) B => (\lam z => (\case z \with {
+        | inl a => f a
+        | inr _ => B.2
+    }), idp)
+
+    \function
+    FG1 {A : \Type} {B : Pointed} (bm : based-map (pt A) B) (w : Either A Unit) : B.1 => \case w \with {
+        | inl a => F bm a
+        | inr _ => B.2
+    }
+
+    \function
+    eq {A : \Type} {B : Pointed} (bm : based-map (pt A) B) (w : Either A Unit) : FG1 bm w = bm.1 w => \elim w
+        | inl a => idp
+        | inr _ => inv bm.2
+
+}
+
+\function
+BoolP : Pointed => (Bool, false)
+
+\function
+Bool_Unit : BoolP = pt Unit => 
+    \let SE => sigma-equiv (\lam x => x) BoolP (pt Unit)
+    \in SE.2.1.1 (equiv-to-path (f, ((g, gf_id), (g, fg_id))), idp) \where {
+    \function
+    f (x : Bool) : Either Unit Unit => \elim x
+        | true => inl unit
+        | false => inr unit
+
+    \function
+    g (x : Either Unit Unit) : Bool => \elim x
+        | inl _ => true
+        | inr _ => false
+
+    \function
+    gf_id (x : Bool) : g (f x) = x => \elim x
+        | true => idp
+        | false => idp
+
+    \function
+    fg_id (x : Either Unit Unit) : f (g x) = x => \elim x
+        | inr _ => idp
+        | inl _ => idp
+
+}
+
+\function
+UnitMap (A : \Type) : (Unit -> A) = A 
+    => equiv-to-path (\lam (x : Unit -> A) => x unit, ((\lam x y => x, \lam x => idp), (\lam x y => x, \lam x => idp)))
+
+\function
+S0-smash-unit (B : Pointed) : based-map BoolP B = B.1 
+    => transport (\lam x => based-map x B = B.1) (inv Bool_Unit) (equiv-to-path (pointed-adj Unit B) *> UnitMap B.1)
+
+\function
+SuspP (A : Pointed) : Pointed => (Susp A.1, north)
+
+\function
+SigmaOmega-adj (A B : Pointed) : based-map (SuspP A) B = based-map A (Omega 1 B) => 
+    \let | E0 => based-map (SuspP A) B
+         | E1 => \Sigma (f : \Sigma (b : \Sigma (bn : B.1) (bs : B.1)) (A.1 -> b.1 = b.2)) (f.1.1 = B.2)
+         | E2 => \Sigma (p : \Sigma (bn : B.1) (bn = B.2)) (\Sigma (bs : B.1) (A.1 -> p.1 = bs))
+         | E3 => \Sigma (bs : B.1) (A.1 -> B.2 = bs)
+         | E4 => \Sigma (bs : B.1) (\Sigma (g : A.1 -> B.2 = bs) (\Sigma (q : B.2 = bs) (g A.2 = q)))
+         | E5 => \Sigma (r : \Sigma (bs : B.1) (B.2 = bs)) (\Sigma (g : A.1 -> B.2 = r.1) (g A.2 = r.2))
+         | E6 => \Sigma (g : A.1 -> B.2 = B.2) (g A.2 = idpe B.2)
+         | A0 : E0 = E1 => sigma-eq-first (\lam (f : \Sigma (b : \Sigma (bn : B.1) (bs : B.1)) (A.1 -> b.1 = b.2)) => f.1.1 = B.2)
+             (equiv-to-path (Susp-UP A.1 B.1))
+         | A1 : E1 = E2 => path (iso {E1} {E2} (\lam e => ((e.1.1.1, e.2), (e.1.1.2, e.1.2))) (\lam e => (((e.1.1, e.2.1), e.2.2), e.1.2))
+             (\lam _ => idp) (\lam _ => idp))
+         | A2 : E2 = E3 => equiv-to-path (sigma-over-contr (\lam (p : \Sigma (bn : B.1) (bn = B.2)) => \Sigma (bs : B.1) (A.1 -> p.1 = bs))
+             (cone-isContr-r {B.1} B.2))
+         | A3 : E3 = E4 => sigma-eq-second (\lam bs => A.1 -> B.2 = bs)
+             (\lam bs => \Sigma (g : A.1 -> B.2 = bs) (\Sigma (q : B.2 = bs) (g A.2 = q))) (\lam (bs : B.1) => inv (equiv-to-path
+             (sigma-contr-fibers (\lam (g : A.1 -> B.2 = bs) => \Sigma (q : B.2 = bs) (g A.2 = q)) (\lam g => cone-isContr (g A.2)))))
+         | A4 : E4 = E5 => path (iso {E4} {E5} (\lam e => ((e.1, e.2.2.1), (e.2.1, e.2.2.2))) (\lam e => (e.1.1, (e.2.1, (e.1.2, e.2.2))))
+             (\lam _ => idp) (\lam _ => idp))
+         | A5 : E5 = E6 => equiv-to-path (sigma-over-contr (\lam (r : \Sigma (bs : B.1) (B.2 = bs)) => \Sigma (g : A.1 -> B.2 = r.1) (g A.2 = r.2))
+             (cone-isContr B.2))
+    \in A0 *> A1 *> A2 *> A3 *> A4 *> A5
+
+\function
+S (n : Nat) : Pointed => \elim n
+    | zero => BoolP
+    | suc n' => SuspP (S n')
+
+\function
+Omega-plus {B : Pointed} (n k : Nat) : Omega n (Omega k B) = Omega (n + k) B => \elim n
+    | zero => idp
+    | suc n' => pmap {Pointed} {Pointed} (\lam X => (
+        \let BB => X
+        \in (X.2 = X.2, idp {X.1} {X.2}))) (Omega-plus {B} n' k)
+
+\function
+Omega-comm {B : Pointed} (n k : Nat) : Omega n (Omega k B) = Omega k (Omega n B) 
+    => Omega-plus n k *> pmap (\lam x => Omega x B) (plus-comm n k) *> inv (Omega-plus k n)
+
+\function
+Omega-suc (n : Nat) (A : Pointed) : Omega (suc n) A = Omega n (Omega 1 A) => inv (Omega-comm n 1 *> Omega-plus 1 n)
+
+\function
+SphereOmega-adj (n : Nat) (B : Pointed) : based-map (S n) B = (Omega n B).1 => \elim n
+    | zero => S0-smash-unit B
+    | suc n' => 
+        \let | A1 => SigmaOmega-adj (S n') B
+             | A2 => SphereOmega-adj n' (Omega 1 B)
+             | A3 => pmap {Pointed} (\lam x => x.1) (Omega-comm {B} n' 1)
+        \in A1 *> A2 *> A3
+
+\function
+ofHlevel-Omega (X : \Type) (n : Nat) : ofHlevel (suc (suc n)) X = (\Pi (x0 : X) -> ofHlevel (suc n) (x0 = x0)) => 
+    \let | n' => suc n
+         | A1 : isProp (ofHlevel (suc n') X) => ofHlevel-isProp (suc n') X
+         | A2 : isProp (\Pi (x0 : X) -> ofHlevel n' (x0 = x0)) =>
+             depfun-preserve-prop (\lam x0 => ofHlevel n' (x0 = x0)) (\lam x0 => ofHlevel-isProp (suc n) (x0 = x0))
+         | A3 : ofHlevel (suc n') X -> \Pi (x0 : X) -> ofHlevel n' (x0 = x0) => \lam P x0 => P x0 x0
+         | A4 : (\Pi (x0 : X) -> ofHlevel n' (x0 = x0)) -> ofHlevel (suc n') X =>
+             \lam P x x' => ofHlevel-map (x = x') n (Jl {X} {x} (\lam x' p => ofHlevel n' (x = x')) (P x) {x'})
+    \in prop-eq A1 A2 A3 A4
+
+\function
+isSet-Omega-contr (A : \Type) : isSet A = (\Pi (a : A) -> isContr (a = a)) => 
+    \let | A1 : isSet A -> \Pi (a : A) -> isContr (a = a) => \lam P a => (idp, \lam p => P a a idp p)
+         | A2 : (\Pi (a : A) -> isContr (a = a)) -> isSet A => \lam P => axK-impl-isSet A (\lam a p => inv ((P a).2 idp) *> (P a).2 p)
+    \in prop-eq (isSet-isProp A) (depfun-preserve-prop (\lam a => isContr (a = a)) (\lam a => isContrFun-isProp (a = a))) A1 A2
+
+\function
+ofHlevel-Omega-contr (A : \Type) (n : Nat) : ofHlevel (suc n) A = (\Pi (a : A) -> isContr (Omega n (A, a)).1) => \elim n
+    | zero => ofHlevel1-eq-isProp A *> inv (isProp-fun-isContr A)
+    | suc zero => ofHlevel2-eq-isSet A *> isSet-Omega-contr A
+    | suc (suc n'') => 
+        \let | n' => suc n''
+             | AX => pmap-funExt (\lam a0 => ofHlevel (suc n') (a0 = a0)) (\lam a0 => isContr (Omega (suc n') (A, a0)).1) (\lam a0 => (
+                 \let | B0 => ofHlevel-Omega-contr (a0 = a0) (suc n'')
+                      | B1 => pmap-funExt (\lam a => isContr (Omega n' (a0 = a0, a)).1) (\lam a => isContr (Omega (suc n') (A, a0)).1)
+                          (\lam a => inv (pmap (\lam (c : Pointed) => isContr c.1) (corB (A, a0) n'' a)))
+                      | B2 => fun-to-prop (a0 = a0) (isContr (Omega (suc n') (A, a0)).1) (isContrFun-isProp _) idp
+                 \in B0 *> B1 *> B2))
+        \in ofHlevel-Omega A n' *> AX \where {
+    \function
+    LemmaA (A : Pointed) (p : A.2 = A.2) : Omega 1 (A.2 = A.2, idp) = Omega 1 (A.2 = A.2, p) => 
+        \let | A1 : \Pi (a0 : A.1) (p : A.2 = a0) -> (idp {A.1} {A.2} = idp {A.1} {A.2}) = (p = p) =>
+                 \lam a0 p' => Jl (\lam a1 q => (idpe A.2 = idpe A.2) = (q = q)) idp p'
+             | A2 : transport id (A1 A.2 p) idp = idp => Jl {A.1} {A.2} (\lam a0' q => transport id (A1 a0' q) idp = idp) idp p
+        \in sigma-ext-eq (\lam x => x) (A1 A.2 p, A2)
+
+    \function
+    corB (A : Pointed) (n : Nat) (p : A.2 = A.2) : Omega (suc (suc n)) A = Omega (suc n) (A.2 = A.2, p) => 
+        \let A1 => \lam p => Omega-comm {(A.2 = A.2, p)} n 1
+        \in Omega-comm {A} 1 (suc n) *> inv (A1 idp) *> pmap (\lam B => Omega n B) (LemmaA A p) *> A1 p
+
+}
+
+\function
+level-bmap-contr (A : \Type) (n : Nat) : ofHlevel (suc n) A = (\Pi (a : A) -> isContr (based-map (S n) (A, a))) 
+    => ofHlevel-Omega-contr A n *>
+    pmap-funExt (\lam a => isContr (Omega n (A, a)).1) (\lam a => isContr (based-map (S n) (A, a)))
+        (\lam a => pmap isContr (inv (SphereOmega-adj n (A, a))))
+
+\function
+ofHlevel-sphere-map-contr {A : \Type} {n : Nat} (nT : ofHlevel (suc n) A) (f : (S n).1 -> A) : \Pi (x : (S n).1) -> f x = f (S n).2 => 
+    \let | Fun => (S n).1 -> A
+         | a => f (S n).2
+         | BFun => based-map (S n) (A, a)
+         | bf : BFun => (f, idp)
+         | bc : BFun => (\lam _ => a, idp)
+         | A1 => \lam (g : BFun) => (sigma-eq-ext (\lam (f : Fun) => f (S n).2 = a) ((transport id (level-bmap-contr A n) nT a).2 g)).1
+    \in \lam x => pmap (\lam (f : Fun) => f x) (inv (A1 bf) *> A1 bc)
