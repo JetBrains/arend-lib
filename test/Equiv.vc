@@ -141,6 +141,15 @@ hom-preserves-limits {A : \Type} (B : A -> \Type) (P : \Pi (x : A) -> B x -> \Ty
          | G : W -> Z => \lam w => \lam x => (w.1 x, w.2 x)
     \in equiv-to-path (F, qinv-to-equiv F (G, \lam z => idp, \lam w => idp))
 
+\function
+transp-funcfibers-dep (X : \Type) (A : X -> \Type) (B : \Pi (x : X) -> A x -> \Type) {x1 x2 : X} (p : x1 = x2) (f : \Pi (a : A x1) -> B x1 a)
+    (a : A x2) : transport (\lam x => \Pi (a : A x) -> B x a) p f a = transport (\lam (w : \Sigma (x : X) (A x)) => B w.1 w.2)
+    (inv (sigma-ext-eq A {(x2, a)} {(x1, transport A (inv p) a)} (inv p, idp))) (f (transport A (inv p) a)) 
+=> Jl {X} {x1} (\lam x2' p' => \Pi (a' : A x2') ->
+    transport (\lam x => \Pi (a : A x) -> B x a) p' f a' = transport (\lam (w : \Sigma (x : X) (A x)) => B w.1 w.2)
+        (inv (sigma-ext-eq A {(x2', a')} {(x1, transport A (inv p') a')} (inv p', idp))) (f (transport A (inv p') a')))
+    (\lam a' => idp) p a
+
 -- Half Adjoint Equivalences
 
 \function
@@ -455,13 +464,7 @@ hlevel-equiv-closed {A B : \Type} (f_eq : A =~= B) (n : Nat) (hp : ofHlevel n A)
     	     	  | path_eq : (\Pi (b b' : B) -> (b = b') =~= (g b = g b'))
 -}
 
-
-{- Univalence
-
-ptoe-isequiv (A B : \Type) : (is_equiv (path-to-equiv {A B}))
-  => qinv-to-equiv (path-to-equiv {A B}) (\lam (f : A =~= B) => )
-
--}
+-- Embeddings
 
 \function
 is_embedding {A B : \Type} (f : A -> B) => \Pi (x y : A) -> isequiv {x = y} {f x = f y} (pmap f)
@@ -470,6 +473,8 @@ is_embedding {A B : \Type} (f : A -> B) => \Pi (x y : A) -> isequiv {x = y} {f x
 embedding-isProp {A B : \Type} (f : A -> B) : isProp (is_embedding f) 
 => ddfun-preserve-prop (\lam a a' => isequiv {a = a'} {f a = f a'} (pmap f))
     (\lam a a' => isequiv-is-prop {a = a'} {f a = f a'} (pmap f))
+
+-- Univalence
 
 \function
 univalence-axiom (A B : \Type) : (A =~= B) =~= (A = B) => (equiv-to-path, ((path-to-equiv,
@@ -484,18 +489,28 @@ univalence-axiom (A B : \Type) : (A =~= B) =~= (A = B) => (equiv-to-path, ((path
 }
 
 \function
-transp-funcfibers-dep (X : \Type) (A : X -> \Type) (B : \Pi (x : X) -> A x -> \Type) {x1 x2 : X} (p : x1 = x2) (f : \Pi (a : A x1) -> B x1 a)
-    (a : A x2) : transport (\lam x => \Pi (a : A x) -> B x a) p f a = transport (\lam (w : \Sigma (x : X) (A x)) => B w.1 w.2)
-    (inv (sigma-ext-eq A {(x2, a)} {(x1, transport A (inv p) a)} (inv p, idp))) (f (transport A (inv p) a)) 
-=> Jl {X} {x1} (\lam x2' p' => \Pi (a' : A x2') ->
-    transport (\lam x => \Pi (a : A x) -> B x a) p' f a' = transport (\lam (w : \Sigma (x : X) (A x)) => B w.1 w.2)
-        (inv (sigma-ext-eq A {(x2', a')} {(x1, transport A (inv p') a')} (inv p', idp))) (f (transport A (inv p') a')))
-    (\lam a' => idp) p a
-
-\function
 fib-lemmaP {A B : \Type} (f : A -> B) : (\Sigma (y : B) (fib f y)) = A => 
     \let | P1 => \Sigma (y : B) (fib f y)
          | F : P1 -> A => \lam p => p.2.1
          | G : A -> P1 => \lam a => (f a, (a, idp))
     \in equiv-to-path (F, ((G, \lam p => sigma-ext-eq (fib f) {G (F p)} {p}
             (p.2.2, Jl {B} {f (F p)} (\lam a' q => transport (fib f) q (F p, idp) = (F p, q)) idp p.2.2)), (G, \lam x => idp)))
+
+-- Two notions of retractions of maps
+
+\function
+retract_of1 {A B X Y : \Type} (g : A -> B) (f : X -> Y) 
+=> \Sigma (s : A -> X) (r : X -> A) (s' : B -> Y) (r' : Y -> B) (R : r `o s ~ id) (R' : r' `o s' ~ id) (L : f `o s ~ s' `o g)
+    (K : g `o r ~ r' `o f) (H : \Pi (a : A) -> pmap g (R a) *> inv (R' (g a)) = K (s a) *> pmap r' (L a))
+
+\function
+retract_of2 {B D : \Type} (F : B -> \Type) (G : D -> \Type) 
+=> \Sigma (s : B -> D) (r : D -> B) (r' : \Pi (x : D) -> G x -> F (r x)) (s' : \Pi (x : B) -> F x -> G (s x)) (p : r `o s ~ id)
+    (q : \Pi (x : B) (y : F x) -> transport F (p x) (r' (s x) (s' x y)) = y)
+
+\function
+retr_2to1 {B D : \Type} (F : B -> \Type) (G : D -> \Type) (R : F `retract_of2 G) :
+    retract_of1 {\Sigma (x : B) (F x)} {B} {\Sigma (x : D) (G x)} {D} (\lam x => x.1) (\lam x => x.1) 
+=> (\lam p => (R.1 p.1, R.4 p.1 p.2), \lam p => (R.2 p.1, R.3 p.1 p.2), R.1, R.2, \lam x => sigma-ext-eq F (R.5 x.1, R.6 x.1 x.2),
+    R.5, \lam _ => idp, \lam _ => idp, \lam a => concat-inv (R.5 a.1))
+
