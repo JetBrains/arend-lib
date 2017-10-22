@@ -489,12 +489,16 @@ univalence-axiom (A B : \Type) : (A =~= B) =~= (A = B) => (equiv-to-path, ((path
 }
 
 \function
-fib-lemmaP {A B : \Type} (f : A -> B) : (\Sigma (y : B) (fib f y)) = A => 
-    \let | P1 => \Sigma (y : B) (fib f y)
-         | F : P1 -> A => \lam p => p.2.1
-         | G : A -> P1 => \lam a => (f a, (a, idp))
-    \in equiv-to-path (F, ((G, \lam p => sigma-ext-eq (fib f) {G (F p)} {p}
-            (p.2.2, Jl {B} {f (F p)} (\lam a' q => transport (fib f) q (F p, idp) = (F p, q)) idp p.2.2)), (G, \lam x => idp)))
+fib-lemmaP {A B : \Type} (f : A -> B) : (\Sigma (y : B) (fib f y)) = A => equiv-to-path (equiv f) \where {
+    \function
+    equiv {A B : \Type} (f : A -> B) : (\Sigma (y : B) (fib f y)) =~= A => 
+        \let | P1 => \Sigma (y : B) (fib f y)
+             | F : P1 -> A => \lam p => p.2.1
+             | G : A -> P1 => \lam a => (f a, (a, idp))
+        \in (F, ((G, \lam p => sigma-ext-eq (fib f) {G (F p)} {p}
+                (p.2.2, Jl {B} {f (F p)} (\lam a' q => transport (fib f) q (F p, idp) = (F p, q)) idp p.2.2)), (G, \lam x => idp)))
+
+}
 
 \function
 equiv-to-path-refl (A : \Type) : equiv-to-path (equiv-refl A) = idpe A => (univalence-axiom A A).2.2.2 (idpe A)
@@ -521,22 +525,32 @@ equiv-to-path-trans {A B C : \Type} (E1 : A =~= B) (E2 : B =~= C) : equiv-to-pat
     (univalence-axiom A C).2.2.2 (equiv-to-path E1 *> equiv-to-path E2)
 
 \function
+path-to-equiv-inv {A B : \Type} (E : A = B) : path-to-equiv (inv E) = equiv-symm (path-to-equiv E) 
+    => Jl (\lam B' E' => path-to-equiv (inv E') = equiv-symm (path-to-equiv E')) idp E
+
+\function
+inv-equiv-to-path {A B : \Type} (E : A =~= B) : inv (equiv-to-path E) = equiv-to-path (equiv-symm E) 
+=> inv ((univalence-axiom B A).2.2.2 (inv (equiv-to-path E))) *>
+    pmap equiv-to-path (path-to-equiv-inv (equiv-to-path E) *> pmap equiv-symm ((univalence-axiom A B).2.1.2 E))
+
+\function
 fibration-equivalence (B : \Type) : (\Sigma (A : \Type) (A -> B)) =~= (B -> \Type) => 
     \let | P1 => \Sigma (A : \Type) (A -> B)
          | P2 => B -> \Type
          | F : P1 -> P2 => \lam s => \lam b => fib s.2 b
          | G : P2 -> P1 => \lam P => (\Sigma (b : B) (P b), \lam p => p.1)
-         | H : \Pi (p : P1) -> \Sigma (A : \Type) (A -> B) =>
-             \lam p => (\Sigma (b : B) (fib p.2 b), \lam (q : \Sigma (b : B) (fib p.2 b)) => q.1)
-         | GF_id : \Pi (p : P1) -> H p = p => \lam p => sigma-ext-eq {\Type} (\lam A => A -> B) {G (F p)} {p} (fib-lemmaP p.2, 
-             \let | P : (\Sigma (y : B) (fib p.2 y)) = p.1 => fib-lemmaP p.2
-                  | f0 => transport (\lam A => A -> B) P (\lam p => p.1)
-                  | f1 => \lam (x : p.1) => transport (\lam (_ : \Type) => B) P (transport {\Type} id (inv P) x).1
-                  | A0 : f0 = f1 => fun-ext (transp-funcfibers {\Type} id (\lam _ => B) P (\lam s => s.1))
-                  | A1 : \Pi (x : p.1) -> transport {\Type} id (inv P) x = (p.2 x, (x, idp)) => \lam x => {?}
-                  | A1 : f1 = p.2 => {?}
-             \in {?})
-    \in (F, ((G, GF_id), (G, \lam p => {?})))
+         | GF_id : \Pi (p : P1) -> G (F p) = p => \lam p => sigma-ext-eq {\Type} (\lam A => A -> B) {G (F p)} {p} (fib-lemmaP p.2, 
+             \let | FibEq : (\Sigma (y : B) (fib p.2 y)) = p.1 => fib-lemmaP p.2
+                  | f1 => \lam (x : p.1) => transport (\lam (_ : \Type) => B) FibEq (transport {\Type} id (inv FibEq) x).1
+                  | A1 : f1 = p.2 => fun-ext (\lam x => pmap (\lam (Q : \Sigma (y : B) (fib p.2 y)) => transport (\lam (_ : \Type) => B) FibEq Q.1)
+                      (pmap (\lam Q => transport id Q x) (inv-equiv-to-path (fib-lemmaP.equiv p.2))))
+             \in fun-ext (transp-funcfibers {\Type} id (\lam _ => B) FibEq (\lam s => s.1)) *> A1)
+         | FG_id : \Pi (p : P2) -> F (G p) = p => \lam p => fun-ext (\lam b => (
+             \let | E1 => \Sigma (x : \Sigma (b' : B) (p b')) (x.1 = b)
+                  | E2 => \Sigma (x : \Sigma (b' : B) (b' = b)) (p x.1)
+             \in path (iso {E1} {E2} (\lam q => ((q.1.1, q.2), q.1.2)) (\lam q => ((q.1.1, q.2), q.1.2)) (\lam _ => idp) (\lam _ => idp)) *>
+                     equiv-to-path (sigma-over-contr (\lam (x : \Sigma (b' : B) (b' = b)) => p x.1) (cone-isContr-r b))))
+    \in (F, ((G, GF_id), (G, FG_id)))
 
 -- Two notions of retractions of maps
 
