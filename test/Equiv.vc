@@ -345,6 +345,13 @@ sigma-over-contr {A : \Type} (P : A -> \Type) (contr : isContr A) : (\Sigma (x :
                 \in transport (\lam p => transport P p x = x) A0 idp))))
 
 \function
+pi-over-contr {A : \Type} (P : A -> \Type) (C : isContr A) : (\Pi (a : A) -> P a) = P C.1 
+=> path (iso {\Pi (a : A) -> P a} {P C.1} (\lam e1 => e1 C.1) (\lam e2 a => transport P (C.2 a) e2)
+    (\lam x => funExt P (\lam a => transport P (C.2 a) (x C.1)) x
+        (\lam a => Jl (\lam a' q => transport P {C.1} {a'} q (x C.1) = x a') idp (C.2 a)))
+        (\lam x => pmap (\lam z => transport P z x) (isProp-isSet A (isContr-isProp A C) _ _ (C.2 C.1) idp)))
+
+\function
 cone-isContr {A : \Type} (a : A) : isContr (\Sigma (x : A) (a = x)) 
     => ((a, idp), \lam s => sigma-ext-eq (\lam x => a = x) {(a, idp)} {s} (s.2, transp-pathfibers a s.2 idp *> concat-idp s.2))
 
@@ -570,3 +577,25 @@ retr_2to1 {B D : \Type} (F : B -> \Type) (G : D -> \Type) (R : F `retract_of2 G)
 => (\lam p => (R.1 p.1, R.4 p.1 p.2), \lam p => (R.2 p.1, R.3 p.1 p.2), R.1, R.2, \lam x => sigma-ext-eq F (R.5 x.1, R.6 x.1 x.2),
     R.5, \lam _ => idp, \lam _ => idp, \lam a => concat-inv (R.5 a.1))
 
+\function
+retr-fibers {A B X Y : \Type} (g : A -> B) (f : X -> Y) (R : g `retract_of1 f) : \Pi (b : B) -> is_retr (fib g b) (fib f (R.3 b)) => 
+    \let | phi : \Pi (b : B) -> fib g b -> fib f (R.3 b) => \lam b p => (R.1 p.1, R.7 p.1 *> pmap R.3 p.2)
+         | psi : \Pi (b : B) -> fib f (R.3 b) -> fib g b => \lam b q => (R.2 q.1, R.8 q.1 *> pmap R.4 q.2 *> R.6 b)
+         | E1 => \Pi (b : B) (p : fib g b) -> psi b (phi b p) = p
+         | E2' => \lam (a : A) => \Pi (z : \Sigma (b : B) (g a = b)) -> psi z.1 (phi z.1 (a, z.2)) = (a, z.2)
+         | E3' => \lam (a : A) => psi (g a) (phi (g a) (a, idp)) = (a, idp)
+         | E2 => \Pi (a : A) -> E2' a
+         | E3 => \Pi (a : A) -> E3' a
+         | A1 : E1 = E2 => path (iso {E1} {E2} (\lam e1 a z => e1 z.1 (a, z.2)) (\lam e2 b p => e2 p.1 (b, p.2)) (\lam _ => idp) (\lam _ => idp))
+         | A2 : E2 = E3 => pmap-funExt E2' E3'
+             (\lam a => pi-over-contr {\Sigma (b : B) (g a = b)} (\lam z => psi z.1 (phi z.1 (a, z.2)) = (a, z.2)) (cone-isContr (g a)))
+         | A3 : E3 => \lam a => sigma-ext-eq (\lam a' => g a' = g a) {psi (g a) (phi (g a) (a, idp))} {(a, idp)} (R.5 a, 
+             \let | P0 => pmap g (R.5 a)
+                  | P1 => R.8 (R.1 a)
+                  | P2 => pmap R.4 (R.7 a)
+                  | P3 => R.6 (g a)
+             \in coePath (pmap g (R.5 a)) (P1 *> P2 *> P3) (idpe (g a)) *> inv (inv (inv-concat P0) *>
+                     pmap (\lam Q => inv P0 *> Q) (inv (concat-assoc P0 (inv P3) P3 *> pmap (`*> P0) (inv-concat P3)) *>
+                         pmap (\lam p => p *> P3) (R.9 a) *> concat-assoc P1 P2 P3)))
+         | A0 : E1 => transport id (inv (A1 *> A2)) A3
+    \in \lam b => (phi b, (psi b, \lam p => A0 b p))
