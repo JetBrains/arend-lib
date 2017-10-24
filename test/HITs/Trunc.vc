@@ -6,6 +6,7 @@
 \open ::Data::Nat::Base
 \open ::Data::Nat::Properties
 \open ::Data::Unit
+\open ::PropLogic
 
 \data Trunc (n : Nat) (A : \Type) 
     | inT A
@@ -49,6 +50,10 @@ Trunc-UP2 {n : Nat} (A B : \Type) (nT : ofHlevel (suc n) B) : isequiv (\lam (g :
     \let G => ext {n} {A} {B} nT
     \in ((G, \lam g => fun-ext (uniq nT (G (g `o inT)) g (\lam _ => idp))),
             (G, \lam f => fun-ext {A} {B} {G f `o inT} {f} (\lam _ => idp)))
+
+\function
+TruncUP2-equiv (A : \Type) {B : \Type} {n : Nat} (nT : ofHlevel (suc n) B) : (Trunc n A -> B) =~= (A -> B) 
+    => (\lam f => f `o inT, Trunc-UP2 A B nT)
 
 \function
 inM {A B : \Type} (f : A -> B) (n : Nat) : Trunc n A -> Trunc n B => ext (ofHlevel-Trunc n B) (inT `o f)
@@ -221,3 +226,25 @@ retr-Trunc {A B : \Type} (R : is_retr A B) (n : Nat) : is_retr (Trunc n A) (Trun
 \function
 conn-retr {A B X Y : \Type} (g : A -> B) (f : X -> Y) {n : Nat} (R : g `retract_of1 f) (isNC : n `connected f) : n `connected g 
     => \lam b => retr-Contr (retr-Trunc (retr-fibers g f R b) n) (isNC (R.3 b))
+
+\function
+lemma757 {A B : \Type} (f : A -> B) (n : Nat) : tfae3 (n `connected f)
+    (\Pi (PP : \Sigma (P : B -> \Type) (\Pi (b : B) -> ofHlevel (suc n) (P b))) -> isequiv (lssf f PP.1))
+    (\Pi (PP : \Sigma (P : B -> \Type) (\Pi (b : B) -> ofHlevel (suc n) (P b))) -> linv (lssf f PP.1)) => 
+    \let Pn => \Sigma (P : B -> \Type) (\Pi (b : B) -> ofHlevel (suc n) (P b))
+    \in (connected-isProp n f,
+            depfun-preserve-prop {Pn} (\lam PP => isequiv (lssf f PP.1)) (\lam PP => isequiv-is-prop (lssf f PP.1)), {?},
+            \lam nC PP => (
+                \let | E2' => \lam (a : A) => \Pi (X : \Sigma (b : B) (f a = b)) -> PP.1 X.1
+                     | A0 => depfun-equiv PP.1 (\lam b => fib f b -> PP.1 b)
+                         (\lam b => equiv-trans (equiv-symm (pi-over-contr-equiv (\lam _ => PP.1 b) (nC b))) (TruncUP2-equiv (fib f b) (PP.2 b)))
+                     | A1 => qinv-to-equiv2 {\Pi (b : B) -> fib f b -> PP.1 b} {\Pi (a : A) -> E2' a} (\lam e1 a X => e1 X.1 (a, X.2))
+                         (\lam e2 b F => e2 F.1 (b, F.2), \lam _ => idp, \lam _ => idp)
+                     | A2 => depfun-equiv E2' (\lam (a : A) => PP.1 (f a))
+                         (\lam a => pi-over-contr-equiv (\lam (X : \Sigma (b : B) (f a = b)) => PP.1 X.1) (cone-isContr (f a)))
+                \in (equiv-trans (equiv-trans A0 A1) A2).2), {?}, {?}) \where {
+    \function
+    lssf {A B : \Type} (f : A -> B) (P : B -> \Type) : (\Pi (b : B) -> P b) -> \Pi (a : A) -> P (f a) 
+        => \lam (s : \Pi (b : B) -> P b) (a : A) => s (f a)
+
+}
