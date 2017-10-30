@@ -274,10 +274,6 @@ connectedness-criterion {A B : \Type} (f : A -> B) (n : Nat) : tfae3 (n `connect
 }
 
 \function
-funExt-inv {A : \Type} (B : A -> \Type) {f1 f2 : \Pi (a : A) -> B a} (eq : f1 = f2) (a : A) : f1 a = f2 a 
-    => path (\lam i => (eq @ i) a)
-
-\function
 conn-tf {A B : \Type} (f : A -> B) (n k : Nat) (C : n `connected f) (P : B -> suc (k + n) Types`) :
     truncated k (connectedness-criterion.pc f P) => \elim k
     | zero => 
@@ -289,23 +285,21 @@ conn-tf {A B : \Type} (f : A -> B) (n k : Nat) (C : n `connected f) (P : B -> su
              | p => gp.2
              | q => hq.2
              | PA => \lam a => (P (f a)).1
-             | PB => \lam b => (P b).1
              | ff => connectedness-criterion.pc {A} {B} {suc (k' + n)} f P
              | Q : B -> suc (k' + n) Types` => \lam b' => (g b' = h b', (P b').2 (g b') (h b'))
-             | A' => \Pi (b : B) -> (P b).1
-             | B' => \Pi (a : A) -> (P (f a)).1
-             | A0 => fib-equiv {A'} {B'} ff ell gp hq
-             | A1 : ff g = ff h => p *> inv q
+             | A0 => equiv-to-path (fib-equiv ff ell gp hq)
+             | pqi : ff g = ff h => p *> inv q
+             | pqia => \lam a => path (\lam i => (pqi @ i) a)
              | pff => pmap ff {g} {h}
-             | P1 => \Sigma (gam : g = h) (pff gam *> q = p)
-             | P2 => fib {g = h} {ff g = ff h} pff A1
-             | P3 => fib {\Pi (b : B) -> g b = h b} {\Pi (a : A) -> g (f a) = h (f a)} (\lam eq a => eq (f a))
-                 (funExt-inv (\lam a => (P (f a)).1) A1)
-             | A3 : P1 = P2 => sigma-eq-second {g = h} (\lam gam => pff gam *> q = p) (\lam gam => pff gam = A1) (\lam eq => (
-                 \let | B0 => path-postcomp (pff eq) A1 q
-                      | B1 : A1 *> q = p => concat-assoc p (inv q) q *> pmap (`*> p) (inv-concat q)
-                 \in transport (\lam p' => (pff eq *> q = p') = (pff eq = A1)) B1 (inv B0)))
-             | A4 => equiv-to-path A0 *> A3
-             | A5 : P2 = P3 => {?}
-             | IH : ofHlevel k' P3 => conn-tf f n k' C Q (funExt-inv PA A1)
-        \in {?})
+             | P2 => fib {g = h} {ff g = ff h} pff pqi
+             | P3 => fib (\lam (eq : \Pi (b : B) -> g b = h b) a => eq (f a)) pqia
+             | A1 => sigma-eq-second {g = h} (\lam gam => pff gam *> q = p) (\lam gam => pff gam = pqi)
+             (\lam eq => transport (\lam p' => (pff eq *> q = p') = (pff eq = pqi)) (concat-assoc p (inv q) q *> pmap (`*> p) (inv-concat q))
+                 (inv (path-postcomp (pff eq) pqi q)))
+             | F1 : P2 -> P3 => \lam p2 => (\lam b => path (\lam i => (p2.1 @ i) b),
+                 funExt {A} (\lam a => g (f a) = h (f a)) (\lam a => path (\lam i => (p2.1 @ i) (f a))) pqia
+                     (\lam a => pmap (\lam (eq : ff g = ff h) => path (\lam i => (eq @ i) a)) p2.2))
+             | G1 : P3 -> P2 => \lam p3 => (path (\lam i b => p3.1 b @ i), pmap (funExt PA (ff g) (ff h)) p3.2)
+             | A2 : P2 = P3 => equiv-to-path (F1, ((G1, \lam _ => idp), (G1, \lam _ => idp)))
+        \in transport (ofHlevel k') (inv (A0 *> A1 *> A2)) (conn-tf f n k' C Q pqia))
+
