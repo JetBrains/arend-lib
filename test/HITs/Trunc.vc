@@ -415,7 +415,7 @@ code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1
     | north => Trunc (1 + n + n) (fib sigma p)
     | south => Trunc (1 + n + n) (fib (\lam x => path (merid x)) p)
     | merid x1 i => 
-        \let | P => \lam y => north = y -> \oo-Type
+        \let | P => \lam y => north {X.1} = y -> \oo-Type
              | fibS => \lam p => fib (\lam x => path (merid x)) p
              | codeN : north = north -> \oo-Type => \lam p => Trunc (1 + n + n) (fib sigma p)
              | codeS : north = south -> \oo-Type => \lam p => Trunc (1 + n + n) (fibS p)
@@ -424,12 +424,6 @@ code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1
              | PP : \Pi (q : north = south) -> X.1 -> X.1 -> (2 + n + n) Types` => \lam q x1 x2 => (
                  \let C0 => path (merid x2) *> inv (path (merid X.2)) = q *> inv (path (merid x1))
                  \in (C0 -> codeS q, ofHlevel-codom C0 (\lam _ => codeS q) (2 + n + n) (\lam _ => ofHlevel-Trunc (1 + n + n) (fibS q))))
-             | r'' : \Pi {Y : \oo-Type} {x1 x2 : Y} (p p' q : x1 = x2) (C : p *> inv p = q *> inv p') -> p' = q =>
-             \lam {Y} {x1} {x2} p p' q C => inv (concat-idp _) *>
-                 pmap (\lam pp => pp *> p') (inv (concat-inv _) *> C) *> concat-assoc _ _ _ *> pmap (`*> q) (inv-concat _)
-             | r' : \Pi {Y : \oo-Type} {x1 x2 : Y} (p' p q : x1 = x2) (C : p' *> inv p = q *> inv p) -> p' = q =>
-             \lam {Y} {x1} {x2} p' p q C => pmap (\lam pp => p' *> pp) (inv (inv-concat _)) *>
-                 inv (concat-assoc _ _ _) *> pmap (\lam pp => pp *> p) C *> concat-assoc _ _ _ *> pmap (`*> q) (inv-concat _)
              | p-lemma : \Pi (p q : north {X.1} = south) (C : p *> inv p = q *> inv p) -> r'' p p q C = r' p p q C =>
              \lam p => Jl (\lam south' p' => \Pi (q' : north = south') (C : p' *> inv p' = q' *> inv p') -> r'' p' p' q' C = r' p' p' q' C)
                  (\lam q' C => idp) p
@@ -447,20 +441,47 @@ code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1
              | WC => \lam (q : north = south) => wedge-connectivity {n} {n} X X Xc Xc (PP q) (f q) (g q) (pp q)
              | A1 : \Pi (q : north = south) (x1 : X.1) -> codeN (q *> inv (path (merid x1))) -> codeS q =>
                  \lam q x1 => ext (ofHlevel-Trunc (1 + n + n) (fibS q)) (\lam (z : fib sigma (q *> inv (path (merid x1)))) => (WC q).1 x1 z.1 z.2)
-             | gg : \Pi (q : north = south) -> fib sigma (q *> inv (path (merid X.2))) -> fibS q =>
+             | g2 : \Pi (q : north = south) -> fib sigma (q *> inv (path (merid X.2))) -> fibS q =>
                  \lam q z => (z.1, r' (path (merid z.1)) (path (merid X.2)) q z.2)
-             | A2 : \Pi (q : north = south) -> A1 q X.2 = inM (gg q) (1 + n + n) =>
-             \lam q => fun-ext (uniq {_} {_} {codeS q} (ofHlevel-Trunc (1 + n + n) (fibS q)) (A1 q X.2) (inM (gg q) (1 + n + n))
-                 (\lam (z : fib sigma (q *> inv (path (merid X.2)))) => (
-                     \let B0 : (WC q).1 X.2 z.1 = g q z.1 => (WC q).3 z.1
-                     \in path (\lam i => (B0 @ i) z.2))))
-             | A3 : \Pi (q : north = south) -> isequiv (gg q) => {?}
+             | g2i : \Pi (q : north = south) -> fibS q -> fib sigma (q *> inv (path (merid X.2))) =>
+                 \lam q z => (z.1, pmap (\lam w => w *> inv (path (merid X.2))) z.2)
+             | A2 : \Pi (q : north = south) -> A1 q X.2 = inM (g2 q) (1 + n + n) =>
+             \lam q => fun-ext (uniq {_} {_} {codeS q} (ofHlevel-Trunc (1 + n + n) (fibS q)) (A1 q X.2) (inM (g2 q) (1 + n + n))
+                 (\lam (z : fib sigma (q *> inv (path (merid X.2)))) => fun-ext-inv {_} {_} {(WC q).1 X.2 z.1} {g q z.1} ((WC q).3 z.1) z.2))
+             | A3 : \Pi (q : north = south) -> isequiv (g2 q) => \lam q => qinv-to-equiv' (g2 q)
+                 (g2i q, \lam wn => sigma-ext-eq (\lam z1 => sigma z1 = q *> inv (path (merid X.2))) {g2i q (g2 q wn)} {wn}
+                     (idp, r'-linv (path (merid wn.1)) (path (merid X.2)) q wn.2),
+                     \lam ws => sigma-ext-eq (\lam z1 => path (merid z1) = q) {g2 q (g2i q ws)} {ws}
+                         (idp, r'-rinv (path (merid ws.1)) (path (merid X.2)) q ws.2))
              | A4 : \Pi (q : north = south) -> isequiv (A1 q X.2) =>
-                 \lam q => transport isequiv (inv (A2 q)) (inM-equiv (gg q) (1 + n + n) (A3 q))
+                 \lam q => transport isequiv (inv (A2 q)) (inM-equiv (g2 q) (1 + n + n) (A3 q))
              | A5 : \Pi (q : north = south) -> codeS q = codeN (q *> mx1) => \lam q => inv (equiv-to-path
                  (A1 q x1, (connected-zero-prop (bp-incl X) (connected-zero n (bp-incl X) (transport id (connected-type-bp-incl n X) Xc))
                      (\lam (x1 : X.1) => isequiv (A1 q x1)) (\lam x1 => isequiv-is-prop (A1 q x1))).2.1.1 (\lam _ => A4 q) x1))
              | A6 => pmap (transport P (path (merid x1)))
                  (inv (EQ (\lam q => transport-const mx1 (codeS q) *> A5 q *> pmap codeN (inv (coePath (idpe north) q mx1 *> concat-idp (q *> mx1)))))) *>
                  transp-invpath-rinv P (path (merid x1)) codeS
-        \in (pathOver A6 @ i) p
+        \in (pathOver A6 @ i) p \where {
+    \function
+    r' {Y : \oo-Type} {x1 x2 : Y} (p' p q : x1 = x2) (C : p' *> inv p = q *> inv p) : p' = q 
+        => pmap (\lam pp => p' *> pp) (inv (inv-concat p)) *>
+        inv (concat-assoc p' (inv p) p) *> pmap (\lam pp => pp *> p) C *> concat-assoc q (inv p) p *> pmap (`*> q) (inv-concat p)
+
+    \function
+    r'-inv {Y : \oo-Type} {x1 x2 : Y} (p' p q : x1 = x2) (C : p' = q) : p' *> inv p = q *> inv p => pmap (\lam w => w *> inv p) C
+
+    \function
+    r'-linv {Y : \oo-Type} {x1 x2 : Y} (p' p q : x1 = x2) (C : p' *> inv p = q *> inv p) : r'-inv p' p q (r' p' p q C) = C 
+    => Jl (\lam x2 p => \Pi (p' q : x1 = x2) (C : p' *> inv p = q *> inv p) -> r'-inv p' p q (r' p' p q C) = C)
+        (\lam p' q (C : p' = q) => concat-idp _ *> concat-idp _) p p' q C
+
+    \function
+    r'-rinv {Y : \oo-Type} {x1 x2 : Y} (p' p q : x1 = x2) (C : p' = q) : r' p' p q (r'-inv p' p q C) = C 
+    => Jl (\lam x2 p => \Pi (p' q : x1 = x2) (C : p' = q) -> r' p' p q (r'-inv p' p q C) = C)
+        (\lam p' q (C : p' = q) => concat-idp _ *> concat-idp _) p p' q C
+
+    \function
+    r'' {Y : \oo-Type} {x1 x2 : Y} (p p' q : x1 = x2) (C : p *> inv p = q *> inv p') : p' = q => inv (concat-idp _) *>
+        pmap (\lam pp => pp *> p') (inv (concat-inv _) *> C) *> concat-assoc _ _ _ *> pmap (`*> q) (inv-concat _)
+
+}
