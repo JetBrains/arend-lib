@@ -380,35 +380,87 @@ transport-const {A B : \oo-Type} {a a' : A} (p : a = a') (b : B) : transport (\l
     => Jl (\lam a' p' => transport (\lam _ => B) p' b = b) idp p
 
 \function
+Trunc-isContr (A : \Type) (n : Nat) (Ac : isContr A) : isContr (Trunc n A) => transport isContr (equiv-to-path (inT {n} {A},
+    ofHlevel-inT-equiv A n (transport (\lam n => ofHlevel n A) (inv (plus-comm0 (suc n))) (ofHlevel-plus {A} (suc n) Ac)))) Ac
+
+\function
+Trunc-isContr-suc (A : \Type) (n : Nat) (Ac : isContr (Trunc (suc n) A)) : isContr (Trunc n A) 
+=> transport isContr (transport (\lam k => Trunc n (Trunc k A) = Trunc n A) (plus-comm n 1) (Trunc-cumulative n 1 A))
+    (Trunc-isContr (Trunc (suc n) A) n Ac)
+
+\function
+connected-pred {A B : \Type} (n : Nat) (f : A -> B) (fC : suc n `connected f) : n `connected f 
+    => \lam b => Trunc-isContr-suc (fib f b) n (fC b)
+
+\function
+connected-zero {A B : \Type} (n : Nat) (f : A -> B) (fC : n `connected f) : zero `connected f => \elim n
+    | zero => fC
+    | suc n' => connected-zero n' f (connected-pred n' f fC)
+
+\function
+connected-zero-prop {A B : \Type} (f : A -> B) (fC : zero `connected f) (P : B -> \Type) (PC : \Pi (b : B) -> isProp (P b)) :
+    (\Pi (b : B) -> P b) =~= (\Pi (a : A) -> P (f a)) 
+    => (\lam g a => g (f a), connectedness-criterion.F12 zero f fC (\lam b => (P b, isProp-ofHlevel1 (P b) (PC b))))
+
+\function
+inM-equiv {A B : \Type} (f : A -> B) (n : Nat) (E : isequiv f) : isequiv (inM f n) => ((inM E.1.1 n, \lam (q : Trunc n A) => (
+    \let pm => \lam (z : Trunc n A -> Trunc n A) => z q
+    \in pmap pm (inM-o f E.1.1 n) *> inH (E.1.1 `o f) id E.1.2 n q *> pmap pm (inM-id {A} n))),
+    (inM E.2.1 n, \lam q => (
+        \let pm => \lam (z : Trunc n B -> Trunc n B) => z q
+        \in pmap pm (inM-o E.2.1 f n) *> inH (f `o E.2.1) id E.2.2 n q *> pmap pm (inM-id {B} n))))
+
+\function
 code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1) (p : north = y) : \oo-Type => \elim y
     | north => Trunc (1 + n + n) (fib sigma p)
     | south => Trunc (1 + n + n) (fib (\lam x => path (merid x)) p)
     | merid x1 i => 
-        \let | mx1 : south = north => inv (path (merid x1))
-             | P => \lam y => north = y -> \oo-Type
+        \let | P => \lam y => north = y -> \oo-Type
              | fibS => \lam p => fib (\lam x => path (merid x)) p
              | codeN : north = north -> \oo-Type => \lam p => Trunc (1 + n + n) (fib sigma p)
              | codeS : north = south -> \oo-Type => \lam p => Trunc (1 + n + n) (fibS p)
+             | mx1 : south = north => inv (path (merid x1))
              | EQ => (transport-funExt mx1 (\lam y => north = y) (\lam _ => \oo-Type) codeS codeN).2.1.1
              | PP : \Pi (q : north = south) -> X.1 -> X.1 -> (2 + n + n) Types` => \lam q x1 x2 => (
                  \let C0 => path (merid x2) *> inv (path (merid X.2)) = q *> inv (path (merid x1))
                  \in (C0 -> codeS q, ofHlevel-codom C0 (\lam _ => codeS q) (2 + n + n) (\lam _ => ofHlevel-Trunc (1 + n + n) (fibS q))))
+             | r'' : \Pi {Y : \oo-Type} {x1 x2 : Y} (p p' q : x1 = x2) (C : p *> inv p = q *> inv p') -> p' = q =>
+             \lam {Y} {x1} {x2} p p' q C => inv (concat-idp _) *>
+                 pmap (\lam pp => pp *> p') (inv (concat-inv _) *> C) *> concat-assoc _ _ _ *> pmap (`*> q) (inv-concat _)
+             | r' : \Pi {Y : \oo-Type} {x1 x2 : Y} (p' p q : x1 = x2) (C : p' *> inv p = q *> inv p) -> p' = q =>
+             \lam {Y} {x1} {x2} p' p q C => pmap (\lam pp => p' *> pp) (inv (inv-concat _)) *>
+                 inv (concat-assoc _ _ _) *> pmap (\lam pp => pp *> p) C *> concat-assoc _ _ _ *> pmap (`*> q) (inv-concat _)
+             | p-lemma : \Pi (p q : north {X.1} = south) (C : p *> inv p = q *> inv p) -> r'' p p q C = r' p p q C =>
+             \lam p => Jl (\lam south' p' => \Pi (q' : north = south') (C : p' *> inv p' = q' *> inv p') -> r'' p' p' q' C = r' p' p' q' C)
+                 (\lam q' C => idp) p
              | f : \Pi (q : north = south) (x1 : X.1) -> (PP q x1 X.2).1 =>
-             \lam q x1 (C : path (merid X.2) *> inv (path (merid X.2)) = q *> inv (path (merid x1))) => (
-                 \let r'' : path (merid x1) = q => inv (concat-idp _) *>
-                          pmap (\lam pp => pp *> path (merid x1)) (inv (concat-inv _) *> C) *> concat-assoc _ _ _ *> pmap (`*> q) (inv-concat _)
-                 \in inT (x1, r''))
+             \lam q x1 (C : path (merid X.2) *> inv (path (merid X.2)) = q *> inv (path (merid x1))) =>
+                 inT (x1, r'' (path (merid X.2)) (path (merid x1)) q C)
              | g : \Pi (q : north = south) (x2 : X.1) -> (PP q X.2 x2).1 =>
-             \lam q x2 (C : path (merid x2) *> inv (path (merid X.2)) = q *> inv (path (merid X.2))) => (
-                 \let r' : path (merid x2) = q => pmap (\lam pp => path (merid x2) *> pp) (inv (inv-concat _)) *> inv (concat-assoc _ _ _) *>
-                          pmap (\lam pp => pp *> path (merid X.2)) C *> concat-assoc _ _ _ *> pmap (`*> q) (inv-concat _)
-                 \in inT (x2, r'))
-             | pp : \Pi (q : north = south) -> f q X.2 = g q X.2 => {?}
-             | B2 => \lam (q : north = south) => wedge-connectivity {n} {n} X X Xc Xc (PP q) (f q) (g q) (pp q)
-             | B1 : \Pi (q : north = south) -> fib sigma (q *> mx1) -> codeS q => \lam q z => (B2 q).1 x1 z.1 z.2
-             | B0 : \Pi (q : north = south) -> codeN (q *> mx1) -> codeS q => \lam q => ext (ofHlevel-Trunc (1 + n + n) (fibS q)) (B1 q)
-             | A0 : \Pi (q : north = south) -> codeS q = codeN (q *> mx1) => {?}
-             | A1 => pmap (transport P (path (merid x1)))
-                 (inv (EQ (\lam q => transport-const mx1 (codeS q) *> A0 q *> pmap codeN (inv (coePath (idpe north) q mx1 *> concat-idp (q *> mx1)))))) *>
+             \lam q x2 (C : path (merid x2) *> inv (path (merid X.2)) = q *> inv (path (merid X.2))) =>
+                 inT (x2, r' (path (merid x2)) (path (merid X.2)) q C)
+             | pp : \Pi (q : north = south) -> f q X.2 = g q X.2 =>
+             \lam q => fun-ext {path (merid X.2) *> inv (path (merid X.2)) = q *> inv (path (merid X.2))} {codeS q} {f q X.2} {g q X.2}
+                 (\lam C => pmap (\lam z => inT (
+                     \let x : fibS q => (X.2, z)
+                     \in x)) (p-lemma (path (merid X.2)) q C))
+             | WC => \lam (q : north = south) => wedge-connectivity {n} {n} X X Xc Xc (PP q) (f q) (g q) (pp q)
+             | A1 : \Pi (q : north = south) (x1 : X.1) -> codeN (q *> inv (path (merid x1))) -> codeS q =>
+                 \lam q x1 => ext (ofHlevel-Trunc (1 + n + n) (fibS q)) (\lam (z : fib sigma (q *> inv (path (merid x1)))) => (WC q).1 x1 z.1 z.2)
+             | gg : \Pi (q : north = south) -> fib sigma (q *> inv (path (merid X.2))) -> fibS q =>
+                 \lam q z => (z.1, r' (path (merid z.1)) (path (merid X.2)) q z.2)
+             | A2 : \Pi (q : north = south) -> A1 q X.2 = inM (gg q) (1 + n + n) =>
+             \lam q => fun-ext (uniq {_} {_} {codeS q} (ofHlevel-Trunc (1 + n + n) (fibS q)) (A1 q X.2) (inM (gg q) (1 + n + n))
+                 (\lam (z : fib sigma (q *> inv (path (merid X.2)))) => (
+                     \let B0 : (WC q).1 X.2 z.1 = g q z.1 => (WC q).3 z.1
+                     \in path (\lam i => (B0 @ i) z.2))))
+             | A3 : \Pi (q : north = south) -> isequiv (gg q) => {?}
+             | A4 : \Pi (q : north = south) -> isequiv (A1 q X.2) =>
+                 \lam q => transport isequiv (inv (A2 q)) (inM-equiv (gg q) (1 + n + n) (A3 q))
+             | A5 : \Pi (q : north = south) -> codeS q = codeN (q *> mx1) => \lam q => inv (equiv-to-path
+                 (A1 q x1, (connected-zero-prop (bp-incl X) (connected-zero n (bp-incl X) (transport id (connected-type-bp-incl n X) Xc))
+                     (\lam (x1 : X.1) => isequiv (A1 q x1)) (\lam x1 => isequiv-is-prop (A1 q x1))).2.1.1 (\lam _ => A4 q) x1))
+             | A6 => pmap (transport P (path (merid x1)))
+                 (inv (EQ (\lam q => transport-const mx1 (codeS q) *> A5 q *> pmap codeN (inv (coePath (idpe north) q mx1 *> concat-idp (q *> mx1)))))) *>
                  transp-invpath-rinv P (path (merid x1)) codeS
-        \in (pathOver A1 @ i) p
+        \in (pathOver A6 @ i) p
