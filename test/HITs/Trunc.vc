@@ -79,6 +79,14 @@ inH {A B : \Type} (f g : A -> B) (h : f ~ g) (n : Nat) : inM f n ~ inM g n =>
     \in fun-ext-inv (inv (A1.1.2 (inM f n)) *> pmap A1.1.1 A0 *> A1.1.2 (inM g n))
 
 \function
+inM-equiv {A B : \Type} (f : A -> B) (n : Nat) (E : isequiv f) : isequiv (inM f n) => ((inM E.1.1 n, \lam (q : Trunc n A) => (
+    \let pm => \lam (z : Trunc n A -> Trunc n A) => z q
+    \in pmap pm (inM-o f E.1.1 n) *> inH (E.1.1 `o f) id E.1.2 n q *> pmap pm (inM-id {A} n))),
+    (inM E.2.1 n, \lam q => (
+        \let pm => \lam (z : Trunc n B -> Trunc n B) => z q
+        \in pmap pm (inM-o E.2.1 f n) *> inH (f `o E.2.1) id E.2.2 n q *> pmap pm (inM-id {B} n))))
+
+\function
 ofHlevel-inT-equiv (A : \Type) (n : Nat) (nT : ofHlevel (suc n) A) : isequiv (inT {n} {A}) => 
     \let G => ext nT (id {A})
     \in ((G, \lam _ => idp), (G, uniq (ofHlevel-Trunc n A) (inT `o G) id (\lam _ => idp)))
@@ -403,14 +411,6 @@ connected-zero-prop {A B : \Type} (f : A -> B) (fC : zero `connected f) (P : B -
     => (\lam g a => g (f a), connectedness-criterion.F12 zero f fC (\lam b => (P b, isProp-ofHlevel1 (P b) (PC b))))
 
 \function
-inM-equiv {A B : \Type} (f : A -> B) (n : Nat) (E : isequiv f) : isequiv (inM f n) => ((inM E.1.1 n, \lam (q : Trunc n A) => (
-    \let pm => \lam (z : Trunc n A -> Trunc n A) => z q
-    \in pmap pm (inM-o f E.1.1 n) *> inH (E.1.1 `o f) id E.1.2 n q *> pmap pm (inM-id {A} n))),
-    (inM E.2.1 n, \lam q => (
-        \let pm => \lam (z : Trunc n B -> Trunc n B) => z q
-        \in pmap pm (inM-o E.2.1 f n) *> inH (f `o E.2.1) id E.2.2 n q *> pmap pm (inM-id {B} n))))
-
-\function
 code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1) (p : north = y) : \oo-Type => \elim y
     | north => Trunc (1 + n + n) (fib sigma p)
     | south => Trunc (1 + n + n) (fib (\lam x => path (merid x)) p)
@@ -419,14 +419,9 @@ code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1
              | fibS => \lam p => fib (\lam x => path (merid x)) p
              | codeN : north = north -> \oo-Type => \lam p => Trunc (1 + n + n) (fib sigma p)
              | codeS : north = south -> \oo-Type => \lam p => Trunc (1 + n + n) (fibS p)
-             | mx1 : south = north => inv (path (merid x1))
-             | EQ => (transport-funExt mx1 (\lam y => north = y) (\lam _ => \oo-Type) codeS codeN).2.1.1
              | PP : \Pi (q : north = south) -> X.1 -> X.1 -> (2 + n + n) Types` => \lam q x1 x2 => (
                  \let C0 => path (merid x2) *> inv (path (merid X.2)) = q *> inv (path (merid x1))
                  \in (C0 -> codeS q, ofHlevel-codom C0 (\lam _ => codeS q) (2 + n + n) (\lam _ => ofHlevel-Trunc (1 + n + n) (fibS q))))
-             | p-lemma : \Pi (p q : north {X.1} = south) (C : p *> inv p = q *> inv p) -> r'' p p q C = r' p p q C =>
-             \lam p => Jl (\lam south' p' => \Pi (q' : north = south') (C : p' *> inv p' = q' *> inv p') -> r'' p' p' q' C = r' p' p' q' C)
-                 (\lam q' C => idp) p
              | f : \Pi (q : north = south) (x1 : X.1) -> (PP q x1 X.2).1 =>
              \lam q x1 (C : path (merid X.2) *> inv (path (merid X.2)) = q *> inv (path (merid x1))) =>
                  inT (x1, r'' (path (merid X.2)) (path (merid x1)) q C)
@@ -437,7 +432,7 @@ code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1
              \lam q => fun-ext {path (merid X.2) *> inv (path (merid X.2)) = q *> inv (path (merid X.2))} {codeS q} {f q X.2} {g q X.2}
                  (\lam C => pmap (\lam z => inT (
                      \let x : fibS q => (X.2, z)
-                     \in x)) (p-lemma (path (merid X.2)) q C))
+                     \in x)) (rlemma (path (merid X.2)) q C))
              | WC => \lam (q : north = south) => wedge-connectivity {n} {n} X X Xc Xc (PP q) (f q) (g q) (pp q)
              | A1 : \Pi (q : north = south) (x1 : X.1) -> codeN (q *> inv (path (merid x1))) -> codeS q =>
                  \lam q x1 => ext (ofHlevel-Trunc (1 + n + n) (fibS q)) (\lam (z : fib sigma (q *> inv (path (merid x1)))) => (WC q).1 x1 z.1 z.2)
@@ -455,12 +450,14 @@ code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1
                          (idp, r'-rinv (path (merid ws.1)) (path (merid X.2)) q ws.2))
              | A4 : \Pi (q : north = south) -> isequiv (A1 q X.2) =>
                  \lam q => transport isequiv (inv (A2 q)) (inM-equiv (g2 q) (1 + n + n) (A3 q))
+             | mx1 : south = north => inv (path (merid x1))             | mx1 : south = north => inv (path (merid x1))
              | A5 : \Pi (q : north = south) -> codeS q = codeN (q *> mx1) => \lam q => inv (equiv-to-path
                  (A1 q x1, (connected-zero-prop (bp-incl X) (connected-zero n (bp-incl X) (transport id (connected-type-bp-incl n X) Xc))
                      (\lam (x1 : X.1) => isequiv (A1 q x1)) (\lam x1 => isequiv-is-prop (A1 q x1))).2.1.1 (\lam _ => A4 q) x1))
              | A6 => pmap (transport P (path (merid x1)))
-                 (inv (EQ (\lam q => transport-const mx1 (codeS q) *> A5 q *> pmap codeN (inv (coePath (idpe north) q mx1 *> concat-idp (q *> mx1)))))) *>
-                 transp-invpath-rinv P (path (merid x1)) codeS
+                 (inv (((transport-funExt mx1 (\lam y => north = y) (\lam _ => \oo-Type) codeS codeN).2.1.1) 
+                     (\lam q => transport-const mx1 (codeS q) *> A5 q *> pmap codeN (inv (coePath (idpe north) q mx1 *> 
+                         concat-idp (q *> mx1)))))) *> transp-invpath-rinv P (path (merid x1)) codeS
         \in (pathOver A6 @ i) p \where {
     \function
     r' {Y : \oo-Type} {x1 x2 : Y} (p' p q : x1 = x2) (C : p' *> inv p = q *> inv p) : p' = q 
@@ -484,4 +481,8 @@ code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type X.1) (y : (SuspP X).1
     r'' {Y : \oo-Type} {x1 x2 : Y} (p p' q : x1 = x2) (C : p *> inv p = q *> inv p') : p' = q => inv (concat-idp _) *>
         pmap (\lam pp => pp *> p') (inv (concat-inv _) *> C) *> concat-assoc _ _ _ *> pmap (`*> q) (inv-concat _)
 
+    \function
+    rlemma {Y : \oo-Type} {x1 x2 : Y} (p q : x1 = x2) (C : p *> inv p = q *> inv p) : r'' p p q C = r' p p q C 
+    => Jl (\lam x2' p' => \Pi (q' : x1 = x2') (C : p' *> inv p' = q' *> inv p') -> r'' p' p' q' C = r' p' p' q' C)
+        (\lam q' C => idp) p q C
 }
