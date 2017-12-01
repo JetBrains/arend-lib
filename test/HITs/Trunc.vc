@@ -408,19 +408,21 @@ connected-zero-prop {A B : \Type} (f : A -> B) (fC : zero `connected` f) (P : B 
 
 \function
 code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type` X.1) (y : (SuspP X).1) (p : north = y) : \oo-Type => \elim y
-    | north => Trunc (1 + n + n) (fib sigma p)
-    | south => Trunc (1 + n + n) (fib (\lam x => path (merid x)) p)
+    | north => codeN n p
+    | south => codeS n p
     | merid x1 i => 
         \let | P => \lam y => north {X.1} = y -> \oo-Type
              | mx1i : south = north => inv (path (merid x1))
              | HD => \lam (q : north = south) => h-instance {X} {n} Xc q
-        \in (pathOver (pmap (transport P (path (merid x1)))
-                (inv ((transport-funExt mx1i (\lam y => north = y) (\lam _ => \oo-Type) (codeS n) (codeN n)).2.1.1
-                    (\lam q => inv (equiv-to-path ((HD q).1 x1,
-                        (connected-zero-prop (bp-incl X) (connected-zero n (bp-incl X) (transport id (connected-type-bp-incl n X) Xc))
-                            (\lam (x1 : X.1) => isequiv ((HD q).1 x1)) (\lam x1 => isequiv-is-prop ((HD q).1 x1))).2.1.1 (\lam _ => (HD q).2) x1)) *>
-                        pmap (codeN n) (inv (coePath (idpe north) q mx1i *> concat-idp (q *> mx1i)))))) *>
-                    transp-invpath-rinv P (path (merid x1)) (codeS n)) @ i) p \where {
+             | S : \Pi (q : north = south) -> codeN n (q *> inv (path (merid x1))) = codeS n q => \lam q =>
+                    (equiv-to-path ((HD q).1 x1, (connected-zero-prop (bp-incl X) (connected-zero n (bp-incl X) (transport id (connected-type-bp-incl n X) Xc))
+                        (\lam (x1 : X.1) => isequiv ((HD q).1 x1)) (\lam x1 => isequiv-is-prop ((HD q).1 x1))).2.1.1 (\lam _ => (HD q).2) x1))
+             | pp : transport (\lam z => north = z -> \oo-Type) (path (merid x1)) (codeN n) = codeS n =>
+                                 (pmap (transport P (path (merid x1)))
+                                     (inv ((transport-funExt mx1i (\lam y => north = y) (\lam _ => \oo-Type) (codeS n) (codeN n)).2.1.1
+                                         (\lam q => inv (S q) *> pmap (codeN n) (inv (coePath (idpe north) q mx1i *> concat-idp (q *> mx1i)))))) *>
+                                         transp-invpath-rinv P (path (merid x1)) (codeS n))
+        \in ((pathOver pp) @ i) p \where {
     \function
     r' {Y : \oo-Type} {x1 x2 : Y} (p' p q : x1 = x2) (C : p' *> inv p = q *> inv p) : p' = q 
         => pmap (\lam pp => p' *> pp) (inv (inv-concat p)) *>
@@ -494,8 +496,7 @@ code {X : Pointed} {n : Nat} (Xc : (1 + n) `connected-type` X.1) (y : (SuspP X).
 \function
 transport-pair {A : \oo-Type} (B : A -> \oo-Type) (C : \Pi (a : A) -> B a -> \oo-Type) (a1 a2 : A) (m : a1 = a2) (b : B a2) :
     transport (uncurry-d B C) {(a1, transport B (inv m) b)} {(a2, b)} (sigma-ext-eq B (m, transp-invpath-rinv B m b)) =
-    (path-to-equiv
-        (inv (transp-funcfibers B (\lam _ => \oo-Type) m (C a1) b) *> fun-ext-inv (pmapd (\lam a => B a -> \oo-Type) C m) b)).1 
+    (path-to-equiv (inv (transp-funcfibers B (\lam _ => \oo-Type) m (C a1) b) *> fun-ext-inv (pmapd (\lam a => B a -> \oo-Type) C m) b)).1
 => Jl (\lam a2' m' => \Pi (b : B a2') ->
     transport (uncurry-d B C) {(a1, transport B (inv m') b)} {(a2', b)} (sigma-ext-eq B (m', transp-invpath-rinv B m' b)) =
     (path-to-equiv
@@ -525,8 +526,10 @@ transport (uncurry-d (\lam y => north = y) (code {X} {n} Xc)) {(north, _)} {(sou
          | E1 => transport (uncurry-d (\lam y => north = y) (code {X} {n} Xc)) {(north, _)} {(south, _)}
              (sigma-ext-eq (\lam y => north = y) (path (merid X.2), transp-invpath-rinv (\lam y => north = y) (path (merid X.2)) q))
              (inT {1 + n + n} {\Sigma (x : X.1) (_ : path (merid x) *> inv (path (merid X.2)) = q *> inv (path (merid X.2)))} (x2, r))
-         | E2 => (path-to-equiv (path (\lam i => C (inv m @ i) (coe (\lam j => B (inv m @ squeeze i j)) q right)))).2.1.1
-             (inT {1 + n + n} {\Sigma (x : X.1) (_ : path (merid x) *> inv (path (merid X.2)) = q *> inv (path (merid X.2)))} (x2, r))
+         | P1 : transport (\lam a => B a -> \oo-Type) m (C north) = C south => pmapd (\lam a => B a -> \oo-Type) C m
+         | P2 : transport (\lam a => B a -> \oo-Type) m (C north) q = (C north) (transport B (inv m) q) => transp-funcfibers B (\lam _ => \oo-Type) m (C (north {X.1})) q
+         | E2 => (path-to-equiv (inv P2 *> fun-ext-inv P1 q)).1
+                     (inT {1 + n + n} {\Sigma (x : X.1) (_ : path (merid x) *> inv (path (merid X.2)) = q *> inv (path (merid X.2)))} (x2, r))
          | E3 => inT {1 + n + n} {\Sigma (y : X.1) (path (merid y) = q)} (x2, code.r' (path (merid x2)) (path (merid X.2)) q r)
          | A1 : E1 = E2 => path (\lam i => (transport-pair B C north south m q @ i)
              (inT {1 + n + n} {\Sigma (x : X.1) (_ : path (merid x) *> inv (path (merid X.2)) = q *> inv (path (merid X.2)))} (x2, r)))
