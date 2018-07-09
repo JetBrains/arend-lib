@@ -1,117 +1,106 @@
-\open ::Paths
-\open ::Combinators
-\open ::Logic
-\open ::Hlevel
+\import Paths
+\import Combinators
+\import Logic
+\import Hlevel
 
 -- Equivalence
 
-\function \infix 2
-~ {A B : \Type} (f : A -> B) (g : A -> B) => \Pi (x : A) -> f x = g x
+\func \infix 2 ~ {A B : \Type} (f : A -> B) (g : A -> B) => \Pi (x : A) -> f x = g x
 
-\function
-linv {A B : \Type} (f : A -> B) => \Sigma (g : B -> A) (g `o f ~ id)
+\func linv {A B : \Type} (f : A -> B) => \Sigma (g : B -> A) (g o f ~ id)
 
-\function
-rinv {A B : \Type} (f : A -> B) => \Sigma (g : B -> A) (f `o g ~ id)
+\func rinv {A B : \Type} (f : A -> B) => \Sigma (g : B -> A) (f o g ~ id)
 
-\function
-is_retr (A B : \Type) => \Sigma (f : A -> B) (g : linv f)
+\func is_retr (A B : \Type) => \Sigma (f : A -> B) (g : linv f)
 
-\function
-isequiv {A B : \Type} (f : A -> B) => \Sigma (linv f) (rinv f)
+\func isequiv {A B : \Type} (f : A -> B) => \Sigma (linv f) (rinv f)
 
-\function \infix 2
-=~= (A B : \Type) => \Sigma (f : A -> B) (isequiv f)
+\func \infix 2 =~= (A B : \Type) => \Sigma (f : A -> B) (isequiv f)
 
-\function fun-ext {A B : \Type} {f g : A -> B} (p : f ~ g) : f = g =>
-  path (\lam i => (\lam x => p x @ i))
+\func fun-ext {A B : \Type} {f g : A -> B} (p : f ~ g) : f = g => path (\lam i => (\lam x => p x @ i))
 
-\function
-fun-ext-inv {A B : \Type} {f g : A -> B} (p : f = g) : f ~ g =>
+\func fun-ext-inv {A B : \Type} {f g : A -> B} (p : f = g) : f ~ g =>
     \lam (x : A) => path (\lam i => (p @ i) x)
 
-\function 
-path-to-equiv {A B : \Type} (p : A = B) : (A =~= B)
+\func path-to-equiv {A B : \Type} (p : A = B) : (A =~= B)
   => Jl (\lam X (q : A = X) => A =~= X) (\lam (x : A) => x, ((\lam (x : A) => x, \lam _ => idp), (\lam (x : A) => x, \lam _ => idp))) p
 
 -- Quasi-equivalences
 
-\function
-qinv {A B : \Type} (f : A -> B) => \Sigma (g : B -> A) (g `o f ~ id) (f `o g ~ id)
+\func qinv {A B : \Type} (f : A -> B) => \Sigma (g : B -> A) (g o f ~ id) (f o g ~ id)
 
-\function
-qinv-to-equiv {A B : \Type} (f : A -> B) (x : qinv f) : isequiv f => 
-  ((x.1, x.2), (x.1, x.3))
+\func qinv-to-equiv {A B : \Type} (f : A -> B) (x : qinv f) : A =~= B => (f, ((x.1, x.2), (x.1, x.3)))
 
-\function
-fun-ext-equiv {A B : \Type} (f : A -> B) : linv f =~= (\Sigma (h : B -> A) (h `o f = id)) => 
-    \let | F : \Sigma (h : B -> A) (h `o f ~ id) -> \Sigma (h : B -> A) (h `o f = id) =>
-             \lam x => (x.1, fun-ext {_} {_} {x.1 `o f} {id} x.2)
-         | G : \Sigma (h : B -> A) (h `o f = id) -> \Sigma (h : B -> A) (h `o f ~ id) =>
-             \lam x => (x.1, fun-ext-inv {_} {_} {x.1 `o f} {id} x.2)
-         | eta : F `o G ~ id => \lam x => idp
-         | eps : G `o F ~ id => \lam x => idp
-    \in (F, qinv-to-equiv F (G, eps, eta))
+\func qinv-to-equiv' {A B : \Type} (f : A -> B) (x : qinv f) : isequiv f => ((x.1, x.2), (x.1, x.3))
 
-\function
-fun-ext-equiv2 {A B : \Type} (f : A -> B) : rinv f =~= (\Sigma (h : B -> A) (f `o h = id)) => 
-    \let | F : \Sigma (h : B -> A) (f `o h ~ id) -> \Sigma (h : B -> A) (f `o h = id) => \lam x => (x.1, fun-ext {_} {_} {f `o x.1} {id} x.2)
-         | G : \Sigma (h : B -> A) (f `o h = id) -> \Sigma (h : B -> A) (f `o h ~ id) => \lam x => (x.1, fun-ext-inv {_} {_} {f `o x.1} {id} x.2)
-         | eta : F `o G ~ id => \lam x => idp
-         | eps : G `o F ~ id => \lam x => idp
-    \in (F, qinv-to-equiv F (G, eps, eta))
+\func fun-ext-equiv {A B : \Type} (f : A -> B) : linv f =~= (\Sigma (h : B -> A) (h o f = id)) => 
+    \let | F : \Sigma (h : B -> A) (h o f ~ id) -> \Sigma (h : B -> A) (h o f = id) =>
+             \lam x => (x.1, fun-ext {_} {_} {x.1 o f} {id} x.2)
+         | G : \Sigma (h : B -> A) (h o f = id) -> \Sigma (h : B -> A) (h o f ~ id) =>
+             \lam x => (x.1, fun-ext-inv {_} {_} {x.1 o f} {id} x.2)
+         | eta : F o G ~ id => \lam x => idp
+         | eps : G o F ~ id => \lam x => idp
+    \in qinv-to-equiv F (G, eps, eta)
 
-\function
-equiv-to-qinv {A B : \Type} (f : A -> B) (x : isequiv f) : qinv f => 
-  (x.1.1 `o f `o x.2.1, 
+\func fun-ext-equiv2 {A B : \Type} (f : A -> B) : rinv f =~= (\Sigma (h : B -> A) (f o h = id)) => 
+    \let | F : \Sigma (h : B -> A) (f o h ~ id) -> \Sigma (h : B -> A) (f o h = id) => \lam x => (x.1, fun-ext {_} {_} {f o x.1} {id} x.2)
+         | G : \Sigma (h : B -> A) (f o h = id) -> \Sigma (h : B -> A) (f o h ~ id) => \lam x => (x.1, fun-ext-inv {_} {_} {f o x.1} {id} x.2)
+         | eta : F o G ~ id => \lam x => idp
+         | eps : G o F ~ id => \lam x => idp
+    \in qinv-to-equiv F (G, eps, eta)
+
+\func equiv-to-qinv {A B : \Type} (f : A -> B) (x : isequiv f) : qinv f => 
+  (x.1.1 o f o x.2.1, 
    \lam x' => pmap x.1.1 (x.2.2 (f x')) *> x.1.2 x',
    \lam x' => pmap f (x.1.2 (x.2.1 x')) *> x.2.2 x'
   )
 
 -- Equiv Properties
 
-\function 
-equiv-refl (A : \Type) : A =~= A => (id, qinv-to-equiv id (id, (\lam x => idp), (\lam x => idp)))
+\func equiv-refl (A : \Type) : A =~= A => qinv-to-equiv id (id, (\lam x => idp), (\lam x => idp))
 
-\function 
-equiv-symm {A B : \Type} (e : A =~= B) : B =~= A =>
+\func equiv-symm {A B : \Type} (e : A =~= B) : B =~= A =>
   \let qe => equiv-to-qinv e.1 e.2 
-  \in (qe.1, qinv-to-equiv qe.1 (e.1, qe.3, qe.2))
+  \in qinv-to-equiv qe.1 (e.1, qe.3, qe.2)
 
-\function
-equiv-trans {A B C : \Type} (e : A =~= B) (e' : B =~= C) : A =~= C =>
+\func equiv-trans {A B C : \Type} (e : A =~= B) (e' : B =~= C) : A =~= C =>
   \let | qe : qinv e.1 => equiv-to-qinv e.1 e.2
        | qe' : qinv e'.1 => equiv-to-qinv e'.1 e'.2
-  \in (e'.1 `o e.1, qinv-to-equiv (e'.1 `o e.1) (qe.1 `o qe'.1, \lam x => pmap qe.1 (qe'.2 (e.1 x)) *> (qe.2 x), \lam x => pmap e'.1 (qe.3 (qe'.1 x)) *> (qe'.3 x)))
+  \in qinv-to-equiv (e'.1 o e.1) (qe.1 o qe'.1, \lam x => pmap qe.1 (qe'.2 (e.1 x)) *> (qe.2 x), \lam x => pmap e'.1 (qe.3 (qe'.1 x)) *> (qe'.3 x))
 
-\function
-equiv-to-path {A B : \Type} (eq : A =~= B) : A = B => 
+\func equiv-to-path {A B : \Type} (eq : A =~= B) : A = B => 
     \let q => equiv-to-qinv eq.1 eq.2
     \in path (iso eq.1 q.1 q.2 q.3)
 
-\function
-funExt-eq {A : \Type} (B : A -> \Type) (f g : \Pi (x : A) -> B x) : (f = g) = (\Pi (x : A) -> f x = g x) => 
+\func funExt-eq {A : \Type} (B : A -> \Type) (f g : \Pi (x : A) -> B x) : (f = g) =~= (\Pi (x : A) -> f x = g x) => 
     \let | F0 => funExt B f g
          | G0 => \lam (eq : f = g) => \lam a => pmap (\lam (x : \Pi (x : A) -> B x) => x a) eq
-    \in equiv-to-path
-            (G0, ((F0, \lam eq => idp), (F0, \lam eq => funExt (\lam a => f a = g a) (G0 (F0 eq)) eq (\lam a => idp))))
+    \in (G0, ((F0, \lam eq => idp), (F0, \lam eq => funExt (\lam a => f a = g a) (G0 (F0 eq)) eq (\lam a => idp))))
+
+\func transport-funExt {X : \Type} {x y : X} (p : x = y) (A B : X -> \Type) (f : A x -> B x) (g : A y -> B y) :
+    (transport (\lam (z : X) => A z -> B z) p f = g) =~= (\Pi (a : A x) -> transport B p (f a) = g (transport A p a)) 
+=> Jl (\lam y' p' => \Pi (g' : A y' -> B y') ->
+    (transport (\lam (z : X) => A z -> B z) p' f = g') =~= (\Pi (a : A x) -> transport B p' (f a) = g' (transport A p' a)))
+    (\lam g' => funExt-eq {A x} (\lam _ => B x) f g') p g
+
+\func depfun-equiv {B : \Type} (C C' : B -> \Type) (P : \Pi (y : B) -> C y =~= C' y) : (\Pi (y : B) -> C y) =~= (\Pi (y : B) -> C' y) 
+=> (\lam e1 y => (P y).1 (e1 y),
+    ((\lam e2 y => (P y).2.1.1 (e2 y), \lam e1 => funExt {B} C _ _ (\lam y => (P y).2.1.2 (e1 y))),
+        (\lam e2 y => (P y).2.2.1 (e2 y), \lam e2 => funExt {B} C' _ _ (\lam y => (P y).2.2.2 (e2 y)))))
 
 -- Sigma
 
-\function
-sigma-ext-eq  {A : \Type} (P : A -> \Type) {w w' : \Sigma (x : A) (px : P x)} 
+\func sigma-ext-eq  {A : \Type} (P : A -> \Type) {w w' : \Sigma (x : A) (px : P x)} 
             (y : \Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2)) : w = w' => 
 path (\lam i => (y.1 @ i, pathOver y.2 @ i))
 
-\function
-sigma-eq-ext {A : \Type} (P : A -> \Type) {w w' : \Sigma (x : A) (px : P x)}
+\func sigma-eq-ext {A : \Type} (P : A -> \Type) {w w' : \Sigma (x : A) (px : P x)}
   (q : w = w') : \Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2) =>
 (pmap (\lam (r : \Sigma (x : A) (px : P x)) => r.1) q, coe (\lam i => transport P (pmap (\lam (r : \Sigma (x : A) (px : P x)) => r.1) (psqueeze q i)) w.2 = (q @ i).2) idp right)
 
-\function 
-sigma-equiv {A : \Type} (P : A -> \Type) (w w' : \Sigma (x : A) (px : P x)) 
+\func sigma-equiv {A : \Type} (P : A -> \Type) (w w' : \Sigma (x : A) (px : P x)) 
   : (w = w') =~= (\Sigma (p : w.1 = w'.1) (transport P p w.2 = w'.2))
-    => (sigma-eq-ext P, qinv-to-equiv (sigma-eq-ext P) (sigma-ext-eq P,
+    => qinv-to-equiv (sigma-eq-ext P) (sigma-ext-eq P,
            Jl {\Sigma (x : A) (px : P x)} {w} (\lam w' p => sigma-ext-eq P (sigma-eq-ext P p) = p) idp, 
            \lam y => pmap {_} {\Sigma (gam : w.1 = w'.1) (transport P gam w.2 = w'.2)} (\lam r => (y.1, r)) (
                Jl (\lam (w1' : A) (y1 : w.1 = w1') => \Pi (w2' : P w1') (y2 : transport P y1 w.2 = w2') -> coe (\lam i => transport P (psqueeze y1 i) w.2 = pathOver y2 @ i) idp right = y2) (
@@ -119,40 +108,41 @@ sigma-equiv {A : \Type} (P : A -> \Type) (w w' : \Sigma (x : A) (px : P x))
                ) y.1 w'.2 y.2
              )
          )
-       )
 
-\function
-sigma-eq-first {A1 A2 : \Type} (B : A2 -> \Type) (q : A1 = A2) :
+\func sigma-eq-first {A1 A2 : \Type} (B : A2 -> \Type) (q : A1 = A2) :
     (\Sigma (a : A1) (B (coe (\lam i => q @ i) a right))) = (\Sigma (a : A2) (B a)) 
 => Jl (\lam AX qX => \Pi (B' : AX -> \Type) -> (\Sigma (a : A1) (B' (coe (\lam i => qX @ i) a right))) = (\Sigma (a : AX) (B' a)))
     (\lam B' => idp) q B
 
-\function
-sigma-eq-second {A : \Type} (B1 B2 : A -> \Type) (eq : \Pi (a : A) -> B1 a = B2 a) : (\Sigma (x : A) (B1 x)) = (\Sigma (x : A) (B2 x)) => 
+\func sigma-eq-second {A : \Type} (B1 B2 : A -> \Type) (eq : \Pi (a : A) -> B1 a = B2 a) : (\Sigma (x : A) (B1 x)) = (\Sigma (x : A) (B2 x)) => 
     \let eq' : B1 = B2 => fun-ext eq
     \in Jl {A -> \Type} {B1} (\lam Ax qX => (\Sigma (a : A) (B1 a)) = (\Sigma (a : A) (Ax a))) idp eq'
 
-\function
-hom-preserves-limits {A : \Type} (B : A -> \Type) (P : \Pi (x : A) -> B x -> \Type) :
+\func hom-preserves-limits {A : \Type} (B : A -> \Type) (P : \Pi (x : A) -> B x -> \Type) :
     (\Pi (x : A) -> \Sigma (y : B x) (P x y)) = (\Sigma (f : \Pi (x : A) -> B x) (\Pi (x : A) -> P x (f x))) => 
     \let | Z => \Pi (x : A) -> \Sigma (y : B x) (P x y)
          | W => \Sigma (f : \Pi (x : A) -> B x) (\Pi (x : A) -> P x (f x))
          | F : Z -> W => \lam z => (\lam x => (z x).1, \lam x => (z x).2)
          | G : W -> Z => \lam w => \lam x => (w.1 x, w.2 x)
-    \in equiv-to-path (F, qinv-to-equiv F (G, \lam z => idp, \lam w => idp))
+    \in equiv-to-path (qinv-to-equiv F (G, \lam z => idp, \lam w => idp))
+
+\func transp-funcfibers-dep (X : \Type) (A : X -> \Type) (B : \Pi (x : X) -> A x -> \Type) {x1 x2 : X} (p : x1 = x2) (f : \Pi (a : A x1) -> B x1 a)
+    (a : A x2) : transport (\lam x => \Pi (a : A x) -> B x a) p f a = transport (\lam (w : \Sigma (x : X) (A x)) => B w.1 w.2)
+    (inv (sigma-ext-eq A {(x2, a)} {(x1, transport A (inv p) a)} (inv p, idp))) (f (transport A (inv p) a)) 
+=> Jl {X} {x1} (\lam x2' p' => \Pi (a' : A x2') ->
+    transport (\lam x => \Pi (a : A x) -> B x a) p' f a' = transport (\lam (w : \Sigma (x : X) (A x)) => B w.1 w.2)
+        (inv (sigma-ext-eq A {(x2', a')} {(x1, transport A (inv p') a')} (inv p', idp))) (f (transport A (inv p') a')))
+    (\lam a' => idp) p a
 
 -- Half Adjoint Equivalences
 
-\function
-hae {A B : \Type} (f : A -> B) => 
-  \Sigma (g : B -> A) (eta : g `o f ~ id) (eps : f `o g ~ id) 
+\func hae {A B : \Type} (f : A -> B) => 
+  \Sigma (g : B -> A) (eta : g o f ~ id) (eps : f o g ~ id) 
     (tau : \Pi (x : A) -> pmap f (eta x) = eps (f x))
 
-\function 
-section {A : \Type} {a a' : A} (p q : a = a') (e : p = q) (i : I) : (p @ i = q @ i) => pmap (\lam p => p @ i) e
+\func section {A : \Type} {a a' : A} (p q : a = a') (e : p = q) (i : I) : (p @ i = q @ i) => pmap (\lam p => p @ i) e
 
-\function 
-cancel {A : \Type} {a a' a'' : A} (p q : a = a') (p' q' : a' = a'') (h : p = q) (e : p *> p' = q *> q') : p' = q' 
+\func cancel {A : \Type} {a a' a'' : A} (p q : a = a') (p' q' : a' = a'') (h : p = q) (e : p *> p' = q *> q') : p' = q' 
  => \let | h1 : inv p *> p *> p' = inv p *> q *> q' => pmap (concat (inv p)) e
          | h2 : inv p *> q *> q' = inv q *> q *> q' => pmap (\lam r => inv r *> q *> q') h
     \in p'                 ==< inv (concat-idp p') >==
@@ -163,250 +153,221 @@ cancel {A : \Type} {a a' a'' : A} (p q : a = a') (p' q' : a' = a'') (h : p = q) 
         inv q *> q *> q'   ==< inv (concat-assoc (inv q) q q') >==
         (inv q *> q) *> q' ==< pmap (\lam r => r *> q') (inv-concat q) >==
         idp *> q'          ==< concat-idp q' >==
-        q'                 qed`
+        q'                 `qed
 
-\function
-hae-tau-equiv {A B : \Type} (f : A -> B) (g : B -> A) (eta : g `o f ~ id) (eps : f `o g ~ id) 
+\func hae-tau-equiv {A B : \Type} (f : A -> B) (g : B -> A) (eta : g o f ~ id) (eps : f o g ~ id) 
   (tau : \Pi (x : A) -> pmap f (eta x) = eps (f x)) (y : B)
   : pmap g (eps y) = eta (g y) =>
-  \let | d1 : pmap (g `o f `o g) (eps y) *> pmap g (eps y) = pmap g (eps (f (g y))) *> pmap g (eps y) =>
-            pmap (g `o f `o g) (eps y) *> pmap g (eps y)    ==< (inv (pmap-concat-commute g (pmap (f `o g) (eps y)) (eps y))) >==
-            pmap g (pmap (f `o g) (eps y) *> eps y)         ==< (pmap (\lam p => pmap g p) (homotopy-isNatural (f `o g) id eps (eps y))) >==
-            pmap g (eps (f `o g $ y) *> eps y)              ==<  pmap-concat-commute g (eps (f `o g $ y)) (eps y) >==
-            pmap g (eps (f `o g $ y)) *> pmap g (eps y)     qed`
-       | d2 : pmap (g `o f) (eta (g y)) *> pmap g (eps y) = pmap g (eps (f (g y))) *> pmap g (eps y)
-           => Jl (\lam _ p => pmap (g `o f) (eta (g y)) *> pmap g p = pmap g (eps (f (g y))) *> pmap g p)
+  \let | d1 : pmap (g o f o g) (eps y) *> pmap g (eps y) = pmap g (eps (f (g y))) *> pmap g (eps y) =>
+            pmap (g o f o g) (eps y) *> pmap g (eps y)    ==< (inv (pmap-concat-commute g (pmap (f o g) (eps y)) (eps y))) >==
+            pmap g (pmap (f o g) (eps y) *> eps y)         ==< (pmap (\lam p => pmap g p) (homotopy-isNatural (f o g) id eps (eps y))) >==
+            pmap g (eps (f o g $ y) *> eps y)              ==<  pmap-concat-commute g (eps (f o g $ y)) (eps y) >==
+            pmap g (eps (f o g $ y)) *> pmap g (eps y)     `qed
+       | d2 : pmap (g o f) (eta (g y)) *> pmap g (eps y) = pmap g (eps (f (g y))) *> pmap g (eps y)
+           => Jl (\lam _ p => pmap (g o f) (eta (g y)) *> pmap g p = pmap g (eps (f (g y))) *> pmap g p)
                 (pmap (pmap g) (tau (g y))) (eps y)
-       | d3 : eta (g `o f `o g $ y) *> pmap g (eps y) = pmap (g `o f) (eta (g y)) *> pmap g (eps y)
-           => Jl (\lam _ p => eta (g `o f `o g $ y) *> pmap g p = pmap (g `o f) (eta (g y)) *> pmap g p) 
-                (homotopy-comm-lemma (g `o f) eta (g y)) (eps y)
-       | d4 : pmap (g `o f `o g) (eps y) *> eta (g y) = eta (g `o f `o g $ y) *> pmap g (eps y)
-           => homotopy-isNatural (g `o f) id eta (pmap g (eps y))
-       | d5 : pmap (g `o f `o g) (eps y) *> eta (g y) = pmap (g `o f `o g) (eps y) *> pmap g (eps y)
+       | d3 : eta (g o f o g $ y) *> pmap g (eps y) = pmap (g o f) (eta (g y)) *> pmap g (eps y)
+           => Jl (\lam _ p => eta (g o f o g $ y) *> pmap g p = pmap (g o f) (eta (g y)) *> pmap g p) 
+                (homotopy-comm-lemma (g o f) eta (g y)) (eps y)
+       | d4 : pmap (g o f o g) (eps y) *> eta (g y) = eta (g o f o g $ y) *> pmap g (eps y)
+           => homotopy-isNatural (g o f) id eta (pmap g (eps y))
+       | d5 : pmap (g o f o g) (eps y) *> eta (g y) = pmap (g o f o g) (eps y) *> pmap g (eps y)
            => d4 *> d3 *> d2 *> (inv d1)
-  \in inv $ cancel (pmap (g `o f `o g) (eps y)) (pmap (g `o f `o g) (eps y)) (eta (g y)) (pmap g (eps y)) 
+  \in inv $ cancel (pmap (g o f o g) (eps y)) (pmap (g o f o g) (eps y)) (eta (g y)) (pmap g (eps y)) 
               idp d5
 
-\function 
-qinv-to-hae {A B : \Type} (f : A -> B) (x : qinv f) : hae f =>
+\func qinv-to-hae {A B : \Type} (f : A -> B) (x : qinv f) : hae f =>
   (x.1, x.2, \lam (b : B) => inv (x.3 (f $ x.1 b)) *> (pmap f (x.2 (x.1 b))) *> x.3 b, 
-    \lam a => \let | eta-nat : x.2 (x.1 (f a)) = pmap (x.1 `o f) (x.2 a) => homotopy-comm-lemma (x.1 `o f) x.2 a
-                   | almost : (pmap f (x.2 (x.1 (f a)))) *> x.3 (f a) = x.3 (f `o x.1 `o f $ a) *> pmap f (x.2 a) =>
+    \lam a => \let | eta-nat : x.2 (x.1 (f a)) = pmap (x.1 o f) (x.2 a) => homotopy-comm-lemma (x.1 o f) x.2 a
+                   | almost : (pmap f (x.2 (x.1 (f a)))) *> x.3 (f a) = x.3 (f o x.1 o f $ a) *> pmap f (x.2 a) =>
                         pmap f (x.2 (x.1 (f a))) *> x.3 (f a)       ==< pmap (\lam r => pmap f r *> x.3 (f a)) eta-nat >==
-                        pmap (f `o x.1 `o f) (x.2 a) *> x.3 (f a)   ==< homotopy-isNatural (f `o x.1) id x.3 (pmap f (x.2 a)) >==
-                        x.3 (f `o x.1 `o f $ a) *> pmap f (x.2 a)   qed`
+                        pmap (f o x.1 o f) (x.2 a) *> x.3 (f a)   ==< homotopy-isNatural (f o x.1) id x.3 (pmap f (x.2 a)) >==
+                        x.3 (f o x.1 o f $ a) *> pmap f (x.2 a)   `qed
               \in pmap f (x.2 a)                                                                ==< inv (concat-idp (pmap f (x.2 a))) >==
-                  idp *> pmap f (x.2 a)                                                         ==< pmap (\lam r => r *> pmap f (x.2 a)) (inv (inv-concat (x.3 (f `o x.1 `o f $ a)))) >==
-                  (inv (x.3 (f `o x.1 `o f $ a)) *> x.3 (f `o x.1 `o f $ a)) *> pmap f (x.2 a)  ==< concat-assoc (inv (x.3 (f `o x.1 `o f $ a))) (x.3 (f `o x.1 `o f $ a)) (pmap f (x.2 a)) >==
-                  inv (x.3 (f `o x.1 `o f $ a)) *> x.3 (f `o x.1 `o f $ a) *> pmap f (x.2 a)    ==< pmap (\lam r => inv (x.3 (f `o x.1 `o f $ a)) *> r) (inv almost) >==
-                  inv (x.3 (f `o x.1 `o f $ a)) *> (pmap f (x.2 (x.1 (f a)))) *> x.3 (f a)      qed`
+                  idp *> pmap f (x.2 a)                                                         ==< pmap (\lam r => r *> pmap f (x.2 a)) (inv (inv-concat (x.3 (f o x.1 o f $ a)))) >==
+                  (inv (x.3 (f o x.1 o f $ a)) *> x.3 (f o x.1 o f $ a)) *> pmap f (x.2 a)  ==< concat-assoc (inv (x.3 (f o x.1 o f $ a))) (x.3 (f o x.1 o f $ a)) (pmap f (x.2 a)) >==
+                  inv (x.3 (f o x.1 o f $ a)) *> x.3 (f o x.1 o f $ a) *> pmap f (x.2 a)    ==< pmap (\lam r => inv (x.3 (f o x.1 o f $ a)) *> r) (inv almost) >==
+                  inv (x.3 (f o x.1 o f $ a)) *> (pmap f (x.2 (x.1 (f a)))) *> x.3 (f a)      `qed
   )
 
-\function
-hae-to-qinv {A B : \Type} (f : A -> B) (x : hae f) : qinv f => (x.1, x.2, x.3)
+\func hae-to-qinv {A B : \Type} (f : A -> B) (x : hae f) : qinv f => (x.1, x.2, x.3)
 
-\function
-fib {A B : \Type} (f : A -> B) (y : B) => \Sigma (x : A) (f x = y)
+\func fib {A B : \Type} (f : A -> B) (y : B) => \Sigma (x : A) (f x = y)
 
-\function
-fib-equiv {A B : \Type} (f : A -> B) (y : B) (n m : fib f y) : (n = m) =~= (\Sigma (gam : n.1 = m.1) (pmap f gam *> m.2 = n.2))
+\func fib-equiv {A B : \Type} (f : A -> B) (y : B) (n m : fib f y) : (n = m) =~= (\Sigma (gam : n.1 = m.1) (pmap f gam *> m.2 = n.2))
   => \let e (gam : n.1 = m.1) : (pmap f gam *> m.2 = n.2) = (transport (\lam x => f x = y) gam n.2 = m.2) =>
              Jl (\lam m1 gam => \Pi (m2 : f m1 = y) -> (pmap    f gam *> m2 = n.2) = (transport   (\lam x => f x = y) gam n.2 = m2))
              (\lam m2 => pmap (\lam r => r = n.2) (concat-idp m2) *> path-sym m2 n.2) gam m.2
      \in coe (\lam i => (n = m) =~= (\Sigma (gam : n.1 = m.1) (inv (e gam) @ i))) (sigma-equiv (\lam x => f x = y) n m) right
 
-\function
-hae-contr {A B : \Type} (f : A -> B) (h : hae f) (y : B) : isContr (fib f y) 
+\func hae-contr {A B : \Type} (f : A -> B) (h : hae f) (y : B) : isContr (fib f y) 
   => ((h.1 y, h.3 y), \lam a' => (fib-equiv f y (h.1 y, h.3 y) a').2.1.1 
     (inv (pmap h.1 a'.2) *> h.2 a'.1,
       pmap f (inv (pmap h.1 a'.2) *> h.2 a'.1) *> a'.2                  ==< pmap (\lam r => r *> a'.2) (pmap-concat-commute f (inv (pmap h.1 a'.2)) (h.2 a'.1)) >==
       (pmap f (inv (pmap h.1 a'.2)) *> pmap f (h.2 a'.1)) *> a'.2       ==< pmap (\lam r => (pmap f (inv (pmap h.1 a'.2)) *> r) *> a'.2) (h.4 a'.1) >==
       (pmap f (inv (pmap h.1 a'.2)) *> h.3 (f a'.1)) *> a'.2            ==< concat-assoc (pmap f (inv (pmap h.1 a'.2))) (h.3 (f a'.1)) a'.2 >==
-      pmap f (inv (pmap h.1 a'.2)) *> h.3 (f a'.1) *> a'.2              ==< pmap (\lam r => pmap f (inv (pmap h.1 a'.2)) *> r) (inv (homotopy-isNatural (f `o h.1) id h.3 a'.2)) >==
-      pmap f (inv (pmap h.1 a'.2)) *> pmap (f `o h.1) a'.2 *> h.3 y     ==< inv (concat-assoc (pmap f (inv (pmap h.1 a'.2))) (pmap (f `o h.1) a'.2)  (h.3 y)) >==
-      (pmap f (inv (pmap h.1 a'.2)) *> pmap (f `o h.1) a'.2) *> h.3 y   ==< pmap (\lam r => (r *> pmap (f `o h.1) a'.2) *> h.3 y) (pmap-inv-comm f (pmap h.1 a'.2)) >==
-      (inv (pmap f (pmap h.1 a'.2)) *> pmap (f `o h.1) a'.2) *> h.3 y   ==< pmap (\lam r => r *> h.3 y) (inv-concat (pmap (f `o h.1) a'.2)) >==
+      pmap f (inv (pmap h.1 a'.2)) *> h.3 (f a'.1) *> a'.2              ==< pmap (\lam r => pmap f (inv (pmap h.1 a'.2)) *> r) (inv (homotopy-isNatural (f o h.1) id h.3 a'.2)) >==
+      pmap f (inv (pmap h.1 a'.2)) *> pmap (f o h.1) a'.2 *> h.3 y     ==< inv (concat-assoc (pmap f (inv (pmap h.1 a'.2))) (pmap (f o h.1) a'.2)  (h.3 y)) >==
+      (pmap f (inv (pmap h.1 a'.2)) *> pmap (f o h.1) a'.2) *> h.3 y   ==< pmap (\lam r => (r *> pmap (f o h.1) a'.2) *> h.3 y) (pmap-inv-comm f (pmap h.1 a'.2)) >==
+      (inv (pmap f (pmap h.1 a'.2)) *> pmap (f o h.1) a'.2) *> h.3 y   ==< pmap (\lam r => r *> h.3 y) (inv-concat (pmap (f o h.1) a'.2)) >==
       idpe (f (h.1 y)) *> h.3 y                                         ==< concat-idp (h.3 y) >==
-      h.3 y                                                             qed`
+      h.3 y                                                             `qed
     )
   )
 
-\function
-contr-fibers {A B : \Type} (f : A -> B) => \Pi (y : B) -> isContr (fib f y)
+\func contr-fibers {A B : \Type} (f : A -> B) => \Pi (y : B) -> isContr (fib f y)
 
-\function
-comp-qinv-l {A B : \Type} (f : A -> B) (x : qinv f) (C : \Type) : qinv (o {C} f)
+\func comp-qinv-l {A B : \Type} (f : A -> B) (x : qinv f) (C : \Type) : qinv (o {C} f)
   => (o x.1, \lam h => path (\lam i => (\lam y => x.2 (h y) @ i)), \lam h => path (\lam i => (\lam y => x.3 (h y) @ i)))
 
-\function
-comp-qinv-r {A B : \Type} (f : A -> B) (x : qinv f) (C : \Type) : qinv (\lam (h : B -> C) => h `o f)
-  => (\lam (h : A -> C) => h `o x.1, \lam h => path (\lam i => \lam y => h (x.3 y @ i)), \lam h => path (\lam i => \lam y => h (x.2 y @ i)))
+\func comp-qinv-r {A B : \Type} (f : A -> B) (x : qinv f) (C : \Type) : qinv (\lam (h : B -> C) => h o f)
+  => (\lam (h : A -> C) => h o x.1, \lam h => path (\lam i => \lam y => h (x.3 y @ i)), \lam h => path (\lam i => \lam y => h (x.2 y @ i)))
 
-\function
-contr-equiv {A B : \Type} (p : A =~= B) (q : isContr A) : isContr B =>
+\func contr-equiv {A B : \Type} (p : A =~= B) (q : isContr A) : isContr B =>
     (p.1 q.1, \lam b => pmap p.1 (q.2 (p.2.2.1 b)) *> p.2.2.2 b)
 
-\function
-equiv-contr {A B : \Type} (cA : isContr A) (cB : isContr B) : A =~= B => 
+\func equiv-contr {A B : \Type} (cA : isContr A) (cB : isContr B) : A =~= B => 
     \let | F => \lam (a : A) => cB.1
          | G => \lam (b : B) => cA.1
     \in (F, ((G, \lam a => inv (cA.2 (G (F a))) *> cA.2 a), (G, \lam b => inv (cB.2 (F (G b))) *> cB.2 b)))
 
-\function
-linv-contr {A B : \Type} (f : A -> B) (y : qinv f) : isContr (linv f) =>
+\func linv-contr {A B : \Type} (f : A -> B) (y : qinv f) : isContr (linv f) =>
     contr-equiv (equiv-symm (fun-ext-equiv f))
-        (hae-contr (\lam (h : B -> A) => h `o f) (qinv-to-hae (\lam (h : B -> A) => h `o f) (comp-qinv-r f y A)) id)
+        (hae-contr (\lam (h : B -> A) => h o f) (qinv-to-hae (\lam (h : B -> A) => h o f) (comp-qinv-r f y A)) id)
 
-\function
-rinv-contr {A B : \Type} (f : A -> B) (y : qinv f) : isContr (rinv f) =>
+\func rinv-contr {A B : \Type} (f : A -> B) (y : qinv f) : isContr (rinv f) =>
     contr-equiv (equiv-symm (fun-ext-equiv2 f)) (hae-contr (o {B} f) (qinv-to-hae (o {B} f) (comp-qinv-l f y B)) id)
 
-\function
-lcoh {A B : \Type} (f : A -> B) (fl : linv f) =>
-    \Sigma (eps : f `o fl.1 ~ id) (\Pi (y : B) -> pmap fl.1 (eps y) = fl.2 (fl.1 y))
+\func lcoh {A B : \Type} (f : A -> B) (fl : linv f) =>
+    \Sigma (eps : f o fl.1 ~ id) (\Pi (y : B) -> pmap fl.1 (eps y) = fl.2 (fl.1 y))
 
-\function
-rcoh {A B : \Type} (f : A -> B) (fr : rinv f) => 
-    \Sigma (eta : fr.1 `o f ~ id) (\Pi (x : A) -> pmap f (eta x) = fr.2 (f x))
+\func rcoh {A B : \Type} (f : A -> B) (fr : rinv f) => 
+    \Sigma (eta : fr.1 o f ~ id) (\Pi (x : A) -> pmap f (eta x) = fr.2 (f x))
 
-\function -- Lemma 4.2.11
-lcoh-fibEq {A B : \Type} (f : A -> B) (g : B -> A) (eta : g `o f ~ id) :
-    lcoh f (g, eta) = (\Pi (y : B) -> `= {fib g (g y)} (f (g y), eta (g y)) (y, idp)) => 
-    \let | Yt => \lam y => `= {fib g (g y)} (f (g y), eta (g y)) (y, idp)
+-- Lemma 4.2.11
+\func lcoh-fibEq {A B : \Type} (f : A -> B) (g : B -> A) (eta : g o f ~ id) :
+    lcoh f (g, eta) = (\Pi (y : B) -> (f (g y), eta (g y)) = {fib g (g y)} (y, idp)) => 
+    \let | Yt => \lam y => (f (g y), eta (g y)) = {fib g (g y)} (y, idp)
          | Zt : \Pi (y : B) -> \Type => \lam y => \Sigma (gam : f (g y) = y) (path (\lam (i : I) => g (gam @ i)) = eta (g y))
     \in inv (pmap-funExt Yt Zt (\lam y => equiv-to-path (fib-equiv g (g y) (f (g y), eta (g y)) (y, idp))) *>
             hom-preserves-limits {B} (\lam y => f (g y) = y) (\lam y gamma => pmap g gamma = eta (g y)))
 
-\function
-rcoh-fibEq {A B : \Type} (f : A -> B) (g : B -> A) (eps : f `o g ~ id) :
-    rcoh f (g, eps) = (\Pi (x : A) -> `= {fib f (f x)} (g (f x), eps (f x)) (x, idp)) => 
-    \let | Yt => \lam x => `= {fib f (f x)} (g (f x), eps (f x)) (x, idp)
+\func rcoh-fibEq {A B : \Type} (f : A -> B) (g : B -> A) (eps : f o g ~ id) :
+    rcoh f (g, eps) = (\Pi (x : A) -> (g (f x), eps (f x)) = {fib f (f x)} (x, idp)) => 
+    \let | Yt => \lam x => (g (f x), eps (f x)) = {fib f (f x)} (x, idp)
          | Zt : \Pi (x : A) -> \Type => \lam x => \Sigma (gam : g (f x) = x) (path (\lam (i : I) => f (gam @ i)) = eps (f x))
     \in inv (pmap-funExt Yt Zt (\lam x => equiv-to-path (fib-equiv f (f x) (g (f x), eps (f x)) (x, idp))) *>
             hom-preserves-limits {A} (\lam x => g (f x) = x) (\lam x gamma => pmap f gamma = eps (f x)))
 
-\function
-contr-path {A : \Type} (c : isContr A) : \Pi (a b : A) -> isContr (a = b) =>
+\func contr-path {A : \Type} (c : isContr A) : \Pi (a b : A) -> isContr (a = b) =>
     isProp-ofHlevel1 A (isContr-isProp A c)
 
-\function -- Lemma 4.2.12
-rcoh-contr {A B : \Type} (f : A -> B) (h : hae f) (fr : rinv f) : isContr (rcoh f fr) => 
+-- Lemma 4.2.12
+\func rcoh-contr {A B : \Type} (f : A -> B) (h : hae f) (fr : rinv f) : isContr (rcoh f fr) => 
     \let | g => fr.1
          | eps => fr.2
-         | Yt => \lam x => `= {fib f (f x)} (g (f x), eps (f x)) (x, idp)
-    \in transport isContr (inv (rcoh-fibEq f g eps)) (depfun-preserve-contr Yt (\lam a => contr-path (hae-contr f h (f a)) _ _))
+         | Yt => \lam x => (g (f x), eps (f x)) = {fib f (f x)} (x, idp)
+    \in transport isContr (inv (rcoh-fibEq f g eps)) (contr-codom Yt (\lam a => contr-path (hae-contr f h (f a)) _ _))
 
-\function
-sigma-assoc {A : \Type} (B : A -> \Type) (C : \Sigma (a : A) (B a) -> \Type) :
+\func sigma-assoc {A : \Type} (B : A -> \Type) (C : \Sigma (a : A) (B a) -> \Type) :
     (\Sigma (a : A) (b : B a) (C (a, b))) = (\Sigma (p : \Sigma (a : A) (B a)) (C p)) =>
     path (iso {\Sigma (a : A) (b : B a) (C (a, b))} {\Sigma (p : \Sigma (a : A) (B a)) (C p)} (\lam p => ((p.1, p.2), p.3))
         (\lam p => (p.1.1, p.1.2, p.2)) (\lam _ => idp) (\lam _ => idp))
 
-\function
-sigma-assoc2 (A : \Type) (B B' : A -> \Type) (C : \Sigma (a : A) (B a) (B' a) -> \Type) : (\Sigma (a : A) (b : B a) (b' : B' a) (C (a, b, b'))) =
+\func sigma-assoc2 (A : \Type) (B B' : A -> \Type) (C : \Sigma (a : A) (B a) (B' a) -> \Type) : (\Sigma (a : A) (b : B a) (b' : B' a) (C (a, b, b'))) =
     (\Sigma (p : \Sigma (a : A) (B' a)) (\Sigma (b : B p.1) (C (p.1, b, p.2)))) =>
     path (iso {\Sigma (a : A) (b : B a) (b' : B' a) (C (a, b, b'))}
         {\Sigma (p : \Sigma (a : A) (B' a)) (\Sigma (b : B p.1) (C (p.1, b, p.2)))} (\lam p => ((p.1, p.3), (p.2, p.4)))
         (\lam p => (p.1.1, p.2.1, p.1.2, p.2.2)) (\lam _ => idp) (\lam _ => idp))
 
-\function
-sigma-preserves-contr {A : \Type} (B : A -> \Type) (c1 : isContr A) (c2 : \Pi (x : A) -> isContr (B x)) : isContr (\Sigma (x : A) (B x)) =>
+\func sigma-preserves-contr {A : \Type} (B : A -> \Type) (c1 : isContr A) (c2 : \Pi (x : A) -> isContr (B x)) : isContr (\Sigma (x : A) (B x)) =>
     ((c1.1, (c2 c1.1).1), \lam p => sigma-ext-eq B {(c1.1, (c2 c1.1).1)} {p} (c1.2 p.1, 
         \let | z1 => (c2 p.1).2 p.2
              | z2 => (c2 p.1).2 (coe (\lam i => B (c1.2 p.1 @ i)) (c2 c1.1).1 right)
         \in inv z2 *> z1))
 
-\function
-sigma-contr-fibers {A : \Type} (P : A -> \Type) (contr : \Pi (x : A) -> isContr (P x)) : (\Sigma (x : A) (P x)) =~= A => 
+\func sigma-contr-fibers {A : \Type} (P : A -> \Type) (contr : \Pi (x : A) -> isContr (P x)) : (\Sigma (x : A) (P x)) =~= A => 
     \let | g x : \Sigma (x : A) (P x) => (x, (contr x).1)
          | f (x : \Sigma (x : A) (P x)) => x.1
     \in (f, ((g, \lam x => sigma-ext-eq (\lam x => P x) {g (f x)} {x} (idp, (contr x.1).2 x.2)), (g, \lam x => idpe x)))
 
-\function
-sigma-over-contr {A : \Type} (P : A -> \Type) (contr : isContr A) : (\Sigma (x : A) (P x)) =~= P contr.1 => 
+\func sigma-over-contr {A : \Type} (P : A -> \Type) (contr : isContr A) : (\Sigma (x : A) (P x)) =~= P contr.1 => 
     \let | f (y : \Sigma (x : A) (P x)) => transport P (inv (contr.2 y.1)) y.2
          | g y : \Sigma (x : A) (P x) => (contr.1, y)
          | isPropA => isContr-isProp A contr
     \in (f, ((g, \lam x => sigma-ext-eq (\lam x => P x) {g (f x)} {x} (contr.2 x.1, 
-            \let | A0 => inv (transp-func P (inv (contr.2 x.1)) (contr.2 x.1) x.2)
-                 | A1 => transport (\lam p => transport P p x.2 = x.2) (inv (inv-concat (contr.2 x.1))) idp
+            \let | A0 => inv (transp-func P (inv (contr.2 x.1)) (contr.2 x.1) x.2) | A1 => transport (\lam p => transport P p x.2 = x.2) (inv (inv-concat (contr.2 x.1))) idp
             \in A0 *> A1)),
             (g, \lam x => (
                 \let A0 => isProp-isSet A isPropA _ _ idp (inv (contr.2 contr.1))
                 \in transport (\lam p => transport P p x = x) A0 idp))))
 
-\function
-cone-isContr {A : \Type} (a : A) : isContr (\Sigma (x : A) (a = x)) 
+\func pi-over-contr {A : \Type} (P : A -> \Type) (C : isContr A) : (\Pi (a : A) -> P a) =~= P C.1 
+    => qinv-to-equiv {\Pi (a : A) -> P a} {P C.1} (\lam (e1 : \Pi (a : A) -> P a) => e1 C.1)
+    (\lam e2 a => transport P (C.2 a) e2, \lam x => funExt P (\lam a => transport P (C.2 a) (x C.1)) x
+        (\lam a => Jl (\lam a' q => transport P {C.1} {a'} q (x C.1) = x a') idp (C.2 a)),
+        \lam x => pmap (\lam z => transport P z x) (isProp-isSet A (isContr-isProp A C) _ _ (C.2 C.1) idp))
+
+\func cone-isContr {A : \Type} (a : A) : isContr (\Sigma (x : A) (a = x)) 
     => ((a, idp), \lam s => sigma-ext-eq (\lam x => a = x) {(a, idp)} {s} (s.2, transp-pathfibers a s.2 idp *> concat-idp s.2))
 
-\function
-cone-isContr-r {A : \Type} (a : A) : isContr (\Sigma (x : A) (x = a)) => ((a, idp),
+\func cone-isContr-r {A : \Type} (a : A) : isContr (\Sigma (x : A) (x = a)) => ((a, idp),
     \lam s => sigma-ext-eq (\lam x => x = a) {(a, idp)} {s} (inv s.2, transp-pathfibers-r a (inv s.2) idp *> inv-inv s.2))
 
-\function
-isProp-isContr (A : \Type) (x : A -> isContr A) : isProp A =>
+\func isProp-isContr (A : \Type) (x : A -> isContr A) : isProp A =>
     \lam a a' => (
         \let z => (x a).2
         \in inv (z a) *> z a')
 
-
-\function -- Theorem 4.2.13
-hae-is-prop {A B : \Type} (f : A -> B) : isProp (hae f) => 
+-- Theorem 4.2.13
+\func hae-is-prop {A B : \Type} (f : A -> B) : isProp (hae f) => 
     \let A0 : hae f = (\Sigma (u : rinv f) (rcoh f (u.1, u.2))) =>
          sigma-assoc2 (B -> A) (\lam g => \Pi (x : A) -> g (f x) = x) (\lam g => \Pi (x : B) -> f (g x) = x)
              (\lam p => \Pi (x : A) -> path (\lam i => f (p.2 x @ i)) = p.3 (f x))
     \in isProp-isContr (hae f) (\lam (z : hae f) => transport isContr (inv A0)
             (sigma-preserves-contr {rinv f} (\lam u => rcoh f (u.1, u.2)) (rinv-contr f (hae-to-qinv f z)) (\lam a => rcoh-contr f z a)))
 
-\function
-isequiv-is-prop {A B : \Type} (f : A -> B) : isProp (isequiv f) => isProp-isContr (isequiv f) (\lam x => (
+\func isequiv-is-prop {A B : \Type} (f : A -> B) : isProp (isequiv f) => isProp-isContr (isequiv f) (\lam x => (
     \let q => equiv-to-qinv f x
     \in sigma-preserves-contr (const (rinv f)) (linv-contr f q) (const (rinv-contr f q))))
 
-\function -- Theorem 4.4.3
-contr-hae {A B : \Type} (f : A -> B) (P : \Pi (y : B) -> isContr (fib f y)) : hae f => 
+-- Theorem 4.4.3
+\func contr-hae {A B : \Type} (f : A -> B) (P : \Pi (y : B) -> isContr (fib f y)) : hae f => 
     \let | g y => (P y).1.1
          | eps (y : B) : f (g y) = y => (P y).1.2
-         | p (x : A) : `= {fib f (f x)} (g (f x), eps (f x)) (x, idp) =>
+         | p (x : A) : (g (f x), eps (f x)) = {fib f (f x)} (x, idp) =>
              \let q => (P (f x)).2
              \in inv (q (g (f x), eps (f x))) *> q (x, idp)
          | rc : rcoh f (g, eps) => transport (\lam x => x) (inv (rcoh-fibEq f g eps)) p
     \in qinv-to-hae f (g, rc.1, eps)
 
+\func hae-equiv-eq {A B : \Type} (f : A -> B) : hae f = isequiv f 
+=> prop-eq (hae-is-prop f) (isequiv-is-prop f) (\lam h => qinv-to-equiv' f (hae-to-qinv f h))
+    (qinv-to-hae f o equiv-to-qinv f)
+
 -- miscellaneous properties of equivalences
 
-\function
-path-fibration-equiv {A : \Type} (a : A) (T : \Pi (x : A) -> (x = a) -> \Type) : ((\Sigma (x : A) (\Sigma (p : x = a) (T x p))) =~= T a idp)
-  => {?}
-
-\function
-curry-eq (A B C : \Type) : (\Sigma A B -> C) = (A -> B -> C) 
+\func curry-eq (A B C : \Type) : (\Sigma A B -> C) = (A -> B -> C) 
     => equiv-to-path (curry, ((uncurry, \lam _ => idp), (uncurry, \lam _ => idp)))
 
-\function
-curry-fun-eq {A B C : \Type} (f g : \Sigma A B -> C) (ceq : curry f ~ curry g) : f ~ g => \lam p => fun-ext-inv (ceq p.1) p.2
+\func curry-fun-eq {A B C : \Type} (f g : \Sigma A B -> C) (ceq : curry f ~ curry g) : f ~ g => \lam p => fun-ext-inv (ceq p.1) p.2
 
-\function
-curry-d-fun-eq {A C : \Type} (B : \Pi (a : A) -> \Type) (f g : \Sigma (a : A) (B a) -> C)
+\func curry-d-fun-eq {A C : \Type} (B : \Pi (a : A) -> \Type) (f g : \Sigma (a : A) (B a) -> C)
     (ceq : \Pi (a : A) -> curry-d B f a = curry-d B g a) : f ~ g => \lam p => fun-ext-inv (ceq p.1) p.2
 
 -- closure properties of equivalences
 
-\function
-contr-spaces-equiv (A B : \Type) (contrA : isContr A) (contrB : isContr B) (f : A -> B) : (isequiv f)
+\func contr-spaces-equiv (A B : \Type) (contrA : isContr A) (contrB : isContr B) (f : A -> B) : (isequiv f)
   => ((\lam y => contrA.1, \lam x => contrA.2 x), (\lam y => contrA.1, \lam y => inv (contrB.2 (f contrA.1)) *> contrB.2 y))
 
-\function
-total-fun {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C x)) : (\Sigma (x : A) (B x) -> \Sigma (x : A) (C x))
+\func total-fun {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C x)) : (\Sigma (x : A) (B x) -> \Sigma (x : A) (C x))
   => \lam w => (w.1, f w.1 w.2)
 
 {-
-\function
-fiberwise-to-total-equiv {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C x)) (fb_e : \Pi (x : A) -> qinv (f x)) : (isequiv (total-fun B C f))
-  => qinv-to-equiv (total-fun B C f) (\lam (w : \Sigma (x : A) (C x)) => (w.1, (fb_e w.1).1 w.2), (\lam (v : \Sigma (x : A) (B x)) => sigma-ext-eq B (idp, (fb_e v.1).2 v.2)), (\lam (w : \Sigma (x : A) (C x)) => sigma-ext-eq C (idp, (fb_e w.1).3 w.2)))
+\func fiberwise-to-total-equiv {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C x)) (fb_e : \Pi (x : A) -> qinv (f x)) : (isequiv (total-fun B C f))
+  => (qinv-to-equiv (total-fun B C f) (\lam (w : \Sigma (x : A) (C x)) => (w.1, (fb_e w.1).1 w.2), (\lam (v : \Sigma (x : A) (B x)) => sigma-ext-eq B (idp, (fb_e v.1).2 v.2)), (\lam (w : \Sigma (x : A) (C x)) => sigma-ext-eq C (idp, (fb_e w.1).3 w.2)))).2
 
-\function
-total-fun-fib-lemma {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C x)) (x : A) (v : C x) : (fib (total-fun B C f) (x, v) =~= fib (f x) v)
+\func total-fun-fib-lemma {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C x)) (x : A) (v : C x) : (fib (total-fun B C f) (x, v) =~= fib (f x) v)
   => \let | T1 => \Sigma (w : \Sigma A B) ((w.1, f w.1 w.2) = (x, v)) | T2 => \Sigma (a : A) (\Sigma (u : B a) ((a, f a u) = (x, v)))
      	  | T3 => \Sigma (a : A) (\Sigma (p : a = x) (\Sigma (u : B a) (transport C p (f a u) = v))) | T4 => \Sigma (u : B x) (f x u = v)
      	  | equiv12 : (T1 =~= T2)
@@ -429,8 +390,7 @@ total-fun-fib-lemma {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C
      	      
 
 {-
-\function
-total-to-fib-equiv {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C x)) (totf_e : contr-fibers (total-fun B C f)) (x : A) : (B x =~= C x)
+\func total-to-fib-equiv {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C x)) (totf_e : contr-fibers (total-fun B C f)) (x : A) : (B x =~= C x)
   => \let | totf => total_fun B C f | fx => f x
      	  | totg => totf_e.1 | totg-linv => totf_e.2.1 | totg-rinv => totf_e.2.2	 
 	  | p_to_x (y : B x) : ((totg (x, z)).1 = x) => totg-linv ()
@@ -439,41 +399,134 @@ total-to-fib-equiv {A : \Type} (B C : A -> \Type) (f : \Pi (x : A) -> (B x -> C 
 -}
 
 
-\function
-hlevel-equiv-closed {A B : \Type} (f_eq : A =~= B) (n : Nat) (hp : ofHlevel n A) : ofHlevel n B 
+\func hlevel-equiv-closed {A B : \Type} (f_eq : A =~= B) (n : Nat) (hp : ofHlevel n A) : ofHlevel n B 
     => transport (\lam C => ofHlevel n C) (equiv-to-path f_eq) hp
 
 {- 
    => 
   \elim n
   \let a => hp.1 | f => f_eq.1 | g => f_eq.2.2.1 | g-rinv => f_eq.2.2.2 | g-linv => f_eq.2.2.1 \in
-  | zero => (f a, \lam b => f a ==< pmap f (hp.2 (g b)) >== f (g b) ==< g-rinv b >== b qed`)
+  | zero => (f a, \lam b => f a ==< pmap f (hp.2 (g b)) >== f (g b) ==< g-rinv b >== b `qed)
   | suc n => \let | pg : (\Pi (b b' : B) -> (g b = g b' -> b = b')) => \lam b b' q => pmap g q
     	     	  | pf : (\Pi (b b' : B) -> (b = b' -> g b = g b')) => \lam b b' q => inv (g-rinv b) *> pmap f q *> g-rinv b'
-		  | pg-rinv : (\Pi (b b' : B) -> (pf `o pg ~ id)) => \lam q => J1 (\lam x q' => )
+		  | pg-rinv : (\Pi (b b' : B) -> (pf o pg ~ id)) => \lam q => J1 (\lam x q' => )
 		      
     	     	  | path_eq : (\Pi (b b' : B) -> (b = b') =~= (g b = g b'))
 -}
 
+-- Embeddings
 
-{- Univalence
+\func is_embedding {A B : \Type} (f : A -> B) => \Pi (x y : A) -> isequiv {x = y} {f x = f y} (pmap f)
 
-ptoe-isequiv (A B : \Type) : (is_equiv (path-to-equiv {A B}))
-  => qinv-to-equiv (path-to-equiv {A B}) (\lam (f : A =~= B) => )
+\func embedding-isProp {A B : \Type} (f : A -> B) : isProp (is_embedding f) 
+=> ddfun-preserve-prop (\lam a a' => isequiv {a = a'} {f a = f a'} (pmap f))
+    (\lam a a' => isequiv-is-prop {a = a'} {f a = f a'} (pmap f))
 
--}
+-- Univalence
 
-\function
-is_embedding {A B : \Type} (f : A -> B) => \Pi (x y : A) -> isequiv {x = y} {f x = f y} (pmap f)
+\func univalence-property {A : \Type} (R : A -> A -> \Type) (F : \Pi (a b : A) -> a = b -> R a b) (G : \Pi (a b : A) -> R a b -> a = b)
+    (A0 : \Pi (a b : A) (x : R a b) -> F a b (G a b x) = x) (a b : A) (y : a = b) : G a b (F a b y) = y => 
+    \let H : \Pi (a b : A) -> a = b -> a = b => \lam a b => G a b o F a b
+    \in Jl (\lam b' y' => G a b' (F a b' y') = y') (inv (inv (concat-inv _) *> pmap (\lam P => P *> inv (H a a idp))
+            (inv (pmap (G a a) (A0 a a (F a a idp))) *> Jl (\lam b' p' => H a b' p' = H a a idp *> p') idp (H a a idp)) *>
+        concat-assoc _ _ _ *> pmap (\lam P => H a a idp *> P) (concat-inv _))) y
 
-\function
-univalence-axiom (A B : \Type) : (A =~= B) =~= (A = B) => (equiv-to-path, ((path-to-equiv,
-    \lam eq => eq-sigma-prop isequiv isequiv-is-prop (path-to-equiv (equiv-to-path eq)) eq (F-eq-F' (equiv-to-path eq) *> idp)),
-    (path-to-equiv, {?}))) \where {
-    \function
-    F' {A B : \Type} (p : A = B) : A -> B => \lam a => coe (\lam i => p @ i) a right
+\func univalence-axiom (A B : \Type) : (A =~= B) =~= (A = B) => 
+    \let A0 => \lam A B (eq : A =~= B) => eq-sigma-prop isequiv isequiv-is-prop (path-to-equiv (equiv-to-path eq)) eq
+             (Jl (\lam B' p' => (path-to-equiv p').1 = (\lam a => coe (\lam i => p' @ i) a right)) idp (equiv-to-path eq) *> idp)
+    \in (equiv-to-path, ((path-to-equiv, A0 A B), (path-to-equiv,
+            \lam E => univalence-property (=~=) (\lam A B => path-to-equiv {A} {B}) (\lam A B => equiv-to-path {A} {B}) A0 A B E)))
 
-    \function
-    F-eq-F' {A B : \Type} (p : A = B) => Jl {\Type} {A} (\lam B p => (path-to-equiv p).1 = F' p) idp {B} p
+\func fib-lemmaP {A B : \Type} (f : A -> B) : (\Sigma (y : B) (fib f y)) = A => equiv-to-path (equiv f) \where {
+    \func equiv {A B : \Type} (f : A -> B) : (\Sigma (y : B) (fib f y)) =~= A => 
+        \let | P1 => \Sigma (y : B) (fib f y)
+             | F : P1 -> A => \lam p => p.2.1
+             | G : A -> P1 => \lam a => (f a, (a, idp))
+        \in (F, ((G, \lam p => sigma-ext-eq (fib f) {G (F p)} {p}
+                (p.2.2, Jl {B} {f (F p)} (\lam a' q => transport (fib f) q (F p, idp) = (F p, q)) idp p.2.2)), (G, \lam x => idp)))
 
 }
+
+\func equiv-to-path-refl (A : \Type) : equiv-to-path (equiv-refl A) = idpe A => (univalence-axiom A A).2.2.2 (idpe A)
+
+\func equiv-trans-equiv-refl-r {A B : \Type} (E : A =~= B) : equiv-trans E (equiv-refl B) = E 
+    => eq-sigma-prop {A -> B} isequiv isequiv-is-prop (equiv-trans E (equiv-refl B)) E idp
+
+\func path-to-equiv-concat {A B C : \Type} (E1 : A = B) (E2 : B = C) : path-to-equiv (E1 *> E2) = equiv-trans (path-to-equiv E1) (path-to-equiv E2) 
+=> Jl (\lam C' E2' => path-to-equiv (E1 *> E2') = equiv-trans (path-to-equiv E1) (path-to-equiv E2'))
+    (inv (equiv-trans-equiv-refl-r (path-to-equiv E1))) E2
+
+\func equiv-trans-path-to-equiv {A B C : \Type} (E1 : A =~= B) (E2 : B =~= C) : equiv-trans E1 E2 = path-to-equiv (equiv-to-path E1 *> equiv-to-path E2) => 
+    \let | A0 => path-to-equiv-concat (equiv-to-path E1) (equiv-to-path E2)
+         | A1 => pmap (\lam (Z : A =~= B) => equiv-trans Z E2) ((univalence-axiom A B).2.1.2 E1)
+         | A2 => pmap (\lam (Z : B =~= C) => equiv-trans (path-to-equiv (equiv-to-path E1)) Z) ((univalence-axiom B C).2.1.2 E2)
+    \in inv A1 *> inv A2 *> inv A0
+
+\func equiv-to-path-trans {A B C : \Type} (E1 : A =~= B) (E2 : B =~= C) : equiv-to-path (equiv-trans E1 E2) = equiv-to-path E1 *> equiv-to-path E2 
+=> pmap equiv-to-path (equiv-trans-path-to-equiv E1 E2) *>
+    (univalence-axiom A C).2.2.2 (equiv-to-path E1 *> equiv-to-path E2)
+
+\func path-to-equiv-inv {A B : \Type} (E : A = B) : path-to-equiv (inv E) = equiv-symm (path-to-equiv E) 
+    => Jl (\lam B' E' => path-to-equiv (inv E') = equiv-symm (path-to-equiv E')) idp E
+
+\func inv-equiv-to-path {A B : \Type} (E : A =~= B) : inv (equiv-to-path E) = equiv-to-path (equiv-symm E) 
+=> inv ((univalence-axiom B A).2.2.2 (inv (equiv-to-path E))) *>
+    pmap equiv-to-path (path-to-equiv-inv (equiv-to-path E) *> pmap equiv-symm ((univalence-axiom A B).2.1.2 E))
+
+\func fibration-equivalence (B : \Type) : (\Sigma (A : \Type) (A -> B)) =~= (B -> \Type) => 
+    \let | P1 => \Sigma (A : \Type) (A -> B)
+         | P2 => B -> \Type
+         | F : P1 -> P2 => \lam s => \lam b => fib s.2 b
+         | G : P2 -> P1 => \lam P => (\Sigma (b : B) (P b), \lam p => p.1)
+         | GF_id : \Pi (p : P1) -> G (F p) = p => \lam p => sigma-ext-eq {\Type} (\lam A => A -> B) {G (F p)} {p} (fib-lemmaP p.2, 
+             \let | FibEq : (\Sigma (y : B) (fib p.2 y)) = p.1 => fib-lemmaP p.2
+                  | f1 => \lam (x : p.1) => transport (\lam (_ : \Type) => B) FibEq (transport {\Type} id (inv FibEq) x).1
+                  | A1 : f1 = p.2 => fun-ext (\lam x => pmap (\lam (Q : \Sigma (y : B) (fib p.2 y)) => transport (\lam (_ : \Type) => B) FibEq Q.1)
+                      (pmap (\lam Q => transport id Q x) (inv-equiv-to-path (fib-lemmaP.equiv p.2))))
+             \in fun-ext (transp-funcfibers {\Type} id (\lam _ => B) FibEq (\lam s => s.1)) *> A1)
+         | FG_id : \Pi (p : P2) -> F (G p) = p => \lam p => fun-ext (\lam b => (
+             \let | E1 => \Sigma (x : \Sigma (b' : B) (p b')) (x.1 = b)
+                  | E2 => \Sigma (x : \Sigma (b' : B) (b' = b)) (p x.1)
+             \in path (iso {E1} {E2} (\lam q => ((q.1.1, q.2), q.1.2)) (\lam q => ((q.1.1, q.2), q.1.2)) (\lam _ => idp) (\lam _ => idp)) *>
+                     equiv-to-path (sigma-over-contr (\lam (x : \Sigma (b' : B) (b' = b)) => p x.1) (cone-isContr-r b))))
+    \in (F, ((G, GF_id), (G, FG_id)))
+
+-- Two notions of retractions of maps
+
+\func retract_of1 {A B X Y : \Type} (g : A -> B) (f : X -> Y) 
+=> \Sigma (s : A -> X) (r : X -> A) (s' : B -> Y) (r' : Y -> B) (R : r o s ~ id) (R' : r' o s' ~ id) (L : f o s ~ s' o g)
+    (K : g o r ~ r' o f) (H : \Pi (a : A) -> pmap g (R a) *> inv (R' (g a)) = K (s a) *> pmap r' (L a))
+
+\func retract_of2 {B D : \Type} (F : B -> \Type) (G : D -> \Type) 
+=> \Sigma (s : B -> D) (r : D -> B) (r' : \Pi (x : D) -> G x -> F (r x)) (s' : \Pi (x : B) -> F x -> G (s x)) (p : r o s ~ id)
+    (q : \Pi (x : B) (y : F x) -> transport F (p x) (r' (s x) (s' x y)) = y)
+
+\func retr_2to1 {B D : \Type} (F : B -> \Type) (G : D -> \Type) (R : F `retract_of2` G) :
+    retract_of1 {\Sigma (x : B) (F x)} {B} {\Sigma (x : D) (G x)} {D} (\lam x => x.1) (\lam x => x.1) 
+=> (\lam p => (R.1 p.1, R.4 p.1 p.2), \lam p => (R.2 p.1, R.3 p.1 p.2), R.1, R.2, \lam x => sigma-ext-eq F (R.5 x.1, R.6 x.1 x.2),
+    R.5, \lam _ => idp, \lam _ => idp, \lam a => concat-inv (R.5 a.1))
+
+\func retr-fibers {A B X Y : \Type} (g : A -> B) (f : X -> Y) (R : g `retract_of1` f) : \Pi (b : B) -> is_retr (fib g b) (fib f (R.3 b)) => 
+    \let | phi : \Pi (b : B) -> fib g b -> fib f (R.3 b) => \lam b p => (R.1 p.1, R.7 p.1 *> pmap R.3 p.2)
+         | psi : \Pi (b : B) -> fib f (R.3 b) -> fib g b => \lam b q => (R.2 q.1, R.8 q.1 *> pmap R.4 q.2 *> R.6 b)
+         | E1 => \Pi (b : B) (p : fib g b) -> psi b (phi b p) = p
+         | E2' => \lam (a : A) => \Pi (z : \Sigma (b : B) (g a = b)) -> psi z.1 (phi z.1 (a, z.2)) = (a, z.2)
+         | E3' => \lam (a : A) => psi (g a) (phi (g a) (a, idp)) = (a, idp)
+         | E2 => \Pi (a : A) -> E2' a
+         | E3 => \Pi (a : A) -> E3' a
+         | A1 : E1 = E2 => path (iso {E1} {E2} (\lam e1 a z => e1 z.1 (a, z.2)) (\lam e2 b p => e2 p.1 (b, p.2)) (\lam _ => idp) (\lam _ => idp))
+         | A2 : E2 = E3 => pmap-funExt E2' E3'
+             (\lam a => equiv-to-path (pi-over-contr {\Sigma (b : B) (g a = b)} (\lam z => psi z.1 (phi z.1 (a, z.2)) = (a, z.2)) (cone-isContr (g a))))
+         | A3 : E3 => \lam a => sigma-ext-eq (\lam a' => g a' = g a) {psi (g a) (phi (g a) (a, idp))} {(a, idp)} (R.5 a, 
+             \let | P0 => pmap g (R.5 a)
+                  | P1 => R.8 (R.1 a)
+                  | P2 => pmap R.4 (R.7 a)
+                  | P3 => R.6 (g a)
+             \in coePath (pmap g (R.5 a)) (P1 *> P2 *> P3) (idpe (g a)) *> inv (inv (inv-concat P0) *>
+                     pmap (\lam Q => inv P0 *> Q) (inv (concat-assoc P0 (inv P3) P3 *> pmap (P0 *>) (inv-concat P3)) *>
+                         pmap (\lam p => p *> P3) (R.9 a) *> concat-assoc P1 P2 P3)))
+         | A0 : E1 => transport id (inv (A1 *> A2)) A3
+    \in \lam b => (phi b, (psi b, \lam p => A0 b p))
+
+\func retr-Contr {A B : \Type} (R : is_retr A B) (C : isContr B) : isContr A 
+    => (R.2.1 C.1, \lam a' => pmap R.2.1 (C.2 (R.1 a')) *> R.2.2 a')
