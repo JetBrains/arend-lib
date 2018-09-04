@@ -1,0 +1,105 @@
+\import Equiv
+\import Paths
+\import Data.Nat(-, <=)
+\import Data.Nat.Properties
+\open Nat(+)
+
+-- @ Prop
+
+\func isProp (A : \Type) => \Pi (a a' : A) -> a = a'
+
+\func \infix 2 ofHLevel_-1+ (A : \Type) (n : Nat) : \Type \elim n
+  | 0 => isProp A
+  | suc n => \Pi (a a' : A) -> (a = a') ofHLevel_-1+ n
+
+\func isProp=>isSet (A : \Type) (p : isProp A) : isSet A => \lam a a' => isContr=>isProp (HLevel_-1=>HLevel_-2+1 A 0 p a a')
+
+\func isSet (A : \Type) => A ofHLevel_-1+ 1
+
+\func isGpd (A : \Type) => A ofHLevel_-1+ 2
+
+\func isSet=>isGpd (A : \Type) (p : isSet A) : isGpd A => \lam a a' => isProp=>isSet (a = a') (p a a')
+
+-- @ Contr
+
+\class Contr (A : \Type) (center : A) (contraction : \Pi (a' : A) -> center = a')
+  \where {
+    \func make {A : \Type} (a : A) (p : \Pi (a' : A) -> a = a')  => \new Contr A a p
+
+    \func isProp (A : \Type) (c1 c2 : Contr A) : c1 = c2 => path (\lam i => \new Contr A
+      { | center => c1.contraction c2.center @ i
+        | contraction => pathOver (path (\lam i a' => isProp=>isSet A (isContr=>isProp c1) c2.center a' (transport (\lam a => \Pi (a' : A) -> a = a') (c1.contraction c2.center) c1.contraction a') (c2.contraction a') @ i)) @ i
+      })
+  }
+
+\func isContr=>isProp {A : \Type} (c : Contr A) : isProp A => \lam a a' => inv (c.contraction a) *> c.contraction a'
+
+\func isProp=>isContr {A : \Type} (p : isProp A) (a : A) : Contr A => Contr.make a (\lam a' => p a a')
+
+\instance I-isContr : Contr I
+  | center => left
+  | contraction i => path (\lam j => squeeze i j)
+
+\func \infix 2 ofHLevel_-2+ (A : \Type) (n : Nat) : \Type \elim n
+  | 0 => Contr A
+  | suc n => \Pi (a a' : A) -> (a = a') ofHLevel_-2+ n
+
+-- @ Prop-based and Contr-base hLevels are equivalent
+
+\func HLevel_-2+1=>HLevel_-1 (A : \Type) (n : Nat) (p : A ofHLevel_-2+ suc n) : A ofHLevel_-1+ n \elim n
+  | 0 => \lam a a' => Contr.center {p a a'}
+  | suc n => \lam a a' => HLevel_-2+1=>HLevel_-1 (a = a') n (p a a')
+
+\func HLevel_-1=>HLevel_-2+1 (A : \Type) (n : Nat) (p : A ofHLevel_-1+ n) : A ofHLevel_-2+ suc n \elim n
+  | 0 => \lam a a' => \new Contr (a = a') {
+    | center => inv (p a a) *> p a a'
+    | contraction => Jl (\lam x q => inv (p a a) *> p a x = q) (inv_*> (p a a))
+    }
+  | suc n => \lam a a' => HLevel_-1=>HLevel_-2+1 (a = a') n (p a a')
+
+-- TODO: Prove isProp (A ofHLevel_-2+ n)
+
+-- @ Every k-level is n-level whenever k <= n
+
+\func HLevel_-2_suc {A : \Type} {n : Nat} (p : A ofHLevel_-2+ n) : A ofHLevel_-2+ suc n \elim n
+  | 0 => HLevel_-1=>HLevel_-2+1 A 0 (isContr=>isProp p)
+  | suc n => \lam a a' => HLevel_-2_suc (p a a')
+
+\func HLevel_-2_+ {A : \Type} {k : Nat} (n : Nat) (p : A ofHLevel_-2+ k) : A ofHLevel_-2+ k + n \elim n
+  | 0 => p
+  | suc n => HLevel_-2_suc (HLevel_-2_+ n p)
+
+\func HLevel_-2_<= {A : \Type} (k : Nat) (n : Nat) (q : k <= n) (p : A ofHLevel_-2+ k) : A ofHLevel_-2+ n
+  => transport (A ofHLevel_-2+) (<=-+ q) (HLevel_-2_+ (n - k) p)
+
+-- @ Properties of hLevels
+
+-- | hLevels are closed under retracts
+\func HLevel-retracts (s : Section) {n : Nat} (p : s.B ofHLevel_-2+ n) : s.A ofHLevel_-2+ n \elim n
+  | 0 => \let a0 => s.ret (Contr.center {p}) \in Contr.make a0 (\lam a => inv (s.ret_f a0) *> pmap s.ret (isContr=>isProp p (s.f a0) (s.f a)) *> s.ret_f a)
+  | suc n => \lam a a' => HLevel-retracts
+      (\new Section {
+        | A => a = a'
+        | B => s.f a = s.f a'
+        | f => pmap s.f
+        | ret q => inv (s.ret_f a) *> pmap s.ret q *> s.ret_f a'
+        | ret_f q => rotatePathLeft (s.ret_f a) q (homotopy-isNatural (\lam x => s.ret (s.f x)) (\lam x => x) s.ret_f q)
+        })
+      (p (s.f a) (s.f a'))
+
+-- | hLevels are closed under pi-types
+\func HLevels-pi {A : \Type} (B : A -> \Type) {n : Nat} (p : \Pi (a : A) -> B a ofHLevel_-2+ n) : (\Pi (a : A) -> B a) ofHLevel_-2+ n \elim n
+  | 0 => Contr.make (\lam a => Contr.center {p a}) (\lam f => path (\lam i a => Contr.contraction {p a} (f a) @ i))
+  | suc n => \lam f f' => HLevel-retracts (piEquality B f f') (HLevels-pi (\lam a => f a = f' a) (\lam a => p a (f a) (f' a)))
+
+-- | hLevels are closed under sigma-types
+\func HLevels-sigma {A : \Type} (B : A -> \Type) {n : Nat} (pA : A ofHLevel_-2+ n) (pB : \Pi (a : A) -> B a ofHLevel_-2+ n) : (\Sigma (a : A) (B a)) ofHLevel_-2+ n \elim n
+  | 0 => \let | a0 => Contr.center {pA}
+              | p0 => ((a0, Contr.center {pB a0}) : \Sigma (a : A) (B a))
+         \in Contr.make p0 (\lam p => SigmaExt B p0 p (Contr.contraction {pA} p.1) (isContr=>isProp (pB p.1) _ _))
+  | suc n => \lam p p' => HLevel-retracts (sigmaEquality B p p') (HLevels-sigma (\lam s => transport B s p.2 = p'.2) (pA p.1 p'.1) (\lam s => pB _ _ _))
+
+-- | hLevels are closed under embeddings
+\func HLevels-embeddings (e : Embedding) {n : Nat} (p : e.B ofHLevel_-2+ n) : e.A ofHLevel_-2+ n \elim n
+  | 0 => {?}
+  | suc n => {?}
