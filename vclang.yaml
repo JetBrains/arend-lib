@@ -1,1 +1,0 @@
-sourcesDir: src
