@@ -1,14 +1,43 @@
+\import Equiv.Fiber
+\import Function
+\import HLevel
 \import Paths
+
+-- # Definition of equivalences
 
 \record Map {A B : \Type} (f : A -> B)
 
 \record Section (ret : B -> A) (ret_f : \Pi (x : A) -> ret (f x) = x) \extends Map
+  \where {
+    \func =Fiber {A B : \Type} (f : A -> B) : Section f = Fib (-o f) id
+      => path (iso (\lam (s : Section f) => \new Fib (-o f) id s.ret (path (\lam i x => s.ret_f x @ i)))
+                   (\lam (z : Fib (-o f) id) => \new Section f z.over (\lam x => path (\lam i => (z.basePath @ i) x)))
+                   idpe
+                   idpe)
+
+    \func isContr (e : Equiv) : Contr (Section e.f)
+      => transport (\lam X => Contr X) (inv (=Fiber e.f)) (Equiv=>contrFibers (-o e.f) (-o_Equiv e) id)
+  }
 
 \record Retraction (sec : B -> A) (f_sec : \Pi (y : B) -> f (sec y) = y) \extends Map
+  \where {
+    \func =Fiber {A B : \Type} (f : A -> B) : Retraction f = Fib (f `o-) id
+      => path (iso (\lam (s : Retraction f) => \new Fib (f `o-) id s.sec (path (\lam i x => s.f_sec x @ i)))
+                   (\lam (z : Fib (f `o-) id) => \new Retraction f z.over (\lam x => path (\lam i => (z.basePath @ i) x)))
+                   idpe
+                   idpe)
+
+    \func isContr (e : Equiv) : Contr (Retraction e.f)
+      => transport (\lam X => Contr X) (inv (=Fiber e.f)) (Equiv=>contrFibers (e.f `o-) (o-_Equiv e) id)
+  }
 
 \record Equiv \extends Section, Retraction
   \where {
-    \func isProp {A B : \Type} {f : A -> B} (e e' : Equiv f) : e = e' => {?} -- TODO
+    \func isProp {A B : \Type} {f : A -> B} (e e' : Equiv f) : e = e' =>
+      path (\lam i => \new Equiv f {
+        | Section => isContr=>isProp {Section f} (Section.isContr e) e e' @ i
+        | Retraction => isContr=>isProp {Retraction f} (Retraction.isContr e) e e' @ i
+      })
 
     \func equals {A B : \Type} {e e' : Equiv {A} {B}} (p : e.f = e'.f) : e = e' =>
       pathOver (isProp (coe (\lam i => Equiv {A} {B} (p @ i)) (\new Equiv { | Section => e | Retraction => e }) right)
@@ -21,9 +50,7 @@
       | Section => e
       | f_sec y => pmap (\lam y => e.f (e.ret y)) (inv (e.f_sec y)) *> pmap e.f (e.ret_f (e.sec y)) *> e.f_sec y
 
-\record Embedding (proof : \Pi (a a' : A) -> Equiv (pmap f {a} {a'})) \extends Map
-
-\func \infixr 1 >-> (A B : \Type) => Embedding {A} {B}
+-- # Examples of equialences
 
 \func idEquiv {A : \Type} : QEquiv \cowith
   | A => A
@@ -32,6 +59,18 @@
   | ret x => x
   | ret_f _ => idp
   | f_sec _ => idp
+
+\func -o_Equiv {C : \Type} (e : Equiv) : Equiv {e.B -> C} (-o e.f) \cowith
+  | ret => -o e.sec
+  | ret_f g => path (\lam i x => g (e.f_sec x @ i))
+  | sec => -o e.ret
+  | f_sec g => path (\lam i x => g (e.ret_f x @ i))
+
+\func o-_Equiv {C : \Type} (e : Equiv) : Equiv {C -> e.A} (e.f `o-) \cowith
+  | ret => e.ret `o-
+  | ret_f g => path (\lam i x => e.ret_f (g x) @ i)
+  | sec => e.sec `o-
+  | f_sec g => path (\lam i x => e.f_sec (g x) @ i)
 
 \func piEquiv {A : \Type} (B : A -> \Type) (f f' : \Pi (a : A) -> B a) : QEquiv \cowith
   | A => f = f'
@@ -53,3 +92,28 @@
         (\lam p'2 q2 => Jl (\lam p'2' q2' => pmapd (\lam p => B p.1) (\lam p => p.2) (SigmaExt {A} B p (p.1,p'2') idp q2') = q2') idp q2)
         q.1 p'.2 q.2
     \in path (\lam i => (q.1, t @ i))
+
+-- # Embeddings and surjections
+
+\record Embedding (proof : \Pi (a a' : A) -> Equiv (pmap f {a} {a'})) \extends Map
+  \where
+    \func isProp {A B : \Type} {f : A -> B} (e e' : Embedding f) : e = e' => path (\lam i => \new Embedding f (\lam a a' => Equiv.isProp (e.proof a a') (e'.proof a a') @ i))
+
+\func \infixr 1 >-> (A B : \Type) => Embedding {A} {B}
+
+\record Surjection (proof : \Pi (y : B) -> TrP (Fib f y)) \extends Map
+  \where
+    \func isProp {A B : \Type} {f : A -> B} (s s' : Surjection f) : s = s' => {?}
+
+\func \infixr 1 ->> (A B : \Type) => Surjection {A} {B}
+
+\record ESEquiv \extends Embedding, Surjection
+  \where {
+    \func isProp {A B : \Type} {f : A -> B} (e e' : ESEquiv f) : e = e' =>
+      path (\lam i => \new ESEquiv { | Embedding  => Embedding.isProp  e e' @ i
+                                     | Surjection => Surjection.isProp e e' @ i })
+
+    \coerce toEquiv (e : ESEquiv) : QEquiv => {?}
+
+    \coerce fromEquiv (e : Equiv) : ESEquiv => {?}
+  }

@@ -1,12 +1,34 @@
+\import Paths
 \import HLevel
 \import Equiv
+\import Equiv.HalfAdjoint
 
-\record Fib {A B : \Type} (f : A -> B) (b0 : B) (a : A) (p : f a = b0)
+\record Fib {A B : \Type} (f : A -> B) (base : B) (over : A) (basePath : f over = base)
+  \where
+    \func ext {A B : \Type} (f : A -> B) (b0 : B) (x x' : Fib f b0) (p : x.over = x'.over) (q : x.basePath = pmap f p *> x'.basePath) : x = x' =>
+      -- First, prove that q' : transport (\lam y => f y = b0) p x.p = x'.p.
+      \let q' => Jl (\lam _ p' => transport (\lam y => f y = b0) p' x.basePath = inv (pmap f p') *> x.basePath) (inv (idp_*> x.basePath)) p *> rotatePathLeft q
+      -- Then use the usual Sigma extensionality.
+      \in path (\lam i => \new Fib f b0 (p @ i) (pathOver q' @ i))
 
 \func isContrFibers {A B : \Type} (f : A -> B) => \Pi (b0 : B) -> Contr (Fib f b0)
   \where
-    \func isProp {A B : \Type} (f : A -> B) : HLevel.isProp (isContrFibers f) => HLevels-pi {B} (\lam b0 => Contr (Fib f b0)) {0} (\lam b0 => Contr.isProp (Fib f b0))
+    \func isProp {A B : \Type} (f : A -> B) : HLevel.isProp (isContrFibers f)
+      => HLevels-pi {B} (\lam b0 => Contr (Fib f b0)) {0} (\lam b0 => Contr.isProp (Fib f b0))
 
 \func contrFibers=>Equiv {A B : \Type} (f : A -> B) (p : isContrFibers f) : Equiv f => {?}
 
-\func Equiv=>contrFibers {A B : \Type} (f : A -> B) (p : Equiv f) : isContrFibers f => {?}
+\func Equiv=>contrFibers {A B : \Type} (f : A -> B) (p : HAEquiv f) : isContrFibers f => \lam b0 =>
+  \let | x0 => \new Fib f b0 (p.ret b0) (p.f_sec b0)
+  \in Contr.make x0 (\lam (x : Fib f b0) =>
+    \let -- p0 proves that the first components are equal: x0.a = x.a.
+         | p0 => pmap p.ret (inv x.basePath) *> p.ret_f x.over
+         -- q0 proves that the second compontents are equal: pmap f p0 *> x.p = x0.p.
+         | q0 =>
+            pmap f p0 *> x.basePath                                                         ==< pmap (\lam r => r *> x.basePath) (pmap_*>-comm f _ _) >==
+            (pmap f (pmap p.ret (inv x.basePath)) *> pmap f (p.ret_f x.over)) *> x.basePath ==< pmap (\lam r => (pmap f (pmap p.ret (inv x.basePath)) *> r) *> x.basePath) (p.f_ret_f=f_sec_f x.over) >==
+            (pmap f (pmap p.ret (inv x.basePath)) *> p.f_sec (f x.over)) *> x.basePath      ==< pmap (\lam r => r *> x.basePath) (homotopy-isNatural (\lam x => f (p.ret x)) (\lam x => x) p.f_sec (inv x.basePath)) >==
+            (p.f_sec b0 *> inv x.basePath) *> x.basePath                                    ==< *>-assoc _ _ _ >==
+            p.f_sec b0 *> (inv x.basePath *> x.basePath)                                    ==< pmap (\lam r => p.f_sec b0 *> r) (inv_*> x.basePath) >==
+            p.f_sec b0                                                                      `qed
+    \in Fib.ext f b0 x0 x p0 (inv q0))
