@@ -1,25 +1,31 @@
 \import Equiv
 \import Equiv.Path
+\import Equiv.Univalence
 \import Logic
 \import HLevel
 \import Paths
 
-\data \infixl 6 + (A B : \Type)
-  | inl A
-  | inr B
+\data Dec (E : \Type)
+  | yes E
+  | no (Not E)
 
-\class Dec (E : \Type)
-  | decide : E + Not E
+\class Decide (E : \Type)
+  | decide : Dec E
 
 \func DecEq (A : \Type) => \Pi {a a' : A} -> Dec (a = a')
 
-{-
+\class DecideEq (E : \Type)
+  | decideEq : DecEq E
+
 \func Hedberg {A : \Type} (d : DecEq A) : isSet A => \lam x x' =>
-  \let | R {a a' : A} (p : (a = a') + Not (a = a')) : \Prop => \case p \with { | inl _ => Unit | inr _ => Empty }
-       | refl {a : A} (p : (a = a) + Not (a = a)) => \case p \as p' \return R p' \with { | inl _ => unit | inr q => q idp }
-       | equiv : Equiv {x = x'} {R x x'} => propPathEquiv (\lam a a' => R {a} {a'} (decide {d {a} {a'}})) (\lam a => refl (decide {d {a} {a}})) {?} {x} {x'}
-  \in \lam p p' => equiv.f p
+  \let | R {a a' : A} (p : Dec (a = a')) : \Prop => \case p \with { | yes _ => Unit | no _ => Empty }
+       | R' (a a' : A) => R {a} {a'} (d {a} {a'})
+       | refl {a : A} (p : Dec (a = a)) => \case p \as p' \return R p' \with { | yes _ => unit | no q => q idp }
+       | equiv : Equiv {x = x'} {R' x x'} => propPathEquiv R' (\lam a => refl (d {a} {a})) (\lam {a} {a'} s => \case d {a} {a'} \as p, s : R p \with {
+         | yes p, _ => p
+         | no _, s' => absurd s'
+       }) {x} {x'}
+  \in transport isProp (inv (univalence.ret equiv)) Path.inProp
   \where
     \func propPathEquiv {A : \Type} (R : A -> A -> \Prop) (refl : \Pi (a : A) -> R a a) (p : \Pi {a a' : A} -> R a a' -> a = a') {a a' : A} : QEquiv {a = a'} {R a a'}
-      => pathEquiv R (\lam {a} {a'} => \new Retraction (\lam q => transport (R a) q (refl a)) p {?})
--}
+      => pathEquiv R (\lam {a} {a'} => \new Retraction (\lam q => transport (R a) q (refl a)) p (\lam _ => Path.inProp _ _))
