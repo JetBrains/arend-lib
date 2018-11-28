@@ -1,4 +1,6 @@
 \import Algebra.Monoid (AbMonoid,CMonoid)
+\import Algebra.Ring
+\import Algebra.Semiring
 \import Arith.Nat
 \import Paths
 \import Set
@@ -21,49 +23,62 @@
         | no e => no (\lam p => e (pmap pred p))
       }
 
--- # Properties of +
+-- # Properties of + and *
 
-\instance NatAddMonoid : AbMonoid Nat
+\instance NatSemiring : CSemiring Nat
   | addId => 0
   | + => +
-  | addId-left _ => zero-+
+  | addId-left _ => +-comm
   | +-assoc _ _ _ => +-assoc
   | +-comm _ _ => +-comm
-  \where {
-    \func zero-+ {n : Nat} : 0 + n = n \elim n
-      | 0 => idp
-      | suc n => pmap suc zero-+
-
-    \func +-assoc {n m k : Nat} : (n + m) + k = n + (m + k) \elim k
-      | 0 => idp
-      | suc k => pmap suc +-assoc
-
-    \func +-comm {n m : Nat} : n + m = m + n \elim n, m
-      | 0, 0 => idp
-      | suc n, 0 => pmap suc (inv zero-+)
-      | 0, suc m => pmap suc zero-+
-      | suc n, suc m => pmap suc (+-comm *> pmap suc (inv +-comm) *> +-comm)
-  }
-
-\open NatAddMonoid
-
--- # Properties of *
-
-\instance NatMonoid : CMonoid Nat
   | id => 1
   | * => *
   | id-left _ => id-*
   | *-assoc _ _ _ => *-assoc
-  | *-comm => {?}
+  | ldistr _ _ _ => ldistr
+  | *-comm _ _ => *-comm
+  | addId_*-left _ => *-comm
   \where {
-    \func id-* {n : Nat} : 1 * n = n \elim n
+    \lemma +-assoc {n m k : Nat} : (n + m) + k = n + (m + k) \elim k
+      | 0 => idp
+      | suc k => pmap suc +-assoc
+
+    \lemma +-comm {n m : Nat} : n + m = m + n \elim n, m
+      | 0, 0 => idp
+      | suc n, 0 => pmap suc +-comm
+      | 0, suc m => pmap suc +-comm
+      | suc n, suc m => pmap suc (+-comm *> pmap suc (inv +-comm) *> +-comm)
+
+    \lemma id-* {n : Nat} : 1 * n = n \elim n
       | 0 => idp
       | suc n => pmap suc id-*
 
-    \func *-assoc {n m k : Nat} : (n * m) * k = n * (m * k) \elim k
+    \lemma ldistr {n m k : Nat} : n * (m + k) = n * m + n * k \elim k
       | 0 => idp
-      | suc k => {?}
+      | suc k =>
+        n * (m + k) + n     ==< pmap (\lam x => x + n) ldistr >==
+        n * m + n * k + n   ==< +-assoc >==
+        n * m + (n * k + n) `qed
+
+    \lemma *-assoc {n m k : Nat} : (n * m) * k = n * (m * k) \elim k
+      | 0 => idp
+      | suc k => pmap (\lam x => x + n * m) *-assoc *> inv ldistr
+
+    \lemma *-comm {n m : Nat} : n * m = m * n \elim n, m
+      | 0, 0 => idp
+      | suc n, 0 => *-comm
+      | 0, suc m => *-comm
+      | suc n, suc m => pmap suc (
+        suc n * m + n   ==< pmap (\lam x => x + n) *-comm >==
+        m * n + m + n   ==< +-assoc >==
+        m * n + (m + n) ==< pmap2 (+) (inv *-comm) +-comm >==
+        n * m + (n + m) ==< inv +-assoc >==
+        n * m + n + m   ==< pmap (\lam x => x + m) *-comm >==
+        suc m * n + m   `qed
+      )
   }
+
+\open NatSemiring (+-comm)
 
 -- # Properties of <=
 
@@ -85,7 +100,7 @@
   | 0 => <=-refl
   | suc m => <=-trans (+-<= m) <=-suc
 
-\func <=-+ {n m : Nat} (p : n <= m) : n + (m - n) = m \elim n, m, p
+\lemma <=-+ {n m : Nat} (p : n <= m) : n + (m - n) = m \elim n, m, p
   | 0, 0, _ => idp
-  | 0, suc m, _ => pmap suc zero-+
+  | 0, suc m, _ => pmap suc +-comm
   | suc n, suc m, suc<=suc p => +-comm *> pmap suc (+-comm *> <=-+ p)
