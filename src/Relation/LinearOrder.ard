@@ -8,17 +8,24 @@
 \class TotalOrder \extends Lattice {
   | totality (x y : E) : x <= y || y <= x
 
-  | join x y => (tjoin x y).1
-  | join-left x y => (tjoin x y).2.1
-  | join-right x y => (tjoin x y).2.2
-  | join-univ x y => (tjoin x y).2.3
+  | join x y => (tjoin {(_ : Poset)} x y (totality x y)).1
+  | join-left x y => (tjoin {(_ : Poset)} x y (totality x y)).2.1
+  | join-right x y => (tjoin {(_ : Poset)} x y (totality x y)).2.2
+  | join-univ x y => (tjoin {(_ : Poset)} x y (totality x y)).2.3
+
+  | meet x y => (tmeet {(_ : Poset)} x y (totality x y)).1
+  | meet-left x y => (tmeet {(_ : Poset)} x y (totality x y)).2.1
+  | meet-right x y => (tmeet {(_ : Poset)} x y (totality x y)).2.2
+  | meet-univ x y => (tmeet {(_ : Poset)} x y (totality x y)).2.3
 } \where {
-  \open JoinSemilattice(Join,Join-isProp)
-  \open MeetSemilattice(Meet,Meet-isProp)
-  \func tjoin {E : TotalOrder} (x y : E) => ||.rec (Join-isProp x y)
-                                                   (\lam x<=y => (x, (E.reflexive x, x<=y, \lam z z<=x _ => z<=x)))
-                                                   (\lam y<=x => (y, y<=x, E.reflexive y, \lam z _ z<=y => z<=y))
-                                                   (E.totality x y)
+  \open JoinSemilattice(Join-isProp)
+  \open MeetSemilattice(Meet-isProp)
+  \func tjoin {E : Poset} (x y : E) => ||.rec (Join-isProp x y)
+                                              (\lam x<=y => (x, (E.reflexive x, x<=y, \lam z z<=x _ => z<=x)))
+                                              (\lam y<=x => (y, (y<=x, E.reflexive y, \lam z _ z<=y => z<=y)))
+  \func tmeet {E : Poset} (x y : E) => ||.rec (Meet-isProp x y)
+                                              (\lam x<=y => (y, (x<=y, E.reflexive y, \lam z _ y<=z => y<=z)))
+                                              (\lam y<=x => (x, (E.reflexive x, y<=x, \lam z z<=x _ => z<=x)))
 }
 
 \class LinearOrder \extends StrictPoset {
@@ -45,5 +52,20 @@
     | inl x=y => yes x=y
     | inr (inl x<y) => no (\lam x=y => irreflexive y (transport (\lam z => z < y) x=y x<y))
     | inr (inr y<x) => no (\lam x=y => irreflexive y (transport (\lam z => y < z) x=y y<x))
+  }
+
+  | TotalOrder.E => E
+  | <= x y => Xor (x = y) (x < y) (\lam x=y x<y => irreflexive y (transport (\lam w => w < y) x=y x<y))
+  | reflexive x => onlyLeft idp
+  | <=-transitive x y z x<=y y<=z => \case x<=y, y<=z \with {
+    | onlyLeft x=y, onlyLeft y=z => onlyLeft (x=y *> y=z)
+    | onlyLeft x=y, onlyRight y<z => onlyRight (transport (\lam w => w < z) (inv x=y) y<z)
+    | onlyRight x<y, onlyLeft y=z => onlyRight (transport (\lam w => x < w) y=z x<y)
+    | onlyRight x<y, onlyRight y<z => onlyRight (<-transitive x y z x<y y<z)
+  }
+  | totality x y => \case trichotomy {x} {y} \with {
+    | inl x=y => byLeft (onlyLeft x=y)
+    | inr (inl x<y) => byLeft (onlyRight x<y)
+    | inr (inr y<x) => byRight (onlyRight y<x)
   }
 }
