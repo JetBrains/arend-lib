@@ -6,8 +6,32 @@
   | id-left (x : E) : id * x = x
   | id-right (x : E) : x * id = x
   | *-assoc (x y z : E) : (x * y) * z = x * (y * z)
+} \where {
+  \record Inv {M : Monoid} (val inv : M)
+    | inv-left : inv * val = id
+    | inv-right : val * inv = id
+  \where {
+    \use \level isProp {M : Monoid} {x : M} (j j' : Inv x) : j = j' =>
+      \let q : j.inv = j'.inv =>
+        j.inv                ==< Paths.inv (id-left j.inv) >==
+        id * j.inv           ==< Paths.inv (pmap (\lam t => t * j.inv) j'.inv-left) >==
+        (j'.inv * x) * j.inv ==< *-assoc j'.inv x j.inv >==
+        j'.inv * (x * j.inv) ==< pmap (\lam t => j'.inv * t) j.inv-right >==
+        j'.inv * id          ==< id-right j'.inv >==
+        j'.inv               `qed
+      \in path (\lam i => \new Inv x {
+        | inv => q @ i
+        | inv-left => pathOver (Path.inProp (coe (\lam i => (q @ i) * x = id) j.inv-left right) j'.inv-left) @ i
+        | inv-right => pathOver (Path.inProp (coe (\lam i => x * (q @ i) = id) j.inv-right right) j'.inv-right) @ i
+      })
+  }
 
-  \func isInv (x : E) => \Sigma (y : E) (x * y = id) (y * x = id)
+  \func op (M : Monoid) : Monoid \cowith
+    | Pointed => M
+    | * x y => M.* y x
+    | id-left => M.id-right
+    | id-right => M.id-left
+    | *-assoc x y z => inv (M.*-assoc z y x)
 }
 
 \class AddMonoid \extends AddPointed
@@ -23,8 +47,21 @@
 \class CMonoid \extends Monoid {
   | *-comm (x y : E) : x * y = y * x
   | id-right x => *-comm x id *> id-left x
-
-  \func isInv (x : E) => \Sigma (y : E) (x * y = id)
+} \where {
+  \record Inv {M : CMonoid} (val inv : M)
+    | inv-left : inv * val = id
+  \where {
+    \use \level isProp {M : CMonoid} {x : M} (j j' : Inv x) : j = j' =>
+      \let q : j.inv = j'.inv =>
+        j.inv                ==< Paths.inv (id-left j.inv) >==
+        id * j.inv           ==< Paths.inv (pmap (\lam t => t * j.inv) j'.inv-left) >==
+        (j'.inv * x) * j.inv ==< *-assoc j'.inv x j.inv >==
+        j'.inv * (x * j.inv) ==< pmap (\lam t => j'.inv * t) (*-comm x j.inv) >==
+        j'.inv * (j.inv * x) ==< pmap (\lam t => j'.inv * t) j.inv-left >==
+        j'.inv * id          ==< id-right j'.inv >==
+        j'.inv               `qed
+      \in path (\lam i => \new Inv x { | inv => q @ i | inv-left => pathOver (Path.inProp (coe (\lam i => (q @ i) * x = id) j.inv-left right) j'.inv-left) @ i })
+  }
 }
 
 \class AbMonoid \extends AddMonoid
