@@ -1,0 +1,41 @@
+\import Algebra.Group
+\import Algebra.LocalRing
+\import Algebra.Monoid
+\import Data.Or
+\import Logic
+\import Paths
+\import Relation.Apartness
+\import Set
+\open CMonoid(Inv)
+
+\class Field \extends LocalCRing
+  | nonInvIsZero (x : E) : Not (Inv x) -> x = addId
+
+\class DiscreteField \extends Field, DecideEq {
+  | eitherZeroOrInv (x : E) : (x = addId) `Or` (Inv x)
+
+  | nonInvIsZero x xNotInv => \case eitherZeroOrInv x \with {
+    | inl x=0 => x=0
+    | inr xInv => absurd (xNotInv xInv)
+  }
+  | clocality x y x+y=1 => \case eitherZeroOrInv x \with {
+    | inl x=0 => byRight (\new Inv y id (
+      id * y    ==< id-left y >==
+      y         ==< inv (addId-left y) >==
+      addId + y ==< pmap (\lam t => t + y) (inv x=0) >==
+      x + y     ==< x+y=1 >==
+      id        `qed))
+    | inr xInv => byLeft xInv
+  }
+  | decideEq {x} {y} => \case eitherZeroOrInv (x - y) \with {
+    | inl x-y=0 => yes (
+      x                     ==< inv (addId-right x) >==
+      x + addId             ==< pmap (\lam t => x + t) (inv (negative-left y)) >==
+      x + (negative y + y)  ==< inv (+-assoc x (negative y) y) >==
+      x - y + y             ==< pmap (\lam t => t + y) x-y=0 >==
+      addId + y             ==< addId-left y >==
+      y                     `qed
+    )
+    | inr x-y-isInv => no (\lam x=y => #-irreflexive {LocalCRing.=>Apartness} y (transport (\lam t => Inv (t - y)) x=y x-y-isInv))
+  }
+}

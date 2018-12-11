@@ -1,0 +1,130 @@
+\import Algebra.Field
+\import Algebra.Group
+\import Algebra.Monoid
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Data.Or
+\import Logic
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Paths
+
+\open CMonoid(Inv)
+\open OrderedAddMonoid(isPos,isNeg)
+\open StrictPoset.Reasoning
+
+\class OrderedAddMonoid \extends StrictPoset, AddMonoid {
+  | <_+-left (x y z : E) : x < y -> x + z < y + z
+  | <_+-right (x y z : E) : x < y -> z + x < z + y
+
+  \func isPos (x : E) => x > addId
+  \func isNeg (x : E) => x < addId
+}
+
+\class OrderedAbMonoid \extends OrderedAddMonoid, AbMonoid
+  | <_+-right x y z x<y => transport2 (<) (+-comm x z) (+-comm y z) (<_+-left x y z x<y)
+
+\class OrderedAddGroup \extends OrderedAddMonoid, AddGroup {
+  \func cancelLeft (x y z : E) (x+z<y+z : x + y < x + z) : y < z =>
+    y                    ==< inv (addId-left y) >=>
+    addId + y            ==< pmap (\lam t => t + y) (inv (negative-left x)) >=>
+    negative x + x + y   ==< +-assoc (negative x) x y >=>
+    negative x + (x + y) <<< <_+-right (x + y) (x + z) (negative x) x+z<y+z >>=
+    negative x + (x + z) ==< inv (+-assoc (negative x) x z) >==
+    negative x + x + z   ==< pmap (\lam t => t + z) (negative-left x) >==
+    addId + z            ==< addId-left z >==
+    z                    `qed
+}
+
+\class OrderedAbGroup \extends OrderedAbMonoid, OrderedAddGroup, AbGroup
+
+\class OrderedSemiring \extends Semiring, OrderedAbMonoid, LinearOrder
+  | id-isPos : isPos id
+  | <_*-left (x y z : E) : x < y -> isPos z -> x * z < y * z
+  | <_*-right (x y z : E) : isPos x -> y < z -> x * y < x * z
+
+\class OrderedCSemiring \extends OrderedSemiring, CSemiring, OrderedAbMonoid
+  | <_*-right x y z x>0 y<z => transport2 (<) (*-comm y x) (*-comm z x) (<_*-left y z x y<z x>0)
+
+\class OrderedRing \extends Ring, OrderedSemiring, OrderedAbGroup {
+  | positive_* (x y : E) : isPos x -> isPos y -> isPos (x * y)
+
+  | <_*-left x y z x<y z>0 =>
+    \let y-x>0 => transport (\lam t => y - x > t) (negative-right x) (<_+-left x y (negative x) x<y)
+    \in x * z                      ==< inv (addId-left (x * z)) >=>
+        addId + x * z              <<< <_+-left addId ((y - x) * z) (x * z) (positive_* (y - x) z y-x>0 z>0) >>=
+        (y - x) * z + x * z        ==< inv (rdistr (y - x) x z) >==
+        (y - x + x) * z            ==< pmap (\lam t => t * z) (+-assoc y (negative x) x) >==
+        (y + (negative x + x)) * z ==< pmap (\lam t => (y + t) * z) (negative-left x) >==
+        (y + addId) * z            ==< pmap (\lam t => t * z) (addId-right y) >==
+        y * z                      `qed
+  | <_*-right x y z x>0 y<z =>
+    \let z-y>0 => transport (\lam t => z - y > t) (negative-right y) (<_+-left y z (negative y) y<z)
+    \in x * y                      ==< inv (addId-left (x * y)) >=>
+        addId + x * y              <<< <_+-left addId (x * (z - y)) (x * y) (positive_* x (z - y) x>0 z-y>0) >>=
+        x * (z - y) + x * y        ==< inv (ldistr x (z - y) y) >==
+        x * (z - y + y)            ==< pmap (\lam t => x * t) (+-assoc z (negative y) y) >==
+        x * (z + (negative y + y)) ==< pmap (\lam t => x * (z + t)) (negative-left y) >==
+        x * (z + addId)            ==< pmap (\lam t => x * t) (addId-right z) >==
+        x * z                      `qed
+
+  \func +_positive (x y : E) (x+y>0 : isPos (x + y)) : isPos x || isPos y => \case <-comparison addId x (x + y) x+y>0 \with {
+    | byLeft x>0 => byLeft x>0
+    | byRight x+y>x => byRight (OrderedAddGroup.cancelLeft x addId y (transport (\lam t => x + y > t) (inv (addId-right x)) x+y>x))
+  }
+}
+
+\class OrderedCRing \extends OrderedRing, CRing, OrderedCSemiring
+
+\class OrderedField \extends OrderedCRing, Field {
+  | positive=>inv (x : E) : isPos x -> Inv x
+  | inv=>eitherPosOrNeg (x : E) : Inv x -> isPos x `Or` isNeg x
+
+  | nonTrivial _0=1 => <-irreflexive id (transport (\lam x => x < id) _0=1 id-isPos)
+  | clocality x y x+y=1 => ||.map (positive=>inv x) (positive=>inv y) (OrderedRing.+_positive x y (transport isPos (inv x+y=1) id-isPos))
+  | nonInvIsZero x xNotInv => <-connectedness x addId (\lam x<0 => xNotInv (negative=>inv' positive=>inv x x<0)) (\lam x>0 => xNotInv (positive=>inv x x>0))
+
+  \lemma negative=>inv (x : E) (x<0 : isNeg x) : Inv x => negative=>inv' positive=>inv x x<0
+} \where {
+  \func negative=>inv' {R : OrderedCRing} (pos=>inv : \Pi (x : R) -> isPos x -> Inv x) (x : R) (x<0 : isNeg x) : Inv x =>
+    \let j : Inv (negative x) => pos=>inv (negative x) (transport2 (<) (negative-right x) (addId-left (negative x)) (<_+-left x addId (negative x) x<0))
+    \in \new Inv x (negative j.inv) (
+      negative j.inv * x   ==< Ring.negative_*-left j.inv x >==
+      negative (j.inv * x) ==< inv (Ring.negative_*-right j.inv x) >==
+      j.inv * negative x   ==< j.inv-left >==
+      id                   `qed
+    )
+}
+
+\class DiscreteOrderedField \extends OrderedField, DiscreteField, DecLinearOrder {
+  | positive=>inv x x-isPos => \case eitherZeroOrInv x \with {
+    | inl x=0 => absurd (<-irreflexive addId (transport isPos x=0 x-isPos))
+    | inr x-isInv => x-isInv
+  }
+  | trichotomy {x} {y} => \case eitherZeroOrInv (x - y) \with {
+    | inl x-y=0 => inl (
+      x                    ==< inv (addId-right x) >==
+      x + addId            ==< pmap (\lam t => x + t) (inv (negative-left y)) >==
+      x + (negative y + y) ==< inv (+-assoc x (negative y) y) >==
+      x - y + y            ==< pmap (\lam t => t + y) x-y=0 >==
+      addId + y            ==< addId-left y >==
+      y                    `qed
+    )
+    | inr x-y-isInv => \case inv=>eitherPosOrNeg (x - y) x-y-isInv \with {
+      | inl x-y>0 => inr (inr (
+        y                    ==< inv (addId-left y) >=>
+        addId + y            <<< <_+-left addId (x - y) y x-y>0 >>=
+        x - y + y            ==< +-assoc x (negative y) y >==
+        x + (negative y + y) ==< pmap (\lam t => x + t) (negative-left y) >==
+        x + addId            ==< addId-right x >==
+        x                    `qed))
+      | inr x-y<0 => inr (inl (
+        x                    ==< inv (addId-right x) >=>
+        x + addId            ==< pmap (\lam t => x + t) (inv (negative-left y)) >=>
+        x + (negative y + y) ==< inv (+-assoc x (negative y) y) >=>
+        x - y + y            <<< <_+-left (x - y) addId y x-y<0 >>=
+        addId + y            ==< addId-left y >==
+        y                    `qed))
+    }
+  }
+}

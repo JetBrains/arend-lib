@@ -3,6 +3,7 @@
 \import Paths
 \import Order.Lattice
 \import Order.PartialOrder
+\import Relation.Apartness
 \import Set
 
 \class TotalOrder \extends Lattice {
@@ -29,9 +30,30 @@
 \class LinearOrder \extends StrictPoset {
   | <-comparison (x y z : E) : x < z -> x < y || y < z
   | <-connectedness (x y : E) : Not (x < y) -> Not (y < x) -> x = y
+} \where {
+  \func =>Apartness {L : LinearOrder} : Apartness L \cowith
+    | # x y => Xor (x < y) (y < x) (\lam p q => <-irreflexive x (<-transitive x y x p q))
+    | #-irreflexive x x#x => \case x#x \with {
+      | onlyLeft x<x => <-irreflexive x x<x
+      | onlyRight x<x => <-irreflexive x x<x
+    }
+    | #-symmetric x y x#y => \case x#y \with {
+      | onlyLeft x<y => onlyRight x<y
+      | onlyRight y<x => onlyLeft y<x
+    }
+    | #-comparison x y z x#z => \case x#z \with {
+      | onlyLeft x<z => \case <-comparison x y z x<z \with {
+        | byLeft x<y => byLeft (onlyLeft x<y)
+        | byRight y<z => byRight (onlyLeft y<z)
+      }
+      | onlyRight z<x => \case <-comparison z y x z<x \with {
+        | byLeft z<y => byRight (onlyRight z<y)
+        | byRight y<x => byLeft (onlyRight y<x)
+      }
+    }
 }
 
-\class DecLinearOrder \extends LinearOrder, DecideEq, TotalOrder {
+\class DecLinearOrder \extends LinearOrder, DecideEq {
   | trichotomy {x y : E} : (x = y) `Or` (x < y) `Or` (y < x)
 
   | <-comparison x y z x<z => \case trichotomy {_} {x} {y} \with {
@@ -45,24 +67,29 @@
     | inr (inr y<x) => absurd (y/<x y<x)
   }
 
-  | DecideEq.E => E
   | decideEq {x} {y} => \case trichotomy {_} {x} {y} \with {
     | inl x=y => yes x=y
     | inr (inl x<y) => no (\lam x=y => <-irreflexive y (transport (\lam z => z < y) x=y x<y))
     | inr (inr y<x) => no (\lam x=y => <-irreflexive y (transport (\lam z => y < z) x=y y<x))
   }
-
-  | <= x y => Xor (x = y) (x < y) (\lam x=y x<y => <-irreflexive y (transport (\lam w => w < y) x=y x<y))
-  | reflexive x => onlyLeft idp
-  | <=-transitive x y z x<=y y<=z => \case x<=y, y<=z \with {
-    | onlyLeft x=y, onlyLeft y=z => onlyLeft (x=y *> y=z)
-    | onlyLeft x=y, onlyRight y<z => onlyRight (transport (\lam w => w < z) (inv x=y) y<z)
-    | onlyRight x<y, onlyLeft y=z => onlyRight (transport (\lam w => x < w) y=z x<y)
-    | onlyRight x<y, onlyRight y<z => onlyRight (<-transitive x y z x<y y<z)
-  }
-  | totality x y => \case trichotomy {_} {x} {y} \with {
-    | inl x=y => byLeft (onlyLeft x=y)
-    | inr (inl x<y) => byLeft (onlyRight x<y)
-    | inr (inr y<x) => byRight (onlyRight y<x)
-  }
+} \where {
+  \func =>TotalOrder {L : DecLinearOrder} : TotalOrder L \cowith
+    | <= x y => Xor (x = y) (x < y) (\lam x=y x<y => <-irreflexive y (transport (\lam w => w < y) x=y x<y))
+    | reflexive x => onlyLeft idp
+    | <=-transitive x y z x<=y y<=z => \case x<=y, y<=z \with {
+      | onlyLeft x=y, onlyLeft y=z => onlyLeft (x=y *> y=z)
+      | onlyLeft x=y, onlyRight y<z => onlyRight (transport (\lam w => w < z) (inv x=y) y<z)
+      | onlyRight x<y, onlyLeft y=z => onlyRight (transport (\lam w => x < w) y=z x<y)
+      | onlyRight x<y, onlyRight y<z => onlyRight (<-transitive x y z x<y y<z)
+    }
+    | totality x y => \case trichotomy {_} {x} {y} \with {
+      | inl x=y => byLeft (onlyLeft x=y)
+      | inr (inl x<y) => byLeft (onlyRight x<y)
+      | inr (inr y<x) => byRight (onlyRight y<x)
+    }
+    | antisymmetric x y x<=y y<=x => \case x<=y, y<=x \with {
+      | onlyLeft x=y, _ => x=y
+      | _, onlyLeft y=x => inv y=x
+      | onlyRight x<y, onlyRight y<x => absurd (<-irreflexive x (<-transitive x y x x<y y<x))
+    }
 }
