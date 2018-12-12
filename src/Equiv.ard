@@ -17,8 +17,11 @@
                    idpe
                    idpe)
 
-    \func isContr (e : Equiv) : Contr (Section e.f)
+    \lemma isContr (e : Equiv) : Contr (Section e.f)
       => transport (\lam X => Contr X) (inv (=Fiber e.f)) (Equiv=>contrFibers (-o e.f) (-o_Equiv e) id)
+
+    \func isProp (r : Retraction) : HLevel.isProp (Section r.f)
+      => \lam s => isContr=>isProp (isContr (\new Equiv { | Section => s | Retraction => r })) s
   }
 
 \record Retraction (sec : B -> A) (f_sec : \Pi (y : B) -> f (sec y) = y) \extends Map
@@ -29,8 +32,11 @@
                    idpe
                    idpe)
 
-    \func isContr (e : Equiv) : Contr (Retraction e.f)
+    \lemma isContr (e : Equiv) : Contr (Retraction e.f)
       => transport (\lam X => Contr X) (inv (=Fiber e.f)) (Equiv=>contrFibers (e.f `o-) (o-_Equiv e) id)
+
+    \func isProp (s : Section) : HLevel.isProp (Retraction s.f)
+      => \lam r => isContr=>isProp (isContr (\new Equiv { | Section => s | Retraction => r })) r
   }
 
 \record Equiv \extends Section, Retraction
@@ -97,17 +103,16 @@
 
 -- # Embeddings and surjections
 
-\record Embedding (isEmb : \Pi (a a' : A) -> Equiv (pmap f {a} {a'})) \extends Map
-  \where
-    \use \level isProp {A B : \Type} {f : A -> B} (e e' : Embedding f) : e = e' =>
-      path (\lam i => \new Embedding f (\lam a a' => Equiv.isProp (e.isEmb a a') (e'.isEmb a a') @ i))
+\record Embedding (isEmb : \Pi (a a' : A) -> Retraction (pmap f {a} {a'})) \extends Map {
+  \func pmap-isEquiv {a a' : A} : QEquiv (pmap f {a} {a'}) => pathEquiv (\lam a a' => f a = f a') (\lam {a} {a'} => isEmb a a')
+} \where {
+  \use \level isProp {A B : \Type} {f : A -> B} (e e' : Embedding f) : e = e' =>
+    path (\lam i => \new Embedding f (\lam a a' => Retraction.isProp (pmap-isEquiv {e} {a} {a'}) (e.isEmb a a') (e'.isEmb a a') @ i))
+}
 
 \func \infixr 1 >-> (A B : \Type) => Embedding {A} {B}
 
 \record Surjection (isSurj : \Pi (y : B) -> TrP (Fib f y)) \extends Map
-  \where
-    \use \level isProp {A B : \Type} {f : A -> B} (s s' : Surjection f) : s = s' =>
-      path (\lam i => \new Surjection f (\lam y => Path.inProp (s.isSurj y) (s'.isSurj y) @ i))
 
 \func \infixr 1 ->> (A B : \Type) => Surjection {A} {B}
 
@@ -115,10 +120,10 @@
   \where {
     \use \level isProp {A B : \Type} {f : A -> B} (e e' : ESEquiv f) : e = e' =>
       path (\lam i => \new ESEquiv { | Embedding  => Embedding.isProp  e e' @ i
-                                     | Surjection => Surjection.isProp e e' @ i })
+                                     | Surjection => Path.inProp {ESEquiv f} e e' @ i })
 
     \func embeddingFiber-isProp (e : Embedding) (b : e.B) : HLevel.isProp (Fib e.f b) => \lam (x x' : Fib e.f b) =>
-      \let | eq : Equiv (pmap e.f {x.over} {x'.over}) => e.isEmb x.over x'.over
+      \let | eq : Retraction (pmap e.f {x.over} {x'.over}) => e.isEmb x.over x'.over
            | fx=fx' => x.basePath *> inv x'.basePath
       \in Fib.ext e.f b x x' (eq.sec fx=fx') (
         pmap e.f (eq.sec fx=fx') *> x'.basePath       ==< pmap (\lam r => r *> x'.basePath) (eq.f_sec fx=fx') >==
@@ -131,7 +136,7 @@
       \let sec (y : e.B) => TrP.remove (embeddingFiber-isProp e y) (e.isSurj y)
       \in \new QEquiv {
         | ret y => Fib.over {sec y}
-        | ret_f x => Section.ret {e.isEmb _ _} (Fib.basePath {sec (e.f x)})
+        | ret_f x => Retraction.sec {e.isEmb _ _} (Fib.basePath {sec (e.f x)})
         | f_sec y => Fib.basePath {sec y}
       }
 

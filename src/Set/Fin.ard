@@ -1,0 +1,68 @@
+\import Arith.Nat
+\import Data.Bool
+\import Equiv
+\import Equiv.Univalence
+\import Logic
+\import Order.PartialOrder
+\import Paths
+
+\data Fin (n : Nat) \with
+  | suc n => { fzero | fsuc (Fin n) }
+
+\func isFzero {n : Nat} (x : Fin n) : Bool \elim n, x
+  | suc n, fzero => true
+  | suc n, fsuc _ => false
+
+\lemma fzero/=fsuc {n : Nat} {x : Fin n} (p : fzero = fsuc x) : Empty => true/=false (pmap isFzero p)
+
+\func fin0-absurd {A : \Type} (x : Fin 0) : A
+
+\func fpred {n : Nat} (x : Fin (suc (suc n))) : Fin (suc n) \elim x
+  | fzero => fzero
+  | fsuc x => x
+
+\lemma fsuc-isInj {n : Nat} (x y : Fin n) (p : fsuc x = fsuc y) : x = y \elim n
+  | suc n => pmap fpred p
+
+\record FinSet (A : \Set)
+  | finCard : Nat
+  | finEq : TrP (A = Fin finCard)
+  \where {
+    \use \level isProp (A : \Set) (X Y : FinSet A) : X = Y =>
+      \let q : X.finCard = Y.finCard =>
+        TrP.rec Path.inProp X.finEq (\lam A=Xcard =>
+        TrP.rec Path.inProp Y.finEq (\lam A=Ycard =>
+          FinCardBij (inv A=Xcard *> A=Ycard)))
+      \in path (\lam i => \new FinSet A (q @ i) (pathOver (path (truncP (coe (\lam i => TrP (A = Fin (q @ i))) X.finEq right) Y.finEq)) @ i))
+
+    \lemma FinCardBij {n m : Nat} (p : Fin n = Fin m) : n = m =>
+      \let | e : ESEquiv => =-to-Equiv p
+           | e' : ESEquiv => =-to-Equiv (inv p)
+      \in <=-antisymmetric n m (FinCardInj e.f  (\lam x y => Retraction.sec {e.isEmb  x y}))
+                               (FinCardInj e'.f (\lam x y => Retraction.sec {e'.isEmb x y}))
+
+    \lemma FinCardInj {n m : Nat} (f : Fin n -> Fin m) (f-inj : \Pi (x y : Fin n) -> f x = f y -> x = y) : n <= m \elim n, m
+      | 0, _ => NatLE.zero<=_
+      | suc n, 0 => fin0-absurd (f fzero)
+      | suc n, suc m => NatLE.suc<=suc (FinCardInj (\lam x => skip (f fzero) (f (fsuc x)) (\lam f_0=f_suc => fzero/=fsuc (f-inj fzero (fsuc x) f_0=f_suc)))
+                                                   (\lam x y p => fsuc-isInj x y (f-inj (fsuc x) (fsuc y) (skip-isInj p))))
+
+    \func skip {n : Nat} (x0 x : Fin (suc n)) (d : Not (x0 = x)) : Fin n \elim n, x0, x
+      | _, fzero, fzero => absurd (d idp)
+      | suc n, fzero, fsuc x => x
+      | suc n, fsuc x0, fzero => fzero
+      | suc n, fsuc x0, fsuc x => fsuc (skip x0 x (\lam x0=x => d (pmap fsuc x0=x)))
+      | 0, fsuc (), _
+      | 0, fzero, fsuc ()
+
+    \lemma skip-isInj {n : Nat} {x0 x y : Fin (suc n)} {d : Not (x0 = x)} {d' : Not (x0 = y)} (p : skip x0 x d = skip x0 y d') : x = y \elim n, x0, x, y
+      | _, fzero, fzero, _ => absurd (d idp)
+      | _, fzero, _, fzero => absurd (d' idp)
+      | _, _, fzero, fzero => idp
+      | suc n, fzero, fsuc x, fsuc y => pmap fsuc p
+      | suc n, fsuc x0, fzero, fsuc y => absurd (fzero/=fsuc p)
+      | suc n, fsuc x0, fsuc x, fzero => absurd (fzero/=fsuc (inv p))
+      | suc n, fsuc x0, fsuc x, fsuc y => pmap fsuc (skip-isInj (fsuc-isInj _ _ p))
+      | 0, fsuc (), _, _
+      | 0, fzero, fsuc (), _
+  }
