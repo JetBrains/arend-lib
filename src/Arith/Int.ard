@@ -125,12 +125,14 @@
   | positive_* _ _ => i*-positive
   | *-comm _ _ => i*-comm
   \where {
+    \open Nat(-)
+
     -- ## +
 
     \func \infixl 6 + (x y : Int) : Int
       | pos n, pos m => pos (n Nat.+ m)
-      | pos n, neg (suc m) => minus n (suc m)
-      | neg (suc n), pos m => minus m (suc n)
+      | pos n, neg (suc m) => n - suc m
+      | neg (suc n), pos m => m - suc n
       | neg (suc n), neg (suc m) => neg (suc n Nat.+ suc m)
 
     \lemma neg+neg {n m : Nat} : neg n + neg m = neg (n Nat.+ m) \elim n, m
@@ -139,65 +141,59 @@
       | suc n, 0 => idp
       | suc n, suc m => idp
 
-    \func minus (n m : Nat) : Int
-      | 0, m => neg m
-      | suc n, 0 => pos (suc n)
-      | suc n, suc m => minus n m
-      \where {
-        \lemma lldistr (n m k : Nat) : minus (n Nat.+ m) k = pos n + minus m k
-          | 0, 0, 0 => idp
-          | suc n, 0, 0 => idp
-          | n, 0, suc k => idp
-          | n, suc m, 0 => idp
-          | n, suc m, suc k => lldistr n m k
+    \lemma lldistr (n m k : Nat) : (n Nat.+ m) - k = pos n + (m - k)
+      | 0, 0, 0 => idp
+      | suc n, 0, 0 => idp
+      | n, 0, suc k => idp
+      | n, suc m, 0 => idp
+      | n, suc m, suc k => lldistr n m k
 
-        \lemma lrdistr (n m k : Nat) : minus (n Nat.+ m) k = minus n k + pos m =>
-          minus (n Nat.+ m) k ==< pmap (\lam t => minus t k) (+-comm n m) >==
-          minus (m Nat.+ n) k ==< lldistr m n k >==
-          pos m + minus n k   ==< i+-comm >==
-          minus n k + pos m   `qed
+    \lemma lrdistr (n m k : Nat) : (n Nat.+ m) - k = (n - k) + pos m =>
+      (n Nat.+ m) - k ==< pmap (\lam t => t - k) (+-comm n m) >==
+      (m Nat.+ n) - k ==< lldistr m n k >==
+      pos m + (n - k) ==< i+-comm >==
+      (n - k) + pos m `qed
 
-        \lemma rldistr (n m k : Nat) : minus n (m Nat.+ k) = neg m + minus n k
-          | 0, m, k => inv neg+neg
-          | suc n, 0, 0 => pmap (\lam t => pos (suc t)) (inv (addId-left n))
-          | suc n, suc m, 0 => idp
-          | suc n, m, suc k => rldistr n m k
+    \lemma rldistr (n m k : Nat) : n - (m Nat.+ k) = neg m + (n - k)
+      | 0, m, k => inv neg+neg
+      | suc n, 0, 0 => pmap (\lam t => pos (suc t)) (inv (addId-left n))
+      | suc n, suc m, 0 => idp
+      | suc n, m, suc k => rldistr n m k
 
-        \lemma rrdistr (n m k : Nat) : minus n (m Nat.+ k) = minus n m + neg k =>
-          minus n (m Nat.+ k) ==< pmap (minus n) (+-comm m k) >==
-          minus n (k Nat.+ m) ==< rldistr n k m >==
-          neg k + minus n m   ==< i+-comm >==
-          minus n m + neg k   `qed
+    \lemma rrdistr (n m k : Nat) : n - (m Nat.+ k) = (n - m) + neg k =>
+      n - (m Nat.+ k) ==< pmap (n -) (+-comm m k) >==
+      n - (k Nat.+ m) ==< rldistr n k m >==
+      neg k + (n - m) ==< i+-comm >==
+      (n - m) + neg k `qed
 
-        \lemma minus+pos (n m k : Nat) : minus n m + pos k = pos n + minus k m
-          | 0, 0, 0 => idp
-          | 0, 0, suc k => idp
-          | 0, suc m, 0 => idp
-          | 0, suc m, suc k => inv zero-left
-          | suc n, 0, 0 => idp
-          | suc n, 0, suc k => idp
-          | suc n, suc m, 0 => i+-comm *> zero-left
-          | suc n, suc m, suc k =>
-            minus n m + pos (suc k)  ==< suc-right >==
-            isuc (minus n m + pos k) ==< pmap isuc (minus+pos n m k) >==
-            isuc (pos n + minus k m) ==< inv suc-left >==
-            pos (suc n) + minus k m  `qed
+    \lemma minus+pos (n m k : Nat) : (n - m) + pos k = pos n + (k - m)
+      | 0, 0, 0 => idp
+      | 0, 0, suc k => idp
+      | 0, suc m, 0 => idp
+      | 0, suc m, suc k => inv zero-left
+      | suc n, 0, 0 => idp
+      | suc n, 0, suc k => idp
+      | suc n, suc m, 0 => i+-comm *> zero-left
+      | suc n, suc m, suc k =>
+        (n - m) + pos (suc k)  ==< suc-right >==
+        isuc ((n - m) + pos k) ==< pmap isuc (minus+pos n m k) >==
+        isuc (pos n + (k - m)) ==< inv suc-left >==
+        pos (suc n) + (k - m)  `qed
 
-        \lemma minus+neg (n m k : Nat) : minus n m + neg k = neg m + minus n k
-          | 0, m, k => idp
-          | suc n, 0, 0 => pmap (\lam t => pos (suc t)) (inv (addId-left n))
-          | suc n, 0, suc k => inv zero-left
-          | suc n, suc m, 0 => i+-comm *> zero-left
-          | suc n, suc m, suc k =>
-            minus n m + neg (suc k)   ==< pred-right >==
-            ipred (minus n m + neg k) ==< pmap ipred (minus+neg n m k) >==
-            ipred (neg m + minus n k) ==< inv pred-left >==
-            neg (suc m) + minus n k   `qed
+    \lemma minus+neg (n m k : Nat) : (n - m) + neg k = neg m + (n - k)
+      | 0, m, k => idp
+      | suc n, 0, 0 => pmap (\lam t => pos (suc t)) (inv (addId-left n))
+      | suc n, 0, suc k => inv zero-left
+      | suc n, suc m, 0 => i+-comm *> zero-left
+      | suc n, suc m, suc k =>
+        (n - m) + neg (suc k)   ==< pred-right >==
+        ipred ((n - m) + neg k) ==< pmap ipred (minus+neg n m k) >==
+        ipred (neg m + (n - k)) ==< inv pred-left >==
+        neg (suc m) + (n - k)   `qed
 
-        \lemma minus__ {n : Nat} : minus n n = 0 \elim n
-          | 0 => idp
-          | suc n => minus__
-      }
+    \lemma minus__ {n : Nat} : n - n = 0 \elim n
+      | 0 => idp
+      | suc n => minus__
 
     \func ineg (x : Int) : Int
       | pos n => neg n
@@ -205,8 +201,8 @@
 
     \lemma ineg-left {x : Int} : ineg x + x = 0 \elim x
       | pos 0 => idp
-      | pos (suc n) => minus.minus__
-      | neg (suc n) => minus.minus__
+      | pos (suc n) => minus__
+      | neg (suc n) => minus__
 
     \lemma zero-left {x : Int} : 0 + x = x \elim x
       | pos n => pmap pos (addId-left n)
@@ -246,12 +242,12 @@
 
     \lemma i+-assoc (x y z : Int) : (x + y) + z = x + (y + z)
       | pos n, pos m, pos k => pmap pos (+-assoc n m k)
-      | pos n, pos m, neg (suc k) => minus.lldistr n m (suc k)
-      | pos n, neg (suc m), pos k => minus.minus+pos n (suc m) k
-      | pos n, neg (suc m), neg (suc k) => inv (minus.rrdistr n (suc m) (suc k))
-      | neg (suc n), pos m, pos k => inv (minus.lrdistr m k (suc n))
-      | neg (suc n), pos m, neg (suc k) => minus.minus+neg m (suc n) (suc k)
-      | neg (suc n), neg (suc m), pos k => minus.rldistr k (suc n) (suc m)
+      | pos n, pos m, neg (suc k) => lldistr n m (suc k)
+      | pos n, neg (suc m), pos k => minus+pos n (suc m) k
+      | pos n, neg (suc m), neg (suc k) => inv (rrdistr n (suc m) (suc k))
+      | neg (suc n), pos m, pos k => inv (lrdistr m k (suc n))
+      | neg (suc n), pos m, neg (suc k) => minus+neg m (suc n) (suc k)
+      | neg (suc n), neg (suc m), pos k => rldistr k (suc n) (suc m)
       | neg (suc n), neg (suc m), neg (suc k) => pmap neg (+-assoc (suc n) (suc m) (suc k))
 
     -- ## *
@@ -301,13 +297,13 @@
       | n, suc m, 1 => idp
       | n, suc m, suc (suc k) => pos_neg_+ {n} {suc m} {suc k}
 
-    \lemma pos_minus-ldistr {n m k : Nat} : pos n * minus m k = pos (n Nat.* m) + neg (n Nat.* k) \elim m, k
+    \lemma pos_minus-ldistr {n m k : Nat} : pos n * (m - k) = pos (n Nat.* m) + neg (n Nat.* k) \elim m, k
       | 0, 0 => idp
       | 0, suc k => inv zero-left
       | suc m, 0 => idp
       | suc m, suc k => pos_minus-ldistr *> inv (pos_neg_+ {n Nat.* m} {n Nat.* k} {n})
 
-    \lemma neg_minus-ldistr {n m k : Nat} : neg n * minus m k = neg (n Nat.* m) + pos (n Nat.* k) \elim m, k
+    \lemma neg_minus-ldistr {n m k : Nat} : neg n * (m - k) = neg (n Nat.* m) + pos (n Nat.* k) \elim m, k
       | 0, k => neg*neg *> pmap pos (inv (addId-left (n Nat.* k)))
       | suc m, 0 => neg*pos *> inv zero-left *> i+-comm
       | suc m, suc k => neg_minus-ldistr {n} {m} {k} *> i+-comm *> inv (pos_neg_+ {n Nat.* k} {n Nat.* m} {n}) *> i+-comm
@@ -330,7 +326,7 @@
       | pos n, pos 0, pos<=pos _, pos<=pos ()
       | pos 0, pos m, pos<=pos (), _
 
-    \lemma <_minus-left {n m k : Nat} (p : suc n <= m) : isuc (minus n k) <= minus m k \elim n, m, k, p
+    \lemma <_minus-left {n m k : Nat} (p : suc n <= m) : isuc (n - k) <= m - k \elim n, m, k, p
       | 0, suc m, 0, _ => pos<=pos (suc<=suc zero<=_)
       | 0, 1, 1, _ => pos<=pos (<=-reflexive 0)
       | 0, 1, suc (suc k), _ => neg<=neg (<=-reflexive k)
@@ -339,7 +335,7 @@
       | suc n, suc m, 0, p => pos<=pos p
       | suc n, suc m, suc k, suc<=suc n<m => <_minus-left n<m
 
-    \lemma <_minus-right {n m k : Nat} (p : suc k <= m) : isuc (minus n m) <= minus n k \elim n, m, k, p
+    \lemma <_minus-right {n m k : Nat} (p : suc k <= m) : isuc (n - m) <= n - k \elim n, m, k, p
       | 0, suc m, 0, _ => neg<=pos'
       | 0, suc m, suc k, suc<=suc k<m => neg<=neg' k<m
       | 1, 1, 0, _ => <=-refl
