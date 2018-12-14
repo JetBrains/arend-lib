@@ -7,6 +7,7 @@
 \import Logic
 \import HLevel
 \import Paths
+\import Relation.Apartness
 
 \data Dec (E : \Prop)
   | yes E
@@ -26,14 +27,27 @@
 \class Decide (E : \Prop)
   | decide : Dec E
 
-\func DecEq (A : \Set) => \Pi {a a' : A} -> Dec (a = a')
+\func DecEq (A : \Set) => \Pi (a a' : A) -> Dec (a = a')
 
 \class BaseSet (E : \Set)
 
-\class DecideEq \extends BaseSet
+\class DecideEq \extends BaseSet, TightApartness {
   | decideEq : DecEq E
 
-\func \infix 4 == {d : DecideEq} (x y : d.E) => decToBool (d.decideEq {x} {y})
+  | # x y => Not (x = y)
+  | #-irreflexive x x/=x => x/=x idp
+  | #-symmetric x y x/=y y=x => x/=y (inv y=x)
+  | #-comparison x y z x/=z => \case decideEq x y \with {
+    | yes x=y => byRight (\lam y=z => x/=z (x=y *> y=z))
+    | no x/=y => byLeft x/=y
+  }
+  | tightness x y x//=y => \case decideEq x y \with {
+    | yes x=y => x=y
+    | no x/=y => absurd (x//=y x/=y)
+  }
+}
+
+\func \infix 4 == {D : DecideEq} (x y : D) => decToBool (decideEq x y)
 
 \func Hedberg {A : \Type} (d : \Pi (a a' : A) -> (a = a') `Or` Not (a = a')) : isSet A => \lam x x' =>
   \let | R {a a' : A} (p : (a = a') `Or` Not (a = a')) : \Prop => \case p \with { | inl _ => Unit | inr _ => Empty }
