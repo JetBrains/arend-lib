@@ -25,7 +25,7 @@
   | <_+-right x y z x<y => transport2 (<) (+-comm x z) (+-comm y z) (<_+-left x y z x<y)
 
 \class OrderedAddGroup \extends OrderedAddMonoid, AddGroup {
-  \func cancelLeft (x y z : E) (x+z<y+z : x + y < x + z) : y < z =>
+  \lemma cancelLeft (x y z : E) (x+z<y+z : x + y < x + z) : y < z =>
     y                    ==< inv (zro-left y) >=>
     zro + y              ==< pmap (\lam t => t + y) (inv (negative-left x)) >=>
     negative x + x + y   ==< +-assoc (negative x) x y >=>
@@ -34,45 +34,109 @@
     negative x + x + z   ==< pmap (\lam t => t + z) (negative-left x) >==
     zro + z              ==< zro-left z >==
     z                    `qed
+
+  \lemma fromPos (x y : E) (x-y>0 : isPos (x - y)) : x > y =>
+    y                    ==< inv (zro-left y) >=>
+    zro + y              <<< <_+-left zro (x - y) y x-y>0 >>=
+    x - y + y            ==< +-assoc x (negative y) y >==
+    x + (negative y + y) ==< pmap (\lam t => x + t) (negative-left y) >==
+    x + zro              ==< zro-right x >==
+    x                    `qed
+
+  \lemma fromNeg (x y : E) (x-y<0 : isNeg (x - y)) : x < y =>
+    x                    ==< inv (zro-right x) >=>
+    x + zro              ==< pmap (\lam t => x + t) (inv (negative-left y)) >=>
+    x + (negative y + y) ==< inv (+-assoc x (negative y) y) >=>
+    x - y + y            <<< <_+-left (x - y) zro y x-y<0 >>=
+    zro + y              ==< zro-left y >==
+    y                    `qed
+
+  \lemma toPos (x y : E) (x>y : x > y) : isPos (x - y) =>
+    transport (\lam t => x - y > t) (negative-right y) (<_+-left y x (negative y) x>y)
+
+  \lemma toNeg (x y : E) (x<y : x < y) : isNeg (x - y) =>
+    transport (\lam t => x - y < t) (negative-right y) (<_+-left x y (negative y) x<y)
+
+  \lemma positive_negative (x : E) (x>0 : x > zro) : negative x < zro =>
+    transport2 (<) (zro-right (negative x)) (negative-left x) (<_+-right zro x (negative x) x>0)
+
+  \lemma negative_positive (x : E) (x<0 : x < zro) : negative x > zro =>
+    transport2 (<) (negative-left x) (zro-right (negative x)) (<_+-right x zro (negative x) x<0)
 }
 
 \class OrderedAbGroup \extends OrderedAbMonoid, OrderedAddGroup, AbGroup
 
-\class OrderedSemiring \extends Semiring, OrderedAbMonoid, LinearOrder
+\class OrderedSemiring \extends Semiring, OrderedAbMonoid, LinearOrder {
   | zro<ide : zro < ide
-  | <_*-left (x y z : E) : x < y -> isPos z -> x * z < y * z
-  | <_*-right (x y z : E) : isPos x -> y < z -> x * y < x * z
+  | <_*_positive-left (x y z : E) : x < y -> isPos z -> x * z < y * z
+  | <_*_positive-right (x y z : E) : isPos x -> y < z -> x * y < x * z
+  | <_*_negative-left (x y z : E) : x < y -> isNeg z -> x * z > y * z
+  | <_*_negative-right (x y z : E) : isNeg x -> y < z -> x * y > x * z
+  | <_+-cancel-left (x y z : E) : x + y < x + z -> y < z
+  | <_+-cancel-right (x y z : E) : x + z < y + z -> x < y
+  | <_*-cancel-left (x y z : E) : x * y < x * z -> (\Sigma (x > zro) (y < z)) || (\Sigma (x < zro) (y > z))
+  | <_*-cancel-right (x y z : E) : x * z < y * z -> (\Sigma (z > zro) (x < y)) || (\Sigma (z < zro) (x > y))
+}
 
 \class OrderedCSemiring \extends OrderedSemiring, CSemiring, OrderedAbMonoid
-  | <_*-right x y z x>0 y<z => transport2 (<) (*-comm y x) (*-comm z x) (<_*-left y z x y<z x>0)
+  | <_*_positive-right x y z x>0 y<z => transport2 (<) (*-comm y x) (*-comm z x) (<_*_positive-left y z x y<z x>0)
+  | <_*_negative-right x y z x<0 y<z => transport2 (>) (*-comm y x) (*-comm z x) (<_*_negative-left y z x y<z x<0)
+  | <_+-cancel-right x y z x+z<y+z => <_+-cancel-left z x y (transport2 (<) (+-comm x z) (+-comm y z) x+z<y+z)
+  | <_*-cancel-right x y z x*z<y*z => <_*-cancel-left z x y (transport2 (<) (*-comm x z) (*-comm y z) x*z<y*z)
 
 \class OrderedRing \extends Ring, OrderedSemiring, OrderedAbGroup {
   | positive_* (x y : E) : isPos x -> isPos y -> isPos (x * y)
+  | positive_*-cancel (x y : E) : isPos (x * y) -> (\Sigma (isPos x) (isPos y)) || (\Sigma (isNeg x) (isNeg y))
 
-  | <_*-left x y z x<y z>0 =>
-    \let y-x>0 => transport (\lam t => y - x > t) (negative-right x) (<_+-left x y (negative x) x<y)
-    \in x * z                      ==< inv (zro-left (x * z)) >=>
-        zro + x * z                <<< <_+-left zro ((y - x) * z) (x * z) (positive_* (y - x) z y-x>0 z>0) >>=
-        (y - x) * z + x * z        ==< inv (rdistr (y - x) x z) >==
-        (y - x + x) * z            ==< pmap (\lam t => t * z) (+-assoc y (negative x) x) >==
-        (y + (negative x + x)) * z ==< pmap (\lam t => (y + t) * z) (negative-left x) >==
-        (y + zro) * z              ==< pmap (\lam t => t * z) (zro-right y) >==
-        y * z                      `qed
-  | <_*-right x y z x>0 y<z =>
-    \let z-y>0 => transport (\lam t => z - y > t) (negative-right y) (<_+-left y z (negative y) y<z)
-    \in x * y                      ==< inv (zro-left (x * y)) >=>
-        zro + x * y                <<< <_+-left zro (x * (z - y)) (x * y) (positive_* x (z - y) x>0 z-y>0) >>=
-        x * (z - y) + x * y        ==< inv (ldistr x (z - y) y) >==
-        x * (z - y + y)            ==< pmap (\lam t => x * t) (+-assoc z (negative y) y) >==
-        x * (z + (negative y + y)) ==< pmap (\lam t => x * (z + t)) (negative-left y) >==
-        x * (z + zro)              ==< pmap (\lam t => x * t) (zro-right z) >==
-        x * z                      `qed
+  | <_*_positive-left x y z x<y z>0 =>
+    fromPos (y * z) (x * z) (transport isPos
+                                       (rdistr y (negative x) z *> pmap (y * z +) (Ring.negative_*-left x z))
+                                       (positive_* (y - x) z (toPos y x x<y) z>0))
+  | <_*_positive-right x y z x>0 y<z =>
+    fromPos (x * z) (x * y) (transport isPos
+                                       (ldistr x z (negative y) *> pmap (x * z +) (Ring.negative_*-right x y))
+                                       (positive_* x (z - y) x>0 (toPos z y y<z)))
+  | <_*_negative-left x y z x<y z<0 =>
+    fromNeg (y * z) (x * z)
+            (transport isNeg
+                       (rdistr y (negative x) z *> pmap (y * z +) (Ring.negative_*-left x z))
+                       (transport ((y - x) * z <) (zro_*-right (y - x)) (<_*_positive-right (y - x) z zro (toPos y x x<y) z<0)))
+  | <_*_negative-right x y z x<0 y<z =>
+    fromNeg (x * z) (x * y)
+            (transport isNeg
+                       (ldistr x z (negative y) *> pmap (x * z +) (Ring.negative_*-right x y))
+                       (transport (x * (z - y) <) (zro_*-left (z - y)) (<_*_positive-left x zro (z - y) x<0 (toPos z y y<z))))
+  | <_+-cancel-left x y z x+y<x+z =>
+    transport2 (<)
+               (inv (+-assoc (negative x) x y) *> pmap (\lam t => t + y) (negative-left x) *> zro-left y)
+               (inv (+-assoc (negative x) x z) *> pmap (\lam t => t + z) (negative-left x) *> zro-left z)
+               (<_+-right (x + y) (x + z) (negative x) x+y<x+z)
+  | <_+-cancel-right x y z x+z<y+z =>
+    transport2 (<)
+               (+-assoc x z (negative z) *> pmap (x +) (negative-right z) *> zro-right x)
+               (+-assoc y z (negative z) *> pmap (y +) (negative-right z) *> zro-right y)
+               (<_+-left (x + z) (y + z) (negative z) x+z<y+z)
+  | <_*-cancel-left x y z x*y<x*z =>
+    \let x*[z-y]>0 => transport (\lam t => t > zro) (inv (ldistr x z (negative y) *> pmap (x * z +) (Ring.negative_*-right x y))) (toPos (x * z) (x * y) x*y<x*z)
+    \in \case positive_*-cancel x (z - y) x*[z-y]>0 \with {
+      | byLeft (x>0, z-y>0) => byLeft (x>0, fromPos z y z-y>0)
+      | byRight (x<0, z-y<0) => byRight (x<0, fromNeg z y z-y<0)
+    }
 
-  \func +_positive (x y : E) (x+y>0 : isPos (x + y)) : isPos x || isPos y => \case <-comparison zro x (x + y) x+y>0 \with {
+  \lemma +_positive (x y : E) (x+y>0 : isPos (x + y)) : isPos x || isPos y => \case <-comparison zro x (x + y) x+y>0 \with {
     | byLeft x>0 => byLeft x>0
-    | byRight x+y>x => byRight (OrderedAddGroup.cancelLeft x zro y (transport (\lam t => x + y > t) (inv (zro-right x)) x+y>x))
+    | byRight x+y>x => byRight (cancelLeft x zro y (transport (\lam t => x + y > t) (inv (zro-right x)) x+y>x))
   }
-}
+
+  \lemma negative_* (x y : E) (x<0 : isNeg x) (y<0 : isNeg y) : isPos (x * y) =>
+    transport isPos (Ring.negative_* x y) (positive_* (negative x) (negative y) (negative_positive x x<0) (negative_positive y y<0))
+
+  \lemma positive_negative_* (x y : E) (x>0 : isPos x) (y<0 : isNeg y) : isNeg (x * y) =>
+    transport (x * y <) (zro_*-right x) (<_*_positive-right x y zro x>0 y<0)
+
+  \lemma negative_positive_* (x y : E) (x<0 : isNeg x) (y>0 : isPos y) : isNeg (x * y) =>
+    transport (x * y <) (zro_*-left y) (<_*_positive-left x zro y x<0 y>0)
+} \where \open OrderedAddGroup(toPos,toNeg,fromPos,fromNeg,cancelLeft,negative_positive,positive_negative)
 
 \class OrderedCRing \extends OrderedRing, CRing, OrderedCSemiring
 
@@ -83,6 +147,14 @@
   | nonTrivial _0=1 => <-irreflexive ide (transport (\lam x => x < ide) _0=1 zro<ide)
   | clocality x y x+y=1 => ||.map (positive=>inv x) (positive=>inv y) (OrderedRing.+_positive x y (transport isPos (inv x+y=1) zro<ide))
   | nonInvIsZero x xNotInv => <-connectedness x zro (\lam x<0 => xNotInv (negative=>inv' positive=>inv x x<0)) (\lam x>0 => xNotInv (positive=>inv x x>0))
+  | positive_*-cancel x y x*y>0 =>
+    \let xyInv : Inv (x * y) => positive=>inv (x * y) x*y>0
+    \in \case inv=>eitherPosOrNeg x (Inv.factor-left x y xyInv), inv=>eitherPosOrNeg y (Inv.factor-right x y xyInv) \with {
+      | inl x>0, inl y>0 => byLeft (x>0, y>0)
+      | inl x>0, inr y<0 => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedRing.positive_negative_* x y x>0 y<0)))
+      | inr x<0, inl y>0 => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedRing.negative_positive_* x y x<0 y>0)))
+      | inr x<0, inr y<0 => byRight (x<0, y<0)
+    }
 
   \lemma negative=>inv (x : E) (x<0 : isNeg x) : Inv x => negative=>inv' positive=>inv x x<0
 } \where {
@@ -96,7 +168,51 @@
     )
 }
 
-\class DiscreteOrderedField \extends OrderedField, DiscreteField, DecLinearOrder {
+\class DecOrderedSemiring \extends OrderedSemiring, DecLinearOrder {
+  | <_+-cancel-left x y z x+y<x+z => \case trichotomy y z \with {
+    | inl y=z => absurd (<-irreflexive (x + z) (transport (\lam t => x + t < x + z) y=z x+y<x+z))
+    | inr (inl y<z) => y<z
+    | inr (inr y>z) => absurd (<-irreflexive (x + z) (<-transitive (x + z) (x + y) (x + z) (<_+-right z y x y>z) x+y<x+z))
+  }
+  | <_+-cancel-right x y z x+z<y+z => \case trichotomy x y \with {
+    | inl x=y => absurd (<-irreflexive (y + z) (transport (\lam t => t + z < y + z) x=y x+z<y+z))
+    | inr (inl x<y) => x<y
+    | inr (inr x>y) => absurd (<-irreflexive (y + z) (<-transitive (y + z) (x + z) (y + z) (<_+-left y x z x>y) x+z<y+z))
+  }
+  | <_*-cancel-left x y z x*y<x*z => \case trichotomy x zro, trichotomy y z \with {
+    | inl x=0, _ => absurd (<-irreflexive zro (transport2 (<) (zro_*-left y) (zro_*-left z) (transport (\lam t => t * y < t * z) x=0 x*y<x*z)))
+    | _, inl y=z => absurd (<-irreflexive (x * z) (transport (\lam t => x * t < x * z) y=z x*y<x*z))
+    | inr (inl x<0), inr (inl y<z) => absurd (<-irreflexive (x * z) (<-transitive (x * z) (x * y) (x * z) (<_*_negative-right x y z x<0 y<z) x*y<x*z))
+    | inr (inr x>0), inr (inl y<z) => byLeft (x>0, y<z)
+    | inr (inl x<0), inr (inr y>z) => byRight (x<0, y>z)
+    | inr (inr x>0), inr (inr y>z) => absurd (<-irreflexive (x * z) (<-transitive (x * z) (x * y) (x * z) (<_*_positive-right x z y x>0 y>z) x*y<x*z))
+  }
+  | <_*-cancel-right x y z x*z<y*z => \case trichotomy x y, trichotomy z zro \with {
+    | inl x=y, _ => absurd (<-irreflexive (y * z) (transport (\lam t => t * z < y * z) x=y x*z<y*z))
+    | _, inl z=0 => absurd (<-irreflexive zro (transport2 (<) (zro_*-right x) (zro_*-right y) (transport (\lam t => x * t < y * t) z=0 x*z<y*z)))
+    | inr (inl x<y), inr (inl z<0) => absurd (<-irreflexive (x * z) (<-transitive (x * z) (y * z) (x * z) x*z<y*z (<_*_negative-left x y z x<y z<0)))
+    | inr (inl x<y), inr (inr z>0) => byLeft (z>0, x<y)
+    | inr (inr x>y), inr (inl z<0) => byRight (z<0, x>y)
+    | inr (inr x>y), inr (inr z>0) => absurd (<-irreflexive (x * z) (<-transitive (x * z) (y * z) (x * z) x*z<y*z (<_*_positive-left y x z x>y z>0)))
+  }
+}
+
+\class DecOrderedCSemiring \extends OrderedCSemiring, DecOrderedSemiring
+
+\class DecOrderedRing \extends OrderedRing, DecOrderedSemiring {
+  | positive_*-cancel x y x*y>0 => \case trichotomy x zro, trichotomy y zro \with {
+    | inl x=0, _ => absurd (<-irreflexive zro (transport isPos (pmap (\lam t => t * y) x=0 *> zro_*-left y) x*y>0))
+    | _, inl y=0 => absurd (<-irreflexive zro (transport isPos (pmap (x *) y=0 *> zro_*-right x) x*y>0))
+    | inr (inl x<0), inr (inl y<0) => byRight (x<0, y<0)
+    | inr (inl x<0), inr (inr y>0) => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedRing.negative_positive_* x y x<0 y>0)))
+    | inr (inr x>0), inr (inl y<0) => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedRing.positive_negative_* x y x>0 y<0)))
+    | inr (inr x>0), inr (inr y>0) => byLeft (x>0, y>0)
+  }
+}
+
+\class DecOrderedCRing \extends OrderedCRing, DecOrderedRing, DecOrderedCSemiring
+
+\class DiscreteOrderedField \extends OrderedField, DiscreteField, DecOrderedCRing {
   | positive=>inv x x-isPos => \case eitherZeroOrInv x \with {
     | inl x=0 => absurd (<-irreflexive zro (transport isPos x=0 x-isPos))
     | inr x-isInv => x-isInv
@@ -111,20 +227,8 @@
       y                    `qed
     )
     | inr x-y-isInv => \case inv=>eitherPosOrNeg (x - y) x-y-isInv \with {
-      | inl x-y>0 => inr (inr (
-        y                    ==< inv (zro-left y) >=>
-        zro + y              <<< <_+-left zro (x - y) y x-y>0 >>=
-        x - y + y            ==< +-assoc x (negative y) y >==
-        x + (negative y + y) ==< pmap (\lam t => x + t) (negative-left y) >==
-        x + zro              ==< zro-right x >==
-        x                    `qed))
-      | inr x-y<0 => inr (inl (
-        x                    ==< inv (zro-right x) >=>
-        x + zro              ==< pmap (\lam t => x + t) (inv (negative-left y)) >=>
-        x + (negative y + y) ==< inv (+-assoc x (negative y) y) >=>
-        x - y + y            <<< <_+-left (x - y) zro y x-y<0 >>=
-        zro + y              ==< zro-left y >==
-        y                    `qed))
+      | inl x-y>0 => inr (inr (OrderedAddGroup.fromPos x y x-y>0))
+      | inr x-y<0 => inr (inl (OrderedAddGroup.fromNeg x y x-y<0))
     }
   }
 }
