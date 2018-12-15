@@ -11,68 +11,83 @@
 \import Set
 \open CMonoid(Inv)
 
-\class Domain \extends Ring, TightApartness
+\class ApartnessRing \extends Ring, Apartness
   | +-extensional (x y x' y' : E) : x + y # x' + y' -> x # x' || y # y'
   | *-extensional (x y x' y' : E) : x * y # x' * y' -> x # x' || y # y'
-  | zro#ide : zro # ide
-  | nonZeroProduct (x y : E) : x # zro -> y # zro -> x * y # zro
-  \where {
-    \func fromOrderedRing (R : OrderedRing) : Domain \cowith
-      | Ring => R
-      | TightApartness => LinearOrder.=>Apartness {R}
-      | +-extensional x y x' y' x+y#x'+y' => \case x+y#x'+y' \with {
-        | onlyLeft x+y<x'+y' => \case <-comparison (x + y) (x' + y) (x' + y') x+y<x'+y' \with {
-          | byLeft x+y<x'+y => byLeft (onlyLeft (<_+-cancel-right x x' y x+y<x'+y))
-          | byRight x'+y<x'+y' => byRight (onlyLeft (<_+-cancel-left x' y y' x'+y<x'+y'))
-        }
-        | onlyRight x+y>x'+y' => \case <-comparison (x' + y') (x' + y) (x + y) x+y>x'+y' \with {
-          | byLeft x'+y'<x'+y => byRight (onlyRight (<_+-cancel-left x' y' y x'+y'<x'+y))
-          | byRight x'+y<x+y => byLeft (onlyRight (<_+-cancel-right x' x y x'+y<x+y))
-        }
-      }
-      | *-extensional x y x' y' x*y#x'*y' => \case x*y#x'*y' \with {
-        | onlyLeft x*y<x'*y' => \case <-comparison (x * y) (x' * y) (x' * y') x*y<x'*y' \with {
-          | byLeft x*y<x'*y => \case <_*-cancel-right x x' y x*y<x'*y \with {
-            | byLeft (_, x<x') => byLeft (onlyLeft x<x')
-            | byRight (_, x>x') => byLeft (onlyRight x>x')
-          }
-          | byRight x'*y<x'*y' => \case <_*-cancel-left x' y y' x'*y<x'*y' \with {
-            | byLeft (_, y<y') => byRight (onlyLeft y<y')
-            | byRight (_, y>y') => byRight (onlyRight y>y')
-          }
-        }
-        | onlyRight x*y>x'*y' => \case <-comparison (x' * y') (x' * y) (x * y) x*y>x'*y' \with {
-          | byLeft x'*y'<x'*y => \case <_*-cancel-left x' y' y x'*y'<x'*y \with {
-            | byLeft (_, y'<y) => byRight (onlyRight y'<y)
-            | byRight (_, y'>y) => byRight (onlyLeft y'>y)
-          }
-          | byRight x'*y<x*y => \case <_*-cancel-right x' x y x'*y<x*y \with {
-            | byLeft (_, x'<x) => byLeft (onlyRight x'<x)
-            | byRight (_, x'>x) => byLeft (onlyLeft x'>x)
-          }
-        }
-      }
-      | zro#ide => onlyLeft zro<ide
-      | nonZeroProduct x y x#0 y#0 => \case x#0, y#0 \with {
-        | onlyLeft x<0, onlyLeft y<0 => onlyRight (OrderedRing.negative_* x y x<0 y<0)
-        | onlyLeft x<0, onlyRight y>0 => onlyLeft (OrderedRing.negative_positive_* x y x<0 y>0)
-        | onlyRight x>0, onlyLeft y<0 => onlyLeft (OrderedRing.positive_negative_* x y x>0 y<0)
-        | onlyRight x>0, onlyRight y>0 => onlyRight (positive_* x y x>0 y>0)
-      }
-  }
 
-\class IntegralDomain \extends Domain, CRing
+\class Domain \extends ApartnessRing, TightApartness {
+  | zro#ide : zro # ide
+  | apartZeroProduct (x y : E) : x # zro -> y # zro -> x * y # zro
+
+  \lemma nonZeroProduct (x y : E) (x/=0 : Not (x = zro)) (y/=0 : Not (y = zro)) : Not (x * y = zro) => \lam x*y=0 =>
+    x/=0 (tightness x zro (\lam x#zro =>
+    y/=0 (tightness y zro (\lam y#zro =>
+        Apartness.apartNotEqual (x * y) zro (apartZeroProduct x y x#zro y#zro) x*y=0))))
+
+  \lemma nonZero-left (x y : E) (x/=0 : Not (x = zro)) (x*y=0 : x * y = zro) : y = zro =>
+    separatedEq (\lam y/=0 => nonZeroProduct x y x/=0 y/=0 x*y=0)
+
+  \lemma nonZero-right (x y : E) (y/=0 : Not (y = zro)) (x*y=0 : x * y = zro) : x = zro =>
+    separatedEq (\lam x/=0 => nonZeroProduct x y x/=0 y/=0 x*y=0)
+
+  \lemma nonZero-cancel-left (x y z : E) (x/=0 : Not (x = zro)) (x*y=x*z : x * y = x * z) : y = z =>
+    AddGroup.fromZero y z (nonZero-left x (y - z) x/=0 (ldistr x y (negative z) *> pmap (x * y +) (Ring.negative_*-right x z) *> AddGroup.toZero (x * y) (x * z) x*y=x*z))
+
+  \lemma nonZero-cancel-right (x y z : E) (z/=0 : Not (z = zro)) (x*z=y*z : x * z = y * z) : x = y =>
+    AddGroup.fromZero x y (nonZero-right (x - y) z z/=0 (rdistr x (negative y) z *> pmap (x * z +) (Ring.negative_*-left y z) *> AddGroup.toZero (x * z) (y * z) x*z=y*z))
+} \where {
+  \func fromOrderedRing (R : OrderedRing) : Domain \cowith
+    | Ring => R
+    | TightApartness => LinearOrder.=>Apartness {R}
+    | +-extensional x y x' y' x+y#x'+y' => \case x+y#x'+y' \with {
+      | onlyLeft x+y<x'+y' => \case <-comparison (x + y) (x' + y) (x' + y') x+y<x'+y' \with {
+        | byLeft x+y<x'+y => byLeft (onlyLeft (<_+-cancel-right x x' y x+y<x'+y))
+        | byRight x'+y<x'+y' => byRight (onlyLeft (<_+-cancel-left x' y y' x'+y<x'+y'))
+      }
+      | onlyRight x+y>x'+y' => \case <-comparison (x' + y') (x' + y) (x + y) x+y>x'+y' \with {
+        | byLeft x'+y'<x'+y => byRight (onlyRight (<_+-cancel-left x' y' y x'+y'<x'+y))
+        | byRight x'+y<x+y => byLeft (onlyRight (<_+-cancel-right x' x y x'+y<x+y))
+      }
+    }
+    | *-extensional x y x' y' x*y#x'*y' => \case x*y#x'*y' \with {
+      | onlyLeft x*y<x'*y' => \case <-comparison (x * y) (x' * y) (x' * y') x*y<x'*y' \with {
+        | byLeft x*y<x'*y => \case <_*-cancel-right x x' y x*y<x'*y \with {
+          | byLeft (_, x<x') => byLeft (onlyLeft x<x')
+          | byRight (_, x>x') => byLeft (onlyRight x>x')
+        }
+        | byRight x'*y<x'*y' => \case <_*-cancel-left x' y y' x'*y<x'*y' \with {
+          | byLeft (_, y<y') => byRight (onlyLeft y<y')
+          | byRight (_, y>y') => byRight (onlyRight y>y')
+        }
+      }
+      | onlyRight x*y>x'*y' => \case <-comparison (x' * y') (x' * y) (x * y) x*y>x'*y' \with {
+        | byLeft x'*y'<x'*y => \case <_*-cancel-left x' y' y x'*y'<x'*y \with {
+          | byLeft (_, y'<y) => byRight (onlyRight y'<y)
+          | byRight (_, y'>y) => byRight (onlyLeft y'>y)
+        }
+        | byRight x'*y<x*y => \case <_*-cancel-right x' x y x'*y<x*y \with {
+          | byLeft (_, x'<x) => byLeft (onlyRight x'<x)
+          | byRight (_, x'>x) => byLeft (onlyLeft x'>x)
+        }
+      }
+    }
+    | zro#ide => onlyLeft zro<ide
+    | apartZeroProduct x y x#0 y#0 => \case x#0, y#0 \with {
+      | onlyLeft x<0, onlyLeft y<0 => onlyRight (OrderedRing.negative_* x y x<0 y<0)
+      | onlyLeft x<0, onlyRight y>0 => onlyLeft (OrderedRing.negative_positive_* x y x<0 y>0)
+      | onlyRight x>0, onlyLeft y<0 => onlyLeft (OrderedRing.positive_negative_* x y x>0 y<0)
+      | onlyRight x>0, onlyRight y>0 => onlyRight (positive_* x y x>0 y>0)
+    }
+}
+
+\class ApartnessCRing \extends ApartnessRing, CRing
+
+\class IntegralDomain \extends Domain, ApartnessCRing
   \where {
     \func fromField (K : Field) : IntegralDomain \cowith
       | CRing => K
       | Apartness => LocalCRing.=>Apartness {K}
-      | tightness x y p =>
-        x                    ==< inv (zro-right x) >==
-        x + zro              ==< pmap (x +) (inv (negative-left y)) >==
-        x + (negative y + y) ==< inv (+-assoc x (negative y) y) >==
-        (x - y) + y          ==< pmap (\lam t => t + y) (nonInvIsZero (x - y) p) >==
-        zro + y              ==< zro-left y >==
-        y                    `qed
+      | tightness x y p => AddGroup.fromZero x y (nonInvIsZero (x - y) p)
       | +-extensional x y x' y' x+y#x'+y' => LocalCRing.sumInv=>eitherInv (x - x') (y - y') (transport (\lam t => Inv t) (
         (x + y) - (x' + y')          ==< pmap ((x + y) +) (AddGroup.negative_+ x' y') >==
         (x + y) + (negative y' - x') ==< +-assoc x y (negative y' - x') >==
@@ -108,7 +123,7 @@
         ide * ide                   ==< ide-left K.ide >==
         ide                         `qed
       )
-      | nonZeroProduct x y (xj : Inv (x - zro)) (yj : Inv (y - zro)) => \new Inv (x * y - zro) (yj.inv * xj.inv) (
+      | apartZeroProduct x y (xj : Inv (x - zro)) (yj : Inv (y - zro)) => \new Inv (x * y - zro) (yj.inv * xj.inv) (
         (yj.inv * xj.inv) * (x * y - zro)   ==< pmap ((yj.inv * xj.inv) *) (AddGroup.minus_zro (x * y)) >==
         (yj.inv * xj.inv) * (x * y)         ==< *-assoc yj.inv xj.inv (x * y) >==
         yj.inv * (xj.inv * (x * y))         ==< pmap (yj.inv *) (inv (*-assoc xj.inv x y)) >==
