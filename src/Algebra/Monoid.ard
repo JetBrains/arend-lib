@@ -50,6 +50,35 @@
 } \where {
   \record Div {M : CMonoid} (val elem inv : M)
     | inv-left : inv * val = elem
+  \where {
+    \func product-right {M : CMonoid} (x y z : M) (x|y : Div x y) => \new Div (x * z) (y * z) x|y.inv (
+      x|y.inv * (x * z) ==< Paths.inv (*-assoc x|y.inv x z) >==
+      (x|y.inv * x) * z ==< pmap (\lam t => t * z) x|y.inv-left >==
+      y * z             `qed
+    )
+
+    \func product-left {M : CMonoid} (x y z : M) (y|z : Div y z) => \new Div (x * y) (x * z) y|z.inv (
+      y|z.inv * (x * y) ==< pmap (y|z.inv *) (*-comm x y) >==
+      y|z.inv * (y * x) ==< Paths.inv (*-assoc y|z.inv y x) >==
+      (y|z.inv * y) * x ==< pmap (\lam t => t * x) y|z.inv-left >==
+      z * x             ==< *-comm z x >==
+      x * z             `qed
+    )
+
+    \func cancel-right {M : CancelCMonoid} (x y z : M) (x*z|y*z : Div (x * z) (y * z)) => \new Div x y x*z|y*z.inv (M.cancel-right (x*z|y*z.inv * x) y z (
+      (x*z|y*z.inv * x) * z ==< *-assoc x*z|y*z.inv x z >==
+      x*z|y*z.inv * (x * z) ==< x*z|y*z.inv-left >==
+      y * z                 `qed
+    ))
+
+    \func cancel-left {M : CancelCMonoid} (x y z : M) (x*y|x*z : Div (x * y) (x * z)) => \new Div y z x*y|x*z.inv (M.cancel-left x (x*y|x*z.inv * y) z (
+      x * (x*y|x*z.inv * y) ==< Paths.inv (*-assoc x x*y|x*z.inv y) >==
+      (x * x*y|x*z.inv) * y ==< pmap (\lam t => t * y) (*-comm x x*y|x*z.inv) >==
+      (x*y|x*z.inv * x) * y ==< *-assoc x*y|x*z.inv x y >==
+      x*y|x*z.inv * (x * y) ==< x*y|x*z.inv-left >==
+      x * z                 `qed
+    ))
+  }
 
   \record Inv \extends Div
     | elem => ide
@@ -90,3 +119,10 @@
     \use \coerce fromCMonoid (M : CMonoid) => \new AbMonoid M.E M.ide (M.*) M.ide-left M.*-assoc M.*-comm
     \use \coerce toCMonoid (M : AbMonoid) => \new CMonoid M.E M.zro (M.+) M.zro-left M.+-assoc M.+-comm
   }
+
+\class CancelMonoid \extends Monoid
+  | cancel-left (x y z : E) (p : x * y = x * z) : y = z
+  | cancel-right (x y z : E) (p : x * z = y * z) : x = y
+
+\class CancelCMonoid \extends CancelMonoid, CMonoid
+  | cancel-right x y z x*z=y*z => cancel-left z x y (*-comm z x *> x*z=y*z *> *-comm y z)

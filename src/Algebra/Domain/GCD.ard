@@ -1,0 +1,36 @@
+\import Algebra.Domain
+\import Algebra.Field
+\import Algebra.Group
+\import Algebra.Monoid
+\import Algebra.Monoid.GCD
+\import Logic
+\import Paths
+\open CMonoid(Div,Inv)
+
+\class GCDDomain \extends IntegralDomain {
+  | isGCD (x y : \Sigma (x : E) (x # zro)) : TruncP (GCD {IntegralDomain.nonZeroMonoid} x y)
+
+  \func nonZeroMonoid : GCDMonoid \cowith
+    | CancelCMonoid => IntegralDomain.nonZeroMonoid
+    | isGCD => isGCD
+
+  \func fromField (K : Field) : GCDDomain \cowith
+    | IntegralDomain => IntegralDomain.fromField K
+    | isGCD x y => inP (\new GCD {
+      | gcd => ide {IntegralDomain.nonZeroMonoid {IntegralDomain.fromField K}}
+      | gcd|val1 => \new Div { | inv => x | inv-left => SigmaPropExt (\lam t => Inv {K} (t - K.zro)) _ _ (K.ide-right x.1)}
+      | gcd|val2 => \new Div { | inv => y | inv-left => SigmaPropExt (\lam t => Inv {K} (t - K.zro)) _ _ (K.ide-right y.1)}
+      | gcd-univ g g|x g|y =>
+        \let | j => Div.inv {x.2} K.* (Div.inv {g|x}).1
+             | j-inv =>
+               j K.* g.1                                     ==< K.*-assoc _ _ _ >==
+               Div.inv {x.2} K.* ((Div.inv {g|x}).1 K.* g.1) ==< pmap (\lam t => Div.inv {x.2} K.* t.1) (Div.inv-left {g|x}) >==
+               Div.inv {x.2} K.* x.1                         ==< pmap (Div.inv {x.2} K.*) (inv (AddGroup.minus_zro {K} x.1)) >==
+               Div.inv {x.2} K.* (x.1 - K.zro)               ==< Div.inv-left {x.2} >==
+               K.ide                                         `qed
+        \in \new Div {
+          | inv => (j, transport (\lam t => Inv {K} t) (inv (AddGroup.minus_zro {K} j)) \new Inv {K} j g.1 (K.*-comm g.1 j *> j-inv))
+          | inv-left => SigmaPropExt (\lam t => t # {IntegralDomain.fromField K} K.zro) _ _ j-inv
+        }
+    })
+}

@@ -1,0 +1,59 @@
+\import Logic
+\import Paths
+
+\class Equivalence (A : \Set)
+  | \infix 4 ~ : A -> A -> \Prop
+  | ~-reflexive (x : A) : x ~ x
+  | ~-symmetric (x y : A) : x ~ y -> y ~ x
+  | ~-transitive (x y z : A) : x ~ y -> y ~ z -> x ~ z
+  \where {
+    \truncated \data Closure {A : \Type} (R : A -> A -> \Type) (x y : A) : \Prop
+      | cin (R x y)
+      | crefl (x = y)
+      | csym (Closure R y x)
+      | ctrans {z : A} (Closure R x z) (Closure R z y)
+      \where {
+        \func isEquivalence {A : \Set} (R : A -> A -> \Type) : Equivalence A \cowith
+          | ~ x y => Closure R x y
+          | ~-reflexive x => crefl idp
+          | ~-symmetric x y x~y => csym x~y
+          | ~-transitive x y z x~y y~z => ctrans x~y y~z
+
+        \lemma univ {A : \Set} (R : A -> A -> \Type) (E : Equivalence A) (f : \Pi (x y : A) -> R x y -> x ~ y) (x y : A) (c : Closure R x y) : x ~ y \elim c
+          | cin r => f x y r
+          | crefl x=y => transport (x ~) x=y (~-reflexive x)
+          | csym p => ~-symmetric y x (univ R E f y x p)
+          | ctrans {z} p q => ~-transitive x z y (univ R E f x z p) (univ R E f z y q)
+
+        \lemma ofEquivalence {A : \Set} (E : Equivalence A) (x y : A) (c : Closure (~) x y) : x ~ y => univ (~) E (\lam _ _ p => p) x y c
+      }
+  }
+
+\truncated \data Quotient {A : \Type} (R : A -> A -> \Type) : \Set
+  | in~ A
+  | ~-equiv (x y : A) (R x y) (i : I) \elim i {
+    | left => in~ x
+    | right => in~ y
+  }
+  \where {
+    \open Equivalence
+
+    \lemma equality {A : \Type} (R : A -> A -> \Type) (x y : A) (p : in~ x = {Quotient R} in~ y) : Closure R x y =>
+      \let | R' ([x] [y] : Quotient R) : \Prop =>
+              \case [x], [y] \with {
+                | in~ x, in~ y => Closure R x y
+                | in~ x, ~-equiv y y' y~y' i => propExt (\lam (x~*y : Closure R x y) => ctrans x~*y (cin y~y'))
+                                                        (\lam x~*y' => ctrans x~*y' (csym (cin y~y'))) @ i
+                | ~-equiv x x' x~x' i, in~ y => propExt (\lam (x~*y : Closure R x y) => ctrans (csym (cin x~x')) x~*y)
+                                                        (\lam x'~*y => ctrans (cin x~x') x'~*y) @ i
+              }
+           | R'-refl ([x] : Quotient R) =>
+               \case [x] \as [x] \return R' [x] [x] \with {
+                 | in~ x => crefl idp
+               }
+           | =-implies-R' {[x] [y] : Quotient R} (p : [x] = [y]) => transport (R' [x]) p (R'-refl [x])
+      \in =-implies-R' p
+
+    \lemma equalityEquiv {A : \Set} (E : Equivalence A) (x y : A) (p : in~ x = {Quotient (~)} in~ y) : x ~ y =>
+      Closure.ofEquivalence E x y (equality (~) x y p)
+  }

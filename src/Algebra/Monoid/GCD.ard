@@ -1,0 +1,81 @@
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Logic
+\import Order.PartialOrder
+\import Paths
+\import Relation.Equivalence
+\open CMonoid(Div)
+\open Preorder(PreorderC,EquivRel)
+
+\record GCD {M : CMonoid}
+            (val1 val2 gcd : M)
+            (gcd|val1 : Div gcd val1)
+            (gcd|val2 : Div gcd val2)
+            (gcd-univ : \Pi (g : M) -> Div g val1 -> Div g val2 -> Div g gcd)
+
+\class GCDMonoid \extends CancelCMonoid {
+  | isGCD (x y : E) : TruncP (GCD x y)
+}
+
+\func DivQuotient {M : CMonoid} => PreorderC {DivPreoder {M}}
+  \where {
+    \func DivPreoder {M : CMonoid} : Preorder M \cowith
+      | <= x y => TruncP (Div x y)
+      | <=-reflexive x => inP (\new Div x x ide (ide-left x))
+      | <=-transitive x y z [x|y] [y|z] => \case [x|y], [y|z] \with {
+        | inP x|y, inP y|z => inP (\new Div {
+          | inv => Div.inv {y|z} * Div.inv {x|y}
+          | inv-left =>
+            (Div.inv {y|z} * Div.inv {x|y}) * x ==< *-assoc _ _ _ >==
+            Div.inv {y|z} * (Div.inv {x|y} * x) ==< pmap (Div.inv {y|z} *) (Div.inv-left {x|y}) >==
+            Div.inv {y|z} * y                   ==< Div.inv-left {y|z} >==
+            z                                   `qed
+        })
+      }
+
+    \instance DivQuotientMonoid {M : CMonoid} : CMonoid (DivQuotient {M})
+      | ide => in~ ide
+      | * => *'
+      | ide-left [x] => \case [x] \as [x] \return in~ ide *' [x] = [x] \with {
+        | in~ x => pmap in~ (ide-left x)
+      }
+      | *-assoc [x] [y] [z] => \case [x] \as [x], [y] \as [y], [z] \as [z] \return ([x] *' [y]) *' [z] = [x] *' ([y] *' [z]) \with {
+        | in~ x, in~ y, in~ z => pmap in~ (*-assoc x y z)
+      }
+      | *-comm [x] [y] => \case [x] \as [x], [y] \as [y] \return [x] *' [y] = [y] *' [x] \with {
+        | in~ x, in~ y => pmap in~ (*-comm x y)
+      }
+    \where {
+      \func \infixl 7 *' {M : CMonoid} (x y : DivQuotient {M}) : DivQuotient {M}
+        | in~ x, in~ y => in~ (x * y)
+        | in~ x, ~-equiv y y' y~y' i => ~-equiv (x * y) (x * y') (\case y~y' \with {
+          | (inP y|y', inP y'|y) => (inP (Div.product-left x y y' y|y'), inP (Div.product-left x y' y y'|y))
+        }) i
+        | ~-equiv x x' x~x' i, in~ y => ~-equiv (x * y) (x' * y) (\case x~x' \with {
+          | (inP x|x', inP x'|x) => (inP (Div.product-right x x' y x|x'), inP (Div.product-right x' x y x'|x))
+        }) i
+    }
+
+    \open DivQuotientMonoid
+
+    \instance DivQuotientCancelMonoid {M : CancelCMonoid} : CancelCMonoid
+      | CMonoid => DivQuotientMonoid {M}
+      | cancel-left [x] [y] [z] [x*y=x*z] => \case [x] \as [x], [y] \as [y], [z] \as [z], [x*y=x*z] : [x] *' [y] = [x] *' [z] \return [y] = [z] \with {
+        | in~ x, in~ y, in~ z, x*y=x*z => path (~-equiv y z (
+          \case Quotient.equalityEquiv (EquivRel {DivPreoder {M}}) (x * y) (x * z) x*y=x*z \return y ~ {EquivRel {DivPreoder {M}}} z \with {
+            | (inP x*y|x*z, inP x*z|x*y) => (inP (Div.cancel-left x y z x*y|x*z), inP (Div.cancel-left x z y x*z|x*y))
+          }
+        ))
+      }
+
+    \instance DivQuotientGCDMonoid {M : GCDMonoid} : GCDMonoid
+      | CancelCMonoid => DivQuotientCancelMonoid {M}
+      | isGCD [x] [y] => \case [x] \as [x], [y] \as [y] \return TruncP (GCD [x] [y]) \with {
+        | in~ x, in~ y => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD (in~ x) (in~ y) (in~ g.gcd) {
+          | gcd|val1 => \new Div { | inv => in~ g.gcd|val1.inv | inv-left => pmap in~ g.gcd|val1.inv-left }
+          | gcd|val2 => \new Div { | inv => in~ g.gcd|val2.inv | inv-left => pmap in~ g.gcd|val2.inv-left }
+          | gcd-univ => \lam g' g'|x g'|y => {?}
+        })
+      }
+  }
