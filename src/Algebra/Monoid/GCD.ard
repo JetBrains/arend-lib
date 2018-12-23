@@ -1,11 +1,12 @@
 \import Algebra.Monoid
 \import Algebra.Pointed
 \import Algebra.Ring
+\import HLevel
 \import Logic
 \import Order.PartialOrder
 \import Paths
 \import Relation.Equivalence
-\open CMonoid(Div)
+\open CMonoid(Div,Inv)
 \open Preorder(PreorderC,EquivRel)
 
 \record GCD {M : CMonoid}
@@ -18,8 +19,11 @@
   | isGCD (x y : E) : TruncP (GCD x y)
 }
 
+-- | The quotient of a monoid by the equivalence relation x ~ y iff x | y and y | x.
 \func DivQuotient {M : CMonoid} => PreorderC {DivPreoder {M}}
   \where {
+    -- | The preoreder on a monoid in which x <= y iff x | y.
+    --   We define {@DivQuotient} as the poset completion of this preorder.
     \func DivPreoder {M : CMonoid} : Preorder M \cowith
       | <= x y => TruncP (Div x y)
       | <=-reflexive x => inP (\new Div x x ide (ide-left x))
@@ -34,6 +38,7 @@
         })
       }
 
+    -- | The quotient monoid is indeed a monoid.
     \instance DivQuotientMonoid {M : CMonoid} : CMonoid (DivQuotient {M})
       | ide => in~ ide
       | * => *'
@@ -55,10 +60,15 @@
         | ~-equiv x x' x~x' i, in~ y => ~-equiv (x * y) (x' * y) (\case x~x' \with {
           | (inP x|x', inP x'|x) => (inP (Div.product-right x x' y x|x'), inP (Div.product-right x' x y x'|x))
         }) i
+
+      \func makeDiv {M : CancelCMonoid} (x y z : M) (~x*y=z : in~ (x * y) = {DivQuotient {M}} in~ z) : Div y z =>
+        \let [x*y|z] => (Quotient.equalityEquiv (Preorder.EquivRel {DivPreoder {M}}) (x * y) z ~x*y=z).1
+        \in TruncP.rec (Div.isProp y z) [x*y|z] (\lam (x*y|z : Div (x * y) z) => \new Div y z (x*y|z.inv * x) (*-assoc x*y|z.inv x y *> x*y|z.inv-left))
     }
 
     \open DivQuotientMonoid
 
+    -- | If the original monoid is cancellative, then so is the quotient monoid.
     \instance DivQuotientCancelMonoid {M : CancelCMonoid} : CancelCMonoid
       | CMonoid => DivQuotientMonoid {M}
       | cancel-left [x] [y] [z] [x*y=x*z] => \case [x] \as [x], [y] \as [y], [z] \as [z], [x*y=x*z] : [x] *' [y] = [x] *' [z] \return [y] = [z] \with {
@@ -69,13 +79,30 @@
         ))
       }
 
+    -- | If the original monoid is a GCD-monoid, then so is the quotient monoid.
     \instance DivQuotientGCDMonoid {M : GCDMonoid} : GCDMonoid
       | CancelCMonoid => DivQuotientCancelMonoid {M}
       | isGCD [x] [y] => \case [x] \as [x], [y] \as [y] \return TruncP (GCD [x] [y]) \with {
-        | in~ x, in~ y => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD (in~ x) (in~ y) (in~ g.gcd) {
+        | in~ x, in~ y => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD {DivQuotientCancelMonoid {M}} (in~ x) (in~ y) (in~ g.gcd) {
           | gcd|val1 => \new Div { | inv => in~ g.gcd|val1.inv | inv-left => pmap in~ g.gcd|val1.inv-left }
           | gcd|val2 => \new Div { | inv => in~ g.gcd|val2.inv | inv-left => pmap in~ g.gcd|val2.inv-left }
-          | gcd-univ => \lam g' g'|x g'|y => {?}
+          | gcd-univ => \lam [g'] [g']|x [g']|y => ToProp.fromProp (
+            \case [g'] \as [g'],
+                  [g']|x : Div [g'] (in~ x),
+                  [g']|y : Div [g'] (in~ y)
+                  \return ToProp (Div [g'] (in~ g.gcd)) (Div.isProp [g'] (in~ g.gcd))
+            \with {
+              | in~ g', ~g'|x, ~g'|y =>
+                \case Div.inv {~g'|x} \as x',
+                      Div.inv-left {~g'|x} : x' * {DivQuotientCancelMonoid {M}} in~ g' = in~ x,
+                      Div.inv {~g'|y} \as y',
+                      Div.inv-left {~g'|y} : y' * {DivQuotientCancelMonoid {M}} in~ g' = in~ y
+                \with {
+                  | in~ x', ~x'*g'=x, in~ y', ~y'*g'=y =>
+                    \let g'|gcd : Div g' g.gcd => g.gcd-univ g' (makeDiv x' g' x ~x'*g'=x) (makeDiv y' g' y ~y'*g'=y)
+                    \in toProp {Div (in~ g') (in~ g.gcd)} (\new Div (in~ g') (in~ g.gcd) (in~ g'|gcd.inv) (pmap in~ g'|gcd.inv-left))
+                }
+            })
         })
       }
   }
