@@ -1,0 +1,55 @@
+\import Data.Bool
+\import Data.Or
+\import Logic
+\import Paths
+\import Relation.Equivalence
+\import Set
+
+\class LEM | lem (P : \Prop) : Dec P
+
+\class Choice (A : \Set)
+  | choice (B : A -> \Set) : (\Pi (x : A) -> TruncP (B x)) -> TruncP (\Pi (x : A) -> B x)
+
+\class AC \extends LEM {
+  | axiomOfChoice {A : \Set} (B : A -> \Set) : (\Pi (x : A) -> TruncP (B x)) -> TruncP (\Pi (x : A) -> B x)
+
+  | lem P =>
+    \let | R (x y : Bool) : \Prop => \case x, y \with {
+                                       | true, true => \Sigma
+                                       | true, flase => P
+                                       | false, true => P
+                                       | false, false => \Sigma
+                                     }
+         | E => \new Equivalence Bool {
+           | ~ => R
+           | ~-reflexive b => \case b \as b \return R b b \with {
+             | true => ()
+             | false => ()
+           }
+           | ~-symmetric a b p => \case a \as a, b \as b, p : R a b \return R b a \with {
+             | true, true, _ => ()
+             | true, false, p => p
+             | false, true, p => p
+             | false, false, _ => ()
+           }
+           | ~-transitive a b c p q => \case a \as a, b \as b, c \as c, p : R a b, q : R b c \return R a c \with {
+             | true, _, true, _, _ => ()
+             | false, _, false, _, _ => ()
+             | true, true, false, p, q => q
+             | true, false, false, p, q => p
+             | false, true, true, p, q => p
+             | false, false, true, p, q => q
+           }
+         }
+    \in \case axiomOfChoice (\lam q => \Sigma (x : Bool) (in~ x = q))
+                            (\lam q => \case q \as q \return TruncP (\Sigma (x : Bool) (in~ x = q)) \with { | in~ x => inP (x,idp) })
+        \with {
+          | inP f =>
+            \case (f (in~ true)).1 \as x, idp : (f (in~ true)).1 = x, (f (in~ false)).1 \as y, idp : (f (in~ false)).1 = y \with {
+              | true, p, true, q => yes (Quotient.equalityEquiv E true false (pmap in~ (inv q) *> (f (in~ false)).2))
+              | true, p, false, q => no (\lam a => true/=false (inv p *> path (\lam i => (f (~-equiv true false a i)).1) *> q))
+              | false, p, true, q => no (\lam a => true/=false (inv q *> path (\lam i => (f (~-equiv false true a i)).1) *> p))
+              | false, p, false, q => yes (Quotient.equalityEquiv E true false (inv (f (in~ true)).2 *> pmap in~ p))
+            }
+        }
+}
