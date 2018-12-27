@@ -1,0 +1,49 @@
+\class GCDMonoid \extends CancelCMonoid {
+  | isGCD (x y : E) : TruncP (GCD x y)
+
+  \func gcdC (u : UniqueUnit {(_ : GCDMonoid)}) (x y : E) : GCD x y => TruncP.remove (GCD-isProp u x y) (isGCD x y)
+
+  \func gcd (u : UniqueUnit {(_ : GCDMonoid)}) (x y : E) => GCD.gcd {gcdC u x y}
+
+  \lemma gcd-comm (u : UniqueUnit {(_ : GCDMonoid)}) (x y : E) : gcd u x y = gcd u y x =>
+    div-eq u (GCD.gcd-univ {gcdC u y x} (gcd u x y) (GCD.gcd|val2 {gcdC u x y}) (GCD.gcd|val1 {gcdC u x y}))
+           (GCD.gcd-univ {gcdC u x y} (gcd u y x) (GCD.gcd|val2 {gcdC u y x}) (GCD.gcd|val1 {gcdC u y x}))
+
+  \lemma gcd-assoc (u : UniqueUnit {(_ : GCDMonoid)}) (x y z : E) : gcd u (gcd u x y) z = gcd u x (gcd u y z) =>
+    div-eq u (GCD.gcd-univ {gcdC u x (gcd u y z)} (gcd u (gcd u x y) z) ) {?}
+} \where {
+  \func UniqueUnit {M : CancelCMonoid} => \Pi (a b : M) -> a * b = ide -> a = ide
+
+  \lemma div-eq {M : CancelCMonoid} (uniqueUnit : UniqueUnit {M}) {x y : M} (d1 : Div x y) (d2 : Div y x) : x = y =>
+    \let d1=ide : d1.inv = ide => uniqueUnit d1.inv d2.inv (cancel-right (d1.inv * d2.inv) ide y (
+      (d1.inv * d2.inv) * y ==< *-assoc d1.inv d2.inv y >==
+                        d1.inv * (d2.inv * y) ==< pmap (d1.inv *) d2.inv-left >==
+                        d1.inv * x            ==< d1.inv-left >==
+                        y                     ==< inv (ide-left y) >==
+                        ide * y               `qed))
+    \in
+      x          ==< inv (ide-left x) >==
+                 ide * x    ==< pmap (\lam t => t * x) (inv d1=ide) >==
+                 d1.inv * x ==< d1.inv-left >==
+                 y          `qed
+
+  \lemma GCD-isProp {M : CancelCMonoid} (uniqueUnit : UniqueUnit {M}) (x y : M) : \level (isProp (GCD x y)) (isProp.isProp (GCD x y)) =>
+    \lam (g1 g2 : GCD x y) =>
+        \let p => div-eq uniqueUnit
+                         (g2.gcd-univ g1.gcd g1.gcd|val1 g1.gcd|val2)
+                         (g1.gcd-univ g2.gcd g2.gcd|val1 g2.gcd|val2)
+        \in path (\lam i => \new GCD x y {
+          | gcd => p @ i
+          | gcd|val1 => pathOver (Div.isProp g2.gcd x (coe (\lam j => Div (p @ j) x) g1.gcd|val1 right) g2.gcd|val1) @ i
+          | gcd|val2 => pathOver (Div.isProp g2.gcd y (coe (\lam j => Div (p @ j) y) g1.gcd|val2 right) g2.gcd|val2) @ i
+          | gcd-univ g g|x g|y => pathOver (Div.isProp g g2.gcd (coe (\lam j => Div g (p @ j)) (g1.gcd-univ g g|x g|y) right) (g2.gcd-univ g g|x g|y)) @ i
+        })
+}
+
+\module DivQuotient \where {
+  \lemma inv~ide {M : GCDMonoid} (i : Inv {M}) : i.val ~ ide =>
+    (inP (\new Div i.val ide i.inv i.inv-left), inP (\new Div ide i.val i.val (ide-right i.val)))
+
+  \lemma uniqueUnit {M : GCDMonoid} ([x] [y] : DivQuotient {M}) (p : [x] *' [y] = in~ ide) : [x] = in~ ide \elim [x], [y]
+    | in~ x, in~ y => path (~-equiv x ide (inv~ide (\new Inv { | Div => makeDiv y x ide (pmap in~ (*-comm y x) *> p) })))
+}
