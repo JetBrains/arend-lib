@@ -3,6 +3,7 @@
 \import Algebra.Ring
 \import HLevel
 \import Logic
+\import Order.Lattice
 \import Order.PartialOrder
 \import Paths
 \import Relation.Equivalence
@@ -109,4 +110,112 @@
             })
         })
       }
+
+    \lemma inv~ide {M : CMonoid} (i : Inv {M}) : i.val ~ ide =>
+      (inP (\new Div i.val ide i.inv i.inv-left), inP (\new Div ide i.val i.val (ide-right i.val)))
+
+    \lemma uniqueUnit {M : CancelCMonoid} ([x] [y] : DivQuotient {M}) (p : [x] *' [y] = in~ ide) : [x] = in~ ide \elim [x], [y]
+      | in~ x, in~ y => path (~-equiv x ide (inv~ide (\new Inv { | Div => makeDiv y x ide (pmap in~ (*-comm y x) *> p) })))
+
+    \lemma div-eq {M : CancelCMonoid} {x y : DivQuotient {M}} (d1 : Div x y) (d2 : Div y x) : x = y =>
+      \let d1=ide : d1.inv = ide => uniqueUnit d1.inv d2.inv (cancel-right (d1.inv * d2.inv) ide y (
+        (d1.inv * d2.inv) * y ==< *-assoc d1.inv d2.inv y >==
+        d1.inv * (d2.inv * y) ==< pmap (d1.inv *) d2.inv-left >==
+        d1.inv * x            ==< d1.inv-left >==
+        y                     ==< inv (ide-left y) >==
+        ide * y               `qed))
+      \in
+        x          ==< inv (ide-left x) >==
+        ide * x    ==< pmap (\lam t => t * x) (inv d1=ide) >==
+        d1.inv * x ==< d1.inv-left >==
+        y          `qed
+
+    \func div-to~ {M : CancelCMonoid} {x y : M} (x|y : Div x y) : Div {DivQuotientMonoid {M}} (in~ x) (in~ y) \cowith
+      | inv => in~ x|y.inv
+      | inv-left => pmap in~ x|y.inv-left
+
+    \lemma div-from~ {M : CancelCMonoid} {x y : M} (d : Div {DivQuotientMonoid {M}} (in~ x) (in~ y)) : \level (Div x y) (Div.isProp x y) =>
+      \case d.inv \as i, d.inv-left : i * in~ x = in~ y \return \level (Div x y) (Div.isProp x y) \with {
+        | in~ i, ~i*x=y => \case (make~ (i * x) y ~i*x=y).1 \return \level (Div x y) (Div.isProp x y) \with {
+          | inP i*x|y => \new Div x y (Div.inv {i*x|y} * i) (*-assoc _ _ _ *> Div.inv-left {i*x|y})
+        }
+      }
+
+    \lemma GCD-isProp {M : CancelCMonoid} (x y : DivQuotient {M}) : \level (isProp (GCD x y)) (isProp.isProp (GCD x y)) =>
+      \lam (g1 g2 : GCD x y) =>
+          \let p => div-eq (g2.gcd-univ g1.gcd g1.gcd|val1 g1.gcd|val2)
+                           (g1.gcd-univ g2.gcd g2.gcd|val1 g2.gcd|val2)
+          \in path (\lam i => \new GCD x y {
+            | gcd => p @ i
+            | gcd|val1 => pathOver (Div.isProp g2.gcd x (coe (\lam j => Div (p @ j) x) g1.gcd|val1 right) g2.gcd|val1) @ i
+            | gcd|val2 => pathOver (Div.isProp g2.gcd y (coe (\lam j => Div (p @ j) y) g1.gcd|val2 right) g2.gcd|val2) @ i
+            | gcd-univ g g|x g|y => pathOver (Div.isProp g g2.gcd (coe (\lam j => Div g (p @ j)) (g1.gcd-univ g g|x g|y) right) (g2.gcd-univ g g|x g|y)) @ i
+          })
+
+    -- | If the original monoid is cancellative, then the quotient monoid is poset.
+    \instance DivQuotientPoset {M : CancelCMonoid} : Poset
+      | Preorder => DivPreoder {DivQuotientMonoid {M}}
+      | <=-antisymmetric x y [x|y] [y|x] => \case [x|y], [y|x] \with {
+        | inP x|y, inP y|x => div-eq x|y y|x
+      }
+
+    \func gcdC {M : GCDMonoid} (x y : DivQuotient {M}) : GCD x y => TruncP.remove (GCD-isProp x y) (isGCD x y)
+
+    \func gcd {M : GCDMonoid} (x y : DivQuotient {M}) => GCD.gcd {gcdC x y}
+
+    \func gcd_~ {M : GCDMonoid} {x y : M} (g : GCD x y) : gcd (in~ x) (in~ y) = in~ g.gcd =>
+      pmap (\lam (g : GCD (in~ x) (in~ y)) => g.gcd)
+           (GCD-isProp (in~ x) (in~ y)
+                       (gcdC (in~ x) (in~ y))
+                       (\new GCD (in~ x) (in~ y) (in~ g.gcd) (div-to~ g.gcd|val1) (div-to~ g.gcd|val2) (\lam [g] [g]|[x] [g]|[y] =>
+                         \case [g] \as [g], [g]|[x] : Div [g] (in~ x), [g]|[y] : Div [g] (in~ y) \return \level (Div [g] (in~ g.gcd)) (Div.isProp [g] (in~ g.gcd)) \with {
+                           | in~ g', ~g'|x, ~g'|y => div-to~ (g.gcd-univ g' (div-from~ ~g'|x) (div-from~ ~g'|y))
+                         })))
+
+    -- | If the original monoid is a GCD-monoid, then the quotient monoid is a semilattice.
+    \instance DivQuotientLattice {M : GCDMonoid} : JoinSemilattice
+      | Poset => DivQuotientPoset {M}
+      | join => gcd
+      | join-left x y => inP (GCD.gcd|val1 {gcdC x y})
+      | join-right x y => inP (GCD.gcd|val2 {gcdC x y})
+      | join-univ x y g [g|x] [g|y] => \case [g|x], [g|y] \with {
+        | inP g|x, inP g|y => inP (GCD.gcd-univ g g|x g|y)
+      }
+
+    \lemma gcd_*-left {M : GCDMonoid} (c a b : DivQuotient {M}) : c * gcd a b = gcd (c * a) (c * b) =>
+      \let | d : GCD a b => gcdC a b
+           | e : GCD (c * a) (c * b) => gcdC (c * a) (c * b)
+           | cd|e : Div (c * d.gcd) e.gcd => e.gcd-univ (c * d.gcd) (Div.product-left c d.gcd a d.gcd|val1)
+                                                                    (Div.product-left c d.gcd b d.gcd|val2)
+           | x => cd|e.inv
+           | c[xd]=e =>
+             c * (x * d.gcd) ==< inv (*-assoc c x d.gcd) >==
+             (c * x) * d.gcd ==< pmap (\lam t => t * d.gcd) (*-comm c x) >==
+             (x * c) * d.gcd ==< *-assoc x c d.gcd >==
+             x * (c * d.gcd) ==< cd|e.inv-left >==
+             e.gcd           `qed
+           | xd|d : Div (x * d.gcd) d.gcd =>
+             d.gcd-univ (x * d.gcd)
+                        (Div.cancel-left c (x * d.gcd) a (transport (\lam t => Div t (c * a)) (inv c[xd]=e) e.gcd|val1))
+                        (Div.cancel-left c (x * d.gcd) b (transport (\lam t => Div t (c * b)) (inv c[xd]=e) e.gcd|val2))
+      \in pmap (c *) (<=-antisymmetric d.gcd (x * d.gcd) (inP (\new Div d.gcd (x * d.gcd) x idp)) (inP xd|d)) *> c[xd]=e
+
+    \lemma gcd_*-right {M : GCDMonoid} (a b c : DivQuotient {M}) : gcd a b * c = gcd (a * c) (b * c) =>
+      *-comm (gcd a b) c *> gcd_*-left c a b *> pmap2 gcd (*-comm c a) (*-comm c b)
+
+    \lemma gcd_*-comm {M : GCDMonoid} (a b c : DivQuotient {M}) : gcd a (b * c) = gcd a (gcd a b * c) =>
+      gcd a (b * c)               ==< pmap (\lam t => gcd t (b * c)) (inv (JoinSemilattice.join_<= a (a * c) (inP (\new Div a (a * c) c (*-comm c a))))) >==
+      gcd (gcd a (a * c)) (b * c) ==< JoinSemilattice.join-assoc a (a * c) (b * c) >==
+      gcd a (gcd (a * c) (b * c)) ==< pmap (gcd a) (inv (gcd_*-right a b c)) >==
+      gcd a (gcd a b * c)         `qed
+
+    \lemma gcd_*_div~ {M : GCDMonoid} (a b c : DivQuotient {M}) (a|bc : Div a (b * c)) : \level (Div a (gcd a b * c)) (Div.isProp a (gcd a b * c)) =>
+      transport (\lam t => Div t (gcd a b * c))
+                (inv (gcd_*-comm a b c) *> JoinSemilattice.join_<= a (b * c) (inP a|bc))
+                (GCD.gcd|val2 {gcdC a (gcd a b * c)})
+
+    \lemma gcd_*_div {M : GCDMonoid} (a b c : M) (a|bc : Div a (b * c)) (a_b : GCD a b ide) : \level (Div a c) (Div.isProp a c) =>
+      div-from~ (transport (\lam t => Div (in~ a) t)
+                           (pmap (\lam t => t * in~ c) (gcd_~ a_b) *> ide-left (in~ c))
+                           (gcd_*_div~ (in~ a) (in~ b) (in~ c) (div-to~ a|bc)))
   }

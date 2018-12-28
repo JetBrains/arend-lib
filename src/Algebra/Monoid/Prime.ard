@@ -39,5 +39,52 @@
       )))
   }
 
+\func Coprime {M : CMonoid} (x y : M) => \Pi (z : M) -> Div z x -> Div z y -> Inv z
+  \where {
+    \func =>gcd {M : CMonoid} (x y : M) (c : Coprime x y) : GCD x y ide \cowith
+      | gcd|val1 => \new Div ide x x (ide-right x)
+      | gcd|val2 => \new Div ide y y (ide-right y)
+      | gcd-univ g g|x g|y => \let i : Inv g => c g g|x g|y
+                              \in \new Div g ide i.inv i.inv-left
+
+    \func <=gcd {M : CMonoid} (x y : M) (g : GCD x y ide) : Coprime x y =>
+      \lam z z|x z|y => \new Inv { | Div => g.gcd-univ z z|x z|y }
+  }
+
 \lemma irr-isPrime {M : GCDMonoid} (p : Irr {M}) : Prime p.e p.notInv \cowith
-  | isPrime x y p|x*y => {?}
+  | isPrime x y p|x*y => \case irr-cmp p x \with {
+    | byLeft p|x => byLeft p|x
+    | byRight p_x => byRight (gcd_*_div p.e x y p|x*y (Coprime.=>gcd p.e x p_x))
+  }
+  \where {
+    \open DivQuotient
+
+    \lemma irr-cmp {M : GCDMonoid} (p : Irr {M}) (a : M) : Div p.e a || Coprime p.e a => \case isGCD p.e a \with {
+      | inP gc' =>
+        \let | gc : GCD p.e a => gc'
+             | g => gc.gcd
+             | g|p : Div g p.e => gc.gcd|val1
+             | g|a : Div g a => gc.gcd|val2
+             | x => g|p.inv
+        \in \case p.isIrr x g (inv g|p.inv-left) \with {
+          | byLeft xi' => \let xi : Inv x => xi' \in byLeft (\new Div p.e a (g|a.inv * xi.inv) (
+            (g|a.inv * xi.inv) * p.e     ==< *-assoc _ _ _ >==
+            g|a.inv * (xi.inv * p.e)     ==< pmap (\lam t => g|a.inv * (xi.inv * t)) (inv g|p.inv-left) >==
+            g|a.inv * (xi.inv * (x * g)) ==< pmap (g|a.inv *) (inv (*-assoc _ _ _)) >==
+            g|a.inv * ((xi.inv * x) * g) ==< pmap (\lam t => g|a.inv * (t * g)) xi.inv-left >==
+            g|a.inv * (ide * g)          ==< pmap (g|a.inv *) (ide-left g) >==
+            g|a.inv * g                  ==< g|a.inv-left >==
+            a                            `qed
+          ))
+          | byRight gi' => byRight (\lam z z|p z|a =>
+            \let | gi : Inv g => gi'
+                 | z|g : Div z g => gc.gcd-univ z z|p z|a
+            \in \new Inv z (gi.inv * z|g.inv) (
+              (gi.inv * z|g.inv) * z ==< *-assoc _ _ _ >==
+              gi.inv * (z|g.inv * z) ==< pmap (gi.inv *) z|g.inv-left >==
+              gi.inv * g             ==< gi.inv-left >==
+              ide                    `qed
+            ))
+        }
+    }
+  }
