@@ -1,0 +1,111 @@
+\import Equiv
+\import Equiv.Path
+\import Equiv.Univalence
+\import HLevel
+\import Homotopy.Loop
+\import Homotopy.Pointed
+\import Homotopy.Pushout
+\import Paths
+
+\class Truncated_-1+ (n : Nat) (\classifying A : \Type)
+  | isTruncated : \level (A ofHLevel_-1+ n) (ofHLevel_-1+.isProp A n)
+  \where {
+    \func ext {n : Nat} (t t' : Truncated_-1+ n) (p : t.A = t'.A) : t = t' =>
+      path (\lam i => \new Truncated_-1+ n (p @ i) (pathOver (ofHLevel_-1+.isProp t'.A n (transport (\lam A => A ofHLevel_-1+ n) p t.isTruncated) t'.isTruncated) @ i))
+
+    \func equiv {n : Nat} (t t' : Truncated_-1+ n) : QEquiv {t = t'} {t.A = t'.A} =>
+      pathEquiv (\lam (t t' : Truncated_-1+ n) => t.A = t'.A) (\lam {t} {t'} => \new Retraction {
+        | f => pmap (\lam t => Truncated_-1+.A {t})
+        | sec => ext t t'
+        | f_sec _ => idp
+      })
+
+    \func up (t : Truncated_-1+) => \new Truncated_-1+ (suc t.n) t (HLevel_-1_suc t.isTruncated)
+  }
+
+\instance truncatedEquiv {n : Nat} (t t' : Truncated_-1+ n) : Truncated_-1+ n (Equiv {t} {t'})
+  | isTruncated => HLevels-embeddings (\new Embedding (\lam (e : Equiv {t} {t'}) => e.f)
+                                                      (\lam e e' => \new Retraction {
+                                                        | sec p => Equiv.equals p
+                                                        | f_sec _ => idp
+                                                      }))
+                                      (HLevels-pi (\lam _ => t') (\lam _ => t'.isTruncated))
+
+-- | The type of n-types is (n+1)-truncated.
+\instance truncatedTypesLevel (n : Nat) : Truncated_-1+ (suc n) (Truncated_-1+ n)
+  | isTruncated t t' => transport (\lam X => X ofHLevel_-1+ n) (inv (QEquiv-to-= (Truncated_-1+.equiv t t') *> QEquiv-to-= univalence)) (isTruncated {truncatedEquiv t t'})
+
+\data Trunc_-1+ (n : Nat) (A : \oo-Type)
+  | inT A
+  | hubT (Sphere n -> Trunc_-1+ n A)
+  | spokeT (r : Sphere n -> Trunc_-1+ n A) (x : Sphere n) (i : I) \elim i {
+    | left => r x
+    | right => hubT r
+  }
+  \where {
+    \open Sphere(north)
+
+    \instance level (n : Nat) (A : \oo-Type) : Truncated_-1+ n (Trunc_-1+ n A)
+      | isTruncated => loop-level-iter n (\lam t =>
+          transport (\lam X => Contr X)
+                    (SphereLoopEquiv n (Pointed.make t))
+                    (\new Contr (Sphere.Pointed n ->* Pointed.make t)
+                                (\lam _ => t, idp)
+                                (\lam p => ->*.ext {Sphere.Pointed n}
+                                                   {Pointed.make t}
+                                                   (\lam s => inv p.2 *> path (spokeT p.1 (north n)) *> inv (path (spokeT p.1 s)))
+                                                   (pmap (\lam t => (inv p.2 *> t) *> p.2) (*>_inv (path (spokeT p.1 (north n)))) *> inv_*> p.2))))
+
+    \func elim {n : Nat} {A : \oo-Type}
+               (P : Trunc_-1+ n A -> Truncated_-1+ n)
+               (g : \Pi (a : A) -> P (inT a))
+               (x : Trunc_-1+ n A) : P x \elim x
+      | inT a => g a
+      | hubT r => transport (\lam x => P x) (path (spokeT r (north n))) (elim P g (r (north n)))
+      | spokeT r x i =>
+        \let | f y => transport (\lam x => P x) (path (spokeT r y)) (elim P g (r y))
+             | p0 => f (north n)
+             | c : Contr (Sphere.Pointed n ->* Pointed.make p0) =>
+               transport (\lam X => Contr X)
+                         (inv (SphereLoopEquiv n (Pointed.make p0)))
+                         (loop-level-iter-inv n (isTruncated {P (hubT r)}) p0)
+             | p : f x = p0 => path (\lam j => (isContr=>isProp c (f,idp) (\lam _ => p0, idp) @ j).1 x)
+        \in pathOver p @ i
+
+    \func elim2 {n : Nat} {A : \oo-Type}
+                (P : Trunc_-1+ n A -> Trunc_-1+ n A -> Truncated_-1+ n)
+                (g : \Pi (a a' : A) -> P (inT a) (inT a'))
+                (x y : Trunc_-1+ n A) : P x y \elim x, y
+      | inT a, inT a' => g a a'
+      | x, y => elim (P x) (\lam a' => elim (\lam x => P x (inT a')) (\lam a => g a a') x) y
+
+    \func equality {n : Nat} {A : \oo-Type} (a a' : A) : QEquiv {inT a = {Trunc_-1+ (suc n) A} inT a'} {Trunc_-1+ n (a = a')} =>
+      \let | code => elim2 (\lam _ _ => truncatedTypesLevel n) (\lam a a' => level n (a = a'))
+           | encode (x y : Trunc_-1+ (suc n) A) (p : x = y) => transport (\lam y => code x y) p (elim (\lam x => Truncated_-1+.up (code x x)) (\lam a => inT idp) x)
+           | decode => elim2 (\lam x y => Truncated_-1+.up (\new Truncated_-1+ n (code x y -> x = y) (HLevels-pi (\lam _ => x = y) (\lam _ => isTruncated {level (suc n) A} x y))))
+                             (\lam a a' => elim (\lam _ => \new Truncated_-1+ n (inT a = inT a') (isTruncated {level (suc n) A} (inT a) (inT a'))) (pmap inT))
+      \in pathEquiv (\lam x y => code x y) (\lam {x} {y} => \new Retraction {
+        | f => encode x y
+        | sec => decode x y
+        | f_sec => elim2 (\lam x y => Truncated_-1+.up (\new Truncated_-1+ n (\Pi (c : code x y) -> encode x y (decode x y c) = c)
+                                                                             (HLevels-pi (\lam c => encode x y (decode x y c) = c)
+                                                                                         (\lam c => isTruncated {Truncated_-1+.up (code x y)}
+                                                                                                                (encode x y (decode x y c)) c))))
+                         (\lam a a' => elim (\lam c => \new Truncated_-1+ n (encode (inT a) (inT a') (decode (inT a) (inT a') c) = c)
+                                                                            (isTruncated {Truncated_-1+.up (level n (a = a'))}
+                                                                                         (encode (inT a) (inT a') (decode (inT a) (inT a') c)) c))
+                                            (Jl (\lam _ p => transport (\lam y => elim2 (\lam _ _ => truncatedTypesLevel n)
+                                                                                        (\lam a a' => level n (a = a')) (inT a) y)
+                                                                       (pmap inT p)
+                                                                       (inT idp) = inT p) idp)) x y
+      }) {inT a} {inT a'}
+  }
+
+{-
+transport (elim2 (\lam _ _ => truncatedTypesLevel n)
+                 (\lam a a' => level n (a = a'))
+                 (inT a))
+          (pmap inT p)
+          (inT idp)
+  = inT p
+-}

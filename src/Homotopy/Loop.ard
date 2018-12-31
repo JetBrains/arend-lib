@@ -1,0 +1,60 @@
+\import Equiv
+\import Equiv.Sigma
+\import Function
+\import HLevel
+\import Homotopy.Pointed
+\import Homotopy.Pushout
+\import Paths
+
+\instance Loop (X : Pointed) : Pointed
+  | E => base = {X} base
+  | base => idp
+
+\lemma loop-level {X : \Type}
+                  (n : Nat)
+                  (p : \Pi (x0 : X) -> (x0 = x0) ofHLevel_-1+ n)
+  : \level (X ofHLevel_-1+ suc n) (ofHLevel_-1+.isProp X (suc n))
+  => \lam x x' => hLevel-inh n (\lam q => transport (\lam x'' => (x = x'') ofHLevel_-1+ n) q (p x))
+
+\lemma loop-level-iter {X : \Type}
+                       (n : Nat)
+                       (c : \Pi (x0 : X) -> Contr (iterl Loop n (\new Pointed X x0)))
+  : \level (X ofHLevel_-1+ n) (ofHLevel_-1+.isProp X n) \elim n
+  | 0 => isContr'=>isProp c
+  | suc n => \lam x x' => loop-level-iter n (\lam x=x' => Jl (\lam x'' x=x'' => Contr (iterl Loop n (\new Pointed (x = x'') x=x''))) (c x) x=x')
+
+\lemma loop-level-iter-inv {X : \Type} (n : Nat) (h : X ofHLevel_-1+ n) (x0 : X)
+  : Contr (iterl Loop n (\new Pointed X x0)) \elim n
+  | 0 => isProp=>isContr h x0
+  | suc n => loop-level-iter-inv n (h x0 x0) idp
+
+\func SuspLoopEquiv (A B : Pointed) : (Susp.Pointed A ->* B) = (A ->* Loop B) =>
+  (\Sigma (f : Susp A -> B) (f base = base))                                               ==< sigma-left (\lam p => p.1 = base) (Susp.eq A B) >==
+  (\Sigma (p : \Sigma (b1 : B) (\Sigma (b2 : B) (A -> b1 = b2))) (p.1 = base))             ==< path (iso {\Sigma (p : \Sigma (b1 : B) (\Sigma (b2 : B) (A -> b1 = b2))) (p.1 = base)}
+                                                                                                         {\Sigma (p : \Sigma (b1 : B) (b1 = base)) (\Sigma (b2 : B) (A -> p.1 = b2))}
+                                                                                                         (\lam p => ((p.1.1,p.2),(p.1.2.1,p.1.2.2)))
+                                                                                                         (\lam q => ((q.1.1,(q.2.1,q.2.2)),q.1.2))
+                                                                                                         (\lam _ => idp) (\lam _ => idp)) >==
+  (\Sigma (p : \Sigma (b1 : B) (b1 = base)) (\Sigma (b2 : B) (A -> p.1 = b2)))             ==< equiv= (contr-left (rsigma base) (\lam p => \Sigma (b2 : B) (A -> p.1 = b2))) >==
+  (\Sigma (b2 : B) (A -> base = b2))                                                       ==< inv (equiv= (contr-right (\lam (p : \Sigma (b2 : B) (A -> base = b2)) => lsigma (p.2 base)))) >==
+  (\Sigma (p : \Sigma (b2 : B) (A -> base = b2)) (\Sigma (q : base = p.1) (p.2 base = q))) ==< path (iso {\Sigma (p : \Sigma (b2 : B) (A -> base = b2)) (\Sigma (q : base = p.1) (p.2 base = q))}
+                                                                                                         {\Sigma (p : \Sigma (b2 : B) (base = b2)) (\Sigma (g : A -> base = p.1) (g base = p.2))}
+                                                                                                         (\lam p => ((p.1.1,p.2.1),(p.1.2,p.2.2)))
+                                                                                                         (\lam q => ((q.1.1,q.2.1),(q.1.2,q.2.2)))
+                                                                                                         (\lam _ => idp) (\lam _ => idp)) >==
+  (\Sigma (p : \Sigma (b2 : B) (base = b2)) (\Sigma (g : A -> base = p.1) (g base = p.2))) ==< equiv= (contr-left (lsigma base) (\lam p => \Sigma (g : A -> base = p.1) (g base = p.2))) >==
+  (\Sigma (g : A -> Loop B) (g base = base))                                               `qed
+
+\func SphereLoopEquiv (n : Nat) (B : Pointed) : (Sphere.Pointed n ->* B) = iterl Loop n B \elim n
+  | 0 => \let smap (b : B) (s : Sphere.Sphere0) : B => \case s \with { | north0 => base | south0 => b }
+         \in path (iso {Sphere.Pointed 0 ->* B} {B}
+                       (\lam p => p.1 south0)
+                       (\lam b => (smap b, idp))
+                       (\lam p => ->*.ext {Sphere.Pointed 0} (\lam s =>
+                           \case s \as s \return smap (p.1 south0) s = p.1 s \with {
+                             | north0 => inv p.2
+                             | south0 => idp
+                           }) (inv_*> p.2))
+                       (\lam b => idp))
+  | suc n => SuspLoopEquiv (Sphere.Pointed n) B *> SphereLoopEquiv n (Loop B)
+  \where \open Sphere(north0,south0)
