@@ -1,0 +1,47 @@
+\import Algebra.Group
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Logic
+\import Paths
+\import Relation.Apartness
+\open Monoid(Inv,LInv)
+
+\class LocalRing \extends Ring {
+  | nonTrivial : Not (zro = ide)
+  | locality (x y : E) : x + y = ide -> Inv x || Inv y
+
+  \lemma sumInv=>eitherInv (x y : E) (q : Inv (x + y)) : Inv x || Inv y =>
+    \case locality (q.inv * x) (q.inv * y) (inv (ldistr q.inv x y) *> q.inv-left) \with {
+      | byLeft s => byLeft (Inv.factor-right q.inv x (\new LInv q.inv (x + y) q.inv-right) s)
+      | byRight s => byRight (Inv.factor-right q.inv y (\new LInv q.inv (x + y) q.inv-right) s)
+    }
+} \where {
+  \func =>Apartness {R : LocalRing} : Apartness R \cowith
+    | # x y => Inv (x - y)
+    | #-irreflexive x (p : Inv (x - x)) => nonTrivial (
+      zro             ==< inv (zro_*-right p.inv) >==
+      p.inv * zro     ==< inv (pmap (\lam t => p.inv * t) (negative-right x)) >==
+      p.inv * (x - x) ==< p.inv-left >==
+      ide             `qed)
+    | #-symmetric x y (p : Inv (x - y)) =>
+      \let t (R : Ring) (x y : R) (p : Inv (x - y)) =>
+        negative p.inv * (y - x)                         ==< ldistr (negative p.inv) y (negative x) >==
+        negative p.inv * y + negative p.inv * negative x ==< pmap (\lam t => negative p.inv * y + t) (Ring.negative_* p.inv x) >==
+        negative p.inv * y + p.inv * x                   ==< +-comm (negative p.inv * y) (p.inv * x) >==
+        p.inv * x + negative p.inv * y                   ==< pmap (\lam t => p.inv * x + t) (Ring.negative_*-left p.inv y) >==
+        p.inv * x - p.inv * y                            ==< pmap (\lam t => p.inv * x + t) (inv (Ring.negative_*-right p.inv y)) >==
+        p.inv * x + p.inv * negative y                   ==< inv (ldistr p.inv x (negative y)) >==
+        p.inv * (x - y)                                  ==< p.inv-left >==
+        ide                                              `qed
+      \in \new Inv (y - x) (negative p.inv) (t R x y p) (t (Ring.op R) x y (\new Inv (x - y) p.inv p.inv-right p.inv-left))
+    | #-comparison x y z p => sumInv=>eitherInv (x - y) (y - z) (transport (\lam t => Inv t) (
+      x - z                    ==< pmap (\lam t => t - z) (inv (zro-right x)) >==
+      x + zro - z              ==< pmap (\lam t => x + t - z) (inv (negative-left y)) >==
+      x + (negative y + y) - z ==< pmap (\lam t => t - z) (inv (+-assoc x (negative y) y)) >==
+      (x - y) + y - z          ==< +-assoc (x - y) y (negative z) >==
+      (x - y) + (y - z)        `qed) p)
+}
+
+\class LocalCRing \extends LocalRing, CRing

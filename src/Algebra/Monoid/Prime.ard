@@ -4,10 +4,10 @@
 \import Data.Or
 \import Logic
 \import Paths
-\open CMonoid(Inv,Div)
+\open Monoid(Inv,LDiv)
 
 \record Prime {M : CMonoid} (e : M) (notInv : Not (Inv e))
-  | isPrime (x y : M) : Div e (x * y) -> Div e x || Div e y
+  | isPrime (x y : M) : LDiv e (x * y) -> LDiv e x || LDiv e y
 
 \record Irr {M : CMonoid} (e : M) (notInv : Not (Inv e)) {
   | isIrr (x y : M) : e = x * y -> Inv x || Inv y
@@ -17,38 +17,38 @@
 }
 
 \lemma Prime-isIrr {M : CancelCMonoid} (p : Prime {M}) : Irr p.e p.notInv \cowith
-  | isIrr x y p=x*y => \case p.isPrime x y (\new Div p.e (x * y) ide (ide-left p.e *> p=x*y)) \with {
+  | isIrr x y p=x*y => \case p.isPrime x y (\new LDiv p.e (x * y) ide (ide-right p.e *> p=x*y)) \with {
     | byLeft p|x =>
-      \let j => Div.inv {p|x}
-      \in byRight (\new Inv y j (M.cancel-right (j * y) ide x (
-        (j * y) * x ==< *-assoc j y x >==
-        j * (y * x) ==< pmap (j *) (*-comm y x) >==
-        j * (x * y) ==< pmap (j *) (inv p=x*y) >==
-        j * p.e     ==< Div.inv-left {p|x} >==
-        x           ==< inv (ide-left x) >==
-        ide * x     `qed
+      \let j => LDiv.inv {p|x}
+      \in byRight (Inv.rmake j (M.cancel-left x (y * j) ide (
+        x * (y * j) ==< inv (*-assoc x y j) >==
+        (x * y) * j ==< pmap (\lam t => t * j) (inv p=x*y) >==
+        p.e * j     ==< LDiv.inv-right {p|x} >==
+        x           ==< inv (ide-right x) >==
+        x * ide     `qed
       )))
     | byRight p|y =>
-      \let j => Div.inv {p|y}
-      \in byLeft (\new Inv x j (M.cancel-right (j * x) ide y (
+      \let j => LDiv.inv {p|y}
+      \in byLeft (Inv.lmake j (M.cancel-right (j * x) ide y (
         (j * x) * y ==< *-assoc j x y >==
         j * (x * y) ==< pmap (j *) (inv p=x*y) >==
-        j * p.e     ==< Div.inv-left {p|y} >==
+        j * p.e     ==< *-comm j p.e >==
+        p.e * j     ==< LDiv.inv-right {p|y} >==
         y           ==< inv (ide-left y) >==
         ide * y     `qed
       )))
   }
 
-\func Coprime {M : CMonoid} (x y : M) => \Pi (z : M) -> Div z x -> Div z y -> Inv z
+\func Coprime {M : CMonoid} (x y : M) => \Pi (z : M) -> LDiv z x -> LDiv z y -> Inv z
   \where {
     \func =>gcd {M : CMonoid} (x y : M) (c : Coprime x y) : GCD x y ide \cowith
-      | gcd|val1 => \new Div ide x x (ide-right x)
-      | gcd|val2 => \new Div ide y y (ide-right y)
+      | gcd|val1 => \new LDiv ide x x (ide-left x)
+      | gcd|val2 => \new LDiv ide y y (ide-left y)
       | gcd-univ g g|x g|y => \let i : Inv g => c g g|x g|y
-                              \in \new Div g ide i.inv i.inv-left
+                              \in \new LDiv g ide i.inv i.inv-right
 
     \func <=gcd {M : CMonoid} (x y : M) (g : GCD x y ide) : Coprime x y =>
-      \lam z z|x z|y => \new Inv { | Div => g.gcd-univ z z|x z|y }
+      \lam z z|x z|y => \let z|g : LDiv z g.gcd => g.gcd-univ z z|x z|y \in Inv.rmake z|g.inv z|g.inv-right
   }
 
 \lemma irr-isPrime {M : GCDMonoid} (p : Irr {M}) : Prime p.e p.notInv \cowith
@@ -59,32 +59,33 @@
   \where {
     \open DivQuotient
 
-    \lemma irr-cmp {M : GCDMonoid} (p : Irr {M}) (a : M) : Div p.e a || Coprime p.e a => \case isGCD p.e a \with {
+    \lemma irr-cmp {M : GCDMonoid} (p : Irr {M}) (a : M) : LDiv p.e a || Coprime p.e a => \case isGCD p.e a \with {
       | inP gc' =>
         \let | gc : GCD p.e a => gc'
              | g => gc.gcd
-             | g|p : Div g p.e => gc.gcd|val1
-             | g|a : Div g a => gc.gcd|val2
+             | g|p : LDiv g p.e => gc.gcd|val1
+             | g|a : LDiv g a => gc.gcd|val2
              | x => g|p.inv
-        \in \case p.isIrr x g (inv g|p.inv-left) \with {
-          | byLeft xi' => \let xi : Inv x => xi' \in byLeft (\new Div p.e a (g|a.inv * xi.inv) (
-            (g|a.inv * xi.inv) * p.e     ==< *-assoc _ _ _ >==
-            g|a.inv * (xi.inv * p.e)     ==< pmap (\lam t => g|a.inv * (xi.inv * t)) (inv g|p.inv-left) >==
-            g|a.inv * (xi.inv * (x * g)) ==< pmap (g|a.inv *) (inv (*-assoc _ _ _)) >==
-            g|a.inv * ((xi.inv * x) * g) ==< pmap (\lam t => g|a.inv * (t * g)) xi.inv-left >==
-            g|a.inv * (ide * g)          ==< pmap (g|a.inv *) (ide-left g) >==
-            g|a.inv * g                  ==< g|a.inv-left >==
-            a                            `qed
-          ))
-          | byRight gi' => byRight (\lam z z|p z|a =>
+        \in \case p.isIrr g x (inv g|p.inv-right) \with {
+          | byLeft gi' => byRight (\lam z z|p z|a =>
             \let | gi : Inv g => gi'
-                 | z|g : Div z g => gc.gcd-univ z z|p z|a
-            \in \new Inv z (gi.inv * z|g.inv) (
-              (gi.inv * z|g.inv) * z ==< *-assoc _ _ _ >==
-              gi.inv * (z|g.inv * z) ==< pmap (gi.inv *) z|g.inv-left >==
-              gi.inv * g             ==< gi.inv-left >==
+                 | z|g : LDiv z g => gc.gcd-univ z z|p z|a
+            \in Inv.rmake (gi.inv * z|g.inv) (
+              z * (gi.inv * z|g.inv) ==< pmap (z *) (*-comm gi.inv z|g.inv) >==
+              z * (z|g.inv * gi.inv) ==< inv (*-assoc _ _ _) >==
+              (z * z|g.inv) * gi.inv ==< pmap (\lam t => t * gi.inv) z|g.inv-right >==
+              g * gi.inv             ==< gi.inv-right >==
               ide                    `qed
             ))
+          | byRight xi' => \let xi : Inv x => xi' \in byLeft (\new LDiv p.e a (xi.inv * g|a.inv) (
+            p.e * (xi.inv * g|a.inv)     ==< inv (*-assoc _ _ _) >==
+            (p.e * xi.inv) * g|a.inv     ==< pmap (\lam t => (t * xi.inv) * g|a.inv) (inv g|p.inv-right) >==
+            ((g * x) * xi.inv) * g|a.inv ==< pmap (\lam t => t * g|a.inv) (*-assoc _ _ _) >==
+            (g * (x * xi.inv)) * g|a.inv ==< pmap (\lam t => (g * t) * g|a.inv) xi.inv-right >==
+            (g * ide) * g|a.inv          ==< pmap (\lam t => t * g|a.inv) (ide-right g) >==
+            g * g|a.inv                  ==< g|a.inv-right >==
+            a                            `qed
+          ))
         }
     }
   }

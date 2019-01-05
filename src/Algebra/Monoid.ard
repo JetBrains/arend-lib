@@ -8,31 +8,146 @@
   | ide-right (x : E) : x * ide = x
   | *-assoc (x y z : E) : (x * y) * z = x * (y * z)
 } \where {
-  \record Inv {M : Monoid} (val inv : M)
-    | inv-left : inv * val = ide
-    | inv-right : val * inv = ide
-  \where {
-    \use \level isProp {M : Monoid} {x : M} (j j' : Inv x) : j = j' =>
-      \let q : j.inv = j'.inv =>
-        j.inv                ==< Paths.inv (ide-left j.inv) >==
-        ide * j.inv          ==< Paths.inv (pmap (\lam t => t * j.inv) j'.inv-left) >==
-        (j'.inv * x) * j.inv ==< *-assoc j'.inv x j.inv >==
-        j'.inv * (x * j.inv) ==< pmap (\lam t => j'.inv * t) j.inv-right >==
-        j'.inv * ide         ==< ide-right j'.inv >==
-        j'.inv               `qed
-      \in path (\lam i => \new Inv x {
-        | inv => q @ i
-        | inv-left => pathOver (Path.inProp (coe (\lam i => (q @ i) * x = ide) j.inv-left right) j'.inv-left) @ i
-        | inv-right => pathOver (Path.inProp (coe (\lam i => x * (q @ i) = ide) j.inv-right right) j'.inv-right) @ i
-      })
-  }
-
   \func op (M : Monoid) : Monoid \cowith
     | Pointed => M
     | * x y => M.* y x
     | ide-left => M.ide-right
     | ide-right => M.ide-left
     | *-assoc x y z => inv (M.*-assoc z y x)
+
+  \record DivBase {M : Monoid} (val elem inv : M)
+
+  -- | The type of left divisors of an element
+  \record LDiv \extends DivBase
+    | inv-right : val * inv = elem
+    \where {
+      \func product-left {M : Monoid} (x y z : M) (y|z : LDiv y z) => \new LDiv (x * y) (x * z) y|z.inv (
+        (x * y) * y|z.inv ==< *-assoc x y y|z.inv >==
+        x * (y * y|z.inv) ==< pmap (x *) y|z.inv-right >==
+        x * z             `qed
+      )
+
+      \func product-right {M : CMonoid} (x y z : M) (x|y : LDiv x y) => \new LDiv (x * z) (y * z) x|y.inv (
+        (x * z) * x|y.inv ==< pmap (\lam t => t * x|y.inv) (*-comm x z) >==
+        (z * x) * x|y.inv ==< *-assoc z x x|y.inv >==
+        z * (x * x|y.inv) ==< pmap (z *) x|y.inv-right >==
+        z * y             ==< *-comm z y >==
+        y * z             `qed
+      )
+
+      \func cancel-left {M : CancelMonoid} (x y z : M) (x*y|x*z : LDiv (x * y) (x * z)) => \new LDiv y z x*y|x*z.inv (M.cancel-left x (y * x*y|x*z.inv) z (
+        x * (y * x*y|x*z.inv) ==< Paths.inv (*-assoc x y x*y|x*z.inv) >==
+        (x * y) * x*y|x*z.inv ==< x*y|x*z.inv-right >==
+        x * z                 `qed
+      ))
+
+      \func cancel-right {M : CancelCMonoid} (x y z : M) (x*z|y*z : LDiv (x * z) (y * z)) => \new LDiv x y x*z|y*z.inv (M.cancel-right (x * x*z|y*z.inv) y z (
+        (x * x*z|y*z.inv) * z ==< *-comm (x * x*z|y*z.inv) z >==
+        z * (x * x*z|y*z.inv) ==< Paths.inv (*-assoc z x x*z|y*z.inv) >==
+        (z * x) * x*z|y*z.inv ==< pmap (\lam t => t * x*z|y*z.inv) (*-comm z x) >==
+        (x * z) * x*z|y*z.inv ==< x*z|y*z.inv-right >==
+        y * z                 `qed
+      ))
+
+      \lemma isProp {M : CancelMonoid} (x y : M) : \level (HLevel.isProp (LDiv x y)) (HLevel.isProp.isProp (LDiv x y)) =>
+        \lam (d1 d2 : LDiv x y) =>
+            \let p => M.cancel-left x d1.inv d2.inv (d1.inv-right *> Paths.inv d2.inv-right)
+            \in path (\lam i => \new LDiv x y (p @ i) (pathOver (Path.inProp (coe (\lam j => x * (p @ j) = y) d1.inv-right right) d2.inv-right) @ i))
+    }
+
+  -- | The type of right divisors of an element
+  \record RDiv \extends DivBase
+    | inv-left : inv * val = elem
+    \where {
+      \func product-right {M : Monoid} (x y z : M) (x|y : RDiv x y) => \new RDiv (x * z) (y * z) x|y.inv (
+        x|y.inv * (x * z) ==< Paths.inv (*-assoc x|y.inv x z) >==
+        (x|y.inv * x) * z ==< pmap (\lam t => t * z) x|y.inv-left >==
+        y * z             `qed
+      )
+
+      \func cancel-right {M : CancelMonoid} (x y z : M) (x*z|y*z : RDiv (x * z) (y * z)) => \new RDiv x y x*z|y*z.inv (M.cancel-right (x*z|y*z.inv * x) y z (
+        (x*z|y*z.inv * x) * z ==< *-assoc x*z|y*z.inv x z >==
+        x*z|y*z.inv * (x * z) ==< x*z|y*z.inv-left >==
+        y * z                 `qed
+      ))
+
+      \lemma isProp {M : CancelMonoid} (x y : M) : \level (HLevel.isProp (RDiv x y)) (HLevel.isProp.isProp (RDiv x y)) =>
+        \lam (d1 d2 : RDiv x y) =>
+            \let p => M.cancel-right d1.inv d2.inv x (d1.inv-left *> Paths.inv d2.inv-left)
+            \in path (\lam i => \new RDiv x y (p @ i) (pathOver (Path.inProp (coe (\lam j => (p @ j) * x = y) d1.inv-left right) d2.inv-left) @ i))
+    }
+
+  -- | The type of left inverses of an element
+  \record LInv \extends RDiv
+    | elem => ide
+
+  -- | The type of right inverses of an element
+  \record RInv \extends LDiv
+    | elem => ide
+
+  -- | The type of two-sided inverses of an element
+  \record Inv \extends LInv, RInv
+    \where {
+      \use \level isProp {M : Monoid} {x : M} (j j' : Inv x) : j = j' =>
+        \let p =>
+          j.inv                ==< Paths.inv (ide-left j.inv) >==
+          ide * j.inv          ==< pmap (\lam t => t * j.inv) (Paths.inv j'.inv-left) >==
+          (j'.inv * x) * j.inv ==< *-assoc j'.inv x j.inv >==
+          j'.inv * (x * j.inv) ==< pmap (j'.inv *) j.inv-right >==
+          j'.inv * ide         ==< ide-right j'.inv >==
+          j'.inv               `qed
+        \in path (\lam i => \new Inv x (p @ i)
+                                     (pathOver (Path.inProp (coe (\lam j => (p @ j) * x = ide) j.inv-left right) j'.inv-left) @ i)
+                                     (pathOver (Path.inProp (coe (\lam j => x * (p @ j) = ide) j.inv-right right) j'.inv-right) @ i))
+
+      \lemma product {M : Monoid} (i j : Inv {M}) : Inv (i.val * j.val) =>
+        \let p {M : Monoid} (i j : Inv {M}) =>
+          (j.inv * i.inv) * (i.val * j.val) ==< *-assoc j.inv i.inv (i.val * j.val) >==
+          j.inv * (i.inv * (i.val * j.val)) ==< pmap (j.inv *) (Paths.inv (*-assoc i.inv i.val j.val)) >==
+          j.inv * ((i.inv * i.val) * j.val) ==< pmap (\lam t => j.inv * (t * j.val)) i.inv-left >==
+          j.inv * (ide * j.val)             ==< pmap (j.inv *) (ide-left j.val) >==
+          j.inv * j.val                     ==< j.inv-left >==
+          ide                               `qed
+        \in \new Inv {
+          | inv => j.inv * i.inv
+          | inv-left => p i j
+          | inv-right => p (\new Inv {op M} j.inv j.val j.inv-right j.inv-left) (\new Inv {op M} i.inv i.val i.inv-right i.inv-left)
+        }
+
+      \lemma factor-right {M : Monoid} (x y : M) (i : LInv x) (j : Inv (x * y)) : Inv y \cowith
+        | inv => j.inv * x
+        | inv-left => *-assoc j.inv x y *> j.inv-left
+        | inv-right =>
+          y * (j.inv * x)                 ==< Paths.inv (ide-left (y * (j.inv * x))) >==
+          ide * (y * (j.inv * x))         ==< pmap (\lam t => t * (y * (j.inv * x))) (Paths.inv i.inv-left) >==
+          (i.inv * x) * (y * (j.inv * x)) ==< *-assoc i.inv x (y * (j.inv * x)) >==
+          i.inv * (x * (y * (j.inv * x))) ==< pmap (i.inv *) (Paths.inv (*-assoc x y (j.inv * x))) >==
+          i.inv * ((x * y) * (j.inv * x)) ==< pmap (i.inv *) (Paths.inv (*-assoc (x * y) j.inv x)) >==
+          i.inv * (((x * y) * j.inv) * x) ==< pmap (\lam t => i.inv * (t * x)) j.inv-right >==
+          i.inv * (ide * x)               ==< pmap (i.inv *) (ide-left x) >==
+          i.inv * x                       ==< i.inv-left >==
+          ide                             `qed
+
+      \lemma factor-left {M : Monoid} (x y : M) (i : RInv y) (j : Inv (x * y)) : Inv x =>
+        \let t : Inv {op M} x => factor-right {op M} y x (\new LInv y i.inv i.inv-right) (\new Inv (x * y) j.inv j.inv-right j.inv-left)
+        \in \new Inv t.val t.inv t.inv-right t.inv-left
+
+      \func lmake {M : CMonoid} {x : M} (y : M) (p : y * x = ide) : Inv x \cowith
+        | inv => y
+        | inv-left => p
+        | inv-right => *-comm x y *> p
+
+      \func rmake {M : CMonoid} {x : M} (y : M) (p : x * y = ide) : Inv x \cowith
+        | inv => y
+        | inv-left => *-comm y x *> p
+        | inv-right => p
+
+      \lemma cfactor-right {M : CMonoid} (x y : M) (i : Inv (x * y)) : Inv y =>
+        lmake (i.inv * x) (*-assoc i.inv x y *> i.inv-left)
+
+      \lemma cfactor-left {M : CMonoid} (x y : M) (i : Inv (x * y)) : Inv x =>
+        cfactor-right y x (transport (\lam t => Inv t) (*-comm x y) i)
+    }
 }
 
 \class AddMonoid \extends AddPointed
@@ -48,74 +163,6 @@
 \class CMonoid \extends Monoid {
   | *-comm (x y : E) : x * y = y * x
   | ide-right x => *-comm x ide *> ide-left x
-} \where {
-  \record Div {M : CMonoid} (val elem inv : M)
-    | inv-left : inv * val = elem
-  \where {
-    \func product-right {M : CMonoid} (x y z : M) (x|y : Div x y) => \new Div (x * z) (y * z) x|y.inv (
-      x|y.inv * (x * z) ==< Paths.inv (*-assoc x|y.inv x z) >==
-      (x|y.inv * x) * z ==< pmap (\lam t => t * z) x|y.inv-left >==
-      y * z             `qed
-    )
-
-    \func product-left {M : CMonoid} (x y z : M) (y|z : Div y z) => \new Div (x * y) (x * z) y|z.inv (
-      y|z.inv * (x * y) ==< pmap (y|z.inv *) (*-comm x y) >==
-      y|z.inv * (y * x) ==< Paths.inv (*-assoc y|z.inv y x) >==
-      (y|z.inv * y) * x ==< pmap (\lam t => t * x) y|z.inv-left >==
-      z * x             ==< *-comm z x >==
-      x * z             `qed
-    )
-
-    \func cancel-right {M : CancelCMonoid} (x y z : M) (x*z|y*z : Div (x * z) (y * z)) => \new Div x y x*z|y*z.inv (M.cancel-right (x*z|y*z.inv * x) y z (
-      (x*z|y*z.inv * x) * z ==< *-assoc x*z|y*z.inv x z >==
-      x*z|y*z.inv * (x * z) ==< x*z|y*z.inv-left >==
-      y * z                 `qed
-    ))
-
-    \func cancel-left {M : CancelCMonoid} (x y z : M) (x*y|x*z : Div (x * y) (x * z)) => \new Div y z x*y|x*z.inv (M.cancel-left x (x*y|x*z.inv * y) z (
-      x * (x*y|x*z.inv * y) ==< Paths.inv (*-assoc x x*y|x*z.inv y) >==
-      (x * x*y|x*z.inv) * y ==< pmap (\lam t => t * y) (*-comm x x*y|x*z.inv) >==
-      (x*y|x*z.inv * x) * y ==< *-assoc x*y|x*z.inv x y >==
-      x*y|x*z.inv * (x * y) ==< x*y|x*z.inv-left >==
-      x * z                 `qed
-    ))
-
-    \lemma isProp {M : CancelCMonoid} (x y : M) : \level (HLevel.isProp (Div x y)) (HLevel.isProp.isProp (Div x y)) =>
-      \lam (d1 d2 : Div x y) =>
-        \let p => M.cancel-right d1.inv d2.inv x (d1.inv-left *> Paths.inv d2.inv-left)
-        \in path (\lam i => \new Div x y (p @ i) (pathOver (Path.inProp (coe (\lam j => (p @ j) * x = y) d1.inv-left right) d2.inv-left) @ i))
-  }
-
-  \record Inv \extends Div
-    | elem => ide
-  \where {
-    \use \level isProp {M : CMonoid} {x : M} (j j' : Inv x) : j = j' =>
-      \let q : j.inv = j'.inv =>
-        j.inv                ==< Paths.inv (ide-left j.inv) >==
-        ide * j.inv          ==< Paths.inv (pmap (\lam t => t * j.inv) j'.inv-left) >==
-        (j'.inv * x) * j.inv ==< *-assoc j'.inv x j.inv >==
-        j'.inv * (x * j.inv) ==< pmap (\lam t => j'.inv * t) (*-comm x j.inv) >==
-        j'.inv * (j.inv * x) ==< pmap (\lam t => j'.inv * t) j.inv-left >==
-        j'.inv * ide         ==< ide-right j'.inv >==
-        j'.inv               `qed
-      \in path (\lam i => \new Inv x { | inv => q @ i | inv-left => pathOver (Path.inProp (coe (\lam i => (q @ i) * x = ide) j.inv-left right) j'.inv-left) @ i })
-
-    \lemma factor-right {M : CMonoid} (x y : M) (i : Inv (x * y)) : Inv y \cowith
-      | inv => i.inv * x
-      | inv-left => *-assoc i.inv x y *> i.inv-left
-
-    \lemma factor-left {M : CMonoid} (x y : M) (i : Inv (x * y)) : Inv x => factor-right y x (transport (\lam t => Inv t) (*-comm x y) i)
-
-    \lemma product {M : CMonoid} (i j : Inv {M}) : Inv (i.val * j.val) \cowith
-      | inv => j.inv * i.inv
-      | inv-left =>
-        (j.inv * i.inv) * (i.val * j.val) ==< *-assoc j.inv i.inv (i.val * j.val) >==
-        j.inv * (i.inv * (i.val * j.val)) ==< pmap (j.inv *) (Paths.inv (*-assoc i.inv i.val j.val)) >==
-        j.inv * ((i.inv * i.val) * j.val) ==< pmap (\lam t => j.inv * (t * j.val)) i.inv-left >==
-        j.inv * (ide * j.val)             ==< pmap (j.inv *) (ide-left j.val) >==
-        j.inv * j.val                     ==< j.inv-left >==
-        ide                               `qed
-  }
 }
 
 \class AbMonoid \extends AddMonoid
