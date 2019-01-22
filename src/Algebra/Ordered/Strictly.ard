@@ -76,6 +76,15 @@
   | <_+-cancel-right (x y z : E) : x + z < y + z -> x < y
   | <_*-cancel-left (x y z : E) : x * y < x * z -> (\Sigma (x > zro) (y < z)) || (\Sigma (x < zro) (y > z))
   | <_*-cancel-right (x y z : E) : x * z < y * z -> (\Sigma (z > zro) (x < y)) || (\Sigma (z < zro) (x > y))
+
+  \lemma positive_negative_* (x y : E) (x>0 : isPos x) (y<0 : isNeg y) : isNeg (x * y) =>
+    transport (x * y <) (zro_*-right x) (<_*_positive-right x y zro x>0 y<0)
+
+  \lemma negative_positive_* (x y : E) (x<0 : isNeg x) (y>0 : isPos y) : isNeg (x * y) =>
+    transport (x * y <) (zro_*-left y) (<_*_positive-left x zro y x<0 y>0)
+
+  \lemma negative_* (x y : E) (x<0 : isNeg x) (y<0 : isNeg y) : isPos (x * y) =>
+    transport (x * y >) (zro_*-left y) (<_*_negative-left x zro y x<0 y<0)
 }
 
 \class OrderedCSemiring \extends OrderedSemiring, CSemiring, OrderedAbMonoid
@@ -127,15 +136,6 @@
     | byLeft x>0 => byLeft x>0
     | byRight x+y>x => byRight (cancelLeft x zro y (transport (\lam t => x + y > t) (inv (zro-right x)) x+y>x))
   }
-
-  \lemma negative_* (x y : E) (x<0 : isNeg x) (y<0 : isNeg y) : isPos (x * y) =>
-    transport isPos (Ring.negative_* x y) (positive_* (negative x) (negative y) (negative_positive x x<0) (negative_positive y y<0))
-
-  \lemma positive_negative_* (x y : E) (x>0 : isPos x) (y<0 : isNeg y) : isNeg (x * y) =>
-    transport (x * y <) (zro_*-right x) (<_*_positive-right x y zro x>0 y<0)
-
-  \lemma negative_positive_* (x y : E) (x<0 : isNeg x) (y>0 : isPos y) : isNeg (x * y) =>
-    transport (x * y <) (zro_*-left y) (<_*_positive-left x zro y x<0 y>0)
 } \where \open OrderedAddGroup(toPos,toNeg,fromPos,fromNeg,cancelLeft,negative_positive,positive_negative)
 
 \class OrderedCRing \extends OrderedRing, CRing, OrderedCSemiring
@@ -151,8 +151,8 @@
     \let xyInv : Inv (x * y) => positive=>inv (x * y) x*y>0
     \in \case inv=>eitherPosOrNeg x (Inv.cfactor-left x y xyInv), inv=>eitherPosOrNeg y (Inv.cfactor-right x y xyInv) \with {
       | inl x>0, inl y>0 => byLeft (x>0, y>0)
-      | inl x>0, inr y<0 => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedRing.positive_negative_* x y x>0 y<0)))
-      | inr x<0, inl y>0 => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedRing.negative_positive_* x y x<0 y>0)))
+      | inl x>0, inr y<0 => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedSemiring.positive_negative_* x y x>0 y<0)))
+      | inr x<0, inl y>0 => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedSemiring.negative_positive_* x y x<0 y>0)))
       | inr x<0, inr y<0 => byRight (x<0, y<0)
     }
 
@@ -199,22 +199,22 @@
 
 \class DecOrderedCSemiring \extends OrderedCSemiring, DecOrderedSemiring
 
-\class DecOrderedRing \extends OrderedRing, DecOrderedSemiring {
+\class DecOrderedRing \extends DecOrderedSemiring, OrderedRing {
   | positive_*-cancel x y x*y>0 => \case trichotomy x zro, trichotomy y zro \with {
     | inl x=0, _ => absurd (<-irreflexive zro (transport isPos (pmap (\lam t => t * y) x=0 *> zro_*-left y) x*y>0))
     | _, inl y=0 => absurd (<-irreflexive zro (transport isPos (pmap (x *) y=0 *> zro_*-right x) x*y>0))
     | inr (inl x<0), inr (inl y<0) => byRight (x<0, y<0)
-    | inr (inl x<0), inr (inr y>0) => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedRing.negative_positive_* x y x<0 y>0)))
-    | inr (inr x>0), inr (inl y<0) => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedRing.positive_negative_* x y x>0 y<0)))
+    | inr (inl x<0), inr (inr y>0) => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedSemiring.negative_positive_* x y x<0 y>0)))
+    | inr (inr x>0), inr (inl y<0) => absurd (<-irreflexive zro (<-transitive zro (x * y) zro x*y>0 (OrderedSemiring.positive_negative_* x y x>0 y<0)))
     | inr (inr x>0), inr (inr y>0) => byLeft (x>0, y>0)
   }
 }
 
-\class DecOrderedCRing \extends OrderedCRing, DecOrderedRing, DecOrderedCSemiring
+\class DecOrderedCRing \extends DecOrderedRing, DecOrderedCSemiring, OrderedCRing
 
-\class DiscreteOrderedField \extends OrderedField, DiscreteField, DecOrderedCRing {
-  | positive=>inv x x-isPos => \case eitherZeroOrInv x \with {
-    | inl x=0 => absurd (<-irreflexive zro (transport isPos x=0 x-isPos))
+\class DiscreteOrderedField \extends DecOrderedCRing, OrderedField, DiscreteField {
+  | positive=>inv x x>0 => \case eitherZeroOrInv x \with {
+    | inl x=0 => absurd (<-irreflexive zro (transport isPos x=0 x>0))
     | inr x-isInv => x-isInv
   }
   | trichotomy x y => \case eitherZeroOrInv (x - y) \with {
