@@ -1,0 +1,47 @@
+\import Algebra.Monoid
+\import Arith.Nat
+\import Data.Sigma
+\import Paths
+\import Set
+\open NatLE
+\open Nat(<=,zero<=_,suc<=suc)
+
+\func unsuc {n m : Nat} (p : suc n <= suc m) : n <= m \elim p
+  | suc<=suc p => p
+
+\func <=-decide {n m : Nat} : Dec (n <= m) \elim n, m
+  | 0, _ => yes zero<=_
+  | suc n, 0 => no (\lam p => \case p \with {})
+  | suc n, suc m => \case <=-decide {n} {m} \with {
+    | yes n<=m => yes (suc<=suc n<=m)
+    | no n/<=m => no (\lam sn<=sm => n/<=m (unsuc sn<=sm))
+  }
+
+-- | divMod n m returns the pair (x,y), where x is the greatest natural number x such that x * m <= n and y is the natural number such that 0 <= y < m and n = y (mod m).
+--   If m == 0, then divMod n m returns (n,n)
+\func divMod (n m : Nat) => helper n n m <=-decide
+  \where {
+    \func helper (c n m : Nat) (d : Dec (m <= n)) : \Sigma Nat Nat \elim c, d
+      | 0, _ => (0,n)
+      | _, no _ => (0,n)
+      | suc c, yes _ => tupleMapLeft suc (helper c (n -' m) m <=-decide)
+
+    \func div (n m : Nat) => (divMod n m).1
+
+    \func mod (n m : Nat) => (divMod n m).2
+
+    \lemma property (n m : Nat) : m * div n m + mod n m = n => +-comm *> helper n n m <=-decide
+      \where
+        \lemma helper (c n m : Nat) (d : Dec (m <= n)) : (divMod.helper c n m d).2 + m * (divMod.helper c n m d).1 = n \elim c, d
+          | 0, no _ => idp
+          | 0, yes _ => idp
+          | suc c, no _ => idp
+          | suc c, yes m<=n =>
+            \let p => divMod.helper c (n -' m) m <=-decide
+            \in (tupleMapLeft suc p).2 + m * (tupleMapLeft suc p).1 ==< pmap2 (\lam x y => x + m * y) (tupleMapLeftProj2 suc p) (tupleMapLeftProj1 suc p) >==
+                                       p.2 + (m * p.1 + m)                                 ==< inv +-assoc >==
+                                       (p.2 + m * p.1) + m                                 ==< pmap (\lam t => t + m) (helper c (n -' m) m <=-decide) >==
+                                       (n -' m) + m                                        ==< +-comm >==
+                                       m + (n -' m)                                        ==< <=-+ m<=n >==
+                                       n                                                   `qed
+  }
