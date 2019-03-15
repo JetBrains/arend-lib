@@ -8,6 +8,29 @@
   | ide-right (x : E) : x * ide = x
   | *-assoc (x y z : E) : (x * y) * z = x * (y * z)
 } \where {
+  \func equals {M N : Monoid} (p : M.E = {\Set} N.E) (q : \let f x => coe (\lam i => p @ i) x right \in \Pi (x y : M) -> f (x * y) = f x * f y) : M = N
+    => \let | f x => coe (\lam i => p @ i) x right
+            | g y => coe (\lam i => inv p @ i) y right
+            | fg y : f (g y) = y => transport_id_inv (\lam Z => Z) p y
+            | q' (x y : N) =>
+              coe (\lam i => p @ i -> p @ i -> p @ i) (*) right x y ==< pmap (\lam h => h y) (transport_pi (\lam Z => Z) (\lam Z => Z -> Z) p (*) x) >==
+              coe (\lam i => p @ i -> p @ i) (* (g x)) right y      ==< transport_pi (\lam Z => Z) (\lam Z => Z) p (* (g x)) y >==
+              f (g x * g y)                                         ==< q (g x) (g y) >==
+              f (g x) * f (g y)                                     ==< pmap2 (*) (fg x) (fg y) >==
+              x * y                                                 `qed
+            | pq' i => pathOver {\lam j => p @ j -> p @ j -> p @ j} (path (\lam j x y => q' x y @ j)) @ i
+            | r => f ide             ==< inv (ide-left (f ide)) >==
+                   ide * f ide       ==< pmap (\lam t => t * f ide) (inv (fg ide)) >==
+                   f (g ide) * f ide ==< inv (q (g ide) ide) >==
+                   f (g ide * ide)   ==< pmap f (ide-right (g ide)) >==
+                   f (g ide)         ==< fg ide >==
+                   ide               `qed
+            | pr i => pathOver {\lam j => p @ j} r @ i
+       \in path (\lam i => \new Monoid (p @ i) (pr i) (pq' i)
+                                       (pathOver (Path.inProp (coe (\lam j => \Pi (x : p @ j) -> (pq' j) (pr j) x = x) M.ide-left right) N.ide-left) @ i)
+                                       (pathOver (Path.inProp (coe (\lam j => \Pi (x : p @ j) -> (pq' j) x (pr j) = x) M.ide-right right) N.ide-right) @ i)
+                                       (pathOver (Path.inProp (coe (\lam j => \Pi (x y z : p @ j) -> (pq' j) ((pq' j) x y) z = (pq' j) x ((pq' j) y z)) M.*-assoc right) N.*-assoc) @ i))
+
   \func op (M : Monoid) : Monoid \cowith
     | Pointed => M
     | * x y => M.* y x

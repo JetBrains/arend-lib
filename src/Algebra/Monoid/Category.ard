@@ -1,0 +1,35 @@
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Category
+\import Paths
+
+\record MonoidHom (M N : Monoid)
+  | func : M -> N
+  | func-ide : func ide = ide
+  | func-* (x y : M) : func (x * y) = func x * func y
+  \where {
+    \func equals {M N : Monoid} {f g : MonoidHom M N} (p : \Pi (x : M) -> f.func x = g.func x) : f = g
+      => path (\lam i => \new MonoidHom M N (\lam x => p x @ i)
+                                            (pathOver (Path.inProp (coe (\lam j => p ide @ j = ide) f.func-ide right) g.func-ide) @ i)
+                                            (pathOver (Path.inProp (coe (\lam j => \Pi (x y : M) -> p (x * y) @ j = (p x @ j) * (p y @ j)) f.func-* right) g.func-*) @ i))
+  }
+
+\instance MonoidCategory : Cat Monoid
+  | Hom M N => MonoidHom M N
+  | id => id
+  | o {x y z : Monoid} (g : MonoidHom y z) (f : MonoidHom x y) => \new MonoidHom {
+    | func x => g.func (f.func x)
+    | func-ide => pmap g.func f.func-ide *> g.func-ide
+    | func-* x y => pmap g.func (f.func-* x y) *> g.func-* (f.func x) (f.func y)
+  }
+  | id-left _ => idp
+  | id-right _ => idp
+  | o-assoc _ _ _ => idp
+  | univalence {M N : Monoid} (f : MonoidHom M N) (g : MonoidHom N M) p q =>
+    \let M=N : M = N => Monoid.equals (path (iso f.func g.func (\lam x => path (\lam i => func {p @ i} x)) (\lam y => path (\lam i => func {q @ i} y)))) f.func-*
+    \in (M=N, MonoidHom.equals (\lam x => Jl {Monoid} (\lam K M=K => func {transport (\lam K => MonoidHom M K) M=K (id M)} x = coe (\lam j => M=K @ j) x right) idp M=N))
+  \where
+    \func id (M : Monoid) : MonoidHom M M \cowith
+      | func x => x
+      | func-ide => idp
+      | func-* _ _ => idp
