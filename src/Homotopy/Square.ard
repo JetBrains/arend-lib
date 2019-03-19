@@ -1,0 +1,96 @@
+\import Equiv
+\import Paths
+
+{- | ``U --> X
+       |     |
+       |     |
+       V --> Y``
+-}
+\record Square (U V X Y : \Type)
+               (ux : U -> X) (vy : V -> Y) (uv : U -> V) (xy : X -> Y)
+               (sqcomm : \Pi (u : U) -> vy (uv u) = xy (ux u))
+  \where {
+    \func pull (s : Square) (U' : \Type) (f : U' -> s.U) : Square \cowith
+      | U => U'
+      | V => s.V
+      | X => s.X
+      | Y => s.Y
+      | ux u' => ux (f u')
+      | vy => s.vy
+      | uv u' => uv (f u')
+      | xy => s.xy
+      | sqcomm z => s.sqcomm (f z)
+
+    \func push (s : Square) (Y' : \Type) (f : s.Y -> Y') : Square \cowith
+      | U => s.U
+      | V => s.V
+      | X => s.X
+      | Y => Y'
+      | ux => s.ux
+      | vy v => f (s.vy v)
+      | uv => s.uv
+      | xy x => f (s.xy x)
+      | sqcomm u => pmap f (sqcomm u)
+  }
+
+\open Square(pull,push)
+
+\class Pullback (square : Square)
+  | pullback-univ (Z : \Type) : Equiv {Z -> square.U} {Square { | U => Z | V => square.V | X => square.X | Y => square.Y | vy => square.vy | xy => square.xy }} (pull square Z)
+
+\func sigmaPullback (V X Y : \Type) (vy : V -> Y) (xy : X -> Y) : Pullback \cowith
+  | square {
+    | U => \Sigma (v : V) (x : X) (p : vy v = xy x)
+    | V => V
+    | X => X
+    | Y => Y
+    | ux p => p.2
+    | vy => vy
+    | uv p => p.1
+    | xy => xy
+    | sqcomm p => p.3
+  }
+  | pullback-univ Z => \new QEquiv {
+    | ret (s : Square) z => (s.uv z, s.ux z, s.sqcomm z)
+    | ret_f _ => idp
+    | f_sec _ => idp
+  }
+
+\func productPullback (A B : \Type) : Pullback \cowith
+  | square {
+    | U => \Sigma A B
+    | V => A
+    | X => B
+    | Y => \Sigma
+    | ux p => p.2
+    | vy _ => ()
+    | uv p => p.1
+    | xy _ => ()
+    | sqcomm _ => idp
+  }
+  | pullback-univ Z => \new QEquiv {
+    | ret (s : Square) z => (s.uv z, s.ux z)
+    | ret_f _ => idp
+    | f_sec _ => idp
+  }
+
+\func pathPullback {A : \Type} (x y : A) : Pullback \cowith
+  | square {
+    | U => x = y
+    | V => \Sigma
+    | X => \Sigma
+    | Y => A
+    | ux _ => ()
+    | vy _ => x
+    | uv _ => ()
+    | xy _ => y
+    | sqcomm p => p
+  }
+  | pullback-univ Z => \new QEquiv {
+    | ret (s : Square) => s.sqcomm
+    | ret_f _ => idp
+    | f_sec _ => idp
+  }
+
+\class Pushout (square : Square)
+  | pushout-univ (Z : \Type) : Equiv {square.Y -> Z} {Square { | Y => Z | U => square.U | V => square.V | X => square.X | uv => square.uv | ux => square.ux }} (push square Z)
