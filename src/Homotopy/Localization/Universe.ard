@@ -1,48 +1,92 @@
 \import Data.Sigma
 \import Equiv
+\import Equiv.Path (pmapEquiv, pmapSection)
+\import Equiv.Univalence (Equiv-to-=)
 \import Function
 \import HLevel
 \import Homotopy.Square
 \import Paths
+\open *> (concat)
 
 \class Universe
   | isLocal : \Type -> \Prop
 
 -- | The type of local types
-\class Local {U : Universe} (X : \Type)
-  | local : isLocal X
-
--- TODO: Prove the following lemmas.
+\class Local {U : Universe} (S : \Type)
+  | local : isLocal S
 
 -- | The type of localizations of a type
-\class Localization {U : Universe} (X : \Type) (X' : Local)
-  | inL : X -> X'
-  | local-univ (Y : Local) : Equiv {X' -> Y} {X -> Y} (-o inL)
-  \where
-    \use \level isProp {U : Universe} (X : \Type) (l1 l2 : Localization X) : l1 = l2
-      => \let | p1 : l1.X' = {\Type} l2.X' => path (iso (Equiv.sec {l1.local-univ l2.X'} l2.inL) (Equiv.sec {l2.local-univ l1.X'} l1.inL) {?} {?})
-              | p2 i => local {pathInProp (\lam j => Local (p1 @ j)) (\new l1.X') (\new l2.X') @ i}
-              | q1 : l1.X' = {Local} l2.X' => path (\lam i => \new Local (p1 @ i) (p2 i))
-              | q2 x => transport_pi {Local} (\lam _ => X) (\lam Y => Y) q1 l1.inL x *> path (\lam i => (Equiv.f_sec {l1.local-univ l2.X'} l2.inL @ i) x)
-              | q2' i => pathOver (path (\lam j x => q2 x @ j)) @ i
-         \in path (\lam i => \new Localization X (q1 @ i) (q2' i) (local-univ {pathInProp (\lam j => Localization X (q1 @ j) (q2' j)) (\new l1) (\new l2) @ i}))
+\class Localization {U : Universe} (S : \Type) (S' : Local) {
+  | inL : S -> S'
+  | local-univ (Z : Local) : Equiv {S' -> Z} {S -> Z} (-o inL)
+
+  \func lift {Z : Local {U}} (f : S -> Z) (x' : S') : Z => Equiv.sec {local-univ Z} f x'
+
+  \func lift-prop {Z : Local {U}} (f : S -> Z) (x : S) : lift f (inL x) = f x => path (\lam i => (Equiv.f_sec {local-univ Z} f @ i) x)
+
+  \func remove_inL {Z : Local {U}} (f g : S' -> Z) (p : \Pi (x : S) -> f (inL x) = g (inL x)) (x : S') : f x = g x
+    => path (\lam i => (Equiv.sec {pmapEquiv (local-univ Z) {f} {g}} (path (\lam i x => p x @ i)) @ i) x)
+
+  \func remove_inL-coh {Z : Local {U}} (f g : S' -> Z) (p : \Pi (x : S) -> f (inL x) = g (inL x)) (x : S) : remove_inL f g p (inL x) = p x
+    => \let t => Equiv.f_sec {pmapEquiv (local-univ Z) {f} {g}} (path (\lam i x => p x @ i))
+       \in pmap (\lam q => path (\lam i => (q @ i) x)) t
+} \where {
+  \use \level isProp {U : Universe} (X : \Type) (l1 l2 : Localization X) : l1 = l2
+    => \let | p1 : l1.S' = {\Type} l2.S' => path (iso (lift {l1} l2.inL)
+                                                      (lift {l2} l1.inL)
+                                                      (remove_inL (lift {l2} l1.inL `o` lift {l1} l2.inL) id (\lam x =>
+                                                          lift {l2} l1.inL (lift {l1} l2.inL (l1.inL x)) ==< pmap (lift {l2} l1.inL) (lift-prop {l1} l2.inL x) >==
+                                                          lift {l2} l1.inL (l2.inL x)                    ==< lift-prop {l2} l1.inL x >==
+                                                          l1.inL x                                       `qed))
+                                                      (remove_inL (lift {l1} l2.inL `o` lift {l2} l1.inL) id (\lam x =>
+                                                          lift {l1} l2.inL (lift {l2} l1.inL (l2.inL x)) ==< pmap (lift {l1} l2.inL) (lift-prop {l2} l1.inL x) >==
+                                                          lift {l1} l2.inL (l1.inL x)                    ==< lift-prop {l1} l2.inL x >==
+                                                          l2.inL x                                       `qed)))
+            | p2 i => local {pathInProp (\lam j => Local (p1 @ j)) (\new l1.S') (\new l2.S') @ i}
+            | q1 : l1.S' = {Local} l2.S' => path (\lam i => \new Local (p1 @ i) (p2 i))
+            | q2 x => transport_pi {Local} (\lam _ => X) (\lam Y => Y) q1 l1.inL x *> lift-prop l2.inL x
+            | q2' i => pathOver (path (\lam j x => q2 x @ j)) @ i
+       \in path (\lam i => \new Localization X (q1 @ i) (q2' i) (local-univ {pathInProp (\lam j => Localization X (q1 @ j) (q2' j)) (\new l1) (\new l2) @ i}))
+}
+
+\open Localization (lift,lift-prop,remove_inL,remove_inL-coh)
 
 \class ReflUniverse \extends Universe
   | localization (X : \Type) : Localization X
 
--- | ``inL : X -> X'`` is an equivalence if ``X`` is local.
+-- | The localization functor
+\func localize {U : ReflUniverse} (A : \Type) => Localization.S' {localization A}
+
+\func lmap {U : ReflUniverse} {A B : \Type} (f : A -> B) (LA : localize A) : localize B
+  => lift (inL `o` f) LA
+
+-- | If ``inL : X -> X'`` is a section, then it is an equivalence.
+\lemma sectionIsEquiv {U : ReflUniverse} (X : \Type) (s : Section (inL {localization X})) : Equiv (inL {localization X})
+  => lem (localization X) s
+  \where
+    \lemma lem {U : Universe} (L : Localization) (s : Section {L.S} {L.S'} inL) : Equiv {L.S} {L.S'} inL
+      => \new QEquiv {
+        | ret => s.ret
+        | ret_f => s.ret_f
+        | f_sec => remove_inL (inL `o` s.ret) id (\lam x => pmap inL (s.ret_f x))
+      }
+
+-- | If ``X`` is local, then ``inL : X -> X'`` is an equivalence.
 \lemma localizationOfLocalType {U : ReflUniverse} (X : Local) : Equiv (inL {localization X})
   => lem X (localization X)
   \where
-    \lemma lem {U : Universe} (X : Local) (L : Localization X) : Equiv {X} {L.X'} inL
-      => {?}
+    \lemma lem {U : Universe} (X : Local) (L : Localization X) : Equiv {X} {L.S'} inL
+      => sectionIsEquiv.lem L (\new Section {
+           | ret => lift id
+           | ret_f => lift-prop id
+         })
 
 -- | If ``inL : X -> X'`` is a section, then ``X`` is local.
 \lemma localizationWithRetraction {U : ReflUniverse} (X : \Type) (s : Section (inL {localization X})) : Local X
   => lem (localization X) s
   \where
-    \lemma lem {U : Universe} (L : Localization) (s : Section {L.X} {L.X'} inL) : Local L.X
-      => {?}
+    \lemma lem {U : Universe} (L : Localization) (s : Section {L.S} {L.S'} inL) : Local L.S \cowith
+      | local => transport isLocal (inv (Equiv-to-= (sectionIsEquiv.lem L s))) L.S'.local
 
 -- | Contractible types with a localization are local.
 \lemma contrLocal {U : ReflUniverse} (C : Contr) : Local C
@@ -56,28 +100,81 @@
   \where
     \lemma lem {U : Universe} (L : Localization (\Sigma)) : Local (\Sigma) => contrLocal.lem unit-isContr L
 
--- | Pullbacks of local types with a localization are local.
+{- | Pullbacks of local types with a localization are local.
+ - \proof
+ - By {localizationWithRetraction}, we just need to construct a retraction of ``inL : U -> L U``.
+ - By the universal property of the localization, we have maps from ``L U`` to the objects in the pullback square
+ - such that their composition with ``inL`` equals corresponding maps in the pullback square.
+ - So, we have a square with the corner ``L U``:
+ - ```
+ -        lux
+ -    LU ----> X
+ -     |       |
+ - luv |       |
+ -     |       |
+ -     V ----> Y
+ - ```
+ - The [pullback]{Square.pull} of this square along ``inL`` is the original pullback square.
+ - By the universal property of pullbacks, we have a map ``h : L U -> U`` such that ``h `o` inL`` is the identity map.
+ -}
 \lemma pullbackLocal {U : ReflUniverse} (P : Pullback) (VL : Local P.square.V) (XL : Local P.square.X) (YL : Local P.square.Y) : Local P.square.U
   => lem P (localization P.square.U) VL XL YL
-  \where
-    \lemma lem {U : Universe} (P : Pullback) (L : Localization P.square.U) (VL : Local P.square.V) (XL : Local P.square.X) (YL : Local P.square.Y) : Local P.square.U
-      => {?}
+  \where {
+    \open Square (pull)
+
+    \lemma lem {U : Universe} (P : Pullback) (L : Localization P.square.U) (VL : Local P.square.V) (XL : Local P.square.X) (YL : Local P.square.Y) : Local P.square.U =>
+      \let | lux => lift P.square.ux
+           | luv => lift P.square.uv
+           | pux u => pmap P.square.xy (lift-prop P.square.ux u)
+           | puv u => pmap P.square.vy (lift-prop P.square.uv u)
+           | puy u =>
+               P.square.vy (luv (inL u))   ==< puv u >==
+               P.square.vy (P.square.uv u) ==< P.square.sqcomm u >==
+               P.square.xy (P.square.ux u) ==< inv (pux u) >==
+               P.square.xy (lux (inL u))   `qed
+           | LU-square => \new P.square {
+                            | U => L.S'
+                            | ux => lux
+                            | uv => luv
+                            | sqcomm => remove_inL (P.square.vy `o` luv) (P.square.xy `o` lux) puy
+                          }
+           | g => P.pullback-univ.sec LU-square
+      \in localizationWithRetraction.lem L (\new Section {
+        | ret => g
+        | ret_f u => path (\lam i => (Section.ret {pmapSection P.pullback-univ {g `o` inL} {id}} (
+            pull P (g `o` inL)  ==< idp >==
+            pull (pull P g) inL ==< path (\lam i => pull (P.pullback-univ.f_sec LU-square @ i) inL) >==
+            pull LU-square inL  ==< path (\lam i => \new P.square {
+                                                      | ux u => lift-prop P.square.ux u @ i
+                                                      | uv u => lift-prop P.square.uv u @ i
+                                                      | sqcomm u => <*.concat (remove_inL-coh (P.square.vy `o` luv) (P.square.xy `o` lux) puy u)
+                                                                              (pathOver (coe_path.alt (puv u) (P.square.sqcomm u) (pux u))) @ i
+                                                    }) >==
+            (\new P.square)     ==< idp >==
+            pull P id           `qed) @ i) u)
+      })
+  }
 
 -- | Products of local types with a localization are local.
 \lemma productLocal {U : ReflUniverse} {A B : Local} : Local (\Sigma A B)
-  => pullbackLocal (productPullback A B) (\new Local A A.local) (\new Local B B.local) unitLocal
+  => pullbackLocal (productPullback A B) (\new A) (\new B) unitLocal
 
 -- | Path types of local types with a localization are local.
 \lemma pathLocal {U : ReflUniverse} {A : Local} (x y : A) : Local (x = y)
-  => lem x y (localization (x = y))
-  \where
-    \lemma lem {U : Universe} {A : Local} (x y : A) (L : Localization (x = y)) : Local (x = y)
-      => {?}
+  => pullbackLocal (pathPullback x y) unitLocal unitLocal (\new A)
 
--- | Pi-types of local types with a localization are local.
+{- | Pi-types of local types with a localization are local.
+ - \proof
+ - By {localizationWithRetraction}, we just need to construct a retraction of ``inL : (\Pi (x : A) -> B x) -> L (\Pi (x : A) -> B x)``.
+ - Since ``B a`` is local, there is a map ``h a : L (\Pi (x : A) -> B x) -> B a`` such that ``h a `o` inL = ap a``, where ``ap a`` is ``\lam g => g a``.
+ - Thus, we have a map ``r`` defined as ``\lam lx a => h a lx :  L (\Pi (x : A) -> B x) -> \Pi (x : A) -> B a`` such that ``r  `o` inL`` is the identity map.
+ -}
 \lemma piLocal {U : ReflUniverse} {A : \Type} (B : A -> Local) : Local (\Pi (x : A) -> B x)
   => lem B (localization (\Pi (x : A) -> B x))
   \where
     \lemma lem {U : Universe} {A : \Type} (B : A -> Local) (L : Localization (\Pi (x : A) -> B x)) : Local (\Pi (x : A) -> B x)
-      => {?}
-
+      => \let ap (a : A) (g : \Pi (x : A) -> B x) => g a
+         \in localizationWithRetraction.lem L (\new Section {
+           | ret lx a => lift (ap a) lx
+           | ret_f g => path (\lam i a => lift-prop (ap a) g @ i)
+         })
