@@ -1,0 +1,58 @@
+\import Equiv
+\import Homotopy.Pointed
+\import Homotopy.Pushout
+\import Homotopy.Square
+\import Logic
+\import Paths
+
+\data Susp (A : \Type)
+  | north
+  | south
+  | merid A (i : I) \elim i {
+    | left => north
+    | right => south
+  }
+  \where {
+    \func rec {A B : \Type} (b1 b2 : B) (f : A -> b1 = b2) (x : Susp A) : B \elim x
+      | north => b1
+      | south => b2
+      | merid a i => f a @ i
+    \where
+      \func eta {A B : \Type} (g : Susp A -> B) (x : Susp A) : rec (g north) (g south) (\lam a => path (\lam i => g (merid a i))) x = g x \elim x
+        | north => idp
+        | south => idp
+        | merid a i => idp
+
+    \func eq (A B : \Type) : (Susp A -> B) = (\Sigma (b1 : B) (\Sigma (b2 : B) (A -> b1 = b2))) =>
+      path (iso {Susp A -> B}
+                {\Sigma (b1 : B) (\Sigma (b2 : B) (A -> b1 = b2))}
+                (\lam g => (g north, (g south, \lam a => path (\lam i => g (merid a i)))))
+                (\lam p => rec p.1 p.2.1 p.2.2)
+                (\lam g => path (\lam i x => rec.eta g x @ i))
+                (\lam p => idp))
+  }
+
+\instance SuspPointed (A : \Type) : Pointed (Susp A)
+  | base => north
+
+\func suspPushout (A : \Type) : Pushout \cowith
+  | square {
+    | U => A
+    | V => \Sigma
+    | X => \Sigma
+    | Y => Susp A
+    | ux _ => ()
+    | vy _ => north
+    | uv _ => ()
+    | xy _ => south
+    | sqcomm a => path (merid a)
+  }
+  | pushout-univ {Z} => \new QEquiv {
+    | ret (s : Square) => Susp.rec (s.vy ()) (s.xy ()) s.sqcomm
+    | ret_f h => path (\lam i s => (\case s \as s \return Susp.rec (h north) (h south) (\lam a => path (\lam j => h (merid a j))) s = h s \with {
+      | north => idp
+      | south => idp
+      | merid _ _ => idp
+    }) @ i)
+    | f_sec _ => idp
+  }

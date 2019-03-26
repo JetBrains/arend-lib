@@ -1,57 +1,52 @@
+\import Equiv
 \import Function
 \import Homotopy.Pointed
+\import Homotopy.Sphere
+\import Homotopy.Square
+\import Homotopy.Suspension
 \import Logic
 \import Paths
 
-\data Pushout {A B C : \oo-Type} (f : A -> B) (g : A -> C)
+\data PushoutData {A B C : \Type} (f : A -> B) (g : A -> C)
   | pinl B
   | pinr C
   | pglue (a : A) (i : I) \elim i {
     | left => pinl (f a)
     | right => pinr (g a)
   }
-
-\instance PushoutPointed {A B C : \oo-Type} {P : Pointed B} {f : A -> B} {g : A -> C} : Pointed (Pushout f g)
-  | base => pinl base
-
-\func Susp (A : \oo-Type) => Pushout {A} (\lam _ => unit) (\lam _ => unit)
   \where {
-    \func north {A : \oo-Type} : Susp A => pinl unit
-
-    \func south {A : \oo-Type} : Susp A => pinr unit
-
-    \func Pointed (A : \oo-Type) => \new Homotopy.Pointed.Pointed (Susp A) north
-
-    \func rec {A B : \oo-Type} (b1 b2 : B) (f : A -> b1 = b2) (x : Susp A) : B \elim x
-      | pinl _ => b1
-      | pinr _ => b2
-      | pglue a i => f a @ i
-    \where
-      \func eta {A B : \oo-Type} (g : Susp A -> B) (x : Susp A) : rec (g north) (g south) (\lam a => path (\lam i => g (pglue a i))) x = g x \elim x
-        | pinl _ => idp
-        | pinr _ => idp
-        | pglue a i => idp
-
-    \func eq (A B : \oo-Type) : (Susp A -> B) = (\Sigma (b1 : B) (\Sigma (b2 : B) (A -> b1 = b2))) =>
-      path (iso {Susp A -> B}
-                {\Sigma (b1 : B) (\Sigma (b2 : B) (A -> b1 = b2))}
-                (\lam g => (g north, (g south, \lam a => path (\lam i => g (pglue a i)))))
-                (\lam p => rec p.1 p.2.1 p.2.2)
-                (\lam g => path (\lam i x => rec.eta g x @ i))
-                (\lam p => idp))
+    \func rec {A B C : \Type} {f : A -> B} {g : A -> C} {Z : \Type} (lm : B -> Z) (rm : C -> Z) (gm : \Pi (a : A) -> lm (f a) = rm (g a)) (x : PushoutData f g) : Z \elim x
+      | pinl b => lm b
+      | pinr c => rm c
+      | pglue a i => gm a @ i
   }
 
-\func Sphere (n : Nat) => iterr Susp n Sphere0
-  \where {
-    \data Sphere0 | north0 | south0
+\open PushoutData
 
-    \func north (n : Nat) : Sphere n \elim n
-      | 0 => north0
-      | suc _ => Susp.north
+\instance PushoutPointed {A B C : \Type} {P : Pointed B} {f : A -> B} {g : A -> C} : Pointed (PushoutData f g)
+  | base => pinl base
 
-    \func south (n : Nat) : Sphere n \elim n
-      | 0 => south0
-      | suc _ => Susp.south
+\class Pushout (square : Square)
+  | pushout-univ {Z : \Type} : Equiv {square.Y -> Z} {Square { | Y => Z | U => square.U | V => square.V | X => square.X | uv => square.uv | ux => square.ux }} (Square.push square)
 
-    \func Pointed (n : Nat) => \new Homotopy.Pointed.Pointed (Sphere n) (north n)
+\func pushoutData {A B C : \Type} (f : A -> B) (g : A -> C) : Pushout \cowith
+  | square {
+    | U => A
+    | V => B
+    | X => C
+    | Y => PushoutData f g
+    | ux => g
+    | vy => pinl
+    | uv => f
+    | xy => pinr
+    | sqcomm a => path (pglue a)
+  }
+  | pushout-univ {Z} => \new QEquiv {
+    | ret (s : Square) => rec s.vy s.xy s.sqcomm
+    | ret_f h => path (\lam i p => (\case p \as p \return rec (h `o` pinl) (h `o` pinr) (\lam a => path (\lam j => h (pglue a j))) p = h p \with {
+      | pinl _ => idp
+      | pinr _ => idp
+      | pglue _ _ => idp
+    }) @ i)
+    | f_sec _ => idp
   }
