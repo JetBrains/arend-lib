@@ -1,3 +1,104 @@
+\import Equiv
 \import Homotopy.Pushout
+\import Homotopy.Sphere
+\import Homotopy.Suspension
+\import Paths
+\open Sphere(Sphere0,north0,south0)
 
 \func Join (A B : \Type) => PushoutData {\Sigma A B} (\lam p => p.1) (\lam p => p.2)
+
+\func JoinSphere0 (A : \Type) : QEquiv {Join Sphere0 A} {Susp A} \cowith
+  | f => joinToSphere0
+  | ret => sphere0ToJoin
+  | ret_f => joinShere0Join
+  | f_sec => sphere0JoinSphere0
+  \where {
+    \func joinToSphere0 {A : \Type} (j : Join Sphere0 A) : Susp A
+      | pinl north0 => north
+      | pinl south0 => south
+      | pinr _ => south
+      | pglue (north0,a) i => merid a i
+      | pglue (south0,_) _ => south
+
+    \func sphere0ToJoin {A : \Type} (s : Susp A) : Join Sphere0 A
+      | north => pinl north0
+      | south => pinl south0
+      | merid a i => (path (pglue (north0,a)) *> inv (path (pglue (south0,a)))) @ i
+
+    \func joinShere0Join {A : \Type} (j : Join Sphere0 A) : sphere0ToJoin (joinToSphere0 j) = j
+      | pinl north0 => idp
+      | pinl south0 => idp
+      | pinr a => path (pglue (south0,a))
+      | pglue (north0,a) i => path (\lam j => PathSquare.map
+          (path (\lam _ => pinl north0))                             -- left side
+          (path (pglue (south0,a)))                                  -- right side
+          (path (pglue (north0,a)) *> inv (path (pglue (south0,a)))) -- top side
+          (path (pglue (north0,a)))                                  -- bottom side
+          idp @ j @ i)
+      | pglue (south0,a) i => path (\lam j => pglue (south0,a) (squeeze i j))
+
+    \func sphere0JoinSphere0 {A : \Type} (s : Susp A) : joinToSphere0 (sphere0ToJoin s) = s
+      | north => idp
+      | south => idp
+      | merid a i =>
+        \let t =>
+          pmap joinToSphere0 (path (pglue (north0,a)) *> inv (path (pglue (south0,a)))) ==< pmap_*>-comm joinToSphere0 (path (pglue (north0,a))) (inv (path (pglue (south0,a)))) >==
+          path (merid a) *> pmap joinToSphere0 (inv (path (pglue (south0,a))))          ==< pmap (path (merid a) *>) (pmap_inv-comm joinToSphere0 (path (pglue (south0,a)))) >==
+          path (merid a)                                                                `qed
+        \in path (\lam j => t @ j @ i)
+  }
+
+\func Join-assoc (A B C : \Type) : QEquiv {Join (Join A B) C} {Join A (Join B C)} \cowith
+  | f => leftToRight
+  | ret => rightToLeft
+  | ret_f => leftRightLeft
+  | f_sec => rightLeftRight
+  \where {
+    \func leftToRight {A B C : \Type} (j : Join (Join A B) C) : Join A (Join B C)
+      | pinl (pinl a) => pinl a
+      | pinl (pinr b) => pinr (pinl b)
+      | pinl (pglue (a,b) j) => pglue (a, pinl b) j
+      | pinr c => pinr (pinr c)
+      | pglue (pinl a, c) i => pglue (a, pinr c) i
+      | pglue (pinr b, c) i => pinr (pglue (b,c) i)
+      | pglue (pglue (a,b) j, c) i => PathSquare.map
+          (path (pglue (a, pinl b)))              -- left side
+          (path (\lam _ => pinr (pinr c)))        -- right side
+          (path (pglue (a, pinr c)))              -- top side
+          (path (\lam i => pinr (pglue (b,c) i))) -- bottom side
+          (Jl (\lam x p => path (pglue (a,x)) = path (pglue (a, pinl b)) <* pmap pinr p) (inv (<*_idp _)) (path (pglue (b,c))))
+          @ j @ i
+
+    \func rightToLeft {A B C : \Type} (j : Join A (Join B C)) : Join (Join A B) C
+      | pinl a => pinl (pinl a)
+      | pinr (pinl b) => pinl (pinr b)
+      | pinr (pinr c) => pinr c
+      | pinr (pglue (b,c) j) => pglue (pinr b, c) j
+      | pglue (a, pinl b) i => pinl (pglue (a,b) i)
+      | pglue (a, pinr c) i => pglue (pinl a, c) i
+      | pglue (a, pglue (b,c) j) i => PathSquare.map
+          (path (\lam _ => pinl (pinl a)))        -- left side
+          (path (pglue (pinr b, c)))              -- right side
+          (path (\lam i => pinl (pglue (a,b) i))) -- top side
+          (path (pglue (pinl a, c)))              -- bottom side
+          (Jl (\lam x p => pmap pinl p = path (pglue (pinl a, c)) *> inv (path (pglue (x,c)))) (inv (*>_inv _)) (path (pglue (a,b))))
+          @ j @ i
+
+    \func leftRightLeft {A B C : \Type} (j : Join (Join A B) C) : rightToLeft (leftToRight j) = j
+      | pinl (pinl a) => idp
+      | pinl (pinr b) => idp
+      | pinl (pglue (a,b) j) => idp
+      | pinr c => idp
+      | pglue (pinl a, c) i => idp
+      | pglue (pinr b, c) i => idp
+      | pglue (pglue (a,b) j, c) i => {?}
+
+    \func rightLeftRight {A B C : \Type} (j : Join A (Join B C)) : leftToRight (rightToLeft j) = j
+      | pinl a => idp
+      | pinr (pinl b) => idp
+      | pinr (pinr c) => idp
+      | pinr (pglue (b,c) j) => idp
+      | pglue (a, pinl b) i => idp
+      | pglue (a, pinr c) i => idp
+      | pglue (a, pglue (b,c) j) i => {?}
+}
