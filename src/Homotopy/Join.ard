@@ -1,4 +1,5 @@
 \import Equiv
+\import Homotopy.Cube
 \import Homotopy.Pushout
 \import Homotopy.Sphere
 \import Homotopy.Suspension
@@ -6,6 +7,15 @@
 \open Sphere(Sphere0,north0,south0)
 
 \func Join (A B : \Type) => PushoutData {\Sigma A B} (\lam p => p.1) (\lam p => p.2)
+  \where {
+    \func jinl {A B : \Type} (a : A) : Join A B => pinl a
+
+    \func jinr {A B : \Type} (b : B) : Join A B => pinr b
+
+    \func jglue {A B : \Type} (a : A) (b : B) : jinl a = jinr b => path (pglue (a,b))
+  }
+
+\open Join
 
 \func JoinSphere0 (A : \Type) : QEquiv {Join Sphere0 A} {Susp A} \cowith
   | f => joinToSphere0
@@ -21,30 +31,30 @@
       | pglue (south0,_) _ => south
 
     \func sphere0ToJoin {A : \Type} (s : Susp A) : Join Sphere0 A
-      | north => pinl north0
-      | south => pinl south0
-      | merid a i => (path (pglue (north0,a)) *> inv (path (pglue (south0,a)))) @ i
+      | north => jinl north0
+      | south => jinl south0
+      | merid a i => (jglue north0 a *> inv (jglue south0 a)) @ i
 
     \func joinShere0Join {A : \Type} (j : Join Sphere0 A) : sphere0ToJoin (joinToSphere0 j) = j
       | pinl north0 => idp
       | pinl south0 => idp
-      | pinr a => path (pglue (south0,a))
-      | pglue (north0,a) i => path (\lam j => PathSquare.map
-          (path (\lam _ => pinl north0))                             -- left side
-          (path (pglue (south0,a)))                                  -- right side
-          (path (pglue (north0,a)) *> inv (path (pglue (south0,a)))) -- top side
-          (path (pglue (north0,a)))                                  -- bottom side
-          idp @ j @ i)
-      | pglue (south0,a) i => path (\lam j => pglue (south0,a) (squeeze i j))
+      | pinr a => jglue south0 a
+      | pglue (north0,a) j => path (\lam i => Cube2.map
+          (jglue north0 a *> inv (jglue south0 a))  -- top edge
+          (jglue north0 a)                          -- bottom edge
+          (idpe (jinl north0))                      -- left edge
+          (jglue south0 a)                          -- right edge
+          idp @ i @ j)
+      | pglue (south0,a) j => path (\lam i => pglue (south0,a) (squeeze i j))
 
     \func sphere0JoinSphere0 {A : \Type} (s : Susp A) : joinToSphere0 (sphere0ToJoin s) = s
       | north => idp
       | south => idp
       | merid a i =>
         \let t =>
-          pmap joinToSphere0 (path (pglue (north0,a)) *> inv (path (pglue (south0,a)))) ==< pmap_*>-comm joinToSphere0 (path (pglue (north0,a))) (inv (path (pglue (south0,a)))) >==
-          path (merid a) *> pmap joinToSphere0 (inv (path (pglue (south0,a))))          ==< pmap (path (merid a) *>) (pmap_inv-comm joinToSphere0 (path (pglue (south0,a)))) >==
-          path (merid a)                                                                `qed
+          pmap joinToSphere0 (jglue north0 a *> inv (jglue south0 a)) ==< pmap_*>-comm joinToSphere0 (jglue north0 a) (inv (jglue south0 a)) >==
+          path (merid a) *> pmap joinToSphere0 (inv (jglue south0 a)) ==< pmap (path (merid a) *>) (pmap_inv-comm joinToSphere0 (jglue south0 a)) >==
+          path (merid a)                                              `qed
         \in path (\lam j => t @ j @ i)
   }
 
@@ -55,33 +65,33 @@
   | f_sec => rightLeftRight
   \where {
     \func leftToRight {A B C : \Type} (j : Join (Join A B) C) : Join A (Join B C)
-      | pinl (pinl a) => pinl a
-      | pinl (pinr b) => pinr (pinl b)
-      | pinl (pglue (a,b) j) => pglue (a, pinl b) j
-      | pinr c => pinr (pinr c)
-      | pglue (pinl a, c) i => pglue (a, pinr c) i
-      | pglue (pinr b, c) i => pinr (pglue (b,c) i)
-      | pglue (pglue (a,b) j, c) i => PathSquare.map
-          (path (pglue (a, pinl b)))              -- left side
-          (path (\lam _ => pinr (pinr c)))        -- right side
-          (path (pglue (a, pinr c)))              -- top side
-          (path (\lam i => pinr (pglue (b,c) i))) -- bottom side
-          (Jl (\lam x p => path (pglue (a,x)) = path (pglue (a, pinl b)) <* pmap pinr p) (inv (<*_idp _)) (path (pglue (b,c))))
+      | pinl (pinl a) => jinl a
+      | pinl (pinr b) => jinr (jinl b)
+      | pinl (pglue (a,b) j) => pglue (a, jinl b) j
+      | pinr c => jinr (jinr c)
+      | pglue (pinl a, c) i => pglue (a, jinr c) i
+      | pglue (pinr b, c) i => jinr (pglue (b,c) i)
+      | pglue (pglue (a,b) j, c) i => Cube2.map
+          (jglue a (jinr c))      -- top edge
+          (pmap jinr (jglue b c)) -- bottom edge
+          (jglue a (jinl b))      -- left edge
+          (idpe (jinr (jinr c)))  -- right edge
+          (Jl (\lam x p => jglue a x = jglue a (jinl b) <* pmap jinr p) (inv (<*_idp _)) (jglue b c))
           @ j @ i
 
     \func rightToLeft {A B C : \Type} (j : Join A (Join B C)) : Join (Join A B) C
-      | pinl a => pinl (pinl a)
-      | pinr (pinl b) => pinl (pinr b)
-      | pinr (pinr c) => pinr c
-      | pinr (pglue (b,c) j) => pglue (pinr b, c) j
-      | pglue (a, pinl b) i => pinl (pglue (a,b) i)
-      | pglue (a, pinr c) i => pglue (pinl a, c) i
-      | pglue (a, pglue (b,c) j) i => PathSquare.map
-          (path (\lam _ => pinl (pinl a)))        -- left side
-          (path (pglue (pinr b, c)))              -- right side
-          (path (\lam i => pinl (pglue (a,b) i))) -- top side
-          (path (pglue (pinl a, c)))              -- bottom side
-          (Jl (\lam x p => pmap pinl p = path (pglue (pinl a, c)) *> inv (path (pglue (x,c)))) (inv (*>_inv _)) (path (pglue (a,b))))
+      | pinl a => jinl (jinl a)
+      | pinr (pinl b) => jinl (jinr b)
+      | pinr (pinr c) => jinr c
+      | pinr (pglue (b,c) j) => pglue (jinr b, c) j
+      | pglue (a, pinl b) i => jinl (pglue (a,b) i)
+      | pglue (a, pinr c) i => pglue (jinl a, c) i
+      | pglue (a, pglue (b,c) j) i => Cube2.map
+          (pmap jinl (jglue a b)) -- top edge
+          (jglue (jinl a) c)      -- bottom edge
+          (idpe (jinl (jinl a)))  -- left edge
+          (jglue (jinr b) c)      -- right edge
+          (Jl (\lam x p => pmap jinl p = jglue (jinl a) c *> inv (jglue x c)) (inv (*>_inv _)) (jglue a b))
           @ j @ i
 
     \func leftRightLeft {A B C : \Type} (j : Join (Join A B) C) : rightToLeft (leftToRight j) = j
@@ -91,7 +101,18 @@
       | pinr c => idp
       | pglue (pinl a, c) i => idp
       | pglue (pinr b, c) i => idp
-      | pglue (pglue (a,b) j, c) i => {?}
+      | pglue (pglue (a,b) j, c) i =>
+        \let | r => Jl (\lam x p => jglue a x = jglue a (jinl b) <* pmap jinr p) (inv (<*_idp _)) (jglue b c)
+             | p_0 => jglue a (jinr c)
+             | p_1 => pmap jinr (jglue b c)
+             | p0_ => jglue a (jinl b)
+             | p1_ => idpe (jinr (jinr c))
+             | C => Cube2 (jglue (jinl a) c) (jglue (jinr b) c) (pmap jinl (jglue a b)) (idpe (jinr c))
+             | s1 : C => Cube2.map (jglue (jinl a) c) (jglue (jinr b) c) (pmap jinl (jglue a b)) (idpe (jinr c))
+                                   (pmap (pmap rightToLeft) r *> pmap_<*-comm rightToLeft p0_ (p_1 *> inv p1_) *> pmap (pmap rightToLeft p0_ <*) (pmap_*>-comm rightToLeft p_1 (inv p1_) *> pmap (pmap rightToLeft p_1 *>) (pmap_inv-comm rightToLeft p1_)))
+             | s2 : C => path (\lam j => path (\lam i => pglue (pglue (a,b) j, c) i))
+             | q : s1 = s2 => {?}
+        \in path (\lam k => (Cube2.map.functorial rightToLeft p_0 p_1 p0_ p1_ r *> q) @ k @ j @ i)
 
     \func rightLeftRight {A B C : \Type} (j : Join A (Join B C)) : leftToRight (rightToLeft j) = j
       | pinl a => idp
@@ -101,4 +122,4 @@
       | pglue (a, pinl b) i => idp
       | pglue (a, pinr c) i => idp
       | pglue (a, pglue (b,c) j) i => {?}
-}
+  }

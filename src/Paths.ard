@@ -37,23 +37,15 @@
        | p2 => path (\lam _ => path (\lam _ => left))
   \in coe (\lam i => Path (\lam j => squeeze i j = i) (path (\lam x3 => squeeze i x3)) (p1 i)) p2 right @ i @ j
 
--- The type of squares with a specified boundary
-\func PathSquare {A : \Type} {a00 a01 a10 a11 : A} (p_0 : a00 = a10) (p_1 : a01 = a11) (p0_ : a00 = a01) (p1_ : a10 = a11) =>
-  Path (\lam x => p_0 @ x = p_1 @ x) p0_ p1_
-  \where {
-    \func equality {A : \Type} {a00 a01 a10 a11 : A} (p_0 : a00 = a10) (p_1 : a01 = a11) (p0_ : a00 = a01) (p1_ : a10 = a11)
-      : (p0_ = p_0 <* p1_ *> inv p_1) = PathSquare p_0 p_1 p0_ p1_
-      => path (\lam i => Path (\lam x => p_0 @ squeeze x i = p_1 @ squeeze x i) p0_ (path (\lam j => p_0 @ squeezeR i j) <* p1_ *> inv (path (\lam j => p_1 @ squeezeR i j))))
-
-    \func map {A : \Type} {a00 a01 a10 a11 : A} (p_0 : a00 = a10) (p_1 : a01 = a11) (p0_ : a00 = a01) (p1_ : a10 = a11) (r : p0_ = p_0 <* p1_ *> inv p_1) : PathSquare p_0 p_1 p0_ p1_
-      => coe (\lam i => equality p_0 p_1 p0_ p1_ @ i) r right
-  }
-
 \func psqueeze {A : \Type} {a a' : A} (p : a = a') (i : I) : a = p @ i => path (\lam j => p @ squeeze i j)
 
 \func pmap_*>-comm {A B : \Type} (f : A -> B) {a a' a'' : A} (p : a = a') (q : a' = a'')
   : pmap f (p *> q) = pmap f p *> pmap f q
-  => coe (\lam i => pmap f (p *> psqueeze q i) = pmap f p *> pmap f (psqueeze q i)) idp right
+  => Jl (\lam _ q' => pmap f (p *> q') = pmap f p *> pmap f q') idp q
+
+\func pmap_<*-comm {A B : \Type} (f : A -> B) {a a' a'' : A} (p : a = a') (q : a' = a'')
+  : pmap f (p <* q) = pmap f p <* pmap f q
+  => Jl (\lam x p' => \Pi (q : x = a'') -> pmap f (p' <* q) = pmap f p' <* pmap f q) (\lam _ => idp) p q
 
 \func Jl {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type) (b : B a idp) {a' : A} (p : a = a') : B a' p =>
   coe (\lam i => B (p @ i) (psqueeze p i)) b right
@@ -62,11 +54,14 @@
 
 \func inv_*> {A : \Type} {a a' : A} (p : a = a') : inv p *> p = idp => Jl (\lam _ q => inv q *> q = idp) idp p
 
-\func inv_<* {A : \Type} {a a' : A} (p : a = a') : inv p <* p = idp => Jl (\lam _ q => inv q <* q = idp) idp p
-
 \func *>_inv {A : \Type} {a a' : A} (p : a = a') : p *> inv p = idp => Jl (\lam _ q => q *> inv q = idp) idp p
 
 \func idp_*> {A : \Type} {a a' : A} (p : a = a') : idp *> p = p => Jl (\lam _ p => idp *> p = p) idp p
+
+\func <*_idp {A : \Type} {a a' : A} (p : a = a') : p <* idp = p => Jl (\lam _ p => p <* idp = p) idp p
+
+\func <*_*> {A : \Type} {a a' a'' : A} (p : a = a') (q : a' = a'') : p <* q = p *> q
+  => Jl (\lam _ q' => p <* q' = p *> q') (<*_idp p) q
 
 \func *>_inv-comm {A : \Type} {a a' a'' : A} (p : a = a') (q : a' = a'') : inv (p *> q) = inv q *> inv p =>
   Jl (\lam _ q => inv (p *> q) = inv q *> inv p) (inv (idp_*> (inv p))) q
@@ -76,15 +71,6 @@
 
 \func *>-assoc {A : \Type} {a1 a2 a3 a4 : A} (p : a1 = a2) (q : a2 = a3) (r : a3 = a4) : (p *> q) *> r = p *> (q *> r) =>
   Jl (\lam _ r => (p *> q) *> r = p *> (q *> r)) idp r
-
-\func <*_*>-assoc {A : \Type} {a1 a2 a3 a4 : A} (p : a1 = a2) (q : a2 = a3) (r : a3 = a4) : (p <* q) *> r = p <* (q *> r) =>
-  Jl (\lam _ r => (p <* q) *> r = p <* (q *> r)) idp r
-
-\func <*_idp {A : \Type} {a a' : A} (p : a = a') : p <* idp = p => Jl (\lam _ p => p <* idp = p) idp p
-
-\func <*-assoc {A : \Type} {a1 a2 a3 a4 : A} (p : a1 = a2) (q : a2 = a3) (r : a3 = a4) : (p *> q) <* r = p *> (q <* r) =>
-  Jl (\lam a3 q => \Pi {a4 : A} (r : a3 = a4) -> (p *> q) <* r = p *> (q <* r))
-     (\lam {_} r => Jl (\lam a3 p => \Pi {a4 : A} (r : a3 = a4) -> p <* r = p *> r) (\lam {_} r => inv (idp_*> r)) p r) q r
 
 \func \infix 2 qed {A : \Type} (a : A) : a = a => idp
 
