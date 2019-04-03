@@ -71,13 +71,11 @@
       | pinr c => jinr (jinr c)
       | pglue (pinl a, c) i => pglue (a, jinr c) i
       | pglue (pinr b, c) i => jinr (pglue (b,c) i)
-      | pglue (pglue (a,b) j, c) i => Cube2.map
-          (jglue a (jinr c))      -- top edge
-          (pmap jinr (jglue b c)) -- bottom edge
-          (jglue a (jinl b))      -- left edge
-          (idpe (jinr (jinr c)))  -- right edge
-          (Jl (\lam x p => jglue a x = jglue a (jinl b) <* pmap jinr p) (inv (<*_idp _)) (jglue b c))
-          @ j @ i
+      | pglue (pglue (a,b) j, c) i =>
+        Jl (\lam x p => Cube2 (jglue a x) (pmap jinr p) (jglue a (jinl b)) (idpe (jinr x)))
+           (path (\lam j => path (\lam i => pglue (a, jinl b) (squeezeR j i))))
+           (jglue b c)
+        @ j @ i
 
     \func rightToLeft {A B C : \Type} (j : Join A (Join B C)) : Join (Join A B) C
       | pinl a => jinl (jinl a)
@@ -86,13 +84,11 @@
       | pinr (pglue (b,c) j) => pglue (jinr b, c) j
       | pglue (a, pinl b) i => jinl (pglue (a,b) i)
       | pglue (a, pinr c) i => pglue (jinl a, c) i
-      | pglue (a, pglue (b,c) j) i => Cube2.map
-          (pmap jinl (jglue a b)) -- top edge
-          (jglue (jinl a) c)      -- bottom edge
-          (idpe (jinl (jinl a)))  -- left edge
-          (jglue (jinr b) c)      -- right edge
-          (Jl (\lam x p => pmap jinl p = jglue (jinl a) c *> inv (jglue x c)) (inv (*>_inv _)) (jglue a b))
-          @ j @ i
+      | pglue (a, pglue (b,c) j) i =>
+        Jl (\lam x p => Cube2 (pmap jinl p) (jglue (jinl a) c) (idpe (jinl (jinl a))) (jglue x c))
+           (path (\lam j => path (\lam i => pglue (jinl a, c) (squeeze j i))))
+           (jglue a b)
+        @ j @ i
 
     \func leftRightLeft {A B C : \Type} (j : Join (Join A B) C) : rightToLeft (leftToRight j) = j
       | pinl (pinl a) => idp
@@ -102,17 +98,36 @@
       | pglue (pinl a, c) i => idp
       | pglue (pinr b, c) i => idp
       | pglue (pglue (a,b) j, c) i =>
-        \let | r => Jl (\lam x p => jglue a x = jglue a (jinl b) <* pmap jinr p) (inv (<*_idp _)) (jglue b c)
-             | p_0 => jglue a (jinr c)
-             | p_1 => pmap jinr (jglue b c)
-             | p0_ => jglue a (jinl b)
-             | p1_ => idpe (jinr (jinr c))
-             | C => Cube2 (jglue (jinl a) c) (jglue (jinr b) c) (pmap jinl (jglue a b)) (idpe (jinr c))
-             | s1 : C => Cube2.map (jglue (jinl a) c) (jglue (jinr b) c) (pmap jinl (jglue a b)) (idpe (jinr c))
-                                   (pmap (pmap rightToLeft) r *> pmap_<*-comm rightToLeft p0_ (p_1 *> inv p1_) *> pmap (pmap rightToLeft p0_ <*) (pmap_*>-comm rightToLeft p_1 (inv p1_) *> pmap (pmap rightToLeft p_1 *>) (pmap_inv-comm rightToLeft p1_)))
-             | s2 : C => path (\lam j => path (\lam i => pglue (pglue (a,b) j, c) i))
-             | q : s1 = s2 => {?}
-        \in path (\lam k => (Cube2.map.functorial rightToLeft p_0 p_1 p0_ p1_ r *> q) @ k @ j @ i)
+        \let | s1 {y} (q : jinl b = y) : Cube2 (pmap rightToLeft (jglue a y))
+                                               (pmap (\lam t => rightToLeft (jinr t)) q)
+                                               (pmap jinl (jglue a b))
+                                               (idpe (rightToLeft (jinr y)))
+                 => path (\lam j => path (\lam i =>
+                     rightToLeft (Jl (\lam x p => Cube2 (jglue a x) (pmap jinr p) (jglue a (jinl b)) (idpe (jinr x)))
+                                      (path (\lam j => path (\lam i => pglue (a, jinl b) (squeezeR j i))))
+                                      q @ j @ i)))
+             | s2 {y} (q : jinl b = y) =>
+                 Jl (\lam x p => Cube2 (pmap rightToLeft (jglue a x))
+                                       (pmap (\lam t => rightToLeft (jinr t)) p)
+                                       (pmap jinl (jglue a b))
+                                       (idpe (rightToLeft (jinr x))))
+                    (path (\lam j => path (\lam i => jinl (pglue (a,b) (squeezeR j i)))))
+                    q
+             | proof => coe (\lam n =>
+                 coe (\lam k => Cube2 (coe (\lam l => Cube2 (path (\lam m => jinl (pglue (a,b) (squeeze (squeeze l m) n))))
+                                                            (jglue (jinl a) c)
+                                                            (idpe (jinl (jinl a)))
+                                                            (jglue (pglue (a,b) (squeeze l n)) c))
+                                           (path (\lam j => path (\lam i => pglue (jinl a, c) (squeeze j i))))
+                                           right @ k)
+                                      (path (\lam j => pglue (pglue (a,b) n, c) (squeeze k j)))
+                                      (path (\lam m => jinl (pglue (a,b) (squeeze m n))))
+                                      (idpe (pglue (pglue (a,b) n, c) k)))
+                     (path (\lam j => path (\lam i => jinl (pglue (a,b) (squeeze (squeezeR j i) n)))))
+                     right
+                 = path (\lam j => path (\lam i => pglue (pglue (a,b) (squeeze j n), c) i))
+               ) (Jl (\lam y q => Jl (\lam x p => Cube2 p p idp idp) idp q = idp) idp (jglue (jinl a) c)) right
+        \in path (\lam k => (Jl (\lam y q => s1 q = s2 q) idp (jglue b c) *> proof) @ k @ j @ i)
 
     \func rightLeftRight {A B C : \Type} (j : Join A (Join B C)) : leftToRight (rightToLeft j) = j
       | pinl a => idp
@@ -121,5 +136,40 @@
       | pinr (pglue (b,c) j) => idp
       | pglue (a, pinl b) i => idp
       | pglue (a, pinr c) i => idp
-      | pglue (a, pglue (b,c) j) i => {?}
+      | pglue (a, pglue (b,c) j) i =>
+        \let | s1 {y} (q : jinl a = y) : Cube2 (pmap (\lam t => leftToRight (jinl t)) q)
+                                               (jglue a (jinr c))
+                                               (idpe (jinl a))
+                                               (pmap leftToRight (jglue y c))
+                 => path (\lam j => path (\lam i =>
+                     leftToRight (Jl (\lam x p => Cube2 (pmap jinl p) (jglue (jinl a) c) (idpe (jinl (jinl a))) (jglue x c))
+                                     (path (\lam i => path (\lam j => pglue (jinl a, c) (squeeze i j))))
+                                     q
+                                  @ j @ i)))
+             | s2 {y} (q : jinl a = y) =>
+                 Jl (\lam x p => Cube2 (pmap (\lam t => leftToRight (jinl t)) p) (jglue a (jinr c)) (idpe (jinl a)) (pmap leftToRight (jglue x c)))
+                    (path (\lam j => path (\lam i => pglue (a, jinr c) (squeeze j i))))
+                    q
+             | proof =>
+                 Jl (\lam y q => coe (\lam k => Cube2 (path (\lam i => pglue (a, jinl b) (squeeze k i)))
+                                                      (jglue a y)
+                                                      (idpe (jinl a))
+                                                      (Jl (\lam x p => Cube2 (jglue a x) (pmap jinr p) (jglue a (jinl b)) (idpe (jinr x)))
+                                                          (path (\lam j => path (\lam i => pglue (a, jinl b) (squeezeR j i))))
+                                                          q
+                                                       @ k))
+                                     (path (\lam j => path (\lam i => pglue (a,y) (squeeze j i))))
+                                     right
+                                 = path (\lam j => path (\lam i => pglue (a, q @ j) i)))
+                    (Jl (\lam y q => coe (\lam k => Cube2 (path (\lam i => q @ squeeze k i))
+                                                          q
+                                                          (idpe (jinl a))
+                                                          (path (\lam i => q @ squeezeR k i)))
+                                         (path (\lam j => path (\lam i => q @ squeeze j i)))
+                                         right
+                                     = idpe q)
+                        idp
+                        (jglue a (jinl b)))
+                    (jglue b c)
+        \in path (\lam k => (Jl (\lam y q => s1 q = s2 q) idp (jglue a b) *> proof) @ k @ j @ i)
   }
