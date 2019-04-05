@@ -1,6 +1,9 @@
 \import Equiv
+\import Equiv.Univalence
 \import Homotopy.Cube
+\import Homotopy.Join
 \import Homotopy.Pointed
+\import Homotopy.Sphere
 \import Homotopy.Sphere.Circle
 \import Homotopy.Suspension
 \import Logic
@@ -11,17 +14,19 @@
   | base-left (x : E) : base * x = x
   | base-right (x : E) : x * base = x
 
-\lemma HSpace-conn (A : HSpace) (c : \Pi (x y : A) -> TruncP (x = y)) (x : A) : Equiv (x *) =>
-  \case c base x \with {
-    | inP base=x => transport (\lam f => Equiv f)
-                              (path (\lam i y => (inv (base-left y) *> pmap (\lam z => z * y) base=x) @ i))
-                              idEquiv
-  }
+-- | If a point {x} in an H-space belongs to the same connected component as {base}, then ``(x *)`` is an equivalence.
+\lemma HSpace-conn {A : HSpace} (x : A) (c : TruncP (base = x)) : Equiv (x *) \elim c
+  | inP base=x => transport (\lam f => Equiv f)
+                            (path (\lam i y => (inv (base-left y) *> pmap (\lam z => z * y) base=x) @ i))
+                            idEquiv
 
-\func Sphere1_conn (x y : Sphere1) : TruncP (x = y)
-  | base1, base1 => inP idp
+\lemma Sphere1_conn (x y : Sphere 1) : TruncP (x = y)
+  => transport (\lam X => \Pi (x y : X) -> TruncP (x = y)) (QEquiv-to-= Sphere1-equiv) circle x y
+  \where
+    \lemma circle (x y : Sphere1) : TruncP (x = y)
+      | base1, base1 => inP idp
 
-\instance Sphere1_HSpace : HSpace Sphere1
+\instance Circle_HSpace : HSpace Sphere1
   | base => base1
   | * => mult
   | base-left _ => idp
@@ -41,3 +46,20 @@
       | base1 => idp
       | loop i => idp
   }
+
+\instance Sphere1_HSpace : HSpace (Sphere 1) => transport (\lam X => HSpace X) (QEquiv-to-= Sphere1-equiv) Circle_HSpace
+
+\func hopf {A : HSpace} (c : \Pi (x y : A) -> TruncP (x = y)) (x : Susp A) : \Type \elim x
+  | north => A
+  | south => A
+  | merid a i => Equiv-to-= (HSpace-conn a (c base a)) @ i
+  \where {
+    \func total-equiv {A : HSpace} (c : \Pi (x y : A) -> TruncP (x = y)) : QEquiv {\Sigma (x : Susp A) (hopf c x)} {Join A A} => {?}
+  }
+
+\func hopfS2 => hopf Sphere1_conn
+  \where
+    \func total-equiv =>
+      (\Sigma (x : Sphere 2) (hopfS2 x)) ==< QEquiv-to-= (hopf.total-equiv Sphere1_conn) >==
+      Join (Sphere 1) (Sphere 1)         ==< Join_Sphere (Sphere 1) 1 >==
+      Sphere 3                           `qed

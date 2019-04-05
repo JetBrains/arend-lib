@@ -7,6 +7,28 @@
 \import Logic
 \import Paths
 
+\class Pushout (square : Square)
+  | pushout-univ {Z : \Type} : Equiv {square.Y -> Z} {Square { | Y => Z | U => square.U | V => square.V | X => square.X | uv => square.uv | ux => square.ux }} (Square.push square)
+  \where {
+    -- | Pushouts are functorial
+    \func map (p : Pushout) (s : Square)
+              (f : p.square.U -> s.U)
+              (g : p.square.V -> s.V)
+              (h : p.square.X -> s.X)
+              (e1 : \Pi (u : p.square.U) -> s.uv (f u) = g (p.square.uv u))
+              (e2 : \Pi (u : p.square.U) -> s.ux (f u) = h (p.square.ux u))
+              : p.square.Y -> s.Y
+      => p.pushout-univ.ret (\new Square {
+        | vy v => s.vy (g v)
+        | xy x => s.xy (h x)
+        | sqcomm u => pmap s.vy (inv (e1 u)) <* s.sqcomm (f u) *> pmap s.xy (e2 u)
+      })
+
+    -- | {map} preserves identity maps
+    \func map_id (p : Pushout) (y : p.square.Y) : map p p.square id id id (\lam _ => idp) (\lam _ => idp) = id
+      => p.pushout-univ.ret_f (\lam x => x)
+  }
+
 \data PushoutData {A B C : \Type} (f : A -> B) (g : A -> C)
   | pinl B
   | pinr C
@@ -19,15 +41,57 @@
       | pinl b => lm b
       | pinr c => rm c
       | pglue a i => gm a @ i
+
+    \func fibration-lemma {A B C : \Type} (f : A -> B) (g : A -> C) (F : PushoutData f g -> \Type)
+      : QEquiv {\Sigma (w : PushoutData f g) (F w)} {total F} \cowith
+      | f => sigmaPushout F
+      | ret => pushoutSigma F
+      | ret_f => sigmaPushoutSigma F
+      | f_sec => pushoutSigmaPushout F
+    \where {
+      \func total {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type)
+        => PushoutData {\Sigma (x : A) (F (pinl (f x)))} {\Sigma (y : B) (F (pinl y))} {\Sigma (z : C) (F (pinr z))} (\lam p => (f p.1, p.2)) (\lam p => (g p.1, transport F (path (pglue p.1)) p.2))
+
+      \func pushoutSigma {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (p : total F) : \Sigma (w : PushoutData f g) (F w) \elim p
+        | pinl (y,t) => (pinl y, t)
+        | pinr (z,t) => (pinr z, t)
+        | pglue (x,t) i => (pglue x i, coe (\lam j => F (pglue x j)) t i)
+
+      \func sigmaPushout {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (s : \Sigma (w : PushoutData f g) (F w)) : total F \elim s
+        | (pinl y, t) => pinl (y,t)
+        | (pinr z, t) => pinr (z,t)
+        | (pglue x i, t) =>
+          \let | R => total F
+               | p t' =>
+                   transport (\lam w => F w -> R) (path (pglue x)) (\lam t' => pinl (f x, t')) t'   ==< transport_pi F (\lam _ => R) (path (pglue x)) (\lam t' => pinl (f x, t')) t' >==
+                   pinl (f x, transport F (inv (path (pglue x))) t')                                ==< {R} path (pglue ((x, transport F (inv (path (pglue x))) t') : \Sigma (x : A) (F (pinl (f x))))) >==
+                   pinr (g x, transport F (path (pglue x)) (transport F (inv (path (pglue x))) t')) ==< {R} pmap (\lam s => (pinr (g x, s) : R)) (transport_id_inv F (path (pglue x)) t') >==
+                   (pinr (g x, t') : R)                                                             `qed
+          \in (pathOver (path (\lam j t' => p t' @ j)) @ i) t
+
+      \func pushoutSigmaPushout {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (p : total F) : sigmaPushout F (pushoutSigma F p) = p \elim p
+        | pinl (y,t) => idp
+        | pinr (z,t) => idp
+        | pglue (x,t) i =>
+          \let | R => total F
+               | p : path (\lam i => sigmaPushout F (pglue x i, coe (\lam j => F (pglue x j)) t i)) = path (\lam i => pglue (x,t) i) => {?}
+          \in path (\lam j => p @ j @ i)
+
+      \func sigmaPushoutSigma {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (s : \Sigma (w : PushoutData f g) (F w)) : pushoutSigma F (sigmaPushout F s) = s \elim s
+        | (pinl y, t) => idp
+        | (pinr z, t) => idp
+        | (pglue x i, t) =>
+          \let | S => \Sigma (w : PushoutData f g) (F w)
+               | p : path (\lam i t => pushoutSigma F (sigmaPushout F (pglue x i, t))) = {Path (\lam i => F (pglue x i) -> S) _ _} path (\lam i t => (pglue x i, t))
+                   => {?}
+          \in path (\lam j => (p @ j @ i) t)
+    }
   }
 
 \open PushoutData
 
 \instance PushoutPointed {A B C : \Type} {P : Pointed B} {f : A -> B} {g : A -> C} : Pointed (PushoutData f g)
   | base => pinl base
-
-\class Pushout (square : Square)
-  | pushout-univ {Z : \Type} : Equiv {square.Y -> Z} {Square { | Y => Z | U => square.U | V => square.V | X => square.X | uv => square.uv | ux => square.ux }} (Square.push square)
 
 \func pushoutData {A B C : \Type} (f : A -> B) (g : A -> C) : Pushout \cowith
   | square {
