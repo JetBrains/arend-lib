@@ -1,4 +1,5 @@
 \import Equiv
+\import Equiv.HalfAdjoint
 \import Equiv.Univalence
 \import Homotopy.Connected
 \import Homotopy.Cube
@@ -18,11 +19,25 @@
 
 \class HSpaceConn \extends HSpace, Connected
 
--- | If a point {x} in an H-space belongs to the same connected component as {base}, then ``(x *)`` is an equivalence.
-\lemma HSpace-conn {A : HSpace} (x : A) (c : TruncP (base = x)) : Equiv (x *) \elim c
-  | inP base=x => transport (\lam f => Equiv f)
-                            (path (\lam i y => (inv (base-left y) *> pmap (\lam z => z * y) base=x) @ i))
-                            idEquiv
+-- | For every point {x} in a connected H-space, ``(x *)`` is an equivalence.
+\lemma HSpaceConn-left {A : HSpaceConn} (x : A) => lem (isConn base x)
+  \where {
+    -- | If a point {x} in an H-space belongs to the same connected component as {base}, then ``(x *)`` is an equivalence.
+    \lemma lem {A : HSpace} {x : A} (c : TruncP (base = x)) : Equiv (x *) \elim c
+      | inP base=x => transport (\lam f => Equiv f)
+                                (path (\lam i y => (inv (base-left y) *> pmap (\lam z => z * y) base=x) @ i))
+                                idEquiv
+  }
+
+-- | For every point {x} in a connected H-space, ``(* x)`` is an equivalence.
+\lemma HSpaceConn-right {A : HSpaceConn} (x : A) => lem (isConn base x)
+  \where {
+    -- | If a point {x} in an H-space belongs to the same connected component as {base}, then ``(* x)`` is an equivalence.
+    \lemma lem {A : HSpace} {x : A} (c : TruncP (base = x)) : Equiv (\lam (y : A) => y * x) \elim c
+      | inP base=x => transport (\lam f => Equiv f)
+                                (path (\lam i y => (inv (base-right y) *> pmap (y *) base=x) @ i))
+                                idEquiv
+  }
 
 \instance Circle_HSpace : HSpaceConn Sphere1
   | base => base1
@@ -53,14 +68,55 @@
 \func hopf {A : HSpaceConn} (x : Susp A) : \Type \elim x
   | pinl _ => A
   | pinr _ => A
-  | pglue a i => Equiv-to-= (HSpace-conn a (isConn base a)) @ i
+  | pglue a i => Equiv-to-= (HSpaceConn-left a) @ i
   \where
     \func total-equiv {A : HSpaceConn} : QEquiv {\Sigma (x : Susp A) (hopf x)} {Join A A}
-      => transQEquiv (PushoutData.fibration-lemma hopf) total_join
+      => transQEquiv (PushoutData.fibration-lemma hopf) total_join-equiv
       \where {
-        \open PushoutData.fibration-lemma(total)
+        \open PushoutData(ppglue)
 
-        \func total_join {A : HSpaceConn} : QEquiv {total (hopf {A})} {Join A A} => {?}
+        \func total (A : HSpace) => PushoutData {\Sigma A A} {\Sigma (\Sigma) A} {\Sigma (\Sigma) A} (\lam p => ((),p.2)) (\lam p => ((), p.1 * p.2))
+
+        \func total_join-equiv {A : HSpaceConn} : QEquiv {total A} {Join A A} \cowith
+          | f => totalJoin
+          | ret => joinTotal
+          | ret_f => totalJoinTotal
+          | f_sec => joinTotalJoin
+
+        \func totalJoin {A : HSpace} (x : total A) : Join A A
+          | pinl (_,a) => jinl a
+          | pinr (_,a) => jinr a
+          | pglue (a,a') i => pglue (a', a * a') i
+
+        \func joinTotal {A : HSpaceConn} (x : Join A A) : total A
+          | pinl a => pinl ((),a)
+          | pinr a => pinr ((),a)
+          | pglue (a,a') i =>
+            \let e : HAEquiv (\lam x => x * a) => HSpaceConn-right a
+            \in (ppglue (e.sec a', a) *> pmap (\lam x => pinr ((),x)) (e.f_sec a')) @ i
+
+        \func joinTotalJoin {A : HSpaceConn} (x : Join A A) : totalJoin (joinTotal x) = x
+          | pinl a => idp
+          | pinr a => idp
+          | pglue (a,a') i =>
+            \let | e : HAEquiv (\lam x => x * a) => HSpaceConn-right a
+                 | p =>
+                   pmap totalJoin (ppglue (e.sec a', a) *> pmap (\lam y => pinr ((),y)) (e.f_sec a')) ==< pmap_*>-comm totalJoin (ppglue (e.sec a', a)) (pmap (\lam y => pinr ((),y)) (e.f_sec a')) >==
+                   jglue a (e.sec a' * a) *> pmap jinr (e.f_sec a')                                   ==< Jl (\lam x p => jglue a (e.sec a' * a) *> pmap jinr p = jglue a x) idp (e.f_sec a') >==
+                   jglue a a'                                                                         `qed
+            \in path (\lam j => p @ j @ i)
+
+        \func totalJoinTotal {A : HSpaceConn} (x : total A) : joinTotal (totalJoin x) = x \elim x
+          | pinl (_,a) => idp
+          | pinr (_,a) => idp
+          | pglue (a,a') i =>
+            \let | e : HAEquiv (\lam x => x * a') => HSpaceConn-right a'
+                 | s => ppglue (e.ret (a * a'), a')
+                 | p =>
+                   s *> pmap (\lam y => pinr ((),y)) (e.f_sec (a * a')) ==< pmap (\lam p => s *> pmap (\lam y => pinr ((),y)) p) (inv (e.f_ret_f=f_sec_f a)) >==
+                   s *> pmap (\lam y => pinr ((), y * a')) (e.ret_f a)  ==< Jl (\lam x p => s *> pmap (\lam y => pinr ((), y * a')) p = ppglue (x,a')) idp (e.ret_f a) >==
+                   ppglue (a,a')                                        `qed
+            \in path (\lam j => p @ j @ i)
       }
 
 \func hopfS2 (x : Sphere 2) => hopf x
