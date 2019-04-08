@@ -66,7 +66,7 @@
           \let | R => total F
                | p t' =>
                    transport (\lam w => F w -> R) (ppglue x) (\lam t' => pinl (f x, t')) t' ==< transport_pi F (\lam _ => R) (ppglue x) (\lam t' => pinl (f x, t')) t' >==
-                   pinl (f x, transport F (inv (ppglue x)) t')                              ==< {R} path (pglue ((x, transport F (inv (ppglue x)) t') : \Sigma (x : A) (F (pinl (f x))))) >==
+                   pinl (f x, transport F (inv (ppglue x)) t')                              ==< {R} ppglue ((x, transport F (inv (ppglue x)) t') : \Sigma (x : A) (F (pinl (f x)))) >==
                    pinr (g x, transport F (ppglue x) (transport F (inv (ppglue x)) t'))     ==< {R} pmap (\lam s => (pinr (g x, s) : R)) (transport_id_inv F (ppglue x) t') >==
                    (pinr (g x, t') : R)                                                     `qed
           \in (pathOver (path (\lam j t' => p t' @ j)) @ i) t
@@ -75,18 +75,44 @@
         | pinl (y,t) => idp
         | pinr (z,t) => idp
         | pglue (x,t) i =>
-          \let | R => total F
-               | p : path (\lam i => sigmaPushout F (pglue x i, coe (\lam j => F (pglue x j)) t i)) = path (\lam i => pglue (x,t) i) => {?}
+          \let | A' => \Sigma (x : A) (F (pinl (f x)))
+               | R => total F
+               | w => coe (\lam j => F (pglue x j)) t
+               | f' t' : R => pinl (f x, t')
+               | g' t' : R => pinr (g x, t')
+               | q1 t' => transport_pi F (\lam _ => R) (ppglue x) f' t'
+               | q2 t' => ppglue ((x, transport F (inv (ppglue x)) t') : A')
+               | q3 t' => pmap g' (transport_id_inv F (ppglue x) t')
+               | r => path (\lam i => coe (\lam j => F (pglue x j) -> R) f' i (w i))
+               | u => inv (transport_inv_id F (ppglue x) t)
+               | p => path (\lam i => (pathOver (path (\lam j t' => (q1 t' *> q2 t' *> q3 t') @ j)) @ i) (w i))                   ==< Jl (\lam x1 p1 => path (\lam i => (pathOver p1 @ i) (w i)) = r *> pmap (\lam h => h (w right)) p1) idp (path (\lam j t' => (q1 t' *> q2 t' *> q3 t') @ j)) >==
+                      r *> q1 (w right) *> q2 (w right) *> q3 (w right)                                                           ==< inv (*>-assoc r (q1 (w right)) (q2 (w right) *> q3 (w right))) >==
+                      (r *> q1 (w right)) *> q2 (w right) *> q3 (w right)                                                         ==< pmap (\lam s => s *> q2 (w right) *> q3 (w right)) (Jl (\lam x1 p1 => path (\lam i => coe (\lam j => F (p1 @ j) -> R) f' i (coe (\lam j => F (p1 @ j)) t i)) *> transport_pi F (\lam _ => R) p1 f' (transport F p1 t) = pmap f' (inv (transport_inv_id F p1 t))) idp (ppglue x)) >==
+                      pmap f' (inv (transport_inv_id F (ppglue x) t)) *> q2 (w right) *> q3 (w right)                             ==< inv (*>-assoc (pmap f' (inv (transport_inv_id F (ppglue x) t))) (q2 (w right)) (q3 (w right))) >==
+                      (pmap f' u *> q2 (w right)) *> q3 (w right)                                                                 ==< pmap (\lam s => s *> q3 (w right)) (Jl (\lam x1 p1 => pmap f' p1 *> ppglue ((x,x1) : A') = ppglue ((x,t) : A') *> pmap (\lam t' => g' (transport F (ppglue x) t')) p1) (idp_*> (ppglue ((x,t) : A'))) u) >==
+                      (ppglue ((x,t) : A') *> pmap (\lam t' => g' (transport F (ppglue x) t')) u) *> q3 (w right)                 ==< *>-assoc (ppglue ((x,t) : A')) (pmap (\lam t' => g' (transport F (ppglue x) t')) u) (q3 (w right)) >==
+                      ppglue ((x,t) : A') *> pmap (\lam t' => g' (transport F (ppglue x) t')) u *> q3 (w right)                   ==< pmap (ppglue ((x,t) : A') *>) (inv (pmap_*>-comm g' (pmap (transport F (ppglue x)) u) (transport_id_inv F (ppglue x) (w right)))) >==
+                      ppglue ((x,t) : A') *> pmap g' (pmap (transport F (ppglue x)) u *> transport_id_inv F (ppglue x) (w right)) ==< pmap (\lam s => ppglue ((x,t) : A') *> pmap g' s) (Jl (\lam x1 p1 => pmap (transport F p1) (inv (transport_inv_id F p1 t)) *> transport_id_inv F p1 (transport F p1 t) = idp) idp (ppglue x)) >==
+                      ppglue ((x,t) : A')                                                                                         `qed
           \in path (\lam j => p @ j @ i)
 
       \func sigmaPushoutSigma {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (s : \Sigma (w : PushoutData f g) (F w)) : pushoutSigma F (sigmaPushout F s) = s \elim s
         | (pinl y, t) => idp
         | (pinr z, t) => idp
         | (pglue x i, t) =>
+          \let p t' => transport (\lam w => \Pi (t' : F w) -> pushoutSigma F (sigmaPushout F (w,t')) = (w,t')) (ppglue x) (\lam _ => idp) t' ==< {?} >==
+                       idp                                                                                                                   `qed
+          \in (pathOver (path (\lam j t' => p t' @ j)) @ i) t
+          {-
           \let | S => \Sigma (w : PushoutData f g) (F w)
-               | p : path (\lam i t => pushoutSigma F (sigmaPushout F (pglue x i, t))) = {Path (\lam i => F (pglue x i) -> S) _ _} path (\lam i t => (pglue x i, t))
+               | R => total F
+               | q t' => transport_pi F (\lam _ => R) (ppglue x) (\lam t' => pinl (f x, t')) t' *>
+                         ppglue ((x, transport F (inv (ppglue x)) t') : \Sigma (x : A) (F (pinl (f x)))) *>
+                         pmap (\lam s => (pinr (g x, s) : R)) (transport_id_inv F (ppglue x) t')
+               | p : path (\lam i t => pushoutSigma F ((pathOver (path (\lam j t' => q t' @ j)) @ i) t)) = {Path (\lam i => F (pglue x i) -> S) _ _} path (\lam i t => (pglue x i, t))
                    => {?}
           \in path (\lam j => (p @ j @ i) t)
+          -}
     }
   }
 
