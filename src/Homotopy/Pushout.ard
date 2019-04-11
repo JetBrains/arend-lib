@@ -1,4 +1,5 @@
 \import Equiv
+\import Equiv.Univalence
 \import Function
 \import Homotopy.Pointed
 \import Homotopy.Sphere
@@ -44,76 +45,78 @@
       | pinr c => rm c
       | pglue a i => gm a @ i
 
+    -- | The total space of a fibration over a pushout is equivalent to a pushout of fibers of this fibration.
     \func fibration-lemma {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type)
-      : QEquiv {\Sigma (w : PushoutData f g) (F w)} {total F} \cowith
-      | f => sigmaPushout F
-      | ret => pushoutSigma F
-      | ret_f => sigmaPushoutSigma F
-      | f_sec => pushoutSigmaPushout F
-    \where {
-      \func total {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type)
-        => PushoutData {\Sigma (x : A) (F (pinl (f x)))} {\Sigma (y : B) (F (pinl y))} {\Sigma (z : C) (F (pinr z))} (\lam p => (f p.1, p.2)) (\lam p => (g p.1, transport F (ppglue p.1) p.2))
+      : total F = (\Sigma (w : PushoutData f g) (F w))
+      => QEquiv-to-= (totalPushoutLeft F) *> path (TotalPushout F) *> QEquiv-to-= (totalPushoutRight F)
+      \where {
+        \func total {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type)
+          => PushoutData {\Sigma (x : A) (F (pinl (f x)))}
+                         {\Sigma (y : B) (F (pinl y))}
+                         {\Sigma (z : C) (F (pinr z))}
+                         (\lam p => (f p.1, p.2))
+                         (\lam p => (g p.1, transport F (ppglue p.1) p.2))
 
-      \func pushoutSigma {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (p : total F) : \Sigma (w : PushoutData f g) (F w) \elim p
-        | pinl (y,t) => (pinl y, t)
-        | pinr (z,t) => (pinr z, t)
-        | pglue (x,t) i => (pglue x i, coe (\lam j => F (pglue x j)) t i)
+        \data TotalPushout {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (j : I)
+          | tinl (y : B) (F (pinl y))
+          | tinr (z : C) (F (pinr z))
+          | tglue (x : A) (i : I) (w : F (pglue x (I.squeeze i j))) \elim i {
+            | left => tinl (f x) w
+            | right => tinr (g x) (coe2 (\lam i => F (pglue x i)) j w right)
+          }
 
-      \func sigmaPushout {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (s : \Sigma (w : PushoutData f g) (F w)) : total F \elim s
-        | (pinl y, t) => pinl (y,t)
-        | (pinr z, t) => pinr (z,t)
-        | (pglue x i, t) =>
-          \let | R => total F
-               | p t' =>
-                   transport (\lam w => F w -> R) (ppglue x) (\lam t' => pinl (f x, t')) t' ==< transport_pi F (\lam _ => R) (ppglue x) (\lam t' => pinl (f x, t')) t' >==
-                   pinl (f x, transport F (inv (ppglue x)) t')                              ==< {R} ppglue ((x, transport F (inv (ppglue x)) t') : \Sigma (x : A) (F (pinl (f x)))) >==
-                   pinr (g x, transport F (ppglue x) (transport F (inv (ppglue x)) t'))     ==< {R} pmap (\lam s => (pinr (g x, s) : R)) (transport_id_inv F (ppglue x) t') >==
-                   (pinr (g x, t') : R)                                                     `qed
-          \in (pathOver (path (\lam j t' => p t' @ j)) @ i) t
+        \func totalPushoutLeft {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type)
+          : QEquiv {total F} {TotalPushout F left} \cowith
+          | f => LR F
+          | ret => RL F
+          | ret_f t => \case t \as t \return RL F (LR F t) = t \with {
+            | pinl (y,t) => idp
+            | pinr (z,t) => idp
+            | pglue (x,t) i => idp
+          }
+          | f_sec t => \case t \as t \return LR F (RL F t) = t \with {
+            | tinl y t => idp
+            | tinr y t => idp
+            | tglue x i t => idp
+          }
+          \where {
+            \func LR {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (t : total F) : TotalPushout F left \elim t
+              | pinl (y,t) => tinl y t
+              | pinr (z,t) => tinr z t
+              | pglue (x,t) i => tglue x i t
 
-      \func pushoutSigmaPushout {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (p : total F) : sigmaPushout F (pushoutSigma F p) = p \elim p
-        | pinl (y,t) => idp
-        | pinr (z,t) => idp
-        | pglue (x,t) i =>
-          \let | A' => \Sigma (x : A) (F (pinl (f x)))
-               | R => total F
-               | w => coe (\lam j => F (pglue x j)) t
-               | f' t' : R => pinl (f x, t')
-               | g' t' : R => pinr (g x, t')
-               | q1 t' => transport_pi F (\lam _ => R) (ppglue x) f' t'
-               | q2 t' => ppglue ((x, transport F (inv (ppglue x)) t') : A')
-               | q3 t' => pmap g' (transport_id_inv F (ppglue x) t')
-               | r => path (\lam i => coe (\lam j => F (pglue x j) -> R) f' i (w i))
-               | u => inv (transport_inv_id F (ppglue x) t)
-               | p => path (\lam i => (pathOver (path (\lam j t' => (q1 t' *> q2 t' *> q3 t') @ j)) @ i) (w i))                   ==< Jl (\lam x1 p1 => path (\lam i => (pathOver p1 @ i) (w i)) = r *> pmap (\lam h => h (w right)) p1) idp (path (\lam j t' => (q1 t' *> q2 t' *> q3 t') @ j)) >==
-                      r *> q1 (w right) *> q2 (w right) *> q3 (w right)                                                           ==< inv (*>-assoc r (q1 (w right)) (q2 (w right) *> q3 (w right))) >==
-                      (r *> q1 (w right)) *> q2 (w right) *> q3 (w right)                                                         ==< pmap (\lam s => s *> q2 (w right) *> q3 (w right)) (Jl (\lam x1 p1 => path (\lam i => coe (\lam j => F (p1 @ j) -> R) f' i (coe (\lam j => F (p1 @ j)) t i)) *> transport_pi F (\lam _ => R) p1 f' (transport F p1 t) = pmap f' (inv (transport_inv_id F p1 t))) idp (ppglue x)) >==
-                      pmap f' (inv (transport_inv_id F (ppglue x) t)) *> q2 (w right) *> q3 (w right)                             ==< inv (*>-assoc (pmap f' (inv (transport_inv_id F (ppglue x) t))) (q2 (w right)) (q3 (w right))) >==
-                      (pmap f' u *> q2 (w right)) *> q3 (w right)                                                                 ==< pmap (\lam s => s *> q3 (w right)) (Jl (\lam x1 p1 => pmap f' p1 *> ppglue ((x,x1) : A') = ppglue ((x,t) : A') *> pmap (\lam t' => g' (transport F (ppglue x) t')) p1) (idp_*> (ppglue ((x,t) : A'))) u) >==
-                      (ppglue ((x,t) : A') *> pmap (\lam t' => g' (transport F (ppglue x) t')) u) *> q3 (w right)                 ==< *>-assoc (ppglue ((x,t) : A')) (pmap (\lam t' => g' (transport F (ppglue x) t')) u) (q3 (w right)) >==
-                      ppglue ((x,t) : A') *> pmap (\lam t' => g' (transport F (ppglue x) t')) u *> q3 (w right)                   ==< pmap (ppglue ((x,t) : A') *>) (inv (pmap_*>-comm g' (pmap (transport F (ppglue x)) u) (transport_id_inv F (ppglue x) (w right)))) >==
-                      ppglue ((x,t) : A') *> pmap g' (pmap (transport F (ppglue x)) u *> transport_id_inv F (ppglue x) (w right)) ==< pmap (\lam s => ppglue ((x,t) : A') *> pmap g' s) (Jl (\lam x1 p1 => pmap (transport F p1) (inv (transport_inv_id F p1 t)) *> transport_id_inv F p1 (transport F p1 t) = idp) idp (ppglue x)) >==
-                      ppglue ((x,t) : A')                                                                                         `qed
-          \in path (\lam j => p @ j @ i)
+            \func RL {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (t : TotalPushout F left) : total F \elim t
+              | tinl y t => pinl (y,t)
+              | tinr z t => pinr (z,t)
+              | tglue x i t => pglue (x,t) i
+          }
 
-      \func sigmaPushoutSigma {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (s : \Sigma (w : PushoutData f g) (F w)) : pushoutSigma F (sigmaPushout F s) = s \elim s
-        | (pinl y, t) => idp
-        | (pinr z, t) => idp
-        | (pglue x i, t) =>
-          \let p t' => transport (\lam w => \Pi (t' : F w) -> pushoutSigma F (sigmaPushout F (w,t')) = (w,t')) (ppglue x) (\lam _ => idp) t' ==< {?} >==
-                       idp                                                                                                                   `qed
-          \in (pathOver (path (\lam j t' => p t' @ j)) @ i) t
-          {-
-          \let | S => \Sigma (w : PushoutData f g) (F w)
-               | R => total F
-               | q t' => transport_pi F (\lam _ => R) (ppglue x) (\lam t' => pinl (f x, t')) t' *>
-                         ppglue ((x, transport F (inv (ppglue x)) t') : \Sigma (x : A) (F (pinl (f x)))) *>
-                         pmap (\lam s => (pinr (g x, s) : R)) (transport_id_inv F (ppglue x) t')
-               | p : path (\lam i t => pushoutSigma F ((pathOver (path (\lam j t' => q t' @ j)) @ i) t)) = {Path (\lam i => F (pglue x i) -> S) _ _} path (\lam i t => (pglue x i, t))
-                   => {?}
-          \in path (\lam j => (p @ j @ i) t)
-          -}
-    }
+        \func totalPushoutRight {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type)
+          : QEquiv {TotalPushout F right} {\Sigma (w : PushoutData f g) (F w)} \cowith
+          | f => LR F
+          | ret => RL F
+          | ret_f t => \case t \as t \return RL F (LR F t) = t \with {
+            | tinl y t => idp
+            | tinr z t => idp
+            | tglue x i t => idp
+          }
+          | f_sec t => \case t \as t \return LR F (RL F t) = t \with {
+            | (pinl y, t) => idp
+            | (pinr z, t) => idp
+            | (pglue x i, t) => idp
+          }
+          \where {
+            \func LR {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (t : TotalPushout F right) : \Sigma (w : PushoutData f g) (F w) \elim t
+              | tinl y t => (pinl y, t)
+              | tinr z t => (pinr z, t)
+              | tglue x i t => (pglue x i, t)
+
+            \func RL {A B C : \Type} {f : A -> B} {g : A -> C} (F : PushoutData f g -> \Type) (t : \Sigma (w : PushoutData f g) (F w)) : TotalPushout F right \elim t
+              | (pinl y, t) => tinl y t
+              | (pinr z, t) => tinr z t
+              | (pglue x i, t) => tglue x i t
+          }
+      }
   }
 
 \open PushoutData
