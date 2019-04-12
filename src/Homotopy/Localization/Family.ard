@@ -1,0 +1,71 @@
+\import Data.Or
+\import Equiv
+\import Equiv.Path
+\import Function
+\import Homotopy.Cube
+\import Homotopy.Localization.Modality
+\import Homotopy.Localization.Universe
+\import Homotopy.Pushout
+\import Paths
+
+\func famUniverse {fam : Family} : ReflUniverse \cowith
+  | Universe => universe
+  | localization A => \new Localization {
+    | S' {
+      | S => LData A
+      | local j => {?}
+    }
+    | inL => alpha
+    | local-univ Z => {?}
+  }
+  \where {
+    \class Family
+      | J : \Type
+      | X : J -> \Type
+      | Y : J -> \Type
+      | F : \Pi (j : J) -> X j -> Y j
+
+    \func universe {fam : Family} : Universe \cowith
+      | isLocal Z => \Pi (j : J) -> Equiv {Y j -> Z} {X j -> Z} (\lam g => g `o` F j)
+
+    \data LData {fam : Family} (A : \Type)
+      | alpha A
+      | ext {j : J} (X j -> LData A) (Y j)
+      | isExt {j : J} (f : X j -> LData A) (x : X j) (i : I) \elim i {
+        | left => ext f (F j x)
+        | right => f x
+      }
+
+    \func dataExt {fam : Family} {A : \Type} {Z : Local {universe}} (h : A -> Z) (d : LData A) : Z \elim d
+      | alpha a => h a
+      | ext {j} f y => Equiv.sec {Z.local j} (\lam x => dataExt h (f x)) y
+      | isExt {j} f x i => (Equiv.f_sec {Z.local j} (\lam x => dataExt h (f x)) @ i) x
+
+    \func dataExt-unique {fam : Family} {A : \Type} {Z : Local {universe}} (H1 H2 : LData A -> Z) (K : \Pi (a : A) -> H1 (alpha a) = H2 (alpha a)) (d : LData A) : H1 d = H2 d \elim d
+      | alpha a => K a
+      | ext {j} f y =>
+        \let p x => path (\lam i => H1 (isExt f x i)) <* dataExt-unique H1 H2 K (f x) *> inv (path (\lam i => H2 (isExt f x i)))
+        \in path (\lam i => (Equiv.sec {pmapEquiv (Z.local j) {H1 `o` ext f} {H2 `o` ext f}} (path (\lam i' x => p x @ i')) @ i) y)
+      | isExt {j} f x i =>
+        \let | p x => path (\lam i => H1 (isExt f x i)) <* dataExt-unique H1 H2 K (f x) *> inv (path (\lam i => H2 (isExt f x i)))
+             | e : Equiv {H1 `o` ext f = H2 `o` ext f} => pmapEquiv (Z.local j)
+             | q => path (\lam i => (e.sec (path (\lam i' x => p x @ i')) @ i) (F j x))
+             | s : q = p x => path (\lam k => path (\lam i => (e.f_sec (path (\lam i' x => p x @ i')) @ k @ i) x))
+        \in Cube2.map q (dataExt-unique H1 H2 K (f x)) (path (\lam i' => H1 (isExt f x i'))) (path (\lam i' => H2 (isExt f x i'))) s @ i
+
+    \func DHat {fam : Family} (k : J `Or` J) : \oo-Type \elim k
+      | inl j => X j
+      | inr j => PushoutData (F j) (F j)
+
+    \func CHat {fam : Family} (k : J `Or` J) : \Type \elim k
+      | inl j => Y j
+      | inr j => Y j
+
+    \func FHat {fam : Family} (k : J `Or` J) (d : DHat k) : CHat k \elim k
+      | inl j => F j d
+      | inr j => PushoutData.rec id id (\lam _ => idp) d
+  }
+
+\func nullFamUniverse {J : \Type} (X : J -> \Type) : Modality \cowith
+  | ReflUniverse => famUniverse {\new famUniverse.Family J X (\lam _ => \Sigma) (\lam _ _ => ())}
+  | isModality => {?}
