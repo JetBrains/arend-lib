@@ -1,6 +1,7 @@
 \import Data.Sigma
 \import Equiv
-\import Equiv.Path (pmapEquiv, pmapSection)
+\import Equiv.Path
+\import Equiv.Sigma
 \import Equiv.Univalence (Equiv-to-=)
 \import Function
 \import HLevel
@@ -55,9 +56,11 @@
   | localization (X : \Type) : Localization X
 
 -- | The localization functor
-\func localize {U : ReflUniverse} (A : \Type) => Localization.S' {localization A}
+\func LType {U : ReflUniverse} (A : \Type) => Localization.S' {localization A}
 
-\func lmap {U : ReflUniverse} {A B : \Type} (f : A -> B) (LA : localize A) : localize B
+\func lEta {U : ReflUniverse} {A : \Type} (a : A) => Localization.inL {localization A} a
+
+\func lmap {U : ReflUniverse} {A B : \Type} (f : A -> B) (LA : LType A) : LType B
   => lift (inL `o` f) LA
 
 -- | If ``inL : X -> X'`` is a section, then it is an equivalence.
@@ -178,3 +181,40 @@
            | ret lx a => lift (ap a) lx
            | ret_f g => path (\lam i a => lift-prop (ap a) g @ i)
          })
+
+{- | An elimination principle for the localization in a reflective universe.
+ - \proof
+ - The pi-types in the statement are equivalent to the types of functions ``LType A -> \Sigma (x : LType A) (B x)`` and ``A -> \Sigma (x : LType A) (B x)``
+ - such that their composition with the first projection equal to {id} and {lEta}, respectively.
+ - Thus, the required function is an equivalence iff the type of diagonal maps in the diagram below such that the bottom triangle commutes
+ - is canonically equivalent to the type of the top maps such that the square commutes.
+ - This follows from the universal property of the localization.
+ - ```
+ -      A --------> \Sigma (x : LType A) (B x)
+ -      |             |
+ - lEta |             | \lam p => p.1
+ -      |             |
+ -    LType A ----> LType A
+ -             id
+ - ```
+-}
+\lemma universe-elim {U : ReflUniverse} {A : \Type} (B : LType A -> \Type) (totalIsLocal : Local (\Sigma (x : LType A) (B x)))
+  : Equiv {\Pi (x : LType A) -> B x} {\Pi (a : A) -> B (lEta a)} (\lam f a => f (lEta a))
+  => piSigmaIdEquiv B `transEquiv` lem1 B `transEquiv` lem2 B totalIsLocal `transEquiv` symQEquiv (piSigmaEquiv lEta B)
+  \where {
+    \lemma lem1 {U : ReflUniverse} {A : \Type} (B : LType A -> \Type)
+      : Equiv {\Sigma (g : LType A -> \Sigma (x : LType A) (B x)) ((\lam x => (g x).1) = id)}
+              {\Sigma (g : LType A -> \Sigma (x : LType A) (B x)) ((\lam a => (g (lEta a)).1) = lEta)}
+              (\lam p => (p.1, pmap (-o lEta) p.2))
+      => sigma-right {LType A -> \Sigma (x : LType A) (B x)}
+                     (\lam g => (\lam x => (g x).1) = id)
+                     (\lam g => (\lam a => (g (lEta a)).1) = lEta)
+                     (\lam g => pmapEquiv (local-univ {localization A} (LType A)))
+
+    \lemma lem2 {U : ReflUniverse} {A : \Type} (B : LType A -> \Type) (totalIsLocal : Local (\Sigma (x : LType A) (B x)))
+      : Equiv {\Sigma (g : LType A -> \Sigma (x : LType A) (B x)) ((\lam a => (g (lEta a)).1) = lEta)}
+              {\Sigma (g : A -> \Sigma (x : LType A) (B x)) ((\lam a => (g a).1) = lEta)}
+              (\lam p => (\lam a => p.1 (lEta a), p.2))
+      => sigma-left (\lam (g : A -> \Sigma (x : LType A) (B x)) => (\lam a => (g a).1) = lEta)
+                    (Equiv-to-= (local-univ {localization A} totalIsLocal))
+  }
