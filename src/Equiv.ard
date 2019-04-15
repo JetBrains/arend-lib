@@ -56,6 +56,14 @@
                                                   (transport (\lam f => Retraction f) p (\new Retraction e.f e.sec e.f_sec))
                                                   (\new Retraction e'.f e'.sec e'.f_sec)) @ i
       })
+
+    \module Reasoning \where {
+      \func \infix 2 eqed (A : \Type) => idEquiv {A}
+
+      \func \infixr 1 >~~ {A B C : \Type} (p : Equiv {A} {B}) (q : Equiv {B} {C}) => transEquiv p q
+
+      \func \infix 2 ~~< (A : \Type) {B : \Type} (p : Equiv {A} {B}) => p
+    }
   }
 
 \record QEquiv \extends Equiv { | sec => ret }
@@ -151,6 +159,23 @@
 } \where {
   \use \level isProp {A B : \Type} {f : A -> B} (e e' : Embedding f) : e = e' =>
     path (\lam i => \new Embedding f (\lam a a' => Retraction.isProp (pmap-isEquiv {e} {a} {a'}) (e.isEmb a a') (e'.isEmb a a') @ i))
+
+  -- | The diagonal of an embedding is an equivalence
+  \lemma diag-equiv (e : Embedding) : Equiv {e.A} {\Sigma (a1 a2 : e.A) (e.f a1 = e.f a2)} (\lam a => (a, a, idp)) =>
+    \let | S => \Sigma (x : e.A) (\Sigma (y : e.A) (x = y))
+         | T => \Sigma (x y : e.A) (e.f x = e.f y)
+         | q => \new QEquiv {e.A} {S} (\lam x => (x,(x,idp))) {
+                  | ret t => t.1
+                  | ret_f x => idp
+                  | f_sec t => pmap (\lam r => ((t.1,r) : S)) (Jl (\lam x p => (t.1,idp) = {\Sigma (x : e.A) (t.1 = x)} (x,p)) idp t.2.2)
+                }
+         | pe {a} {a'} : QEquiv (pmap e.f {a} {a'}) => pmap-isEquiv {e} {a} {a'}
+         | s => \new QEquiv {S} {T} (\lam t => (t.1, t.2.1, pmap e.f t.2.2)) {
+                  | ret t => (t.1, (t.2, pe.ret t.3))
+                  | ret_f t => pmap (\lam r => ((t.1, (t.2.1, r)) : S)) (pe.ret_f t.2.2)
+                  | f_sec t => pmap (\lam r => ((t.1, t.2, r) : T)) (pe.f_sec t.3)
+                }
+    \in transQEquiv q s
 }
 
 \func \infixr 1 >-> (A B : \Type) => Embedding {A} {B}
