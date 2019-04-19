@@ -1,0 +1,56 @@
+\import Arith.Nat
+\import Equiv
+\import Order.StrictOrder
+\import Paths
+\open Nat
+\open NatLE
+
+\record Seq (A : Nat -> \Type) (f : \Pi {n : Nat} -> A (suc n) -> A n)
+  \where {
+    \func composite-+ {n : Nat} (m : Nat) (s : Seq) (x : s.A (n + m)) : s.A n \elim m
+      | 0 => x
+      | suc m => composite-+ m s (s.f x)
+
+    \func composite-<= {n m : Nat} (p : n <= m) (s : Seq) (x : s.A m) : s.A n
+      => composite-+ (m -' n) s (transport s.A (inv (<=-+ p)) x)
+
+    \func composite-<=-func {n m k : Nat} (p : n <= m) (q : m <= k) (s : Seq) (x : s.A k) : composite-<= p s (composite-<= q s x) = composite-<= (<=-transitive p q) s x
+      => {?}
+
+    \func composite-<=-func1 {n m : Nat} (p : suc n <= m) (q : n <= m) (s : Seq) (x : s.A m) : s.f (composite-<= p s x) = composite-<= q s x
+      => {?}
+  }
+
+\func SeqLimit (s : Seq) => \Sigma (F : \Pi (n : Nat) -> s.A n) (\Pi (n : Nat) -> s.f (F (suc n)) = F n)
+  \where {
+    {-
+    \func composite-+-path {n m : Nat} (s : Seq) {x : s.A n} : inSC x = inSC (Seq.composite-+ m s x) \elim m
+      | 0 => idp
+      | suc m => composite-+-path s *> path (quotSC (Seq.composite-+ m s x))
+    -}
+
+    \func composite-<=-path {n m : Nat} (p : n <= m) (s : Seq) (l : SeqLimit s) : Seq.composite-<= p s (l.1 m) = l.1 n
+      => {?} -- composite-+-path s *> index-path (<=-+ p) s (Seq.composite-+ (m -' n) s x)
+  }
+
+\func reindex (g : Nat -> Nat) (mon : \Pi (n : Nat) -> g n <= g (suc n)) (s : Seq) : Seq \cowith
+  | A n => s.A (g n)
+  | f {n} x => Seq.composite-<= (mon n) s x
+
+\func final (g : Nat -> Nat) (mon : \Pi (n : Nat) -> g n < g (suc n)) {s : Seq} : QEquiv {SeqLimit (reindex g (\lam n => <-implies-<= (mon n)) s)} {SeqLimit s} =>
+  \let | s' => reindex g (\lam n => <-implies-<= (mon n)) s
+       | d => monotone-diagonal g mon
+       | LR (p : SeqLimit s') : SeqLimit s => (\lam n => Seq.composite-<= d s (p.1 n), \lam n =>
+           s.f (Seq.composite-<= d s (p.1 (suc n)))                                       ==< Seq.composite-<=-func1 d (<=-transitive d (<-implies-<= (mon n))) s (p.1 (suc n)) >==
+           Seq.composite-<= (<=-transitive d (<-implies-<= (mon n))) s (p.1 (suc n))      ==< inv (Seq.composite-<=-func d (<-implies-<= (mon n)) s (p.1 (suc n))) >==
+           Seq.composite-<= d s (Seq.composite-<= (<-implies-<= (mon n)) s (p.1 (suc n))) ==< pmap (Seq.composite-<= d s) (p.2 n) >==
+           Seq.composite-<= d s (p.1 n)                                                   `qed)
+       | RL (p : SeqLimit s) : SeqLimit s' => (\lam n => p.1 (g n), \lam n => SeqLimit.composite-<=-path (<-implies-<= (mon n)) s p)
+  \in \new QEquiv {
+    | f => LR
+    | ret p => RL p
+    | ret_f p => {?}
+    | f_sec p => SigmaExt (\lam (F : \Pi (n : Nat) -> s.A n) => \Pi (n : Nat) -> s.f (F (suc n)) = F n) (LR (RL p)) p
+                          (path (\lam i n => SeqLimit.composite-<=-path d s p @ i))
+                          {?}
+  }

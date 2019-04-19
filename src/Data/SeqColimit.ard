@@ -1,0 +1,145 @@
+\import Arith.Nat
+\import Equiv
+\import Equiv.Univalence
+\import Order.StrictOrder
+\import Paths
+\open Nat
+\open NatLE
+
+\record Seq (A : Nat -> \Type) (f : \Pi {n : Nat} -> A n -> A (suc n))
+  \where {
+    \func composite-+ {n : Nat} (m : Nat) (s : Seq) (x : s.A n) : s.A (n + m) \elim m
+      | 0 => x
+      | suc m => s.f (composite-+ m s x)
+
+    \func composite-<= {n m : Nat} (p : n <= m) (s : Seq) (x : s.A n) : s.A m
+      => transport s.A (<=-+ p) (composite-+ (m -' n) s x)
+
+    \func composite-<=-id {n : Nat} (p : n <= n) (s : Seq) (x : s.A n) : composite-<= p s x = x
+      => transport (\lam k => \Pi (p' : n + k = n) -> transport s.A p' (composite-+ k s x) = x) (inv (-'id n))
+                   (\lam p' => transport (\lam q => transport s.A q x = x) (Path.inProp idp p') idp)
+                   (<=-+ p)
+
+    \func composite-<=-+-func {n k : Nat} (m : Nat) (q : n + m <= k) (r : n <= k) (s : Seq) (x : s.A n) : composite-<= q s (composite-+ m s x) = composite-<= r s x
+      => {?}
+
+    \func composite-<=-func {n m k : Nat} (p : n <= m) (q : m <= k) (r : n <= k) (s : Seq) (x : s.A n) : composite-<= q s (composite-<= p s x) = composite-<= r s x
+      => {?}
+  }
+
+\data SeqColimit (s : Seq)
+  | inSC {n : Nat} (s.A n)
+  | quotSC {n : Nat} (x : s.A n) (i : I) \elim i {
+    | left => inSC x
+    | right => inSC (s.f x)
+  }
+  \where {
+    \func index-path {n m : Nat} (p : n = m) (s : Seq) (x : s.A n) : inSC x = inSC (transport s.A p x)
+      => Jl (\lam m' p' => inSC x = inSC (transport s.A p' x)) idp p
+
+    \func composite-+-path {n m : Nat} (s : Seq) {x : s.A n} : inSC x = inSC (Seq.composite-+ m s x) \elim m
+      | 0 => idp
+      | suc m => composite-+-path s *> path (quotSC (Seq.composite-+ m s x))
+
+    \func composite-<=-path {n m : Nat} (p : n <= m) (s : Seq) (x : s.A n) : inSC x = inSC (Seq.composite-<= p s x)
+      => composite-+-path s *> index-path (<=-+ p) s (Seq.composite-+ (m -' n) s x)
+
+    -- | The total space of a fibration over a sequential colimit is equivalent to a sequential colimit of fibers of this fibration.
+    \func flattening {s : Seq} (P : SeqColimit s -> \Type) : total P = (\Sigma (w : SeqColimit s) (P w))
+      => Equiv-to-= totalSeqColimitLeft *> path (TotalSeqColimit P) *> Equiv-to-= totalSeqColimitRight
+      \where {
+        \func total {s : Seq} (P : SeqColimit s -> \Type) =>
+          SeqColimit (\new Seq (\lam n => \Sigma (x : s.A n) (P (inSC x)))
+                               (\lam p => (s.f p.1, transport P (path (quotSC p.1)) p.2)))
+
+        \data TotalSeqColimit {s : Seq} (P : SeqColimit s -> \Type) (j : I)
+          | tinSC {n : Nat} (x : s.A n) (P (inSC x))
+          | tquotSC {n : Nat} (x : s.A n) (i : I) (w : P (quotSC x (I.squeeze i j))) \elim i {
+            | left => tinSC x w
+            | right => tinSC (s.f x) (coe2 (\lam i => P (quotSC x i)) j w right)
+          }
+
+        \func totalSeqColimitLeft {s : Seq} {P : SeqColimit s -> \Type} : QEquiv {total P} {TotalSeqColimit P left} \cowith
+          | f => LR
+          | ret => RL
+          | ret_f t => \case t \as t \return RL (LR t) = t \with {
+            | inSC (x,p) => idp
+            | quotSC (x,p) i => idp
+          }
+          | f_sec t => \case t \as t \return LR (RL t) = t \with {
+            | tinSC x p => idp
+            | tquotSC x i p => idp
+          }
+          \where {
+            \func LR {s : Seq} {P : SeqColimit s -> \Type} (t : total P) : TotalSeqColimit P left \elim t
+              | inSC (x,p) => tinSC x p
+              | quotSC (x,p) i => tquotSC x i p
+
+            \func RL {s : Seq} {P : SeqColimit s -> \Type} (t : TotalSeqColimit P left) : total P \elim t
+              | tinSC x p => inSC (x,p)
+              | tquotSC x i p => quotSC (x,p) i
+          }
+
+        \func totalSeqColimitRight {s : Seq} {P : SeqColimit s -> \Type} : QEquiv {TotalSeqColimit P right} {\Sigma (w : SeqColimit s) (P w)} \cowith
+          | f => LR
+          | ret => RL
+          | ret_f t => \case t \as t \return RL (LR t) = t \with {
+            | tinSC _ _ => idp
+            | tquotSC _ _ _ => idp
+          }
+          | f_sec t => \case t \as t \return LR (RL t) = t \with {
+            | (inSC x, p) => idp
+            | (quotSC x i, p) => idp
+          }
+          \where {
+            \func LR {s : Seq} {P : SeqColimit s -> \Type} (t : TotalSeqColimit P right) : \Sigma (w : SeqColimit s) (P w) \elim t
+              | tinSC x p => (inSC x, p)
+              | tquotSC x i p => (quotSC x i, p)
+
+            \func RL {s : Seq} {P : SeqColimit s -> \Type} (p : \Sigma (w : SeqColimit s) (P w)) : TotalSeqColimit P right \elim p
+              | (inSC x, p) => tinSC x p
+              | (quotSC x i, p) => tquotSC x i p
+          }
+      }
+  }
+
+\func reindex (g : Nat -> Nat) (mon : \Pi (n : Nat) -> g n <= g (suc n)) (s : Seq) : Seq \cowith
+  | A n => s.A (g n)
+  | f {n} x => Seq.composite-<= (mon n) s x
+  \where {
+    -- \func composite-<= {n m : Nat} (p : n <= m) (s : Seq) (x : s.A n) : s.A m
+    \func composite-<=-eq (g : Nat -> Nat) (mon : \Pi (n : Nat) -> g n <= g (suc n)) {n m : Nat} (p : n <= m) (q : g n <= g m) (s : Seq) (x : s.A (g n))
+      : Seq.composite-<= p (reindex g mon s) x = Seq.composite-<= q s x
+      => {?}
+  }
+
+\func cofinal (g : Nat -> Nat) (mon : \Pi (n : Nat) -> g n < g (suc n)) {s : Seq} : QEquiv {SeqColimit (reindex g (\lam n => <-implies-<= (mon n)) s)} {SeqColimit s} \cowith
+  | f => LR g (\lam n => <-implies-<= (mon n))
+  | ret => RL g mon
+  | ret_f x => inv (RLR g mon x)
+  | f_sec => {?}
+  \where {
+    \func LR (g : Nat -> Nat) (mon : \Pi (n : Nat) -> g n <= g (suc n)) {s : Seq} (x : SeqColimit (reindex g mon s)) : SeqColimit s \elim x
+      | inSC x => inSC x
+      | quotSC {n} x i => SeqColimit.composite-<=-path (mon n) s x @ i
+
+    \func RL (g : Nat -> Nat) (mon : \Pi (n : Nat) -> g n < g (suc n)) {s : Seq} (x : SeqColimit s) : SeqColimit (reindex g (\lam n => <-implies-<= (mon n)) s) \elim x
+      | inSC x => inSC (Seq.composite-<= (monotone-diagonal g mon) s x)
+      | quotSC {n} x i =>
+        \let | mon' n => <-implies-<= (mon n)
+             | s' => reindex g mon' s
+             | p =>
+               inSC {s'} {n} (Seq.composite-<= (monotone-diagonal g mon) s x)                                   ==< path (quotSC {s'} {n} (Seq.composite-<= (monotone-diagonal g mon) s x)) >==
+               inSC {s'} {suc n} (Seq.composite-<= (mon' n) s (Seq.composite-<= (monotone-diagonal g mon) s x)) ==< pmap (inSC {s'}) (Seq.composite-<=-func (monotone-diagonal g mon) (mon' n) (<=-transitive (monotone-diagonal g mon) (mon' n)) s x) >==
+               inSC {s'} {suc n} (Seq.composite-<= (<=-transitive (monotone-diagonal g mon) (mon' n)) s x)      ==< inv (pmap (inSC {s'}) (Seq.composite-<=-+-func 1 (monotone-diagonal g mon) (<=-transitive (monotone-diagonal g mon) (mon' n)) s x)) >==
+               inSC {s'} {suc n} (Seq.composite-<= (monotone-diagonal g mon) s (s.f x))                         `qed
+        \in p @ i
+
+    \func RLR (g : Nat -> Nat) (mon : \Pi (n : Nat) -> g n < g (suc n)) {s : Seq} (x : SeqColimit (reindex g (\lam n => <-implies-<= (mon n)) s))
+      : x = RL g mon (LR g (\lam n => <-implies-<= (mon n)) x) \elim x
+      | inSC x =>
+        \let | mon' n => <-implies-<= (mon n)
+             | s' => reindex g mon' s
+        \in SeqColimit.composite-<=-path (monotone-diagonal g mon) s' x *> pmap (inSC {s'}) (reindex.composite-<=-eq g mon' (monotone-diagonal g mon) (monotone-diagonal g mon) s x)
+      | quotSC x i => {?}
+  }
