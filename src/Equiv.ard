@@ -176,6 +176,26 @@
                   | f_sec t => pmap (\lam r => ((t.1, t.2, r) : T)) (pe.f_sec t.3)
                 }
     \in transQEquiv q s
+
+  -- | If the fibers of a map are propositions, then the map is an embedding
+  \lemma fibers {A B : \Type} (f : A -> B) (p : \Pi (b : B) -> HLevel.isProp (Fib f b)) : Embedding f \cowith
+    | isEmb a a' =>
+      \let e (q : f a = f a') => Equiv.f {Fib.equiv f (f a') (Fib.make a q) (Fib.make a' idp)} (p (f a') (Fib.make a q) (Fib.make a' idp))
+      \in \new Retraction {
+        | sec q => (e q).1
+        | f_sec q => (e q).2
+      }
+
+  -- | The fibers of an embedding are propositions.
+  \lemma embeddingFiber-isProp (e : Embedding) (b : e.B) : HLevel.isProp (Fib e.f b) => \lam (x x' : Fib e.f b) =>
+    \let | eq : Retraction (pmap e.f {x.over} {x'.over}) => e.isEmb x.over x'.over
+         | fx=fx' => x.basePath *> inv x'.basePath
+    \in Fib.ext e.f b x x' (eq.sec fx=fx') (
+      pmap e.f (eq.sec fx=fx') *> x'.basePath       ==< pmap (\lam r => r *> x'.basePath) (eq.f_sec fx=fx') >==
+      fx=fx' *> x'.basePath                         ==< *>-assoc _ _ _ >==
+      x.basePath *> inv x'.basePath *> x'.basePath  ==< pmap (\lam r => x.basePath *> r) (inv_*> _) >==
+      x.basePath                                    `qed
+    )
 }
 
 \func \infixr 1 >-> (A B : \Type) => Embedding {A} {B}
@@ -190,18 +210,8 @@
       path (\lam i => \new ESEquiv { | Embedding  => Embedding.isProp  e e' @ i
                                      | Surjection => Path.inProp {ESEquiv f} e e' @ i })
 
-    \lemma embeddingFiber-isProp (e : Embedding) (b : e.B) : HLevel.isProp (Fib e.f b) => \lam (x x' : Fib e.f b) =>
-      \let | eq : Retraction (pmap e.f {x.over} {x'.over}) => e.isEmb x.over x'.over
-           | fx=fx' => x.basePath *> inv x'.basePath
-      \in Fib.ext e.f b x x' (eq.sec fx=fx') (
-        pmap e.f (eq.sec fx=fx') *> x'.basePath       ==< pmap (\lam r => r *> x'.basePath) (eq.f_sec fx=fx') >==
-        fx=fx' *> x'.basePath                         ==< *>-assoc _ _ _ >==
-        x.basePath *> inv x'.basePath *> x'.basePath  ==< pmap (\lam r => x.basePath *> r) (inv_*> _) >==
-        x.basePath                                    `qed
-      )
-
     \use \coerce toEquiv (e : ESEquiv) : QEquiv e.f =>
-      \let sec (y : e.B) => TruncP.remove (embeddingFiber-isProp e y) (e.isSurj y)
+      \let sec (y : e.B) => TruncP.remove (Embedding.embeddingFiber-isProp e y) (e.isSurj y)
       \in \new QEquiv {
         | ret y => Fib.over {sec y}
         | ret_f x => Retraction.sec {e.isEmb _ _} (Fib.basePath {sec (e.f x)})
@@ -210,5 +220,5 @@
 
     \use \coerce fromEquiv (e : Equiv) : ESEquiv e.f \cowith
       | isEmb a a' => pmapEquiv e {a} {a'}
-      | isSurj y => inP (\new Fib { | over => e.sec y | basePath => e.f_sec y })
+      | isSurj y => inP (Fib.make (e.sec y) (e.f_sec y))
   }

@@ -6,15 +6,17 @@
 
 \record Fib {A B : \Type} (f : A -> B) (base : B) (over : A) (basePath : f over = base)
   \where {
+    \func make {A B : \Type} {f : A -> B} {base : B} (over : A) (basePath : f over = base) => \new Fib f base over basePath
+
     \func ext {A B : \Type} (f : A -> B) (b0 : B) (x x' : Fib f b0) (p : x.over = x'.over) (q : pmap f p *> x'.basePath = x.basePath) : x = x' =>
       -- First, prove that q' : transport (\lam y => f y = b0) p x.p = x'.p.
       \let q' => Jl (\lam _ p' => transport (\lam y => f y = b0) p' x.basePath = inv (pmap f p') *> x.basePath) (inv (idp_*> x.basePath)) p *> rotatePathLeft (inv q)
       -- Then use the usual Sigma extensionality.
-      \in path (\lam i => \new Fib f b0 (p @ i) (pathOver q' @ i))
+      \in path (\lam i => make (p @ i) (pathOver q' @ i))
 
     \func =Sigma {A B : \Type} (f : A -> B) (base : B) : QEquiv {Fib f base} {\Sigma (over : A) (f over = base)} \cowith
       | f (x : Fib f base) => (x.over, x.basePath)
-      | ret p => \new Fib f base p.1 p.2
+      | ret p => make p.1 p.2
       | ret_f x => idp
       | f_sec p => idp
 
@@ -25,13 +27,13 @@
           | f q => transport (S x) q (idp, idp_*> x.basePath)
           | sec s => ext f b0 x x' s.1 s.2
           | f_sec s => Jl (\lam x1 s1 => \Pi (bp : f x1 = b0) (s2 : pmap f s1 *> bp = x.basePath) ->
-                                           transport (S x) (ext f b0 x (\new Fib f b0 x1 bp) s1 s2) (idp, idp_*> x.basePath) = (s1,s2))
-                          (\lam bp s2 => Jl (\lam bp0 s2' => transport (S (\new Fib f b0 x.over bp0))
-                                                                       (ext f b0 (\new Fib f b0 x.over bp0) (\new Fib f b0 x.over bp) idp s2')
+                                           transport (S x) (ext f b0 x (make x1 bp) s1 s2) (idp, idp_*> x.basePath) = (s1,s2))
+                          (\lam bp s2 => Jl (\lam bp0 s2' => transport (S (make x.over bp0))
+                                                                       (ext f b0 (make x.over bp0) (make x.over bp) idp s2')
                                                                        (idp, idp_*> bp0)
                                                              = (idp,s2'))
                                             (Jl (\lam b0' bp' => transport (\lam (x' : Fib f b0') => \Sigma (p : x.over = x'.over) (pmap f p *> x'.basePath = idp *> bp'))
-                                                                           (ext f b0' (\new Fib f b0' x.over (idp *> bp')) (\new Fib f b0' x.over bp') idp idp)
+                                                                           (ext f b0' (make x.over (idp *> bp')) (make x.over bp') idp idp)
                                                                            (idp, idp_*> (idp *> bp'))
                                                                  = (idp, idp))
                                                 idp
@@ -50,12 +52,12 @@
   \let sec y => Contr.center {p y}
   \in \new QEquiv {
     | ret y => Fib.over {sec y}
-    | ret_f x => pmap (\lam (r : Fib f (f x)) => r.over) (Contr.contraction {p (f x)} (\new Fib f (f x) x idp))
+    | ret_f x => pmap (\lam (r : Fib f (f x)) => r.over) (Contr.contraction {p (f x)} (Fib.make x idp))
     | f_sec y => Fib.basePath {sec y}
   }
 
 \lemma Equiv=>contrFibers {A B : \Type} (f : A -> B) (p : HAEquiv f) : hasContrFibers f => \lam b0 =>
-  \let | x0 => \new Fib f b0 (p.ret b0) (p.f_sec b0)
+  \let | x0 => Fib.make (p.ret b0) (p.f_sec b0)
   \in Contr.make x0 (\lam (x : Fib f b0) =>
     \let -- p0 proves that the first components are equal: x0.over = x.over.
          | p0 => pmap p.ret (inv x.basePath) *> p.ret_f x.over
