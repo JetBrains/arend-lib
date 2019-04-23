@@ -1,0 +1,44 @@
+\import Equiv
+\import Equiv.Univalence
+\import Homotopy.Join
+\import Homotopy.Localization.Accessible
+\import Homotopy.Localization.Universe
+\import Logic
+\import Paths
+
+\func isConnectedType {U : Universe} (X : \Type) => \Pi (Z : Local) -> isLocal {nullTypeUniverse X} Z
+
+-- | Theorem 6.8, Egbert Rijke, The join construction, https://arxiv.org/pdf/1701.07538.pdf
+\lemma connected_join (X Y M N : \Type)
+                      (X-conn : isConnectedType {nullTypeUniverse M} X)
+                      (Y-conn : isConnectedType {nullTypeUniverse N} Y)
+  : isConnectedType {nullTypeUniverse (Join M N)} (Join X Y)
+  => \lam Z => connected_local_join-right Z Y X N Y-conn (connected_local_join-left X Z M N X-conn (local {Z}))
+  \where {
+    -- | Lemma 6.4
+    \lemma local_join (A A' B : \Type) : (\Pi (f : A' -> B) -> isLocal {nullTypeUniverse A} (\Sigma (b : B) (\Pi (a : A') -> f a = b)))
+                                       = isLocal {nullTypeUniverse (Join A A')} B
+      => \let C (f : A' -> B) => \Sigma (b : B) (\Pi (a : A') -> f a = b)
+         \in (\Pi (f : A' -> B) -> isLocal {nullTypeUniverse A} (C f))                                               ==< path (\lam i => \Pi (f : A' -> B) -> nullTypeUniverse.localDesc A (C f) @ i) >==
+             (\Pi (f : A' -> B) -> Equiv {C f} {A -> C f} (\lam c _ => c))                                           ==< {?} >==
+             (Equiv {\Sigma (f : A' -> B) (C f)} {\Sigma (f : A' -> B) (A -> C f)} (\lam p => (p.1, \lam _ => p.2))) ==< {?} >==
+             Equiv {B} {Join A A' -> B} (\lam b _ => b)                                                              ==< inv (nullTypeUniverse.localDesc (Join A A') B) >==
+             isLocal {nullTypeUniverse (Join A A')} B                                                                `qed
+
+    -- | Lemma 6.5
+    \lemma connected_local_join-left (X Y M N : \Type)
+                                     (X-conn : isConnectedType {nullTypeUniverse M} X)
+                                     (Y-local : isLocal {nullTypeUniverse (Join M N)} Y)
+      : isLocal {nullTypeUniverse (Join X N)} Y
+      => propExt.dir (local_join X N Y) (\lam f => X-conn (\new Local { | S => _ | local => propExt.conv (local_join M N Y) Y-local f }))
+
+    \lemma connected_local_join-right (X Y M N : \Type)
+                                      (Y-conn : isConnectedType {nullTypeUniverse N} Y)
+                                      (X-local : isLocal {nullTypeUniverse (Join M N)} X)
+      : isLocal {nullTypeUniverse (Join M Y)} X
+      => transport (\lam J => isLocal {nullTypeUniverse J} X)
+                   (Equiv-to-= (Join-sym Y M))
+                   (connected_local_join-left Y X N M Y-conn (transport (\lam J => isLocal {nullTypeUniverse J} X)
+                                                                        (Equiv-to-= (Join-sym M N))
+                                                                        X-local))
+  }
