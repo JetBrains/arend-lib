@@ -12,8 +12,8 @@
 \record Section (ret : B -> A) (ret_f : \Pi (x : A) -> ret (f x) = x) \extends Map
   \where {
     \func =Fiber {A B : \Type} (f : A -> B) : Section f = Fib (-o f) id
-      => path (iso (\lam (s : Section f) => \new Fib (-o f) id s.ret (path (\lam i x => s.ret_f x @ i)))
-                   (\lam (z : Fib (-o f) id) => \new Section f z.over (\lam x => path (\lam i => (z.basePath @ i) x)))
+      => path (iso (\lam (s : Section f) => Fib.make (-o f) s.ret (path (\lam i x => s.ret_f x @ i)))
+                   (\lam z => \new Section f z.1 (\lam x => path (\lam i => (z.2 @ i) x)))
                    idpe
                    idpe)
 
@@ -27,8 +27,8 @@
 \record Retraction (sec : B -> A) (f_sec : \Pi (y : B) -> f (sec y) = y) \extends Map
   \where {
     \func =Fiber {A B : \Type} (f : A -> B) : Retraction f = Fib (f `o-) id
-      => path (iso (\lam (s : Retraction f) => \new Fib (f `o-) id s.sec (path (\lam i x => s.f_sec x @ i)))
-                   (\lam (z : Fib (f `o-) id) => \new Retraction f z.over (\lam x => path (\lam i => (z.basePath @ i) x)))
+      => path (iso (\lam (s : Retraction f) => Fib.make (f `o-) s.sec (path (\lam i x => s.f_sec x @ i)))
+                   (\lam z => \new Retraction f z.1 (\lam x => path (\lam i => (z.2 @ i) x)))
                    idpe
                    idpe)
 
@@ -218,21 +218,21 @@
   -- | If the fibers of a map are propositions, then the map is an embedding
   \lemma fibers {A B : \Type} (f : A -> B) (p : \Pi (b : B) -> HLevel.isProp (Fib f b)) : Embedding f \cowith
     | isEmb a a' =>
-      \let e (q : f a = f a') => Equiv.f {Fib.equiv f (f a') (Fib.make a q) (Fib.make a' idp)} (p (f a') (Fib.make a q) (Fib.make a' idp))
+      \let e (q : f a = f a') => Equiv.f {Fib.equiv f (f a') (a,q) (a',idp)} (p (f a') (a,q) (a',idp))
       \in \new Retraction {
         | sec q => (e q).1
         | f_sec q => (e q).2
       }
 
   -- | The fibers of an embedding are propositions.
-  \lemma embeddingFiber-isProp (e : Embedding) (b : e.B) : HLevel.isProp (Fib e.f b) => \lam (x x' : Fib e.f b) =>
-    \let | eq : Retraction (pmap e.f {x.over} {x'.over}) => e.isEmb x.over x'.over
-         | fx=fx' => x.basePath *> inv x'.basePath
+  \lemma embeddingFiber-isProp (e : Embedding) (b : e.B) : HLevel.isProp (Fib e.f b) => \lam x x' =>
+    \let | eq : Retraction (pmap e.f {x.1} {x'.1}) => e.isEmb x.1 x'.1
+         | fx=fx' => x.2 *> inv x'.2
     \in Fib.ext e.f b x x' (eq.sec fx=fx') (
-      pmap e.f (eq.sec fx=fx') *> x'.basePath       ==< pmap (\lam r => r *> x'.basePath) (eq.f_sec fx=fx') >==
-      fx=fx' *> x'.basePath                         ==< *>-assoc _ _ _ >==
-      x.basePath *> inv x'.basePath *> x'.basePath  ==< pmap (\lam r => x.basePath *> r) (inv_*> _) >==
-      x.basePath                                    `qed
+      pmap e.f (eq.sec fx=fx') *> x'.2 ==< pmap (\lam r => r *> x'.2) (eq.f_sec fx=fx') >==
+      fx=fx' *> x'.2                   ==< *>-assoc _ _ _ >==
+      x.2 *> inv x'.2 *> x'.2          ==< pmap (\lam r => x.2 *> r) (inv_*> _) >==
+      x.2                              `qed
     )
 }
 
@@ -251,12 +251,12 @@
     \use \coerce toEquiv (e : ESEquiv) : QEquiv e.f =>
       \let sec (y : e.B) => TruncP.remove (Embedding.embeddingFiber-isProp e y) (e.isSurj y)
       \in \new QEquiv {
-        | ret y => Fib.over {sec y}
-        | ret_f x => Retraction.sec {e.isEmb _ _} (Fib.basePath {sec (e.f x)})
-        | f_sec y => Fib.basePath {sec y}
+        | ret y => (sec y).1
+        | ret_f x => Retraction.sec {e.isEmb _ _} (sec (e.f x)).2
+        | f_sec y => (sec y).2
       }
 
     \use \coerce fromEquiv (e : Equiv) : ESEquiv e.f \cowith
       | isEmb a a' => pmapEquiv e {a} {a'}
-      | isSurj y => inP (Fib.make (e.sec y) (e.f_sec y))
+      | isSurj y => inP (e.sec y, e.f_sec y)
   }
