@@ -67,10 +67,17 @@
   }
 
 \record QEquiv \extends Equiv { | sec => ret }
-  \where
+  \where {
     \use \coerce fromEquiv (e : Equiv) : QEquiv \cowith
       | Section => e
       | f_sec y => pmap (\lam y => e.f (e.ret y)) (inv (e.f_sec y)) *> pmap e.f (e.ret_f (e.sec y)) *> e.f_sec y
+
+    \func fromEquiv' (e : Equiv) : QEquiv \cowith
+      | Map => e
+      | ret => e.sec
+      | ret_f a => inv (e.ret_f (e.sec (e.f a))) *> pmap e.ret (e.f_sec (e.f a)) *> e.ret_f a
+      | f_sec => e.f_sec
+  }
 
 -- # Examples of equialences
 
@@ -95,7 +102,7 @@
   | f_sec y => pmap e2.f (e1.f_sec (e2.sec y)) *> e2.f_sec y
 
 \module TwoOutOfThree \where {
-  \func leftFactor {A B C : \Type} (e1 : Equiv {A} {B}) (g : B -> C) (e3 : QEquiv (g `o` e1.f)) : QEquiv g \cowith
+  \func leftFactor {A B C : \Type} (e1 : Retraction {A} {B}) (g : B -> C) (e3 : QEquiv (g `o` e1.f)) : QEquiv g \cowith
     | ret c => e1.f (e3.ret c)
     | ret_f b =>
         e1.f (e3.ret (g b))                 ==< pmap (e1.f `o` e3.ret `o` g) (inv (e1.f_sec b)) >==
@@ -104,7 +111,7 @@
         b                                   `qed
     | f_sec => e3.f_sec
 
-  \func rightFactor {A B C : \Type} (f : A -> B) (e2 : Equiv {B} {C}) (e3 : QEquiv (e2.f `o` f)) : QEquiv f \cowith
+  \func rightFactor {A B C : \Type} (f : A -> B) (e2 : Section {B} {C}) (e3 : QEquiv (e2.f `o` f)) : QEquiv f \cowith
     | ret b => e3.ret (e2.f b)
     | ret_f => e3.ret_f
     | f_sec b =>
@@ -112,6 +119,12 @@
         e2.ret (e2.f (f (e3.ret (e2.f b)))) ==< pmap e2.ret (e3.f_sec (e2.f b)) >==
         e2.ret (e2.f b)                     ==< e2.ret_f b >==
         b                                   `qed
+
+  \lemma rightEmbedding {A B C : \Type} (f : A -> B) (e2 : B >-> C) (e3 : QEquiv (e2.f `o` f)) : Equiv f
+    => rightFactor f (ESEquiv.toEquiv (\new ESEquiv e2.f {
+      | isEmb => e2.isEmb
+      | isSurj c => inP (f (e3.ret c), e3.f_sec c)
+    })) e3
 
   \lemma parallelEquiv {A B C D : \Type} (ab : A -> B) (cd : C -> D) (ac : Equiv {A} {C}) (bd : Equiv {B} {D}) (h : \Pi (a : A) -> bd.f (ab a) = cd (ac.f a)) : Equiv ab = Equiv cd
     => propExt (\lam (e : Equiv ab) => leftFactor ac cd (coe (\lam i => QEquiv (\lam a => h a @ i)) (transQEquiv e bd) right))

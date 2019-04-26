@@ -2,10 +2,11 @@
 \import Equiv
 \import Equiv.Path
 \import Equiv.Sigma
-\import Equiv.Univalence (Equiv-to-=)
+\import Equiv.Univalence
 \import Function
 \import HLevel
 \import Homotopy.Square
+\import Logic
 \import Paths
 \open *> (concat)
 
@@ -91,6 +92,33 @@
     \lemma lem {U : Universe} (L : Localization) (s : Section {L.S} {L.S'} inL) : Local L.S \cowith
       | local => transport isLocal (inv (Equiv-to-= (sectionIsEquiv.lem L s))) L.S'.local
 
+-- | If ``inL : X -> X'`` factors through a local type {Y}, then the map ``Y -> X'`` is a retraction.
+\func localizationFactor {U : ReflUniverse} {X : \Type} (Y : Local) (f : X -> Y) (g : Y -> LType X) (p : \Pi (x : X) -> g (f x) = inL {localization X} x) : Retraction g
+  => lem (localization X) Y f g p
+  \where
+    \func lem {U : Universe} (L : Localization) (Y : Local) (f : L.S -> Y) (g : Y -> L.S') (p : \Pi (x : L.S) -> g (f x) = inL x) : Retraction g \cowith
+      | sec => {?}
+      | f_sec => {?}
+
+-- | If ``inL : X -> X'`` factors through a section ``g : Y -> X'`` with {Y} local, then {g} is an equivalence.
+\lemma localizationFactorSection {U : ReflUniverse} (X : \Type) (Y : Local) (f : X -> Y) (g : Section {Y} {LType X}) (p : \Pi (x : X) -> g.f (f x) = inL {localization X} x) : Equiv g.f
+  => lem (localization X) Y f g p
+  \where
+    \func lem {U : Universe} (L : Localization) (Y : Local) (f : L.S -> Y) (g : Section {Y} {L.S'}) (p : \Pi (x : L.S) -> g.f (f x) = inL x) : Equiv g.f \cowith
+      | Section => g
+      | Retraction => localizationFactor.lem L Y f g.f p
+
+-- | If ``inL : X -> X'`` factors through an embedding ``g : Y -> X'`` with {Y} local, then {g} is an equivalence.
+\lemma localizationFactorEmbedding {U : ReflUniverse} (X : \Type) (Y : Local) (f : X -> Y) (g : Y >-> LType X) (p : \Pi (x : X) -> g.f (f x) = inL {localization X} x) : Equiv g.f
+  => lem (localization X) Y f g p
+  \where
+    \lemma lem {U : ReflUniverse} (L : Localization) (Y : Local) (f : L.S -> Y) (g : Y >-> L.S') (p : \Pi (x : L.S) -> g.f (f x) = inL x) : Equiv g.f
+      => ESEquiv.toEquiv (\new ESEquiv {
+        | Embedding => g
+        | isSurj x => \let r : Retraction g.f => localizationFactor.lem L Y f g.f p
+                      \in inP (r.sec x, r.f_sec x)
+      })
+
 -- | Contractible types with a localization are local.
 \lemma contrLocal {U : ReflUniverse} (C : Contr) : Local C
   => lem C (localization C)
@@ -159,7 +187,7 @@
   }
 
 -- | Products of local types with a localization are local.
-\lemma productLocal {U : ReflUniverse} {A B : Local} : Local (\Sigma A B)
+\lemma productLocal {U : ReflUniverse} (A B : Local) : Local (\Sigma A B)
   => pullbackLocal (productPullback A B) (\new A) (\new B) unitLocal
 
 -- | Path types of local types with a localization are local.
@@ -181,6 +209,31 @@
            | ret lx a => lift (ap a) lx
            | ret_f g => path (\lam i a => lift-prop (ap a) g @ i)
          })
+
+-- | The type of equivalences between local types is local
+\lemma equivLocal {U : ReflUniverse} (A B : Local) : Local (Equiv {A} {B}) =>
+  \let | T => \Sigma (A -> B) (\Sigma (B -> A) (B -> A))
+       | F (t : T) => (t.2.1 `o` t.1, t.1 `o` t.2.2)
+  \in \new Local { | local =>
+    transport isLocal (inv (QEquiv-to-= (\new QEquiv {Equiv {A} {B}} {\Sigma (t : T) (\Sigma) (F t = (id,id))} {
+      | f (e : Equiv) => ((e.f,(e.ret,e.sec)), (), path (\lam i => (\lam a => e.ret_f a @ i, \lam b => e.f_sec b @ i)))
+      | ret p => \new Equiv {
+        | f => p.1.1
+        | ret => p.1.2.1
+        | ret_f a => path (\lam i => (p.3 @ i).1 a)
+        | sec => p.1.2.2
+        | f_sec b => path (\lam i => (p.3 @ i).2 b)
+      }
+      | ret_f => idpe
+      | f_sec => idpe
+    }))) (local {pullbackLocal (sigmaPullback F (\lam (_ : \Sigma) => (id,id)))
+                               (productLocal (piLocal (\lam _ => B)) (productLocal (piLocal (\lam _ => A)) (piLocal (\lam _ => A))))
+                               unitLocal
+                               (productLocal (piLocal (\lam _ => A)) (piLocal (\lam _ => B)))}) }
+
+-- | The type of paths between local types is local
+\lemma typePathsLocal {U : ReflUniverse} (A B : Local) : Local (A = {\Type} B)
+  => transport (\lam X => Local X) (inv (QEquiv-to-= univalence)) (equivLocal A B)
 
 {- | An elimination principle for the localization in a reflective universe.
  - \proof
@@ -218,3 +271,16 @@
       => sigma-left (\lam (g : A -> \Sigma (x : LType A) (B x)) => (\lam a => (g a).1) = lEta)
                     (Equiv-to-= (local-univ {localization A} totalIsLocal))
   }
+
+\func localYoneda {U : ReflUniverse} {A : \Type} (a : A) (P : A -> Local)
+  : Equiv {\Pi (a' : A) -> LType (a = a') -> P a'} {P a}
+  => \let e a' => local-univ {localization (a = a')} (P a')
+     \in transEquiv (\new Equiv {
+       | A => \Pi (a' : A) -> LType (a = a') -> P a'
+       | B => \Pi (a' : A) -> a = a' -> P a'
+       | f h a' => Equiv.f {e a'} (h a')
+       | ret h a' => Equiv.ret {e a'} (h a')
+       | ret_f h => path (\lam i a' => Equiv.ret_f {e a'} (h a') @ i)
+       | sec h a' => Equiv.sec {e a'} (h a')
+       | f_sec h => path (\lam i a' => Equiv.f_sec {e a'} (h a') @ i)
+     }) (pi-contr-left a (\lam a' _ => P a'))
