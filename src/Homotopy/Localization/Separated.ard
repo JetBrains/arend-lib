@@ -15,7 +15,7 @@
   | Universe => Separated U
   | localization A =>
     \let | p (a a' : A) : Local (F a = F a') => pathLocal a a'
-         | q (a a' : A) : LType (a = a') = {\Type} (F a = F a') => {?} -- pathEquiv a a'
+         | q (a a' : A) : LType (a = a') = {\Type} (F a = F a') => {?} -- inv (pathEquiv a a')
          | r (a a' : A) : Localization (a = a') (p a a') =>
              coe (\lam i => Localization (a = a') (\new Local (q a a' @ i) (pathInProp (\lam j => isLocal (q a a' @ j)) (local {LType (a = a')}) (local {p a a'}) @ i)))
                  (\new localization (a = a')) right
@@ -43,38 +43,21 @@
                    (inv (QEquiv-to-= (Embedding.pmap-isEquiv {YImage.cod-map-emb S} {F a} {F a'}) *> QEquiv-to-= (piEquiv (\lam _ => \Type) (S a) (S a'))))
                    (piLocal (\lam x => typePathsLocal (LType (a = x)) (LType (a' = x))))
 
-    \open Localization(lift,remove_inL)
-
-    \func pathEquiv {U : ReflUniverse} {A : \Type} (a a' : A) : LType (a = a') = {\Type} (F a = F a') =>
-      \let | lType X : \Type => LType X
-           | E => \Pi (x : A) -> Equiv {S a x} {S a' x}
-           | EP => \Pi (x : A) -> S a x = S a' x
-           -- The composite of the sequence (a = a' -> E -> G -> L (a = a')) is lEta.
-           -- The last map is an equivalence by the local Yoneda lemma and the second map is an embedding by {m} below.
-           -- Thus E -> G -> L (a = a') is an equivalence by {localizationFactorEmbedding} and E -> G is an equivalence by 2-out-of-3.
-           {-  | G => \Pi (x : A) -> S a x -> S a' x
-           | g (lq : LType (a' = a)) : E => \lam x => lift {localization (a' = a)} {equivLocal (LType (a = x)) (LType (a' = x))} (\lam q => transport (\lam y => Equiv {S y x} {S a' x}) q idEquiv) lq
-           | m => \new Embedding {E} {G} (\lam h x => Equiv.f {h x}) (\lam e e' => \new Retraction { | sec p => path (\lam i x => Equiv.equals (path (\lam j => (p @ j) x)) @ i) | f_sec => idpe })
-           | h l[a'=a] x => lift {localization (a = x)} {LType (a' = x)} (\lam a=x => transport (\lam y => lType (a' = y)) a=x l[a'=a])
-           | h=mg l[a'=a] x l[a=x] : h l[a'=a] x l[a=x] = Equiv.f {g l[a'=a] x} l[a=x] => path (\lam i =>
-               remove_inL {localization (a' = a)}
-                          {LType (a' = x)}
-                          (\lam l => h l x l[a=x])
-                          (\lam l => Equiv.f {g l x} l[a=x])
-                          (\lam a'=a => remove_inL {localization (a = x)}
-                                                   {LType (a' = x)}
-                                                   (h (inL a'=a) x)
-                                                   (Equiv.f {g (inL a'=a) x})
-                                                   (\lam a=x => {?})
-                                                   l[a=x])
-                          l[a'=a] @ i)
-           | ye : Equiv (\lam l => Embedding.f {m} (g l)) => transport {lType (a' = a) -> G} (\lam k => Equiv k) (path (\lam i l x l' => h=mg l x l' @ i)) (symQEquiv (QEquiv.fromEquiv' (localYoneda a (\lam y => LType (a' = y))))) -}
-      \in lType (a = a') ==< pmap lType (path-sym a a') >==
-          lType (a' = a) ==< {?} >== -- Equiv-to-= {_} {E} (TwoOutOfThree.rightEmbedding {lType (a' = a)} {E} {G} g m ye) >==
-          E              ==< path (\lam i => \Pi (x : A) -> inv (QEquiv-to-= univalence) @ {_} {Equiv {S a x} {S a' x}} i) >==
-          EP             ==< path (iso {EP} (\lam h => path (\lam i x => h x @ i)) (\lam p x => path (\lam i => (p @ i) x)) idpe idpe) >==
-          (S a = S a')   ==< inv (QEquiv-to-= (Embedding.pmap-isEquiv {YImage.cod-map-emb S})) >==
-          (F a = F a')   `qed
+    \func pathEquiv {U : ReflUniverse} {A : \Type} (a a' : A) : (F a = F a') = {\Type} LType (a = a') =>
+      \let | E => \Pi (x : A) -> Equiv {S a' x} {S a x}
+           | emb => transEmbedding (\new Embedding {E} (\lam h x => Equiv.f {h x}) (\lam e e' =>
+                                          \new Retraction { | sec p => path (\lam i x => Equiv.equals (path (\lam j => (p @ j) x)) @ i) | f_sec => idpe }))
+                                   (ESEquiv.fromEquiv (localYoneda a' (\lam y => LType (a = y))))
+      \in (F a = F a')                    ==< QEquiv-to-= (Embedding.pmap-isEquiv {YImage.cod-map-emb S}) >==
+          (S a = S a')                    ==< path-sym (S a) (S a') >==
+          (S a' = S a)                    ==< path (iso {S a' = S a} (\lam p x => path (\lam i => (p @ i) x)) (\lam h => path (\lam i x => h x @ i)) idpe idpe) >==
+          (\Pi (x : A) -> S a' x = S a x) ==< path (\lam i => \Pi (x : A) -> QEquiv-to-= univalence @ {_} {_} {Equiv {S a' x} {S a x}} i) >==
+          E                               ==< Equiv-to-= (localizationFactorEmbedding
+                                                              (piLocal (\lam x => equivLocal (LType (a' = x)) (LType (a = x))))
+                                                              (\lam p x => transport (\lam y => Equiv {S y x} {S a x}) p idEquiv)
+                                                              emb
+                                                              (\lam p => Jl (\lam x p' => Equiv.f {transport (\lam y => Equiv {S y x} {S a x}) p' idEquiv} (lEta idp) = inL p') idp p)) >==
+          (LType (a = a') : \Type)        `qed
 
     \lemma separatedLocalization {U : Universe} (f : Surjection) (p : \Pi (a a' : f.A) -> \Sigma (P : Local (f.f a = f.f a')) (Localization (a = a') P))
       : \Sigma (L : Local {Separated U} f.B) (Localization {Separated U} f.A L f.f)
