@@ -8,6 +8,27 @@
   | ide-right (x : E) : x * ide = x
   | *-assoc (x y z : E) : (x * y) * z = x * (y * z)
 } \where {
+  \func equals {M N : Monoid} (p : M = {\Set} N) (q : \let f x => coe (\lam i => p @ i) x right \in \Pi (x y : M) -> f (x * y) = f x * f y) : M = N
+    => \let | f x => coe (\lam i => p @ i) x right
+            | g y => coe (\lam i => inv p @ i) y right
+            | fg y : f (g y) = y => transport_id_inv (\lam Z => Z) p y
+            | q' (x y : N) =>
+              coe (\lam i => p @ i -> p @ i -> p @ i) (*) right x y ==< pmap (\lam h => h y) (transport_pi (\lam Z => Z) (\lam Z => Z -> Z) p (*) x) >==
+              coe (\lam i => p @ i -> p @ i) (* (g x)) right y      ==< transport_pi (\lam Z => Z) (\lam Z => Z) p (* (g x)) y >==
+              f (g x * g y)                                         ==< q (g x) (g y) >==
+              f (g x) * f (g y)                                     ==< pmap2 (*) (fg x) (fg y) >==
+              x * y                                                 `qed
+            | pq' i => pathOver {\lam j => p @ j -> p @ j -> p @ j} (path (\lam j x y => q' x y @ j)) @ i
+            | r => f ide             ==< inv (ide-left (f ide)) >==
+                   ide * f ide       ==< pmap (\lam t => t * f ide) (inv (fg ide)) >==
+                   f (g ide) * f ide ==< inv (q (g ide) ide) >==
+                   f (g ide * ide)   ==< pmap f (ide-right (g ide)) >==
+                   f (g ide)         ==< fg ide >==
+                   ide               `qed
+            | pr i => pathOver {\lam j => p @ j} r @ i
+            | mp => pathInProp (\lam i => Monoid (p @ i) (pr i) (pq' i)) (\new M) (\new N)
+       \in path (\lam i => \new Monoid (p @ i) (pr i) (pq' i) (ide-left {mp @ i}) (ide-right {mp @ i}) (*-assoc {mp @ i}))
+
   \func op (M : Monoid) : Monoid \cowith
     | Pointed => M
     | * x y => M.* y x
@@ -52,7 +73,7 @@
       \use \level isProp {M : CancelMonoid} (x y : M) : HLevel.isProp (LDiv x y) =>
         \lam (d1 d2 : LDiv x y) =>
             \let p => M.cancel-left x d1.inv d2.inv (d1.inv-right *> Paths.inv d2.inv-right)
-            \in path (\lam i => \new LDiv x y (p @ i) (pathOver (Path.inProp (coe (\lam j => x * (p @ j) = y) d1.inv-right right) d2.inv-right) @ i))
+            \in path (\lam i => \new LDiv x y (p @ i) (pathInProp (\lam j => x * (p @ j) = y) d1.inv-right d2.inv-right @ i))
     }
 
   -- | The type of right divisors of an element
@@ -74,7 +95,7 @@
       \lemma isProp {M : CancelMonoid} (x y : M) : HLevel.isProp (RDiv x y) =>
         \lam (d1 d2 : RDiv x y) =>
             \let p => M.cancel-right d1.inv d2.inv x (d1.inv-left *> Paths.inv d2.inv-left)
-            \in path (\lam i => \new RDiv x y (p @ i) (pathOver (Path.inProp (coe (\lam j => (p @ j) * x = y) d1.inv-left right) d2.inv-left) @ i))
+            \in path (\lam i => \new RDiv x y (p @ i) (pathInProp (\lam j => (p @ j) * x = y) d1.inv-left d2.inv-left @ i))
     }
 
   -- | The type of left inverses of an element
@@ -97,8 +118,8 @@
           j'.inv * ide         ==< ide-right j'.inv >==
           j'.inv               `qed
         \in path (\lam i => \new Inv x (p @ i)
-                                     (pathOver (Path.inProp (coe (\lam j => (p @ j) * x = ide) j.inv-left right) j'.inv-left) @ i)
-                                     (pathOver (Path.inProp (coe (\lam j => x * (p @ j) = ide) j.inv-right right) j'.inv-right) @ i))
+                                     (pathInProp (\lam j => (p @ j) * x = ide) j.inv-left j'.inv-left @ i)
+                                     (pathInProp (\lam j => x * (p @ j) = ide) j.inv-right j'.inv-right @ i))
 
       \lemma product {M : Monoid} (i j : Inv {M}) : Inv (i.val * j.val) =>
         \let p (i j : Inv {M}) =>

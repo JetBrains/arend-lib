@@ -4,6 +4,9 @@
 \import HLevel
 \import Homotopy.Pointed
 \import Homotopy.Pushout
+\import Homotopy.Sphere
+\import Homotopy.Square
+\import Homotopy.Suspension
 \import Paths
 
 \instance Loop (X : Pointed) : Pointed
@@ -28,33 +31,34 @@
   | 0 => isProp=>isContr h x0
   | suc n => loop-level-iter-inv n (h x0 x0) idp
 
-\func SuspLoopEquiv (A B : Pointed) : (Susp.Pointed A ->* B) = (A ->* Loop B) =>
-  (\Sigma (f : Susp A -> B) (f base = base))                                               ==< sigma-left (\lam p => p.1 = base) (Susp.eq A B) >==
-  (\Sigma (p : \Sigma (b1 : B) (\Sigma (b2 : B) (A -> b1 = b2))) (p.1 = base))             ==< path (iso {\Sigma (p : \Sigma (b1 : B) (\Sigma (b2 : B) (A -> b1 = b2))) (p.1 = base)}
+\func SuspLoopEquiv (A B : Pointed) : (Susp.pointed A ->* B) = (A ->* Loop B) =>
+  \let S => Square { | Y => B | U => A | V => \Sigma | X => \Sigma | uv _ => () | ux _ => () } \in
+  (\Sigma (f : Susp A -> B) (f north = base))                                              ==< sigma-left.path-func (\lam (s : S) => Square.vy {s} () = base) (equiv= (pushout-univ {Susp.pushout A} {B})) >==
+  (\Sigma (s : S) (Square.vy {s} () = base))                                               ==< path (iso {\Sigma (s : S) (Square.vy {s} () = base)}
                                                                                                          {\Sigma (p : \Sigma (b1 : B) (b1 = base)) (\Sigma (b2 : B) (A -> p.1 = b2))}
-                                                                                                         (\lam p => ((p.1.1,p.2),(p.1.2.1,p.1.2.2)))
-                                                                                                         (\lam q => ((q.1.1,(q.2.1,q.2.2)),q.1.2))
-                                                                                                         (\lam _ => idp) (\lam _ => idp)) >==
+                                                                                                         (\lam p => \let s : Square => p.1 \in ((s.vy (), p.2), (s.xy (), s.sqcomm)))
+                                                                                                         (\lam q => (\new Square { | vy _ => q.1.1 | xy _ => q.2.1 | sqcomm => q.2.2 }, q.1.2))
+                                                                                                         idpe idpe) >==
   (\Sigma (p : \Sigma (b1 : B) (b1 = base)) (\Sigma (b2 : B) (A -> p.1 = b2)))             ==< equiv= (contr-left (rsigma base) (\lam p => \Sigma (b2 : B) (A -> p.1 = b2))) >==
   (\Sigma (b2 : B) (A -> base = b2))                                                       ==< inv (equiv= (contr-right (\lam (p : \Sigma (b2 : B) (A -> base = b2)) => lsigma (p.2 base)))) >==
   (\Sigma (p : \Sigma (b2 : B) (A -> base = b2)) (\Sigma (q : base = p.1) (p.2 base = q))) ==< path (iso {\Sigma (p : \Sigma (b2 : B) (A -> base = b2)) (\Sigma (q : base = p.1) (p.2 base = q))}
                                                                                                          {\Sigma (p : \Sigma (b2 : B) (base = b2)) (\Sigma (g : A -> base = p.1) (g base = p.2))}
                                                                                                          (\lam p => ((p.1.1,p.2.1),(p.1.2,p.2.2)))
                                                                                                          (\lam q => ((q.1.1,q.2.1),(q.1.2,q.2.2)))
-                                                                                                         (\lam _ => idp) (\lam _ => idp)) >==
+                                                                                                         idpe idpe) >==
   (\Sigma (p : \Sigma (b2 : B) (base = b2)) (\Sigma (g : A -> base = p.1) (g base = p.2))) ==< equiv= (contr-left (lsigma base) (\lam p => \Sigma (g : A -> base = p.1) (g base = p.2))) >==
   (\Sigma (g : A -> Loop B) (g base = base))                                               `qed
 
-\func SphereLoopEquiv (n : Nat) (B : Pointed) : (Sphere.Pointed n ->* B) = iterl Loop n B \elim n
-  | 0 => \let smap (b : B) (s : Sphere.Sphere0) : B => \case s \with { | north0 => base | south0 => b }
-         \in path (iso {Sphere.Pointed 0 ->* B} {B}
-                       (\lam p => p.1 south0)
+\func SphereLoopEquiv (n : Nat) (B : Pointed) : (Sphere.pointed n ->* B) = iterl Loop n B \elim n
+  | 0 => \let smap (b : B) (s : Sphere 0) : B => \case s \with { | pinl _ => base | pinr _ => b | pglue () _ }
+         \in path (iso {Sphere.pointed 0 ->* B} {B}
+                       (\lam p => p.1 south)
                        (\lam b => (smap b, idp))
-                       (\lam p => ->*.ext {Sphere.Pointed 0} (\lam s =>
-                           \case s \as s \return smap (p.1 south0) s = p.1 s \with {
-                             | north0 => inv p.2
-                             | south0 => idp
+                       (\lam p => ->*.ext {Sphere.pointed 0} (\lam s =>
+                           \case s \as s \return smap (p.1 south) s = p.1 s \with {
+                             | pinl _ => inv p.2
+                             | pinr _ => idp
+                             | pglue () _
                            }) (inv_*> p.2))
                        (\lam b => idp))
-  | suc n => SuspLoopEquiv (Sphere.Pointed n) B *> SphereLoopEquiv n (Loop B)
-  \where \open Sphere(north0,south0)
+  | suc n => SuspLoopEquiv (Sphere.pointed n) B *> SphereLoopEquiv n (Loop B)

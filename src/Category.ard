@@ -1,0 +1,52 @@
+\import Equiv(Equiv)
+\import Equiv.Fiber
+\import Paths \using (inv \as pinv)
+
+\class Precat (Ob : \Type) {
+  | Hom : Ob -> Ob -> \Set
+  | id (x : Ob) : Hom x x
+  | \fixr 8 o {x y z : Ob} : Hom y z -> Hom x y -> Hom x z
+  | id-left {x y : Ob} (f : Hom x y) : f `o` id x = f
+  | id-right {x y : Ob} (f : Hom x y) : id y `o` f = f
+  | o-assoc {x y z w : Ob} (f : Hom x y) (g : Hom y z) (h : Hom z w) : h `o` (g `o` f) = (h `o` g) `o` f
+
+  \func \infixl 8 >> {x y z : Ob} (f : Hom x y) (g : Hom y z) => g `o` f
+}
+
+\open Precat (>>)
+
+\func op (C : Precat) : Precat \cowith
+  | Ob => C.Ob
+  | Hom x y => C.Hom y x
+  | id x => C.id x
+  | o g f => C.o f g
+  | id-left f => C.id-right f
+  | id-right f => C.id-left f
+  | o-assoc f g h => pinv (C.o-assoc h g f)
+
+\record Map {C : Precat} {dom cod : C} (f : Hom dom cod)
+
+\record Mono \extends Map
+  | isMono {x : C} (g h : Hom x dom) : g >> f = h >> f -> g = h
+
+\record SplitMono (inv : Hom cod dom) (f_inv : f >> inv = id dom) \extends Mono
+  | isMono g h gf=hf =>
+    g               ==< pinv (id-right g) >==
+    g >> id dom       ==< pmap (g >>) (pinv f_inv) >==
+    g >> (f >> inv) ==< pinv (o-assoc g f inv) >==
+    (g >> f) >> inv ==< pmap (o inv) gf=hf >==
+    (h >> f) >> inv ==< o-assoc h f inv >==
+    h >> (f >> inv) ==< pmap (h >>) f_inv >==
+    h >> id dom       ==< id-right h >==
+    h               `qed
+
+\record Iso (inv_f : inv >> f = id cod) \extends SplitMono
+
+\func idIso {C : Precat} {x : C} : Iso (id x) \cowith
+  | inv => id x
+  | inv_f => id-left (id x)
+  | f_inv => id-right (id x)
+
+\class Cat \extends Precat
+  | univalence {x y : Ob} (f : Hom x y) (g : Hom y x) (p : g `o` f = id x) (q : f `o` g = id y)
+               : \Sigma (p : x = y) (transport (\lam z => Hom x z) p (id x) = f) -- TODO: add \level

@@ -1,0 +1,96 @@
+{- | The construction of the image of a map from the paper
+ -   Egbert Rijke, The join construction, https://arxiv.org/pdf/1701.07538.pdf
+ -}
+
+\import Data.SeqColimit
+\import Equiv
+\import Equiv.Fiber
+\import Equiv.Univalence
+\import HLevel
+\import Homotopy.Pushout
+\import Logic
+\import Paths
+
+\func MJoin {A B : \Type} (R : A -> B -> \Type) => PushoutData {\Sigma (x : A) (y : B) (R x y)} (\lam p => p.1) (\lam p => p.2)
+
+\func MImageAppr {A : \Type} {B : \Type (\suc \lp)} (f : A -> B) (R : B -> B -> \Type) (ret : \Pi (b b' : B) -> R b b' -> b = b') (n : Nat) : \Sigma (X : \oo-Type) (X -> B) \elim n
+  | 0 => (A,f)
+  | suc n =>
+    \let (X,g) => MImageAppr f R ret n
+    \in (MJoin (\lam a x => R (f a) (g x)), PushoutData.rec f g (\lam (q : \Sigma (a : A) (x : X) (R (f a) (g x))) => ret (f q.1) (g q.2) q.3))
+
+\func MImage {A : \Type} {B : \Type (\suc \lp)} (f : A -> B) (R : B -> B -> \Type) (ret : \Pi (b b' : B) -> R b b' -> b = b') => SeqColimit (seq f R ret)
+  \where {
+    \func seq {A : \Type} {B : \Type (\suc \lp)} (f : A -> B) (R : B -> B -> \Type) (ret : \Pi (b b' : B) -> R b b' -> b = b') : Seq \cowith
+      | A n => (MImageAppr f R ret n).1
+      | f x => pinr x
+
+    \func dom-map {A : \Type} {B : \Type (\suc \lp)} (f : A -> B) (R : B -> B -> \Type) (ret : \Pi (b b' : B) -> R b b' -> b = b') (a : A) : MImage f R ret
+      => inSC {seq f R ret} {0} a
+
+    \lemma dom-map-surj {A : \Type} {B : \Type (\suc \lp)} (f : A -> B) (R : B -> B -> \Type) (ret : \Pi (b b' : B) -> R b b' -> b = b') (refl : \Pi {b : B} -> R b b) : Surjection (dom-map f R ret) =>
+      seqColimit-surj (seq f R ret) (\lam n => \new Surjection {
+        | isSurj y => \case y \as y \return TruncP (Fib (Seq.f {seq f R ret}) y) \with {
+          | pinl a => inP (\case n \as n \return Fib (Seq.f {seq f R ret} {n}) (pinl a) \with {
+            | 0 => (a, inv (path (pglue ((a,a,refl) : \Sigma (a : A) (a' : A) (R (f a) (f a'))))))
+            | suc n => (pinl a, inv (path (pglue ((a, pinl a, refl) : \Sigma (a : A) (x : (MImageAppr f R ret (suc n)).1) (R (f a) ((MImageAppr f R ret (suc n)).2 x))))))
+          })
+          | pinr x => inP (x,idp)
+        } })
+
+    \func cod-map {A : \Type} {B : \Type (\suc \lp)} (f : A -> B) (R : B -> B -> \Type) (ret : \Pi (b b' : B) -> R b b' -> b = b') (x : MImage f R ret) : B \elim x
+      | inSC {n} x => (MImageAppr f R ret n).2 x
+      | quotSC {n} x _ => (MImageAppr f R ret n).2 x
+
+    \lemma cod-map-emb {A : \Type} {B : \Type (\suc \lp)} (f : A -> B)
+                       (R : B -> B -> \Type)
+                       (ret : \Pi (b b' : B) -> R b b' -> b = b')
+                       (refl : \Pi {b : B} -> R b b)
+                       (refl-idp : \Pi {b : B} -> ret b b refl = idp)
+      : Embedding (cod-map f R ret)
+      => Embedding.fibers (cod-map f R ret) (\lam b => isContr'=>isProp (\lam (r : Fib (cod-map f R ret) b) => \case Surjection.isSurj {dom-map-surj f R ret refl} r.1 \with {
+        | inP r' => transport (\lam b' => Contr (Fib (cod-map f R ret) b')) (pmap (cod-map f R ret) r'.2 *> r.2) (fibers-contr f R ret refl refl-idp r'.1)
+      }))
+      \where
+        \lemma fibers-contr {A : \Type} {B : \Type (\suc \lp)} (f : A -> B)
+                            (R : B -> B -> \Type)
+                            (ret : \Pi (b b' : B) -> R b b' -> b = b')
+                            (refl : \Pi {b : B} -> R b b)
+                            (refl-idp : \Pi {b : B} -> ret b b refl = idp)
+                            (a : A)
+          : Contr (Fib (cod-map f R ret) (f a))
+          => \let | P x => cod-map f R ret x = f a
+                  | Im => MImageAppr f R ret
+                  | sec {b b' : B} (q : b = b') => transport (R b) q refl
+                  | sec-ret {b b' : B} (q : b = b') => Jl (\lam b'' q' => ret b b'' (sec q') = q') refl-idp q
+             \in transport (\lam X => Contr X) (SeqColimit.flattening P)
+                           (constantMaps (SeqColimit.flattening.total.seq P) (\lam n => ((pinl a, idp), \lam p =>
+                               inv (SigmaExt (\lam x => (Im (suc n)).2 x = f a)
+                                             (pinl a, idp)
+                                             (pinr p.1, transport P (path (quotSC p.1)) p.2)
+                                             (path (pglue ((a, p.1, sec (inv p.2)) : \Sigma (a : A) (x : (Im n).1) (R (f a) ((Im n).2 x)))))
+                                             (transport_path-left (ret (f a) ((Im n).2 p.1) (sec (inv p.2))) idp *> pmap inv (sec-ret (inv p.2)) *> inv_inv p.2)))))
+  }
+
+\func YImage {A B : \Type} (S : A -> B -> \Type) => MImage S (Rel S) (Rel-ret S)
+  \where {
+    \func Rel {A B : \Type} (S : A -> B -> \Type) (F G : B -> \Type)
+      => \Pi (b : B) -> Equiv {F b} {G b}
+
+    \func Rel-ret {A B : \Type} (S : A -> B -> \Type) (F G : B -> \Type) (r : Rel S F G) : F = G
+      => path (\lam i b => Equiv-to-= (r b) @ i)
+
+    \func dom-map {A B : \Type} (S : A -> B -> \Type) (a : A) : YImage S
+      => MImage.dom-map S (Rel S) (Rel-ret S) a
+
+    \lemma dom-map-surj {A B : \Type} (S : A -> B -> \Type) : Surjection (dom-map S)
+      => MImage.dom-map-surj S (Rel S) (Rel-ret S) (\lam {F} b => idEquiv {F b})
+
+    \func cod-map {A B : \Type} (S : A -> B -> \Type) (y : YImage S) (b : B) : \Type
+      => MImage.cod-map S (Rel S) (Rel-ret S) y b
+
+    \lemma cod-map-emb {A B : \Type} (S : A -> B -> \Type) : Embedding (cod-map S)
+      => MImage.cod-map-emb S (Rel S) (Rel-ret S) (\lam {F} b => idEquiv {F b}) (\lam {F} =>
+          \let p b : Equiv-to-= (idEquiv {F b}) = idp => univalence.ret_f idp
+          \in path (\lam i => path (\lam j b => p b @ i @ j)))
+  }

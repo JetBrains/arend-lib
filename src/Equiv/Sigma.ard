@@ -1,5 +1,7 @@
 \import Equiv
+\import Equiv.Fiber
 \import HLevel
+\import Logic
 \import Paths
 
 \func lsigma {A : \Type} (a0 : A) : Contr (\Sigma (x : A) (a0 = x)) \cowith
@@ -11,12 +13,6 @@
   | contraction p => Jl (\lam x q => (a0,idp) = {\Sigma (y : A) (y = a0)} (x, inv q)) idp (inv p.2) *> path (\lam i => (p.1, inv_inv p.2 @ i))
 
 \func equiv= (e : QEquiv) : e.A = e.B => path (iso e.f e.ret e.ret_f e.f_sec)
-
-\func equiv-inv (e : QEquiv) : QEquiv {e.B} {e.A} \cowith
-  | f => e.ret
-  | ret => e.f
-  | ret_f => e.f_sec
-  | f_sec => e.ret_f
 
 \func contr-left {A : \Type} (c : Contr A) (B : A -> \Type) : QEquiv {\Sigma (x : A) (B x)} {B c.center} \cowith
   | f p => transport B (inv (c.contraction p.1)) p.2
@@ -30,8 +26,68 @@
   | ret_f p => path (\lam i => (p.1, Contr.contraction {C p.1} p.2 @ i))
   | f_sec a => idp
 
-\func sigma-left {A A' : \Type} (B' : A' -> \Type) (p : A = A') : (\Sigma (x : A) (B' (coe (\lam i => p @ i) x right))) = (\Sigma (x' : A') (B' x')) =>
-  Jl (\lam A'' p' => \Pi (B'' : A'' -> \Type) -> (\Sigma (x : A) (B'' (coe (\lam i => p' @ i) x right))) = (\Sigma (x' : A'') (B'' x'))) (\lam _ => idp) p B'
+\func pi-contr-left {A : \Type} (a : A) (B : \Pi (a' : A) -> a = a' -> \Type) : QEquiv {\Pi (a' : A) (p : a = a') -> B a' p} {B a idp} \cowith
+  | f h => h a idp
+  | ret b a' => Jl B b
+  | ret_f h => path (\lam i a' p => Jl (\lam x q => Jl B (h a idp) q = h x q) idp p @ i)
+  | f_sec => idpe
 
-\func sigma-right {A A' : \Type} (B : A -> \Type) (p : A' = A) : (\Sigma (x : A) (B x)) = (\Sigma (x' : A') (B (coe (\lam i => p @ i) x' right))) =>
-  Jl (\lam A'' p' => \Pi (B'' : A'' -> \Type) -> (\Sigma (x : A'') (B'' x)) = (\Sigma (x' : A') (B'' (coe (\lam i => p' @ i) x' right)))) (\lam _ => idp) p B
+\func pi-contr-right {A : \Type} (a' : A) (B : \Pi (a : A) -> a = a' -> \Type) : QEquiv {\Pi (a : A) (p : a = a') -> B a p} {B a' idp} \cowith
+  | f h => h a' idp
+  | ret b a => Jl.Jr B b
+  | ret_f h => path (\lam i a p => Jl.Jr (\lam x q => Jl.Jr B (h a' idp) q = h x q) idp p @ i)
+  | f_sec => idpe
+
+\lemma sigma-left {A A' : \Type} (B' : A' -> \Type) (p : A = A')
+  : Equiv {\Sigma (x : A) (B' (coe (\lam i => p @ i) x right))}
+          {\Sigma (x' : A') (B' x')}
+          (\lam q => (coe (\lam i => p @ i) q.1 right, q.2))
+  => Jl (\lam A'' p' => \Pi (B'' : A'' -> \Type) ->
+            Equiv {\Sigma (x : A) (B'' (coe (\lam i => p' @ i) x right))}
+                  {\Sigma (x' : A'') (B'' x')}
+                  (\lam q => (coe (\lam i => p' @ i) q.1 right, q.2)))
+        (\lam _ => idEquiv) p B'
+  \where {
+    \func path-func {A A' : \Type} (B' : A' -> \Type) (p : A = A') : (\Sigma (x : A) (B' (coe (\lam i => p @ i) x right))) = (\Sigma (x' : A') (B' x')) =>
+      path (\lam i => \Sigma (x : p @ i) (B' (coe2 (\lam j => p @ j) i x right)))
+  }
+
+\func sigma-right {A : \Type} (B B' : A -> \Type) (q : \Pi (a : A) -> Equiv {B a} {B' a})
+  : Equiv {\Sigma (a : A) (B a)} {\Sigma (a : A) (B' a)} \cowith
+  | f p => (p.1, Equiv.f {q p.1} p.2)
+  | ret p' => (p'.1, Equiv.ret {q p'.1} p'.2)
+  | sec p' => (p'.1, Equiv.sec {q p'.1} p'.2)
+  | ret_f p => path (\lam i => (p.1, Equiv.ret_f {q p.1} p.2 @ i))
+  | f_sec p' => path (\lam i => (p'.1, Equiv.f_sec {q p'.1} p'.2 @ i))
+
+\func unit-func (A : \Type) : QEquiv {\Sigma -> A} {A} \cowith
+  | f g => g ()
+  | ret a _ => a
+  | ret_f g => idp
+  | f_sec a => idp
+
+-- | The HoTT book, Theorem 4.7.7
+\lemma totalEquiv {J : \Type} (A B : J -> \Type) (f : \Pi (j : J) -> A j -> B j)
+  : (\Pi (j : J) -> Equiv (f j)) = (Equiv (total A B f))
+  => propExt {\Pi (j : J) -> Equiv (f j)}
+             {Equiv (total A B f)}
+             (\lam e => contrFibers=>Equiv (total A B f) (\lam p => transport (\lam X => Contr X) (inv (totalFiber A B f p.1 p.2)) (Equiv=>contrFibers (f p.1) (e p.1) p.2)))
+             (\lam e j => contrFibers=>Equiv (f j) (\lam b => transport (\lam X => Contr X) (totalFiber A B f j b) (Equiv=>contrFibers (total A B f) e ((j,b) : \Sigma (j : J) (B j)))))
+  \where {
+    \func total {J : \Type} (A B : J -> \Type) (f : \Pi (j : J) -> A j -> B j) (p : \Sigma (j : J) (A j)) : \Sigma (j : J) (B j)
+      => (p.1, f p.1 p.2)
+
+    -- | Theorem 4.7.6
+    \func totalFiber {J : \Type} (A B : J -> \Type) (f : \Pi (j : J) -> A j -> B j) (j : J) (b : B j)
+      : Fib (total A B f) ((j,b) : \Sigma (j : J) (B j)) = Fib (f j) b
+      => \let | S (X : J -> \Type) => \Sigma (j : J) (X j)
+              | R (p : \Sigma (j' : J) (j' = j)) => \Sigma (a : A p.1) (transport B p.2 (f p.1 a) = b)
+         \in (\Sigma (p : S A) (((p.1, f p.1 p.2) = {S B} (j,b))))                     ==< path (\lam i => \Sigma (p : S A) (equiv= (sigmaEquiv B (p.1, f p.1 p.2) (j,b)) @ i)) >==
+             (\Sigma (p : S A) (\Sigma (q : p.1 = j) (transport B q (f p.1 p.2) = b))) ==< path (iso {\Sigma (p : S A) (\Sigma (q : p.1 = j) (transport B q (f p.1 p.2) = b))}
+                                                                                                     {\Sigma (p : \Sigma (j' : J) (j' = j)) (R p)}
+                                                                                                     (\lam t => ((t.1.1,t.2.1),(t.1.2,t.2.2)))
+                                                                                                     (\lam t => ((t.1.1,t.2.1),(t.1.2,t.2.2)))
+                                                                                                     idpe idpe) >==
+             (\Sigma (p : \Sigma (j' : J) (j' = j)) (R p))                             ==< equiv= (contr-left (rsigma j) R) >==
+             (\Sigma (a : A j) (f j a = b))                                            `qed
+  }

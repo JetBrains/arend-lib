@@ -1,0 +1,75 @@
+\import Equiv
+\import Equiv.Fiber
+\import Equiv.Univalence
+\import Function
+\import HLevel
+\import Homotopy.Localization.Accessible
+\import Homotopy.Localization.Connected
+\import Homotopy.Localization.Universe
+\import Logic
+\import Paths
+
+\func isLocalEquiv {U : Universe} {A B : \Type} (f : A -> B) => \Pi (Z : Local) -> Equiv {B -> Z} {A -> Z} (-o f)
+
+\module Extension \where {
+  -- | The type of extensions of {g} along {f}
+  \func ext {A B C : \Type} (f : A -> B) (g : A -> C) => Fib (-o f) g
+
+  \func ext-equiv {A B C : \Type} (f : A -> B) (g : A -> C) : QEquiv {ext f g} {\Pi (b : B) -> \Sigma (c : C) (\Pi (a : A) -> f a = b -> g a = c)} \cowith
+    | f p b => (p.1 b, \lam a fa=b => inv (path (\lam i => (p.2 @ i) a)) *> pmap p.1 fa=b)
+    | ret K => (\lam b => (K b).1, path (\lam i a => inv ((K (f a)).2 a idp) @ i))
+    | ret_f b => path (\lam j => (b.1, path (\lam i a => inv_inv (path (\lam k => (b.2 @ k) a)) @ j @ i)))
+    | f_sec K =>
+      \let p (b : B) (a : A) (q : f a = b) =>
+             Jl (\lam b' q' => inv (inv ((K (f a)).2 a idp)) *> pmap (\lam b => (K b).1) q' = (K b').2 a q') (inv_inv ((K (f a)).2 a idp)) q
+      \in path (\lam i b => ((K b).1, \lam a fa=b => p b a fa=b @ i))
+
+  \lemma contr-equiv {A B C : \Type} (f : A -> B) (p : \Pi (g : A -> C) (b : B) -> Contr (\Sigma (c : C) (\Pi (a : A) -> f a = b -> g a = c)))
+    : Equiv {B -> C} {A -> C} (-o f)
+    => contrFibers=>Equiv (-o f) (\lam g =>
+        transport (\lam X => Contr X)
+                  (inv (QEquiv-to-= (ext-equiv f g)))
+                  (HLevels_-2-pi (\lam b => \Sigma (c : C) (\Pi (a : A) -> f a = b -> g a = c)) {0} (p g)))
+}
+
+\lemma connected_isLocalEquiv {U : Universe} {A B : \Type} (f : A -> B) (conn : isConnectedMap f) : isLocalEquiv f
+  => \lam C => Extension.contr-equiv f (\lam g b =>
+       \let | G (x : Fib f b) => g x.1
+            | p c => \new QEquiv {(\lam _ => c) = G} {\Pi (a : A) -> f a = b -> g a = c} {
+              | f q a r => (path (\lam i => (inv q @ i) (a,r)))
+              | ret h => inv (path (\lam i (x : Fib f b) => h x.1 x.2 @ i))
+              | ret_f q => inv_inv q
+              | f_sec h => path (\lam k a r => path (\lam i => (inv_inv (path (\lam j (x : Fib f b) => h x.1 x.2 @ j)) @ k @ i) (a,r)))
+            }
+       \in transport (\lam X => Contr X)
+                     (path (\lam i => \Sigma (c : C) (QEquiv-to-= (p c) @ i)))
+                     (Equiv=>contrFibers (\lam c _ => c) (propExt.dir (nullTypeUniverse.localDesc (Fib f b) C) (conn b C)) G))
+
+-- | A map between local types is a local equivalence if and only if it is an equivalence
+\lemma localTypesEquiv {U : Universe} {A B : Local} (f : A -> B) : isLocalEquiv f = Equiv f
+  => propExt (dir f) (\lam (e : Equiv f) C => -o_Equiv {C} e)
+  \where {
+    -- | A local equivalence between local types is an equivalence
+    \lemma dir {U : Universe} {A B : Local} (f : A -> B) (p : isLocalEquiv f) : Equiv f
+      => \let | g => Equiv.sec {p A} id
+              | g_f => Equiv.f_sec {p A} id
+              | H => Equiv.ret {p B}
+         \in \new QEquiv {
+               | ret => g
+               | ret_f a => path (\lam i => (g_f @ i) a)
+               | f_sec b => path (\lam i => ((
+                   f `o` g           ==< inv (Equiv.ret_f {p B} (f `o` g)) >==
+                   H (f `o` g `o` f) ==< pmap (\lam t => H (f `o` t)) g_f >==
+                   H f               ==< Equiv.ret_f {p B} id >==
+                   id                `qed) @ i) b)
+             }
+  }
+
+\lemma localEquivMap {U : ReflUniverse} {A B : \Type} (f : A -> B) : isLocalEquiv f = Equiv (lmap f)
+  => \let p (C : Local) : Equiv {LType B -> C} {LType A -> C} (-o (lmap f)) = Equiv {B -> C} {A -> C} (-o f)
+            => TwoOutOfThree.parallelEquiv (-o (lmap f))
+                                           (-o f)
+                                           (local-univ {localization B} C)
+                                           (local-univ {localization A} C)
+                                           (\lam h => path (\lam i a => h (Localization.lift-prop (inL `o` f) a @ i)))
+     \in path (\lam i => \Pi (C : Local) -> inv (p C) @ i) *> localTypesEquiv (lmap f)
