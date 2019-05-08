@@ -1,4 +1,5 @@
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Paths
 
 \class Group \extends Monoid {
@@ -11,6 +12,31 @@
     | inverse => G.inverse
     | inverse-left => G.inverse-right
     | inverse-right => G.inverse-left
+
+  \open Monoid(Inv)
+
+  \func equals (G H : Group) (p : G = {Monoid} H) : G = H
+    => \let | q => pmap (\lam X => Monoid.E {X}) p
+            | f x => coe (\lam i => p @ i) x right
+            | g y => coe (\lam i => inv q @ i) y right
+            | h' {H' : Monoid} (q : G = {Monoid} H') => transport (\lam (H' : Monoid) => MonoidHom G H') q (MonoidCategory.id G)
+            | h => transport (\lam f' => MonoidHom G H f') (Jl (\lam (H' : Monoid) q => func {h' q} = (\lam x => coe (\lam i => q @ i) x right)) idp p) (\new (h' p))
+            | h-inv (y : H) => MonoidHom.presInv h
+                                  (\new Inv { | val => g y | inv => G.inverse (g y) | inv-left => G.inverse-left (g y) | inv-right => G.inverse-right (g y) })
+                                  (\new Inv { | inv => H.inverse (f (g y)) | inv-left => H.inverse-left (f (g y)) | inv-right => H.inverse-right (f (g y)) })
+            | t (y : H) =>
+                coe (\lam i => q @ i -> q @ i) G.inverse right y ==< transport_pi (\lam Z => Z) (\lam Z => Z) q G.inverse y >==
+                f (G.inverse (g y))                              ==< h-inv y >==
+                H.inverse (f (g y))                              ==< pmap H.inverse (transport_id_inv (\lam Z => Z) q y) >==
+                H.inverse y                                      `qed
+            | t' => path (\lam i y => t y @ i)
+      \in path (\lam i =>
+        \new Group {
+          | Monoid => p @ i
+          | inverse => pathOver t' @ i
+          | inverse-left => pathInProp (\lam j => \Pi (x : q @ j) -> (pathOver t' @ j) x * x = ide) G.inverse-left H.inverse-left @ i
+          | inverse-right => pathInProp (\lam j => \Pi (x : q @ j) -> x * (pathOver t' @ j) x = ide) G.inverse-right H.inverse-right @ i
+        })
 }
 
 \func \infixl 7 / {G : Group} (x y : G) => x * inverse y
@@ -38,7 +64,7 @@
     x - zro + zro            ==< +-assoc x (negative zro) zro >==
     x + (negative zro + zro) ==< pmap (x +) (negative-left zro) >==
     x + zro                  ==< zro-right x >==
-    x `qed
+    x                        `qed
 
   \lemma negative_+ (x y : E) : negative (x + y) = negative y - x => cancel-left (x + y) (negative (x + y)) (negative y - x) (
     (x + y) - (x + y)          ==< negative-right (x + y) >==
