@@ -16,27 +16,31 @@
   \open Monoid(Inv)
 
   \func equals (G H : Group) (p : G = {Monoid} H) : G = H
-    => \let | q => pmap (\lam X => Monoid.E {X}) p
-            | f x => coe (\lam i => p @ i) x right
-            | g y => coe (\lam i => inv q @ i) y right
-            | h' {H' : Monoid} (q : G = {Monoid} H') => transport (\lam (H' : Monoid) => MonoidHom G H') q (MonoidCategory.id G)
-            | h => transport (\lam f' => MonoidHom G H f') (Jl (\lam (H' : Monoid) q => func {h' q} = (\lam x => coe (\lam i => q @ i) x right)) idp p) (\new (h' p))
-            | h-inv (y : H) => MonoidHom.presInv h
-                                  (\new Inv { | val => g y | inv => G.inverse (g y) | inv-left => G.inverse-left (g y) | inv-right => G.inverse-right (g y) })
-                                  (\new Inv { | inv => H.inverse (f (g y)) | inv-left => H.inverse-left (f (g y)) | inv-right => H.inverse-right (f (g y)) })
-            | t (y : H) =>
-                coe (\lam i => q @ i -> q @ i) G.inverse right y ==< transport_pi (\lam Z => Z) (\lam Z => Z) q G.inverse y >==
-                f (G.inverse (g y))                              ==< h-inv y >==
-                H.inverse (f (g y))                              ==< pmap H.inverse (transport_id_inv (\lam Z => Z) q y) >==
-                H.inverse y                                      `qed
-            | t' => path (\lam i y => t y @ i)
-      \in path (\lam i =>
-        \new Group {
-          | Monoid => p @ i
-          | inverse => pathOver t' @ i
-          | inverse-left => pathInProp (\lam j => \Pi (x : q @ j) -> (pathOver t' @ j) x * x = ide) G.inverse-left H.inverse-left @ i
-          | inverse-right => pathInProp (\lam j => \Pi (x : q @ j) -> x * (pathOver t' @ j) x = ide) G.inverse-right H.inverse-right @ i
-        })
+    => \let t => inverse-equality G H p
+       \in path (\lam i =>
+          \new Group {
+            | Monoid => p @ i
+            | inverse => t @ i
+            | inverse-left => pathInProp (\lam j => \Pi (x : p @ j) -> (t @ j) x * x = ide) G.inverse-left H.inverse-left @ i
+            | inverse-right => pathInProp (\lam j => \Pi (x : p @ j) -> x * (t @ j) x = ide) G.inverse-right H.inverse-right @ i
+          })
+    \where {
+      \lemma inverse-equality (G H : Group) (p : G = {Monoid} H) : Path (\lam i => p @ i -> p @ i) G.inverse H.inverse
+        => \let | q => pmap (\lam X => Monoid.E {X}) p
+                | f x => coe (\lam i => p @ i) x right
+                | g y => coe (\lam i => inv q @ i) y right
+                | h' {H' : Monoid} (q : G = {Monoid} H') => transport (\lam (H' : Monoid) => MonoidHom G H') q (MonoidCategory.id G)
+                | h => transport (\lam f' => MonoidHom G H f') (Jl (\lam (H' : Monoid) q => func {h' q} = (\lam x => coe (\lam i => q @ i) x right)) idp p) (\new (h' p))
+                | h-inv (y : H) => MonoidHom.presInv h
+                                      (\new Inv { | val => g y | inv => G.inverse (g y) | inv-left => G.inverse-left (g y) | inv-right => G.inverse-right (g y) })
+                                      (\new Inv { | inv => H.inverse (f (g y)) | inv-left => H.inverse-left (f (g y)) | inv-right => H.inverse-right (f (g y)) })
+                | t (y : H) =>
+                    coe (\lam i => q @ i -> q @ i) G.inverse right y ==< transport_pi (\lam Z => Z) (\lam Z => Z) q G.inverse y >==
+                    f (G.inverse (g y))                              ==< h-inv y >==
+                    H.inverse (f (g y))                              ==< pmap H.inverse (transport_id_inv (\lam Z => Z) q y) >==
+                    H.inverse y                                      `qed
+           \in pathOver (path (\lam i y => t y @ i))
+    }
 }
 
 \func \infixl 7 / {G : Group} (x y : G) => x * inverse y
@@ -88,6 +92,9 @@
 } \where {
     \use \coerce fromGroup (G : Group) => \new AddGroup G.E G.ide (G.*) G.ide-left G.ide-right G.*-assoc G.inverse G.inverse-left G.inverse-right
     \use \coerce toGroup (G : AddGroup) => \new Group G.E G.zro (G.+) G.zro-left G.zro-right G.+-assoc G.negative G.negative-left G.negative-right
+
+    \func equals (A B : AddGroup) (p : A = {\Set} B) (q : \let f x => coe (\lam i => p @ i) x right \in \Pi (x y : A) -> f (x + y) = f x + f y) : A = B
+      => pmap {Group} {AddGroup} AddGroup.fromGroup (Group.equals A B (Monoid.equals {AddGroup.toGroup A} {AddGroup.toGroup B} p q))
   }
 
 \func \infixl 6 - {G : AddGroup} (x y : G) => x + negative y
@@ -101,4 +108,10 @@
   \where {
     \use \coerce fromCGroup (G : CGroup) => \new AbGroup G.E G.ide (G.*) G.ide-left G.*-assoc G.inverse G.inverse-left G.*-comm
     \use \coerce toCGroup (G : AbGroup) => \new CGroup G.E G.zro (G.+) G.zro-left G.+-assoc G.negative G.negative-left G.+-comm
+
+    \func equals (A B : AbGroup) (p : A = {AddGroup} B) : A = B
+      => path (\lam i => \new AbGroup {
+        | AddGroup => p @ i
+        | +-comm => pathInProp (\lam j => \Pi (x y : p @ j) -> x + y = y + x) A.+-comm B.+-comm @ i
+      })
   }

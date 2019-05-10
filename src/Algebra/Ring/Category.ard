@@ -1,12 +1,56 @@
+\import Algebra.Group
 \import Algebra.Monoid
 \import Algebra.Pointed
 \import Algebra.Ring
-\import Category
+\import Category (Cat)
+\import Category.Sub
+\import Equiv
+\import Paths
 
 \record RingHom (R S : Ring)
   | func : R -> S
   | func-ide : func ide = ide
   | func-+ (x y : R) : func (x + y) = func x + func y
   | func-* (x y : R) : func (x * y) = func x * func y
+  \where {
+    \func equals {R S : Ring} {f g : RingHom R S} (p : \Pi (x : R) -> f.func x = g.func x) : f = g
+      => path (\lam i => \new RingHom R S (\lam x => p x @ i)
+                                      (pathInProp (\lam j => p ide @ j = ide) f.func-ide g.func-ide @ i)
+                                      (pathInProp (\lam j => \Pi (x y : R) -> p (x + y) @ j = (p x @ j) + (p y @ j)) f.func-+ g.func-+ @ i)
+                                      (pathInProp (\lam j => \Pi (x y : R) -> p (x * y) @ j = (p x @ j) * (p y @ j)) f.func-* g.func-* @ i))
 
--- TODO: Define the category of rings
+  }
+
+\instance RingCategory : Cat Ring
+  | Hom M N => RingHom M N
+  | id => id
+  | o {x y z : Ring} (g : RingHom y z) (f : RingHom x y) => \new RingHom {
+    | func x => g.func (f.func x)
+    | func-ide => pmap g.func f.func-ide *> g.func-ide
+    | func-+ x y => pmap g.func (f.func-+ x y) *> g.func-+ (f.func x) (f.func y)
+    | func-* x y => pmap g.func (f.func-* x y) *> g.func-* (f.func x) (f.func y)
+  }
+  | id-left _ => idp
+  | id-right _ => idp
+  | o-assoc _ _ _ => idp
+  | univalence {R S : Ring} (f : RingHom R S) (g : RingHom S R) p q =>
+    \let R=S => Ring.equals (path (iso f.func g.func (\lam x => path (\lam i => func {p @ i} x)) (\lam y => path (\lam i => func {q @ i} y)))) (f.func-+, f.func-*)
+    \in (R=S, RingHom.equals (\lam x => Jl {Ring} (\lam T R=T => func {transport (\lam T => RingHom R T) R=T (id R)} x = coe (\lam j => R=T @ j) x right) idp R=S))
+  \where
+    \func id (M : Ring) : RingHom M M \cowith
+      | func x => x
+      | func-ide => idp
+      | func-+ _ _ => idp
+      | func-* _ _ => idp
+
+\instance CRingCategory : Cat CRing
+  => subCat (\new Embedding {
+    | f (R : CRing) => \new Ring { | Semiring => R | AbGroup => R }
+    | isEmb (R S : CRing) => \new Retraction {
+      | sec p => path (\lam i => \new CRing {
+        | Ring => p @ i
+        | *-comm => pathInProp (\lam j => \Pi (x y : p @ j) -> x * y = y * x) R.*-comm S.*-comm @ i
+      })
+      | f_sec => idpe
+    }
+  })

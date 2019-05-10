@@ -14,3 +14,51 @@
       | f_sec => idpe
     }
   })
+
+\record AbGroupHom (A B : AddGroup)
+  | func : A -> B
+  | func-+ (x y : A) : func (x + y) = func x + func y
+  \where {
+    \func toMonoidHom (f : AbGroupHom) : MonoidHom \cowith
+      | M => \new Monoid f.A.E f.A.zro (f.A.+) f.A.zro-left f.A.zro-right f.A.+-assoc
+      | N => \new Monoid f.B.E f.B.zro (f.B.+) f.B.zro-left f.B.zro-right f.B.+-assoc
+      | func => f.func
+      | func-* => f.func-+
+      | func-ide => AddGroup.cancel-left (f.func f.A.zro) (f.func f.A.zro) f.B.zro
+                                         (inv (f.func-+ f.A.zro f.A.zro) *> pmap f.func (A.zro-right f.A.zro) *> inv (B.zro-right (f.func f.A.zro)))
+
+    \func equals {A B : AddGroup} {f g : AbGroupHom A B} (p : \Pi (x : A) -> f.func x = g.func x) : f = g
+      => path (\lam i => \new AbGroupHom A B (\lam x => p x @ i) (pathInProp (\lam j => \Pi (x y : A) -> p (x + y) @ j = (p x @ j) + (p y @ j)) f.func-+ g.func-+ @ i))
+  }
+
+\instance AddGroupCategory : Cat AddGroup
+  | Hom G H => AbGroupHom G H
+  | id => id
+  | o {x y z : AddGroup} (g : AbGroupHom y z) (f : AbGroupHom x y) => \new AbGroupHom {
+    | func x => g.func (f.func x)
+    | func-+ x y => pmap g.func (f.func-+ x y) *> g.func-+ (f.func x) (f.func y)
+  }
+  | id-left _ => idp
+  | id-right _ => idp
+  | o-assoc _ _ _ => idp
+  | univalence {A B : AddGroup} (f : AbGroupHom A B) (g : AbGroupHom B A) p q =>
+    \let A=B => AddGroup.equals A B (path (iso f.func g.func (\lam x => path (\lam i => func {p @ i} x)) (\lam y => path (\lam i => func {q @ i} y)))) f.func-+
+    \in (A=B, AbGroupHom.equals (\lam x => Jl {AddGroup} (\lam C A=C => func {transport (\lam C => AbGroupHom A C) A=C (id A)} x = coe (\lam j => A=C @ j) x right) idp A=B))
+  \where
+    \func id (G : AddGroup) : AbGroupHom G G \cowith
+      | func x => x
+      | func-+ _ _ => idp
+
+\instance AbGroupCategory : Cat AbGroup
+  => subCat (\new Embedding {
+    | f (A : AbGroup) => \new AddGroup {
+      | AddMonoid => A
+      | negative => A.negative
+      | negative-left => A.negative-left
+      | negative-right => A.negative-right
+    }
+    | isEmb A B => \new Retraction {
+      | sec => AbGroup.equals A B
+      | f_sec => idpe
+    }
+  })
