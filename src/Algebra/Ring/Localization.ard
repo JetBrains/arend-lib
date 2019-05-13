@@ -1,0 +1,49 @@
+\import Algebra.Monoid
+\import Algebra.Monoid.Category(MonoidHom)
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Ring.Category
+\import Category
+\import HLevel
+\import Paths
+\open Monoid(Inv)
+\open Precat(>>)
+
+\class Subset (M : Monoid)
+  | \fix 8 belongs : M -> \Prop
+
+\class Localization (R : CRing) {S : Subset R} (R' : CRing) {
+  | inL : RingHom R R'
+  | local (x : R) : Inv (inL.func x)
+  | local-univ {R'' : CRing} (f : RingHom R R'') (l : \Pi (x : R) -> Inv (f.func x)) : Contr (\Sigma (g : RingHom R' R'') (\Pi (x : R) -> g.func (inL.func x) = f.func x))
+
+  \func lift {R'' : CRing} (f : RingHom R R'') (l : \Pi (x : R) -> Inv (f.func x)) : RingHom R' R''
+    => (Contr.center {local-univ f l}).1
+
+  \lemma lift-prop {R'' : CRing} (f : RingHom R R'') (l : \Pi (x : R) -> Inv (f.func x)) : inL >> lift f l = f
+    => RingHom.equals {R} {R''} {inL >> lift f l} (Contr.center {local-univ f l}).2
+
+  \lemma lift-prop-func {R'' : CRing} (f : RingHom R R'') (l : \Pi (x : R) -> Inv (f.func x)) (x : R) : func {lift f l} (inL.func x) = f.func x
+    => path (\lam i => func {lift-prop f l @ i} x)
+
+  \lemma remove_inL {R'' : CRing} (f g : RingHom R' R'') (p : \Pi (x : R) -> f.func (inL.func x) = g.func (inL.func x)) : f = g
+    => pmap (\lam t => t.1) (isContr=>isProp (local-univ {\this} {R''} (inL >> g) (\lam x => MonoidHom.presInv RingHom.=>MonoidHom (local x))) (f,p) (g, \lam _ => idp))
+} \where {
+    \use \level isProp (R : CRing) {S : Subset R} (l1 l2 : Localization R) : l1 = l2
+      => \let | e => \new Iso (lift {l1} l2.inL l2.local) {
+                       | inv => lift {l2} l1.inL l1.local
+                       | f_inv => remove_inL {l1} {l1.R'} (lift {l1} l2.inL l2.local >> lift {l2} l1.inL l1.local) (id l1.R')
+                                             (\lam x => pmap (func {lift {l2} l1.inL l1.local}) (lift-prop-func {l1} l2.inL l2.local x) *> lift-prop-func {l2} l1.inL l1.local x)
+                       | inv_f => remove_inL {l2} {l2.R'} (lift {l2} l1.inL l1.local >> lift {l1} l2.inL l2.local) (id l2.R')
+                                             (\lam x => pmap (func {lift {l1} l2.inL l2.local}) (lift-prop-func {l2} l1.inL l1.local x) *> lift-prop-func {l1} l2.inL l2.local x)
+                     }
+              | p => Cat.iso-to-= e
+              | q => pathOver (Cat.transport-Hom e l1.inL *> lift-prop {l1} l2.inL l2.local)
+         \in path (\lam i => \new Localization R (p @ i) (q @ i)
+                                               (\lam x => pathInProp (\lam j => Inv (func {q @ j} x)) (l1.local x) (l2.local x) @ i)
+                                               (\lam {R''} f l => pathInProp (\lam j => Contr (\Sigma (g : RingHom (p @ j) R'') (\Pi (x : R) -> g.func (func {q @ j} x) = func {f} x))) (l1.local-univ f l) (l2.local-univ f l) @ i))
+}
+
+\class MSubset \extends Subset
+  | subset-ide : ide `belongs
+  | subset-* (x y : M) : x `belongs -> y `belongs -> (x * y) `belongs
