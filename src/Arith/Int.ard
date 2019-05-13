@@ -1,11 +1,10 @@
-\import Algebra.Domain
 \import Algebra.Monoid
-\import Algebra.Ordered.Strictly
+\import Algebra.Ordered
 \import Algebra.Semiring
 \import Arith.Nat
-\import Data.Or
 \import Logic
 \import Order.LinearOrder
+\open LinearOrder (trichotomy)
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
@@ -87,7 +86,7 @@
 
 -- # Properties of +, *, and <
 
-\instance IntRing : DecOrderedCRing Int
+\instance IntRing : OrderedCRing.Dec.Impl Int
   | zro => pos 0
   | + => +
   | zro-left _ => zero-left
@@ -121,18 +120,18 @@
 
     \lemma <-transitive {x y z : Int} (p : isuc x <= y) (q : isuc y <= z) : isuc x <= z => <=-trans p (<=-trans <=-isuc q)
 
-    \func tri {x y : Int} : (x = y) `Or` (isuc x <= y) `Or` (isuc y <= x) \elim x, y
+    \func tri {x y : Int} : (x = y) || (isuc x <= y) || (isuc y <= x) \elim x, y
       | pos n, pos m => \case trichotomy n m \with {
-        | inl n=m => inl (pmap pos n=m)
-        | inr (inl n<m) => inr (inl (pos<=pos n<m))
-        | inr (inr m<n) => inr (inr (pos<=pos m<n))
+        | byLeft n=m => byLeft (pmap pos n=m)
+        | byRight (byLeft n<m) => byRight (byLeft (pos<=pos n<m))
+        | byRight (byRight m<n) => byRight (byRight (pos<=pos m<n))
       }
-      | neg (suc n), pos m => inr (inl neg<=pos')
-      | pos n, neg (suc m) => inr (inr neg<=pos')
+      | neg (suc n), pos m => byRight (byLeft neg<=pos')
+      | pos n, neg (suc m) => byRight (byRight neg<=pos')
       | neg (suc n), neg (suc m) => \case trichotomy n m \with {
-        | inl n=m => inl (pmap (\lam t => neg (suc t)) n=m)
-        | inr (inl n<m) => inr (inr (neg<=neg' n<m))
-        | inr (inr m<n) => inr (inl (neg<=neg' m<n))
+        | byLeft n=m => byLeft (pmap (\lam t => neg (suc t)) n=m)
+        | byRight (byLeft n<m) => byRight (byRight (neg<=neg' n<m))
+        | byRight (byRight m<n) => byRight (byLeft (neg<=neg' m<n))
       }
 
     \func \infixl 6 + (x y : Int) : Int
@@ -187,7 +186,7 @@
         pos (suc n) + (k - m)  `qed
 
     \lemma minus+neg (n m k : Nat) : (n - m) + neg k = neg m + (n - k)
-      | 0, m, k => idp
+      | 0, m, xk => idp
       | suc n, 0, 0 => pmap (\lam t => pos (suc t)) (inv (zro-left n))
       | suc n, 0, suc k => inv zero-left
       | suc n, suc m, 0 => i+-comm *> zero-left
@@ -369,18 +368,3 @@
 \func iabs (x : Int) : Nat
   | pos n => n
   | neg n => n
-
-\instance IntDomain : DecIntegralDomain
-  | CRing => IntRing
-  | DecSet => IntRing
-  | zro#ide zro=ide => suc/=0 (inv (pmap iabs zro=ide))
-  | apartZeroProduct => nonZeroProduct
-  \where {
-    \lemma nonZeroProduct (x y : Int) (x/=0 : Not (x = 0)) (y/=0 : Not (y = 0)) (x*y=0 : x * y = 0) : Empty \elim x, y
-      | pos 0, _ => x/=0 idp
-      | _, pos 0 => y/=0 idp
-      | pos (suc n), pos (suc m) => suc/=0 (pmap iabs x*y=0)
-      | pos (suc n), neg (suc m) => suc/=0 (pmap iabs x*y=0)
-      | neg (suc n), pos (suc m) => suc/=0 (pmap iabs x*y=0)
-      | neg (suc n), neg (suc m) => suc/=0 (pmap iabs x*y=0)
-  }

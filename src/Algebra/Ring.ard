@@ -1,7 +1,9 @@
 \import Algebra.Group
 \import Algebra.Monoid
 \import Algebra.Semiring
+\import Logic
 \import Paths
+\import Set
 
 \class Ring \extends Semiring, AbGroup {
   | zro_*-left x => AddGroup.cancel-left (zro * x) (zro * x) zro (
@@ -31,6 +33,13 @@
     negative (x * negative y)   ==< pmap negative (negative_*-right x y) >==
     negative (negative (x * y)) ==< AddGroup.negative-isInvolution (x * y) >==
     x * y                       `qed
+
+  \lemma negative_inv (j : Monoid.Inv {\this}) : Monoid.Inv (negative j.val)
+    => \new Monoid.Inv {
+      | inv => negative j.inv
+      | inv-left => negative_* j.inv j.val *> j.inv-left
+      | inv-right => negative_* j.val j.inv *> j.inv-right
+    }
 } \where {
   \func op (R : Ring) : Ring \cowith
     | AbGroup => R
@@ -45,6 +54,40 @@
           | ldistr => pathInProp (\lam j => \Pi (x y z : p @ j) -> x * {mon @ j} (y + {gr @ j} z) = x * {mon @ j} y + {gr @ j} x * {mon @ j} z) R.ldistr S.ldistr @ i
           | rdistr => pathInProp (\lam j => \Pi (x y z : p @ j) -> (x + {gr @ j} y) * {mon @ j} z = x * {mon @ j} z + {gr @ j} y * {mon @ j} z) R.rdistr S.rdistr @ i
        })
+
+  -- | A ring with an apartness relation.
+  \class With# \extends Ring, AddGroup.With#
+    | #0-*-left (x y : E) : (x * y) `#0 -> x `#0
+    | #0-*-right (x y : E) : (x * y) `#0 -> y `#0
+
+  -- | A ring with a tight apartness relation.
+  \class WithT# \extends With#, AddGroup.WithT#
+
+  -- | A ring with decidable equality.
+  \class Dec \extends AddGroup.Dec, WithT#
+    | #0-*-left x y x*y#0 => \case decideEq x zro \with {
+      | yes x=0 => absurd (#0-zro (transport #0 (pmap (\lam t => t * y) x=0 *> zro_*-left y) x*y#0))
+      | no x/=0 => nonEqualApart x x/=0
+    }
+    | #0-*-right x y x*y#0 => \case decideEq y zro \with {
+      | yes y=0 => absurd (#0-zro (transport #0 (pmap (x *) y=0 *> zro_*-right x) x*y#0))
+      | no y/=0 => nonEqualApart y y/=0
+    }
+    \where
+      \class Impl \extends Dec, AddGroup.Dec.Impl
 }
 
 \class CRing \extends Ring, CSemiring
+  \where {
+    -- | A commutative ring with an apartness relation.
+    \class With# \extends CRing, Ring.With#
+      | #0-*-right x y x*y#0 => #0-*-left y x (transport #0 (*-comm x y) x*y#0)
+
+    -- | A commutative ring with a tight apartness relation.
+    \class WithT# \extends With#, Ring.WithT#
+
+    -- | A commutative ring with decidable equality.
+    \class Dec \extends Ring.Dec, WithT#
+      \where
+        \class Impl \extends Dec, Ring.Dec.Impl
+  }

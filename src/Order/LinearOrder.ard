@@ -1,4 +1,3 @@
-\import Data.Or
 \import Logic
 \import Order.Lattice
 \import Order.PartialOrder
@@ -28,70 +27,74 @@
                                               (\lam y<=x => (x, (E.<=-reflexive x, y<=x, \lam z z<=x _ => z<=x)))
 }
 
+-- | A linearly ordered set.
 \class LinearOrder \extends StrictPoset {
   | <-comparison (x y z : E) : x < z -> x < y || y < z
   | <-connectedness (x y : E) : Not (x < y) -> Not (y < x) -> x = y
 } \where {
-  \func =>Apartness {L : LinearOrder} : TightApartness L \cowith
-    | # x y => Xor (x < y) (y < x) (\lam p q => <-irreflexive x (<-transitive x y x p q))
+  \class With# \extends LinearOrder, TightApartness
+    | # x y => x < y || y < x
     | #-irreflexive x x#x => \case x#x \with {
-      | onlyLeft x<x => <-irreflexive x x<x
-      | onlyRight x<x => <-irreflexive x x<x
+      | byLeft x<x => <-irreflexive x x<x
+      | byRight x<x => <-irreflexive x x<x
     }
     | #-symmetric x y x#y => \case x#y \with {
-      | onlyLeft x<y => onlyRight x<y
-      | onlyRight y<x => onlyLeft y<x
+      | byLeft x<y => byRight x<y
+      | byRight y<x => byLeft y<x
     }
     | #-comparison x y z x#z => \case x#z \with {
-      | onlyLeft x<z => \case <-comparison x y z x<z \with {
-        | byLeft x<y => byLeft (onlyLeft x<y)
-        | byRight y<z => byRight (onlyLeft y<z)
+      | byLeft x<z => \case <-comparison x y z x<z \with {
+        | byLeft x<y => byLeft (byLeft x<y)
+        | byRight y<z => byRight (byLeft y<z)
       }
-      | onlyRight z<x => \case <-comparison z y x z<x \with {
-        | byLeft z<y => byRight (onlyRight z<y)
-        | byRight y<x => byLeft (onlyRight y<x)
+      | byRight z<x => \case <-comparison z y x z<x \with {
+        | byLeft z<y => byRight (byRight z<y)
+        | byRight y<x => byLeft (byRight y<x)
       }
     }
-    | tightness x y x/#y => <-connectedness x y (\lam x<y => x/#y (onlyLeft x<y)) (\lam y<x => x/#y (onlyRight y<x))
-}
+    | tightness x y x/#y => <-connectedness x y (\lam x<y => x/#y (byLeft x<y)) (\lam y<x => x/#y (byRight y<x))
 
-\class DecLinearOrder \extends LinearOrder, DecSet {
-  | trichotomy (x y : E) : (x = y) `Or` (x < y) `Or` (y < x)
+  -- | A linearly ordered set with decidable inequality.
+  \class Dec \extends LinearOrder, DecSet {
+    | trichotomy (x y : E) : (x = y) || (x < y) || (y < x)
 
-  | <-comparison x y z x<z => \case trichotomy x y \with {
-    | inl x=y => byRight (transport (\lam w => w < z) x=y x<z)
-    | inr (inl x<y) => byLeft x<y
-    | inr (inr y<x) => byRight (<-transitive y x z y<x x<z)
-  }
-  | <-connectedness x y x/<y y/<x => \case trichotomy x y \with {
-    | inl x=y => x=y
-    | inr (inl x<y) => absurd (x/<y x<y)
-    | inr (inr y<x) => absurd (y/<x y<x)
-  }
+    | <-comparison x y z x<z => \case trichotomy x y \with {
+      | byLeft x=y => byRight (transport (\lam w => w < z) x=y x<z)
+      | byRight (byLeft x<y) => byLeft x<y
+      | byRight (byRight y<x) => byRight (<-transitive y x z y<x x<z)
+    }
+    | <-connectedness x y x/<y y/<x => \case trichotomy x y \with {
+      | byLeft x=y => x=y
+      | byRight (byLeft x<y) => absurd (x/<y x<y)
+      | byRight (byRight y<x) => absurd (y/<x y<x)
+    }
 
-  | decideEq x y => \case trichotomy x y \with {
-    | inl x=y => yes x=y
-    | inr (inl x<y) => no (\lam x=y => <-irreflexive y (transport (\lam z => z < y) x=y x<y))
-    | inr (inr y<x) => no (\lam x=y => <-irreflexive y (transport (\lam z => y < z) x=y y<x))
+    | decideEq x y => \case trichotomy x y \with {
+      | byLeft x=y => yes x=y
+      | byRight (byLeft x<y) => no (\lam x=y => <-irreflexive y (transport (\lam z => z < y) x=y x<y))
+      | byRight (byRight y<x) => no (\lam x=y => <-irreflexive y (transport (\lam z => y < z) x=y y<x))
+    }
+  } \where {
+    \func =>TotalOrder {L : Dec} : TotalOrder L \cowith
+      | <= x y => (x = y) || x < y
+      | <=-reflexive x => byLeft idp
+      | <=-transitive x y z x<=y y<=z => \case x<=y, y<=z \with {
+        | byLeft x=y, byLeft y=z => byLeft (x=y *> y=z)
+        | byLeft x=y, byRight y<z => byRight (transport (\lam w => w < z) (inv x=y) y<z)
+        | byRight x<y, byLeft y=z => byRight (transport (\lam w => x < w) y=z x<y)
+        | byRight x<y, byRight y<z => byRight (<-transitive x y z x<y y<z)
+      }
+      | totality x y => \case trichotomy x y \with {
+        | byLeft x=y => byLeft (byLeft x=y)
+        | byRight (byLeft x<y) => byLeft (byRight x<y)
+        | byRight (byRight y<x) => byRight (byRight y<x)
+      }
+      | <=-antisymmetric x y x<=y y<=x => \case x<=y, y<=x \with {
+        | byLeft x=y, _ => x=y
+        | _, byLeft y=x => inv y=x
+        | byRight x<y, byRight y<x => absurd (<-irreflexive x (<-transitive x y x x<y y<x))
+      }
+
+    \class Impl \extends Dec, DecSet.Impl
   }
-} \where {
-  \func =>TotalOrder {L : DecLinearOrder} : TotalOrder L \cowith
-    | <= x y => Xor (x = y) (x < y) (\lam x=y x<y => <-irreflexive y (transport (\lam w => w < y) x=y x<y))
-    | <=-reflexive x => onlyLeft idp
-    | <=-transitive x y z x<=y y<=z => \case x<=y, y<=z \with {
-      | onlyLeft x=y, onlyLeft y=z => onlyLeft (x=y *> y=z)
-      | onlyLeft x=y, onlyRight y<z => onlyRight (transport (\lam w => w < z) (inv x=y) y<z)
-      | onlyRight x<y, onlyLeft y=z => onlyRight (transport (\lam w => x < w) y=z x<y)
-      | onlyRight x<y, onlyRight y<z => onlyRight (<-transitive x y z x<y y<z)
-    }
-    | totality x y => \case trichotomy x y \with {
-      | inl x=y => byLeft (onlyLeft x=y)
-      | inr (inl x<y) => byLeft (onlyRight x<y)
-      | inr (inr y<x) => byRight (onlyRight y<x)
-    }
-    | <=-antisymmetric x y x<=y y<=x => \case x<=y, y<=x \with {
-      | onlyLeft x=y, _ => x=y
-      | _, onlyLeft y=x => inv y=x
-      | onlyRight x<y, onlyRight y<x => absurd (<-irreflexive x (<-transitive x y x x<y y<x))
-    }
 }

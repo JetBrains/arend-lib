@@ -1,26 +1,20 @@
-\import Algebra.Field
 \import Algebra.Group
 \import Algebra.Monoid
-\import Algebra.Ordered.Strictly
 \import Algebra.Ring
-\import Algebra.Ring.Local
 \import Logic
-\import Order.LinearOrder
 \import Paths
-\import Relation.Apartness
-\import Set
-\open Monoid(Inv)
 
-\class Domain \extends Ring, TightApartness {
-  | +-extensional (x y x' y' : E) : x + y # x' + y' -> x # x' || y # y'
-  | *-extensional (x y x' y' : E) : x * y # x' * y' -> x # x' || y # y'
-  | zro#ide : zro # ide
-  | apartZeroProduct (x y : E) : x # zro -> y # zro -> x * y # zro
+{- | Domain is a ring with a tight apartness relation such that elements apart from {zro} are closed under finite products.
+ -   Classically, this is equivalent to the usual definition since there is a unique apartness relation on a set assuming LEM.
+ -}
+\class Domain \extends Ring.WithT# {
+  | zro#ide : ide `#0
+  | apartZeroProduct (x y : E) : x `#0 -> y `#0 -> (x * y) `#0
 
   \lemma nonZeroProduct (x y : E) (x/=0 : Not (x = zro)) (y/=0 : Not (y = zro)) : Not (x * y = zro) => \lam x*y=0 =>
-    x/=0 (tightness x zro (\lam x#zro =>
-    y/=0 (tightness y zro (\lam y#zro =>
-        Apartness.apartNotEqual (x * y) zro (apartZeroProduct x y x#zro y#zro) x*y=0))))
+    x/=0 (#0-tight x (\lam x#0 =>
+    y/=0 (#0-tight y (\lam y#0 =>
+        #0-zro (transport #0 x*y=0 (apartZeroProduct x y x#0 y#0))))))
 
   \lemma nonZero-left (x y : E) (x/=0 : Not (x = zro)) (x*y=0 : x * y = zro) : y = zro =>
     separatedEq (\lam y/=0 => nonZeroProduct x y x/=0 y/=0 x*y=0)
@@ -34,137 +28,28 @@
   \lemma nonZero-cancel-right (x y z : E) (z/=0 : Not (z = zro)) (x*z=y*z : x * z = y * z) : x = y =>
     AddGroup.fromZero x y (nonZero-right (x - y) z z/=0 (rdistr x (negative y) z *> pmap (x * z +) (Ring.negative_*-left y z) *> AddGroup.toZero (x * z) (y * z) x*z=y*z))
 
-  \lemma apart-product-left (x y : E) (x*y#0 : x * y # zro) : x # zro => \case *-extensional x y zro y (transport (x * y #) (inv (zro_*-left y)) x*y#0) \with {
-    | byLeft x#0 => x#0
-    | byRight y#y => absurd (#-irreflexive y y#y)
-  }
-
-  \lemma apart-product-right (x y : E) (x*y#0 : x * y # zro) : y # zro => \case *-extensional x y x zro (transport (x * y #) (inv (zro_*-right x)) x*y#0) \with {
-    | byLeft x#x => absurd (#-irreflexive x x#x)
-    | byRight y#0 => y#0
-  }
-} \where {
-  \use \coerce fromOrderedRing (R : OrderedRing) : Domain \cowith
-    | Ring => R
-    | TightApartness => LinearOrder.=>Apartness {R}
-    | +-extensional x y x' y' x+y#x'+y' => \case x+y#x'+y' \with {
-      | onlyLeft x+y<x'+y' => \case <-comparison (x + y) (x' + y) (x' + y') x+y<x'+y' \with {
-        | byLeft x+y<x'+y => byLeft (onlyLeft (<_+-cancel-right x x' y x+y<x'+y))
-        | byRight x'+y<x'+y' => byRight (onlyLeft (<_+-cancel-left x' y y' x'+y<x'+y'))
-      }
-      | onlyRight x+y>x'+y' => \case <-comparison (x' + y') (x' + y) (x + y) x+y>x'+y' \with {
-        | byLeft x'+y'<x'+y => byRight (onlyRight (<_+-cancel-left x' y' y x'+y'<x'+y))
-        | byRight x'+y<x+y => byLeft (onlyRight (<_+-cancel-right x' x y x'+y<x+y))
-      }
-    }
-    | *-extensional x y x' y' x*y#x'*y' => \case x*y#x'*y' \with {
-      | onlyLeft x*y<x'*y' => \case <-comparison (x * y) (x' * y) (x' * y') x*y<x'*y' \with {
-        | byLeft x*y<x'*y => \case <_*-cancel-right x x' y x*y<x'*y \with {
-          | byLeft (_, x<x') => byLeft (onlyLeft x<x')
-          | byRight (_, x>x') => byLeft (onlyRight x>x')
-        }
-        | byRight x'*y<x'*y' => \case <_*-cancel-left x' y y' x'*y<x'*y' \with {
-          | byLeft (_, y<y') => byRight (onlyLeft y<y')
-          | byRight (_, y>y') => byRight (onlyRight y>y')
-        }
-      }
-      | onlyRight x*y>x'*y' => \case <-comparison (x' * y') (x' * y) (x * y) x*y>x'*y' \with {
-        | byLeft x'*y'<x'*y => \case <_*-cancel-left x' y' y x'*y'<x'*y \with {
-          | byLeft (_, y'<y) => byRight (onlyRight y'<y)
-          | byRight (_, y'>y) => byRight (onlyLeft y'>y)
-        }
-        | byRight x'*y<x*y => \case <_*-cancel-right x' x y x'*y<x*y \with {
-          | byLeft (_, x'<x) => byLeft (onlyRight x'<x)
-          | byRight (_, x'>x) => byLeft (onlyLeft x'>x)
-        }
-      }
-    }
-    | zro#ide => onlyLeft zro<ide
-    | apartZeroProduct x y x#0 y#0 => \case x#0, y#0 \with {
-      | onlyLeft x<0, onlyLeft y<0 => onlyRight (OrderedSemiring.negative_* x y x<0 y<0)
-      | onlyLeft x<0, onlyRight y>0 => onlyLeft (OrderedSemiring.negative_positive_* x y x<0 y>0)
-      | onlyRight x>0, onlyLeft y<0 => onlyLeft (OrderedSemiring.positive_negative_* x y x>0 y<0)
-      | onlyRight x>0, onlyRight y>0 => onlyRight (positive_* x y x>0 y>0)
-    }
-}
-
-\class IntegralDomain \extends Domain, CRing {
-  \func nonZeroMonoid : CancelCMonoid \cowith
-    | E => \Sigma (x : E) (x # zro)
-    | ide => (ide, #-symmetric zro ide zro#ide)
+  \func nonZeroMonoid : CancelMonoid \cowith
+    | E => \Sigma (x : E) (x `#0)
+    | ide => (ide, zro#ide)
     | * x y => (x.1 * y.1, apartZeroProduct x.1 y.1 x.2 y.2)
-    | ide-left x => SigmaPropExt (\lam t => t # zro) _ _ (ide-left x.1)
-    | *-assoc x y z => SigmaPropExt (\lam t => t # zro) _ _ (*-assoc x.1 y.1 z.1)
-    | *-comm x y => SigmaPropExt (\lam t => t # zro) _ _ (*-comm x.1 y.1)
-    | cancel-left x y z x*y=x*z => SigmaPropExt (\lam t => t # zro) y z (Domain.nonZero-cancel-left x.1 y.1 z.1 (Apartness.apartNotEqual x.1 zro x.2) (pmap (\lam t => t.1) x*y=x*z))
+    | ide-left x => SigmaPropExt #0 _ _ (ide-left x.1)
+    | ide-right x => SigmaPropExt #0 _ _ (ide-right x.1)
+    | *-assoc x y z => SigmaPropExt #0 _ _ (*-assoc x.1 y.1 z.1)
+    | cancel-left x y z x*y=x*z => SigmaPropExt #0 y z (nonZero-cancel-left x.1 y.1 z.1 (\lam x=0 => #0-zro (transport #0 x=0 x.2)) (pmap (\lam t => t.1) x*y=x*z))
+    | cancel-right x y z x*z=y*z => SigmaPropExt #0 x y (nonZero-cancel-right x.1 y.1 z.1 (\lam z=0 => #0-zro (transport #0 z=0 z.2)) (pmap (\lam t => t.1) x*z=y*z))
 } \where {
-  \use \coerce fromField (K : Field) : IntegralDomain \cowith
-    | CRing => K
-    | Apartness => LocalRing.=>Apartness {K}
-    | tightness x y p => AddGroup.fromZero x y (nonInvIsZero (x - y) p)
-    | +-extensional x y x' y' x+y#x'+y' => LocalRing.sumInv=>eitherInv (x - x') (y - y') (transport (\lam t => Inv t) (
-      (x + y) - (x' + y')          ==< pmap ((x + y) +) (AddGroup.negative_+ x' y') >==
-      (x + y) + (negative y' - x') ==< +-assoc x y (negative y' - x') >==
-      x + (y + (negative y' - x')) ==< pmap (x +) (inv (+-assoc y (negative y') (negative x'))) >==
-      x + ((y - y') - x')          ==< pmap (x +) (+-comm (y - y') (negative x')) >==
-      x + (negative x' + (y - y')) ==< inv (+-assoc x (negative x') (y - y')) >==
-      (x - x') + (y - y')          `qed
-    ) x+y#x'+y')
-    | *-extensional x y x' y' x*y#x'*y' => \case #-comparison {LocalRing.=>Apartness {K}} (x * y) (x * y') (x' * y') x*y#x'*y' \with {
-      | byLeft x*y#x*y' =>
-        \let j => Inv.inv {x*y#x*y'}
-        \in byRight (Inv.lmake (j * x) (
-          (j * x) * (y - y')            ==< *-assoc j x (y - y') >==
-          j * (x * (y - y'))            ==< pmap (j *) (ldistr x y (negative y')) >==
-          j * (x * y + x * negative y') ==< pmap (\lam t => j * (x * y + t)) (Ring.negative_*-right x y') >==
-          j * (x * y - x * y')          ==< Inv.inv-left {x*y#x*y'} >==
-          ide                           `qed
-        ))
-      | byRight x*y'#x'*y' =>
-        \let j => Inv.inv {x*y'#x'*y'}
-        \in byLeft (Inv.lmake (j * y') (
-          (j * y') * (x - x')             ==< *-assoc j y' (x - x') >==
-          j * (y' * (x - x'))             ==< pmap (j *) (*-comm y' (x - x')) >==
-          j * ((x - x') * y')             ==< pmap (j *) (rdistr x (negative x') y') >==
-          j * (x * y' + negative x' * y') ==< pmap (\lam t => j * (x * y' + t)) (Ring.negative_*-left x' y') >==
-          j * (x * y' - x' * y')          ==< Inv.inv-left {x*y'#x'*y'} >==
-          ide                             `qed
-        ))
-    }
-    | zro#ide => Inv.lmake (negative ide) (
-      negative ide * (zro - ide)  ==< pmap (negative K.ide *) (zro-left (negative ide)) >==
-      negative ide * negative ide ==< Ring.negative_* K.ide ide >==
-      ide * ide                   ==< ide-left K.ide >==
-      ide                         `qed
-    )
-    | apartZeroProduct x y (xj : Inv (x - zro)) (yj : Inv (y - zro)) => Inv.lmake (yj.inv * xj.inv) (
-      (yj.inv * xj.inv) * (x * y - zro)   ==< pmap ((yj.inv * xj.inv) *) (AddGroup.minus_zro (x * y)) >==
-      (yj.inv * xj.inv) * (x * y)         ==< *-assoc yj.inv xj.inv (x * y) >==
-      yj.inv * (xj.inv * (x * y))         ==< pmap (yj.inv *) (inv (*-assoc xj.inv x y)) >==
-      yj.inv * ((xj.inv * x) * y)         ==< pmap (\lam t => yj.inv * ((xj.inv * t) * y)) (inv (AddGroup.minus_zro x)) >==
-      yj.inv * ((xj.inv * (x - zro)) * y) ==< pmap (\lam t => yj.inv * (t * y)) xj.inv-left >==
-      yj.inv * (ide * y)                  ==< pmap (yj.inv *) (ide-left y) >==
-      yj.inv * y                          ==< pmap (yj.inv *) (inv (AddGroup.minus_zro y)) >==
-      yj.inv * (y - zro)                  ==< yj.inv-left >==
-      ide                                 `qed
-    )
-
-  \use \coerce fromOrderedCRing (R : OrderedCRing) : IntegralDomain \cowith
-    | Domain => Domain.fromOrderedRing R
-    | CRing => R
+  \class Dec \extends Domain, Ring.Dec
+    \where
+      \class Impl \extends Dec, Ring.Dec.Impl
 }
 
-\class DecDomain \extends Domain, DecSet {
-  | +-extensional x y x' y' x+y/=x'+y' => \case decideEq x x', decideEq y y' \with {
-    | yes x=x', yes y=y' => absurd (x+y/=x'+y' (pmap2 (+) x=x' y=y'))
-    | no x/=x', _ => byLeft x/=x'
-    | _, no y/=y' => byRight y/=y'
-  }
-  | *-extensional x y x' y' x*y/=x'*y' => \case decideEq x x', decideEq y y' \with {
-    | yes x=x', yes y=y' => absurd (x*y/=x'*y' (pmap2 (*) x=x' y=y'))
-    | no x/=x', _ => byLeft x/=x'
-    | _, no y/=y' => byRight y/=y'
-  }
+-- | An integral domain is a commutative domain.
+\class IntegralDomain \extends Domain, CRing.WithT# {
+  \func nonZeroMonoid : CancelCMonoid \cowith
+    | CancelMonoid => Domain.nonZeroMonoid
+    | *-comm x y => SigmaPropExt #0 _ _ (*-comm x.1 y.1)
+} \where {
+  \class Dec \extends Domain.Dec, IntegralDomain
+    \where
+      \class Impl \extends Dec, Domain.Dec.Impl
 }
-
-\class DecIntegralDomain \extends DecDomain, IntegralDomain

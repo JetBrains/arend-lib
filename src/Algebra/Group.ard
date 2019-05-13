@@ -1,11 +1,33 @@
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Logic
 \import Paths
+\import Relation.Apartness
+\import Set
 
-\class Group \extends Monoid {
+\class Group \extends CancelMonoid {
   | inverse : E -> E
   | inverse-left (x : E) : inverse x * x = ide
   | inverse-right (x : E) : x * inverse x = ide
+
+  | cancel-left x y z p =>
+      y                   ==< inv (ide-left y) >==
+      ide * y             ==< pmap (\lam t => t * y) (inv (inverse-left x)) >==
+      (inverse x * x) * y ==< *-assoc (inverse x) x y >==
+      inverse x * (x * y) ==< pmap (inverse x *) p >==
+      inverse x * (x * z) ==< inv (*-assoc (inverse x) x z) >==
+      (inverse x * x) * z ==< pmap (\lam t => t * z) (inverse-left x) >==
+      ide * z             ==< ide-left z >==
+      z                   `qed
+  | cancel-right x y z p =>
+      x                   ==< inv (ide-right x) >==
+      x * ide             ==< pmap (x *) (inv (inverse-right z)) >==
+      x * (z * inverse z) ==< inv (*-assoc x z (inverse z)) >==
+      (x * z) * inverse z ==< pmap (\lam t => t * inverse z) p >==
+      (y * z) * inverse z ==< *-assoc y z (inverse z) >==
+      y * (z * inverse z) ==< pmap (y *) (inverse-right z) >==
+      y * ide             ==< ide-right y >==
+      y                   `qed
 } \where {
   \func op (G : Group) : Group \cowith
     | Monoid => Monoid.op G
@@ -51,14 +73,10 @@
   | negative-right (x : E) : x + negative x = zro
 
   \lemma cancel-left (x y z : E) (p : x + y = x + z) : y = z =>
-    y                    ==< inv (zro-left y) >==
-    zro + y              ==< pmap (\lam t => t + y) (inv (negative-left x)) >==
-    (negative x + x) + y ==< +-assoc (negative x) x y >==
-    negative x + (x + y) ==< pmap (\lam t => negative x + t) p >==
-    negative x + (x + z) ==< inv (+-assoc (negative x) x z) >==
-    (negative x + x) + z ==< pmap (\lam t => t + z) (negative-left x) >==
-    zro + z              ==< zro-left z >==
-    z                    `qed
+    Group.cancel-left {AddGroup.toGroup \this} x y z p
+
+  \lemma cancel-right (x y z : E) (p : x + z = y + z) : x = y =>
+    Group.cancel-right {AddGroup.toGroup \this} x y z p
 
   \lemma negative-isInvolution (x : E) : negative (negative x) = x =>
     cancel-left (negative x) (negative (negative x)) x (negative-right (negative x) *> inv (negative-left x))
@@ -80,6 +98,9 @@
     (x + y) + (negative y - x) `qed
   )
 
+  \lemma negative_zro : negative zro = zro
+    => inv (zro-right (negative zro)) *> negative-left zro
+
   \lemma fromZero (x y : E) (x-y=0 : x - y = zro) : x = y =>
     x                    ==< inv (zro-right x) >==
     x + zro              ==< pmap (\lam t => x + t) (inv (negative-left y)) >==
@@ -95,13 +116,52 @@
 
     \func equals (A B : AddGroup) (p : A = {\Set} B) (q : \let f x => coe (\lam i => p @ i) x right \in \Pi (x y : A) -> f (x + y) = f x + f y) : A = B
       => pmap {Group} {AddGroup} AddGroup.fromGroup (Group.equals A B (Monoid.equals {AddGroup.toGroup A} {AddGroup.toGroup B} p q))
+
+  -- | An additive group with an apartness relation.
+  \class With# \extends AddGroup, Apartness {
+    | \fix 8 #0 : E -> \Prop
+    | #0-zro : Not (zro `#0)
+    | #0-negative (x : E) : x `#0 -> negative x `#0
+    | #0-+ (x y : E) : (x + y) `#0 -> x `#0 || y `#0
+
+    | # x y => (x - y) `#0
+    | #-irreflexive x x-x#0 => #0-zro (transport #0 (negative-right x) x-x#0)
+    | #-symmetric x y x-y#0 => transport #0 (negative_+ x (negative y) *> pmap (\lam t => t + negative x) (negative-isInvolution y)) (#0-negative (x - y) x-y#0)
+    | #-comparison x y z x-z#0 =>
+        \let s : (x - y) + (y - z) = x - z
+               => +-assoc x (negative y) (y - z) *> pmap (x +) (inv (+-assoc (negative y) y (negative z)) *> pmap (\lam t => t - z) (negative-left y) *> zro-left (negative z))
+        \in #0-+ (x - y) (y - z) (transport #0 (inv s) x-z#0)
   }
+
+  -- | An additive group with a tight apartness relation.
+  \class WithT# \extends With#, TightApartness {
+    | #0-tight (x : E) : Not (x `#0) -> x = zro
+    | tightness x y x-y/#0 => fromZero x y (#0-tight (x - y) x-y/#0)
+  }
+
+  -- | An additive group with decidable equality.
+  \class Dec \extends WithT#, DecSet
+    | nonEqualApart (x : E) (x/=0 : Not (x = zro)) : x `#0
+    | #0-negative x x#0 => nonEqualApart (negative x) (\lam -x=0 => #0-zro (transport #0 (inv (negative-isInvolution x) *> pmap negative -x=0 *> negative_zro) x#0))
+    | #0-+ x y x+y#0 => \case decideEq y zro \with {
+      | yes y=0 => byLeft (transport #0 (pmap (x +) y=0 *> zro-right x) x+y#0)
+      | no y/=0 => byRight (nonEqualApart y y/=0)
+    }
+    | #0-tight x x/#0 => \case decideEq x zro \with {
+      | yes x=0 => x=0
+      | no x/=0 => absurd (x/#0 (nonEqualApart x x/=0))
+    }
+    \where
+      \class Impl \extends Dec
+        | #0 x => Not (x = zro)
+        | #0-zro zro/=0 => zro/=0 idp
+        | nonEqualApart x x#0 => x#0
+}
 
 \func \infixl 6 - {G : AddGroup} (x y : G) => x + negative y
 
 \class CGroup \extends Group, CancelCMonoid
   | inverse-right x => *-comm x (inverse x) *> inverse-left x
-  | cancel-left => AddGroup.cancel-left {AddGroup.fromGroup \this}
 
 \class AbGroup \extends AddGroup, AbMonoid
   | negative-right x => +-comm x (negative x) *> negative-left x
