@@ -56,55 +56,79 @@
   \record LDiv \extends DivBase
     | inv-right : val * inv = elem
     \where {
-      \func product-left {M : Monoid} (x y z : M) (y|z : LDiv y z) => \new LDiv (x * y) (x * z) y|z.inv (
-        (x * y) * y|z.inv ==< *-assoc x y y|z.inv >==
-        x * (y * y|z.inv) ==< pmap (x *) y|z.inv-right >==
-        x * z             `qed
-      )
+      \func product-left {M : Monoid} (x y z : M) (y|z : LDiv y z) : LDiv (x * y) (x * z) \cowith
+        | inv => y|z.inv
+        | inv-right =>
+            (x * y) * y|z.inv ==< *-assoc x y y|z.inv >==
+            x * (y * y|z.inv) ==< pmap (x *) y|z.inv-right >==
+            x * z             `qed
 
-      \func product-right {M : CMonoid} (x y z : M) (x|y : LDiv x y) => \new LDiv (x * z) (y * z) x|y.inv (
-        (x * z) * x|y.inv ==< pmap (\lam t => t * x|y.inv) (*-comm x z) >==
-        (z * x) * x|y.inv ==< *-assoc z x x|y.inv >==
-        z * (x * x|y.inv) ==< pmap (z *) x|y.inv-right >==
-        z * y             ==< *-comm z y >==
-        y * z             `qed
-      )
+      \func product-right {M : CMonoid} (x y z : M) (x|y : LDiv x y) : LDiv (x * z) (y * z) \cowith
+        | inv => x|y.inv
+        | inv-right =>
+            (x * z) * x|y.inv ==< pmap (\lam t => t * x|y.inv) (*-comm x z) >==
+            (z * x) * x|y.inv ==< *-assoc z x x|y.inv >==
+            z * (x * x|y.inv) ==< pmap (z *) x|y.inv-right >==
+            z * y             ==< *-comm z y >==
+            y * z             `qed
 
-      \func cancel-left {M : CancelMonoid} (x y z : M) (x*y|x*z : LDiv (x * y) (x * z)) => \new LDiv y z x*y|x*z.inv (M.cancel-left x (y * x*y|x*z.inv) z (
-        x * (y * x*y|x*z.inv) ==< Paths.inv (*-assoc x y x*y|x*z.inv) >==
-        (x * y) * x*y|x*z.inv ==< x*y|x*z.inv-right >==
-        x * z                 `qed
-      ))
+      \func cancel-left {M : CancelMonoid} (x y z : M) (x*y|x*z : LDiv (x * y) (x * z)) : LDiv y z \cowith
+        | inv => x*y|x*z.inv
+        | inv-right => M.cancel-left x (y * x*y|x*z.inv) z (
+            x * (y * x*y|x*z.inv) ==< Paths.inv (*-assoc x y x*y|x*z.inv) >==
+            (x * y) * x*y|x*z.inv ==< x*y|x*z.inv-right >==
+            x * z                 `qed)
 
-      \func cancel-right {M : CancelCMonoid} (x y z : M) (x*z|y*z : LDiv (x * z) (y * z)) => \new LDiv x y x*z|y*z.inv (M.cancel-right (x * x*z|y*z.inv) y z (
-        (x * x*z|y*z.inv) * z ==< *-comm (x * x*z|y*z.inv) z >==
-        z * (x * x*z|y*z.inv) ==< Paths.inv (*-assoc z x x*z|y*z.inv) >==
-        (z * x) * x*z|y*z.inv ==< pmap (\lam t => t * x*z|y*z.inv) (*-comm z x) >==
-        (x * z) * x*z|y*z.inv ==< x*z|y*z.inv-right >==
-        y * z                 `qed
-      ))
+      \func cancel-right {M : CancelCMonoid} (x y z : M) (x*z|y*z : LDiv (x * z) (y * z)) : LDiv x y \cowith
+        | inv => x*z|y*z.inv
+        | inv-right => M.cancel-right (x * x*z|y*z.inv) y z (
+            (x * x*z|y*z.inv) * z ==< *-comm (x * x*z|y*z.inv) z >==
+            z * (x * x*z|y*z.inv) ==< Paths.inv (*-assoc z x x*z|y*z.inv) >==
+            (z * x) * x*z|y*z.inv ==< pmap (\lam t => t * x*z|y*z.inv) (*-comm z x) >==
+            (x * z) * x*z|y*z.inv ==< x*z|y*z.inv-right >==
+            y * z                 `qed)
 
-      \use \level isProp {M : CancelMonoid} (x y : M) : HLevel.isProp (LDiv x y) =>
-        \lam (d1 d2 : LDiv x y) =>
-            \let p => M.cancel-left x d1.inv d2.inv (d1.inv-right *> Paths.inv d2.inv-right)
+      \func trans {M : Monoid} (x y z : M) (x|y : LDiv x y) (y|z : LDiv y z) : LDiv x z \cowith
+        | inv => x|y.inv * y|z.inv
+        | inv-right =>
+            x * (x|y.inv * y|z.inv) ==< Paths.inv (*-assoc _ _ _) >==
+            (x * x|y.inv) * y|z.inv ==< pmap (\lam t => t * y|z.inv) x|y.inv-right >==
+            y * y|z.inv             ==< y|z.inv-right >==
+            z                       `qed
+
+      \lemma cancelProp {M : Monoid} (x : M) (q : \Pi (a b : M) -> x * a = x * b -> a = b) (y : M)
+        : \level (HLevel.isProp (LDiv x y)) (HLevel.isProp.isProp (LDiv x y)) => \lam (d1 d2 : LDiv x y) =>
+            \let p => q d1.inv d2.inv (d1.inv-right *> Paths.inv d2.inv-right)
             \in path (\lam i => \new LDiv x y (p @ i) (pathInProp (\lam j => x * (p @ j) = y) d1.inv-right d2.inv-right @ i))
+
+      \use \level isProp {M : CancelMonoid} (x y : M) : HLevel.isProp (LDiv x y) => cancelProp x (M.cancel-left x) y
     }
 
   -- | The type of right divisors of an element
   \record RDiv \extends DivBase
     | inv-left : inv * val = elem
     \where {
-      \func product-right {M : Monoid} (x y z : M) (x|y : RDiv x y) => \new RDiv (x * z) (y * z) x|y.inv (
-        x|y.inv * (x * z) ==< Paths.inv (*-assoc x|y.inv x z) >==
-        (x|y.inv * x) * z ==< pmap (\lam t => t * z) x|y.inv-left >==
-        y * z             `qed
-      )
+      \func product-right {M : Monoid} (x y z : M) (x|y : RDiv x y) : RDiv (x * z) (y * z) \cowith
+        | inv => x|y.inv
+        | inv-left =>
+            x|y.inv * (x * z) ==< Paths.inv (*-assoc x|y.inv x z) >==
+            (x|y.inv * x) * z ==< pmap (\lam t => t * z) x|y.inv-left >==
+            y * z             `qed
 
-      \func cancel-right {M : CancelMonoid} (x y z : M) (x*z|y*z : RDiv (x * z) (y * z)) => \new RDiv x y x*z|y*z.inv (M.cancel-right (x*z|y*z.inv * x) y z (
-        (x*z|y*z.inv * x) * z ==< *-assoc x*z|y*z.inv x z >==
-        x*z|y*z.inv * (x * z) ==< x*z|y*z.inv-left >==
-        y * z                 `qed
-      ))
+      \func cancel-right {M : CancelMonoid} (x y z : M) (x*z|y*z : RDiv (x * z) (y * z)) : RDiv x y \cowith
+        | inv => x*z|y*z.inv
+        | inv-left => M.cancel-right (x*z|y*z.inv * x) y z (
+            (x*z|y*z.inv * x) * z ==< *-assoc x*z|y*z.inv x z >==
+            x*z|y*z.inv * (x * z) ==< x*z|y*z.inv-left >==
+            y * z                 `qed)
+
+      \func trans {M : Monoid} (x y z : M) (x|y : RDiv x y) (y|z : RDiv y z) : RDiv x z \cowith
+        | inv => y|z.inv * x|y.inv
+        | inv-left =>
+            (y|z.inv * x|y.inv) * x ==< *-assoc _ _ _ >==
+            y|z.inv * (x|y.inv * x) ==< pmap (y|z.inv *) x|y.inv-left >==
+            y|z.inv * y             ==< y|z.inv-left >==
+            z                       `qed
 
       \lemma isProp {M : CancelMonoid} (x y : M) : HLevel.isProp (RDiv x y) =>
         \lam (d1 d2 : RDiv x y) =>
@@ -178,6 +202,16 @@
         | inv => y
         | inv-left => *-comm y x *> p
         | inv-right => p
+
+      \func ldiv {M : CMonoid} (d : LDiv {M} { | elem => ide }) : Inv d.val \cowith
+        | inv => d.inv
+        | inv-left => *-comm d.inv d.val *> d.inv-right
+        | inv-right => d.inv-right
+
+      \func rdiv {M : CMonoid} (d : RDiv {M} { | elem => ide }) : Inv d.val \cowith
+        | inv => d.inv
+        | inv-left => d.inv-left
+        | inv-right => *-comm d.val d.inv *> d.inv-left
 
       \lemma cfactor-right {M : CMonoid} (x y : M) (i : Inv (x * y)) : Inv y =>
         lmake (i.inv * x) (*-assoc i.inv x y *> i.inv-left)

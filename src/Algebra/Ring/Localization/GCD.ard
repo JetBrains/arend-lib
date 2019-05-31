@@ -1,0 +1,229 @@
+\import Algebra.Domain
+\import Algebra.Group
+\import Algebra.Monoid
+\import Algebra.Monoid.Category
+\import Algebra.Monoid.GCD
+\import Algebra.Monoid.Prime
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Ring.Localization
+\import Algebra.Semiring
+\import Logic
+\import Paths
+\open Monoid
+
+\class RSubset
+  | Nom : IntegralDomain
+  | Denom : Monoid
+  | map : MonoidHom Denom Nom
+  \where
+    \func toSubset {S : RSubset} : Subset Nom \cowith
+      | contains x => TruncP (\Sigma (y : Denom) (map.func y = x))
+
+\record LocSet {S : RSubset} (nom : Nom) (denom : Denom) (coprime : Coprime nom (map.func denom))
+  \where
+    \lemma equals {S : RSubset} {a b : LocSet} (p : a.nom = b.nom) (q : a.denom = b.denom) : a = b
+      => path (\lam i => \new LocSet {
+        | nom => p @ i
+        | denom => q @ i
+        | coprime => pathInProp (\lam j => Coprime (p @ j) (map.func (q @ j))) a.coprime b.coprime @ i
+      })
+
+\instance LocRing {S : GCDSubset} : IntegralDomain LocSet
+  | zro => inc zro
+  | + (a b : LocSet) => ratio (a.nom * map.func b.denom + b.nom * map.func a.denom) (a.denom * b.denom)
+  | zro-left (a : LocSet) => ratio.pmap (
+      zro * map.func a.denom + a.nom * map.func ide ==< pmap (\lam t => t + a.nom * map.func ide) (Semiring.zro_*-left _) >==
+      zro + a.nom * map.func ide                    ==< zro-left _ >==
+      a.nom * map.func ide                          ==< pmap (a.nom *) map.func-ide >==
+      a.nom * ide                                   ==< ide-right a.nom >==
+      a.nom                                         `qed
+    ) (ide-left a.denom) *> ratio-lem a
+  | +-assoc (a b c : LocSet) => {?}
+  | +-comm (a b : LocSet) => ratio.pmap (+-comm _ _) (denom_comm a.denom b.denom)
+  | ide => \new LocSet ide ide (\lam z z|1 _ => Inv.ldiv z|1)
+  | * => **
+  | ide-left a => ratio.pmap (ide-left _) (ide-left _) *> ratio-lem a
+  | *-assoc (a b c : LocSet) => {?}
+  | ldistr (a b c : LocSet) => {?}
+  | negative (a : LocSet) => \new LocSet (negative a.nom) a.denom (\lam z (z|-an : LDiv z (negative a.nom)) => a.coprime z (\new LDiv {
+      | inv => negative z|-an.inv
+      | inv-right => Ring.negative_*-right z z|-an.inv *> pmap negative z|-an.inv-right *> negative-isInv a.nom
+    }))
+  | negative-left (a : LocSet) => nom_=0 (Domain.nonZero-cancel-right _ _ _ (denom_/=0 _)
+      (gcd_nom _ _ *> pmap (\lam t => t + a.nom * map.func a.denom) (Ring.negative_*-left a.nom (map.func a.denom)) *> negative-left (a.nom * map.func a.denom) *> inv (zro_*-left _)))
+  | *-comm (a b : LocSet) => ratio.pmap (*-comm a.nom b.nom) (denom_comm a.denom b.denom)
+  | #0 (a : LocSet) => a.nom `#0
+  | #0-zro => #0-zro
+  | #0-+ (a b : LocSet) a+b#0 => \case #0-+ _ _ (transport #0 (gcd_nom _ _) (apartZeroProduct _ _ a+b#0 (denom_#0 _))) \with {
+    | byLeft an*bd#0 => byLeft (Ring.#0-*-left _ _ an*bd#0)
+    | byRight bn*ad#0 => byRight (Ring.#0-*-left _ _ bn*ad#0)
+  }
+  | #0-tight (a : LocSet) a/#0 => nom_=0 (#0-tight a.nom a/#0)
+  | #0-*-left (a b : LocSet) a*b#0 =>
+      Ring.#0-*-left a.nom b.nom (transport #0 (gcd_nom (a.nom * b.nom) (a.denom * b.denom)) (apartZeroProduct _ _ a*b#0 (denom_#0 _)))
+  | zro#ide => zro#ide
+  | apartZeroProduct (a b : LocSet) a#0 b#0 =>
+      Ring.#0-*-left _ _ (transport #0 (inv (gcd_nom (a.nom * b.nom) (a.denom * b.denom))) (apartZeroProduct a.nom b.nom a#0 b#0))
+  \where {
+    \open AddGroup
+
+    \func inc {S : GCDSubset} (x : Nom) => \new LocSet x ide (\lam z _ z|1 => Inv.ldiv (transport (\lam x => LDiv z x) map.func-ide z|1))
+
+    \class GCDSubset \extends RSubset
+      | rat : Nom -> Denom -> \Sigma Nom Denom
+      | gcd_val : Nom -> Denom -> Denom
+      | gcd_nom (a : Nom) (b : Denom) : (rat a b).1 * map.func (gcd_val a b) = a
+      | gcd_denom (a : Nom) (b : Denom) : (rat a b).2 * gcd_val a b = b
+      | gcd_val_univ (a : Nom) (b : Denom) (z : Nom) : LDiv z a -> LDiv z (map.func b) -> LDiv z (map.func (gcd_val a b))
+      | denom_#0 (a : Denom) : map.func a `#0
+      | inv-ide (a : Denom) : Inv (map.func a) -> a = ide
+      | map-inj (a b : Denom) : map.func a = map.func b -> a = b
+
+    \lemma denom_/=0 {S : GCDSubset} (a : Denom) : Not (map.func a = zro)
+      => \lam p => #0-zro (transport #0 p (denom_#0 a))
+
+    \lemma denom_comm {S : GCDSubset} (a b : Denom) : a * b = b * a
+      => map-inj (a * b) (b * a) (map.func-* a b *> *-comm (map.func a) (map.func b) *> inv (map.func-* b a))
+
+    \lemma nom_=0 {S : GCDSubset} {a : LocSet} (p : a.nom = zro) : a = inc zro
+      => LocSet.equals p (inv-ide a.denom (a.coprime (map.func a.denom)
+            (\new LDiv { | inv => zro | inv-right => zro_*-right _ *> inv p })
+            (\new LDiv { | inv => ide | inv-right => ide-right _ })))
+
+    \func ratio {S : GCDSubset} (nom : Nom) (denom : Denom) : LocSet
+      => \let! (x,y) => rat nom denom
+         \in \new LocSet x y (coprime nom denom)
+      \where {
+        \lemma coprime {S : GCDSubset} (a : Nom) (b : Denom) : Coprime (rat a b).1 (map.func (rat a b).2)
+          => \lam z z|x z|y =>
+            \let | u => map.func (gcd_val a b)
+                 | zu|a => transport (\lam t => LDiv (z * u) t) (gcd_nom a b) (LDiv.product-right z (rat a b).1 u z|x)
+                 | zu|b => transport (\lam t => LDiv (z * u) t) (inv (map.func-* _ _) *> Paths.pmap map.func (gcd_denom a b)) (LDiv.product-right z (map.func (rat a b).2) u z|y)
+                 | zu|u : LDiv (z * u) u => gcd_val_univ a b (z * u) zu|a zu|b
+            \in Inv.lmake zu|u.inv (Domain.nonZero-cancel-right (zu|u.inv * z) ide u (denom_/=0 (gcd_val a b)) (
+              (zu|u.inv * z) * u ==< *-assoc _ _ _ >==
+              zu|u.inv * (z * u) ==< *-comm _ _ >==
+              (z * u) * zu|u.inv ==< zu|u.inv-right >==
+              u                  ==< inv (ide-left u) >==
+              ide * u            `qed))
+
+        \func pmap {S : GCDSubset} {a a' : Nom} (p : a = a') {b b' : Denom} (q : b = b') : ratio a b = ratio a' b'
+          => path (\lam i => ratio (p @ i) (q @ i))
+      }
+
+    \lemma ratio-*-right {S : GCDSubset} (x : Nom) (y z : Denom) : ratio x y = ratio (x * map.func z) (y * z)
+      => \let | (x',y') => rat x y
+              | u => gcd_val x y
+              | x'*u=x => gcd_nom x y
+              | y'*u=y => gcd_denom x y
+              | (xz',yz') => rat (x * map.func z) (y * z)
+              | v => gcd_val (x * map.func z) (y * z)
+              | xz'*v=x*z => gcd_nom (x * map.func z) (y * z)
+              | yz'*v=y*z => gcd_denom (x * map.func z) (y * z)
+         \in {?}
+
+    \lemma ratio-*-left {S : GCDSubset} (x : Nom) (y z : Denom) : ratio x y = ratio (map.func z * x) (z * y)
+      => ratio-*-right x y z *> ratio.pmap (*-comm x (map.func z)) (denom_comm y z)
+
+    \lemma ratio-equiv {S : GCDSubset} (x r : Nom) (y s : Denom) (p : x * map.func s = r * map.func y) : ratio x y = ratio r s
+      => ratio x y                      ==< ratio-*-right x y s >==
+         ratio (x * map.func s) (y * s) ==< ratio.pmap (p *> *-comm _ _) idp >==
+         ratio (map.func y * r) (y * s) ==< inv (ratio-*-left r s y) >==
+         ratio r s                      `qed
+
+    \lemma ratio-lem {S : GCDSubset} (a : LocSet) : ratio a.nom a.denom = a
+      => \let | (x,y) => rat a.nom a.denom
+              | u => gcd_val a.nom a.denom
+              | x*u=an => gcd_nom a.nom a.denom
+              | y*u=ad => gcd_denom a.nom a.denom
+              | x*ad=an*y => Domain.nonZero-cancel-right _ _ _ (denom_/=0 u) (
+                  (x * map.func a.denom) * map.func u ==< *-assoc _ _ _ >==
+                  x * (map.func a.denom * map.func u) ==< pmap (x *) (*-comm _ _) >==
+                  x * (map.func u * map.func a.denom) ==< inv (*-assoc _ _ _) >==
+                  (x * map.func u) * map.func a.denom ==< pmap (\lam t => t * map.func a.denom) x*u=an >==
+                  a.nom * map.func a.denom            ==< inv (pmap (\lam t => a.nom * map.func t) y*u=ad) >==
+                  a.nom * map.func (y * u)            ==< pmap (a.nom *) (map.func-* y u) >==
+                  a.nom * (map.func y * map.func u)   ==< inv (*-assoc _ _ _) >==
+                  (a.nom * map.func y) * map.func u   `qed)
+              | ad|y : LDiv (map.func a.denom) (map.func y) => div-lem a.denom y a.nom
+                        (\lam z z|ad z|an => a.coprime z z|an z|ad)
+                        (transport (\lam t => LDiv (map.func a.denom) t) x*ad=an*y (\new LDiv { | inv => x | inv-right => *-comm _ _ }))
+              | y|ad : LDiv (map.func y) (map.func a.denom) => div-lem y a.denom x
+                        (\lam z z|y z|x => ratio.coprime a.nom a.denom z z|x z|y)
+                        (transport (\lam t => LDiv (map.func y) t) (inv x*ad=an*y) (\new LDiv { | inv => a.nom | inv-right => *-comm _ _ }))
+              | v => y|ad.inv
+              | v-inv : Inv v => Inv.lmake ad|y.inv (Domain.nonZero-cancel-left _ _ _(denom_/=0 a.denom) (
+                  map.func a.denom * (ad|y.inv * v) ==< inv (*-assoc _ _ _) >==
+                  (map.func a.denom * ad|y.inv) * v ==< pmap (\lam t => t * v) ad|y.inv-right >==
+                  map.func y * v                    ==< y|ad.inv-right >==
+                  map.func a.denom                  ==< inv (ide-right _) >==
+                  map.func a.denom * ide            `qed))
+              | u-inv : Inv (map.func u) => transport (\lam t => Inv t) (Domain.nonZero-cancel-left _ _ _ (denom_/=0 y) (y|ad.inv-right *> inv (pmap map.func y*u=ad) *> map.func-* _ _)) v-inv
+              | u=1 => pmap map.func (inv-ide u u-inv) *> map.func-ide
+              | x=an => inv (pmap (x *) u=1 *> ide-right x) *> x*u=an
+              | y=ad => map-inj y a.denom (inv (map.func-* _ _ *> pmap (map.func y *) u=1 *> ide-right _) *> pmap map.func y*u=ad)
+         \in LocSet.equals x=an y=ad
+      \where {
+        \lemma div-lem {S : GCDSubset} (a c : Denom) (b : Nom) (p : Coprime (map.func a) b) (a|bc : LDiv (map.func a) (b * map.func c))
+          : \level (LDiv (map.func a) (map.func c))
+                   (LDiv.cancelProp (map.func a) (\lam x y => Domain.nonZero-cancel-left (map.func a) x y (denom_/=0 a)) (map.func c))
+          => \let | e => gcd_val (b * map.func c) (a * c)
+                  | c|e : LDiv (map.func c) (map.func e) => gcd_val_univ (b * map.func c) (a * c) (map.func c)
+                                                                         (\new LDiv { | inv => b | inv-right => *-comm _ _ })
+                                                                         (\new LDiv { | inv => map.func a | inv-right => *-comm _ _ *> inv (map.func-* a c) })
+                  | x => c|e.inv
+                  | (x',y') => rat (b * map.func c) (a * c)
+                  | x-inv : Inv x => p x (\new LDiv {
+                      | inv => map.func y'
+                      | inv-right => Domain.nonZero-cancel-left _ _ _ (denom_/=0 c) (
+                          map.func c * (x * map.func y') ==< inv (*-assoc _ _ _) >==
+                          (map.func c * x) * map.func y' ==< pmap (\lam t => t * map.func y') c|e.inv-right >==
+                          map.func e * map.func y'       ==< *-comm _ _ >==
+                          map.func y' * map.func e       ==< inv (map.func-* y' e) >==
+                          map.func (y' * e)              ==< pmap map.func (gcd_denom (b * map.func c) (a * c)) >==
+                          map.func (a * c)               ==< map.func-* a c >==
+                          map.func a * map.func c        ==< *-comm _ _ >==
+                          map.func c * map.func a        `qed)
+                    }) (\new LDiv {
+                      | inv => x'
+                      | inv-right => Domain.nonZero-cancel-left _ _ _ (denom_/=0 c) (
+                          map.func c * (x * x') ==< inv (*-assoc _ _ _) >==
+                          (map.func c * x) * x' ==< pmap (\lam t => t * x') c|e.inv-right >==
+                          map.func e * x'       ==< *-comm _ _ >==
+                          x' * map.func e       ==< gcd_nom (b * map.func c) (a * c) >==
+                          b * map.func c        ==< *-comm _ _ >==
+                          map.func c * b        `qed
+                      )
+                    })
+             \in LDiv.trans (map.func a) (map.func e) (map.func c)
+                            (gcd_val_univ (b * map.func c) (a * c) (map.func a) a|bc (\new LDiv { | inv => map.func c | inv-right => inv (map.func-* a c) }))
+                            (\new LDiv {
+                              | inv => x-inv.inv
+                              | inv-right =>
+                                  map.func e * x-inv.inv       ==< pmap (\lam t => t * x-inv.inv) (inv c|e.inv-right) >==
+                                  (map.func c * x) * x-inv.inv ==< *-assoc (map.func c) x x-inv.inv >==
+                                  map.func c * (x * x-inv.inv) ==< pmap (map.func c *) x-inv.inv-right >==
+                                  map.func c * ide             ==< ide-right (map.func c) >==
+                                  map.func c                   `qed
+                            })
+      }
+
+    \func \infixl 7 ** {S : GCDSubset} (a b : LocSet) => ratio (a.nom * b.nom) (a.denom * b.denom)
+
+    \lemma ratio-* {S : GCDSubset} (x y : Nom) (z w : Denom) : ratio x z ** ratio y w = ratio (x * y) (z * w)
+      => {?}
+  }
+
+\open LocRing
+
+\func localization {S : GCDSubset} : Localization Nom {RSubset.toSubset} \cowith
+  | R' => LocRing
+  | inL {
+    | func => inc
+    | func-ide => LocSet.equals (idpe ide) (idpe ide)
+    | func-+ x y => {?}
+    | func-* x y => {?}
+  }
+  | local x => {?}
+  | local-univ => {?}

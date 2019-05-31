@@ -29,14 +29,7 @@
       | <= x y => TruncP (LDiv x y)
       | <=-reflexive x => inP (\new LDiv x x ide (ide-right x))
       | <=-transitive x y z [x|y] [y|z] => \case [x|y], [y|z] \with {
-        | inP (x|y : LDiv x y), inP (y|z : LDiv y z) => inP (\new LDiv {
-          | inv => x|y.inv * y|z.inv
-          | inv-right =>
-            x * (x|y.inv * y|z.inv) ==< inv (*-assoc _ _ _) >==
-            (x * x|y.inv) * y|z.inv ==< pmap (\lam t => t * y|z.inv) x|y.inv-right >==
-            y * y|z.inv             ==< y|z.inv-right >==
-            z                       `qed
-        })
+        | inP (x|y : LDiv x y), inP (y|z : LDiv y z) => inP (LDiv.trans x y z x|y y|z)
       }
 
     \func \infix 4 ~ {M : CMonoid} => Equivalence.~ {EquivRel {DivPreoder {M}}}
@@ -90,7 +83,7 @@
     \instance DivQuotientGCDMonoid {M : GCDMonoid} : GCDMonoid
       | CancelCMonoid => DivQuotientCancelMonoid {M}
       | isGCD [x] [y] => \case [x] \as [x], [y] \as [y] \return TruncP (GCD [x] [y]) \with {
-        | in~ x, in~ y => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD {DivQuotientCancelMonoid {M}} (in~ x) (in~ y) (in~ g.gcd) {
+        | in~ x, in~ y => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD (in~ x) (in~ y) (in~ g.gcd) {
           | gcd|val1 => \new LDiv { | inv => in~ g.gcd|val1.inv | inv-right => pmap in~ g.gcd|val1.inv-right }
           | gcd|val2 => \new LDiv { | inv => in~ g.gcd|val2.inv | inv-right => pmap in~ g.gcd|val2.inv-right }
           | gcd-univ => \lam [g'] [g']|x [g']|y => ToProp.fromProp (
@@ -101,9 +94,9 @@
             \with {
               | in~ g', ~g'|x : LDiv (in~ g') (in~ x), ~g'|y : LDiv (in~ g') (in~ y) =>
                 \case ~g'|x.inv \as x',
-                      ~g'|x.inv-right : in~ g' * {DivQuotientCancelMonoid {M}} x' = in~ x,
+                      ~g'|x.inv-right : in~ g' * x' = in~ x,
                       ~g'|y.inv \as y',
-                      ~g'|y.inv-right : in~ g' * {DivQuotientCancelMonoid {M}} y' = in~ y
+                      ~g'|y.inv-right : in~ g' * y' = in~ y
                 \with {
                   | in~ x', ~x'*g'=x, in~ y', ~y'*g'=y =>
                     \let g'|gcd : LDiv g' g.gcd => g.gcd-univ g' (makeDiv g' x' x ~x'*g'=x) (makeDiv g' y' y ~y'*g'=y)
@@ -132,11 +125,11 @@
         x * d1.inv ==< d1.inv-right >==
         y          `qed
 
-    \func div-to~ {M : CancelCMonoid} {x y : M} (x|y : LDiv x y) : LDiv {DivQuotientMonoid {M}} (in~ x) (in~ y) \cowith
+    \func div-to~ {M : CancelCMonoid} {x y : M} (x|y : LDiv x y) : LDiv (in~ x) (in~ y) \cowith
       | inv => in~ x|y.inv
       | inv-right => pmap in~ x|y.inv-right
 
-    \lemma div-from~ {M : CancelCMonoid} {x y : M} (d : LDiv {DivQuotientMonoid {M}} (in~ x) (in~ y)) : LDiv x y =>
+    \lemma div-from~ {M : CancelCMonoid} {x y : M} (d : LDiv (in~ x) (in~ y)) : LDiv x y =>
       \case d.inv \as i, d.inv-right : in~ x * i = in~ y \return LDiv x y \with {
         | in~ i, ~x*i=y => \case (make~ (x * i) y ~x*i=y).1 \return LDiv x y \with {
           | inP (x*i|y : LDiv (x * i) y) => \new LDiv x y (i * x*i|y.inv) (inv (*-assoc _ _ _) *> x*i|y.inv-right)
