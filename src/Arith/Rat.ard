@@ -1,36 +1,154 @@
+\import Algebra.Group
+\import Algebra.Monoid
 \import Algebra.Monoid.Prime
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Algebra.Semiring
 \import Arith.Int
 \import Arith.Nat
 \import Logic
+\import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
-\open NatLE
-\open Nat
+\open Nat \hiding (*,+,-,<=)
+\open Monoid(Inv,LDiv)
 
 \record Rat (nom : Int) (denom : Nat) (nonZero : denom > 0) (coprime : Coprime nom (pos denom))
 
-\func rat (nom denom : Int) (nonZero : Not (denom = 0)) : Rat \elim nom, denom
-  | pos nom, pos denom => {?}
-  | pos nom, neg (suc denom) => {?}
-  | neg (suc nom), pos denom => {?}
-  | neg (suc nom), neg (suc denom) => {?}
+\func rat (nom denom : Int) : Rat \elim nom, denom
+  | _, pos 0 => \new Rat 0 1 (suc<=suc zero<=_) (reduce_comprime_pos 0 1)
+  | neg 0, neg 0 => \new Rat 0 1 (suc<=suc zero<=_) (reduce_comprime_pos 0 1)
+  | pos a, pos (suc b) => \let! (x,y) => reduce a a (suc b) \in \new Rat (pos x) y (reduce-nonZero a b) (reduce_comprime_pos a (suc b))
+  | pos a, neg (suc b) => \let! (x,y) => reduce a a (suc b) \in \new Rat (neg x) y (reduce-nonZero a b) (reduce_comprime_neg a (suc b))
+  | neg (suc _ \as a), pos (suc b) => \let! (x,y) => reduce a a (suc b) \in \new Rat (neg x) y (reduce-nonZero a b) (reduce_comprime_neg a (suc b))
+  | neg (suc _ \as a), neg (suc b) => \let! (x,y) => reduce a a (suc b) \in \new Rat (pos x) y (reduce-nonZero a b) (reduce_comprime_pos a (suc b))
   \where {
-    \func reduce (a b : Nat) => helper a a b
+    \func reduce (c a b : Nat) : \Sigma (nom denom : Nat) \elim c, a
+      | 0, _ => (0,1)
+      | suc _, 0 => (0,1)
+      | suc c, a =>
+        \let! | (q,r) => divMod b a
+              | (x,y) => reduce c r a
+        \in (y, y * q + x)
+
+    \func gcd (c a b : Nat) : Nat \elim c, a
+      | 0, _ => b
+      | _, 0 => b
+      | suc c, a => gcd c (mod b a) a
+
+    \lemma reduce_comprime_pos (a b : Nat) => helper a a b
       \where {
-        \func helper (c a b : Nat) : \Sigma Nat Nat \elim c, a
+        \func helper' (c a b : Nat) : \Sigma Nat Nat \elim c, a
           | 0, _ => (0,1)
           | _, 0 => (0,1)
           | suc c, a =>
             \let! | (q,r) => divMod b a
-                  | (x,y) => helper c r a
+                  | (x,y) => helper' c r a
             \in (y, y * q + x)
+
+        \lemma helper (c a b : Nat)
+          : \let! (x,y) => reduce c a b
+            \in Coprime (pos x) (pos y) \elim c, a
+          | 0, _ => \lam z _ (z|1 : LDiv z 1) => Inv.rmake z|1.inv z|1.inv-right
+          | suc _, 0 => \lam z _ (z|1 : LDiv z 1) => Inv.rmake z|1.inv z|1.inv-right
+          | suc c, suc _ \as a =>
+            \let! | (q,r) => divMod b a
+                  | (x,y) => reduce c r a
+                  | s => y * q + x
+            \in \lam z (z|y : LDiv z y) (z|s : LDiv z s) => helper c r a z (\new LDiv { | inv => negative (z|y.inv * q) + z|s.inv | inv-right =>
+              z * (negative (z|y.inv * q) + z|s.inv)   ==< ldistr _ _ _ >==
+              z * negative (z|y.inv * q) + z * z|s.inv ==< pmap2 (+) (Ring.negative_*-right z _) z|s.inv-right >==
+              negative (z * (z|y.inv * q)) + s         ==< pmap (\lam t => negative t + s) (inv (*-assoc z z|y.inv q)) >==
+              negative ((z * z|y.inv) * q) + s         ==< pmap (\lam t => negative (t * q) + s) z|y.inv-right >==
+              negative (pos y * q) + s                 ==< inv (+-assoc _ _ _) >==
+              (negative (pos y * q) + y * q) + x       ==< pmap (\lam t => t + x) (negative-left (pos y * q)) >==
+              pos 0 + x                                ==< zro-left (pos x) >==
+              pos x                                    `qed }) z|y
       }
 
-    \func gcd (a b : Nat) => helper a a b
-      \where {
-        \func helper (c a b : Nat) : Nat \elim c, a
-          | 0, _ => b
-          | _, 0 => b
-          | suc c, a => helper c (mod b a) a
+    \lemma reduce_comprime_neg (a b : Nat)
+      : \let! (x,y) => reduce a a b
+        \in Coprime (neg x) (pos y)
+      => \lam z z|-x => reduce_comprime_pos a b z (neg-div z|-x)
+
+    \lemma reduce_gcd (c a b : Nat) (a<=c : a <= c) :
+      \let! | (x,y) => reduce c a b
+            | g => gcd c a b
+      \in \Sigma (x * g = a) (y * g = b) \elim c, a
+      | 0, 0 => (zro_*-left b, ide-left b)
+      | suc _, 0 => (zro_*-left b, ide-left b)
+      | suc c, suc _ \as a =>
+        \let! | (x,y) => reduce c (mod b a) a
+              | g => gcd c (mod b a) a
+              | (p,q) => reduce_gcd c (mod b a) a (NatLE.unsuc (<=-transitive _ a (suc c) (modProp b (suc<=suc zero<=_)) a<=c))
+        \in (q, (y * div b a + x) * g     ==< rdistr _ x g >==
+                (y * div b a) * g + x * g ==< pmap (\lam t => t + x * g) (*-assoc y _ g) >==
+                y * (div b a * g) + x * g ==< pmap (\lam t => y * t + x * g) (*-comm _ g) >==
+                y * (g * div b a) + x * g ==< pmap (\lam t => t + x * g) (inv (*-assoc y g _)) >==
+                (y * g) * div b a + x * g ==< pmap2 (\lam t s => t * div b a + s) q p >==
+                a * div b a + mod b a     ==< divModProp b a >==
+                b                         `qed)
+
+    \lemma reduce-nonZero (a b : Nat) : (reduce a a (suc b)).2 > 0 =>
+      \case (reduce a a (suc b)).2 \as r, (reduce_gcd a a (suc b) (<=-reflexive a)).2 : r * gcd a a (suc b) = suc b \return r > 0 \with {
+        | 0, p => suc/=0 (inv p *> zro_*-left _)
+        | suc r, p => suc<=suc zero<=_
       }
+
+    \func neg-div {z : Int} {x : Nat} (z|-x : LDiv z (neg x)) : LDiv z x \cowith
+      | inv => negative z|-x.inv
+      | inv-right =>
+        z * negative z|-x.inv       ==< Ring.negative_*-right z z|-x.inv >==
+        negative (z * z|-x.inv)     ==< pmap negative z|-x.inv-right >==
+        negative (negative (pos x)) ==< AddGroup.negative-isInv (pos x) >==
+        pos x                       `qed
+
+    \lemma ext (q r : Rat) (nom : q.nom = r.nom) (denom : q.denom = r.denom) : q = r =>
+      path (\lam i => \new Rat (nom @ i)
+                               (denom @ i)
+                               (pathOver (Path.inProp (coe (\lam i => denom @ i > 0) q.nonZero right) r.nonZero) @ i)
+                               (pathOver (Path.inProp {Coprime r.nom (pos r.denom)} (coe (\lam i => Coprime (nom @ i) (pos (denom @ i))) q.coprime right) r.coprime) @ i))
+
+    \lemma beta-nom (q : Rat) : Rat.nom {rat q.nom q.denom} = q.nom =>
+      \case q.nom \as nom, q.denom \as denom, q.nonZero : denom > 0, q.coprime : Coprime nom (pos denom) \return Rat.nom {rat nom denom} = nom \with {
+        | pos a, suc b, _, coprime => pmap pos {?}
+        | neg (suc a), suc b, _, coprime => pmap neg {?}
+      }
+
+    \lemma beta-denom (q : Rat) : Rat.denom {rat q.nom q.denom} = q.denom => {?}
+
+    \lemma eta (q : Rat) : rat q.nom q.denom = q => ext (rat q.nom q.denom) q (beta-nom q) (beta-denom q)
   }
+
+\instance RatDecField : DiscreteOrderedField Rat
+  | zro => rat 0 1
+  | + (q r : Rat) => rat (q.nom * r.denom + r.nom * q.denom) (q.denom * r.denom)
+  | zro-left (q : Rat) => {?}
+  | +-assoc => {?}
+  | +-comm => {?}
+  | ide => rat 1 1
+  | * (q r : Rat) => rat (q.nom * r.nom) (q.denom * r.denom)
+  | ide-left => {?}
+  | *-assoc => {?}
+  | ldistr => {?}
+  | negative => {?}
+  | negative-left => {?}
+  | *-comm => {?}
+  | eitherZeroOrInv => {?}
+  | < => {?}
+  | <-irreflexive => {?}
+  | <-transitive => {?}
+  | <_+-left => {?}
+  | zro<ide => {?}
+  | positive_* => {?}
+  | #0=>eitherPosOrNeg => {?}
+
+\func show (q : Rat) => (q.nom,q.denom)
+
+{-
+\func test1 : show (rat 331723123456789123456789123465433676376373476 5722671234567891234567891235437676734673 + rat 583465123456789123456789123643765765 79427971234567891234567891233457436) =
+              (26351433686845239564532611540171096632284854213267500057753331322975737151237381, 454540166204147586231724129504431200106133031038106933987164532916610878428)
+              => idp
+
+\func test2 : show (rat 35431 54631 + rat 45431 35311) = (3733045002, 1929075241) => idp
+-}
