@@ -6,8 +6,11 @@
 \import Algebra.Monoid.Prime
 \import Algebra.Pointed
 \import Algebra.Ring
+\import Algebra.Ring.Category \hiding (func, func-ide, func-*)
 \import Algebra.Ring.Localization \using (localization \as rloc)
 \import Algebra.Semiring
+\import Category (isEpi)
+\import HLevel
 \import Logic
 \import Paths
 \open Monoid
@@ -39,13 +42,27 @@
       a.nom * ide                                   ==< ide-right a.nom >==
       a.nom                                         `qed
     ) (ide-left a.denom) *> ratio-lem a
-  | +-assoc (a b c : LocSet) => {?}
+  | +-assoc (a b c : LocSet) =>
+      \let p =>
+          (a.nom * map.func b.denom + b.nom * map.func a.denom) * map.func c.denom + c.nom * map.func (a.denom * b.denom)                                 ==< pmap2 (\lam t s => t + c.nom * s) (rdistr _ _ _) (map.func-* _ _) >==
+          ((a.nom * map.func b.denom) * map.func c.denom + (b.nom * map.func a.denom) * map.func c.denom) + c.nom * (map.func a.denom * map.func b.denom) ==< +-assoc _ _ _ >==
+          (a.nom * map.func b.denom) * map.func c.denom + ((b.nom * map.func a.denom) * map.func c.denom + c.nom * (map.func a.denom * map.func b.denom)) ==< path (\lam i => (*-assoc _ _ _ @ i) + (((*-assoc _ _ _ *> pmap (b.nom *) (*-comm _ _) *> inv (*-assoc _ _ _)) @ i) + ((pmap (c.nom *) (*-comm _ _) *> inv (*-assoc _ _ _)) @ i))) >==
+          a.nom * (map.func b.denom * map.func c.denom) + ((b.nom * map.func c.denom) * map.func a.denom + (c.nom * map.func b.denom) * map.func a.denom) ==< inv (pmap2 (\lam t s => a.nom * t + s) (map.func-* _ _) (rdistr _ _ _)) >==
+          a.nom * map.func (b.denom * c.denom) + (b.nom * map.func c.denom + c.nom * map.func b.denom) * map.func a.denom                                 `qed
+      \in (a ++ b) ++ c                                                                                                                                           ==< inv (path (\lam i => ((ratio-lem a @ i) ++ (ratio-lem b @ i)) ++ (ratio-lem c @ i))) >==
+          (ratio a.nom a.denom ++ ratio b.nom b.denom) ++ ratio c.nom c.denom                                                                                     ==< path (\lam i => (ratio-+ a.nom b.nom a.denom b.denom @ i) ++ ratio c.nom c.denom) >==
+          ratio (a.nom * map.func b.denom + b.nom * map.func a.denom) (a.denom * b.denom) ++ ratio c.nom c.denom                                                  ==< ratio-+ _ _ _ _ >==
+          ratio ((a.nom * map.func b.denom + b.nom * map.func a.denom) * map.func c.denom + c.nom * map.func (a.denom * b.denom)) ((a.denom * b.denom) * c.denom) ==< ratio.pmap p (*-assoc _ _ _) >==
+          ratio (a.nom * map.func (b.denom * c.denom) + (b.nom * map.func c.denom + c.nom * map.func b.denom) * map.func a.denom) (a.denom * (b.denom * c.denom)) ==< inv (ratio-+ _ _ _ _) >==
+          ratio a.nom a.denom ++ ratio (b.nom * map.func c.denom + c.nom * map.func b.denom) (b.denom * c.denom)                                                  ==< inv (path (\lam i => ratio a.nom a.denom ++ (ratio-+ b.nom c.nom b.denom c.denom @ i))) >==
+          ratio a.nom a.denom ++ (ratio b.nom b.denom ++ ratio c.nom c.denom)                                                                                     ==< path (\lam i => (ratio-lem a @ i) ++ ((ratio-lem b @ i) ++ (ratio-lem c @ i))) >==
+          a ++ (b ++ c)                                                                                                                                           `qed
   | +-comm (a b : LocSet) => ratio.pmap (+-comm _ _) (denom_comm a.denom b.denom)
   | ide => \new LocSet ide ide (\lam z z|1 _ => Inv.ldiv z|1)
   | * => **
   | ide-left a => ratio.pmap (ide-left _) (ide-left _) *> ratio-lem a
   | *-assoc (a b c : LocSet) =>
-      (a ** b) ** c                                                       ==< path (\lam i => ((inv (ratio-lem a) @ i) ** (inv (ratio-lem b) @ i)) ** (inv (ratio-lem c) @ i)) >==
+      (a ** b) ** c                                                       ==< inv (path (\lam i => ((ratio-lem a @ i) ** (ratio-lem b @ i)) ** (ratio-lem c @ i))) >==
       (ratio a.nom a.denom ** ratio b.nom b.denom) ** ratio c.nom c.denom ==< path (\lam i => (ratio-* a.nom b.nom a.denom b.denom @ i) ** ratio c.nom c.denom) >==
       ratio (a.nom * b.nom) (a.denom * b.denom) ** ratio c.nom c.denom    ==< ratio-* (a.nom * b.nom) c.nom (a.denom * b.denom) c.denom >==
       ratio ((a.nom * b.nom) * c.nom) ((a.denom * b.denom) * c.denom)     ==< ratio.pmap (*-assoc a.nom b.nom c.nom) (*-assoc a.denom b.denom c.denom) >==
@@ -53,7 +70,24 @@
       ratio a.nom a.denom ** (ratio (b.nom * c.nom) (b.denom * c.denom))  ==< inv (path (\lam i => ratio a.nom a.denom ** (ratio-* b.nom c.nom b.denom c.denom @ i))) >==
       ratio a.nom a.denom ** (ratio b.nom b.denom ** ratio c.nom c.denom) ==< path (\lam i => (ratio-lem a @ i) ** ((ratio-lem b @ i) ** (ratio-lem c @ i))) >==
       a ** (b ** c)                                                       `qed
-  | ldistr (a b c : LocSet) => {?}
+  | ldistr (a b c : LocSet) =>
+      \let p =>
+          map.func a.denom * ((a.nom * b.nom) * map.func c.denom + (a.nom * c.nom) * map.func b.denom)                      ==< pmap (map.func a.denom *) (pmap2 (+) (*-comm _ _) (*-comm _ _)) >==
+          map.func a.denom * (map.func c.denom * (a.nom * b.nom) + map.func b.denom * (a.nom * c.nom))                      ==< ldistr _ _ _ >==
+          map.func a.denom * (map.func c.denom * (a.nom * b.nom)) + map.func a.denom * (map.func b.denom * (a.nom * c.nom)) ==< inv (pmap2 (+) (*-assoc _ _ _) (*-assoc _ _ _)) >==
+          (map.func a.denom * map.func c.denom) * (a.nom * b.nom) + (map.func a.denom * map.func b.denom) * (a.nom * c.nom) ==< pmap2 (+) (*-comm _ _) (*-comm _ _) >==
+          (a.nom * b.nom) * (map.func a.denom * map.func c.denom) + (a.nom * c.nom) * (map.func a.denom * map.func b.denom) ==< inv (pmap2 (\lam t s => (a.nom * b.nom) * t + (a.nom * c.nom) * s) (map.func-* _ _) (map.func-* _ _)) >==
+          (a.nom * b.nom) * map.func (a.denom * c.denom) + (a.nom * c.nom) * map.func (a.denom * b.denom)                   `qed
+      \in a ** (b ++ c)                                                                                                                                       ==< inv (path (\lam i => (ratio-lem a @ i) ** ((ratio-lem b @ i) ++ (ratio-lem c @ i)))) >==
+          ratio a.nom a.denom ** (ratio b.nom b.denom ++ ratio c.nom c.denom)                                                                                 ==< path (\lam i => ratio a.nom a.denom ** (ratio-+ b.nom c.nom b.denom c.denom @ i)) >==
+          ratio a.nom a.denom ** ratio (b.nom * map.func c.denom + c.nom * map.func b.denom) (b.denom * c.denom)                                              ==< ratio-* _ _ _ _ >==
+          ratio (a.nom * (b.nom * map.func c.denom + c.nom * map.func b.denom)) (a.denom * (b.denom * c.denom))                                               ==< ratio.pmap (ldistr a.nom _ _ *> inv (pmap2 (+) (*-assoc _ _ _) (*-assoc _ _ _))) (inv (*-assoc _ _ _) *> pmap (\lam t => t * c.denom) (denom_comm _ _) *> *-assoc _ _ _) >==
+          ratio ((a.nom * b.nom) * map.func c.denom + (a.nom * c.nom) * map.func b.denom) (b.denom * (a.denom * c.denom))                                     ==< ratio-*-left _ _ _ >==
+          ratio (map.func a.denom * ((a.nom * b.nom) * map.func c.denom + (a.nom * c.nom) * map.func b.denom)) (a.denom * (b.denom * (a.denom * c.denom)))    ==< ratio.pmap p (inv (*-assoc _ _ _)) >==
+          ratio ((a.nom * b.nom) * map.func (a.denom * c.denom) + (a.nom * c.nom) * map.func (a.denom * b.denom)) ((a.denom * b.denom) * (a.denom * c.denom)) ==< inv (ratio-+ _ _ _ _) >==
+          ratio (a.nom * b.nom) (a.denom * b.denom) ++ ratio (a.nom * c.nom) (a.denom * c.denom)                                                              ==< inv (path (\lam i => (ratio-* a.nom b.nom a.denom b.denom @ i) ++ (ratio-* a.nom c.nom a.denom c.denom @ i))) >==
+          ratio a.nom a.denom ** ratio b.nom b.denom ++ ratio a.nom a.denom ** ratio c.nom c.denom                                                            ==< path (\lam i => (ratio-lem a @ i) ** (ratio-lem b @ i) ++ (ratio-lem a @ i) ** (ratio-lem c @ i)) >==
+          a ** b ++ a ** c                                                                                                                                    `qed
   | negative (a : LocSet) => \new LocSet (negative a.nom) a.denom (\lam z (z|-an : LDiv z (negative a.nom)) => a.coprime z (\new LDiv {
       | inv => negative z|-an.inv
       | inv-right => Ring.negative_*-right z z|-an.inv *> pmap negative z|-an.inv-right *> negative-isInv a.nom
@@ -249,7 +283,7 @@
                             })
       }
 
-    \func \infixl 7 ++ {S : GCDSubset} (a b : LocSet) => ratio (a.nom * map.func b.denom + b.nom * map.func a.denom) (a.denom * b.denom)
+    \func \infixl 6 ++ {S : GCDSubset} (a b : LocSet) => ratio (a.nom * map.func b.denom + b.nom * map.func a.denom) (a.denom * b.denom)
 
     \lemma ratio-+ {S : GCDSubset} (x y : Nom) (z w : Denom) : ratio x z ++ ratio y w = ratio (x * map.func w + y * map.func z) (z * w)
       => \let | (x',z') => rat x z
@@ -303,11 +337,63 @@
 
 \func localization {S : GCDSubset} : Localization Nom {RSubset.toSubset} \cowith
   | R' => LocRing
-  | inL {
-    | func => inc
-    | func-ide => LocSet.equals (idpe ide) (idpe ide)
-    | func-+ x y => {?}
-    | func-* x y => {?}
+  | inL => locMap
+  | local x p => \case p \with {
+    | inP (y,fy=x) =>
+      \let j => \new LocSet ide y (\lam z z|1 _ => Inv.ldiv z|1)
+      \in Inv.lmake j (
+        j ** inc x                         ==< inv (path (\lam i => (ratio-lem j @ i) ** (ratio-lem (inc x) @ i))) >==
+        ratio ide y ** ratio x ide         ==< ratio-* ide x y ide >==
+        ratio (ide * x) (y * ide)          ==< path (\lam i => ratio ((pmap (ide *) (inv fy=x) *> *-comm _ _) @ i) (y * ide)) >==
+        ratio (map.func y * ide) (y * ide) ==< inv (ratio-*-left _ _ _) >==
+        ratio ide ide                      ==< ratio-lem ide >==
+        (ide : LocSet)                     `qed)
   }
-  | local x => {?}
-  | local-univ => {?}
+  | local-univ {R} (f : RingHom Nom R) l =>
+    \let | B (g : RingHom LocRing R) => \Pi (x : Nom) -> g.func (inc x) = f.func x
+         | f' : RingHom LocRing R =>
+            \let j (x : Denom) : Inv (f.func (map.func x)) => l (map.func x) (inP (x, idp))
+            \in \new RingHom {
+              | func (a : LocSet) => f.func a.nom * Inv.inv {j a.denom}
+              | func-ide => inv (pmap (\lam t => f.func t * Inv.inv {j ide}) map.func-ide) *> inv-right {j ide}
+              | func-+ (a b : LocSet) => {?}
+              | func-* (a b : LocSet) => {?}
+            }
+         | p : \Sigma (f' : RingHom LocRing R) (B f') => (f', {?})
+    \in Contr.make p (\lam q => SigmaPropExt B p q {?})
+  \where {
+    \func locMap {S : GCDSubset} : RingHom Nom LocRing \cowith
+      | func => inc
+      | func-ide => idp
+      | func-+ x y =>
+        inc (x + y)                                             ==< inv (ratio-lem (inc (x + y))) >==
+        ratio (x + y) ide                                       ==< inv (ratio.pmap (pmap2 (+) (pmap (x *) map.func-ide *> ide-right x) (pmap (y *) map.func-ide *> ide-right y)) (ide-left ide)) >==
+        ratio (x * map.func ide + y * map.func ide) (ide * ide) ==< inv (ratio-+ _ _ _ _) >==
+        ratio x ide ++ ratio y ide                              ==< path (\lam i => (ratio-lem (inc x) @ i) ++ (ratio-lem (inc y) @ i)) >==
+        inc x ++ inc y                                          `qed
+      | func-* x y =>
+        inc (x * y)                ==< inv (ratio-lem (inc (x * y))) >==
+        ratio (x * y) ide          ==< inv (path (\lam i => ratio (x * y) (ide-left ide @ i))) >==
+        ratio (x * y) (ide * ide)  ==< inv (ratio-* _ _ _ _) >==
+        ratio x ide ** ratio y ide ==< path (\lam i => (ratio-lem (inc x) @ i) ** (ratio-lem (inc y) @ i)) >==
+        inc x ** inc y             `qed
+
+    \lemma locMap-epi {S : GCDSubset} : isEpi {CRingCategory} locMap => \lam {Q} (g h : RingHom) q =>
+        \let | q' x : g.func (inc x) = h.func (inc x) => path (\lam i => RingHom.func {q @ i} x)
+             | p (f : RingHom LocRing Q) (a : LocSet) : f.func a * f.func (inc (map.func a.denom)) = f.func (inc a.nom) =>
+               inv (f.func-* _ _) *> pmap f.func (
+                 a ** inc (map.func a.denom)                         ==< inv (path (\lam i => (ratio-lem a @ i) ** (ratio-lem (inc (map.func a.denom)) @ i))) >==
+                 ratio a.nom a.denom ** ratio (map.func a.denom) ide ==< ratio-* _ _ _ _ >==
+                 ratio (a.nom * map.func a.denom) (a.denom * ide)    ==< path (\lam i => ratio (*-comm _ _ @ i) (a.denom * ide)) >==
+                 ratio (map.func a.denom * a.nom) (a.denom * ide)    ==< inv (ratio-*-left a.nom ide a.denom) >==
+                 ratio a.nom ide                                     ==< ratio-lem (inc a.nom) >==
+                 qed {LocSet} (inc a.nom))
+             | ide/ y => \new LocSet ide y (\lam z z|1 _ => Inv.ldiv z|1)
+             | j y : Inv (g.func (inc (map.func y))) => Inv.lmake (g.func (ide/ y)) (p g (ide/ y) *> g.func-ide)
+        \in RingHom.equals {LocRing} (\lam (a : LocSet) => RInv.cancel (j a.denom) (
+          g.func a * g.func (inc (map.func a.denom)) ==< p g a >==
+          g.func (inc a.nom)                         ==< q' a.nom >==
+          h.func (inc a.nom)                         ==< inv (p h a) >==
+          h.func a * h.func (inc (map.func a.denom)) ==< inv (pmap (h.func a *) (q' (map.func a.denom))) >==
+          h.func a * g.func (inc (map.func a.denom)) `qed))
+  }
