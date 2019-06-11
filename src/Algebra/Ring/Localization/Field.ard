@@ -1,18 +1,19 @@
 \import Algebra.Field
+\import Algebra.Group
 \import Algebra.Monoid
+\import Algebra.Ordered
 \import Algebra.Pointed
 \import Algebra.Ring
 \import Algebra.Ring.Localization
 \import Logic
+\import Order.LinearOrder
+\import Order.StrictOrder
 \import Paths
 \import Relation.Equivalence
-\open Monoid
+\open Monoid \hiding (equals)
 \open LocRing
 
-{-
-\func test {R : CRing} (S : MSubset R) (a : SType S) : ** S (in~ a) (in~ a) = in~ (a.1 * a.1, (a.2.1 * a.2.1, contains_* a.2.1 a.2.1 a.2.2 a.2.2)) => idp
-
-\lemma localization-inv {R : CRing} (S : MSubset R) (a : SType S) (r : R) (p : contains (a.1 * r)) : Inv {LocRing S} (in~ (a.1, (a.2.1, a.2.2)))
+\lemma localization-inv {R : CRing} (S : MSubset R) (a : SType S) (r : R) (p : contains (a.1 * r)) : Inv {LocRing S} (in~ a)
   => Inv.lmake {LocRing S} (in~ (a.2.1 * r, (a.1 * r, p)))
                (path (~-equiv {SType S} _ _ (
                  ((a.2.1 * r) * a.1) * ide ==< ide-right _ >==
@@ -25,11 +26,28 @@
                  ide * ((a.1 * r) * a.2.1) `qed)))
 
 \lemma localization-nonTrivial {R : CRing} (S : MSubset R) (p : Not (S.contains zro)) : Not (zro = {LocRing S} ide)
-  => \lam zro=ide => {?}
+  => \lam zro=ide => \case unequals S zro=ide \with {
+    | inP (c, s, q) => p (transport contains (
+      c               ==< inv (ide-left c) >==
+      ide * c         ==< inv (pmap (\lam t => t * c) (ide-left ide)) >==
+      (ide * ide) * c ==< inv q >==
+      (zro * ide) * c ==< pmap (\lam t => t * c) (ide-right zro) >==
+      zro * c         ==< Ring.zro_*-left c >==
+      zro             `qed) s)
+  }
 
-\lemma localization-isDiscreteField {R : CRing} (S : MSubset R) (nt : Not (S.contains zro)) : DiscreteField { | CRing => LocRing S } \cowith
+\lemma localization-isDiscreteField {R : CRing} (S : MSubset R) (nt : Not (S.contains zro))
+                                    (fp : \Pi (x : R) -> (\Sigma (s : R) (S.contains s) (x * s = zro)) || (\Sigma (r : R) (S.contains (x * r))))
+  : DiscreteField { | CRing => LocRing S } \cowith
   | zro/=ide => localization-nonTrivial S nt
   | eitherZeroOrInv x~ => \case x~ \as x~ \return (x~ = in~ (zro, (ide, contains_ide))) || Inv x~ \with {
-    | in~ x => {?}
+    | in~ x => \case fp x.1 \with {
+      | byLeft (s, cs, x*s=0) => byLeft (equals S s cs (
+          (x.1 * ide) * s   ==< pmap (\lam t => t * s) (ide-right x.1) >==
+          x.1 * s           ==< x*s=0 >==
+          zro               ==< inv (Ring.zro_*-left s) >==
+          zro * s           ==< inv (pmap (\lam t => t * s) (Ring.zro_*-left x.2.1)) >==
+          (zro * x.2.1) * s `qed))
+      | byRight (r, c[x*r]) => byRight (localization-inv S x r c[x*r])
+    }
   }
- -}
