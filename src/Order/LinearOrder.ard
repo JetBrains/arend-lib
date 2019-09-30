@@ -4,8 +4,11 @@
 \import Order.StrictOrder
 \import Paths
 \import Set
+\open MeetSemilattice (meet_<=, meet-comm)
+\open JoinSemilattice (join_<=, join-comm, join-idemp)
+\open Preorder (~*>)
 
-\class TotalOrder \extends Lattice {
+\class TotalOrder \extends DistributiveLattice {
   | totality (x y : E) : x <= y || y <= x
 
   | join x y => (tjoin x y (totality x y)).1
@@ -17,13 +20,43 @@
   | meet-left x y => (tmeet x y (totality x y)).2.1
   | meet-right x y => (tmeet x y (totality x y)).2.2
   | meet-univ x y => (tmeet x y (totality x y)).2.3
+
+  | distrib>= x y z => transport (>= (meet x (join y z))) (total-distrib totality x y z) (<=-reflexive _)
 } \where {
   \func tjoin {E : Poset} (x y : E) => ||.rec (JoinSemilattice.Join-isProp x y)
                                               (\lam x<=y => (x, (E.<=-reflexive x, x<=y, \lam z z<=x _ => z<=x)))
                                               (\lam y<=x => (y, (y<=x, E.<=-reflexive y, \lam z _ z<=y => z<=y)))
+
   \func tmeet {E : Poset} (x y : E) => ||.rec (MeetSemilattice.Meet-isProp x y)
                                               (\lam x<=y => (y, (x<=y, E.<=-reflexive y, \lam z _ y<=z => y<=z)))
                                               (\lam y<=x => (x, (E.<=-reflexive x, y<=x, \lam z z<=x _ => z<=x)))
+
+  \lemma total-distrib {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x) (x y z : E) : meet x (join y z) = join (meet x y) (meet x z) =>
+    \case totality y z \with {
+      | byLeft y<=z => distrib-x-y totality x y z y<=z
+      | byRight z<=y => transport2 (\lam lj rj => meet x lj = rj) (join-comm z y) (join-comm (meet x z) (meet x y)) (distrib-x-y totality x z y z<=y)
+    } \where {
+    \lemma distrib-x-y {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x)
+                       (x y z : E) (y<=z : y <= z) : meet x (join y z) = join (meet x y) (meet x z) =>
+      pmap (meet x) (join_<= y z y<=z) *>
+      (\case totality x y \with {
+        | byLeft x<=y =>
+          meet_<= x y x<=y *>
+          inv (join_<= y z y<=z) *>
+          pmap2 join (inv (meet_<= x y x<=y)) (inv (meet_<= x z (x<=y ~*> y<=z)))
+        | byRight y<=x =>
+          meet-comm x y *>
+          meet_<= y x y<=x *>
+          (\case totality x z \with {
+            | byLeft x<=z =>
+              inv (join_<= x z x<=z) *>
+              pmap2 join (inv (meet-comm x y *> meet_<= y x y<=x)) (inv (meet_<= x z x<=z))
+            | byRight z<=x =>
+              inv (join-idemp x) *>
+              pmap2 join (inv (meet-comm x y *> meet_<= y x y<=x)) (inv (meet-comm x z *> meet_<= z x z<=x))
+          })
+      })
+  }
 }
 
 -- | A linearly ordered set.
