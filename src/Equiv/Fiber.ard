@@ -8,32 +8,22 @@
   \where {
     \func make {A B : \Type} (f : A -> B) {base : B} (a : A) (p : f a = base) : Fib f base => (a,p)
 
-    \func ext {A B : \Type} (f : A -> B) (b0 : B) (x x' : Fib f b0) (p : x.1 = x'.1) (q : pmap f p *> x'.2 = x.2) : x = x' =>
-      -- First, prove that q' : transport (\lam y => f y = b0) p x.p = x'.p.
-      \let q' => Jl (\lam _ p' => transport (\lam y => f y = b0) p' x.2 = inv (pmap f p') *> x.2) (inv (idp_*> x.2)) p *> rotatePathLeft (inv q)
-      -- Then use the usual Sigma extensionality.
-      \in path (\lam i => (p @ i, pathOver q' @ i))
+    \func ext {A B : \Type} (f : A -> B) (b0 : B) (x' x : Fib f b0) (p : x.1 = x'.1) (q : pmap f p *> x'.2 = x.2) : x = x' \elim x', x, p, q
+      | (x'1,idp), (x1,x2), idp, idp => idp
 
     \func equiv {A B : \Type} (f : A -> B) (b0 : B) (x x' : Fib f b0) : QEquiv {x = x'} {\Sigma (p : x.1 = x'.1) (pmap f p *> x'.2 = x.2)} =>
-      \let S (x x' : Fib f b0) => \Sigma (p : x.1 = x'.1) (pmap f p *> x'.2 = x.2)
+      \let S {b0 : B} (x x' : Fib f b0) => \Sigma (p : x.1 = x'.1) (pmap f p *> x'.2 = x.2)
       \in pathEquiv S (\lam {x x' : Fib f b0} =>
         \new Retraction {
           | f q => transport (S x) q (idp, idp_*> x.2)
-          | sec s => ext f b0 x x' s.1 s.2
-          | f_sec s => Jl (\lam x1 s1 => \Pi (bp : f x1 = b0) (s2 : pmap f s1 *> bp = x.2) ->
-                                           transport (S x) (ext f b0 x (x1,bp) s1 s2) (idp, idp_*> x.2) = (s1,s2))
-                          (\lam bp s2 => Jl (\lam bp0 s2' => transport (S (x.1,bp0))
-                                                                       (ext f b0 (x.1,bp0) (x.1,bp) idp s2')
-                                                                       (idp, idp_*> bp0)
-                                                             = (idp,s2'))
-                                            (Jl (\lam b0' bp' => transport (\lam (x' : Fib f b0') => \Sigma (p : x.1 = x'.1) (pmap f p *> x'.2 = idp *> bp'))
-                                                                           (ext f b0' (x.1, idp *> bp') (x.1,bp') idp idp)
-                                                                           (idp, idp_*> (idp *> bp'))
-                                                                 = (idp, idp))
-                                                idp
-                                                bp)
-                                            s2)
-                          s.1 x'.2 s.2
+          | sec s => ext f b0 x' x s.1 s.2
+          | f_sec s =>
+            \case x'.1 \as x'1           , s.1 \as s1 : x.1 = x'1,
+                  b0 \as b0              , x'.2 \as x'2 : f x'1 = b0,
+                  x.2 \as x2 : f x.1 = b0, s.2 \as s2 : pmap f s1 *> x'2 = x2
+              \return transport (S (x.1,x2)) (ext f b0 (x'1,x'2) (x.1,x2) s1 s2) (idp, idp_*> x2) = (s1,s2) \with {
+              | x'1, idp, b0, idp, x2, idp => idp
+            }
         })
   }
 
@@ -64,4 +54,4 @@
             (p.f_sec b0 *> inv x.2) *> x.2                                     ==< *>-assoc _ _ _ >==
             p.f_sec b0 *> (inv x.2 *> x.2)                                     ==< pmap (p.f_sec b0 *>) (inv_*> x.2) >==
             p.f_sec b0                                                         `qed
-    \in Fib.ext e.f b0 x0 x p0 q0)
+    \in Fib.ext e.f b0 x x0 p0 q0)
