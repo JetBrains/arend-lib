@@ -1,34 +1,44 @@
+\import Algebra.Domain
 \import Algebra.Group
 \import Algebra.Monoid
+\import Algebra.Ring
 \import Algebra.Ring.Local
-\import Data.Or
 \import Logic
 \import Paths
-\import Relation.Apartness
 \import Set
 \open Monoid(Inv)
 
-\class Field \extends LocalCRing
-  | nonInvIsZero (x : E) : Not (Inv x) -> x = zro
-
-\class DiscreteField \extends Field, DecSet {
-  | eitherZeroOrInv (x : E) : (x = zro) `Or` (Inv x)
-
-  | nonInvIsZero x xNotInv => \case eitherZeroOrInv x \with {
-    | inl x=0 => x=0
-    | inr xInv => absurd (xNotInv xInv)
+-- | A field is a commutative local ring such that non-invertible elements equal to {zro}.
+\class Field \extends LocalCRing, IntegralDomain
+  | #0 x => Inv x
+  | #0-+ => LocalRing.sumInv=>eitherInv
+  | #0-zro (j : Inv zro) => zro/=ide (inv (zro_*-right j.inv) *> j.inv-left)
+  | #0-*-left => Inv.cfactor-left
+  | zro#ide => Inv.lmake ide (ide-left ide)
+  | apartZeroProduct x y xj yj => Inv.product xj yj
+  \where {
+    \open AddGroup(negative-isInv)
+    \open Ring
   }
-  | locality x y x+y=1 => \case eitherZeroOrInv x \with {
-    | inl x=0 => byRight (Inv.lmake ide (
-      ide * y ==< ide-left y >==
-      y       ==< inv (zro-left y) >==
-      zro + y ==< pmap (\lam t => t + y) (inv x=0) >==
-      x + y   ==< x+y=1 >==
-      ide     `qed))
-    | inr xInv => byLeft xInv
+
+-- | A discrete field is a commutative ring such that every element is either {zro} or invertible.
+\class DiscreteField \extends Field, IntegralDomain.Dec {
+  | eitherZeroOrInv (x : E) : (x = zro) || (Inv x)
+
+  | locality x => \case eitherZeroOrInv x \with {
+    | byLeft x=0 => byRight (Inv.lmake ide (
+        ide * (x + ide) ==< ide-left (x + ide) >==
+        x + ide         ==< pmap (`+ ide) x=0 >==
+        zro + ide       ==< zro-left ide >==
+        ide             `qed))
+    | byRight xInv => byLeft xInv
   }
   | decideEq x y => \case eitherZeroOrInv (x - y) \with {
-    | inl x-y=0 => yes (AddGroup.fromZero x y x-y=0)
-    | inr x-y-isInv => no (\lam x=y => #-irreflexive {LocalRing.=>Apartness} y (transport (\lam t => Inv (t - y)) x=y x-y-isInv))
+    | byLeft x-y=0 => yes (AddGroup.fromZero x y x-y=0)
+    | byRight x-y-isInv => no (\lam x=y => #-irreflexive y (transport (\lam t => Inv (t - y)) x=y x-y-isInv))
+  }
+  | nonEqualApart x x/=0 => \case eitherZeroOrInv x \with {
+    | byLeft x=0 => absurd (x/=0 x=0)
+    | byRight x#0 => x#0
   }
 }

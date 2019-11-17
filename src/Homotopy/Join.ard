@@ -1,19 +1,44 @@
 \import Equiv
 \import Equiv.Univalence
 \import Function
+\import HLevel
 \import Homotopy.Cube
 \import Homotopy.Pushout
 \import Homotopy.Sphere
 \import Homotopy.Suspension
+\import Logic
 \import Paths
 
 \func Join (A B : \Type) => PushoutData {\Sigma A B} (\lam p => p.1) (\lam p => p.2)
+  \where {
+    \use \level levelProp {A B : \Prop} : isProp (Join A B) => isContr'=>isProp {Join A B} (\lam x => \case x \with {
+      | jinl a => transport (\lam X => Contr X) (QEquiv-to-= (Join-sym B A)) (Join_Contr B (Contr.make a idpe))
+      | jinr b => Join_Contr A (Contr.make b idpe)
+    })
 
-\func jinl {A B : \Type} (a : A) : Join A B => pinl a
+    \sfunc from-|| {A B : \Prop} (x : A || B) : Join A B \elim x
+      | byLeft a => jinl a
+      | byRight b => jinr b
+  }
 
-\func jinr {A B : \Type} (b : B) : Join A B => pinr b
+\cons jinl {A B : \Type} (a : A) : Join A B => pinl a
+
+\cons jinr {A B : \Type} (b : B) : Join A B => pinr b
 
 \func jglue {A B : \Type} (a : A) (b : B) : jinl a = jinr b => path (pglue (a,b))
+
+\lemma Join_Contr (A : \Type) (B : Contr) : Contr (Join A B) \cowith
+  | center => jinr B.center
+  | contraction x => \case x \as x \return jinr B.center = x \with {
+    | jinl a => inv (jglue a B.center)
+    | jinr b => pmap jinr (B.contraction b)
+    | pglue (a,b) i => Cube2.map
+        (inv (jglue a B.center))      -- top edge
+        (pmap jinr (B.contraction b)) -- bottom edge
+        (idpe (jinr B.center))        -- left edge
+        (jglue a b)                   -- right edge
+        (Jl (\lam x p => inv (jglue a B.center) = pmap jinr p *> inv (jglue a x)) (inv (idp_*> _)) (B.contraction b)) @ i
+  }
 
 \func Join_Sphere0 (A : \Type) : QEquiv {Join (Sphere 0) A} {Susp A} \cowith
   | f => joinSusp
@@ -22,36 +47,36 @@
   | f_sec => suspJoinSusp
   \where {
     \func joinSusp {A : \Type} (j : Join (Sphere 0) A) : Susp A
-      | pinl (pinl _) => north
-      | pinl (pinr _) => south
-      | pinl (pglue () _)
-      | pinr _ => south
-      | pglue (pinl _, a) i => pglue a i
-      | pglue (pinr _, _) _ => south
+      | jinl north => north
+      | jinl south => south
+      | jinl (pglue () _)
+      | jinr _ => south
+      | pglue (north, a) i => pglue a i
+      | pglue (south, _) _ => south
       | pglue (pglue () _, _) _
 
     \func suspJoin {A : \Type} (s : Susp A) : Join (Sphere 0) A
-      | pinl _ => jinl north
-      | pinr _ => jinl south
+      | north => jinl north
+      | south => jinl south
       | pglue a i => (jglue north a *> inv (jglue south a)) @ i
 
     \func joinSuspJoin {A : \Type} (j : Join (Sphere 0) A) : suspJoin (joinSusp j) = j
-      | pinl (pinl _) => idp
-      | pinl (pinr _) => idp
-      | pinl (pglue () _)
-      | pinr a => jglue south a
-      | pglue (pinl _, a) j => path (\lam i => Cube2.map
+      | jinl north => idp
+      | jinl south => idp
+      | jinl (pglue () _)
+      | jinr a => jglue south a
+      | pglue (north, a) j => path (\lam i => Cube2.map
           (jglue north a *> inv (jglue south a)) -- top edge
           (jglue north a)                        -- bottom edge
           (idpe (jinl north))                    -- left edge
           (jglue south a)                        -- right edge
           idp @ i @ j)
-      | pglue (pinr _, a) j => path (\lam i => pglue (south,a) (I.squeeze i j))
+      | pglue (south, a) j => path (\lam i => pglue (south,a) (I.squeeze i j))
       | pglue (pglue () _, _) _
 
     \func suspJoinSusp {A : \Type} (s : Susp A) : joinSusp (suspJoin s) = s
-      | pinl _ => idp
-      | pinr _ => idp
+      | north => idp
+      | south => idp
       | pglue a i =>
         \let t =>
           pmap joinSusp (jglue north a *> inv (jglue south a)) ==< pmap_*>-comm joinSusp (jglue north a) (inv (jglue south a)) >==
@@ -67,13 +92,13 @@
   | f_sec => flip-flip
   \where {
     \func flip {A B : \Type} (j : Join A B) : Join B A
-      | pinl a => pinr a
-      | pinr b => pinl b
+      | jinl a => pinr a
+      | jinr b => pinl b
       | pglue (a,b) i => inv (jglue b a) @ i
 
     \func flip-flip {A B : \Type} (j : Join A B) : flip (flip j) = j
-      | pinl a => idp
-      | pinr b => idp
+      | jinl a => idp
+      | jinr b => idp
       | pglue (a,b) i =>
         \let p => pmap_inv-comm flip (jglue b a) *> inv_inv (jglue a b)
         \in path (\lam j => p @ j @ i)
@@ -88,12 +113,12 @@
     \open I
 
     \func leftToRight {A B C : \Type} (j : Join (Join A B) C) : Join A (Join B C)
-      | pinl (pinl a) => jinl a
-      | pinl (pinr b) => jinr (jinl b)
-      | pinl (pglue (a,b) j) => pglue (a, jinl b) j
-      | pinr c => jinr (jinr c)
-      | pglue (pinl a, c) i => pglue (a, jinr c) i
-      | pglue (pinr b, c) i => jinr (pglue (b,c) i)
+      | jinl (jinl a) => jinl a
+      | jinl (jinr b) => jinr (jinl b)
+      | jinl (pglue (a,b) j) => pglue (a, jinl b) j
+      | jinr c => jinr (jinr c)
+      | pglue (jinl a, c) i => pglue (a, jinr c) i
+      | pglue (jinr b, c) i => jinr (pglue (b,c) i)
       | pglue (pglue (a,b) j, c) i =>
         Jl (\lam x p => Cube2 (jglue a x) (pmap jinr p) (jglue a (jinl b)) (idpe (jinr x)))
            (path (\lam j => path (\lam i => pglue (a, jinl b) (squeezeR j i))))
@@ -101,12 +126,12 @@
         @ j @ i
 
     \func rightToLeft {A B C : \Type} (j : Join A (Join B C)) : Join (Join A B) C
-      | pinl a => jinl (jinl a)
-      | pinr (pinl b) => jinl (jinr b)
-      | pinr (pinr c) => jinr c
-      | pinr (pglue (b,c) j) => pglue (jinr b, c) j
-      | pglue (a, pinl b) i => jinl (pglue (a,b) i)
-      | pglue (a, pinr c) i => pglue (jinl a, c) i
+      | jinl a => jinl (jinl a)
+      | jinr (jinl b) => jinl (jinr b)
+      | jinr (jinr c) => jinr c
+      | jinr (pglue (b,c) j) => pglue (jinr b, c) j
+      | pglue (a, jinl b) i => jinl (pglue (a,b) i)
+      | pglue (a, jinr c) i => pglue (jinl a, c) i
       | pglue (a, pglue (b,c) j) i =>
         Jl (\lam x p => Cube2 (pmap jinl p) (jglue (jinl a) c) (idpe (jinl (jinl a))) (jglue x c))
            (path (\lam j => path (\lam i => pglue (jinl a, c) (squeeze j i))))
@@ -114,12 +139,12 @@
         @ j @ i
 
     \func leftRightLeft {A B C : \Type} (j : Join (Join A B) C) : rightToLeft (leftToRight j) = j
-      | pinl (pinl a) => idp
-      | pinl (pinr b) => idp
-      | pinl (pglue (a,b) j) => idp
-      | pinr c => idp
-      | pglue (pinl a, c) i => idp
-      | pglue (pinr b, c) i => idp
+      | jinl (jinl a) => idp
+      | jinl (jinr b) => idp
+      | jinl (pglue (a,b) j) => idp
+      | jinr c => idp
+      | pglue (jinl a, c) i => idp
+      | pglue (jinr b, c) i => idp
       | pglue (pglue (a,b) j, c) i =>
         \let | s1 {y} (q : jinl b = y) : Cube2 (pmap rightToLeft (jglue a y))
                                                (pmap (\lam t => rightToLeft (jinr t)) q)
@@ -153,12 +178,12 @@
         \in path (\lam k => (Jl (\lam y q => s1 q = s2 q) idp (jglue b c) *> proof) @ k @ j @ i)
 
     \func rightLeftRight {A B C : \Type} (j : Join A (Join B C)) : leftToRight (rightToLeft j) = j
-      | pinl a => idp
-      | pinr (pinl b) => idp
-      | pinr (pinr c) => idp
-      | pinr (pglue (b,c) j) => idp
-      | pglue (a, pinl b) i => idp
-      | pglue (a, pinr c) i => idp
+      | jinl a => idp
+      | jinr (jinl b) => idp
+      | jinr (jinr c) => idp
+      | jinr (pglue (b,c) j) => idp
+      | pglue (a, jinl b) i => idp
+      | pglue (a, jinr c) i => idp
       | pglue (a, pglue (b,c) j) i =>
         \let | s1 {y} (q : jinl a = y) : Cube2 (pmap (\lam t => leftToRight (jinl t)) q)
                                                (jglue a (jinr c))
@@ -198,7 +223,7 @@
   }
 
 \func Join_Susp (A B : \Type) : Join (Susp A) B = Susp (Join A B) =>
-  Join (Susp A) B            ==< pmap (\lam X => Join X B) (QEquiv-to-= (symQEquiv (Join_Sphere0 A))) >==
+  Join (Susp A) B            ==< pmap (`Join B) (QEquiv-to-= (symQEquiv (Join_Sphere0 A))) >==
   Join (Join (Sphere 0) A) B ==< QEquiv-to-= (Join-assoc (Sphere 0) A B) >==
   Join (Sphere 0) (Join A B) ==< QEquiv-to-= (Join_Sphere0 (Join A B)) >==
   Susp (Join A B)            `qed

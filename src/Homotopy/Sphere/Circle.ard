@@ -28,10 +28,10 @@
       | loop i => (pmerid north *> inv (pmerid south)) @ i
 
     \func SuspCircle (x : Sphere 1) : Sphere1
-      | pinl _ => base1
-      | pinr _ => base1
-      | pglue (pinl _) i => loop i
-      | pglue (pinr _) i => base1
+      | north => base1
+      | south => base1
+      | pglue north i => loop i
+      | pglue south i => base1
       | pglue (pglue () _) _
 
     \func CircleSuspCircle (x : Sphere1) : SuspCircle (CircleSusp x) = x
@@ -44,10 +44,10 @@
         \in path (\lam j => p @ j @ i)
 
     \func SuspCircleSusp (x : Sphere 1) : CircleSusp (SuspCircle x) = x
-      | pinl _ => idp
-      | pinr _ => pmerid south
-      | pglue (pinl _) i => path (\lam j => Cube2.map (pmerid north *> inv (pmerid south)) (pmerid north) idp (pmerid south) idp @ j @ i)
-      | pglue (pinr _) i => path (\lam j => pglue south (I.squeeze i j))
+      | north => idp
+      | south => pmerid south
+      | pglue north i => path (\lam j => Cube2.map (pmerid north *> inv (pmerid south)) (pmerid north) idp (pmerid south) idp @ j @ i)
+      | pglue south i => path (\lam j => pglue south (I.squeeze i j))
       | pglue (pglue () _) _
   }
 
@@ -68,33 +68,33 @@
   \where {
     \func wind_loop (n : Int) : wind n *> path loop = wind (isuc n)
       | pos _ => idp
-      | neg (suc n) => *>-assoc (wind (neg n)) (inv (path loop)) (path loop) *> pmap (\lam p => (wind (neg n)) *> p) (inv_*> (path loop))
+      | neg (suc n) => *>-assoc (wind (neg n)) (inv (path loop)) (path loop) *> pmap (wind (neg n) *>) (inv_*> (path loop))
 
     \func decode_loop (x : Int) =>
       transport (\lam x => code x -> base1 = x) (path loop) wind x                ==< transport_pi code (base1 =) (path loop) wind x >==
       transport (base1 =) (path loop) (wind (transport code (inv (path loop)) x)) ==< transport_path-right (path loop) (wind (transport code (inv (path loop)) x)) >==
-      wind (transport code (inv (path loop)) x) *> path loop                      ==< pmap (\lam p => p *> path loop) (pmap wind (transport_inv_func code (path loop) ipred ipred_isuc x)) >==
+      wind (transport code (inv (path loop)) x) *> path loop                      ==< pmap (`*> path loop) (pmap wind (transport_inv_func code (path loop) ipred ipred_isuc x)) >==
       wind (ipred x) *> path loop                                                 ==< wind_loop (ipred x) >==
       wind (isuc (ipred x))                                                       ==< pmap wind (isuc_ipred x) >==
       wind x                                                                      `qed
   }
 
-\func encode_decode (x : Sphere1) (p : base1 = x) : decode x (encode x p) = p =>
-  Jl (\lam y q => decode y (encode y q) = q) idp p
+\func encode_decode {x : Sphere1} (p : base1 = x) : decode x (encode x p) = p
+  | idp => idp
 
 \func encode_wind (x : Int) : encode base1 (wind x) = x
   | pos (suc m) =>
       encode base1 (wind (pos m) *> path loop)                 ==< transport_*> code (wind (pos m)) (path loop) 0 >==
-      transport code (path loop) (encode base1 (wind (pos m))) ==< pmap (\lam x => transport code (path loop) x) (encode_wind (pos m)) >==
+      transport code (path loop) (encode base1 (wind (pos m))) ==< pmap (transport code (path loop)) (encode_wind (pos m)) >==
       pos (suc m)                                             `qed
   | pos zero => idp
   | neg (suc m) =>
       encode base1 (wind (neg m) *> (inv (path loop)))               ==< transport_*> code (wind (neg m)) (inv (path loop)) 0 >==
-      transport code (inv (path loop)) (encode base1 (wind (neg m))) ==< pmap (\lam x => transport code (inv (path loop)) x) (encode_wind (neg m)) >==
+      transport code (inv (path loop)) (encode base1 (wind (neg m))) ==< pmap (transport code (inv (path loop))) (encode_wind (neg m)) >==
       transport code (inv (path loop)) (neg m)                       ==< transport_inv_func code (path loop) ipred ipred_isuc (neg m) >==
       neg (suc m)                                                    `qed
 
 \func decode_encode (x : Sphere1) (c : code x) : encode x (decode x c) = c \elim x
   | base1 => encode_wind c
 
-\func Loop_S1 : (base1 = base1) = Int => path (iso (encode base1) wind (encode_decode base1) encode_wind)
+\func Loop_S1 : (base1 = base1) = Int => path (iso (encode base1) wind encode_decode encode_wind)

@@ -18,9 +18,9 @@
                    idpe)
 
     \lemma isContr (e : Equiv) : Contr (Section e.f)
-      => transport (\lam X => Contr X) (inv (=Fiber e.f)) (Equiv=>contrFibers (-o e.f) (-o_Equiv e) id)
+      => transport (\lam X => Contr X) (inv (=Fiber e.f)) (Equiv=>contrFibers (-o_Equiv e) id)
 
-    \lemma isProp (r : Retraction) : HLevel.isProp (Section r.f)
+    \lemma levelProp (r : Retraction) : isProp (Section r.f)
       => \lam s => isContr=>isProp (isContr (\new Equiv { | Section => s | Retraction => r })) s
   }
 
@@ -33,15 +33,15 @@
                    idpe)
 
     \lemma isContr (e : Equiv) : Contr (Retraction e.f)
-      => transport (\lam X => Contr X) (inv (=Fiber e.f)) (Equiv=>contrFibers (e.f `o-) (o-_Equiv e) id)
+      => transport (\lam X => Contr X) (inv (=Fiber e.f)) (Equiv=>contrFibers (o-_Equiv e) id)
 
-    \lemma isProp (s : Section) : HLevel.isProp (Retraction s.f)
+    \lemma levelProp (s : Section) : isProp (Retraction s.f)
       => \lam r => isContr=>isProp (isContr (\new Equiv { | Section => s | Retraction => r })) r
   }
 
 \record Equiv \extends Section, Retraction
   \where {
-    \use \level isProp {A B : \Type} {f : A -> B} (e e' : Equiv f) : e = e' =>
+    \use \level levelProp {A B : \Type} {f : A -> B} (e e' : Equiv f) : e = e' =>
       path (\lam i => \new Equiv {
         | Section => isContr=>isProp {Section f} (Section.isContr e) e e' @ i
         | Retraction => isContr=>isProp {Retraction f} (Retraction.isContr e) e e' @ i
@@ -58,7 +58,7 @@
       })
 
     \module Reasoning \where {
-      \func \infix 2 eqed (A : \Type) => idEquiv {A}
+      \func \fix 2 eqed (A : \Type) => idEquiv {A}
 
       \func \infixr 1 >~~ {A B C : \Type} (p : Equiv {A} {B}) (q : Equiv {B} {C}) => transEquiv p q
 
@@ -179,10 +179,11 @@
   | ret q => SigmaExt B p p' q.1 q.2
   | ret_f q => Jl (\lam p'' q' => SigmaExt B p p'' (pmap (\lam p => p.1) q') (pmapd (\lam p => B p.1) (\lam p => p.2) q') = q') idp q
   | f_sec q =>
-    \let t => Jl
-        (\lam p'1 q1 => \Pi (p'2 : B p'1) (q2 : transport B q1 p.2 = p'2) -> pmapd (\lam p => B p.1) (\lam p => p.2) (SigmaExt {A} B p (p'1,p'2) q1 q2) = q2)
-        (\lam p'2 q2 => Jl (\lam p'2' q2' => pmapd (\lam p => B p.1) (\lam p => p.2) (SigmaExt {A} B p (p.1,p'2') idp q2') = q2') idp q2)
-        q.1 p'.2 q.2
+    \let t => \case p'.1 \as p'1        , q.1 \as q1 : p.1 = p'1,
+                    p'.2 \as p'2 : B p'1, q.2 \as q2 : transport B q1 p.2 = p'2
+              \return pmapd (\lam p => B p.1) (\lam p => p.2) (SigmaExt {A} B p (p'1,p'2) q1 q2) = q2 \with {
+                | p'1, idp, p'2, idp => idp
+              }
     \in path (\lam i => (q.1, t @ i))
 
 \func piSigmaEquiv {A A' : \Type} (h : A -> A') (B : A' -> \Type)
@@ -208,8 +209,8 @@
 \record Embedding (isEmb : \Pi (a a' : A) -> Retraction (pmap f {a} {a'})) \extends Map {
   \func pmap-isEquiv {a a' : A} : QEquiv (pmap f {a} {a'}) => pathEquiv (\lam a a' => f a = f a') (\lam {a} {a'} => isEmb a a')
 } \where {
-  \use \level isProp {A B : \Type} {f : A -> B} (e e' : Embedding f) : e = e' =>
-    path (\lam i => \new Embedding f (\lam a a' => Retraction.isProp (pmap-isEquiv {e} {a} {a'}) (e.isEmb a a') (e'.isEmb a a') @ i))
+  \use \level levelProp {A B : \Type} {f : A -> B} (e e' : Embedding f) : e = e' =>
+    path (\lam i => \new Embedding f (\lam a a' => Retraction.levelProp (pmap-isEquiv {e} {a} {a'}) (e.isEmb a a') (e'.isEmb a a') @ i))
 
   -- | The diagonal of an embedding is an equivalence
   \lemma diag-equiv (e : Embedding) : Equiv {e.A} {\Sigma (a1 a2 : e.A) (e.f a1 = e.f a2)} (\lam a => (a, a, idp)) =>
@@ -229,7 +230,7 @@
     \in transQEquiv q s
 
   -- | If the fibers of a map are propositions, then the map is an embedding
-  \lemma fibers {A B : \Type} (f : A -> B) (p : \Pi (b : B) -> HLevel.isProp (Fib f b)) : Embedding f \cowith
+  \lemma fibers {A B : \Type} (f : A -> B) (p : \Pi (b : B) -> isProp (Fib f b)) : Embedding f \cowith
     | isEmb a a' =>
       \let e (q : f a = f a') => Equiv.f {Fib.equiv f (f a') (a,q) (a',idp)} (p (f a') (a,q) (a',idp))
       \in \new Retraction {
@@ -238,13 +239,13 @@
       }
 
   -- | The fibers of an embedding are propositions.
-  \lemma embeddingFiber-isProp (e : Embedding) (b : e.B) : HLevel.isProp (Fib e.f b) => \lam x x' =>
+  \lemma embeddingFiber-isProp (e : Embedding) (b : e.B) : isProp (Fib e.f b) => \lam x x' =>
     \let | eq : Retraction (pmap e.f {x.1} {x'.1}) => e.isEmb x.1 x'.1
          | fx=fx' => x.2 *> inv x'.2
     \in Fib.ext e.f b x x' (eq.sec fx=fx') (
-      pmap e.f (eq.sec fx=fx') *> x'.2 ==< pmap (\lam r => r *> x'.2) (eq.f_sec fx=fx') >==
+      pmap e.f (eq.sec fx=fx') *> x'.2 ==< pmap (`*> x'.2) (eq.f_sec fx=fx') >==
       fx=fx' *> x'.2                   ==< *>-assoc _ _ _ >==
-      x.2 *> inv x'.2 *> x'.2          ==< pmap (\lam r => x.2 *> r) (inv_*> _) >==
+      x.2 *> inv x'.2 *> x'.2          ==< pmap (x.2 *>) (inv_*> _) >==
       x.2                              `qed
     )
 }
@@ -264,9 +265,9 @@
 
 \record ESEquiv \extends Embedding, Surjection
   \where {
-    \use \level isProp {A B : \Type} {f : A -> B} (e e' : ESEquiv f) : e = e' =>
-      path (\lam i => \new ESEquiv { | Embedding  => Embedding.isProp  e e' @ i
-                                     | Surjection => Path.inProp {ESEquiv f} e e' @ i })
+    \use \level levelProp {A B : \Type} {f : A -> B} (e e' : ESEquiv f) : e = e' =>
+      path (\lam i => \new ESEquiv { | Embedding  => Embedding.levelProp  e e' @ i
+                                     | Surjection => e })
 
     \use \coerce toEquiv (e : ESEquiv) : QEquiv e.f =>
       \let sec (y : e.B) => TruncP.remove (Embedding.embeddingFiber-isProp e y) (e.isSurj y)

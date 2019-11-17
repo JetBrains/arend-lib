@@ -8,39 +8,27 @@
   \where {
     \func make {A B : \Type} (f : A -> B) {base : B} (a : A) (p : f a = base) : Fib f base => (a,p)
 
-    \func ext {A B : \Type} (f : A -> B) (b0 : B) (x x' : Fib f b0) (p : x.1 = x'.1) (q : pmap f p *> x'.2 = x.2) : x = x' =>
-      -- First, prove that q' : transport (\lam y => f y = b0) p x.p = x'.p.
-      \let q' => Jl (\lam _ p' => transport (\lam y => f y = b0) p' x.2 = inv (pmap f p') *> x.2) (inv (idp_*> x.2)) p *> rotatePathLeft (inv q)
-      -- Then use the usual Sigma extensionality.
-      \in path (\lam i => (p @ i, pathOver q' @ i))
+    \func ext {A B : \Type} (f : A -> B) (b0 : B) (x x' : Fib f b0) (p : x.1 = x'.1) (q : pmap f p *> x'.2 = x.2) : x = x'
+      => (retraction f b0 x' x p q).1
+      \where
+        \func retraction {A B : \Type} (f : A -> B) (b0 : B) (x' x : Fib f b0) (p : x.1 = x'.1) (q : pmap f p *> x'.2 = x.2)
+          : \Sigma (t : x = x') (transport (\lam x'' => \Sigma (p : x.1 = x''.1) (pmap f p *> x''.2 = x.2)) t (idp, idp_*> x.2) = (p,q)) \elim x', x, p, q
+          | (x'1,idp), (x1,x2), idp, idp => (idp,idp)
 
     \func equiv {A B : \Type} (f : A -> B) (b0 : B) (x x' : Fib f b0) : QEquiv {x = x'} {\Sigma (p : x.1 = x'.1) (pmap f p *> x'.2 = x.2)} =>
-      \let S (x x' : Fib f b0) => \Sigma (p : x.1 = x'.1) (pmap f p *> x'.2 = x.2)
+      \let S {b0 : B} (x x' : Fib f b0) => \Sigma (p : x.1 = x'.1) (pmap f p *> x'.2 = x.2)
       \in pathEquiv S (\lam {x x' : Fib f b0} =>
         \new Retraction {
           | f q => transport (S x) q (idp, idp_*> x.2)
           | sec s => ext f b0 x x' s.1 s.2
-          | f_sec s => Jl (\lam x1 s1 => \Pi (bp : f x1 = b0) (s2 : pmap f s1 *> bp = x.2) ->
-                                           transport (S x) (ext f b0 x (x1,bp) s1 s2) (idp, idp_*> x.2) = (s1,s2))
-                          (\lam bp s2 => Jl (\lam bp0 s2' => transport (S (x.1,bp0))
-                                                                       (ext f b0 (x.1,bp0) (x.1,bp) idp s2')
-                                                                       (idp, idp_*> bp0)
-                                                             = (idp,s2'))
-                                            (Jl (\lam b0' bp' => transport (\lam (x' : Fib f b0') => \Sigma (p : x.1 = x'.1) (pmap f p *> x'.2 = idp *> bp'))
-                                                                           (ext f b0' (x.1, idp *> bp') (x.1,bp') idp idp)
-                                                                           (idp, idp_*> (idp *> bp'))
-                                                                 = (idp, idp))
-                                                idp
-                                                bp)
-                                            s2)
-                          s.1 x'.2 s.2
+          | f_sec s => (ext.retraction f b0 x' x s.1 s.2).2
         })
   }
 
 \func hasContrFibers {A B : \Type} (f : A -> B) => \Pi (b0 : B) -> Contr (Fib f b0)
   \where
-    \lemma isProp {A B : \Type} {f : A -> B} : HLevel.isProp (hasContrFibers f)
-      => HLevels-pi {B} (\lam b0 => Contr (Fib f b0)) {0} (\lam b0 => Contr.isProp (Fib f b0))
+    \lemma levelProp {A B : \Type} {f : A -> B} : isProp (hasContrFibers f)
+      => HLevels-pi {B} (\lam b0 => Contr (Fib f b0)) {0} (\lam b0 => Contr.levelProp (Fib f b0))
 
 \func contrFibers=>Equiv {A B : \Type} (f : A -> B) (p : hasContrFibers f) : QEquiv f =>
   \let sec y => Contr.center {p y}
@@ -50,18 +38,18 @@
     | f_sec y => (sec y).2
   }
 
-\lemma Equiv=>contrFibers {A B : \Type} (f : A -> B) (p' : Equiv f) : hasContrFibers f => \lam b0 =>
-  \let | p : HAEquiv f => p'
-       | x0 => Fib.make f (p.ret b0) (p.f_sec b0)
+\lemma Equiv=>contrFibers (e : Equiv) : hasContrFibers e.f => \lam b0 =>
+  \let | p : HAEquiv e.f => HAEquiv.fromQEquiv (QEquiv.fromEquiv e)
+       | x0 => Fib.make e.f (p.ret b0) (p.f_sec b0)
   \in Contr.make x0 (\lam x =>
     \let -- p0 proves that the first components are equal: x0.over = x.over.
          | p0 => pmap p.ret (inv x.2) *> p.ret_f x.1
          -- q0 proves that the second compontents are equal: pmap f p0 *> x.basePath = x0.basePath.
          | q0 =>
-            pmap f p0 *> x.2                                               ==< pmap (\lam r => r *> x.2) (pmap_*>-comm f _ _) >==
-            (pmap f (pmap p.ret (inv x.2)) *> pmap f (p.ret_f x.1)) *> x.2 ==< pmap (\lam r => (pmap f (pmap p.ret (inv x.2)) *> r) *> x.2) (p.f_ret_f=f_sec_f x.1) >==
-            (pmap f (pmap p.ret (inv x.2)) *> p.f_sec (f x.1)) *> x.2      ==< pmap (\lam r => r *> x.2) (homotopy-isNatural (\lam x => f (p.ret x)) (\lam x => x) p.f_sec (inv x.2)) >==
-            (p.f_sec b0 *> inv x.2) *> x.2                                 ==< *>-assoc _ _ _ >==
-            p.f_sec b0 *> (inv x.2 *> x.2)                                 ==< pmap (\lam r => p.f_sec b0 *> r) (inv_*> x.2) >==
-            p.f_sec b0                                                     `qed
-    \in Fib.ext f b0 x0 x p0 q0)
+            pmap e.f p0 *> x.2                                                 ==< pmap (`*> x.2) (pmap_*>-comm e.f _ _) >==
+            (pmap e.f (pmap p.ret (inv x.2)) *> pmap e.f (p.ret_f x.1)) *> x.2 ==< pmap (\lam r => (pmap e.f (pmap p.ret (inv x.2)) *> r) *> x.2) (p.f_ret_f=f_sec_f x.1) >==
+            (pmap e.f (pmap p.ret (inv x.2)) *> p.f_sec (e.f x.1)) *> x.2      ==< pmap (`*> x.2) (homotopy-isNatural (\lam x => e.f (p.ret x)) (\lam x => x) p.f_sec (inv x.2)) >==
+            (p.f_sec b0 *> inv x.2) *> x.2                                     ==< *>-assoc _ _ _ >==
+            p.f_sec b0 *> (inv x.2 *> x.2)                                     ==< pmap (p.f_sec b0 *>) (inv_*> x.2) >==
+            p.f_sec b0                                                         `qed
+    \in Fib.ext e.f b0 x0 x p0 q0)

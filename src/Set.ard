@@ -7,20 +7,20 @@
 \import Logic
 \import HLevel
 \import Paths
-\import Relation.Apartness
+\import Set
 
 \data Dec (E : \Prop)
   | yes E
   | no (Not E)
   \where {
-    \use \level isProp {E : \Prop} (d1 d2 : Dec E) : d1 = d2 \elim d1, d2
-      | yes e1, yes e2 => pmap yes (Path.inProp e1 e2)
+    \use \level levelProp {E : \Prop} (d1 d2 : Dec E) : d1 = d2 \elim d1, d2
+      | yes e1, yes e2 => idp
       | yes e1, no ne2 => absurd (ne2 e1)
       | no ne1, yes e2 => absurd (ne1 e2)
       | no ne1, no ne2 => path (\lam i => no (\lam x => (absurd (ne1 x) : ne1 x = ne2 x) @ i))
   }
 
-\func decToBool {E : \Prop} (d : Dec E) : Bool
+\sfunc decToBool {E : \Prop} (d : Dec E) : Bool
   | yes _ => true
   | no _ => false
 
@@ -32,25 +32,38 @@
 \class SeparatedSet \extends BaseSet
   | separatedEq {x y : E} : Not (Not (x = y)) -> x = y
 
-\class DecSet \extends BaseSet, TightApartness {
-  | decideEq (x y : E) : Dec (x = y)
+-- | A set with a tight apartness relation.
+\class Set# \extends SeparatedSet {
+  | \infix 4 # : E -> E -> \Prop
+  | #-irreflexive (x : E) : Not (x # x)
+  | #-symmetric (x y : E) : x # y -> y # x
+  | #-comparison (x y z : E) : x # z -> x # y || y # z
+  | tightness (x y : E) : Not (x # y) -> x = y
+  | separatedEq {x} {y} ~~x=y => tightness x y (\lam x#y => ~~x=y (\lam x=y => #-irreflexive x (transport (x #) (inv x=y) x#y)))
 
-  | # x y => Not (x = y)
-  | #-irreflexive x x/=x => x/=x idp
-  | #-symmetric x y x/=y y=x => x/=y (inv y=x)
-  | #-comparison x y z x/=z => \case decideEq x y \with {
-    | yes x=y => byRight (\lam y=z => x/=z (x=y *> y=z))
-    | no x/=y => byLeft x/=y
-  }
-  | tightness x y x//=y => \case decideEq x y \with {
-    | yes x=y => x=y
-    | no x/=y => absurd (x//=y x/=y)
-  }
+  \lemma apartNotEqual (x y : E) (x#y : x # y) : Not (x = y) =>
+    \lam x=y => #-irreflexive x (transport (x #) (inv x=y) x#y)
 }
+
+\class DecSet \extends BaseSet, Set#
+  | decideEq (x y : E) : Dec (x = y)
+  \where
+    \class Impl \extends DecSet
+      | # x y => Not (x = y)
+      | #-irreflexive x x/=x => x/=x idp
+      | #-symmetric x y x/=y y=x => x/=y (inv y=x)
+      | #-comparison x y z x/=z => \case decideEq x y \with {
+        | yes x=y => byRight (\lam y=z => x/=z (x=y *> y=z))
+        | no x/=y => byLeft x/=y
+      }
+      | tightness x y x//=y => \case decideEq x y \with {
+        | yes x=y => x=y
+        | no x/=y => absurd (x//=y x/=y)
+      }
 
 \func \infix 4 == {D : DecSet} (x y : D) => decToBool (decideEq x y)
 
-\lemma Hedberg {A : \Type} (d : \Pi (a a' : A) -> (a = a') `Or` Not (a = a')) : \level (isSet A) (ofHLevel_-1+.isProp A 1) => \lam x x' =>
+\lemma Hedberg {A : \Type} (d : \Pi (a a' : A) -> (a = a') `Or` Not (a = a')) : \level (isSet A) (ofHLevel_-1+.levelProp A 1) => \lam x x' =>
   \let | R {a a' : A} (p : (a = a') `Or` Not (a = a')) : \Prop => \case p \with { | inl _ => \Sigma | inr _ => Empty }
        | R' (a a' : A) => R {a} {a'} (d a a')
        | refl {a : A} (p : (a = a) `Or` Not (a = a)) => \case p \as p' \return R p' \with { | inl _ => () | inr q => q idp }
@@ -58,7 +71,7 @@
          | inl p, _ => p
          | inr _, s' => absurd s'
        }) {x} {x'}
-  \in transport isProp (inv (univalence.ret equiv)) Path.inProp
+  \in transport isProp (inv (univalence.ret equiv)) (\lam _ _ => idp)
   \where
     \func propPathEquiv {A : \Type} (R : A -> A -> \Prop) (refl : \Pi (a : A) -> R a a) (p : \Pi {a a' : A} -> R a a' -> a = a') {a a' : A} : QEquiv {a = a'} {R a a'}
-      => pathEquiv R (\lam {a} {a'} => \new Retraction (\lam q => transport (R a) q (refl a)) p (\lam _ => Path.inProp _ _))
+      => pathEquiv R (\lam {a} {a'} => \new Retraction (\lam q => transport (R a) q (refl a)) p idpe)
