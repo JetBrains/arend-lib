@@ -45,7 +45,7 @@
       | Y : \Type
       | Q : X -> Y -> \Type
       | ch {x x' : X} {y y' : Y} (q0 : Q x y) (q1 : Q x y') (q2 : Q x' y)
-        : isConnectedType {\this} (Join (\Sigma (p : y = y') (transport (Q x) p q0 = q1)) (\Sigma (p : x = x') (transport (\lam x'' => Q x'' y) p q0 = q2)))
+        : isConnectedType {\this} (Join (\Sigma (p : y = y') (transport (Q x) p q0 = q1)) (\Sigma (p : x = x') (transport (`Q y) p q0 = q2)))
 
       \func ST => \Sigma (x : X) (y : Y) (Q x y)
 
@@ -68,47 +68,31 @@
           \func equiv {x0 x : X} {y0 y : Y} (q0 : Q x0 y0) (q : Q x y) (p : pinl x0 = {PO} pinr y)
             => \let | A => \Sigma (q1 : Q x y0) (pbMap q0 *> inv (pbMap q1) *> pbMap q = p)
                     | B => Fib pbMap p
-                    | M (a : A) => Join (\Sigma (p : y0 = y) (transport (Q x) p a.1 = q)) (\Sigma (p : x = x0) (transport (\lam x'' => Q x'' y0) p a.1 = q0))
-                    | N (b : B) => Join (\Sigma (p : y = y0) (transport (Q x0) p b.1 = q0)) (\Sigma (p : x0 = x) (transport (\lam x'' => Q x'' y) p b.1 = q))
+                    | M (a : A) => Join (\Sigma (p : y0 = y) (transport (Q x) p a.1 = q)) (\Sigma (p : x = x0) (transport (`Q y0) p a.1 = q0))
+                    | N (b : B) => Join (\Sigma (p : y = y0) (transport (Q x0) p b.1 = q0)) (\Sigma (p : x0 = x) (transport (`Q y) p b.1 = q))
                \in equiv-lemma (\lam a => \new Connected { | X => M a | connected => ch a.1 q q0 })
                                (\lam b => \new Connected { | X => N b | connected => ch b.1 q0 q })
-                               (\lam ad => LR q0 q p ad.1 ad.2)
+                               (\lam ad => LR q0 q p ad.1.1 ad.1.2 ad.2)
                                (\lam bd => RL q0 q p bd.1 bd.2)
                                {?}
                                {?}
 
-          \func Jl2 {A B : \Type} {a : A} {b : B} (C : \Pi (a' : A) (p : a = a') (b' : B) (q : b = b') -> \Type) (c : C a idp b idp) {a' : A} (p : a = a') {b' : B} (q : b = b') : C a' p b' q
-            => Jl (\lam b' q => \Pi (a' : A) (p : a = a') -> C a' p b' q) (\lam a' p => Jl (\lam a' p => C a' p b idp) c p) q a' p
-
           \func LR {x0 x : X} {y0 y : Y} (q0 : Q x0 y0) (q : Q x y) (p : pinl x0 = {PO} pinr y)
-                   (a : \Sigma (q1 : Q x y0) (pbMap q0 *> inv (pbMap q1) *> pbMap q = p))
-                   (m : Join (\Sigma (p : y0 = y) (transport (Q x) p a.1 = q)) (\Sigma (p : x = x0) (transport (\lam x'' => Q x'' y0) p a.1 = q0)))
-                   : \Sigma (b : Fib pbMap p) (Join (\Sigma (p : y = y0) (transport (Q x0) p b.1 = q0)) (\Sigma (p : x0 = x) (transport (\lam x'' => Q x'' y) p b.1 = q))) \elim m
-            | pinl (yp,qp) => ((transport (Q x0) yp q0,
-                                  pbMap (transport (Q x0) yp q0)                                ==< Jl (\lam y' yp' => pbMap (transport (Q x0) yp' q0) = pbMap q0 *> inv (pbMap a.1) *> pbMap (transport (Q x) yp' a.1)) (inv (pmap (pbMap q0 *>) (inv_*> (pbMap a.1)))) yp >==
-                                  pbMap q0 *> inv (pbMap a.1) *> pbMap (transport (Q x) yp a.1) ==< pmap (\lam r => pbMap q0 *> inv (pbMap a.1) *> pbMap r) qp >==
-                                  pbMap q0 *> inv (pbMap a.1) *> pbMap q                        ==< a.2 >==
-                                  p                                                             `qed),
-                               pinl (inv yp, transport_inv_id (Q x0) yp q0))
-            | pinr (xp,q0p) => ((transport (\lam x' => Q x' y) xp q,
-                                  pbMap (transport (\lam x' => Q x' y) xp q)                                  ==< Jl (\lam x' xp' => pbMap (transport (\lam x' => Q x' y) xp' q) = pbMap (transport (\lam x' => Q x' y0) xp' a.1) *> inv (pbMap a.1) *> pbMap q) (Jl (\lam _ r => r = pbMap a.1 *> inv (pbMap a.1) *> r) (inv (*>_inv (pbMap a.1))) (pbMap q)) xp >==
-                                  pbMap (transport (\lam x' => Q x' y0) xp a.1) *> inv (pbMap a.1) *> pbMap q ==< pmap (\lam r => pbMap r *> inv (pbMap a.1) *> pbMap q) q0p >==
-                                  pbMap q0 *> inv (pbMap a.1) *> pbMap q                                      ==< a.2 >==
-                                  p                                                                           `qed),
-                                pinr (inv xp, transport_inv_id (\lam x' => Q x' y) xp q))
-            | pglue ((yp,qp),(xp,q0p)) i =>
-              Jl2 (\lam y' yp' x0' xp' => \Pi (q0' : Q x0' y0) (q' : Q x y') (p' : pinl x0' = {PO} pinr y') (a2 : pbMap q0' *> inv (pbMap a.1) *> pbMap q' = p') (qp' : transport (Q x) yp' a.1 = q') (q0p' : transport (\lam x' => Q x' y0) xp' a.1 = q0') ->
-                    ((transport (Q x0') yp' q0', Jl (\lam y' yp' => pbMap (transport (Q x0') yp' q0') = pbMap q0' *> inv (pbMap a.1) *> pbMap (transport (Q x) yp' a.1)) (inv (pmap (pbMap q0' *>) (inv_*> (pbMap a.1)))) yp' *> pmap (\lam r => pbMap q0' *> inv (pbMap a.1) *> pbMap r) qp' *> a2), pinl (inv yp', transport_inv_id (Q x0') yp' q0'))
-                    = {\Sigma (b : Fib pbMap p') (Join (\Sigma (p : y' = y0) (transport (Q x0') p b.1 = q0')) (\Sigma (p : x0' = x) (transport (\lam x'' => Q x'' y') p b.1 = q')))}
-                    ((transport (\lam x' => Q x' y') xp' q', Jl (\lam x' xp' => pbMap (transport (\lam x' => Q x' y') xp' q') = pbMap (transport (\lam x' => Q x' y0) xp' a.1) *> inv (pbMap a.1) *> pbMap q') (Jl (\lam _ r => r = pbMap a.1 *> inv (pbMap a.1) *> r) (inv (*>_inv (pbMap a.1))) (pbMap q')) xp' *> pmap (\lam r => pbMap r *> inv (pbMap a.1) *> pbMap q') q0p' *> a2), pinr (inv xp', transport_inv_id (\lam x' => Q x' y') xp' q')))
-                  (\lam q0' q' p' a2 qp' q0p' => {?})
-                  yp xp q0 q p a.2 qp q0p @ i
+                   (a1 : Q x y0) (a2 : pbMap q0 *> inv (pbMap a1) *> pbMap q = p)
+                   (m : Join (\Sigma (p : y0 = y) (transport (Q x) p a1 = q)) (\Sigma (p : x = x0) (transport (`Q y0) p a1 = q0)))
+                   : \Sigma (b : Fib pbMap p) (Join (\Sigma (p : y = y0) (transport (Q x0) p b.1 = q0)) (\Sigma (p : x0 = x) (transport (`Q y) p b.1 = q))) \elim a2, m
+            | idp, pinl (idp,idp) => ((q0, inv (pmap (pbMap q0 *>) (inv_*> (pbMap a1)))),                                             pinl (idp, idp))
+            | idp, pinr (idp,idp) => ((q,  Jl (\lam _ r => r = pbMap a1 *> inv (pbMap a1) *> r) (inv (*>_inv (pbMap a1))) (pbMap q)), pinr (idp, idp))
+            | idp, pglue ((idp,idp),(idp,idp)) i =>
+                \let t : inv (pmap (pbMap q0 *>) (inv_*> (pbMap q0))) = Jl (\lam _ r => r = pbMap q0 *> inv (pbMap q0) *> r) (inv (*>_inv (pbMap q0))) (pbMap q0) => {?}
+                \in ((q0, t @ {\lam _ => pbMap q0 = pbMap q0 *> inv (pbMap q0) *> pbMap q0} {inv (pmap (pbMap q0 *>) (inv_*> (pbMap q0)))} {Jl (\lam _ r => r = pbMap q0 *> inv (pbMap q0) *> r) (inv (*>_inv (pbMap q0))) (pbMap q0)} i), pglue ((idp,idp),(idp,idp)) i)
+                -- \in ((q0, t @ i), pglue ((idp,idp),(idp,idp)) i)
 
           \func RL {x0 x : X} {y0 y : Y} (q0 : Q x0 y0) (q : Q x y) (p : pinl x0 = {PO} pinr y)
                    (b : \Sigma (q2 : Q x0 y) (pbMap q2 = p))
-                   (n : Join (\Sigma (p : y = y0) (transport (Q x0) p b.1 = q0)) (\Sigma (p : x0 = x) (transport (\lam x'' => Q x'' y) p b.1 = q)))
+                   (n : Join (\Sigma (p : y = y0) (transport (Q x0) p b.1 = q0)) (\Sigma (p : x0 = x) (transport (`Q y) p b.1 = q)))
                    : \Sigma (a : \Sigma (q1 : Q x y0) (pbMap q0 *> inv (pbMap q1) *> pbMap q = p))
-                            (Join (\Sigma (p : y0 = y) (transport (Q x) p a.1 = q)) (\Sigma (p : x = x0) (transport (\lam x'' => Q x'' y0) p a.1 = q0))) \elim n
+                            (Join (\Sigma (p : y0 = y) (transport (Q x) p a.1 = q)) (\Sigma (p : x = x0) (transport (`Q y0) p a.1 = q0))) \elim n
             | pinl (yp,q0p) => ((transport (Q x) yp q, {?}), pinl (inv yp, {?}))
             | pinr (xp,qp) => {?}
             | pglue ((yp,q0p),(xp,qp)) i => {?}
