@@ -14,7 +14,7 @@
   | no (Not E)
   \where {
     \use \level levelProp {E : \Prop} (d1 d2 : Dec E) : d1 = d2 \elim d1, d2
-      | yes e1, yes e2 => idp
+      | yes e1, yes e2 => pmap yes (Path.inProp e1 e2)
       | yes e1, no ne2 => absurd (ne2 e1)
       | no ne1, yes e2 => absurd (ne1 e2)
       | no ne1, no ne2 => path (\lam i => no (\lam x => (absurd (ne1 x) : ne1 x = ne2 x) @ i))
@@ -47,6 +47,8 @@
 
 \class DecSet \extends BaseSet, Set#
   | decideEq (x y : E) : Dec (x = y)
+  | \infix 4 == : E -> E -> Bool
+  | == x y => decToBool (decideEq x y)
   \where
     \class Impl \extends DecSet
       | # x y => Not (x = y)
@@ -61,17 +63,15 @@
         | no x/=y => absurd (x//=y x/=y)
       }
 
-\func \infix 4 == {D : DecSet} (x y : D) => decToBool (decideEq x y)
-
 \lemma Hedberg {A : \Type} (d : \Pi (a a' : A) -> (a = a') `Or` Not (a = a')) : \level (isSet A) (ofHLevel_-1+.levelProp A 1) => \lam x x' =>
   \let | R {a a' : A} (p : (a = a') `Or` Not (a = a')) : \Prop => \case p \with { | inl _ => \Sigma | inr _ => Empty }
        | R' (a a' : A) => R {a} {a'} (d a a')
-       | refl {a : A} (p : (a = a) `Or` Not (a = a)) => \case p \as p' \return R p' \with { | inl _ => () | inr q => q idp }
+       | refl {a : A} (p : (a = a) `Or` Not (a = a)) => \case \elim p \return R p \with { | inl _ => () | inr q => q idp }
        | equiv : Equiv {x = x'} {R' x x'} => propPathEquiv R' (\lam a => refl (d a a)) (\lam {a} {a'} s => \case d a a' \as p, s : R p \with {
          | inl p, _ => p
          | inr _, s' => absurd s'
        }) {x} {x'}
-  \in transport isProp (inv (univalence.ret equiv)) (\lam _ _ => idp)
+  \in transport isProp (inv (univalence.ret equiv)) Path.inProp
   \where
     \func propPathEquiv {A : \Type} (R : A -> A -> \Prop) (refl : \Pi (a : A) -> R a a) (p : \Pi {a a' : A} -> R a a' -> a = a') {a a' : A} : QEquiv {a = a'} {R a a'}
-      => pathEquiv R (\lam {a} {a'} => \new Retraction (\lam q => transport (R a) q (refl a)) p idpe)
+      => pathEquiv R (\lam {a} {a'} => \new Retraction (\lam q => transport (R a) q (refl a)) p (\lam _ => Path.inProp _ _))

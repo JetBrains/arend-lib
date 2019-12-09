@@ -1,10 +1,12 @@
 \import Algebra.Group
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Algebra.Pointed
 \import Category (Cat)
 \import Category.Sub
 \import Equiv
 \import Paths
+\import Set.Category
 
 \instance GroupCategory : Cat Group
   => subCat (\new Embedding {
@@ -15,17 +17,18 @@
     }
   })
 
-\record AbGroupHom (A B : AddGroup)
-  | func : A -> B
-  | func-+ (x y : A) : func (x + y) = func x + func y
-  \where {
+\record AbGroupHom \extends SetHom {
+  \override Dom : AddGroup
+  \override Cod : AddGroup
+  | func-+ (x y : Dom) : func (x + y) = func x + func y
+} \where {
     \func toMonoidHom (f : AbGroupHom) : MonoidHom \cowith
-      | M => \new Monoid f.A.E f.A.zro (f.A.+) f.A.zro-left f.A.zro-right f.A.+-assoc
-      | N => \new Monoid f.B.E f.B.zro (f.B.+) f.B.zro-left f.B.zro-right f.B.+-assoc
+      | Dom => \new Monoid f.Dom.E (zro {f.Dom}) (+ {f.Dom}) (zro-left {f.Dom}) (zro-right {f.Dom}) (+-assoc {f.Dom})
+      | Cod => \new Monoid f.Cod.E (zro {f.Cod}) (+ {f.Cod}) (zro-left {f.Cod}) (zro-right {f.Cod}) (+-assoc {f.Cod})
       | func => f.func
       | func-* => f.func-+
-      | func-ide => AddGroup.cancel-left (f.func f.A.zro) (f.func f.A.zro) f.B.zro
-                                         (inv (f.func-+ f.A.zro f.A.zro) *> pmap f.func (A.zro-right f.A.zro) *> inv (B.zro-right (f.func f.A.zro)))
+      | func-ide => AddGroup.cancel-left (f.func (zro {f.Dom})) (f.func (zro {f.Dom})) (zro {f.Cod})
+                                         (inv (f.func-+ (zro {f.Dom}) (zro {f.Dom})) *> pmap f.func (zro-right {f.Dom} (zro {f.Dom})) *> inv (zro-right {f.Cod} (f.func (zro {f.Dom}))))
 
     \func equals {A B : AddGroup} {f g : AbGroupHom A B} (p : \Pi (x : A) -> f.func x = g.func x) : f = g
       => path (\lam i => \new AbGroupHom A B (\lam x => p x @ i) (pathInProp (\lam j => \Pi (x y : A) -> p (x + y) @ j = (p x @ j) + (p y @ j)) f.func-+ g.func-+ @ i))

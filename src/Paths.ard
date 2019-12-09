@@ -11,25 +11,33 @@
 \func transport2 {A B : \Type} (C : A -> B -> \Type) {a a' : A} {b b' : B} (p : a = a') (q : b = b') (c : C a b) : C a' b' \elim p, q
   | idp, idp => c
 
-\func inv {A : \Type} {a a' : A} (p : a = a') : a' = a => transport (`= a) p idp
+\func inv {A : \Type} {a a' : A} (p : a = a') : a' = a \elim p
+  | idp => idp
 
-\func \infixr 9 *> {A : \Type} {a a' a'' : A} (p : a = a') (q : a' = a'') : a = a'' => concat p q
+\func \infixr 9 *> {A : \Type} {a a' a'' : A} (p : a = a') (q : a' = a'') : a = a'' \elim q
+  | idp => p
   \where
-    \func concat {A : I -> \Type} {a : A left} {a' a'' : A right} (p : Path A a a') (q : a' = a'') : Path A a a'' =>
-      transport (Path A a) q p
+    \func concat {A : I -> \Type} {a : A left} {a' a'' : A right} (p : Path A a a') (q : a' = a'') : Path A a a'' \elim q
+      | idp => p
 
-\func \infixr 9 <* {A : \Type} {a a' a'' : A} (p : a = a') (q : a' = a'') : a = a'' => concat p q
+\func \infixr 9 <* {A : \Type} {a a' a'' : A} (p : a = a') (q : a' = a'') : a = a'' \elim p
+  | idp => q
   \where
-    \func concat {A : I -> \Type} {a a' : A left} {a'' : A right} (p : a = a') (q : Path A a' a'') : Path A a a'' =>
-      transport (\lam x => Path A x a'') (inv p) q
+    \func concat {A : I -> \Type} {a a' : A left} {a'' : A right} (p : a = a') (q : Path A a' a'') : Path A a a'' \elim p
+      | idp => q
 
 \func psqueeze {A : \Type} {a a' : A} (p : a = a') (i : I) : a = p @ i => path (\lam j => p @ I.squeeze i j)
 
-\func Jl {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type) (b : B a idp) {a' : A} (p : a = a') : B a' p =>
-  coe (\lam i => B (p @ i) (psqueeze p i)) b right
-  \where
+\func Jl {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type) (b : B a idp) {a' : A} (p : a = a') : B a' p \elim p
+  | idp => b
+  \where {
     \func Jr {A : \Type} {a' : A} (B : \Pi (a : A) -> a = a' -> \Type) (b : B a' idp) {a : A} (p : a = a') : B a p \elim p
       | idp => b
+
+    -- | J can be defined in terms of coe
+    \func def {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type) (b : B a idp) {a' : A} (p : a = a') : B a' p =>
+      coe (\lam i => B (p @ i) (psqueeze p i)) b right
+  }
 
 \func pmap_*>-comm {A B : \Type} (f : A -> B) {a a' a'' : A} (p : a = a') (q : a' = a'')
   : pmap f (p *> q) = pmap f p *> pmap f q \elim q
@@ -77,7 +85,7 @@
 \func pathOver {A : I -> \Type} {a : A left} {a' : A right} (p : coe A a right = a') : Path A a a'
   => *>.concat (idpOver A a) p
 
-\lemma pathInProp (A : I -> \Prop) (a : A left) (a' : A right) : Path A a a' => pathOver idp
+\lemma pathInProp (A : I -> \Prop) (a : A left) (a' : A right) : Path A a a' => pathOver (Path.inProp (coe A a right) a')
 
 \func coe_path {A : \Type} {a1 a2 a3 a4 : A} (p : a2 = a1) (q : a2 = a3) (r : a3 = a4)
   : coe (\lam i => p @ i = r @ i) q right = inv p *> q *> r
