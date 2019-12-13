@@ -2,6 +2,7 @@
 \import Equiv.Fiber
 \import Equiv.Sigma
 \import Equiv.Univalence
+\import HLevel
 \import Homotopy.Join
 \import Homotopy.Localization.Accessible
 \import Homotopy.Localization.Universe
@@ -9,8 +10,26 @@
 \import Logic
 \import Paths
 
--- | A type {X} is connected if, for every local type Z, the constant map (\Sigma -> Z) -> (X -> Z) is an equivalence.
+\open Localization
+
+-- | A type {X} is connected if, for every local type Z, the constant map (\Sigma -> Z) -> (X -> Z) is an equivalence
 \func isConnectedType {U : Universe} (X : \Type) => \Pi (Z : Local) -> isLocal {nullTypeUniverse X} Z
+
+-- | If a type {X} is connected, then its localization is contractible
+\lemma isConnected=>contr {U : ReflUniverse} (X : \Type) (c : isConnectedType X) : Contr (LType X) =>
+  \let c' : Equiv (\lam z _ => z) => propExt.dir (nullTypeUniverse.localDesc X (LType X)) (c (LType X))
+  \in \new Contr {
+    | center => c'.sec lEta
+    | contraction => remove_inL (\lam _ => c'.sec lEta) (\lam x => x) (\lam a => path (\lam i => (c'.f_sec lEta @ i) a))
+  }
+
+-- | If the localization of a type {X} is contractible, then {X} is connected
+\lemma contr=>isConnected {U : ReflUniverse} (X : \Type) (c : Contr (LType X)) : isConnectedType X
+  => \lam Z => propExt.conv (nullTypeUniverse.localDesc X Z) (\new QEquiv {
+    | ret g => lift g c.center
+    | ret_f z => lift.const z c.center
+    | f_sec g => path (\lam i x => (pmap (lift g) (c.contraction (inL x)) *> lift-prop g x) @ i)
+  })
 
 \class Connected {U : Universe} (X : \Type) {
   | connected : isConnectedType X
