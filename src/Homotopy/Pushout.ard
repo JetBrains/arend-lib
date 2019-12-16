@@ -1,6 +1,8 @@
 \import Equiv
+\import Equiv.Sigma
 \import Equiv.Univalence
 \import Function
+\import HLevel
 \import Homotopy.Pointed
 \import Homotopy.Sphere
 \import Homotopy.Square
@@ -165,3 +167,52 @@
     }) @ i)
     | f_sec _ => idp
   }
+
+-- | A pushout of an embedding is an embedding and such a pushout square is also a pullback square
+\class EmbeddingPushout \noclassifying (A B C : \Type) (f : A -> B) (g : Embedding {A} {C}) {
+  \func PO => PushoutData f g.f
+
+  \func code (b0 : B) (w : PO) : \oo-Type \elim w
+    | pinl b => b0 = b
+    | pinr c => \Sigma (a : A) (b0 = f a) (c = g.f a)
+    | pglue a i => QEquiv-to-= (equiv b0 a) @ i
+
+  \lemma equiv (b0 : B) (a : A) : Equiv {b0 = f a} {\Sigma (a' : A) (b0 = f a') (g.f a = g.f a')} (\lam p => (a, p, idp)) =>
+    (b0 = f a)                                                    ~~< symQEquiv (contr-left (lsigma a) (\lam p => b0 = f p.1)) >~~
+    (\Sigma (p : \Sigma (a' : A) (a = a')) (b0 = f p.1))          ~~< sigma-left (\lam p => b0 = f p.1) (Equiv-to-= (sigma-right (a =) (\lam a' => g.f a = g.f a') (\lam a' => Embedding.pmap-isEquiv {g} {a} {a'}))) >~~
+    (\Sigma (p : \Sigma (a' : A) (g.f a = g.f a')) (b0 = f p.1))  ~~< \new QEquiv { | B => \Sigma (a' : A) (b0 = f a') (g.f a = g.f a') | f p => (p.1.1, p.2, p.1.2) | ret q => ((q.1,q.3),q.2) | ret_f => idpe | f_sec => idpe } >~~
+    (\Sigma (a' : A) (b0 = f a') (g.f a = g.f a'))                `eqed
+    \where \open Equiv.Reasoning
+
+  \func encode (b0 : B) {w : PO} (p : pinl b0 = w) : code b0 w => transport (code b0) p idp
+
+  \func decode (b0 : B) {w : PO} (d : code b0 w) : pinl b0 = w \elim w
+    | pinl b => pmap pinl d
+    | pinr c => pmap pinl d.2 *> ppglue d.1 *> inv (pmap pinr d.3)
+    | pglue a i =>
+        \let t => transport_pi2 (code b0) (pinl b0 =) (ppglue a) (pmap pinl) (\lam x => pmap pinl x.2 *> ppglue x.1 *> inv (pmap pinr x.3))
+                                (\lam p => Jl (\lam _ q => transport (pinl b0 =) q (pmap pinl p) = pmap pinl p *> q) idp (ppglue a))
+        \in (pathOver t @ i) d
+
+  \func encode_decode-left (b0 b : B) (d : code b0 (pinl b)) : encode b0 {pinl b} (decode b0 d) = d \elim d
+    | idp => idp
+
+  \func encode_decode-right (b0 : B) (c : C) (d : code b0 (pinr c)) : encode b0 {pinr c} (decode b0 d) = d \elim d
+   | (a,idp,idp) => pmap (encode (f a)) (idp_*> (ppglue a))
+
+  \func decode_enode (b0 : B) {w : PO} (p : pinl b0 = w) : decode b0 (encode b0 p) = p \elim p
+    | idp => idp
+
+  \lemma pushout-embedding : Embedding {B} {PO} pinl \cowith
+    | isEmb b b' => \new Retraction {
+      | sec => encode b
+      | f_sec => decode_enode b
+    }
+
+  \lemma pullback-path-equiv (b : B) (c : C) : Equiv {\Sigma (a : A) (b = f a) (c = g.f a)} {pinl b = {PO} pinr c} (decode b)
+    => \new QEquiv {
+      | ret => encode b
+      | ret_f => encode_decode-right b c
+      | f_sec => decode_enode b
+    }
+}

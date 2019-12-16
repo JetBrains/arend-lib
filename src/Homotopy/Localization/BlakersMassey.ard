@@ -18,60 +18,86 @@
 \import Paths
 
 \lemma genBlakersMassey {d : Data} (x0 : X) (y0 : Y) : isConnectedMap (pbMap {d} {x0} {y0})
-  => {?}
+  => \lam p => surjective (POData.pullback_pushout-surjective {\new POData Y X (\lam y x => Q x y)} y0 x0 (inv (pmap swap p))) p
   \where {
     \open Localization
 
-    -- | It is easier to prove the theorem if the type Q x0 y0 is inhabited.
-    \lemma surjective {d : Data} {x0 : X} {y0 : Y} (q : TruncP (Q x0 y0)) : isConnectedMap (pbMap {d} {x0} {y0}) \elim q
-      | inP q0 => \lam p => contr=>isConnected (Fib pbMap p) (DataExt.code-contr {\new DataExt { | Data => d | x0 => x0 | y0 => y0 | q0 => q0 }} p)
+    -- | It is easier to prove the theorem if the type ``\Sigma (y : Y) (Q x0 y)`` is inhabited.
+    \lemma surjective {d : Data} {x0 : X} {y0 : Y} (q : TruncP (\Sigma (y : Y) (Q x0 y))) : isConnectedMap (pbMap {d} {x0} {y0}) \elim q
+      | inP (y,q0) => \lam p => contr=>isConnected (Fib pbMap p) (DataExt.code-contr {\new DataExt { | Data => d | x0 => x0 | y0 => y | q0 => q0 }} p)
 
-    \lemma equiv-lemma {d : EquivData} : Equiv {LType A} {LType B} (lift (\lam a => Equiv.sec {Connected.equiv {M a} (LType B)} (\lam m => lEta (f (a,m)).1)))
-      => \let | E1 a => Connected.equiv {M a} (LType B)
-              | E2 b => Connected.equiv {N b} (LType A)
-              | f1 a m => lEta (f (a,m)).1
-              | g1 b n => lEta (g (b,n)).1
-              | F a => Equiv.sec {E1 a} (f1 a)
-              | G b => Equiv.sec {E2 b} (g1 b)
-         \in localization-equiv F G
-                (\lam a => Equiv.sec {Connected.equiv {M a} (pathLocal (lift G (F a)) (lEta a))}
-                                     (\lam m => lift G (F a)        ==< path (\lam i => lift G ((Equiv.f_sec {E1 a} (f1 a) @ i) m)) >==
-                                                lift G (f1 a m)     ==< lift-prop G (f (a,m)).1 >==
-                                                G (f (a,m)).1       ==< path (\lam i => (Equiv.f_sec {E2 (f (a,m)).1} (g1 (f (a,m)).1) @ i) (f (a,m)).2) >==
-                                                inL (g (f (a,m))).1 ==< pmap inL (p a m) >==
-                                                inL a               `qed))
-                (\lam b => Equiv.sec {Connected.equiv {N b} (pathLocal (lift F (G b)) (lEta b))}
-                                     (\lam n => lift F (G b)        ==< path (\lam i => lift F ((Equiv.f_sec {E2 b} (g1 b) @ i) n)) >==
-                                                lift F (g1 b n)     ==< lift-prop F (g (b,n)).1 >==
-                                                F (g (b,n)).1       ==< path (\lam i => (Equiv.f_sec {E1 (g (b,n)).1} (f1 (g (b,n)).1) @ i) (g (b,n)).2) >==
-                                                inL (f (g (b,n))).1 ==< pmap inL (q b n) >==
-                                                inL b               `qed))
-      \where {
-        \class EquivData \extends ReflUniverse
-          | A : \Type
-          | B : \Type
-          | M : A -> Connected
-          | N : B -> Connected
-          | f : \Sigma (a : A) (M a) -> \Sigma (b : B) (N b)
-          | g : \Sigma (b : B) (N b) -> \Sigma (a : A) (M a)
-          | p : \Pi (a : A) (m : M a) -> (g (f (a,m))).1 = a
-          | q : \Pi (b : B) (n : N b) -> (f (g (b,n))).1 = b
+    \class EquivData \noclassifying
+      (A B : \Type)
+      (M : A -> Connected) (N : B -> Connected)
+      (f : \Sigma (a : A) (M a) -> \Sigma (b : B) (N b))
+      (g : \Sigma (b : B) (N b) -> \Sigma (a : A) (M a))
+      (p : \Pi (a : A) (m : M a) -> (g (f (a,m))).1 = a)
+      (q : \Pi (b : B) (n : N b) -> (f (g (b,n))).1 = b)
+    \extends ReflUniverse {
 
-        \func eval {d : EquivData} (a : A) (m : M a) : lift (\lam a => Equiv.sec {Connected.equiv {M a} (LType B)} (\lam m => lEta (f (a,m)).1)) (lEta a) = lEta (f (a,m)).1
-          => lift-prop (\lam a => Equiv.sec {Connected.equiv {M a} (LType B)} (\lam m => lEta (f (a,m)).1)) a *> path (\lam i => (Equiv.f_sec {Connected.equiv {M a} (LType B)} (\lam m => lEta (f (a,m)).1) @ i) m)
-      }
+      \func eval (a : A) (m : M a) : lift (\lam a => Equiv.sec {Connected.equiv {M a} (LType B)} (\lam m => lEta (f (a,m)).1)) (lEta a) = lEta (f (a,m)).1 =>
+        lift-prop (\lam a => Equiv.sec {Connected.equiv {M a} (LType B)} (\lam m => lEta (f (a,m)).1)) a *> path (\lam i => (Equiv.f_sec {Connected.equiv {M a} (LType B)} (\lam m => lEta (f (a,m)).1) @ i) m)
 
-    \class Data \extends ReflUniverse {
+      \lemma equiv-lemma : Equiv {LType A} {LType B} (lift (\lam a => Equiv.sec {Connected.equiv {M a} (LType B)} (\lam m => lEta (f (a,m)).1)))
+        => \let | E1 a => Connected.equiv {M a} (LType B)
+                | E2 b => Connected.equiv {N b} (LType A)
+                | f1 a m => lEta (f (a,m)).1
+                | g1 b n => lEta (g (b,n)).1
+                | F a => Equiv.sec {E1 a} (f1 a)
+                | G b => Equiv.sec {E2 b} (g1 b)
+           \in localization-equiv F G
+                  (\lam a => Equiv.sec {Connected.equiv {M a} (pathLocal (lift G (F a)) (lEta a))}
+                                       (\lam m => lift G (F a)        ==< path (\lam i => lift G ((Equiv.f_sec {E1 a} (f1 a) @ i) m)) >==
+                                                  lift G (f1 a m)     ==< lift-prop G (f (a,m)).1 >==
+                                                  G (f (a,m)).1       ==< path (\lam i => (Equiv.f_sec {E2 (f (a,m)).1} (g1 (f (a,m)).1) @ i) (f (a,m)).2) >==
+                                                  inL (g (f (a,m))).1 ==< pmap inL (p a m) >==
+                                                  inL a               `qed))
+                  (\lam b => Equiv.sec {Connected.equiv {N b} (pathLocal (lift F (G b)) (lEta b))}
+                                       (\lam n => lift F (G b)        ==< path (\lam i => lift F ((Equiv.f_sec {E2 b} (g1 b) @ i) n)) >==
+                                                  lift F (g1 b n)     ==< lift-prop F (g (b,n)).1 >==
+                                                  F (g (b,n)).1       ==< path (\lam i => (Equiv.f_sec {E1 (g (b,n)).1} (f1 (g (b,n)).1) @ i) (g (b,n)).2) >==
+                                                  inL (f (g (b,n))).1 ==< pmap inL (q b n) >==
+                                                  inL b               `qed))
+    }
+
+    \class POData {
       | X : \Type
       | Y : \Type
       | Q : X -> Y -> \Type
-      | ch {x x' : X} {y y' : Y} (q0 : Q x y) (q1 : Q x y') (q2 : Q x' y)
-        : isConnectedType (Join (\Sigma (p : y = y') (transport (Q x) p q0 = q1)) (\Sigma (p : x = x') (transport (`Q y) p q0 = q2)))
 
       \func PO => PushoutData {\Sigma (x : X) (y : Y) (Q x y)} (\lam p => p.1) (\lam p => p.2)
 
+      \func swap (x : PO) : PushoutData {\Sigma (y : Y) (x : X) (Q x y)} (\lam p => p.1) (\lam p => p.2)
+        | pinl b => pinr b
+        | pinr c => pinl c
+        | pglue (x,y,q) i => pglue (y,x,q) (inv (path (\lam j => j)) @ i)
+
       \func pbMap {x : X} {y : Y} (q : Q x y) : pinl x = {PO} pinr y => PushoutData.ppglue ((x,y,q) : \Sigma (x : X) (y : Y) (Q x y))
+
+      \lemma pullback_pushout-surjective (x : X) (y : Y) (p : pinl x = {PO} pinr y) : TruncP (\Sigma (x' : X) (Q x' y))
+        => \let | EP => \new EmbeddingPushout {
+                          | A => \Sigma (y : Y) (TruncP (\Sigma (x : X) (Q x y)))
+                          | B => PushoutData {\Sigma (x : X) (y : Y) (Q x y)} {X} {\Sigma (y : Y) (TruncP (\Sigma (x : X) (Q x y)))} (\lam p => p.1) (\lam p => (p.2, inP (p.1,p.3)))
+                          | C => Y
+                          | f => pinr
+                          | g => Embedding.projection (\lam y => TruncP (\Sigma (x : X) (Q x y)))
+                        }
+                | t => Equiv.ret {EmbeddingPushout.pullback-path-equiv {EP} (pinl x) y} (pmap (\lam w =>
+                        \case w \with {
+                           | pinl x => pinl (pinl x)
+                           | pinr y => pinr y
+                           | pglue (x,y,q) i =>
+                             (pmap pinl (PushoutData.ppglue {\Sigma (x : X) (y : Y) (Q x y)} (x,y,q)) *>
+                              PushoutData.ppglue {EP.A} (y, inP (x,q))) @ i
+                        }) p)
+          \in transport (\lam y => TruncP (\Sigma (x : X) (Q x y))) (inv t.3) t.1.2
     }
+
+    \open POData
+
+    \class Data \extends ReflUniverse, POData
+      | ch {x x' : X} {y y' : Y} (q0 : Q x y) (q1 : Q x y') (q2 : Q x' y)
+        : isConnectedType (Join (\Sigma (p : y = y') (transport (Q x) p q0 = q1)) (\Sigma (p : x = x') (transport (`Q y) p q0 = q2)))
 
     \class DataExt \extends Data {
       | x0 : X
@@ -95,7 +121,7 @@
         | pinr y => LType (Fib pbMap p)
         | pglue (x,y,q) i => (pathOver (code-glue q) @ i) p
         \where {
-          \func equivData {x : X} {y : Y} (q : Q x y) (p : pinl x0 = {PO} pinr y) : equiv-lemma.EquivData \cowith
+          \func equivData {x : X} {y : Y} (q : Q x y) (p : pinl x0 = {PO} pinr y) : EquivData \cowith
             | isLocal => isLocal
             | localization => localization
             | A => \Sigma (q1 : Q x y0) (pbMap q0 *> inv (pbMap q1) *> pbMap q = p)
@@ -113,7 +139,7 @@
             | p => LRL q p
             | q => RLR q p
 
-          \func equiv {x : X} {y : Y} (q : Q x y) (p : pinl x0 = {PO} pinr y) => equiv-lemma {equivData q p}
+          \func equiv {x : X} {y : Y} (q : Q x y) (p : pinl x0 = {PO} pinr y) => EquivData.equiv-lemma {equivData q p}
 
           \func pathLem1 {A : \Type} {a a' a'' : A} (p : a = a') (q : a'' = a') : p *> inv q *> q = p
             | idp, idp => idp
@@ -195,7 +221,7 @@
             Equiv.f {code.equiv q (pbMap q)} (code-left-diag (pbMap q) (lEta code-center.point))
               ==< pmap (Equiv.f {code.equiv q (pbMap q)}) (lift-prop (\lam (t : Left idp) => inL ((t.1, code.pathLem2-gen t.2) : Left (pbMap q))) code-center.point) >==
             Equiv.f {code.equiv q (pbMap q)} (lEta ((q0, code.pathLem2 (pbMap q0) (pbMap q)) : Left (pbMap q)))
-              ==< equiv-lemma.eval {code.equivData q (pbMap q)} (q0, code.pathLem2 (pbMap q0) (pbMap q)) (pinr (idp,idp)) >==
+              ==< EquivData.eval {code.equivData q (pbMap q)} (q0, code.pathLem2 (pbMap q0) (pbMap q)) (pinr (idp,idp)) >==
             lEta ((q, inv (code.pathLem2 (pbMap q0) (pbMap q)) *> code.pathLem2 (pbMap q0) (pbMap q)) : Fib pbMap p)
               ==< pmap (\lam x => lEta ((q,x) : Fib pbMap p)) (inv_*> (code.pathLem2 (pbMap q0) (pbMap q))) >==
             lEta ((q, idp) : Fib pbMap p)
@@ -206,6 +232,4 @@
         | contraction => transport (\lam t => \Pi (c : code t.2) -> code-center t.2 = c) (isContr=>isProp (lsigma {PO} (pinl x0)) (pinr y0, pbMap q0) (w, p))
                                    (\lam c => remove_inL (\lam _ => code-center (pbMap q0)) (\lam c => c) (code-path (pbMap q0)) c)
     }
-
-    \open Data
   }
