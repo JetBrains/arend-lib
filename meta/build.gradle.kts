@@ -11,7 +11,7 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
-    implementation(files("../Arend/build/libs/arend-sdk.jar"))
+    implementation(files("../../Arend/build/libs/arend-sdk.jar"))
 }
 
 configure<JavaPluginConvention> {
@@ -39,14 +39,6 @@ idea {
     module {
         isDownloadSources = true
     }
-}
-
-task<Copy>("ext") {
-    from(file("build/classes/kotlin/main")) {
-        include("org/**")
-    }
-    into("ext")
-    dependsOn("build")
 }
 
 tasks.withType<Wrapper> {
