@@ -9,24 +9,39 @@
 \import Order.StrictOrder
 \import Paths
 
-\func isuc (x : Int) : Int
-  | pos n => pos (suc n)
-  | neg (suc n) => neg n
+\class Integer (A : \Type) {
+  | succ (a : A) : A
+  | pred (a : A) : A
+  | succPred (a : A) : succ (pred a) = a
+  | predSucc (a : A) : pred (succ a) = a
 
-\func ipred (x : Int) : Int
-  | pos 0 => neg 1
-  | pos (suc n) => pos n
-  | neg n => neg (suc n)
+  \func helix : A = A => path (iso succ pred predSucc succPred)
+}
 
-\lemma ipred_isuc (x : Int) : ipred (isuc x) = x
-  | pos n => idp
-  | neg (suc n) => idp
+\instance IntInteger : Integer Int
+  | succ => isuc
+  | pred => ipred
+  | succPred => isuc_ipred
+  | predSucc => ipred_isuc
+  \where  {
+    \func isuc (x : Int) : Int
+      | pos n => pos (suc n)
+      | neg (suc n) => neg n
 
-\lemma isuc_ipred (x : Int) : isuc (ipred x) = x
-  | pos 0 => idp
-  | pos (suc n) => idp
-  | neg n => idp
+    \func ipred (x : Int) : Int
+      | pos 0 => neg 1
+      | pos (suc n) => pos n
+      | neg n => neg (suc n)
 
+    \lemma ipred_isuc (x : Int) : ipred (isuc x) = x
+      | pos n => idp
+      | neg (suc n) => idp
+
+    \lemma isuc_ipred (x : Int) : isuc (ipred x) = x
+      | pos 0 => idp
+      | pos (suc n) => idp
+      | neg n => idp
+  }
 -- # Properties of <= and <
 
 \open Nat.<=
@@ -76,7 +91,7 @@
 
 \open IntLE(pos<=pos, neg<=pos', neg<=neg, neg<=neg')
 
-\lemma <=-isuc {x : Int} : x <= isuc x \elim x
+\lemma <=-isuc {x : Int} : x <= succ x \elim x
   | pos n => pos<=pos <=-suc
   | neg (suc n) => neg<=neg' <=-suc
 
@@ -220,8 +235,8 @@
       | suc n, suc m, 0 => +-comm _ _ *> zro-left _
       | suc n, suc m, suc k =>
         (n - m) + pos (suc k)  ==< suc-right >==
-        isuc ((n - m) + pos k) ==< pmap isuc (minus+pos n m k) >==
-        isuc (pos n + (k - m)) ==< inv suc-left >==
+        succ ((n - m) + pos k) ==< pmap succ (minus+pos n m k) >==
+        succ (pos n + (k - m)) ==< inv suc-left >==
         pos (suc n) + (k - m)  `qed
 
     \lemma minus+neg (n m k : Nat) : (n - m) + neg k = neg m + (n - k)
@@ -230,16 +245,16 @@
       | suc n, 0, suc k => inv (zro-left _)
       | suc n, suc m, 0 => +-comm _ _ *> zro-left _
       | suc n, suc m, suc k =>
-        (n - m) + neg (suc k)   ==< pred-right >==
-        ipred ((n - m) + neg k) ==< pmap ipred (minus+neg n m k) >==
-        ipred (neg m + (n - k)) ==< inv pred-left >==
-        neg (suc m) + (n - k)   `qed
+        (n - m) + neg (suc k)  ==< pred-right >==
+        pred ((n - m) + neg k) ==< pmap pred (minus+neg n m k) >==
+        pred (neg m + (n - k)) ==< inv pred-left >==
+        neg (suc m) + (n - k)  `qed
 
     \lemma minus__ {n : Nat} : n - n = 0 \elim n
       | 0 => idp
       | suc n => minus__
 
-    \lemma suc-left {x : Int} {n : Nat} : pos (suc n) + x = isuc (pos n + x) \elim x, n
+    \lemma suc-left {x : Int} {n : Nat} : pos (suc n) + x = succ (pos n + x) \elim x, n
       | pos m, n => pmap pos (AbMonoid.+-comm (suc n) m *> pmap suc (AbMonoid.+-comm m n))
       | neg 1, 0 => idp
       | neg 1, 1 => idp
@@ -247,10 +262,10 @@
       | neg (suc (suc m)), 0 => idp
       | neg (suc (suc m)), suc n => suc-left {neg (suc m)} {n}
 
-    \lemma suc-right {x : Int} {n : Nat} : x + pos (suc n) = isuc (x + pos n) =>
-      +-comm _ _ *> suc-left {x} {n} *> pmap isuc (+-comm _ _)
+    \lemma suc-right {x : Int} {n : Nat} : x + pos (suc n) = succ (x + pos n) =>
+      +-comm _ _ *> suc-left {x} {n} *> pmap succ (+-comm _ _)
 
-    \lemma pred-left {x : Int} {n : Nat} : neg (suc n) + x = ipred (neg n + x) \elim x, n
+    \lemma pred-left {x : Int} {n : Nat} : neg (suc n) + x = pred (neg n + x) \elim x, n
       | pos 0, 0 => idp
       | pos 1, 0 => idp
       | pos (suc (suc m)), 0 => pmap (\lam t => pos (suc t)) (AbMonoid.+-comm m 0)
@@ -262,8 +277,8 @@
       | neg (suc m), 0 => pmap (\lam t => neg (suc t)) (AbMonoid.+-comm 1 m)
       | neg (suc m), suc n => pmap (\lam t => neg (suc t)) (AbMonoid.+-comm (suc (suc n)) m *> inv (pmap suc (AbMonoid.+-comm (suc n) m)))
 
-    \lemma pred-right {x : Int} {n : Nat} : x + neg (suc n) = ipred (x + neg n) =>
-      +-comm _ _ *> pred-left {x} {n} *> pmap ipred (+-comm _ _)
+    \lemma pred-right {x : Int} {n : Nat} : x + neg (suc n) = pred (x + neg n) =>
+      +-comm _ _ *> pred-left {x} {n} *> pmap pred (+-comm _ _)
 
     -- ## *
 
@@ -299,7 +314,7 @@
 
     -- ## <
 
-    \lemma <_minus-left {n m k : Nat} (p : suc n Nat.<= m) : isuc (n - k) <= m - k \elim n, m, k, p
+    \lemma <_minus-left {n m k : Nat} (p : suc n Nat.<= m) : succ (n - k) <= m - k \elim n, m, k, p
       | 0, suc m, 0, _ => pos<=pos (suc<=suc zero<=_)
       | 0, 1, 1, _ => <=-reflexive (pos 0)
       | 0, 1, suc (suc k), _ => neg<=neg (<=-reflexive k)
@@ -308,7 +323,7 @@
       | suc n, suc m, 0, p => pos<=pos p
       | suc n, suc m, suc k, suc<=suc n<m => <_minus-left n<m
 
-    \lemma <_minus-right {n m k : Nat} (p : suc k Nat.<= m) : isuc (n - m) <= n - k \elim n, m, k, p
+    \lemma <_minus-right {n m k : Nat} (p : suc k Nat.<= m) : succ (n - m) <= n - k \elim n, m, k, p
       | 0, suc m, 0, _ => neg<=pos'
       | 0, suc m, suc k, suc<=suc k<m => neg<=neg' k<m
       | 1, 1, 0, _ => <=-reflexive (pos 1)
