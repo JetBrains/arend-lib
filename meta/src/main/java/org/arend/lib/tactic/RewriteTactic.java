@@ -95,7 +95,7 @@ public class RewriteTactic extends BaseMetaDefinition {
               typechecker.getErrorReporter().report(new TypecheckingError("Cannot substitute expression", contextData.getReferenceExpression()));
               return null;
             }
-            return typechecker.check(absExpr);
+            return typechecker.check(absExpr, refExpr);
           }
         })))
         .app(factory.core("transport _ {!} _", path))
