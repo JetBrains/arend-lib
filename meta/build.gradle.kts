@@ -7,7 +7,7 @@ repositories {
 }
 
 dependencies {
-    implementation(files("../../Arend/build/libs/arend-api.jar"))
+    implementation(files("../../Arend/build/libs/arend-api-1.2.0.jar"))
     implementation("com.google.code.findbugs:jsr305:3.0.2")
 }
 
