@@ -45,8 +45,9 @@ public class StdExtension implements ArendExtension {
   @Override
   public void declareDefinitions(DefinitionContributor contributor) {
     MetaDefinition meta = new RewriteTactic(this);
-    contributor.declare(ModulePath.fromString("Paths.Meta"), LongName.fromString("rewrite"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.AFTER_SOLVER, meta));
-    contributor.declare(ModulePath.fromString("Paths.Meta"), LongName.fromString("rewrite_after"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.AFTER_SOLVER, meta));
-    contributor.declare(ModulePath.fromString("Paths.Meta"), LongName.fromString("rewrite_before"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.BEFORE_SOLVER, meta));
+    contributor.declare(ModulePath.fromString("Paths.Meta"), LongName.fromString("rewrite"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.AFTER_LEVELS, meta));
+    contributor.declare(ModulePath.fromString("Paths.Meta"), LongName.fromString("rewrite1"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.BEFORE_SOLVER, meta));
+    contributor.declare(ModulePath.fromString("Paths.Meta"), LongName.fromString("rewrite2"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.BEFORE_LEVELS, meta));
+    contributor.declare(ModulePath.fromString("Paths.Meta"), LongName.fromString("rewrite3"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.AFTER_LEVELS, meta));
   }
 }
