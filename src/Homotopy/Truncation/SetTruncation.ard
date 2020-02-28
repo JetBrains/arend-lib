@@ -1,14 +1,32 @@
+\import HLevel
 \import Homotopy.Truncation
+\import Paths
 
 \data SetTrunc (A : \Type)
-  | point A
-  | trunc (x y : SetTrunc A) (p q : x = y) (i j : I) \elim i, j {
+  | truncSet A
+  | squashSet (x y : SetTrunc A) (p q : x = y) (i j : I) \elim i, j {
     | left, j => p @ j
     | right, j => q @ j
     | i, left => x
     | i, right => y
   }
+  \where {
+    \func test {A : \Type} (B : SetTrunc A -> \Type) (BSet : \Pi (x : SetTrunc A) -> isSet (B x)) =>
+      ofHLevel=>ofHLevel'_-1+ (_, B) 1
+
+    -- | Lemma 6.9.1 in HoTT book
+    \func elim {A : \Type} (B : SetTrunc A -> \Type) (BSet : \Pi (x : SetTrunc A) -> isSet (B x))
+               (g : \Pi (x : A) -> B (truncSet x)) (a : SetTrunc A) : B a \elim a
+      | truncSet x => g x
+      | squashSet x y p q i j =>
+        \let | ind_x => elim B BSet g x
+             | ind_y => elim B BSet g y
+             | map_p => path {\lam k => B (p @ k)} (\lam k => elim B BSet g (p @ k))
+             | map_q => path {\lam k => B (q @ k)} (\lam i => elim B BSet g (q @ i))
+             | p=w=q => path (\lam k => path (squashSet x y p q k))
+        \in ofHLevel=>ofHLevel'_-1+ (_, B) 1 BSet ind_x ind_y p=w=q map_p map_q @ i @ j
+  }
 
 \instance SetTruncTruncated {A : \Type} : Truncated_-1+ 1 (SetTrunc A)
-  | isTruncated x y p q => path (\lam i => path (trunc x y p q i))
+  | isTruncated x y p q => path (\lam i => path (squashSet x y p q i))
 
