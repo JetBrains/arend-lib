@@ -12,7 +12,7 @@ import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.tactic.RewriteTactic;
 
-import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 
 @SuppressWarnings("unused")
 public class StdExtension implements ArendExtension {
@@ -22,23 +22,23 @@ public class StdExtension implements ArendExtension {
   public CoreFunctionDefinition transport;
 
   @Override
-  public void setConcreteFactory(@Nonnull ConcreteFactory factory) {
+  public void setConcreteFactory(@NotNull ConcreteFactory factory) {
     this.factory = factory;
   }
 
   @Override
-  public void setModuleScopeProvider(@Nonnull ModuleScopeProvider moduleScopeProvider) {
+  public void setModuleScopeProvider(@NotNull ModuleScopeProvider moduleScopeProvider) {
     this.moduleScopeProvider = moduleScopeProvider;
   }
 
-  @Nonnull
+  @NotNull
   @Override
   public ModuleScopeProvider getModuleScopeProvider() {
     return moduleScopeProvider;
   }
 
   @Override
-  public void load(@Nonnull DefinitionProvider provider) {
+  public void load(@NotNull DefinitionProvider provider) {
     transport = provider.getDefinition(moduleScopeProvider.forModule(new ModulePath("Paths")).resolveName("transport"), CoreFunctionDefinition.class);
   }
 

@@ -14,7 +14,7 @@ import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 
-import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -41,7 +41,7 @@ public class RewriteTactic extends BaseMetaDefinition {
   }
 
   @Override
-  public CheckedExpression invoke(@Nonnull ExpressionTypechecker typechecker, @Nonnull ContextData contextData) {
+  public CheckedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     int argNum = 0;
     Set<Integer> occurrences;
@@ -79,7 +79,7 @@ public class RewriteTactic extends BaseMetaDefinition {
       factory.ref(ext.transport.getRef(), refExpr.getPLevel(), refExpr.getHLevel())
         .app(factory.lam(Collections.singletonList(factory.param(ref)), factory.meta("transport (\\lam x => {!}) _ _", new MetaDefinition() {
           @Override
-          public CheckedExpression invoke(@Nonnull ExpressionTypechecker typechecker, @Nonnull ContextData contextData) {
+          public CheckedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
             CheckedExpression var = typechecker.typecheck(factory.ref(ref));
             assert var != null;
             final int[] num = { 0 };
