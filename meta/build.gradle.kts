@@ -17,5 +17,5 @@ configure<JavaPluginConvention> {
 }
 
 tasks.withType<Wrapper> {
-    gradleVersion = "5.5.1"
+    gradleVersion = "6.2.1"
 }

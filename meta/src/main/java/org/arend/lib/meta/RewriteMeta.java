@@ -1,4 +1,4 @@
-package org.arend.lib.tactic;
+package org.arend.lib.meta;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
@@ -20,18 +20,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class RewriteTactic extends BaseMetaDefinition {
+public class RewriteMeta extends BaseMetaDefinition {
   private final StdExtension ext;
   private final Mode mode;
 
   public enum Mode { IMMEDIATE_FORWARD, IMMEDIATE_BACKWARDS, DEFERRED_BACKWARDS }
 
-  public RewriteTactic(StdExtension ext, Mode mode) {
+  public RewriteMeta(StdExtension ext, Mode mode) {
     this.ext = ext;
     this.mode = mode;
   }
 
-  public RewriteTactic(StdExtension ext) {
+  public RewriteMeta(StdExtension ext) {
     this(ext, Mode.DEFERRED_BACKWARDS);
   }
 
