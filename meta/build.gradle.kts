@@ -7,7 +7,7 @@ repositories {
 }
 
 dependencies {
-    implementation(files("../../Arend/build/libs/Arend-api-1.2.0.jar"))
+    implementation(files("../../Arend/api/build/libs/api-1.2.0.jar"))
     implementation("org.jetbrains:annotations:19.0.0")
 }
 
