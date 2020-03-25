@@ -1,0 +1,37 @@
+\import Paths
+
+\data List (A : \Type)
+  | nil
+  | \infixr 5 :: A (List A)
+
+\func \infixr 5 ++ {A : \Type} (xs ys : List A) : List A \elim xs
+  | nil => ys
+  | :: a xs => a :: xs ++ ys
+
+\func splitAt {A : \Type} (n : Nat) (l : List A) : \Sigma (List A) (List A) \elim n, l
+  | 0, l => (nil, l)
+  | suc _, nil => (nil, nil)
+  | suc n, :: a l =>
+      \let! (l1, l2) => splitAt n l
+      \in (a :: l1, l2)
+  \where
+    \func appendLem {A : \Type} (n : Nat) (l : List A) : take n l ++ drop n l = l \elim n, l
+      | 0, l => idp
+      | suc n, nil => idp
+      | suc n, :: a l => pmap (a ::) (appendLem n l)
+
+\func take {A : \Type} (n : Nat) (l : List A) => (splitAt n l).1
+
+\func drop {A : \Type} (n : Nat) (l : List A) => (splitAt n l).2
+
+\func replace {A : \Type} (l : List A) (i s : Nat) (r : List A) =>
+  \let! (l1, l2) => splitAt i l
+  \in l1 ++ r ++ drop s l2
+
+\func slice {A : \Type} (l : List A) (i s : Nat) => take s (drop i l)
+  \where
+    \func appendLem {A : \Type} (l : List A) (i s : Nat) : take i l ++ slice l i s ++ drop s (drop i l) = l \elim l, i, s
+      | l, 0, s => splitAt.appendLem s l
+      | nil, suc i, 0 => idp
+      | nil, suc i, suc s => idp
+      | :: a l, suc i, s => pmap (a ::) (appendLem l i s)

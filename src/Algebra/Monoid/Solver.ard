@@ -1,0 +1,43 @@
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Arith.Nat
+\import Data.List
+\import Function.Meta
+\import Paths
+\import Paths.Meta
+
+\data MonoidTerm (V : \Type)
+  | Var V
+  | :ide
+  | \infixl 7 :* (t s : MonoidTerm V)
+
+\func normalize {V : \Type} (t : MonoidTerm V) => aux t nil
+  \where
+    \func aux {V : \Type} (t : MonoidTerm V) (acc : List V) : List V \elim t
+      | Var v => v :: acc
+      | :ide => acc
+      | :* t s => aux t (aux s acc)
+
+\func interpret {M : Monoid} (t : MonoidTerm M) : M \elim t
+  | Var x => x
+  | :ide => ide
+  | :* t s => interpret t * interpret s
+
+\func interpretNF {M : Monoid} (l : List M) : M \elim l
+  | nil => ide
+  | :: x l => x * interpretNF l
+
+\lemma normalize-consistent {M : Monoid} (t : MonoidTerm M) : interpret t = interpretNF (normalize t)
+  => inv (ide-right _) *> aux t nil
+  \where
+    \lemma aux {M : Monoid} (t : MonoidTerm M) (acc : List M) : interpret t * interpretNF acc = interpretNF (normalize.aux t acc) \elim t
+      | Var x => idp
+      | :ide => ide-left _
+      | :* t s => *-assoc _ _ _ *> pmap (interpret t *) (aux s acc) *> aux t (normalize.aux s acc)
+
+\lemma terms-equality {M : Monoid} (t s : MonoidTerm M) (p : normalize t = normalize s) : interpret t = interpret s
+  => normalize-consistent t *> pmap interpretNF p *> inv (normalize-consistent s)
+
+\lemma interpretAppend {M : Monoid} (l1 l2 : List M) : interpretNF (l1 ++ l2) = interpretNF l1 * interpretNF l2 \elim l1
+  | nil => inv (ide-left _)
+  | :: a l1 => pmap (a *) (interpretAppend l1 l2) *> inv (*-assoc _ _ _)

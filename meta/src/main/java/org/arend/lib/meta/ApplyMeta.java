@@ -24,6 +24,6 @@ public class ApplyMeta extends BaseMetaDefinition {
     }
 
     List<? extends ConcreteArgument> args = contextData.getArguments();
-    return typechecker.typecheck(args.get(0).getExpression().app(args.subList(1, args.size())));
+    return typechecker.typecheck(args.get(0).getExpression().app(args.subList(1, args.size())), contextData.getExpectedType());
   }
 }
