@@ -52,6 +52,9 @@ public class StdExtension implements ArendExtension {
     contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewrite1"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.BEFORE_SOLVER, rewrite));
     contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewrite2"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.BEFORE_LEVELS, rewrite));
     contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewrite3"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.AFTER_LEVELS, rewrite));
+    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewriteN"), Precedence.DEFAULT, new RewriteMeta(this, RewriteMeta.Mode.IMMEDIATE_BACKWARDS, false));
+    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewriteN1"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.BEFORE_SOLVER, new RewriteMeta(this, RewriteMeta.Mode.DEFERRED_BACKWARDS, false)));
+    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewriteNF"), Precedence.DEFAULT, new RewriteMeta(this, RewriteMeta.Mode.IMMEDIATE_FORWARD, false));
 
     MetaDefinition apply = new ApplyMeta();
     contributor.declare(ModulePath.fromString("Function.Meta"), new LongName("$"), new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 0, true), apply);

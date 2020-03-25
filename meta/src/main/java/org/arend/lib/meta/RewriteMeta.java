@@ -25,16 +25,24 @@ import java.util.Set;
 public class RewriteMeta extends BaseMetaDefinition {
   private final StdExtension ext;
   private final Mode mode;
+  private final boolean normalize;
 
   public enum Mode { IMMEDIATE_FORWARD, IMMEDIATE_BACKWARDS, DEFERRED_BACKWARDS }
+
+  public RewriteMeta(StdExtension ext, Mode mode, boolean normalize) {
+    this.ext = ext;
+    this.mode = mode;
+    this.normalize = normalize;
+  }
 
   public RewriteMeta(StdExtension ext, Mode mode) {
     this.ext = ext;
     this.mode = mode;
+    this.normalize = true;
   }
 
   public RewriteMeta(StdExtension ext) {
-    this(ext, Mode.DEFERRED_BACKWARDS);
+    this(ext, Mode.DEFERRED_BACKWARDS, true);
   }
 
   @Override
@@ -128,7 +136,7 @@ public class RewriteMeta extends BaseMetaDefinition {
           assert var != null;
           final int[] num = { 0 };
           CoreExpression absExpr = type.replaceSubexpressions(expression -> {
-            if (typechecker.compare(expression, value, CMP.EQ, refExpr, false, true)) {
+            if (typechecker.compare(expression, value, CMP.EQ, refExpr, false, normalize)) {
               num[0]++;
               if (occurrences == null || occurrences.contains(num[0])) {
                 return var.getExpression();
