@@ -19,10 +19,6 @@ public class ApplyMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable CheckedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    if (!checkContextData(contextData, typechecker.getErrorReporter())) {
-      return null;
-    }
-
     List<? extends ConcreteArgument> args = contextData.getArguments();
     return typechecker.typecheck(args.get(0).getExpression().app(args.subList(1, args.size())), contextData.getExpectedType());
   }

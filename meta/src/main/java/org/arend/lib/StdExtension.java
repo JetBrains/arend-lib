@@ -9,8 +9,10 @@ import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
 import org.arend.ext.module.ModuleScopeProvider;
 import org.arend.ext.reference.Precedence;
+import org.arend.ext.reference.RawScope;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.meta.ApplyMeta;
+import org.arend.lib.meta.LaterMeta;
 import org.arend.lib.meta.RewriteMeta;
 
 import org.jetbrains.annotations.NotNull;
@@ -21,6 +23,7 @@ public class StdExtension implements ArendExtension {
   public ModuleScopeProvider moduleScopeProvider;
 
   public CoreFunctionDefinition transport;
+  public CoreFunctionDefinition transportInv;
 
   @Override
   public void setConcreteFactory(@NotNull ConcreteFactory factory) {
@@ -40,21 +43,22 @@ public class StdExtension implements ArendExtension {
 
   @Override
   public void load(@NotNull DefinitionProvider provider) {
-    transport = provider.getDefinition(moduleScopeProvider.forModule(new ModulePath("Paths")).resolveName("transport"), CoreFunctionDefinition.class);
+    RawScope scope = moduleScopeProvider.forModule(new ModulePath("Paths"));
+    transport = provider.getDefinition(scope.resolveName("transport"), CoreFunctionDefinition.class);
+    transportInv = provider.getDefinition(scope.resolveName("transportInv"), CoreFunctionDefinition.class);
   }
 
   @Override
   public void declareDefinitions(DefinitionContributor contributor) {
-    MetaDefinition rewrite = new RewriteMeta(this);
-    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewrite"), Precedence.DEFAULT, new RewriteMeta(this, RewriteMeta.Mode.IMMEDIATE_BACKWARDS));
-    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewriteF"), Precedence.DEFAULT, new RewriteMeta(this, RewriteMeta.Mode.IMMEDIATE_FORWARD));
-    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewrite0"), Precedence.DEFAULT, new RewriteMeta(this, RewriteMeta.Mode.IMMEDIATE_BACKWARDS));
-    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewrite1"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.BEFORE_SOLVER, rewrite));
-    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewrite2"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.BEFORE_LEVELS, rewrite));
-    contributor.declare(ModulePath.fromString("Paths.Meta"), new LongName("rewrite3"), Precedence.DEFAULT, new DeferredMetaDefinition(ExpressionTypechecker.Stage.AFTER_LEVELS, rewrite));
+    contributor.declare(ModulePath.fromString("Meta"), new LongName("later"), Precedence.DEFAULT, new LaterMeta());
+
+    ModulePath paths = ModulePath.fromString("Paths.Meta");
+    contributor.declare(paths, new LongName("rewrite"), Precedence.DEFAULT, new RewriteMeta(this));
+    contributor.declare(paths, new LongName("rewriteF"), Precedence.DEFAULT, new RewriteMeta(this, true));
 
     MetaDefinition apply = new ApplyMeta();
-    contributor.declare(ModulePath.fromString("Function.Meta"), new LongName("$"), new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 0, true), apply);
-    contributor.declare(ModulePath.fromString("Function.Meta"), new LongName("#"), new Precedence(Precedence.Associativity.LEFT_ASSOC, (byte) 0, true), apply);
+    ModulePath function = ModulePath.fromString("Function.Meta");
+    contributor.declare(function, new LongName("$"), new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 0, true), apply);
+    contributor.declare(function, new LongName("#"), new Precedence(Precedence.Associativity.LEFT_ASSOC, (byte) 0, true), apply);
   }
 }

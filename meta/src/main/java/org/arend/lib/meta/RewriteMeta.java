@@ -24,17 +24,15 @@ import java.util.Set;
 
 public class RewriteMeta extends BaseMetaDefinition {
   private final StdExtension ext;
-  private final Mode mode;
+  private final boolean isForward;
 
-  public enum Mode { IMMEDIATE_FORWARD, IMMEDIATE_BACKWARDS, DEFERRED_BACKWARDS }
-
-  public RewriteMeta(StdExtension ext, Mode mode) {
+  public RewriteMeta(StdExtension ext, boolean isForward) {
     this.ext = ext;
-    this.mode = mode;
+    this.isForward = isForward;
   }
 
   public RewriteMeta(StdExtension ext) {
-    this(ext, Mode.DEFERRED_BACKWARDS);
+    this(ext, false);
   }
 
   @Override
@@ -71,10 +69,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     }
 
     CoreExpression expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().getUnderlyingExpression();
-    boolean isForward = mode == Mode.IMMEDIATE_FORWARD || expectedType == null || args.size() > currentArg + 2;
-    if ((isForward || mode == Mode.IMMEDIATE_BACKWARDS) && !checkContextData(contextData, errorReporter)) {
-      return null;
-    }
+    boolean isForward = this.isForward || expectedType == null || args.size() > currentArg + 2;
 
     ConcreteExpression arg0 = args.get(currentArg++).getExpression();
     CheckedExpression path = typechecker.typecheck(arg0, null);
@@ -91,9 +86,14 @@ public class RewriteMeta extends BaseMetaDefinition {
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
     ConcreteExpression transport = factory.ref(ext.transport.getRef(), refExpr.getPLevel(), refExpr.getHLevel());
 
-    if (!isForward && mode == Mode.IMMEDIATE_BACKWARDS && expectedType instanceof CoreInferenceReferenceExpression) {
+    if (!isForward && expectedType instanceof CoreInferenceReferenceExpression) {
       CoreExpression right = eq.getDefCallArguments().get(2).getUnderlyingExpression();
       if (right instanceof CoreInferenceReferenceExpression && ((CoreInferenceReferenceExpression) right).getVariable() == ((CoreInferenceReferenceExpression) expectedType).getVariable()) {
+        if (!(occurrences == null || occurrences.isEmpty() || occurrences.size() == 1 && occurrences.contains(1))) {
+          occurrences.remove(1);
+          errorReporter.report(new SubexprError(occurrences, right, expectedType, refExpr));
+          return null;
+        }
         ArendRef ref = factory.local("T");
         return typechecker.typecheck(transport
           .app(factory.lam(Collections.singletonList(factory.param(ref)), factory.ref(ref)))
