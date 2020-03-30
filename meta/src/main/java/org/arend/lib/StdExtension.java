@@ -50,15 +50,24 @@ public class StdExtension implements ArendExtension {
 
   @Override
   public void declareDefinitions(DefinitionContributor contributor) {
-    contributor.declare(ModulePath.fromString("Meta"), new LongName("later"), Precedence.DEFAULT, new LaterMeta());
+    contributor.declare(ModulePath.fromString("Meta"), new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, new LaterMeta());
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
-    contributor.declare(paths, new LongName("rewrite"), Precedence.DEFAULT, new RewriteMeta(this));
-    contributor.declare(paths, new LongName("rewriteF"), Precedence.DEFAULT, new RewriteMeta(this, true));
+    contributor.declare(paths, new LongName("rewrite"),
+        "`rewrite (p : a = b) : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transport (\\lam x => T[x/a]) p`\n\n" +
+        "`rewrite {i_1, ... i_k} p` replaces only occurrences with indices `i_1`, ... `i_k`\n" +
+        "Also, `p` may be a function with, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`",
+        Precedence.DEFAULT, new RewriteMeta(this, false, true));
+    contributor.declare(paths, new LongName("rewriteI"),
+        "`rewriteI p` is equivalent to `rewrite (inv p)`",
+        Precedence.DEFAULT, new RewriteMeta(this, false, false));
+    contributor.declare(paths, new LongName("rewriteF"),
+        "`rewriteF (p : a = b) e` is similar to `rewrite`, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
+        Precedence.DEFAULT, new RewriteMeta(this, true, false));
 
     MetaDefinition apply = new ApplyMeta();
     ModulePath function = ModulePath.fromString("Function.Meta");
-    contributor.declare(function, new LongName("$"), new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 0, true), apply);
-    contributor.declare(function, new LongName("#"), new Precedence(Precedence.Associativity.LEFT_ASSOC, (byte) 0, true), apply);
+    contributor.declare(function, new LongName("$"), "`f $ a` returns `f a`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 0, true), apply);
+    contributor.declare(function, new LongName("#"), "`f # a` returns `f a`", new Precedence(Precedence.Associativity.LEFT_ASSOC, (byte) 0, true), apply);
   }
 }

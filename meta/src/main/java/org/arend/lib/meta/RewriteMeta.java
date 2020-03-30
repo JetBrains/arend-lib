@@ -25,14 +25,12 @@ import java.util.Set;
 public class RewriteMeta extends BaseMetaDefinition {
   private final StdExtension ext;
   private final boolean isForward;
+  private final boolean isInverse;
 
-  public RewriteMeta(StdExtension ext, boolean isForward) {
+  public RewriteMeta(StdExtension ext, boolean isForward, boolean isInverse) {
     this.ext = ext;
     this.isForward = isForward;
-  }
-
-  public RewriteMeta(StdExtension ext) {
-    this(ext, false);
+    this.isInverse = isInverse;
   }
 
   @Override
@@ -84,14 +82,15 @@ public class RewriteMeta extends BaseMetaDefinition {
 
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
-    ConcreteExpression transport = factory.ref(ext.transport.getRef(), refExpr.getPLevel(), refExpr.getHLevel());
+    ConcreteExpression transport = factory.ref((isInverse ? ext.transportInv : ext.transport).getRef(), refExpr.getPLevel(), refExpr.getHLevel());
+    CoreExpression value = eq.getDefCallArguments().get(isInverse == isForward ? 2 : 1);
 
     if (!isForward && expectedType instanceof CoreInferenceReferenceExpression) {
-      CoreExpression right = eq.getDefCallArguments().get(2).getUnderlyingExpression();
-      if (right instanceof CoreInferenceReferenceExpression && ((CoreInferenceReferenceExpression) right).getVariable() == ((CoreInferenceReferenceExpression) expectedType).getVariable()) {
+      CoreExpression var = value.getUnderlyingExpression();
+      if (var instanceof CoreInferenceReferenceExpression && ((CoreInferenceReferenceExpression) var).getVariable() == ((CoreInferenceReferenceExpression) expectedType).getVariable()) {
         if (!(occurrences == null || occurrences.isEmpty() || occurrences.size() == 1 && occurrences.contains(1))) {
           occurrences.remove(1);
-          errorReporter.report(new SubexprError(occurrences, right, expectedType, refExpr));
+          errorReporter.report(new SubexprError(occurrences, var, expectedType, refExpr));
           return null;
         }
         ArendRef ref = factory.local("T");
@@ -104,18 +103,15 @@ public class RewriteMeta extends BaseMetaDefinition {
     }
 
     CheckedExpression lastArg;
-    CoreExpression value;
     CoreExpression type;
     if (isForward) {
       lastArg = typechecker.typecheck(args.get(currentArg++).getExpression(), null);
       if (lastArg == null) {
         return null;
       }
-      value = eq.getDefCallArguments().get(1);
       type = lastArg.getType();
     } else {
       lastArg = null;
-      value = eq.getDefCallArguments().get(2);
       type = expectedType;
     }
 
