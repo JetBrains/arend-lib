@@ -3,6 +3,7 @@ package org.arend.lib;
 import org.arend.ext.ArendExtension;
 import org.arend.ext.DefinitionContributor;
 import org.arend.ext.DefinitionProvider;
+import org.arend.ext.RawDefinitionProvider;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.module.LongName;
@@ -13,6 +14,7 @@ import org.arend.ext.reference.RawScope;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.meta.ApplyMeta;
 import org.arend.lib.meta.LaterMeta;
+import org.arend.lib.meta.RepeatMeta;
 import org.arend.lib.meta.RewriteMeta;
 
 import org.jetbrains.annotations.NotNull;
@@ -21,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 public class StdExtension implements ArendExtension {
   public ConcreteFactory factory;
   public ModuleScopeProvider moduleScopeProvider;
+  public DefinitionProvider definitionProvider;
 
   public CoreFunctionDefinition transport;
   public CoreFunctionDefinition transportInv;
@@ -42,7 +45,12 @@ public class StdExtension implements ArendExtension {
   }
 
   @Override
-  public void load(@NotNull DefinitionProvider provider) {
+  public void setDefinitionProvider(@NotNull DefinitionProvider definitionProvider) {
+    this.definitionProvider = definitionProvider;
+  }
+
+  @Override
+  public void load(@NotNull RawDefinitionProvider provider) {
     RawScope scope = moduleScopeProvider.forModule(new ModulePath("Paths"));
     transport = provider.getDefinition(scope.resolveName("transport"), CoreFunctionDefinition.class);
     transportInv = provider.getDefinition(scope.resolveName("transportInv"), CoreFunctionDefinition.class);
@@ -56,7 +64,7 @@ public class StdExtension implements ArendExtension {
     contributor.declare(paths, new LongName("rewrite"),
         "`rewrite (p : a = b) : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transport (\\lam x => T[x/a]) p`\n\n" +
         "`rewrite {i_1, ... i_k} p` replaces only occurrences with indices `i_1`, ... `i_k`\n" +
-        "Also, `p` may be a function with, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`",
+        "Also, `p` may be a reference to a definition with parameters, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`",
         Precedence.DEFAULT, new RewriteMeta(this, false, true));
     contributor.declare(paths, new LongName("rewriteI"),
         "`rewriteI p` is equivalent to `rewrite (inv p)`",
@@ -65,9 +73,13 @@ public class StdExtension implements ArendExtension {
         "`rewriteF (p : a = b) e` is similar to `rewrite`, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
         Precedence.DEFAULT, new RewriteMeta(this, true, false));
 
-    MetaDefinition apply = new ApplyMeta();
+    MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");
     contributor.declare(function, new LongName("$"), "`f $ a` returns `f a`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 0, true), apply);
     contributor.declare(function, new LongName("#"), "`f # a` returns `f a`", new Precedence(Precedence.Associativity.LEFT_ASSOC, (byte) 0, true), apply);
+    contributor.declare(function, new LongName("repeat"),
+        "`repeat {n} f x` returns `f^n(x)\n\n`" +
+        "`repeat f x` repeats `f` until it fails and returns `x` in this case",
+        Precedence.DEFAULT, new RepeatMeta(this));
   }
 }
