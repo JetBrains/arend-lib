@@ -4,14 +4,15 @@ plugins {
 
 repositories {
     mavenCentral()
+    maven("https://jitpack.io")
 }
 
 dependencies {
-    implementation(files("../../Arend/api/build/libs/api-1.2.0.jar"))
+    implementation("com.github.JetBrains.Arend:api:master-SNAPSHOT")
     implementation("org.jetbrains:annotations:19.0.0")
 }
 
-configure<JavaPluginConvention> {
+java {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
 }
