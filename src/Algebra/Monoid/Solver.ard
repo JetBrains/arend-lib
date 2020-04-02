@@ -18,33 +18,34 @@
       | :ide => acc
       | :* t s => aux t (aux s acc)
 
-\func interpret {M : Monoid} (t : MonoidTerm M) : M \elim t
-  | Var x => x
-  | :ide => ide
-  | :* t s => interpret t * interpret s
+\class Data {V : \Type} {M : Monoid} (f : V -> M) {
+  \func interpret (t : MonoidTerm V) : M \elim t
+    | Var x => f x
+    | :ide => ide
+    | :* t s => interpret t * interpret s
 
-\func interpretNF {M : Monoid} (l : List M) : M \elim l
-  | nil => ide
-  | :: x l => x * interpretNF l
+  \func interpretNF (l : List V) : M \elim l
+    | nil => ide
+    | :: x l => f x * interpretNF l
 
-\lemma normalize-consistent {M : Monoid} (t : MonoidTerm M) : interpret t = interpretNF (normalize t)
-  => inv (ide-right _) *> aux t nil
-  \where
-    \lemma aux {M : Monoid} (t : MonoidTerm M) (acc : List M) : interpret t * interpretNF acc = interpretNF (normalize.aux t acc) \elim t
-      | Var x => idp
-      | :ide => ide-left _
-      | :* t s => *-assoc _ _ _ *> pmap (interpret t *) (aux s acc) *> aux t (normalize.aux s acc)
+  \lemma normalize-consistent (t : MonoidTerm V) : interpret t = interpretNF (normalize t) =>
+    inv (ide-right _) *> aux t nil
+    \where
+      \lemma aux (t : MonoidTerm V) (acc : List V) : interpret t * interpretNF acc = interpretNF (normalize.aux t acc) \elim t
+        | Var x => idp
+        | :ide => ide-left _
+        | :* t s => *-assoc _ _ _ *> pmap (interpret t *) (aux s acc) *> aux t (normalize.aux s acc)
 
-\lemma terms-equality {M : Monoid} (t s : MonoidTerm M) (p : normalize t = normalize s) : interpret t = interpret s
-  => normalize-consistent t *> pmap interpretNF p *> inv (normalize-consistent s)
+  \lemma terms-equality (t s : MonoidTerm V) (p : normalize t = normalize s) (f : V -> M) : interpret t = interpret s =>
+    normalize-consistent t *> pmap interpretNF p *> inv (normalize-consistent s)
 
-\lemma interpretAppend {M : Monoid} (l1 l2 : List M) : interpretNF (l1 ++ l2) = interpretNF l1 * interpretNF l2 \elim l1
-  | nil => inv (ide-left _)
-  | :: a l1 => pmap (a *) (interpretAppend l1 l2) *> inv (*-assoc _ _ _)
+  \lemma interpretAppend (l1 l2 : List V) : interpretNF (l1 ++ l2) = interpretNF l1 * interpretNF l2 \elim l1
+    | nil => inv (ide-left _)
+    | :: a l1 => pmap (f a *) (interpretAppend l1 l2) *> inv (*-assoc _ _ _)
 
-\lemma replace-consistent {M : Monoid} (l : List M) (i s : Nat) (r : List M)
-                          (p : interpretNF (slice l i s) = interpretNF r)
-  : interpretNF (replace l i s r) = interpretNF l
-  => rewriteI {2} (slice.appendLem l i s) $
-     repeat {4} (rewrite interpretAppend) $
-     rewriteI p idp
+  \lemma replace-consistent (l : List V) (i s : Nat) (r : List V) (p : interpretNF (slice l i s) = interpretNF r)
+    : interpretNF (replace l i s r) = interpretNF l
+    => rewriteI {2} (slice.appendLem l i s) $
+       repeat {4} (rewrite interpretAppend) $
+       rewriteI p idp
+}

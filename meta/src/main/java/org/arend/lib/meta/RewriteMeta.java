@@ -86,10 +86,17 @@ public class RewriteMeta extends BaseMetaDefinition {
       }
       CoreDefinition argDef = argRef == null ? null : ext.definitionProvider.getCoreDefinition(argRef.getReferent());
       if (argDef != null) {
-        int numberOfArgs = arg0 instanceof ConcreteAppExpression ? -((ConcreteAppExpression) arg0).getArguments().size() : 0;
+        int numberOfArgs = 0;
         for (CoreParameter param = argDef.getParameters(); param.hasNext(); param = param.getNext()) {
           if (param.isExplicit()) {
             numberOfArgs++;
+          }
+        }
+        if (arg0 instanceof ConcreteAppExpression && numberOfArgs > 0) {
+          for (ConcreteArgument argument : ((ConcreteAppExpression) arg0).getArguments()) {
+            if (argument.isExplicit()) {
+              numberOfArgs--;
+            }
           }
         }
         if (numberOfArgs > 0) {
