@@ -18,9 +18,9 @@ import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.RawScope;
 import org.arend.ext.typechecking.BaseMetaDefinition;
-import org.arend.ext.typechecking.CheckedExpression;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
+import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
 import org.arend.lib.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -75,7 +75,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable CheckedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public @Nullable TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ErrorReporter errorReporter = typechecker.getErrorReporter();
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
@@ -106,7 +106,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     ArendRef lamParam = factory.local("n");
     ConcreteClause[] caseClauses = new ConcreteClause[values.size() + 1];
     for (int i = 0; i < values.size(); i++) {
-      caseClauses[i] = factory.clause(Collections.singletonList(factory.numberPattern(i)), factory.core("c" + i, typechecker.check(values.get(i), refExpr)));
+      caseClauses[i] = factory.clause(Collections.singletonList(factory.numberPattern(i)), factory.core("c" + i, values.get(i).computeTyped()));
     }
     caseClauses[values.size()] = factory.clause(Collections.singletonList(factory.refPattern(null, null)), factory.ref(ide.getRef()));
 

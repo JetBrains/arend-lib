@@ -7,6 +7,7 @@ import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.expr.CoreInferenceReferenceExpression;
+import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.TypecheckingError;
@@ -44,7 +45,7 @@ public class RewriteMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public CheckedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ErrorReporter errorReporter = typechecker.getErrorReporter();
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
@@ -108,7 +109,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     }
 
     // Check that the first argument is a path
-    CheckedExpression path = typechecker.typecheck(arg0, null);
+    TypedExpression path = typechecker.typecheck(arg0, null);
     if (path == null) {
       return null;
     }
@@ -138,7 +139,7 @@ public class RewriteMeta extends BaseMetaDefinition {
       isForward = true;
     }
 
-    CheckedExpression lastArg;
+    TypedExpression lastArg;
     CoreExpression type;
     if (isForward) {
       lastArg = typechecker.typecheck(args.get(currentArg++).getExpression(), null);
@@ -156,11 +157,11 @@ public class RewriteMeta extends BaseMetaDefinition {
     return typechecker.typecheck(factory.appBuilder(transport)
       .app(factory.lam(Collections.singletonList(factory.param(ref)), factory.meta("transport (\\lam x => {!}) _ _", new MetaDefinition() {
         @Override
-        public CheckedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-          CheckedExpression var = typechecker.typecheck(factory.ref(ref), null);
+        public TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+          TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
           final int[] num = { 0 };
-          CoreExpression absExpr = type.replaceSubexpressions(expression -> {
+          UncheckedExpression absExpr = type.replaceSubexpressions(expression -> {
             if (typechecker.compare(expression, value, CMP.EQ, refExpr, false, true)) {
               num[0]++;
               if (occurrences == null || occurrences.contains(num[0])) {

@@ -29,7 +29,7 @@ public class LaterMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable CheckedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public @Nullable TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     MetaDefinition meta = null;
     List<? extends ConcreteArgument> args = contextData.getArguments();
     ConcreteExpression arg = args.get(0).getExpression();
@@ -45,6 +45,6 @@ public class LaterMeta extends BaseMetaDefinition {
     }
 
     contextData.setArguments(args.subList(1, args.size()));
-    return typechecker.defer(meta, contextData, contextData.getCheckedExpectedType(), ExpressionTypechecker.Stage.BEFORE_SOLVER);
+    return typechecker.defer(meta, contextData, contextData.getExpectedType(), ExpressionTypechecker.Stage.BEFORE_SOLVER);
   }
 }

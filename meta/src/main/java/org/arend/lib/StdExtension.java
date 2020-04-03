@@ -2,7 +2,6 @@ package org.arend.lib;
 
 import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
