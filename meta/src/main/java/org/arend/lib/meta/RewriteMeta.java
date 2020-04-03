@@ -9,9 +9,7 @@ import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.expr.CoreInferenceReferenceExpression;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.error.TypeMismatchError;
 import org.arend.ext.error.TypecheckingError;
-import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
@@ -114,9 +112,8 @@ public class RewriteMeta extends BaseMetaDefinition {
     if (path == null) {
       return null;
     }
-    CoreFunCallExpression eq = path.getType().toEquality();
+    CoreFunCallExpression eq = Utils.toEquality(path.getType(), errorReporter, arg0);
     if (eq == null) {
-      errorReporter.report(new TypeMismatchError(DocFactory.text("_ = _"), path.getType(), arg0));
       return null;
     }
 

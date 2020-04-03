@@ -1,10 +1,8 @@
 package org.arend.lib;
 
-import org.arend.ext.ArendExtension;
-import org.arend.ext.DefinitionContributor;
-import org.arend.ext.DefinitionProvider;
-import org.arend.ext.RawDefinitionProvider;
+import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
@@ -12,21 +10,28 @@ import org.arend.ext.module.ModuleScopeProvider;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.reference.RawScope;
 import org.arend.ext.typechecking.*;
-import org.arend.lib.meta.ApplyMeta;
-import org.arend.lib.meta.LaterMeta;
-import org.arend.lib.meta.RepeatMeta;
-import org.arend.lib.meta.RewriteMeta;
+import org.arend.lib.meta.*;
 
 import org.jetbrains.annotations.NotNull;
 
 @SuppressWarnings("unused")
 public class StdExtension implements ArendExtension {
+  public ArendPrelude prelude;
+
   public ConcreteFactory factory;
   public ModuleScopeProvider moduleScopeProvider;
   public DefinitionProvider definitionProvider;
 
   public CoreFunctionDefinition transport;
   public CoreFunctionDefinition transportInv;
+  public CoreFunctionDefinition concat;
+
+  public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
+
+  @Override
+  public void setPrelude(@NotNull ArendPrelude prelude) {
+    this.prelude = prelude;
+  }
 
   @Override
   public void setConcreteFactory(@NotNull ConcreteFactory factory) {
@@ -51,14 +56,17 @@ public class StdExtension implements ArendExtension {
 
   @Override
   public void load(@NotNull RawDefinitionProvider provider) {
-    RawScope scope = moduleScopeProvider.forModule(new ModulePath("Paths"));
-    transport = provider.getDefinition(scope.resolveName("transport"), CoreFunctionDefinition.class);
-    transportInv = provider.getDefinition(scope.resolveName("transportInv"), CoreFunctionDefinition.class);
+    RawScope paths = moduleScopeProvider.forModule(new ModulePath("Paths"));
+    transport = provider.getDefinition(paths.resolveName("transport"), CoreFunctionDefinition.class);
+    transportInv = provider.getDefinition(paths.resolveName("transportInv"), CoreFunctionDefinition.class);
+    concat = provider.getDefinition(paths.resolveName("*>"), CoreFunctionDefinition.class);
+
+    algebraMeta.load(provider);
   }
 
   @Override
   public void declareDefinitions(DefinitionContributor contributor) {
-    contributor.declare(ModulePath.fromString("Meta"), new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, new LaterMeta());
+    contributor.declare(new ModulePath("Meta"), new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, new LaterMeta());
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
@@ -81,5 +89,7 @@ public class StdExtension implements ArendExtension {
         "`repeat {n} f x` returns `f^n(x)\n\n`" +
         "`repeat f x` repeats `f` until it fails and returns `x` in this case",
         Precedence.DEFAULT, new RepeatMeta(this));
+
+    contributor.declare(new ModulePath("Algebra"), new LongName("solver"), "Proves equations in monoids", Precedence.DEFAULT, algebraMeta);
   }
 }
