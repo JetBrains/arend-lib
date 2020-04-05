@@ -5,6 +5,7 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.error.GeneralError;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -47,8 +48,11 @@ public class RepeatMeta extends BaseMetaDefinition {
       TypedExpression result;
       try {
         int finalCurrentArg = currentArg;
-        result = typechecker.withErrorReporter(error -> { throw new MyException(); }, tc ->
-          tc.typecheck(factory.app(args.get(finalCurrentArg).getExpression(), true, Collections.singletonList(factory.app(refExpr, args.subList(finalCurrentArg, finalCurrentArg + 2)))), args.size() <= finalCurrentArg + 2 ? contextData.getExpectedType() : null));
+        result = typechecker.withErrorReporter(error -> {
+          if (error.level == GeneralError.Level.ERROR || error.level == GeneralError.Level.GOAL) {
+            throw new MyException();
+          }
+        }, tc -> tc.typecheck(factory.app(args.get(finalCurrentArg).getExpression(), true, Collections.singletonList(factory.app(refExpr, args.subList(finalCurrentArg, finalCurrentArg + 2)))), args.size() <= finalCurrentArg + 2 ? contextData.getExpectedType() : null));
       } catch (MyException e) {
         result = null;
       }

@@ -2,6 +2,8 @@ package org.arend.lib;
 
 import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
@@ -24,6 +26,10 @@ public class StdExtension implements ArendExtension {
   public CoreFunctionDefinition transport;
   public CoreFunctionDefinition transportInv;
   public CoreFunctionDefinition concat;
+  public CoreFunctionDefinition inv;
+
+  public CoreConstructor nil;
+  public CoreConstructor cons;
 
   public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
 
@@ -59,6 +65,11 @@ public class StdExtension implements ArendExtension {
     transport = provider.getDefinition(paths.resolveName("transport"), CoreFunctionDefinition.class);
     transportInv = provider.getDefinition(paths.resolveName("transportInv"), CoreFunctionDefinition.class);
     concat = provider.getDefinition(paths.resolveName("*>"), CoreFunctionDefinition.class);
+    inv = provider.getDefinition(paths.resolveName("inv"), CoreFunctionDefinition.class);
+
+    CoreDataDefinition list = provider.getDefinition(moduleScopeProvider.forModule(ModulePath.fromString("Data.List")).resolveName("List"), CoreDataDefinition.class);
+    nil = list.getConstructors().get(0);
+    cons = list.getConstructors().get(1);
 
     algebraMeta.load(provider);
   }
