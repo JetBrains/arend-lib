@@ -80,7 +80,25 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public @Nullable ConcreteExpression getConcretePresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+    if (arguments.isEmpty()) {
+      return null;
+    }
+    List<? extends ConcreteExpression> expressions = Utils.getArgumentList(arguments.get(0).getExpression());
+    if (expressions.isEmpty()) {
+      return null;
+    }
+
+    List<ConcreteLetClause> letClauses = new ArrayList<>();
+    letClauses.add(ext.factory.letClause(ext.factory.local("d"), Collections.emptyList(), null, ext.factory.hole()));
+    for (ConcreteExpression expression : expressions) {
+      letClauses.add(ext.factory.letClause(ext.factory.local("r"), Collections.emptyList(), null, expression));
+    }
+    return ext.factory.letExpr(false, letClauses, ext.factory.hole());
+  }
+
+  @Override
+  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ErrorReporter errorReporter = typechecker.getErrorReporter();
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
@@ -121,15 +139,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
           }
         }
       } else {
-        List<? extends ConcreteExpression> expressions;
-        ConcreteExpression arg = contextData.getArguments().get(0).getExpression();
-        if (arg instanceof ConcreteTupleExpression) {
-          expressions = ((ConcreteTupleExpression) arg).getFields();
-        } else {
-          expressions = singletonList(arg);
-        }
-
-        for (ConcreteExpression expression : expressions) {
+        for (ConcreteExpression expression : Utils.getArgumentList(contextData.getArguments().get(0).getExpression())) {
           TypedExpression typed = typechecker.typecheck(expression, null);
           if (typed == null) {
             return null;
@@ -184,7 +194,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
               .app(cExpr)
               .build();
           }
-          if (rule.count > 1 && !(cExpr instanceof ConcreteReferenceExpression && rule.binding != null)) {
+          if (rule.count > 1 && !(cExpr instanceof ConcreteReferenceExpression) || rule.binding == null) {
             ArendRef letClause = factory.local("rule" + letNum++);
             letClauses.add(factory.letClause(letClause, Collections.emptyList(), null, cExpr));
             rule.cExpr = factory.ref(letClause);

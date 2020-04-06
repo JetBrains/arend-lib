@@ -1,6 +1,7 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.concrete.expr.ConcreteArgument;
+import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -25,7 +26,12 @@ public class ApplyMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public @Nullable ConcreteExpression getConcretePresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+    return ext.factory.app(arguments.get(0).getExpression(), arguments.subList(1, arguments.size()));
+  }
+
+  @Override
+  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     return typechecker.typecheck(ext.factory.withData(contextData.getReferenceExpression().getData()).app(args.get(0).getExpression(), args.subList(1, args.size())), contextData.getExpectedType());
   }

@@ -18,6 +18,7 @@ import org.arend.lib.StdExtension;
 import org.arend.lib.Utils;
 import org.arend.lib.error.SubexprError;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
@@ -45,7 +46,12 @@ public class RewriteMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public @Nullable ConcreteExpression getConcretePresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+    return ext.factory.appBuilder(ext.factory.ref(ext.transportInv.getRef())).app(ext.factory.hole()).app(arguments.subList(arguments.get(0).isExplicit() ? 0 : 1, arguments.size())).build();
+  }
+
+  @Override
+  public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ErrorReporter errorReporter = typechecker.getErrorReporter();
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
@@ -56,12 +62,8 @@ public class RewriteMeta extends BaseMetaDefinition {
     Set<Integer> occurrences;
     if (!args.get(0).isExplicit()) {
       occurrences = new HashSet<>();
-      if (args.get(0) instanceof ConcreteTupleExpression) {
-        for (ConcreteExpression expr : ((ConcreteTupleExpression) args.get(0)).getFields()) {
-          getNumber(expr, occurrences, errorReporter);
-        }
-      } else {
-        getNumber(args.get(0).getExpression(), occurrences, errorReporter);
+      for (ConcreteExpression expr : Utils.getArgumentList(args.get(0).getExpression())) {
+        getNumber(expr, occurrences, errorReporter);
       }
       currentArg++;
     } else {
@@ -157,7 +159,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     return typechecker.typecheck(factory.appBuilder(transport)
       .app(factory.lam(Collections.singletonList(factory.param(ref)), factory.meta("transport (\\lam x => {!}) _ _", new MetaDefinition() {
         @Override
-        public TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+        public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
           final int[] num = { 0 };

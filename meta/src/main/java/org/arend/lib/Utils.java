@@ -3,6 +3,7 @@ package org.arend.lib;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteNumberExpression;
+import org.arend.ext.concrete.expr.ConcreteTupleExpression;
 import org.arend.ext.core.expr.CoreAppExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
@@ -20,9 +21,15 @@ public class Utils {
     if (expression instanceof ConcreteNumberExpression) {
       return ((ConcreteNumberExpression) expression).getNumber().intValue();
     } else {
-      errorReporter.report(new TypecheckingError("Expected a number", expression));
+      if (errorReporter != null) {
+        errorReporter.report(new TypecheckingError("Expected a number", expression));
+      }
       return -1;
     }
+  }
+
+  public static List<? extends ConcreteExpression> getArgumentList(ConcreteExpression expr) {
+    return expr instanceof ConcreteTupleExpression ? ((ConcreteTupleExpression) expr).getFields() : Collections.singletonList(expr);
   }
 
   public static CoreFunCallExpression toEquality(CoreExpression expression, ErrorReporter errorReporter, ConcreteSourceNode sourceNode) {

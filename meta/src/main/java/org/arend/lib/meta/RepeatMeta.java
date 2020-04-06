@@ -30,8 +30,35 @@ public class RepeatMeta extends BaseMetaDefinition {
     return new boolean[] { false, true, true };
   }
 
+  private ConcreteExpression computeConcrete(int steps, List<? extends ConcreteArgument> args, int currentArg, ConcreteFactory factory) {
+    ConcreteExpression result = args.get(currentArg + 1).getExpression();
+    for (int i = 0; i < steps; i++) {
+      result = factory.app(args.get(currentArg).getExpression(), true, Collections.singletonList(result));
+    }
+    return factory.app(result, args.subList(currentArg + 2, args.size()));
+  }
+
   @Override
-  public @Nullable TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public @Nullable ConcreteExpression getConcretePresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+    int steps = -1;
+    int currentArg = 0;
+    if (!arguments.get(0).isExplicit()) {
+      steps = Utils.getNumber(arguments.get(0).getExpression(), null);
+      if (steps < 0) {
+        return null;
+      }
+      currentArg++;
+    }
+
+    if (steps == -1) {
+      return ext.factory.app(ext.factory.app(arguments.get(currentArg).getExpression(), true, Collections.singletonList(ext.factory.hole())), arguments.subList(currentArg + 2, arguments.size()));
+    } else {
+      return computeConcrete(steps, arguments, currentArg, ext.factory);
+    }
+  }
+
+  @Override
+  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ErrorReporter errorReporter = typechecker.getErrorReporter();
     List<? extends ConcreteArgument> args = contextData.getArguments();
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
@@ -41,6 +68,9 @@ public class RepeatMeta extends BaseMetaDefinition {
     int currentArg = 0;
     if (!args.get(0).isExplicit()) {
       steps = Utils.getNumber(args.get(0).getExpression(), errorReporter);
+      if (steps < 0) {
+        return null;
+      }
       currentArg++;
     }
 
@@ -64,11 +94,7 @@ public class RepeatMeta extends BaseMetaDefinition {
       }
       return typechecker.typecheck(factory.app(factory.core("repeat _", result), args.subList(currentArg + 2, args.size())), contextData.getExpectedType());
     } else {
-      ConcreteExpression result = args.get(currentArg + 1).getExpression();
-      for (int i = 0; i < steps; i++) {
-        result = factory.app(args.get(currentArg).getExpression(), true, Collections.singletonList(result));
-      }
-      return typechecker.typecheck(factory.app(result, args.subList(currentArg + 2, args.size())), contextData.getExpectedType());
+      return typechecker.typecheck(computeConcrete(steps, args, currentArg, factory), contextData.getExpectedType());
     }
   }
 
