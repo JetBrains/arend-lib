@@ -62,7 +62,7 @@ public class AlgebraSolverError extends TypecheckingError {
     if (!assumptions.isEmpty()) {
       List<Doc> docs = new ArrayList<>();
       for (AlgebraSolverMeta.Rule rule : assumptions) {
-        docs.add(hang(rule.expression != null ? termDoc(rule.expression.getExpression(), ppConfig) : rule.reference != null ? hList(rule.isInverted ? text("inv ") : empty(), refDoc(rule.reference)) : nullDoc(), hList(text(" : "), nfToDoc(rule.lhs), text(" = "), nfToDoc(rule.rhs))));
+        docs.add(hang(rule.expression != null ? termDoc(rule.expression.getExpression(), ppConfig) : rule.binding != null ? hList(rule.direction == AlgebraSolverMeta.Direction.BACKWARD ? text("inv ") : empty(), text(rule.binding.getName())) : nullDoc(), hList(text(" : "), nfToDoc(rule.lhs), text(" = "), nfToDoc(rule.rhs))));
       }
       assumptionsDoc = hang(text("Assumptions:"), vList(docs));
     } else {
@@ -81,5 +81,10 @@ public class AlgebraSolverError extends TypecheckingError {
     }
 
     return vList(equationDoc, assumptionsDoc, whereDoc, traceToDoc("left hand side", nf1, trace1), traceToDoc("right hand side", nf2, trace2));
+  }
+
+  @Override
+  public boolean hasExpressions() {
+    return true;
   }
 }

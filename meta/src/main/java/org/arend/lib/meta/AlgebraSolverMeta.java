@@ -1,11 +1,9 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.RawDefinitionProvider;
-import org.arend.ext.concrete.ConcreteAppBuilder;
-import org.arend.ext.concrete.ConcreteClause;
-import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcreteLetClause;
+import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.*;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFieldCallExpression;
@@ -114,9 +112,14 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     ArendRef dataRef = factory.local("d");
     ConcreteExpression lastArgument;
     if (!nf1.equals(nf2)) {
-      List<RuleExt> rules;
+      List<RuleExt> rules = new ArrayList<>();
       if (contextData.getArguments().isEmpty()) {
-        rules = Collections.emptyList();
+        for (CoreBinding binding : typechecker.getFreeBindingsList()) {
+          RuleExt rule = typeToRule(binding.getTypeExpr(), values, typechecker, refExpr, factory, null, binding);
+          if (rule != null) {
+            rules.add(rule);
+          }
+        }
       } else {
         List<? extends ConcreteExpression> expressions;
         ConcreteExpression arg = contextData.getArguments().get(0).getExpression();
@@ -126,22 +129,17 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
           expressions = singletonList(arg);
         }
 
-        rules = new ArrayList<>();
         for (ConcreteExpression expression : expressions) {
           TypedExpression typed = typechecker.typecheck(expression, null);
           if (typed == null) {
             return null;
           }
-          CoreFunCallExpression eq = Utils.toEquality(typed.getType(), errorReporter, expression);
-          if (eq == null) {
+          RuleExt rule = typeToRule(typed.getType(), values, typechecker, refExpr, factory, typed, null);
+          if (rule == null) {
+            errorReporter.report(new TypeMismatchError(DocFactory.text("algebraic equality"), typed.getType(), expression));
             return null;
           }
-
-          List<Integer> lhs = new ArrayList<>();
-          List<Integer> rhs = new ArrayList<>();
-          ConcreteExpression lhsTerm = computeTerm(eq.getDefCallArguments().get(1), values, typechecker, refExpr, factory, lhs);
-          ConcreteExpression rhsTerm = computeTerm(eq.getDefCallArguments().get(2), values, typechecker, refExpr, factory, rhs);
-          rules.add(new RuleExt(typed, null, false, lhs, rhs, lhsTerm, rhsTerm));
+          rules.add(rule);
         }
       }
 
@@ -174,8 +172,8 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
         if (rule.count > 0) {
           rule.rnfTerm = computeNFTerm(rule.rhs, factory);
 
-          ConcreteExpression cExpr = rule.reference != null ? factory.ref(rule.reference) : factory.core("rule", rule.expression);
-          if (rule.isInverted) {
+          ConcreteExpression cExpr = rule.binding != null ? factory.ref(rule.binding) : factory.core("rule", rule.expression);
+          if (rule.direction == Direction.BACKWARD) {
             cExpr = factory.app(factory.ref(ext.inv.getRef()), true, singletonList(cExpr));
           }
           if (!isNF(rule.lhsTerm) || !isNF(rule.rhsTerm)) {
@@ -186,7 +184,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
               .app(cExpr)
               .build();
           }
-          if (rule.count > 1 && !(cExpr instanceof ConcreteReferenceExpression)) {
+          if (rule.count > 1 && !(cExpr instanceof ConcreteReferenceExpression && rule.binding != null)) {
             ArendRef letClause = factory.local("rule" + letNum++);
             letClauses.add(factory.letClause(letClause, Collections.emptyList(), null, cExpr));
             rule.cExpr = factory.ref(letClause);
@@ -233,33 +231,48 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       .build()), null);
   }
 
+  public enum Direction { FORWARD, BACKWARD, UNKNOWN }
+
   public static class Rule {
     public final TypedExpression expression;
-    public final ArendRef reference;
-    public final boolean isInverted;
-    public final List<Integer> lhs;
-    public final List<Integer> rhs;
+    public final CoreBinding binding;
+    public Direction direction;
+    public List<Integer> lhs;
+    public List<Integer> rhs;
 
-    public Rule(TypedExpression expression, ArendRef reference, boolean isInverted, List<Integer> lhs, List<Integer> rhs) {
+    public Rule(TypedExpression expression, CoreBinding binding, Direction direction, List<Integer> lhs, List<Integer> rhs) {
       this.expression = expression;
-      this.reference = reference;
-      this.isInverted = isInverted;
+      this.binding = binding;
+      this.direction = direction;
       this.lhs = lhs;
       this.rhs = rhs;
     }
   }
 
   private static class RuleExt extends Rule {
-    private final ConcreteExpression lhsTerm;
-    private final ConcreteExpression rhsTerm;
+    private ConcreteExpression lhsTerm;
+    private ConcreteExpression rhsTerm;
     private int count;
     private ConcreteExpression cExpr;
     private ConcreteExpression rnfTerm;
 
-    private RuleExt(TypedExpression expression, ArendRef reference, boolean isInversed, List<Integer> lhs, List<Integer> rhs, ConcreteExpression lhsTerm, ConcreteExpression rhsTerm) {
-      super(expression, reference, isInversed, lhs, rhs);
+    private RuleExt(TypedExpression expression, CoreBinding binding, Direction direction, List<Integer> lhs, List<Integer> rhs, ConcreteExpression lhsTerm, ConcreteExpression rhsTerm) {
+      super(expression, binding, direction, lhs, rhs);
       this.lhsTerm = lhsTerm;
       this.rhsTerm = rhsTerm;
+    }
+
+    private void setBackward() {
+      if (direction == Direction.BACKWARD) {
+        return;
+      }
+      direction = Direction.BACKWARD;
+      List<Integer> nf = rhs;
+      rhs = lhs;
+      lhs = nf;
+      ConcreteExpression term = rhsTerm;
+      rhsTerm = lhsTerm;
+      lhsTerm = term;
     }
   }
 
@@ -301,12 +314,55 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     }
   }
 
+  private RuleExt typeToRule(CoreExpression type, List<CoreExpression> values, ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr, ConcreteFactory factory, TypedExpression typed, CoreBinding binding) {
+    CoreFunCallExpression eq = Utils.toEquality(type, null, null);
+    if (eq == null) {
+      return null;
+    }
+
+    List<Integer> lhs = new ArrayList<>();
+    List<Integer> rhs = new ArrayList<>();
+    ConcreteExpression lhsTerm = computeTerm(eq.getDefCallArguments().get(1), values, typechecker, refExpr, factory, lhs);
+    ConcreteExpression rhsTerm = computeTerm(eq.getDefCallArguments().get(2), values, typechecker, refExpr, factory, rhs);
+    if (binding == null) {
+      return new RuleExt(typed, null, Direction.FORWARD, lhs, rhs, lhsTerm, rhsTerm);
+    }
+
+    Direction direction = lhs.size() > rhs.size() ? Direction.FORWARD : Direction.UNKNOWN;
+    RuleExt rule = new RuleExt(typed, binding, direction, lhs, rhs, lhsTerm, rhsTerm);
+    if (lhs.size() < rhs.size()) {
+      rule.setBackward();
+    }
+    return rule;
+  }
+
+  private static final int MAX_STEPS = 100;
+
   private List<Integer> applyRules(List<Integer> term, List<RuleExt> rules, List<Step> trace) {
+    boolean hasBadRules = false;
+    for (RuleExt rule : rules) {
+      if (rule.lhs.size() == rule.rhs.size()) {
+        hasBadRules = true;
+        break;
+      }
+    }
+
+    int i = 0;
     boolean found;
     do {
       found = false;
       for (RuleExt rule : rules) {
         int pos = Collections.indexOfSubList(term, rule.lhs);
+        if (rule.direction == Direction.UNKNOWN) {
+          if (pos < 0) {
+            pos = Collections.indexOfSubList(term, rule.rhs);
+            if (pos >= 0) {
+              rule.setBackward();
+            }
+          } else {
+            rule.direction = Direction.FORWARD;
+          }
+        }
         if (pos >= 0) {
           Step step = new Step(rule, pos);
           trace.add(step);
@@ -315,7 +371,8 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
           break;
         }
       }
-    } while (found);
+      i++;
+    } while (found && (!hasBadRules || i < MAX_STEPS));
 
     return term;
   }
@@ -348,14 +405,15 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   }
 
   private boolean isNF(ConcreteExpression term) {
-    if (term instanceof ConcreteReferenceExpression) {
-      return true;
-    }
+    return term instanceof ConcreteReferenceExpression || isNFRec(term);
+  }
+
+  private boolean isNFRec(ConcreteExpression term) {
     if (!(term instanceof ConcreteAppExpression)) {
       return false;
     }
     List<? extends ConcreteArgument> args = ((ConcreteAppExpression) term).getArguments();
-    return args.size() == 2 && args.get(0).getExpression() instanceof ConcreteReferenceExpression && isNF(args.get(1).getExpression());
+    return args.size() == 1 || args.size() == 2 && args.get(0).getExpression() instanceof ConcreteAppExpression && ((ConcreteAppExpression) args.get(0).getExpression()).getArguments().size() == 1 && isNF(args.get(1).getExpression());
   }
 
   private ConcreteExpression computeNFTerm(List<Integer> nf, ConcreteFactory factory) {
