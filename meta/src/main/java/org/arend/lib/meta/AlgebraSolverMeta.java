@@ -5,6 +5,7 @@ import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.*;
+import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFieldCallExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
@@ -35,9 +36,11 @@ import static java.util.Collections.singletonList;
 public class AlgebraSolverMeta extends BaseMetaDefinition {
   private final StdExtension ext;
 
-  public CoreClassField carrier;
-  public CoreClassField ide;
-  public CoreClassField mul;
+  private CoreClassField carrier;
+  private CoreClassField ide;
+  private CoreClassField mul;
+  private CoreClassDefinition ldiv;
+  private CoreClassDefinition rdiv;
 
   private CoreConstructor varTerm;
   private CoreConstructor ideTerm;
@@ -53,10 +56,14 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   }
 
   public void load(RawDefinitionProvider provider) {
+    RawScope monoidFile = ext.moduleScopeProvider.forModule(ModulePath.fromString("Algebra.Monoid"));
+    RawScope monoidScope = monoidFile.getSubscope("Monoid");
     carrier = provider.getDefinition(ext.moduleScopeProvider.forModule(new ModulePath("Set")).resolveName("BaseSet"), CoreClassDefinition.class).getPersonalFields().get(0);
     ide = provider.getDefinition(ext.moduleScopeProvider.forModule(ModulePath.fromString("Algebra.Pointed")).resolveName("Pointed"), CoreClassDefinition.class).getPersonalFields().get(0);
+    mul = provider.getDefinition(monoidFile.resolveName("Monoid"), CoreClassDefinition.class).getPersonalFields().get(0);
+    ldiv = provider.getDefinition(monoidScope.resolveName("LDiv"), CoreClassDefinition.class);
+    rdiv = provider.getDefinition(monoidScope.resolveName("RDiv"), CoreClassDefinition.class);
 
-    mul = provider.getDefinition(ext.moduleScopeProvider.forModule(ModulePath.fromString("Algebra.Monoid")).resolveName("Monoid"), CoreClassDefinition.class).getPersonalFields().get(0);
     RawScope solverScope = ext.moduleScopeProvider.forModule(ModulePath.fromString("Algebra.Monoid.Solver"));
     CoreDataDefinition term = provider.getDefinition(solverScope.resolveName("MonoidTerm"), CoreDataDefinition.class);
     varTerm = term.getConstructors().get(0);
@@ -133,10 +140,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       List<RuleExt> rules = new ArrayList<>();
       if (contextData.getArguments().isEmpty()) {
         for (CoreBinding binding : typechecker.getFreeBindingsList()) {
-          RuleExt rule = typeToRule(binding.getTypeExpr(), values, typechecker, refExpr, factory, null, binding);
-          if (rule != null) {
-            rules.add(rule);
-          }
+          typeToRule(values, typechecker, refExpr, factory, null, binding, rules);
         }
       } else {
         for (ConcreteExpression expression : Utils.getArgumentList(contextData.getArguments().get(0).getExpression())) {
@@ -144,12 +148,10 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
           if (typed == null) {
             return null;
           }
-          RuleExt rule = typeToRule(typed.getType(), values, typechecker, refExpr, factory, typed, null);
-          if (rule == null) {
+          if (!typeToRule(values, typechecker, refExpr, factory, typed, null, rules)) {
             errorReporter.report(new TypeMismatchError(DocFactory.text("algebraic equality"), typed.getType(), expression));
             return null;
           }
-          rules.add(rule);
         }
       }
 
@@ -324,10 +326,26 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     }
   }
 
-  private RuleExt typeToRule(CoreExpression type, List<CoreExpression> values, ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr, ConcreteFactory factory, TypedExpression typed, CoreBinding binding) {
+  private boolean typeToRule(List<CoreExpression> values, ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr, ConcreteFactory factory, TypedExpression typed, CoreBinding binding, List<RuleExt> rules) {
+    if (binding == null && typed == null) {
+      return false;
+    }
+    CoreExpression type = binding != null ? binding.getTypeExpr() : typed.getType();
     CoreFunCallExpression eq = Utils.toEquality(type, null, null);
     if (eq == null) {
-      return null;
+      CoreExpression typeNorm = type.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
+      if (!(typeNorm instanceof CoreClassCallExpression)) {
+        return false;
+      }
+      CoreClassCallExpression classCall = (CoreClassCallExpression) typeNorm;
+      boolean isLDiv = classCall.getDefinition().isSubClassOf(ldiv);
+      boolean isRDiv = classCall.getDefinition().isSubClassOf(rdiv);
+      if (!isLDiv && !isRDiv) {
+        return false;
+      }
+      List<ConcreteExpression> args = singletonList(binding != null ? factory.ref(binding) : factory.core("Div", typed));
+      return (!isLDiv || typeToRule(values, typechecker, refExpr, factory, typechecker.typecheck(factory.app(factory.ref(ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules)) &&
+             (!isRDiv || typeToRule(values, typechecker, refExpr, factory, typechecker.typecheck(factory.app(factory.ref(rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules));
     }
 
     List<Integer> lhs = new ArrayList<>();
@@ -335,15 +353,16 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     ConcreteExpression lhsTerm = computeTerm(eq.getDefCallArguments().get(1), values, typechecker, refExpr, factory, lhs);
     ConcreteExpression rhsTerm = computeTerm(eq.getDefCallArguments().get(2), values, typechecker, refExpr, factory, rhs);
     if (binding == null) {
-      return new RuleExt(typed, null, Direction.FORWARD, lhs, rhs, lhsTerm, rhsTerm);
+      rules.add(new RuleExt(typed, null, Direction.FORWARD, lhs, rhs, lhsTerm, rhsTerm));
+    } else {
+      Direction direction = lhs.size() > rhs.size() ? Direction.FORWARD : Direction.UNKNOWN;
+      RuleExt rule = new RuleExt(typed, binding, direction, lhs, rhs, lhsTerm, rhsTerm);
+      if (lhs.size() < rhs.size()) {
+        rule.setBackward();
+      }
+      rules.add(rule);
     }
-
-    Direction direction = lhs.size() > rhs.size() ? Direction.FORWARD : Direction.UNKNOWN;
-    RuleExt rule = new RuleExt(typed, binding, direction, lhs, rhs, lhsTerm, rhsTerm);
-    if (lhs.size() < rhs.size()) {
-      rule.setBackward();
-    }
-    return rule;
+    return true;
   }
 
   private static final int MAX_STEPS = 100;
