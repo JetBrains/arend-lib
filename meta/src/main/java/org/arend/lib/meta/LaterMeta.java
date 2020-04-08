@@ -60,6 +60,6 @@ public class LaterMeta extends BaseMetaDefinition {
     }
 
     contextData.setArguments(args.subList(1, args.size()));
-    return typechecker.defer(meta, contextData, contextData.getExpectedType(), ExpressionTypechecker.Stage.BEFORE_SOLVER);
+    return typechecker.defer(meta, contextData, contextData.getExpectedType());
   }
 }
