@@ -29,14 +29,14 @@ public class LaterMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable ConcreteExpression getConcretePresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+  public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
     ConcreteExpression expr = arguments.get(0).getExpression();
     if (expr instanceof ConcreteReferenceExpression) {
       ArendRef ref = ((ConcreteReferenceExpression) expr).getReferent();
       if (ref instanceof MetaRef) {
         MetaDefinition def = ((MetaRef) ref).getDefinition();
         if (def != null) {
-          return def.checkAndGetConcretePresentation(arguments.subList(1, arguments.size()));
+          return def.checkAndGetConcreteRepresentation(arguments.subList(1, arguments.size()));
         }
       }
     }

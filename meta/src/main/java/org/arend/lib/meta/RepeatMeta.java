@@ -39,7 +39,7 @@ public class RepeatMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable ConcreteExpression getConcretePresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+  public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
     int steps = -1;
     int currentArg = 0;
     if (!arguments.get(0).isExplicit()) {

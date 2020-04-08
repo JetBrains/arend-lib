@@ -1,6 +1,6 @@
 package org.arend.lib.meta;
 
-import org.arend.ext.RawDefinitionProvider;
+import org.arend.ext.ArendDefinitionProvider;
 import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
@@ -15,10 +15,10 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.TypeMismatchError;
 import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
 import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
-import org.arend.ext.reference.RawScope;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -55,25 +55,24 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     this.ext = ext;
   }
 
-  public void load(RawDefinitionProvider provider) {
-    RawScope monoidFile = ext.moduleScopeProvider.forModule(ModulePath.fromString("Algebra.Monoid"));
-    RawScope monoidScope = monoidFile.getSubscope("Monoid");
-    carrier = provider.getDefinition(ext.moduleScopeProvider.forModule(new ModulePath("Set")).resolveName("BaseSet"), CoreClassDefinition.class).getPersonalFields().get(0);
-    ide = provider.getDefinition(ext.moduleScopeProvider.forModule(ModulePath.fromString("Algebra.Pointed")).resolveName("Pointed"), CoreClassDefinition.class).getPersonalFields().get(0);
-    mul = provider.getDefinition(monoidFile.resolveName("Monoid"), CoreClassDefinition.class).getPersonalFields().get(0);
-    ldiv = provider.getDefinition(monoidScope.resolveName("LDiv"), CoreClassDefinition.class);
-    rdiv = provider.getDefinition(monoidScope.resolveName("RDiv"), CoreClassDefinition.class);
+  public void load(ArendDefinitionProvider provider) {
+    ModulePath monoidFile = ModulePath.fromString("Algebra.Monoid");
+    CoreClassDefinition monoid = provider.getDefinition(monoidFile, new LongName("Monoid"), CoreClassDefinition.class);
+    carrier = monoid.findField("E");
+    ide = monoid.findField("ide");
+    mul = monoid.findField("*");
+    ldiv = provider.getDefinition(monoidFile, LongName.fromString("Monoid.LDiv"), CoreClassDefinition.class);
+    rdiv = provider.getDefinition(monoidFile, LongName.fromString("Monoid.RDiv"), CoreClassDefinition.class);
 
-    RawScope solverScope = ext.moduleScopeProvider.forModule(ModulePath.fromString("Algebra.Monoid.Solver"));
-    CoreDataDefinition term = provider.getDefinition(solverScope.resolveName("MonoidTerm"), CoreDataDefinition.class);
-    varTerm = term.getConstructors().get(0);
-    ideTerm = term.getConstructors().get(1);
-    mulTerm = term.getConstructors().get(2);
-    dataClass = provider.getDefinition(solverScope.resolveName("Data"), CoreClassDefinition.class);
-    RawScope dataScope = solverScope.getSubscope("Data");
-    termsEq = provider.getDefinition(dataScope.resolveName("terms-equality"), CoreFunctionDefinition.class);
-    termsEqConv = provider.getDefinition(dataScope.resolveName("terms-equality-conv"), CoreFunctionDefinition.class);
-    replaceDef = provider.getDefinition(dataScope.resolveName("replace-consistent"), CoreFunctionDefinition.class);
+    ModulePath solverFile = ModulePath.fromString("Algebra.Monoid.Solver");
+    CoreDataDefinition term = provider.getDefinition(solverFile, new LongName("MonoidTerm"), CoreDataDefinition.class);
+    varTerm = term.findConstructor("var");
+    ideTerm = term.findConstructor(":ide");
+    mulTerm = term.findConstructor(":*");
+    dataClass = provider.getDefinition(solverFile, new LongName("Data"), CoreClassDefinition.class);
+    termsEq = provider.getDefinition(solverFile, LongName.fromString("Data.terms-equality"), CoreFunctionDefinition.class);
+    termsEqConv = provider.getDefinition(solverFile, LongName.fromString("Data.terms-equality-conv"), CoreFunctionDefinition.class);
+    replaceDef = provider.getDefinition(solverFile, LongName.fromString("Data.replace-consistent"), CoreFunctionDefinition.class);
   }
 
   @Override
@@ -87,7 +86,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable ConcreteExpression getConcretePresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+  public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
     if (arguments.isEmpty()) {
       return null;
     }

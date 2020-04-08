@@ -7,9 +7,7 @@ import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
-import org.arend.ext.module.ModuleScopeProvider;
 import org.arend.ext.reference.Precedence;
-import org.arend.ext.reference.RawScope;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.meta.*;
 
@@ -20,7 +18,6 @@ public class StdExtension implements ArendExtension {
   public ArendPrelude prelude;
 
   public ConcreteFactory factory;
-  public ModuleScopeProvider moduleScopeProvider;
   public DefinitionProvider definitionProvider;
 
   public CoreFunctionDefinition transport;
@@ -44,32 +41,21 @@ public class StdExtension implements ArendExtension {
   }
 
   @Override
-  public void setModuleScopeProvider(@NotNull ModuleScopeProvider moduleScopeProvider) {
-    this.moduleScopeProvider = moduleScopeProvider;
-  }
-
-  @NotNull
-  @Override
-  public ModuleScopeProvider getModuleScopeProvider() {
-    return moduleScopeProvider;
-  }
-
-  @Override
   public void setDefinitionProvider(@NotNull DefinitionProvider definitionProvider) {
     this.definitionProvider = definitionProvider;
   }
 
   @Override
-  public void load(@NotNull RawDefinitionProvider provider) {
-    RawScope paths = moduleScopeProvider.forModule(new ModulePath("Paths"));
-    transport = provider.getDefinition(paths.resolveName("transport"), CoreFunctionDefinition.class);
-    transportInv = provider.getDefinition(paths.resolveName("transportInv"), CoreFunctionDefinition.class);
-    concat = provider.getDefinition(paths.resolveName("*>"), CoreFunctionDefinition.class);
-    inv = provider.getDefinition(paths.resolveName("inv"), CoreFunctionDefinition.class);
+  public void load(@NotNull ArendDefinitionProvider provider) {
+    ModulePath paths = new ModulePath("Paths");
+    transport = provider.getDefinition(paths, new LongName("transport"), CoreFunctionDefinition.class);
+    transportInv = provider.getDefinition(paths, new LongName("transportInv"), CoreFunctionDefinition.class);
+    concat = provider.getDefinition(paths, new LongName("*>"), CoreFunctionDefinition.class);
+    inv = provider.getDefinition(paths, new LongName("inv"), CoreFunctionDefinition.class);
 
-    CoreDataDefinition list = provider.getDefinition(moduleScopeProvider.forModule(ModulePath.fromString("Data.List")).resolveName("List"), CoreDataDefinition.class);
-    nil = list.getConstructors().get(0);
-    cons = list.getConstructors().get(1);
+    CoreDataDefinition list = provider.getDefinition(ModulePath.fromString("Data.List"), new LongName("List"), CoreDataDefinition.class);
+    nil = list.findConstructor("nil");
+    cons = list.findConstructor("::");
 
     algebraMeta.load(provider);
   }

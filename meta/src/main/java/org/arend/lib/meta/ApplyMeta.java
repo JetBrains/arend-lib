@@ -26,7 +26,7 @@ public class ApplyMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable ConcreteExpression getConcretePresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+  public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
     return ext.factory.app(arguments.get(0).getExpression(), arguments.subList(1, arguments.size()));
   }
 
