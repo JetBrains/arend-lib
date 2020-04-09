@@ -75,6 +75,8 @@ public class RepeatMeta extends BaseMetaDefinition {
     }
 
     if (steps == -1) {
+      typechecker.checkCancelled();
+
       TypedExpression result;
       try {
         int finalCurrentArg = currentArg;

@@ -110,11 +110,27 @@ public class RewriteMeta extends BaseMetaDefinition {
       }
     }
 
-    // Check that the first argument is a path
+    // Type-check the path argument
     TypedExpression path = typechecker.typecheck(arg0, null);
     if (path == null) {
       return null;
     }
+
+    // Add inference holes to functions
+    List<CoreParameter> parameters = new ArrayList<>();
+    path.getType().getPiParameters(parameters);
+    if (!parameters.isEmpty()) {
+      List<ConcreteArgument> holes = new ArrayList<>(parameters.size());
+      for (CoreParameter parameter : parameters) {
+        holes.add(factory.arg(factory.hole(), parameter.isExplicit()));
+      }
+      path = typechecker.typecheck(factory.app(factory.core("transport _ {!} _", path), holes), null);
+      if (path == null) {
+        return null;
+      }
+    }
+
+    // Check that the first argument is a path
     CoreFunCallExpression eq = Utils.toEquality(path.getType(), errorReporter, arg0);
     if (eq == null) {
       return null;
