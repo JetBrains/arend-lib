@@ -7,7 +7,7 @@ repositories {
 }
 
 dependencies {
-    implementation(files("../../Arend/api/build/libs/api-1.2.0.jar"))
+    implementation(files("../../Arend/api/build/libs/api-1.3.0.jar"))
     implementation("org.jetbrains:annotations:19.0.0")
 }
 
@@ -17,5 +17,5 @@ configure<JavaPluginConvention> {
 }
 
 tasks.withType<Wrapper> {
-    gradleVersion = "6.2.1"
+    gradleVersion = "6.3"
 }
