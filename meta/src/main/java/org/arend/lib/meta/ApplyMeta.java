@@ -21,7 +21,7 @@ public class ApplyMeta extends BaseMetaDefinition {
 
   @Nullable
   @Override
-  protected boolean[] argumentExplicitness() {
+  public boolean[] argumentExplicitness() {
     return new boolean[] { true };
   }
 

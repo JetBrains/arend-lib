@@ -14,17 +14,17 @@ import java.util.List;
 
 public class LaterMeta extends BaseMetaDefinition {
   @Override
-  protected @Nullable boolean[] argumentExplicitness() {
+  public @Nullable boolean[] argumentExplicitness() {
     return new boolean[] { true };
   }
 
   @Override
-  protected boolean requireExpectedType() {
+  public boolean requireExpectedType() {
     return true;
   }
 
   @Override
-  protected boolean allowExcessiveArguments() {
+  public boolean allowExcessiveArguments() {
     return true;
   }
 

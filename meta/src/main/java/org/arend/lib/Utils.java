@@ -13,7 +13,11 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.TypeMismatchError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.prettyprinting.doc.DocFactory;
+import org.arend.ext.reference.ArendRef;
+import org.arend.ext.reference.MetaRef;
+import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ExpressionTypechecker;
+import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
 
 import java.util.ArrayList;
@@ -94,12 +98,29 @@ public class Utils {
       }
     }
 
-    CoreDefinition argDef = refExpr == null ? null : ext.definitionProvider.getCoreDefinition(refExpr.getReferent());
-    if (argDef == null) {
+    if (refExpr == null) {
       return expr;
     }
 
-    int numberOfArgs = numberOfExplicitParameters(argDef.getParameters()) - expectedParameters;
+    int numberOfArgs = 0;
+    ArendRef ref = refExpr.getReferent();
+    if (ref instanceof MetaRef) {
+      MetaDefinition meta = ((MetaRef) ref).getDefinition();
+      if (meta instanceof BaseMetaDefinition) {
+        for (boolean explicit : ((BaseMetaDefinition) meta).argumentExplicitness()) {
+          if (explicit) {
+            numberOfArgs++;
+          }
+        }
+      }
+    } else {
+      CoreDefinition argDef = ext.definitionProvider.getCoreDefinition(ref);
+      if (argDef == null) {
+        return expr;
+      }
+      numberOfArgs = numberOfExplicitParameters(argDef.getParameters()) - expectedParameters;
+    }
+
     if (expr instanceof ConcreteAppExpression && numberOfArgs > 0) {
       for (ConcreteArgument argument : ((ConcreteAppExpression) expr).getArguments()) {
         if (argument.isExplicit()) {
@@ -107,7 +128,6 @@ public class Utils {
         }
       }
     }
-
     if (numberOfArgs <= 0) {
       return expr;
     }

@@ -76,12 +76,12 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   }
 
   @Override
-  protected @Nullable boolean[] argumentExplicitness() {
+  public @Nullable boolean[] argumentExplicitness() {
     return new boolean[] { false };
   }
 
   @Override
-  protected boolean requireExpectedType() {
+  public boolean requireExpectedType() {
     return true;
   }
 

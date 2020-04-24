@@ -32,7 +32,7 @@ public class RewriteMeta extends BaseMetaDefinition {
   }
 
   @Override
-  protected boolean[] argumentExplicitness() {
+  public boolean[] argumentExplicitness() {
     return new boolean[] { false, true, true };
   }
 

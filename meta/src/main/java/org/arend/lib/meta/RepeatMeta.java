@@ -26,7 +26,7 @@ public class RepeatMeta extends BaseMetaDefinition {
   }
 
   @Override
-  protected @Nullable boolean[] argumentExplicitness() {
+  public @Nullable boolean[] argumentExplicitness() {
     return new boolean[] { false, true, true };
   }
 
