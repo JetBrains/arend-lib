@@ -12,6 +12,7 @@ import org.arend.ext.typechecking.*;
 import org.arend.lib.meta.*;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("unused")
 public class StdExtension implements ArendExtension {
@@ -29,6 +30,8 @@ public class StdExtension implements ArendExtension {
   public CoreConstructor cons;
 
   public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
+
+  private final MetaDefinition goalSolver = new GoalSolver(this);
 
   @Override
   public void setPrelude(@NotNull ArendPrelude prelude) {
@@ -87,5 +90,10 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new RepeatMeta(this));
 
     contributor.declare(new ModulePath("Algebra"), new LongName("solve"), "Proves equations in monoids", Precedence.DEFAULT, algebraMeta);
+  }
+
+  @Override
+  public @Nullable MetaDefinition getGoalSolver() {
+    return goalSolver;
   }
 }

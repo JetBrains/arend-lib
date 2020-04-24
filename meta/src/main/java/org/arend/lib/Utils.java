@@ -1,9 +1,10 @@
 package org.arend.lib;
 
+import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
-import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.concrete.expr.ConcreteNumberExpression;
-import org.arend.ext.concrete.expr.ConcreteTupleExpression;
+import org.arend.ext.concrete.expr.*;
+import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.CoreAppExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
@@ -12,7 +13,11 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.TypeMismatchError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.prettyprinting.doc.DocFactory;
+import org.arend.ext.typechecking.ExpressionTypechecker;
+import org.arend.ext.typechecking.TypedExpression;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -56,5 +61,83 @@ public class Utils {
       return getAppArgumentsRev(((CoreAppExpression) expression).getFunction(), numberOfArgs - 1, args);
     }
     return expression;
+  }
+
+  public static int numberOfExplicitParameters(Collection<? extends CoreParameter> parameters) {
+    int result = 0;
+    for (CoreParameter parameter : parameters) {
+      if (parameter.isExplicit()) {
+        result++;
+      }
+    }
+    return result;
+  }
+
+  public static int numberOfExplicitParameters(CoreParameter parameter) {
+    int result = 0;
+    for (; parameter.hasNext(); parameter = parameter.getNext()) {
+      if (parameter.isExplicit()) {
+        result++;
+      }
+    }
+    return result;
+  }
+
+  private static ConcreteExpression addArguments(ConcreteExpression expr, StdExtension ext, int expectedParameters, boolean addGoals) {
+    ConcreteReferenceExpression refExpr = null;
+    if (expr instanceof ConcreteReferenceExpression) {
+      refExpr = (ConcreteReferenceExpression) expr;
+    } else if (expr instanceof ConcreteAppExpression) {
+      ConcreteExpression fun = ((ConcreteAppExpression) expr).getFunction();
+      if (fun instanceof ConcreteReferenceExpression) {
+        refExpr = (ConcreteReferenceExpression) fun;
+      }
+    }
+
+    CoreDefinition argDef = refExpr == null ? null : ext.definitionProvider.getCoreDefinition(refExpr.getReferent());
+    if (argDef == null) {
+      return expr;
+    }
+
+    int numberOfArgs = numberOfExplicitParameters(argDef.getParameters()) - expectedParameters;
+    if (expr instanceof ConcreteAppExpression && numberOfArgs > 0) {
+      for (ConcreteArgument argument : ((ConcreteAppExpression) expr).getArguments()) {
+        if (argument.isExplicit()) {
+          numberOfArgs--;
+        }
+      }
+    }
+
+    if (numberOfArgs <= 0) {
+      return expr;
+    }
+
+    ConcreteFactory factory = ext.factory.withData(expr.getData());
+    List<ConcreteExpression> args = new ArrayList<>(numberOfArgs);
+    for (int i = 0; i < numberOfArgs; i++) {
+      args.add(addGoals ? factory.goal(null, null) : factory.hole());
+    }
+    return factory.app(expr, true, args);
+  }
+
+  public static TypedExpression typecheckWithAdditionalArguments(ConcreteExpression expr, ExpressionTypechecker typechecker, StdExtension ext, int expectedParameters, boolean addGoals) {
+    TypedExpression result = typechecker.typecheck(addArguments(expr, ext, expectedParameters, addGoals), null);
+    if (result == null) {
+      return null;
+    }
+
+    List<CoreParameter> parameters = new ArrayList<>();
+    result.getType().getPiParameters(parameters);
+    int numberOfArgs = numberOfExplicitParameters(parameters) - expectedParameters;
+    if (numberOfArgs <= 0) {
+      return result;
+    }
+
+    ConcreteFactory factory = ext.factory.withData(expr.getData());
+    List<ConcreteExpression> args = new ArrayList<>(numberOfArgs);
+    for (int i = 0; i < numberOfArgs; i++) {
+      args.add(addGoals ? factory.goal(null, null) : factory.hole());
+    }
+    return typechecker.typecheck(factory.app(factory.core("_", result), true, args), null);
   }
 }

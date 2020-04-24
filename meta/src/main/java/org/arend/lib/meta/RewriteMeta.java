@@ -2,8 +2,6 @@ package org.arend.lib.meta;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
-import org.arend.ext.core.context.CoreParameter;
-import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.expr.CoreInferenceReferenceExpression;
@@ -73,61 +71,11 @@ public class RewriteMeta extends BaseMetaDefinition {
     CoreExpression expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().getUnderlyingExpression();
     boolean isForward = this.isForward || expectedType == null || args.size() > currentArg + 2;
 
-    // Add inference holes to defcalls
+    // Add inference holes to functions and type-check the path argument
     ConcreteExpression arg0 = args.get(currentArg++).getExpression();
-    {
-      ConcreteReferenceExpression argRef = null;
-      if (arg0 instanceof ConcreteReferenceExpression) {
-        argRef = (ConcreteReferenceExpression) arg0;
-      } else if (arg0 instanceof ConcreteAppExpression) {
-        ConcreteExpression fun = ((ConcreteAppExpression) arg0).getFunction();
-        if (fun instanceof ConcreteReferenceExpression) {
-          argRef = (ConcreteReferenceExpression) fun;
-        }
-      }
-      CoreDefinition argDef = argRef == null ? null : ext.definitionProvider.getCoreDefinition(argRef.getReferent());
-      if (argDef != null) {
-        int numberOfArgs = 0;
-        for (CoreParameter param = argDef.getParameters(); param.hasNext(); param = param.getNext()) {
-          if (param.isExplicit()) {
-            numberOfArgs++;
-          }
-        }
-        if (arg0 instanceof ConcreteAppExpression && numberOfArgs > 0) {
-          for (ConcreteArgument argument : ((ConcreteAppExpression) arg0).getArguments()) {
-            if (argument.isExplicit()) {
-              numberOfArgs--;
-            }
-          }
-        }
-        if (numberOfArgs > 0) {
-          List<ConcreteExpression> holes = new ArrayList<>(numberOfArgs);
-          for (int i = 0; i < numberOfArgs; i++) {
-            holes.add(factory.hole());
-          }
-          arg0 = factory.app(arg0, true, holes);
-        }
-      }
-    }
-
-    // Type-check the path argument
-    TypedExpression path = typechecker.typecheck(arg0, null);
+    TypedExpression path = Utils.typecheckWithAdditionalArguments(args.get(currentArg++).getExpression(), typechecker, ext, 0, false);
     if (path == null) {
       return null;
-    }
-
-    // Add inference holes to functions
-    List<CoreParameter> parameters = new ArrayList<>();
-    path.getType().getPiParameters(parameters);
-    if (!parameters.isEmpty()) {
-      List<ConcreteArgument> holes = new ArrayList<>(parameters.size());
-      for (CoreParameter parameter : parameters) {
-        holes.add(factory.arg(factory.hole(), parameter.isExplicit()));
-      }
-      path = typechecker.typecheck(factory.app(factory.core("transport _ {!} _", path), holes), null);
-      if (path == null) {
-        return null;
-      }
     }
 
     // Check that the first argument is a path
