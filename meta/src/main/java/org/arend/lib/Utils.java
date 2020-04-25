@@ -21,7 +21,6 @@ import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -67,16 +66,6 @@ public class Utils {
     return expression;
   }
 
-  public static int numberOfExplicitParameters(Collection<? extends CoreParameter> parameters) {
-    int result = 0;
-    for (CoreParameter parameter : parameters) {
-      if (parameter.isExplicit()) {
-        result++;
-      }
-    }
-    return result;
-  }
-
   public static int numberOfExplicitParameters(CoreParameter parameter) {
     int result = 0;
     for (; parameter.hasNext(); parameter = parameter.getNext()) {
@@ -87,7 +76,32 @@ public class Utils {
     return result;
   }
 
-  private static ConcreteExpression addArguments(ConcreteExpression expr, StdExtension ext, int expectedParameters, boolean addGoals) {
+  public static int numberOfExplicitPiParameters(CoreExpression type) {
+    List<CoreParameter> parameters = new ArrayList<>();
+    type.getPiParameters(parameters);
+
+    int result = 0;
+    for (CoreParameter parameter : parameters) {
+      if (parameter.isExplicit()) {
+        result++;
+      }
+    }
+    return result;
+  }
+
+  public static ConcreteExpression addArguments(ConcreteExpression expr, ConcreteFactory factory, int numberOfArgs, boolean addGoals) {
+    if (numberOfArgs <= 0) {
+      return expr;
+    }
+
+    List<ConcreteExpression> args = new ArrayList<>(numberOfArgs);
+    for (int i = 0; i < numberOfArgs; i++) {
+      args.add(addGoals ? factory.goal(null, null) : factory.hole());
+    }
+    return factory.app(expr, true, args);
+  }
+
+  public static ConcreteExpression addArguments(ConcreteExpression expr, StdExtension ext, int expectedParameters, boolean addGoals) {
     ConcreteReferenceExpression refExpr = null;
     if (expr instanceof ConcreteReferenceExpression) {
       refExpr = (ConcreteReferenceExpression) expr;
@@ -128,16 +142,8 @@ public class Utils {
         }
       }
     }
-    if (numberOfArgs <= 0) {
-      return expr;
-    }
 
-    ConcreteFactory factory = ext.factory.withData(expr.getData());
-    List<ConcreteExpression> args = new ArrayList<>(numberOfArgs);
-    for (int i = 0; i < numberOfArgs; i++) {
-      args.add(addGoals ? factory.goal(null, null) : factory.hole());
-    }
-    return factory.app(expr, true, args);
+    return addArguments(expr, ext.factory.withData(expr.getData()), numberOfArgs, addGoals);
   }
 
   public static TypedExpression typecheckWithAdditionalArguments(ConcreteExpression expr, ExpressionTypechecker typechecker, StdExtension ext, int expectedParameters, boolean addGoals) {
@@ -146,18 +152,12 @@ public class Utils {
       return null;
     }
 
-    List<CoreParameter> parameters = new ArrayList<>();
-    result.getType().getPiParameters(parameters);
-    int numberOfArgs = numberOfExplicitParameters(parameters) - expectedParameters;
+    int numberOfArgs = numberOfExplicitPiParameters(result.getType()) - expectedParameters;
     if (numberOfArgs <= 0) {
       return result;
     }
 
     ConcreteFactory factory = ext.factory.withData(expr.getData());
-    List<ConcreteExpression> args = new ArrayList<>(numberOfArgs);
-    for (int i = 0; i < numberOfArgs; i++) {
-      args.add(addGoals ? factory.goal(null, null) : factory.hole());
-    }
-    return typechecker.typecheck(factory.app(factory.core("_", result), true, args), null);
+    return typechecker.typecheck(addArguments(factory.core("_", result), factory, numberOfArgs, addGoals), null);
   }
 }

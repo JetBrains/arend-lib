@@ -31,7 +31,7 @@ public class StdExtension implements ArendExtension {
 
   public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
 
-  private final MetaDefinition goalSolver = new GoalSolver(this);
+  private final StdGoalSolver goalSolver = new StdGoalSolver(this);
 
   @Override
   public void setPrelude(@NotNull ArendPrelude prelude) {
@@ -93,7 +93,7 @@ public class StdExtension implements ArendExtension {
   }
 
   @Override
-  public @Nullable MetaDefinition getGoalSolver() {
+  public @Nullable StdGoalSolver getGoalSolver() {
     return goalSolver;
   }
 }
