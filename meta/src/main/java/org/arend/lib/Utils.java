@@ -96,7 +96,7 @@ public class Utils {
 
     List<ConcreteExpression> args = new ArrayList<>(numberOfArgs);
     for (int i = 0; i < numberOfArgs; i++) {
-      args.add(addGoals ? factory.goal(null, null) : factory.hole());
+      args.add(addGoals ? factory.goal() : factory.hole());
     }
     return factory.app(expr, true, args);
   }

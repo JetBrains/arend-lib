@@ -9,6 +9,7 @@ import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
+import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.meta.*;
 
 import org.jetbrains.annotations.NotNull;
@@ -20,6 +21,7 @@ public class StdExtension implements ArendExtension {
 
   public ConcreteFactory factory;
   public DefinitionProvider definitionProvider;
+  public VariableRenamerFactory renamerFactory;
 
   public CoreFunctionDefinition transport;
   public CoreFunctionDefinition transportInv;
@@ -46,6 +48,11 @@ public class StdExtension implements ArendExtension {
   @Override
   public void setDefinitionProvider(@NotNull DefinitionProvider definitionProvider) {
     this.definitionProvider = definitionProvider;
+  }
+
+  @Override
+  public void setVariableRenamerFactory(@NotNull VariableRenamerFactory factory) {
+    renamerFactory = factory;
   }
 
   @Override
