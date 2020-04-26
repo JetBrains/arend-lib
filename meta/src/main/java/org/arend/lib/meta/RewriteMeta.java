@@ -73,7 +73,7 @@ public class RewriteMeta extends BaseMetaDefinition {
 
     // Add inference holes to functions and type-check the path argument
     ConcreteExpression arg0 = args.get(currentArg++).getExpression();
-    TypedExpression path = Utils.typecheckWithAdditionalArguments(args.get(currentArg++).getExpression(), typechecker, ext, 0, false);
+    TypedExpression path = Utils.typecheckWithAdditionalArguments(arg0, typechecker, ext, 0, false);
     if (path == null) {
       return null;
     }

@@ -152,12 +152,29 @@ public class Utils {
       return null;
     }
 
-    int numberOfArgs = numberOfExplicitPiParameters(result.getType()) - expectedParameters;
-    if (numberOfArgs <= 0) {
+    List<CoreParameter> parameters = new ArrayList<>();
+    result.getType().getPiParameters(parameters);
+    if (parameters.isEmpty()) {
       return result;
     }
 
     ConcreteFactory factory = ext.factory.withData(expr.getData());
-    return typechecker.typecheck(addArguments(factory.core("_", result), factory, numberOfArgs, addGoals), null);
+    List<ConcreteArgument> arguments = new ArrayList<>();
+    for (CoreParameter parameter : parameters) {
+      if (parameter.isExplicit()) {
+        if (expectedParameters <= 0) {
+          arguments.add(factory.arg(addGoals ? factory.goal() : factory.hole(), true));
+        } else {
+          expectedParameters--;
+        }
+      } else {
+        arguments.add(factory.arg(factory.hole(), false));
+      }
+    }
+    if (arguments.isEmpty()) {
+      return result;
+    }
+
+    return typechecker.typecheck(factory.app(factory.core("_", result), arguments), null);
   }
 }
