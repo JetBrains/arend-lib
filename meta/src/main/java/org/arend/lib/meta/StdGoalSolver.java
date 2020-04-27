@@ -36,14 +36,14 @@ public class StdGoalSolver implements GoalSolver {
   }
 
   @Override
-  public @NotNull FillGoalResult fillGoal(@NotNull ExpressionTypechecker typechecker, @NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType) {
+  public @NotNull CheckGoalResult checkGoal(@NotNull ExpressionTypechecker typechecker, @NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType) {
     ConcreteExpression expr = goalExpression.getExpression();
     if (expr == null) {
-      return new FillGoalResult(null, null);
+      return new CheckGoalResult(null, null);
     }
 
     if (!(expectedType != null && (expr instanceof ConcreteReferenceExpression || expr instanceof ConcreteAppExpression))) {
-      return new FillGoalResult(expr, typechecker.typecheck(expr, expectedType));
+      return new CheckGoalResult(expr, typechecker.typecheck(expr, expectedType));
     }
 
     int expectedParams = Utils.numberOfExplicitPiParameters(expectedType);
@@ -57,7 +57,7 @@ public class StdGoalSolver implements GoalSolver {
       }
     }, tc -> tc.typecheck(extExpr, null));
 
-    return new FillGoalResult(result == null ? extExpr : Utils.addArguments(extExpr, ext.factory.withData(exprData), Utils.numberOfExplicitPiParameters(result.getType()) - expectedParams, true), result);
+    return new CheckGoalResult(result == null ? extExpr : Utils.addArguments(extExpr, ext.factory.withData(exprData), Utils.numberOfExplicitPiParameters(result.getType()) - expectedParams, true), result);
   }
 
   @Override
