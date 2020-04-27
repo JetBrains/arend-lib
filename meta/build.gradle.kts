@@ -1,5 +1,16 @@
+val projectArend = gradle.includedBuild("Arend")
+
 plugins {
     java
+}
+
+task<JavaExec>("cliCheck") {
+    group = "verification"
+    dependsOn(projectArend.task(":cli:jarDep"), tasks["classes"])
+    main = "-jar"
+    val jarDepPath = projectArend.projectDir.resolve("cli/build/libs/cli-1.3.0-full.jar").absolutePath
+    args(jarDepPath, "arend.yaml")
+    workingDir(projectDir.parent)
 }
 
 repositories {
@@ -7,7 +18,7 @@ repositories {
 }
 
 dependencies {
-    implementation(files("../../Arend/api/build/libs/api-1.3.0.jar"))
+    implementation("org.arend:api")
     implementation("org.jetbrains:annotations:19.0.0")
 }
 
