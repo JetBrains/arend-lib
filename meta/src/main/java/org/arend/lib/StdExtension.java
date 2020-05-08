@@ -9,6 +9,7 @@ import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
+import org.arend.ext.ui.ArendUI;
 import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.meta.*;
 
@@ -34,6 +35,13 @@ public class StdExtension implements ArendExtension {
   public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
+
+  public ArendUI ui;
+
+  @Override
+  public void setUI(@NotNull ArendUI ui) {
+    this.ui = ui;
+  }
 
   @Override
   public void setPrelude(@NotNull ArendPrelude prelude) {

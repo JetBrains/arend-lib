@@ -17,6 +17,8 @@ import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.typechecking.*;
+import org.arend.ext.ui.ArendQuery;
+import org.arend.ext.ui.ArendSession;
 import org.arend.ext.ui.ArendUI;
 import org.arend.ext.variable.VariableRenamer;
 import org.arend.lib.StdExtension;
@@ -113,11 +115,18 @@ public class StdGoalSolver implements GoalSolver {
       } else if (constructors.size() == 1) {
         result = factory.ref(constructors.get(0).getRef());
       } else {
-        ui.singleQuery("Choose constructor", null, constructors, constructor -> {
-          if (constructor != null) {
-            callback.accept(Utils.addArguments(factory.ref(constructor.getRef()), factory, Utils.numberOfExplicitParameters(constructor.getParameters()), true));
+        ArendSession session = ext.ui.newSession();
+        session.setDescription("Goal");
+        ArendQuery<CoreConstructor> query = session.listQuery("Choose constructor", constructors, null);
+        session.setCallback(ok -> {
+          if (ok) {
+            CoreConstructor constructor = query.getResult();
+            if (constructor != null) {
+              callback.accept(Utils.addArguments(factory.ref(constructor.getRef()), factory, Utils.numberOfExplicitParameters(constructor.getParameters()), true));
+            }
           }
         });
+        session.startSession();
         return;
       }
     } else {
