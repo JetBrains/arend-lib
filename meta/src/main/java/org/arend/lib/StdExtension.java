@@ -11,6 +11,7 @@ import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
 import org.arend.ext.variable.VariableRenamerFactory;
+import org.arend.lib.goal.StdGoalSolver;
 import org.arend.lib.meta.*;
 
 import org.jetbrains.annotations.NotNull;

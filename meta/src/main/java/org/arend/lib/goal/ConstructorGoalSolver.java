@@ -1,12 +1,10 @@
-package org.arend.lib.meta;
+package org.arend.lib.goal;
 
 import org.arend.ext.concrete.ConcreteClassElement;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteParameter;
-import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteGoalExpression;
-import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
@@ -14,9 +12,8 @@ import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
-import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.error.GeneralError;
-import org.arend.ext.typechecking.*;
+import org.arend.ext.typechecking.ExpressionTypechecker;
+import org.arend.ext.typechecking.InteractiveGoalSolver;
 import org.arend.ext.ui.ArendQuery;
 import org.arend.ext.ui.ArendSession;
 import org.arend.ext.ui.ArendUI;
@@ -30,45 +27,25 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class StdGoalSolver implements GoalSolver {
+public class ConstructorGoalSolver implements InteractiveGoalSolver {
   private final StdExtension ext;
 
-  public StdGoalSolver(StdExtension ext) {
+  public ConstructorGoalSolver(StdExtension ext) {
     this.ext = ext;
   }
 
   @Override
-  public @NotNull CheckGoalResult checkGoal(@NotNull ExpressionTypechecker typechecker, @NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType) {
-    ConcreteExpression expr = goalExpression.getExpression();
-    if (expr == null) {
-      return new CheckGoalResult(null, null);
-    }
-
-    if (!(expectedType != null && (expr instanceof ConcreteReferenceExpression || expr instanceof ConcreteAppExpression))) {
-      return new CheckGoalResult(expr, typechecker.typecheck(expr, expectedType));
-    }
-
-    int expectedParams = Utils.numberOfExplicitPiParameters(expectedType);
-
-    Object exprData = expr.getData();
-    ErrorReporter errorReporter = typechecker.getErrorReporter();
-    ConcreteExpression extExpr = Utils.addArguments(expr, ext, expectedParams, true);
-    TypedExpression result = typechecker.withErrorReporter(error -> {
-      if (!(error.level == GeneralError.Level.GOAL && error.getCause() == exprData)) {
-        errorReporter.report(error);
-      }
-    }, tc -> tc.typecheck(extExpr, null));
-
-    return new CheckGoalResult(result == null ? extExpr : Utils.addArguments(extExpr, ext.factory.withData(exprData), Utils.numberOfExplicitPiParameters(result.getType()) - expectedParams, true), result);
+  public @NotNull String getShortDescription() {
+    return "Replace with constructor";
   }
 
   @Override
-  public boolean willTrySolve(@NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType) {
+  public boolean isApplicable(@NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType) {
     return expectedType != null && goalExpression.getExpression() == null;
   }
 
   @Override
-  public void trySolve(@NotNull ExpressionTypechecker typechecker, @NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType, @NotNull ArendUI ui, @NotNull Consumer<@Nullable ConcreteExpression> callback) {
+  public void solve(@NotNull ExpressionTypechecker typechecker, @NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType, @NotNull ArendUI ui, @NotNull Consumer<ConcreteExpression> callback) {
     CoreExpression type = expectedType == null ? null : expectedType.getUnderlyingExpression().normalize(NormalizationMode.WHNF);
     ConcreteFactory factory = ext.factory.withData(goalExpression.getData());
 
@@ -115,7 +92,7 @@ public class StdGoalSolver implements GoalSolver {
       } else if (constructors.size() == 1) {
         result = factory.ref(constructors.get(0).getRef());
       } else {
-        ArendSession session = ext.ui.newSession();
+        ArendSession session = ui.newSession();
         session.setDescription("Goal");
         ArendQuery<CoreConstructor> query = session.listQuery("Choose constructor", constructors, null);
         session.setCallback(ok -> {
