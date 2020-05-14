@@ -5,9 +5,9 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
+import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
 import org.arend.lib.Utils;
@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collections;
 import java.util.List;
 
-public class RepeatMeta extends BaseMetaDefinition {
+public class RepeatMeta extends MetaInvocationMeta {
   private final StdExtension ext;
 
   public RepeatMeta(StdExtension ext) {
@@ -29,64 +29,64 @@ public class RepeatMeta extends BaseMetaDefinition {
     return new boolean[] { false, true, true };
   }
 
-  private ConcreteExpression computeConcrete(int steps, List<? extends ConcreteArgument> args, int currentArg, ConcreteFactory factory) {
-    ConcreteExpression result = args.get(currentArg + 1).getExpression();
+  @Override
+  protected boolean keepMetaArgument() {
+    return true;
+  }
+
+  private ConcreteExpression computeConcrete(int steps, List<? extends ConcreteArgument> args, ConcreteFactory factory) {
+    ConcreteExpression result = args.get(1).getExpression();
     for (int i = 0; i < steps; i++) {
-      result = factory.app(args.get(currentArg).getExpression(), true, Collections.singletonList(result));
+      result = factory.app(args.get(0).getExpression(), true, Collections.singletonList(result));
     }
-    return factory.app(result, args.subList(currentArg + 2, args.size()));
+    return factory.app(result, args.subList(2, args.size()));
   }
 
   @Override
-  public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
+  public @Nullable ConcreteExpression getConcreteRepresentation(MetaDefinition meta, List<ConcreteExpression> implicitArguments, @NotNull List<? extends ConcreteArgument> arguments) {
     int steps = -1;
-    int currentArg = 0;
-    if (!arguments.get(0).isExplicit()) {
-      steps = Utils.getNumber(arguments.get(0).getExpression(), null);
+    if (!implicitArguments.isEmpty()) {
+      steps = Utils.getNumber(implicitArguments.get(0), null);
       if (steps < 0) {
         return null;
       }
-      currentArg++;
     }
 
     if (steps == -1) {
-      return ext.factory.app(ext.factory.app(arguments.get(currentArg).getExpression(), true, Collections.singletonList(ext.factory.hole())), arguments.subList(currentArg + 2, arguments.size()));
+      return ext.factory.app(ext.factory.app(arguments.get(0).getExpression(), true, Collections.singletonList(ext.factory.hole())), arguments.subList(2, arguments.size()));
     } else {
-      return computeConcrete(steps, arguments, currentArg, ext.factory);
+      return computeConcrete(steps, arguments, ext.factory);
     }
   }
 
   @Override
-  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public TypedExpression invokeMeta(MetaDefinition meta, List<ConcreteExpression> implicitArguments, ExpressionTypechecker typechecker, ContextData contextData) {
     ErrorReporter errorReporter = typechecker.getErrorReporter();
     List<? extends ConcreteArgument> args = contextData.getArguments();
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
 
     int steps = -1;
-    int currentArg = 0;
-    if (!args.get(0).isExplicit()) {
-      steps = Utils.getNumber(args.get(0).getExpression(), errorReporter);
+    if (!implicitArguments.isEmpty()) {
+      steps = Utils.getNumber(implicitArguments.get(0), errorReporter);
       if (steps < 0) {
         return null;
       }
-      currentArg++;
     }
 
     if (steps == -1) {
       typechecker.checkCancelled();
 
-      int finalCurrentArg = currentArg;
-      TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(args.get(finalCurrentArg).getExpression(), true, Collections.singletonList(factory.app(refExpr, args.subList(finalCurrentArg, finalCurrentArg + 2)))), args.size() <= finalCurrentArg + 2 ? contextData.getExpectedType() : null));
+      TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(args.get(0).getExpression(), true, Collections.singletonList(factory.app(refExpr, args.subList(0, 2)))), args.size() <= 2 ? contextData.getExpectedType() : null));
       if (result == null) {
-        return typechecker.typecheck(factory.app(args.get(currentArg + 1).getExpression(), args.subList(currentArg + 2, args.size())), contextData.getExpectedType());
+        return typechecker.typecheck(factory.app(args.get(1).getExpression(), args.subList(2, args.size())), contextData.getExpectedType());
       }
-      if (args.size() <= currentArg + 2) {
+      if (args.size() <= 2) {
         return result;
       }
-      return typechecker.typecheck(factory.app(factory.core("repeat _", result), args.subList(currentArg + 2, args.size())), contextData.getExpectedType());
+      return typechecker.typecheck(factory.app(factory.core("repeat _", result), args.subList(2, args.size())), contextData.getExpectedType());
     } else {
-      return typechecker.typecheck(computeConcrete(steps, args, currentArg, factory), contextData.getExpectedType());
+      return typechecker.typecheck(computeConcrete(steps, args, factory), contextData.getExpectedType());
     }
   }
 }

@@ -20,8 +20,8 @@ public class FailMeta extends MetaInvocationMeta {
   }
 
   @Override
-  public int getNumberOfImplicitArguments() {
-    return 1;
+  public @Nullable boolean[] argumentExplicitness() {
+    return new boolean[] { false, true };
   }
 
   private ConcreteExpression makeResult(Object data) {

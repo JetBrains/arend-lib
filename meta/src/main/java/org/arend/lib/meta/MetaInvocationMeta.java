@@ -15,16 +15,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class MetaInvocationMeta extends BaseMetaDefinition {
-  public int getNumberOfImplicitArguments() {
-    return 0;
-  }
-
   @Override
   public @Nullable boolean[] argumentExplicitness() {
-    int implicitArgs = getNumberOfImplicitArguments();
-    boolean[] result = new boolean[implicitArgs + 1];
-    result[implicitArgs] = true;
-    return result;
+    return new boolean[] { true };
   }
 
   @Override
@@ -32,16 +25,17 @@ public abstract class MetaInvocationMeta extends BaseMetaDefinition {
     return true;
   }
 
-  private List<? extends ConcreteArgument> mergeArgs(List<? extends ConcreteArgument> args1, List<? extends ConcreteArgument> args2) {
-    int n = 0;
-    for (; n < args2.size(); n++) {
-      if (args2.get(n).isExplicit()) {
-        break;
-      }
-    }
-    // skip implicit arguments and the first explicit, which is the meta reference
-    args2 = args2.subList(n + 1, args2.size());
+  protected boolean keepMetaArgument() {
+    return false;
+  }
 
+  private List<? extends ConcreteArgument> mergeArgs(List<? extends ConcreteArgument> args1, List<? extends ConcreteArgument> args2, int currentArg) {
+    if (keepMetaArgument()) {
+      return args2.subList(currentArg, args2.size());
+    }
+
+    // skip implicit arguments and the first explicit, which is the meta reference
+    args2 = args2.subList(currentArg + 1, args2.size());
     if (args1 == null) {
       return args2;
     }
@@ -51,20 +45,39 @@ public abstract class MetaInvocationMeta extends BaseMetaDefinition {
     return totalArgs;
   }
 
+  private int getImplicitArguments(List<? extends ConcreteArgument> args, List<ConcreteExpression> result) {
+    int currentArg = 0;
+    for (; currentArg < args.size(); currentArg++) {
+      if (!args.get(currentArg).isExplicit()) {
+        result.add(args.get(currentArg).getExpression());
+      } else {
+        break;
+      }
+    }
+    return currentArg;
+  }
+
+  public ConcreteExpression getConcreteRepresentation(MetaDefinition meta, List<ConcreteExpression> implicitArguments, @NotNull List<? extends ConcreteArgument> arguments) {
+    return meta.checkAndGetConcreteRepresentation(arguments);
+  }
+
   @Override
   public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
-    ConcreteExpression expr = arguments.get(0).getExpression();
+    List<ConcreteExpression> implicitArgs = new ArrayList<>();
+    int currentArg = getImplicitArguments(arguments, implicitArgs);
+
+    ConcreteExpression expr = arguments.get(currentArg).getExpression();
     List<? extends ConcreteArgument> metaArgs = null;
     if (expr instanceof ConcreteAppExpression) {
-      expr = ((ConcreteAppExpression) expr).getFunction();
       metaArgs = ((ConcreteAppExpression) expr).getArguments();
+      expr = ((ConcreteAppExpression) expr).getFunction();
     }
     if (expr instanceof ConcreteReferenceExpression) {
       ArendRef ref = ((ConcreteReferenceExpression) expr).getReferent();
       if (ref instanceof MetaRef) {
         MetaDefinition def = ((MetaRef) ref).getDefinition();
         if (def != null) {
-          return def.checkAndGetConcreteRepresentation(mergeArgs(metaArgs, arguments));
+          return getConcreteRepresentation(def, implicitArgs, mergeArgs(metaArgs, arguments, currentArg));
         }
       }
     }
@@ -79,20 +92,12 @@ public abstract class MetaInvocationMeta extends BaseMetaDefinition {
     List<? extends ConcreteArgument> metaArgs = null;
     List<? extends ConcreteArgument> args = contextData.getArguments();
     List<ConcreteExpression> implicitArgs = new ArrayList<>();
-    int numberOfImplicitArgs = getNumberOfImplicitArguments();
-    int currentArg = 0;
-    for (; currentArg < numberOfImplicitArgs; currentArg++) {
-      if (!args.get(currentArg).isExplicit()) {
-        implicitArgs.add(args.get(currentArg).getExpression());
-      } else {
-        break;
-      }
-    }
+    int currentArg = getImplicitArguments(args, implicitArgs);
     ConcreteExpression arg = args.get(currentArg).getExpression();
 
     if (arg instanceof ConcreteAppExpression) {
-      arg = ((ConcreteAppExpression) arg).getFunction();
       metaArgs = ((ConcreteAppExpression) arg).getArguments();
+      arg = ((ConcreteAppExpression) arg).getFunction();
     }
     if (arg instanceof ConcreteReferenceExpression) {
       ArendRef ref = ((ConcreteReferenceExpression) arg).getReferent();
@@ -105,7 +110,7 @@ public abstract class MetaInvocationMeta extends BaseMetaDefinition {
       return null;
     }
 
-    contextData.setArguments(mergeArgs(metaArgs, args));
+    contextData.setArguments(mergeArgs(metaArgs, args, currentArg));
     return invokeMeta(meta, implicitArgs, typechecker, contextData);
   }
 }
