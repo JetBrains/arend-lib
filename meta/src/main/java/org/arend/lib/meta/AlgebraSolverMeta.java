@@ -258,6 +258,10 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       this.lhs = lhs;
       this.rhs = rhs;
     }
+
+    public boolean isIncreasing() {
+      return direction == Direction.UNKNOWN ? lhs.size() == rhs.size() : lhs.size() <= rhs.size();
+    }
   }
 
   private static class RuleExt extends Rule {
@@ -369,7 +373,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   private List<Integer> applyRules(List<Integer> term, List<RuleExt> rules, List<Step> trace) {
     boolean hasBadRules = false;
     for (RuleExt rule : rules) {
-      if (rule.lhs.size() == rule.rhs.size()) {
+      if (rule.isIncreasing()) {
         hasBadRules = true;
         break;
       }
@@ -389,6 +393,9 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
             }
           } else {
             rule.direction = Direction.FORWARD;
+          }
+          if (rule.isIncreasing()) {
+            hasBadRules = true;
           }
         }
         if (pos >= 0) {
