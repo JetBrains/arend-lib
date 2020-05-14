@@ -5,7 +5,6 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.error.GeneralError;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -77,17 +76,8 @@ public class RepeatMeta extends BaseMetaDefinition {
     if (steps == -1) {
       typechecker.checkCancelled();
 
-      TypedExpression result;
-      try {
-        int finalCurrentArg = currentArg;
-        result = typechecker.withErrorReporter(error -> {
-          if (error.level == GeneralError.Level.ERROR || error.level == GeneralError.Level.GOAL) {
-            throw new MyException();
-          }
-        }, tc -> tc.typecheck(factory.app(args.get(finalCurrentArg).getExpression(), true, Collections.singletonList(factory.app(refExpr, args.subList(finalCurrentArg, finalCurrentArg + 2)))), args.size() <= finalCurrentArg + 2 ? contextData.getExpectedType() : null));
-      } catch (MyException e) {
-        result = null;
-      }
+      int finalCurrentArg = currentArg;
+      TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(args.get(finalCurrentArg).getExpression(), true, Collections.singletonList(factory.app(refExpr, args.subList(finalCurrentArg, finalCurrentArg + 2)))), args.size() <= finalCurrentArg + 2 ? contextData.getExpectedType() : null));
       if (result == null) {
         return typechecker.typecheck(factory.app(args.get(currentArg + 1).getExpression(), args.subList(currentArg + 2, args.size())), contextData.getExpectedType());
       }
@@ -99,6 +89,4 @@ public class RepeatMeta extends BaseMetaDefinition {
       return typechecker.typecheck(computeConcrete(steps, args, currentArg, factory), contextData.getExpectedType());
     }
   }
-
-  private static class MyException extends RuntimeException {}
 }

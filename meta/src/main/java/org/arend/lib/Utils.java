@@ -10,6 +10,7 @@ import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.TypeMismatchError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.prettyprinting.doc.DocFactory;
@@ -23,6 +24,7 @@ import org.arend.ext.typechecking.TypedExpression;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 public class Utils {
   public static int getNumber(ConcreteExpression expression, ErrorReporter errorReporter) {
@@ -176,5 +178,19 @@ public class Utils {
     }
 
     return typechecker.typecheck(factory.app(factory.core("_", result), arguments), null);
+  }
+
+  private static class MyException extends RuntimeException {}
+
+  public static <T> T tryTypecheck(ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
+    try {
+      return typechecker.withErrorReporter(error -> {
+        if (error.level == GeneralError.Level.ERROR) {
+          throw new MyException();
+        }
+      }, action);
+    } catch (MyException e) {
+      return null;
+    }
   }
 }
