@@ -110,6 +110,10 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
       result = null;
     }
 
-    callback.accept(result);
+    if (result != null) {
+      callback.accept(result);
+    } else {
+      ui.showErrorMessage(null, "Goal type does not have constructors");
+    }
   }
 }

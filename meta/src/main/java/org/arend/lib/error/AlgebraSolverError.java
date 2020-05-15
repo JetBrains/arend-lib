@@ -34,6 +34,10 @@ public class AlgebraSolverError extends TypecheckingError {
   }
 
   private LineDoc nfToDoc(List<Integer> nf) {
+    if (nf.isEmpty()) {
+      return text("1");
+    }
+
     List<LineDoc> docs = new ArrayList<>(nf.size());
     for (Integer i : nf) {
       docs.add(text(BASE_NAME + i));
