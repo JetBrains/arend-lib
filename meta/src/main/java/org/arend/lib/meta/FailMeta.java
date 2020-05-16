@@ -44,7 +44,8 @@ public class FailMeta extends MetaInvocationMeta {
       contextData.setExpectedType(type.getExpression());
     }
 
-    TypedExpression result = Utils.tryTypecheck(typechecker, tc -> meta.checkAndInvokeMeta(tc, contextData));
+    MetaDefinition actualMeta = meta instanceof DeferredMetaDefinition ? ((DeferredMetaDefinition) meta).deferredMeta : meta;
+    TypedExpression result = Utils.tryTypecheck(typechecker, tc -> actualMeta.checkAndInvokeMeta(tc, contextData));
     if (result == null) {
       return typechecker.typecheck(makeResult(contextData.getReferenceExpression().getData()), originalExpectedType);
     }
