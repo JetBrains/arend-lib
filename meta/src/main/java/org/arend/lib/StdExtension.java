@@ -109,7 +109,7 @@ public class StdExtension implements ArendExtension {
         "`repeat f x` repeats `f` until it fails and returns `x` in this case",
         Precedence.DEFAULT, new RepeatMeta(this));
 
-    contributor.declare(ModulePath.fromString("Algebra.Meta"), new LongName("solve"), "Proves equations in monoids", Precedence.DEFAULT, algebraMeta);
+    contributor.declare(ModulePath.fromString("Algebra.Meta"), new LongName("solve"), "Proves equations in monoids", Precedence.DEFAULT, new DeferredMetaDefinition(algebraMeta));
   }
 
   @Override
