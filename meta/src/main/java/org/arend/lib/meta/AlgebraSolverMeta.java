@@ -1,6 +1,5 @@
 package org.arend.lib.meta;
 
-import org.arend.ext.ArendDefinitionProvider;
 import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
@@ -11,12 +10,11 @@ import org.arend.ext.core.expr.CoreFieldCallExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
+import org.arend.ext.dependency.Dependency;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.TypeMismatchError;
 import org.arend.ext.error.TypecheckingError;
-import org.arend.ext.module.LongName;
-import org.arend.ext.module.ModulePath;
 import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.BaseMetaDefinition;
@@ -36,43 +34,23 @@ import static java.util.Collections.singletonList;
 public class AlgebraSolverMeta extends BaseMetaDefinition {
   private final StdExtension ext;
 
-  private CoreClassField carrier;
-  private CoreClassField ide;
-  private CoreClassField mul;
-  private CoreClassDefinition ldiv;
-  private CoreClassDefinition rdiv;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.E")    private CoreClassField carrier;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.ide")  private CoreClassField ide;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    private CoreClassField mul;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") private CoreClassDefinition ldiv;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") private CoreClassDefinition rdiv;
 
-  private CoreConstructor varTerm;
-  private CoreConstructor ideTerm;
-  private CoreConstructor mulTerm;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.var")  private CoreConstructor varTerm;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") private CoreConstructor ideTerm;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   private CoreConstructor mulTerm;
 
-  private CoreClassDefinition dataClass;
-  private CoreFunctionDefinition termsEq;
-  private CoreFunctionDefinition termsEqConv;
-  private CoreFunctionDefinition replaceDef;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data")                     private CoreClassDefinition dataClass;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")      private CoreFunctionDefinition termsEq;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv") private CoreFunctionDefinition termsEqConv;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")  private CoreFunctionDefinition replaceDef;
 
   public AlgebraSolverMeta(StdExtension ext) {
     this.ext = ext;
-  }
-
-  public void load(ArendDefinitionProvider provider) {
-    ModulePath monoidFile = ModulePath.fromString("Algebra.Monoid");
-    CoreClassDefinition monoid = provider.getDefinition(monoidFile, new LongName("Monoid"), CoreClassDefinition.class);
-    carrier = monoid.findField("E");
-    ide = monoid.findField("ide");
-    mul = monoid.findField("*");
-    ldiv = provider.getDefinition(monoidFile, LongName.fromString("Monoid.LDiv"), CoreClassDefinition.class);
-    rdiv = provider.getDefinition(monoidFile, LongName.fromString("Monoid.RDiv"), CoreClassDefinition.class);
-
-    ModulePath solverFile = ModulePath.fromString("Algebra.Monoid.Solver");
-    CoreDataDefinition term = provider.getDefinition(solverFile, new LongName("MonoidTerm"), CoreDataDefinition.class);
-    varTerm = term.findConstructor("var");
-    ideTerm = term.findConstructor(":ide");
-    mulTerm = term.findConstructor(":*");
-    dataClass = provider.getDefinition(solverFile, new LongName("Data"), CoreClassDefinition.class);
-    termsEq = provider.getDefinition(solverFile, LongName.fromString("Data.terms-equality"), CoreFunctionDefinition.class);
-    termsEqConv = provider.getDefinition(solverFile, LongName.fromString("Data.terms-equality-conv"), CoreFunctionDefinition.class);
-    replaceDef = provider.getDefinition(solverFile, LongName.fromString("Data.replace-consistent"), CoreFunctionDefinition.class);
   }
 
   @Override

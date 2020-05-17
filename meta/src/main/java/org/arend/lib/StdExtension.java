@@ -3,8 +3,10 @@ package org.arend.lib;
 import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.core.definition.CoreConstructor;
-import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
+import org.arend.ext.dependency.Dependency;
+import org.arend.ext.dependency.ArendDependencyLoader;
+import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
 import org.arend.ext.reference.Precedence;
@@ -25,13 +27,13 @@ public class StdExtension implements ArendExtension {
   public DefinitionProvider definitionProvider;
   public VariableRenamerFactory renamerFactory;
 
-  public CoreFunctionDefinition transport;
-  public CoreFunctionDefinition transportInv;
-  public CoreFunctionDefinition concat;
-  public CoreFunctionDefinition inv;
+  @Dependency(module = "Paths")              public CoreFunctionDefinition transport;
+  @Dependency(module = "Paths")              public CoreFunctionDefinition transportInv;
+  @Dependency(module = "Paths", name = "*>") public CoreFunctionDefinition concat;
+  @Dependency(module = "Paths")              public CoreFunctionDefinition inv;
 
-  public CoreConstructor nil;
-  public CoreConstructor cons;
+  @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
+  @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
 
   public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
 
@@ -65,18 +67,9 @@ public class StdExtension implements ArendExtension {
   }
 
   @Override
-  public void load(@NotNull ArendDefinitionProvider provider) {
-    ModulePath paths = new ModulePath("Paths");
-    transport = provider.getDefinition(paths, new LongName("transport"), CoreFunctionDefinition.class);
-    transportInv = provider.getDefinition(paths, new LongName("transportInv"), CoreFunctionDefinition.class);
-    concat = provider.getDefinition(paths, new LongName("*>"), CoreFunctionDefinition.class);
-    inv = provider.getDefinition(paths, new LongName("inv"), CoreFunctionDefinition.class);
-
-    CoreDataDefinition list = provider.getDefinition(ModulePath.fromString("Data.List"), new LongName("List"), CoreDataDefinition.class);
-    nil = list.findConstructor("nil");
-    cons = list.findConstructor("::");
-
-    algebraMeta.load(provider);
+  public void load(@NotNull ArendDependencyProvider provider) {
+    ArendDependencyLoader.load(this, provider);
+    ArendDependencyLoader.load(algebraMeta, provider);
   }
 
   @Override
