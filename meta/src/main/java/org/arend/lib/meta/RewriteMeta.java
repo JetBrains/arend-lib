@@ -32,6 +32,11 @@ public class RewriteMeta extends BaseMetaDefinition {
   }
 
   @Override
+  public boolean withoutLevels() {
+    return false;
+  }
+
+  @Override
   public boolean[] argumentExplicitness() {
     return new boolean[] { false, true, true };
   }

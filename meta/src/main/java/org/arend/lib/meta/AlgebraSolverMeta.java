@@ -34,6 +34,7 @@ import static java.util.Collections.singletonList;
 public class AlgebraSolverMeta extends BaseMetaDefinition {
   private final StdExtension ext;
 
+  @Dependency(module = "Algebra.Monoid", name = "Monoid")      private CoreClassDefinition monoid;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.E")    private CoreClassField carrier;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.ide")  private CoreClassField ide;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    private CoreClassField mul;
@@ -83,49 +84,83 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    ErrorReporter errorReporter = typechecker.getErrorReporter();
-    ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
-    ConcreteFactory factory = ext.factory.withData(refExpr.getData());
-    CoreFunCallExpression equality = Utils.toEquality(contextData.getExpectedType(), errorReporter, refExpr);
+    CoreFunCallExpression equality = Utils.toEquality(contextData.getExpectedType(), typechecker.getErrorReporter(), contextData.getReferenceExpression());
     if (equality == null) {
       return null;
     }
 
-    CoreExpression instance = null;
-    CoreExpression type = equality.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF).getUnderlyingExpression();
-    if (type instanceof CoreFieldCallExpression) {
-      if (((CoreFieldCallExpression) type).getDefinition() == carrier) {
-        instance = ((CoreFieldCallExpression) type).getArgument();
-      }
-    }
-    if (instance == null) {
-      errorReporter.report(new TypeMismatchError(DocFactory.text("Expected an equality in a monoid"), equality, refExpr));
+    CoreClassDefinition classDef = getClassDef(equality.getDefCallArguments().get(0));
+    if (classDef == null) {
+      typechecker.getErrorReporter().report(new TypeMismatchError(DocFactory.text("Expected a monoid"), equality.getDefCallArguments().get(0), contextData.getReferenceExpression()));
       return null;
     }
 
-    List<CoreExpression> values = new ArrayList<>();
-    List<Integer> nf1 = new ArrayList<>();
-    List<Integer> nf2 = new ArrayList<>();
-    ConcreteExpression term1 = computeTerm(equality.getDefCallArguments().get(1), values, typechecker, refExpr, factory, nf1);
-    ConcreteExpression term2 = computeTerm(equality.getDefCallArguments().get(2), values, typechecker, refExpr, factory, nf2);
+    State state = new State(typechecker, contextData.getReferenceExpression(), ext.factory.withData(contextData.getReferenceExpression()));
+    ConcreteExpression expr = solve(state, classDef, compileTerm(state, equality.getDefCallArguments().get(1)), compileTerm(state, equality.getDefCallArguments().get(2)), contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression());
+    return expr == null ? null : finalizeState(state, expr);
+  }
 
-    List<ConcreteLetClause> letClauses = new ArrayList<>();
-    letClauses.add(null);
-    ArendRef dataRef = factory.local("d");
+  public CoreClassDefinition getClassDef(CoreExpression type) {
+    type = type.normalize(NormalizationMode.WHNF);
+    if (type instanceof CoreFieldCallExpression) {
+      if (((CoreFieldCallExpression) type).getDefinition() == carrier) {
+        CoreExpression instanceType = ((CoreFieldCallExpression) type).getArgument().computeType().normalize(NormalizationMode.WHNF);
+        if (instanceType instanceof CoreClassCallExpression) {
+          CoreClassDefinition classDef = ((CoreClassCallExpression) instanceType).getDefinition();
+          if (classDef.isSubClassOf(monoid)) {
+            return classDef;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public static class State {
+    public final ExpressionTypechecker typechecker;
+    public final ConcreteReferenceExpression refExpr;
+    public final ConcreteFactory factory;
+
+    public final List<CoreExpression> values = new ArrayList<>();
+    public List<RuleExt> contextRules = null;
+
+    public final ArendRef dataRef;
+    public final List<ConcreteLetClause> letClauses = new ArrayList<>();
+
+    public State(ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr, ConcreteFactory factory) {
+      this.typechecker = typechecker;
+      this.refExpr = refExpr;
+      this.factory = factory;
+
+      dataRef = factory.local("d");
+      letClauses.add(null);
+    }
+  }
+
+  public ConcreteExpression solve(State state, CoreClassDefinition classDef, CompiledTerm term1, CompiledTerm term2, ConcreteExpression argument) {
+    ErrorReporter errorReporter = state.typechecker.getErrorReporter();
+    ConcreteFactory factory = state.factory;
+
     ConcreteExpression lastArgument;
-    if (!nf1.equals(nf2)) {
-      List<RuleExt> rules = new ArrayList<>();
-      if (contextData.getArguments().isEmpty()) {
-        for (CoreBinding binding : typechecker.getFreeBindingsList()) {
-          typeToRule(values, typechecker, refExpr, factory, null, binding, rules);
+    if (!term1.nf.equals(term2.nf)) {
+      List<RuleExt> rules;
+      if (argument == null) {
+        if (state.contextRules == null) {
+          state.contextRules = new ArrayList<>();
+        }
+        rules = state.contextRules;
+        for (CoreBinding binding : state.typechecker.getFreeBindingsList()) {
+          typeToRule(state, null, binding, rules);
         }
       } else {
-        for (ConcreteExpression expression : Utils.getArgumentList(contextData.getArguments().get(0).getExpression())) {
-          TypedExpression typed = typechecker.typecheck(expression, null);
+        rules = new ArrayList<>();
+        for (ConcreteExpression expression : Utils.getArgumentList(argument)) {
+          TypedExpression typed = state.typechecker.typecheck(expression, null);
           if (typed == null) {
             return null;
           }
-          if (!typeToRule(values, typechecker, refExpr, factory, typed, null, rules)) {
+          if (!typeToRule(state, typed, null, rules)) {
             errorReporter.report(new TypeMismatchError(DocFactory.text("algebraic equality"), typed.getType(), expression));
             return null;
           }
@@ -134,10 +169,10 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
 
       List<Step> trace1 = new ArrayList<>();
       List<Step> trace2 = new ArrayList<>();
-      List<Integer> newNf1 = applyRules(nf1, rules, trace1);
-      List<Integer> newNf2 = applyRules(nf2, rules, trace2);
+      List<Integer> newNf1 = applyRules(term1.nf, rules, trace1);
+      List<Integer> newNf2 = applyRules(term2.nf, rules, trace2);
       if (!newNf1.equals(newNf2)) {
-        errorReporter.report(new AlgebraSolverError(nf1, nf2, values, rules, trace1, trace2, refExpr));
+        errorReporter.report(new AlgebraSolverError(term1.nf, term2.nf, state.values, rules, trace1, trace2, state.refExpr));
         return null;
       }
 
@@ -156,10 +191,14 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       for (Step step : trace2) {
         step.rule.count++;
       }
-      int letNum = 1;
       for (RuleExt rule : rules) {
         if (rule.count > 0) {
-          rule.rnfTerm = computeNFTerm(rule.rhs, factory);
+          if (rule.rnfTerm == null) {
+            rule.rnfTerm = computeNFTerm(rule.rhs, factory);
+          }
+          if (rule.cExpr != null) {
+            continue;
+          }
 
           ConcreteExpression cExpr = rule.binding != null ? factory.ref(rule.binding) : factory.core("rule", rule.expression);
           if (rule.direction == Direction.BACKWARD) {
@@ -167,15 +206,15 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
           }
           if (!isNF(rule.lhsTerm) || !isNF(rule.rhsTerm)) {
             cExpr = factory.appBuilder(factory.ref(termsEqConv.getRef()))
-              .app(factory.ref(dataRef), false)
+              .app(factory.ref(state.dataRef), false)
               .app(rule.lhsTerm)
               .app(rule.rhsTerm)
               .app(cExpr)
               .build();
           }
           if (rule.count > 1 && !(cExpr instanceof ConcreteReferenceExpression) || rule.binding == null) {
-            ArendRef letClause = factory.local("rule" + letNum++);
-            letClauses.add(factory.letClause(letClause, Collections.emptyList(), null, cExpr));
+            ArendRef letClause = factory.local("rule" + state.letClauses.size());
+            state.letClauses.add(factory.letClause(letClause, Collections.emptyList(), null, cExpr));
             rule.cExpr = factory.ref(letClause);
           } else {
             rule.cExpr = cExpr;
@@ -183,8 +222,8 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
         }
       }
 
-      ConcreteExpression expr1 = trace1.isEmpty() ? null : traceToExpr(nf1, trace1, false, dataRef, factory);
-      ConcreteExpression expr2 = trace2.isEmpty() ? null : factory.app(factory.ref(ext.inv.getRef()), true, singletonList(traceToExpr(nf2, trace2, true, dataRef, factory)));
+      ConcreteExpression expr1 = trace1.isEmpty() ? null : traceToExpr(term1.nf, trace1, false, state.dataRef, factory);
+      ConcreteExpression expr2 = trace2.isEmpty() ? null : factory.app(factory.ref(ext.inv.getRef()), true, singletonList(traceToExpr(term2.nf, trace2, true, state.dataRef, factory)));
       if (expr1 == null && expr2 == null) {
         lastArgument = factory.ref(ext.prelude.getIdp().getRef());
       } else if (expr2 == null) {
@@ -195,29 +234,34 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
         lastArgument = factory.appBuilder(factory.ref(ext.concat.getRef())).app(expr1).app(expr2).build();
       }
     } else {
-      if (!contextData.getArguments().isEmpty()) {
-        errorReporter.report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", contextData.getArguments().get(0).getExpression()));
+      if (argument != null) {
+        errorReporter.report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", argument));
       }
       lastArgument = factory.ref(ext.prelude.getIdp().getRef());
     }
 
-    ArendRef lamParam = factory.local("n");
-    ConcreteClause[] caseClauses = new ConcreteClause[values.size() + 1];
-    for (int i = 0; i < values.size(); i++) {
-      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core("c" + i, values.get(i).computeTyped()));
-    }
-    caseClauses[values.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(ide.getRef()));
-
-    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(factory.app(
-      factory.ref(dataClass.getRef()), true,
-      singletonList(factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(ext.prelude.getNat().getRef()))),
-                                factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses)))))));
-    return typechecker.typecheck(ext.factory.letExpr(false, letClauses, factory.appBuilder(factory.ref(termsEq.getRef()))
-      .app(factory.ref(dataRef), false)
-      .app(term1)
-      .app(term2)
+    return factory.appBuilder(factory.ref(termsEq.getRef()))
+      .app(factory.ref(state.dataRef), false)
+      .app(term1.concrete)
+      .app(term2.concrete)
       .app(lastArgument)
-      .build()), null);
+      .build();
+  }
+
+  public TypedExpression finalizeState(State state, ConcreteExpression expression) {
+    ConcreteFactory factory = state.factory;
+    ArendRef lamParam = factory.local("n");
+    ConcreteClause[] caseClauses = new ConcreteClause[state.values.size() + 1];
+    for (int i = 0; i < state.values.size(); i++) {
+      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core("c" + i, state.values.get(i).computeTyped()));
+    }
+    caseClauses[state.values.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(ide.getRef()));
+
+    state.letClauses.set(0, factory.letClause(state.dataRef, Collections.emptyList(), null, factory.newExpr(factory.app(
+        factory.ref(dataClass.getRef()), true,
+        singletonList(factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(ext.prelude.getNat().getRef()))),
+                                  factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses)))))));
+    return state.typechecker.typecheck(ext.factory.letExpr(false, state.letClauses, expression), null);
   }
 
   public enum Direction { FORWARD, BACKWARD, UNKNOWN }
@@ -307,7 +351,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     }
   }
 
-  private boolean typeToRule(List<CoreExpression> values, ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr, ConcreteFactory factory, TypedExpression typed, CoreBinding binding, List<RuleExt> rules) {
+  private boolean typeToRule(State state, TypedExpression typed, CoreBinding binding, List<RuleExt> rules) {
     if (binding == null && typed == null) {
       return false;
     }
@@ -324,15 +368,15 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       if (!isLDiv && !isRDiv) {
         return false;
       }
-      List<ConcreteExpression> args = singletonList(binding != null ? factory.ref(binding) : factory.core("Div", typed));
-      return (!isLDiv || typeToRule(values, typechecker, refExpr, factory, typechecker.typecheck(factory.app(factory.ref(ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules)) &&
-             (!isRDiv || typeToRule(values, typechecker, refExpr, factory, typechecker.typecheck(factory.app(factory.ref(rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules));
+      List<ConcreteExpression> args = singletonList(binding != null ? state.factory.ref(binding) : state.factory.core("Div", typed));
+      return (!isLDiv || typeToRule(state, state.typechecker.typecheck(state.factory.app(state.factory.ref(ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules)) &&
+             (!isRDiv || typeToRule(state, state.typechecker.typecheck(state.factory.app(state.factory.ref(rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules));
     }
 
     List<Integer> lhs = new ArrayList<>();
     List<Integer> rhs = new ArrayList<>();
-    ConcreteExpression lhsTerm = computeTerm(eq.getDefCallArguments().get(1), values, typechecker, refExpr, factory, lhs);
-    ConcreteExpression rhsTerm = computeTerm(eq.getDefCallArguments().get(2), values, typechecker, refExpr, factory, rhs);
+    ConcreteExpression lhsTerm = computeTerm(state, eq.getDefCallArguments().get(1), lhs);
+    ConcreteExpression rhsTerm = computeTerm(state, eq.getDefCallArguments().get(2), rhs);
     if (binding == null) {
       rules.add(new RuleExt(typed, null, Direction.FORWARD, lhs, rhs, lhsTerm, rhsTerm));
     } else {
@@ -417,11 +461,11 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     return result;
   }
 
-  private boolean isNF(ConcreteExpression term) {
+  private static boolean isNF(ConcreteExpression term) {
     return term instanceof ConcreteReferenceExpression || isNFRec(term);
   }
 
-  private boolean isNFRec(ConcreteExpression term) {
+  private static boolean isNFRec(ConcreteExpression term) {
     if (!(term instanceof ConcreteAppExpression)) {
       return false;
     }
@@ -437,10 +481,25 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     return result;
   }
 
-  private ConcreteExpression computeTerm(CoreExpression expression, List<CoreExpression> values, ExpressionTypechecker typechecker, ConcreteReferenceExpression marker, ConcreteFactory factory, List<Integer> nf) {
+  public static class CompiledTerm {
+    public final ConcreteExpression concrete;
+    public final List<Integer> nf;
+
+    public CompiledTerm(ConcreteExpression concrete, List<Integer> nf) {
+      this.concrete = concrete;
+      this.nf = nf;
+    }
+  }
+
+  public CompiledTerm compileTerm(State state, CoreExpression expression) {
+    List<Integer> nf = new ArrayList<>();
+    return new CompiledTerm(computeTerm(state, expression, nf), nf);
+  }
+
+  private ConcreteExpression computeTerm(State state, CoreExpression expression, List<Integer> nf) {
     expression = expression.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
     if (expression instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expression).getDefinition() == ide) {
-      return factory.ref(ideTerm.getRef());
+      return state.factory.ref(ideTerm.getRef());
     }
 
     List<CoreExpression> args = new ArrayList<>(2);
@@ -449,25 +508,25 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       function = function.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
       if (function instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) function).getDefinition() == mul) {
         List<ConcreteExpression> cArgs = new ArrayList<>(2);
-        cArgs.add(computeTerm(args.get(0), values, typechecker, marker, factory, nf));
-        cArgs.add(computeTerm(args.get(1), values, typechecker, marker, factory, nf));
-        return factory.app(factory.ref(mulTerm.getRef()), true, cArgs);
+        cArgs.add(computeTerm(state, args.get(0), nf));
+        cArgs.add(computeTerm(state, args.get(1), nf));
+        return state.factory.app(state.factory.ref(mulTerm.getRef()), true, cArgs);
       }
     }
 
-    int index = values.size();
-    for (int i = 0; i < values.size(); i++) {
-      if (typechecker.compare(expression, values.get(i), CMP.EQ, marker, false, true)) {
+    int index = state.values.size();
+    for (int i = 0; i < state.values.size(); i++) {
+      if (state.typechecker.compare(expression, state.values.get(i), CMP.EQ, state.refExpr, false, true)) {
         index = i;
         break;
       }
     }
 
-    if (index == values.size()) {
-      values.add(expression);
+    if (index == state.values.size()) {
+      state.values.add(expression);
     }
 
     nf.add(index);
-    return factory.app(factory.ref(varTerm.getRef()), true, singletonList(factory.number(index)));
+    return state.factory.app(state.factory.ref(varTerm.getRef()), true, singletonList(state.factory.number(index)));
   }
 }

@@ -74,8 +74,9 @@ public class StdExtension implements ArendExtension {
 
   @Override
   public void declareDefinitions(DefinitionContributor contributor) {
-    contributor.declare(new ModulePath("Meta"), new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, new LaterMeta());
-    contributor.declare(new ModulePath("Meta"), new LongName("fail"),
+    ModulePath meta = new ModulePath("Meta");
+    contributor.declare(meta, new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, new LaterMeta());
+    contributor.declare(meta, new LongName("fail"),
         "`fail meta args` succeeds if and only if `meta args` fails\n\n" +
         "`fail {T} meta args` succeeds if and only if `meta args : T` fails",
         Precedence.DEFAULT, new FailMeta(this));
@@ -102,7 +103,13 @@ public class StdExtension implements ArendExtension {
         "`repeat f x` repeats `f` until it fails and returns `x` in this case",
         Precedence.DEFAULT, new RepeatMeta(this));
 
-    contributor.declare(ModulePath.fromString("Algebra.Meta"), new LongName("solve"), "Proves equations in monoids", Precedence.DEFAULT, new DeferredMetaDefinition(algebraMeta));
+    ModulePath algebra = ModulePath.fromString("Algebra.Meta");
+    contributor.declare(algebra, new LongName("solve"), "Proves equations in monoids", Precedence.DEFAULT, new DeferredMetaDefinition(algebraMeta));
+    contributor.declare(algebra, new LongName("equation"),
+        "Proves equations\n\n" +
+        "`equation a_1 ... a_n` proves an equation a_0 = a_{n+1} using a_1, ... a_n as intermediate steps\n" +
+        "A proof of a_i = a_{i+1} can be specified as implicit arguments between them",
+        Precedence.DEFAULT, new DeferredMetaDefinition(new EquationMeta(this), true));
   }
 
   @Override
