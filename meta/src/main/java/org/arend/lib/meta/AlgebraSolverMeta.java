@@ -200,7 +200,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
             continue;
           }
 
-          ConcreteExpression cExpr = rule.binding != null ? factory.ref(rule.binding) : factory.core("rule", rule.expression);
+          ConcreteExpression cExpr = rule.binding != null ? factory.ref(rule.binding) : factory.core(null, rule.expression);
           if (rule.direction == Direction.BACKWARD) {
             cExpr = factory.app(factory.ref(ext.inv.getRef()), true, singletonList(cExpr));
           }
@@ -253,7 +253,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     ArendRef lamParam = factory.local("n");
     ConcreteClause[] caseClauses = new ConcreteClause[state.values.size() + 1];
     for (int i = 0; i < state.values.size(); i++) {
-      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core("c" + i, state.values.get(i).computeTyped()));
+      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(null, state.values.get(i).computeTyped()));
     }
     caseClauses[state.values.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(ide.getRef()));
 
@@ -368,7 +368,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       if (!isLDiv && !isRDiv) {
         return false;
       }
-      List<ConcreteExpression> args = singletonList(binding != null ? state.factory.ref(binding) : state.factory.core("Div", typed));
+      List<ConcreteExpression> args = singletonList(binding != null ? state.factory.ref(binding) : state.factory.core(null, typed));
       return (!isLDiv || typeToRule(state, state.typechecker.typecheck(state.factory.app(state.factory.ref(ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules)) &&
              (!isRDiv || typeToRule(state, state.typechecker.typecheck(state.factory.app(state.factory.ref(rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules));
     }
@@ -448,13 +448,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       if (result == null) {
         result = expr;
       } else {
-        ConcreteAppBuilder builder = factory.appBuilder(factory.ref(ext.concat.getRef()));
-        if (isReversed) {
-          builder.app(expr).app(result);
-        } else {
-          builder.app(result).app(expr);
-        }
-        result = builder.build();
+        result = factory.app(factory.ref(ext.concat.getRef()), true, Arrays.asList(result, expr));
       }
       nf = step.apply(nf);
     }
