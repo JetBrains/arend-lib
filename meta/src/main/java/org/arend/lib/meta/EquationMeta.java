@@ -1,6 +1,7 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
@@ -10,6 +11,8 @@ import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.reference.ArendRef;
+import org.arend.ext.reference.MetaRef;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -49,8 +52,7 @@ public class EquationMeta extends BaseMetaDefinition {
     }
     CoreExpression type = equality == null ? null : equality.getDefCallArguments().get(0);
 
-    List<? extends ConcreteArgument> arguments = contextData.getArguments();
-    for (ConcreteArgument argument : arguments) {
+    for (ConcreteArgument argument : contextData.getArguments()) {
       if (argument.isExplicit()) {
         TypedExpression value = typechecker.typecheck(argument.getExpression(), type);
         if (value == null) {
@@ -90,7 +92,13 @@ public class EquationMeta extends BaseMetaDefinition {
     for (int i = 0; i < values.size() - 1; i++) {
       if (values.get(i) instanceof TypedExpression && values.get(i + 1) instanceof TypedExpression) {
         hasMissingProofs = true;
-        break;
+      } else if (isUsingOrHiding(values.get(i))) {
+        if (i > 0 && values.get(i - 1) instanceof TypedExpression && values.get(i + 1) instanceof TypedExpression) {
+          hasMissingProofs = true;
+        } else {
+          errorReporter.report(new TypecheckingError("Hints must be between explicit arguments", (ConcreteExpression) values.get(i)));
+          values.remove(i--);
+        }
       }
     }
 
@@ -120,7 +128,25 @@ public class EquationMeta extends BaseMetaDefinition {
     AlgebraSolverMeta.CompiledTerm lastCompiled = null;
     List<ConcreteExpression> equalities = new ArrayList<>();
     for (int i = 0; i < values.size(); i++) {
-      if (values.get(i) instanceof ConcreteExpression) {
+      MetaRef metaRef = getMetaRef(values.get(i));
+      if (metaRef == ext.usingRef || metaRef == ext.hidingRef || values.get(i) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
+        AlgebraSolverMeta.CompiledTerm left = lastCompiled != null ? lastCompiled : ext.algebraMeta.compileTerm(state, ((TypedExpression) values.get(metaRef == ext.usingRef || metaRef == ext.hidingRef ? i - 1 : i)).getExpression());
+        AlgebraSolverMeta.CompiledTerm right = ext.algebraMeta.compileTerm(state, ((TypedExpression) values.get(i + 1)).getExpression());
+        lastCompiled = right;
+        assert state != null;
+
+        ConcreteExpression argument = metaRef != null ? ((ConcreteAppExpression) values.get(i)).getArguments().get(0).getExpression() : null;
+        ConcreteExpression result = metaRef == ext.usingRef
+            ? UsingMeta.invokeMeta(argument, typechecker, tc -> ext.algebraMeta.solve(state.withTypechecker(tc), classDef, left, right, null))
+            : metaRef == ext.hidingRef
+              ? HidingMeta.invokeMeta(argument, typechecker, tc -> ext.algebraMeta.solve(state.withTypechecker(tc), classDef, left, right, null))
+              : ext.algebraMeta.solve(state, classDef, left, right, null);
+        if (result == null) {
+          return null;
+        }
+        state.typechecker = typechecker;
+        equalities.add(result);
+      } else if (values.get(i) instanceof ConcreteExpression) {
         TypedExpression left = i > 0 && values.get(i - 1) instanceof TypedExpression ? (TypedExpression) values.get(i - 1) : null;
         TypedExpression right = i < values.size() - 1 && values.get(i + 1) instanceof TypedExpression ? (TypedExpression) values.get(i + 1) : null;
         CoreExpression eqType;
@@ -140,22 +166,7 @@ public class EquationMeta extends BaseMetaDefinition {
         }
         equalities.add(factory.core(null, result));
         lastCompiled = null;
-      } else if (i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
-        AlgebraSolverMeta.CompiledTerm left = lastCompiled != null ? lastCompiled : ext.algebraMeta.compileTerm(state, ((TypedExpression) values.get(i)).getExpression());
-        AlgebraSolverMeta.CompiledTerm right = ext.algebraMeta.compileTerm(state, ((TypedExpression) values.get(i + 1)).getExpression());
-        lastCompiled = right;
-        assert state != null;
-
-        ConcreteExpression result = ext.algebraMeta.solve(state, classDef, left, right, null);
-        if (result == null) {
-          return null;
-        }
-        equalities.add(result);
       }
-    }
-
-    if (equalities.isEmpty()) {
-      return typechecker.typecheck(factory.ref(ext.prelude.getIdp().getRef()), null);
     }
 
     ConcreteExpression result = equalities.get(equalities.size() - 1);
@@ -163,5 +174,22 @@ public class EquationMeta extends BaseMetaDefinition {
       result = factory.app(factory.ref(ext.concat.getRef()), true, Arrays.asList(equalities.get(i), result));
     }
     return hasMissingProofs ? ext.algebraMeta.finalizeState(state, result) : typechecker.typecheck(result, null);
+  }
+
+  private static MetaRef getMetaRef(Object expression) {
+    if (!(expression instanceof ConcreteAppExpression)) {
+      return null;
+    }
+    ConcreteAppExpression appExpr = (ConcreteAppExpression) expression;
+    if (appExpr.getArguments().size() != 1 || !(appExpr.getFunction() instanceof ConcreteReferenceExpression)) {
+      return null;
+    }
+    ArendRef ref = ((ConcreteReferenceExpression) appExpr.getFunction()).getReferent();
+    return ref instanceof MetaRef ? (MetaRef) ref : null;
+  }
+
+  private boolean isUsingOrHiding(Object expression) {
+    ArendRef ref = getMetaRef(expression);
+    return ref == ext.usingRef || ref == ext.hidingRef;
   }
 }

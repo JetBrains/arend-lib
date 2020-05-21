@@ -9,6 +9,7 @@ import org.arend.ext.dependency.ArendDependencyLoader;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
+import org.arend.ext.reference.MetaRef;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
@@ -34,6 +35,9 @@ public class StdExtension implements ArendExtension {
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
+
+  public MetaRef usingRef;
+  public MetaRef hidingRef;
 
   public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
 
@@ -80,10 +84,10 @@ public class StdExtension implements ArendExtension {
         "`fails meta args` succeeds if and only if `meta args` fails\n\n" +
         "`fails {T} meta args` succeeds if and only if `meta args : T` fails",
         Precedence.DEFAULT, new FailsMeta(this));
-    contributor.declare(meta, new LongName("using"),
+    usingRef = contributor.declare(meta, new LongName("using"),
         "`using (e_1, ... e_n) e` adds `e_1`, ... `e_n` to the context before checking `e`",
         Precedence.DEFAULT, new UsingMeta());
-    contributor.declare(meta, new LongName("hiding"),
+    hidingRef = contributor.declare(meta, new LongName("hiding"),
         "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
         Precedence.DEFAULT, new HidingMeta());
 

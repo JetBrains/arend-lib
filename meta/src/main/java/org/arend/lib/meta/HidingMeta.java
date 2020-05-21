@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Function;
 
 public class HidingMeta extends BaseMetaDefinition {
   @Override
@@ -22,10 +23,9 @@ public class HidingMeta extends BaseMetaDefinition {
     return new boolean[] { true, true };
   }
 
-  @Override
-  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public static <T> T invokeMeta(ConcreteExpression argument, ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
     Set<CoreBinding> bindings = new HashSet<>();
-    for (ConcreteExpression arg : Utils.getArgumentList(contextData.getArguments().get(0).getExpression())) {
+    for (ConcreteExpression arg : Utils.getArgumentList(argument)) {
       if (arg instanceof ConcreteReferenceExpression) {
         CoreBinding binding = typechecker.getFreeBinding(((ConcreteReferenceExpression) arg).getReferent());
         if (binding != null) {
@@ -35,6 +35,11 @@ public class HidingMeta extends BaseMetaDefinition {
       }
       typechecker.getErrorReporter().report(new TypecheckingError("Expected a local variable", arg));
     }
-    return typechecker.withFreeBindings(new FreeBindingsModifier().remove(bindings), tc -> tc.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType()));
+    return typechecker.withFreeBindings(new FreeBindingsModifier().remove(bindings), action);
+  }
+
+  @Override
+  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+    return invokeMeta(contextData.getArguments().get(0).getExpression(), typechecker, tc -> tc.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType()));
   }
 }

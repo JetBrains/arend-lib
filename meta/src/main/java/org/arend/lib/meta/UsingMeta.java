@@ -16,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 public class UsingMeta extends BaseMetaDefinition {
   @Override
@@ -23,10 +24,9 @@ public class UsingMeta extends BaseMetaDefinition {
     return new boolean[] { true, true };
   }
 
-  @Override
-  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+  public static <T> T invokeMeta(ConcreteExpression argument, ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
     List<CoreBinding> newBindings = new ArrayList<>();
-    for (ConcreteExpression arg : Utils.getArgumentList(contextData.getArguments().get(0).getExpression())) {
+    for (ConcreteExpression arg : Utils.getArgumentList(argument)) {
       if (arg instanceof ConcreteReferenceExpression) {
         CoreBinding binding = typechecker.getFreeBinding(((ConcreteReferenceExpression) arg).getReferent());
         if (binding != null) {
@@ -41,6 +41,12 @@ public class UsingMeta extends BaseMetaDefinition {
       }
     }
 
-    return typechecker.withFreeBindings(new FreeBindingsModifier().add(newBindings), tc -> tc.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType()));
+    return typechecker.withFreeBindings(new FreeBindingsModifier().add(newBindings), action);
+  }
+
+  @Override
+  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+    return invokeMeta(contextData.getArguments().get(0).getExpression(), typechecker,
+        tc -> tc.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType()));
   }
 }

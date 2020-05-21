@@ -118,12 +118,12 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   }
 
   public static class State {
-    public final ExpressionTypechecker typechecker;
+    public ExpressionTypechecker typechecker;
     public final ConcreteReferenceExpression refExpr;
     public final ConcreteFactory factory;
 
     public final List<CoreExpression> values = new ArrayList<>();
-    public List<RuleExt> contextRules = null;
+    public Map<CoreBinding, List<RuleExt>> contextRules = null;
 
     public final ArendRef dataRef;
     public final List<ConcreteLetClause> letClauses = new ArrayList<>();
@@ -136,6 +136,11 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       dataRef = factory.local("d");
       letClauses.add(null);
     }
+
+    public State withTypechecker(ExpressionTypechecker typechecker) {
+      this.typechecker = typechecker;
+      return this;
+    }
   }
 
   public ConcreteExpression solve(State state, CoreClassDefinition classDef, CompiledTerm term1, CompiledTerm term2, ConcreteExpression argument) {
@@ -144,17 +149,19 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
 
     ConcreteExpression lastArgument;
     if (!term1.nf.equals(term2.nf)) {
-      List<RuleExt> rules;
+      List<RuleExt> rules = new ArrayList<>();
       if (argument == null) {
         if (state.contextRules == null) {
-          state.contextRules = new ArrayList<>();
+          state.contextRules = new HashMap<>();
         }
-        rules = state.contextRules;
         for (CoreBinding binding : state.typechecker.getFreeBindingsList()) {
-          typeToRule(state, null, binding, rules);
+          rules.addAll(state.contextRules.computeIfAbsent(binding, k -> {
+            List<RuleExt> ctxList = new ArrayList<>();
+            typeToRule(state, null, binding, ctxList);
+            return ctxList;
+          }));
         }
       } else {
-        rules = new ArrayList<>();
         for (ConcreteExpression expression : Utils.getArgumentList(argument)) {
           TypedExpression typed = state.typechecker.typecheck(expression, null);
           if (typed == null) {
@@ -222,8 +229,8 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
         }
       }
 
-      ConcreteExpression expr1 = trace1.isEmpty() ? null : traceToExpr(term1.nf, trace1, false, state.dataRef, factory);
-      ConcreteExpression expr2 = trace2.isEmpty() ? null : factory.app(factory.ref(ext.inv.getRef()), true, singletonList(traceToExpr(term2.nf, trace2, true, state.dataRef, factory)));
+      ConcreteExpression expr1 = trace1.isEmpty() ? null : traceToExpr(term1.nf, trace1, state.dataRef, factory);
+      ConcreteExpression expr2 = trace2.isEmpty() ? null : factory.app(factory.ref(ext.inv.getRef()), true, singletonList(traceToExpr(term2.nf, trace2, state.dataRef, factory)));
       if (expr1 == null && expr2 == null) {
         lastArgument = factory.ref(ext.prelude.getIdp().getRef());
       } else if (expr2 == null) {
@@ -434,7 +441,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     return term;
   }
 
-  private ConcreteExpression traceToExpr(List<Integer> nf, List<Step> trace, boolean isReversed, ArendRef dataRef, ConcreteFactory factory) {
+  private ConcreteExpression traceToExpr(List<Integer> nf, List<Step> trace, ArendRef dataRef, ConcreteFactory factory) {
     ConcreteExpression result = null;
     for (Step step : trace) {
       ConcreteExpression expr = factory.appBuilder(factory.ref(replaceDef.getRef()))

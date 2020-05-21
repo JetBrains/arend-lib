@@ -66,7 +66,7 @@ public class AlgebraSolverError extends TypecheckingError {
     if (!assumptions.isEmpty()) {
       List<Doc> docs = new ArrayList<>();
       for (AlgebraSolverMeta.Rule rule : assumptions) {
-        docs.add(hang(rule.expression != null ? termDoc(rule.expression.getExpression(), ppConfig) : rule.binding != null ? hList(rule.direction == AlgebraSolverMeta.Direction.BACKWARD ? text("inv ") : empty(), text(rule.binding.getName())) : nullDoc(), hList(text(" : "), nfToDoc(rule.lhs), text(" = "), nfToDoc(rule.rhs))));
+        docs.add(hang(rule.expression != null ? termDoc(rule.expression.getExpression(), ppConfig) : rule.binding != null ? hList(rule.direction == AlgebraSolverMeta.Direction.BACKWARD ? text("inv ") : empty(), text(rule.binding.getName())) : nullDoc(), hList(text(": "), nfToDoc(rule.lhs), text(" = "), nfToDoc(rule.rhs))));
       }
       assumptionsDoc = hang(text("Assumptions:"), vList(docs));
     } else {
@@ -77,7 +77,7 @@ public class AlgebraSolverError extends TypecheckingError {
     if (!values.isEmpty()) {
       List<Doc> whereDocs = new ArrayList<>();
       for (int i = 0; i < values.size(); i++) {
-        whereDocs.add(hang(text(BASE_NAME + i + " = "), termDoc(values.get(i), ppConfig)));
+        whereDocs.add(hang(text(BASE_NAME + i + " ="), termDoc(values.get(i), ppConfig)));
       }
       whereDoc = hang(text("where"), vList(whereDocs));
     } else {
