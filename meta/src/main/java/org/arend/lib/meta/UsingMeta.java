@@ -14,23 +14,31 @@ import org.arend.lib.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 
 public class UsingMeta extends BaseMetaDefinition {
+  public final boolean keepOldContext;
+
+  public UsingMeta(boolean keepOldContext) {
+    this.keepOldContext = keepOldContext;
+  }
+
   @Override
   public @Nullable boolean[] argumentExplicitness() {
     return new boolean[] { true, true };
   }
 
-  public static <T> T invokeMeta(ConcreteExpression argument, ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
-    List<CoreBinding> newBindings = new ArrayList<>();
+  private void getNewBindings(ConcreteExpression argument, ExpressionTypechecker typechecker, List<CoreBinding> newBindings, Collection<CoreBinding> retainSet) {
     for (ConcreteExpression arg : Utils.getArgumentList(argument)) {
       if (arg instanceof ConcreteReferenceExpression) {
         CoreBinding binding = typechecker.getFreeBinding(((ConcreteReferenceExpression) arg).getReferent());
         if (binding != null) {
-          typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Variable is already in the context", arg));
+          if (keepOldContext) {
+            typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Variable is already in the context", arg));
+          } else {
+            retainSet.add(binding);
+          }
           continue;
         }
       }
@@ -40,8 +48,27 @@ public class UsingMeta extends BaseMetaDefinition {
         newBindings.add(result.makeEvaluatingBinding(null));
       }
     }
+  }
 
-    return typechecker.withFreeBindings(new FreeBindingsModifier().add(newBindings), action);
+  public List<CoreBinding> getNewBindings(ConcreteExpression argument, ExpressionTypechecker typechecker) {
+    List<CoreBinding> result = new ArrayList<>();
+    getNewBindings(argument, typechecker, result, result);
+    return result;
+  }
+
+  public <T> T invokeMeta(ConcreteExpression argument, ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
+    List<CoreBinding> newBindings = new ArrayList<>();
+    Set<CoreBinding> retainSet = keepOldContext ? null : new HashSet<>();
+    getNewBindings(argument, typechecker, newBindings, retainSet);
+
+    FreeBindingsModifier modifier = new FreeBindingsModifier();
+    if (retainSet != null) {
+      modifier.retain(retainSet);
+    }
+    if (!newBindings.isEmpty()) {
+      modifier.add(newBindings);
+    }
+    return typechecker.withFreeBindings(modifier, action);
   }
 
   @Override

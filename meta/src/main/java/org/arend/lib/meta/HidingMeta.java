@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -23,7 +24,7 @@ public class HidingMeta extends BaseMetaDefinition {
     return new boolean[] { true, true };
   }
 
-  public static <T> T invokeMeta(ConcreteExpression argument, ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
+  private static Set<CoreBinding> getBindingsToRemove(ConcreteExpression argument, ExpressionTypechecker typechecker) {
     Set<CoreBinding> bindings = new HashSet<>();
     for (ConcreteExpression arg : Utils.getArgumentList(argument)) {
       if (arg instanceof ConcreteReferenceExpression) {
@@ -35,7 +36,17 @@ public class HidingMeta extends BaseMetaDefinition {
       }
       typechecker.getErrorReporter().report(new TypecheckingError("Expected a local variable", arg));
     }
-    return typechecker.withFreeBindings(new FreeBindingsModifier().remove(bindings), action);
+    return bindings;
+  }
+
+  public static List<CoreBinding> updateBindings(ConcreteExpression argument, ExpressionTypechecker typechecker) {
+    List<CoreBinding> bindings = typechecker.getFreeBindingsList();
+    bindings.removeAll(getBindingsToRemove(argument, typechecker));
+    return bindings;
+  }
+
+  public static <T> T invokeMeta(ConcreteExpression argument, ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
+    return typechecker.withFreeBindings(new FreeBindingsModifier().remove(getBindingsToRemove(argument, typechecker)), action);
   }
 
   @Override

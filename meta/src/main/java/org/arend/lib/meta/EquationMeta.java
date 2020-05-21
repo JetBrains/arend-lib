@@ -13,10 +13,7 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.MetaRef;
-import org.arend.ext.typechecking.BaseMetaDefinition;
-import org.arend.ext.typechecking.ContextData;
-import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.ext.typechecking.TypedExpression;
+import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -24,6 +21,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class EquationMeta extends BaseMetaDefinition {
@@ -92,7 +90,7 @@ public class EquationMeta extends BaseMetaDefinition {
     for (int i = 0; i < values.size() - 1; i++) {
       if (values.get(i) instanceof TypedExpression && values.get(i + 1) instanceof TypedExpression) {
         hasMissingProofs = true;
-      } else if (isUsingOrHiding(values.get(i))) {
+      } else if (isUsingOrHiding(getMeta(values.get(i)))) {
         if (i > 0 && values.get(i - 1) instanceof TypedExpression && values.get(i + 1) instanceof TypedExpression) {
           hasMissingProofs = true;
         } else {
@@ -128,23 +126,22 @@ public class EquationMeta extends BaseMetaDefinition {
     AlgebraSolverMeta.CompiledTerm lastCompiled = null;
     List<ConcreteExpression> equalities = new ArrayList<>();
     for (int i = 0; i < values.size(); i++) {
-      MetaRef metaRef = getMetaRef(values.get(i));
-      if (metaRef == ext.usingRef || metaRef == ext.hidingRef || values.get(i) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
-        AlgebraSolverMeta.CompiledTerm left = lastCompiled != null ? lastCompiled : ext.algebraMeta.compileTerm(state, ((TypedExpression) values.get(metaRef == ext.usingRef || metaRef == ext.hidingRef ? i - 1 : i)).getExpression());
+      MetaDefinition meta = getMeta(values.get(i));
+      if (isUsingOrHiding(meta) || values.get(i) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
+        AlgebraSolverMeta.CompiledTerm left = lastCompiled != null ? lastCompiled : ext.algebraMeta.compileTerm(state, ((TypedExpression) values.get(isUsingOrHiding(meta) ? i - 1 : i)).getExpression());
         AlgebraSolverMeta.CompiledTerm right = ext.algebraMeta.compileTerm(state, ((TypedExpression) values.get(i + 1)).getExpression());
         lastCompiled = right;
         assert state != null;
 
-        ConcreteExpression argument = metaRef != null ? ((ConcreteAppExpression) values.get(i)).getArguments().get(0).getExpression() : null;
-        ConcreteExpression result = metaRef == ext.usingRef
-            ? UsingMeta.invokeMeta(argument, typechecker, tc -> ext.algebraMeta.solve(state.withTypechecker(tc), classDef, left, right, null))
-            : metaRef == ext.hidingRef
-              ? HidingMeta.invokeMeta(argument, typechecker, tc -> ext.algebraMeta.solve(state.withTypechecker(tc), classDef, left, right, null))
-              : ext.algebraMeta.solve(state, classDef, left, right, null);
+        ConcreteExpression argument = isUsingOrHiding(meta) ? ((ConcreteAppExpression) values.get(i)).getArguments().get(0).getExpression() : null;
+        ConcreteExpression result = meta instanceof UsingMeta
+            ? ext.algebraMeta.solve(state, ((UsingMeta) meta).keepOldContext ? null : Collections.emptyList(), ((UsingMeta) meta).getNewBindings(argument, typechecker), classDef, left, right, null)
+            : meta instanceof HidingMeta
+              ? ext.algebraMeta.solve(state, HidingMeta.updateBindings(argument, typechecker), Collections.emptyList(), classDef, left, right, null)
+              : ext.algebraMeta.solve(state, null, Collections.emptyList(), classDef, left, right, null);
         if (result == null) {
           return null;
         }
-        state.typechecker = typechecker;
         equalities.add(result);
       } else if (values.get(i) instanceof ConcreteExpression) {
         TypedExpression left = i > 0 && values.get(i - 1) instanceof TypedExpression ? (TypedExpression) values.get(i - 1) : null;
@@ -176,7 +173,7 @@ public class EquationMeta extends BaseMetaDefinition {
     return hasMissingProofs ? ext.algebraMeta.finalizeState(state, result) : typechecker.typecheck(result, null);
   }
 
-  private static MetaRef getMetaRef(Object expression) {
+  private static MetaDefinition getMeta(Object expression) {
     if (!(expression instanceof ConcreteAppExpression)) {
       return null;
     }
@@ -185,11 +182,10 @@ public class EquationMeta extends BaseMetaDefinition {
       return null;
     }
     ArendRef ref = ((ConcreteReferenceExpression) appExpr.getFunction()).getReferent();
-    return ref instanceof MetaRef ? (MetaRef) ref : null;
+    return ref instanceof MetaRef ? ((MetaRef) ref).getDefinition() : null;
   }
 
-  private boolean isUsingOrHiding(Object expression) {
-    ArendRef ref = getMetaRef(expression);
-    return ref == ext.usingRef || ref == ext.hidingRef;
+  private static boolean isUsingOrHiding(MetaDefinition meta) {
+    return meta instanceof UsingMeta || meta instanceof HidingMeta;
   }
 }

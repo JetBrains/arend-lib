@@ -9,7 +9,6 @@ import org.arend.ext.dependency.ArendDependencyLoader;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
-import org.arend.ext.reference.MetaRef;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
@@ -35,9 +34,6 @@ public class StdExtension implements ArendExtension {
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
-
-  public MetaRef usingRef;
-  public MetaRef hidingRef;
 
   public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
 
@@ -84,10 +80,13 @@ public class StdExtension implements ArendExtension {
         "`fails meta args` succeeds if and only if `meta args` fails\n\n" +
         "`fails {T} meta args` succeeds if and only if `meta args : T` fails",
         Precedence.DEFAULT, new FailsMeta(this));
-    usingRef = contributor.declare(meta, new LongName("using"),
+    contributor.declare(meta, new LongName("using"),
         "`using (e_1, ... e_n) e` adds `e_1`, ... `e_n` to the context before checking `e`",
-        Precedence.DEFAULT, new UsingMeta());
-    hidingRef = contributor.declare(meta, new LongName("hiding"),
+        Precedence.DEFAULT, new UsingMeta(true));
+    contributor.declare(meta, new LongName("usingOnly"),
+        "`usingOnly (e_1, ... e_n) e` replaces the context with `e_1`, ... `e_n` before checking `e`",
+        Precedence.DEFAULT, new UsingMeta(false));
+    contributor.declare(meta, new LongName("hiding"),
         "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
         Precedence.DEFAULT, new HidingMeta());
 
@@ -116,9 +115,9 @@ public class StdExtension implements ArendExtension {
     ModulePath algebra = ModulePath.fromString("Algebra.Meta");
     contributor.declare(algebra, new LongName("solve"), "Proves equations in monoids", Precedence.DEFAULT, new DeferredMetaDefinition(algebraMeta));
     contributor.declare(algebra, new LongName("equation"),
-        "Proves equations\n\n" +
-        "`equation a_1 ... a_n` proves an equation a_0 = a_{n+1} using a_1, ... a_n as intermediate steps\n" +
-        "A proof of a_i = a_{i+1} can be specified as implicit arguments between them",
+        "`equation a_1 ... a_n` proves an equation a_0 = a_{n+1} using a_1, ... a_n as intermediate steps\n\n" +
+        "A proof of a_i = a_{i+1} can be specified as implicit arguments between them\n" +
+        "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, new DeferredMetaDefinition(new EquationMeta(this), true));
   }
 

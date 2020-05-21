@@ -96,7 +96,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     }
 
     State state = new State(typechecker, contextData.getReferenceExpression(), ext.factory.withData(contextData.getReferenceExpression()));
-    ConcreteExpression expr = solve(state, classDef, compileTerm(state, equality.getDefCallArguments().get(1)), compileTerm(state, equality.getDefCallArguments().get(2)), contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression());
+    ConcreteExpression expr = solve(state, null, Collections.emptyList(), classDef, compileTerm(state, equality.getDefCallArguments().get(1)), compileTerm(state, equality.getDefCallArguments().get(2)), contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression());
     return expr == null ? null : finalizeState(state, expr);
   }
 
@@ -118,7 +118,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
   }
 
   public static class State {
-    public ExpressionTypechecker typechecker;
+    public final ExpressionTypechecker typechecker;
     public final ConcreteReferenceExpression refExpr;
     public final ConcreteFactory factory;
 
@@ -136,14 +136,9 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
       dataRef = factory.local("d");
       letClauses.add(null);
     }
-
-    public State withTypechecker(ExpressionTypechecker typechecker) {
-      this.typechecker = typechecker;
-      return this;
-    }
   }
 
-  public ConcreteExpression solve(State state, CoreClassDefinition classDef, CompiledTerm term1, CompiledTerm term2, ConcreteExpression argument) {
+  public ConcreteExpression solve(State state, List<CoreBinding> contextFreeVars, List<CoreBinding> additionalFreeVars, CoreClassDefinition classDef, CompiledTerm term1, CompiledTerm term2, ConcreteExpression argument) {
     ErrorReporter errorReporter = state.typechecker.getErrorReporter();
     ConcreteFactory factory = state.factory;
 
@@ -154,12 +149,15 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
         if (state.contextRules == null) {
           state.contextRules = new HashMap<>();
         }
-        for (CoreBinding binding : state.typechecker.getFreeBindingsList()) {
+        for (CoreBinding binding : contextFreeVars != null ? contextFreeVars : state.typechecker.getFreeBindingsList()) {
           rules.addAll(state.contextRules.computeIfAbsent(binding, k -> {
             List<RuleExt> ctxList = new ArrayList<>();
-            typeToRule(state, null, binding, ctxList);
+            typeToRule(state, null, binding, false, ctxList);
             return ctxList;
           }));
+        }
+        for (CoreBinding binding : additionalFreeVars) {
+          typeToRule(state, null, binding, true, rules);
         }
       } else {
         for (ConcreteExpression expression : Utils.getArgumentList(argument)) {
@@ -167,7 +165,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
           if (typed == null) {
             return null;
           }
-          if (!typeToRule(state, typed, null, rules)) {
+          if (!typeToRule(state, typed, null, true, rules)) {
             errorReporter.report(new TypeMismatchError(DocFactory.text("algebraic equality"), typed.getType(), expression));
             return null;
           }
@@ -358,7 +356,7 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     }
   }
 
-  private boolean typeToRule(State state, TypedExpression typed, CoreBinding binding, List<RuleExt> rules) {
+  private boolean typeToRule(State state, TypedExpression typed, CoreBinding binding, boolean alwaysForward, List<RuleExt> rules) {
     if (binding == null && typed == null) {
       return false;
     }
@@ -376,8 +374,8 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
         return false;
       }
       List<ConcreteExpression> args = singletonList(binding != null ? state.factory.ref(binding) : state.factory.core(null, typed));
-      return (!isLDiv || typeToRule(state, state.typechecker.typecheck(state.factory.app(state.factory.ref(ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules)) &&
-             (!isRDiv || typeToRule(state, state.typechecker.typecheck(state.factory.app(state.factory.ref(rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, rules));
+      return (!isLDiv || typeToRule(state, state.typechecker.typecheck(state.factory.app(state.factory.ref(ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules)) &&
+             (!isRDiv || typeToRule(state, state.typechecker.typecheck(state.factory.app(state.factory.ref(rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules));
     }
 
     List<Integer> lhs = new ArrayList<>();
@@ -387,9 +385,9 @@ public class AlgebraSolverMeta extends BaseMetaDefinition {
     if (binding == null) {
       rules.add(new RuleExt(typed, null, Direction.FORWARD, lhs, rhs, lhsTerm, rhsTerm));
     } else {
-      Direction direction = lhs.size() > rhs.size() ? Direction.FORWARD : Direction.UNKNOWN;
+      Direction direction = alwaysForward || lhs.size() > rhs.size() ? Direction.FORWARD : Direction.UNKNOWN;
       RuleExt rule = new RuleExt(typed, binding, direction, lhs, rhs, lhsTerm, rhsTerm);
-      if (lhs.size() < rhs.size()) {
+      if (!alwaysForward && lhs.size() < rhs.size()) {
         rule.setBackward();
       }
       rules.add(rule);
