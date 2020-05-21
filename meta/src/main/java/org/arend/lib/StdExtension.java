@@ -80,6 +80,12 @@ public class StdExtension implements ArendExtension {
         "`fail meta args` succeeds if and only if `meta args` fails\n\n" +
         "`fail {T} meta args` succeeds if and only if `meta args : T` fails",
         Precedence.DEFAULT, new FailMeta(this));
+    contributor.declare(meta, new LongName("using"),
+        "`using (e_1, ... e_n) e` adds `e_1`, ... `e_n` to the context before checking `e`",
+        Precedence.DEFAULT, new UsingMeta());
+    contributor.declare(meta, new LongName("hiding"),
+        "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
+        Precedence.DEFAULT, new HidingMeta());
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),

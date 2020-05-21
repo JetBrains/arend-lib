@@ -2,15 +2,16 @@ package org.arend.lib.meta;
 
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.core.expr.CoreInferenceReferenceExpression;
+import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
-import org.arend.lib.Utils;
+import org.arend.lib.error.MetaDidNotFailError;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Objects;
 
 public class FailMeta extends MetaInvocationMeta {
   private final StdExtension ext;
@@ -35,7 +36,6 @@ public class FailMeta extends MetaInvocationMeta {
 
   @Override
   public TypedExpression invokeMeta(MetaDefinition meta, List<ConcreteExpression> implicitArgs, ExpressionTypechecker typechecker, ContextData contextData) {
-    CoreExpression originalExpectedType = contextData.getExpectedType();
     if (!implicitArgs.isEmpty()) {
       TypedExpression type = typechecker.typecheck(implicitArgs.get(0), null);
       if (type == null) {
@@ -44,13 +44,29 @@ public class FailMeta extends MetaInvocationMeta {
       contextData.setExpectedType(type.getExpression());
     }
 
-    MetaDefinition actualMeta = meta instanceof DeferredMetaDefinition ? ((DeferredMetaDefinition) meta).deferredMeta : meta;
-    TypedExpression result = Utils.tryTypecheck(typechecker, tc -> actualMeta.checkAndInvokeMeta(tc, contextData));
-    if (result == null) {
-      return typechecker.typecheck(makeResult(contextData.getReferenceExpression().getData()), originalExpectedType);
+    ErrorReporter errorReporter = typechecker.getErrorReporter();
+    boolean[] hasErrors = new boolean[] { false };
+    TypedExpression result = typechecker.withErrorReporter(error -> hasErrors[0] = true, tc -> meta.checkAndInvokeMeta(tc, contextData));
+
+    if (result == null || hasErrors[0]) {
+      return typechecker.typecheck(makeResult(contextData.getReferenceExpression().getData()), null);
     }
 
-    typechecker.getErrorReporter().report(new TypecheckingError("Meta did not fail", contextData.getReferenceExpression()));
+    // If the meta is deferred, it won't fail immediately.
+    // To fix this, we defer ourselves and check if there were any errors later.
+    if (result.getExpression() instanceof CoreInferenceReferenceExpression) {
+      return typechecker.defer(new MetaDefinition() {
+        @Override
+        public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+          if (!hasErrors[0]) {
+            errorReporter.report(new MetaDidNotFailError(result.getExpression(), contextData.getReferenceExpression()));
+          }
+          return typechecker.typecheck(makeResult(contextData.getReferenceExpression().getData()), null);
+        }
+      }, contextData, Objects.requireNonNull(typechecker.typecheck(ext.factory.sigma(), null)).getExpression());
+    }
+
+    errorReporter.report(new MetaDidNotFailError(result.getExpression(), contextData.getReferenceExpression()));
     return null;
   }
 }
