@@ -13,10 +13,10 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 
-public class FailMeta extends MetaInvocationMeta {
+public class FailsMeta extends MetaInvocationMeta {
   private final StdExtension ext;
 
-  public FailMeta(StdExtension ext) {
+  public FailsMeta(StdExtension ext) {
     this.ext = ext;
   }
 
