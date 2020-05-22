@@ -35,7 +35,7 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
 
-  public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
+  public EquationMeta equationMeta = new EquationMeta(this);
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
 
@@ -69,7 +69,7 @@ public class StdExtension implements ArendExtension {
   @Override
   public void load(@NotNull ArendDependencyProvider provider) {
     ArendDependencyLoader.load(this, provider);
-    ArendDependencyLoader.load(algebraMeta, provider);
+    ArendDependencyLoader.load(equationMeta, provider);
   }
 
   @Override
@@ -113,12 +113,11 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new RepeatMeta(this));
 
     ModulePath algebra = ModulePath.fromString("Algebra.Meta");
-    contributor.declare(algebra, new LongName("solve"), "Proves equations in monoids", Precedence.DEFAULT, new DeferredMetaDefinition(algebraMeta));
     contributor.declare(algebra, new LongName("equation"),
         "`equation a_1 ... a_n` proves an equation a_0 = a_{n+1} using a_1, ... a_n as intermediate steps\n\n" +
         "A proof of a_i = a_{i+1} can be specified as implicit arguments between them\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
-        Precedence.DEFAULT, new DeferredMetaDefinition(new EquationMeta(this), true));
+        Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
   }
 
   @Override
