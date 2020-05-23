@@ -3,10 +3,8 @@ package org.arend.lib.meta;
 import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteLetClause;
-import org.arend.ext.concrete.expr.ConcreteAppExpression;
-import org.arend.ext.concrete.expr.ConcreteArgument;
-import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
@@ -20,6 +18,7 @@ import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.MetaRef;
@@ -181,47 +180,59 @@ public class EquationMeta extends BaseMetaDefinition {
       state = null;
     }
 
+    boolean ok = true;
     CompiledTerm lastCompiled = null;
     List<ConcreteExpression> equalities = new ArrayList<>();
     for (int i = 0; i < values.size(); i++) {
-      MetaDefinition meta = getMeta(values.get(i));
-      if (isUsingOrHiding(meta) || values.get(i) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
+      Object value = values.get(i);
+      MetaDefinition meta = getMeta(value);
+      if (isUsingOrHiding(meta) || value instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
         CompiledTerm left = lastCompiled != null ? lastCompiled : compileTerm(state, ((TypedExpression) values.get(isUsingOrHiding(meta) ? i - 1 : i)).getExpression());
         CompiledTerm right = compileTerm(state, ((TypedExpression) values.get(i + 1)).getExpression());
         lastCompiled = right;
         assert state != null;
 
-        ConcreteExpression argument = isUsingOrHiding(meta) ? ((ConcreteAppExpression) values.get(i)).getArguments().get(0).getExpression() : null;
+        ConcreteGoalExpression goalExpr = value instanceof ConcreteGoalExpression ? (ConcreteGoalExpression) value : null;
+        ConcreteExpression argument = isUsingOrHiding(meta) ? Objects.requireNonNull((ConcreteAppExpression) (goalExpr != null ? goalExpr.getExpression() : value)).getArguments().get(0).getExpression() : null;
+        List<GeneralError> errors = goalExpr != null ? new ArrayList<>() : null;
+        ConcreteSourceNode sourceNode = goalExpr != null ? goalExpr.getExpression() : value instanceof ConcreteExpression ? (ConcreteExpression) value : state.refExpr;
         ConcreteExpression result = meta instanceof UsingMeta
-            ? solve(state, ((UsingMeta) meta).keepOldContext ? null : Collections.emptyList(), ((UsingMeta) meta).getNewBindings(argument, typechecker), classDef, left, right)
+            ? solve(state, ((UsingMeta) meta).keepOldContext ? null : Collections.emptyList(), ((UsingMeta) meta).getNewBindings(argument, typechecker), classDef, left, right, sourceNode, errors)
             : meta instanceof HidingMeta
-              ? solve(state, HidingMeta.updateBindings(argument, typechecker), Collections.emptyList(), classDef, left, right)
-              : solve(state, null, Collections.emptyList(), classDef, left, right);
-        if (result == null) {
-          return null;
+              ? solve(state, HidingMeta.updateBindings(argument, typechecker), Collections.emptyList(), classDef, left, right, sourceNode, errors)
+              : solve(state, null, Collections.emptyList(), classDef, left, right, sourceNode, errors);
+        if (result == null && goalExpr == null) {
+          ok = false;
+          continue;
         }
-        equalities.add(result);
-      } else if (values.get(i) instanceof ConcreteExpression) {
+        equalities.add(goalExpr == null ? result : factory.core(null, typechecker.typecheckGoal(factory.withData(goalExpr.getData()).goal(goalExpr.getName(), result), null, errors)));
+      } else if (value instanceof ConcreteExpression) {
         TypedExpression left = i > 0 && values.get(i - 1) instanceof TypedExpression ? (TypedExpression) values.get(i - 1) : null;
         TypedExpression right = i < values.size() - 1 && values.get(i + 1) instanceof TypedExpression ? (TypedExpression) values.get(i + 1) : null;
         CoreExpression eqType;
         if (left != null && right != null) {
           TypedExpression result = typechecker.typecheck(factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.core(null, left), factory.core(null, right))), null);
           if (result == null) {
-            return null;
+            ok = false;
+            continue;
+          } else {
+            eqType = result.getExpression();
           }
-          eqType = result.getExpression();
         } else {
           eqType = null;
         }
 
-        TypedExpression result = typechecker.typecheck((ConcreteExpression) values.get(i), eqType);
+        TypedExpression result = typechecker.typecheck((ConcreteExpression) value, eqType);
         if (result == null) {
-          return null;
+          ok = false;
+          continue;
         }
         equalities.add(factory.core(null, result));
         lastCompiled = null;
       }
+    }
+    if (!ok) {
+      return null;
     }
 
     ConcreteExpression result = equalities.get(equalities.size() - 1);
@@ -231,7 +242,8 @@ public class EquationMeta extends BaseMetaDefinition {
     return hasMissingProofs ? finalizeState(state, result) : typechecker.typecheck(result, null);
   }
 
-  private static MetaDefinition getMeta(Object expression) {
+  private static MetaDefinition getMeta(Object object) {
+    Object expression = object instanceof ConcreteGoalExpression ? ((ConcreteGoalExpression) object).getExpression() : object;
     if (!(expression instanceof ConcreteAppExpression)) {
       return null;
     }
@@ -285,8 +297,7 @@ public class EquationMeta extends BaseMetaDefinition {
     }
   }
 
-  private ConcreteExpression solve(State state, List<CoreBinding> contextFreeVars, List<CoreBinding> additionalFreeVars, CoreClassDefinition classDef, CompiledTerm term1, CompiledTerm term2) {
-    ErrorReporter errorReporter = state.typechecker.getErrorReporter();
+  private ConcreteExpression solve(State state, List<CoreBinding> contextFreeVars, List<CoreBinding> additionalFreeVars, CoreClassDefinition classDef, CompiledTerm term1, CompiledTerm term2, ConcreteSourceNode sourceNode, List<GeneralError> errors) {
     ConcreteFactory factory = state.factory;
 
     ConcreteExpression lastArgument;
@@ -311,7 +322,12 @@ public class EquationMeta extends BaseMetaDefinition {
       List<Integer> newNf1 = applyRules(term1.nf, rules, trace1);
       List<Integer> newNf2 = applyRules(term2.nf, rules, trace2);
       if (!newNf1.equals(newNf2)) {
-        errorReporter.report(new AlgebraSolverError(term1.nf, term2.nf, state.values, rules, trace1, trace2, state.refExpr));
+        AlgebraSolverError error = new AlgebraSolverError(term1.nf, term2.nf, state.values, rules, trace1, trace2, sourceNode);
+        if (errors != null) {
+          errors.add(error);
+        } else {
+          state.typechecker.getErrorReporter().report(error);
+        }
         return null;
       }
 
