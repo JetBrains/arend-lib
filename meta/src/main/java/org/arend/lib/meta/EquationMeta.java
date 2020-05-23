@@ -205,7 +205,7 @@ public class EquationMeta extends BaseMetaDefinition {
           ok = false;
           continue;
         }
-        equalities.add(goalExpr == null ? result : factory.core(null, typechecker.typecheckGoal(factory.withData(goalExpr.getData()).goal(goalExpr.getName(), result), null, errors)));
+        equalities.add(goalExpr == null ? result : factory.withData(goalExpr.getData()).goal(goalExpr.getName(), result, null, errors));
       } else if (value instanceof ConcreteExpression) {
         TypedExpression left = i > 0 && values.get(i - 1) instanceof TypedExpression ? (TypedExpression) values.get(i - 1) : null;
         TypedExpression right = i < values.size() - 1 && values.get(i + 1) instanceof TypedExpression ? (TypedExpression) values.get(i + 1) : null;
