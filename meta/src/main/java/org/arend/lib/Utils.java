@@ -193,4 +193,12 @@ public class Utils {
       return null;
     }
   }
+
+  public static class Maybe<T> {
+    public final T just;
+
+    public Maybe(T just) {
+      this.just = just;
+    }
+  }
 }

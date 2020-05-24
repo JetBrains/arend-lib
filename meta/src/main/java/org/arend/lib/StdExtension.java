@@ -16,6 +16,7 @@ import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.goal.StdGoalSolver;
 import org.arend.lib.meta.*;
 
+import org.arend.lib.meta.equation.EquationMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
