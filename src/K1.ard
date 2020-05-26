@@ -1,5 +1,6 @@
 \import Algebra.Group
 \import Algebra.Monoid
+\import Algebra.Pointed (ide)
 \import Homotopy.Cube
 \import Homotopy.Pointed
 \import Logic
@@ -9,7 +10,7 @@
 \open Equiv.Reasoning
 \import Equiv.Univalence
 
-\data K1 (G : Group)
+\truncated \data K1 (G : Group) : \1-Type
   | base
   | loop G (i : I) \elim i {
     | left => base
@@ -21,6 +22,17 @@
     | i, left => loop g i
     | i, right => loop (g * g') i
   }
+  \where {
+    \func loop-comp {G : Group} (g g' : G) : path (loop g) *> path (loop g') = path (loop (g * g'))
+      => movePath2 (Equiv.ret {=-to-Equiv (Cube2.equality (path (loop g)) (path (loop (g * g'))) idp (path (loop g')))}
+                             (path (\lam j => path (\lam i => relation g g' i j))))
+  }
+
+\func movePath1 {A : \1-Type} {a a' a'' : A} {p : a = a'} {q : a' = a''} {r : a = a''} (h : p *> q = r) : p = r *> inv q
+  => (inv (pmap (p *>) (*>_inv q)) *> inv (*>-assoc p q (inv q))) *> pmap (`*> inv q) h
+
+\func movePath2 {A : \Type} {a a' a'' : A} {p : a = a'} {q : a' = a''} {r : a = a''} (h : p = r *> inv q) : p *> q = r
+  => (pmap (`*> q) h) *> (*>-assoc r (inv q) q) *> pmap (r *>) (inv_*> q)
 
 \func isConnected (X : \Type) => \Pi (x y : X) -> TruncP (x = y)
 
@@ -35,7 +47,7 @@
   | f_sec h => inv (*-assoc _ _ _) *> pmap (`* h) (inverse-right g) *> ide-left h
 
 \func rightMulEquiv {G : Group} (g : G) : QEquiv (`* g) \cowith
-  | ret => `* (inverse g) -- \lam x => x * (inverse g)
+  | ret => `* (inverse g)
   | ret_f h => (*-assoc _ _ _) *> pmap (h *) (inverse-right g) *> ide-right h
   | f_sec h => (*-assoc _ _ _) *> pmap (h * ) (inverse-left g) *> ide-right h
 
@@ -63,19 +75,36 @@
   => pathInProp (equivFibr g g') ((rightMulEquiv g) >~~ (rightMulEquiv g')) (rightMulEquiv (g * g'))
 
 \func equivPathComposition {G : Group} (g g' : G)
-  : (Equiv-to-= (rightMulEquiv g)) *> (Equiv-to-= (rightMulEquiv g')) = (Equiv-to-= (rightMulEquiv (g * g')))
+  : (Equiv-to-= (rightMulEquiv g)) *> (Equiv-to-= (rightMulEquiv g')) = {G = {\Set} G} (Equiv-to-= (rightMulEquiv (g * g')))
   => Equiv-to-= (rightMulEquiv g) *> Equiv-to-= (rightMulEquiv g') ==<
             Equiv-to-=-functorial (rightMulEquiv g) (rightMulEquiv g') >==
      Equiv-to-= ((rightMulEquiv g) >~~ (rightMulEquiv g')) ==<
             path (\lam i => Equiv-to-= ((compToMult g g') @ i)) >==
      Equiv-to-= (rightMulEquiv (g * g')) `qed
 
-\func code {G : Group} (x : K1 G) : \Type \lp \oo \elim x
+\func code {G : Group} (x : K1 G) : \Set \elim x
   | base => G
   | loop g j => Equiv-to-= (rightMulEquiv g) @ j
-  | relation g g' i j => Cube2.map (Equiv-to-= (rightMulEquiv g)) (Equiv-to-= (rightMulEquiv (g * g'))) idp (Equiv-to-= (rightMulEquiv g'))
-                                   (movePath (equivPathComposition g g')) @ j @ i
+  | relation g g' i j => Cube2.map {\Set} (Equiv-to-= (rightMulEquiv g)) (Equiv-to-= (rightMulEquiv (g * g'))) idp (Equiv-to-= (rightMulEquiv g'))
+                                   (movePath1 (equivPathComposition g g')) @ j @ i
+
+\func encode {G : Group} (x : K1 G) (p : base = x) : code x
+   => transport code p ide
+
+\func decode {G : Group} (x : K1 G) : code x -> base = x \elim x
+  | base => \lam c => path (loop c)
+  | loop g i => (decode_loop_hetero g) @ i
   \where {
-    \func movePath {A : \Type} {a a' a'' : A} {p : a = a'} {q : a' = a''} {r : a = a''} (h : p *> q = r) : p = r *> inv q
-      => (inv (pmap (p *>) (*>_inv q)) *> inv (*>-assoc p q (inv q))) *> pmap (`*> inv q) h
+    \func wind {G : Group} (g : G) : base {G} = base => path (loop g)
+
+    \func decode_loop_homo {G : Group} (g h : G)
+      => transport (\lam x => code {G} x -> base = x) (wind g) wind h ==< transport_pi (code {G}) (base {G} =) (wind g) wind h >==
+         transport (base =) (wind g) (wind (transport code (inv (wind g)) h)) ==< transport_path-right (wind g) (wind (transport code (inv (wind g)) h)) >==
+         wind (transport code (inv (wind g)) h) *> wind g ==< pmap (`*> wind g) (pmap wind (transport_inv_func (code {G}) (wind g) (Equiv.ret {rightMulEquiv g}) (Equiv.ret_f {rightMulEquiv g}) h)) >==
+         wind (Equiv.ret {rightMulEquiv g} h) *> wind g ==< K1.loop-comp (Equiv.ret {rightMulEquiv g} h) g >==
+         wind (Equiv.f {rightMulEquiv g} (Equiv.ret {rightMulEquiv g} h)) ==< pmap wind (Equiv.f_sec {rightMulEquiv g} h) >==
+         wind h `qed
+
+    \func decode_loop_hetero {G : Group} (g : G)
+      => pathOver (path (\lam j x => decode_loop_homo g x @ j))
   }
