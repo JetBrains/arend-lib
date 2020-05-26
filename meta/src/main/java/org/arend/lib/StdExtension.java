@@ -3,6 +3,7 @@ package org.arend.lib;
 import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyLoader;
@@ -35,6 +36,8 @@ public class StdExtension implements ArendExtension {
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
+
+  @Dependency(module = "Logic") public CoreDataDefinition Empty;
 
   public EquationMeta equationMeta = new EquationMeta(this);
 
@@ -119,6 +122,13 @@ public class StdExtension implements ArendExtension {
         "A proof of a_i = a_{i+1} can be specified as implicit arguments between them\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
+
+    ModulePath logic = ModulePath.fromString("Logic.Meta");
+    contributor.declare(algebra, new LongName("contradiction"),
+        "Derives a contradiction from assumptions in the context\n\n" +
+        "A proof of a contradiction can be explicitly specified as an implicit argument\n" +
+        "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
+        Precedence.DEFAULT, new ContradictionMeta(this));
   }
 
   @Override

@@ -8,11 +8,11 @@ import org.arend.ext.prettyprinting.doc.Doc;
 import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.jetbrains.annotations.Nullable;
 
-public class UnrecognizedTypeError extends TypecheckingError {
+public class TypeError extends TypecheckingError {
   public final CoreExpression type;
 
-  public UnrecognizedTypeError(CoreExpression type, @Nullable ConcreteSourceNode cause) {
-    super("Unrecognized type", cause);
+  public TypeError(String message, CoreExpression type, @Nullable ConcreteSourceNode cause) {
+    super(message, cause);
     this.type = type;
   }
 

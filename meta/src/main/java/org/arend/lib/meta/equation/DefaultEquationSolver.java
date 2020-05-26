@@ -3,7 +3,6 @@ package org.arend.lib.meta.equation;
 import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteLetClause;
-import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreClassDefinition;
@@ -11,18 +10,16 @@ import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFieldCallExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
-import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.reference.ArendRef;
-import org.arend.ext.reference.MetaRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
-import org.arend.lib.Utils;
+import org.arend.lib.util.ContextHelper;
+import org.arend.lib.util.Maybe;
+import org.arend.lib.util.Utils;
 import org.arend.lib.error.AlgebraSolverError;
-import org.arend.lib.meta.HidingMeta;
-import org.arend.lib.meta.UsingMeta;
+import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -38,7 +35,7 @@ public class DefaultEquationSolver implements EquationSolver {
   private CoreExpression valuesType;
 
   private CoreClassDefinition classDef;
-  private List<CoreExpression> values;
+  private Values values;
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
   private ArendRef dataRef;
@@ -77,12 +74,12 @@ public class DefaultEquationSolver implements EquationSolver {
   }
 
   @Override
-  public @Nullable Utils.Maybe<CoreExpression> getEqType(@Nullable TypedExpression leftExpr, @Nullable TypedExpression rightExpr) {
+  public @Nullable Maybe<CoreExpression> getEqType(@Nullable TypedExpression leftExpr, @Nullable TypedExpression rightExpr) {
     if (leftExpr != null && rightExpr != null) {
       TypedExpression result = typechecker.typecheck(factory.app(factory.ref(meta.ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.core(null, leftExpr), factory.core(null, rightExpr))), null);
-      return result == null ? null : new Utils.Maybe<>(result.getExpression());
+      return result == null ? null : new Maybe<>(result.getExpression());
     } else {
-      return new Utils.Maybe<>(null);
+      return new Maybe<>(null);
     }
   }
 
@@ -98,7 +95,7 @@ public class DefaultEquationSolver implements EquationSolver {
 
   @Override
   public boolean isHint(ConcreteExpression expression) {
-    return isUsingOrHiding(getMeta(expression));
+    return ContextHelper.getMeta(expression) != null;
   }
 
   @Override
@@ -107,7 +104,7 @@ public class DefaultEquationSolver implements EquationSolver {
     if (classDef == null) {
       return false;
     }
-    values = new ArrayList<>();
+    values = new Values(typechecker, refExpr);
     dataRef = factory.local("d");
     letClauses = new ArrayList<>();
     letClauses.add(null);
@@ -116,36 +113,26 @@ public class DefaultEquationSolver implements EquationSolver {
 
   @Override
   public ConcreteExpression solve(@Nullable ConcreteExpression hint, @NotNull TypedExpression leftExpr, @NotNull TypedExpression rightExpr, @NotNull ErrorReporter errorReporter) {
-    CompiledTerm left = lastTerm == leftExpr ? lastCompiled : compileTerm(leftExpr.getExpression());
-    CompiledTerm right = compileTerm(rightExpr.getExpression());
+    CompiledTerm term1 = lastTerm == leftExpr ? lastCompiled : compileTerm(leftExpr.getExpression());
+    CompiledTerm term2 = compileTerm(rightExpr.getExpression());
     lastTerm = rightExpr;
-    lastCompiled = right;
+    lastCompiled = term2;
 
-    MetaDefinition meta = getMeta(hint);
-    ConcreteExpression argument = isUsingOrHiding(meta) ? Objects.requireNonNull((ConcreteAppExpression) hint).getArguments().get(0).getExpression() : null;
-    ConcreteExpression marker = hint != null ? hint : refExpr;
-    return meta instanceof UsingMeta
-      ? solve(((UsingMeta) meta).keepOldContext ? null : Collections.emptyList(), ((UsingMeta) meta).getNewBindings(argument, typechecker), classDef, left, right, marker, errorReporter)
-      : meta instanceof HidingMeta
-        ? solve(HidingMeta.updateBindings(argument, typechecker), Collections.emptyList(), classDef, left, right, marker, errorReporter)
-        : solve(null, Collections.emptyList(), classDef, left, right, marker, errorReporter);
-  }
-
-  private ConcreteExpression solve(List<CoreBinding> contextFreeVars, List<CoreBinding> additionalFreeVars, CoreClassDefinition classDef, CompiledTerm term1, CompiledTerm term2, ConcreteSourceNode sourceNode, ErrorReporter errorReporter) {
     ConcreteExpression lastArgument;
     if (!term1.nf.equals(term2.nf)) {
       List<RuleExt> rules = new ArrayList<>();
       if (contextRules == null) {
         contextRules = new HashMap<>();
       }
-      for (CoreBinding binding : contextFreeVars != null ? contextFreeVars : typechecker.getFreeBindingsList()) {
+      ContextHelper helper = new ContextHelper(hint);
+      for (CoreBinding binding : helper.getContextBindings(typechecker)) {
         rules.addAll(contextRules.computeIfAbsent(binding, k -> {
           List<RuleExt> ctxList = new ArrayList<>();
           typeToRule(null, binding, false, ctxList);
           return ctxList;
         }));
       }
-      for (CoreBinding binding : additionalFreeVars) {
+      for (CoreBinding binding : helper.getAdditionalBindings(typechecker)) {
         typeToRule(null, binding, true, rules);
       }
 
@@ -154,7 +141,7 @@ public class DefaultEquationSolver implements EquationSolver {
       List<Integer> newNf1 = applyRules(term1.nf, rules, trace1);
       List<Integer> newNf2 = applyRules(term2.nf, rules, trace2);
       if (!newNf1.equals(newNf2)) {
-        errorReporter.report(new AlgebraSolverError(term1.nf, term2.nf, values, rules, trace1, trace2, sourceNode));
+        errorReporter.report(new AlgebraSolverError(term1.nf, term2.nf, values.getValues(), rules, trace1, trace2, hint != null ? hint : refExpr));
         return null;
       }
 
@@ -368,23 +355,6 @@ public class DefaultEquationSolver implements EquationSolver {
     return null;
   }
 
-  private static MetaDefinition getMeta(ConcreteExpression expr) {
-    Object expression = expr instanceof ConcreteGoalExpression ? ((ConcreteGoalExpression) expr).getExpression() : expr;
-    if (!(expression instanceof ConcreteAppExpression)) {
-      return null;
-    }
-    ConcreteAppExpression appExpr = (ConcreteAppExpression) expression;
-    if (appExpr.getArguments().size() != 1 || !(appExpr.getFunction() instanceof ConcreteReferenceExpression)) {
-      return null;
-    }
-    ArendRef ref = ((ConcreteReferenceExpression) appExpr.getFunction()).getReferent();
-    return ref instanceof MetaRef ? ((MetaRef) ref).getDefinition() : null;
-  }
-
-  private static boolean isUsingOrHiding(MetaDefinition meta) {
-    return meta instanceof UsingMeta || meta instanceof HidingMeta;
-  }
-
   public enum Direction { FORWARD, BACKWARD, UNKNOWN }
 
   public static class Step {
@@ -488,7 +458,7 @@ public class DefaultEquationSolver implements EquationSolver {
   }
 
   private ConcreteExpression computeTerm(CoreExpression expression, List<Integer> nf) {
-    expression = expression.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
+    expression = expression.normalize(NormalizationMode.WHNF);
     if (expression instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expression).getDefinition() == meta.ide) {
       return factory.ref(meta.ideTerm.getRef());
     }
@@ -505,18 +475,7 @@ public class DefaultEquationSolver implements EquationSolver {
       }
     }
 
-    int index = values.size();
-    for (int i = 0; i < values.size(); i++) {
-      if (typechecker.compare(expression, values.get(i), CMP.EQ, refExpr, false, true)) {
-        index = i;
-        break;
-      }
-    }
-
-    if (index == values.size()) {
-      values.add(expression);
-    }
-
+    int index = values.addValue(expression);
     nf.add(index);
     return factory.app(factory.ref(meta.varTerm.getRef()), true, singletonList(factory.number(index)));
   }
@@ -524,11 +483,12 @@ public class DefaultEquationSolver implements EquationSolver {
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
     ArendRef lamParam = factory.local("n");
-    ConcreteClause[] caseClauses = new ConcreteClause[values.size() + 1];
-    for (int i = 0; i < values.size(); i++) {
-      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(null, values.get(i).computeTyped()));
+    List<CoreExpression> valueList = values.getValues();
+    ConcreteClause[] caseClauses = new ConcreteClause[valueList.size() + 1];
+    for (int i = 0; i < valueList.size(); i++) {
+      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(null, valueList.get(i).computeTyped()));
     }
-    caseClauses[values.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(meta.ide.getRef()));
+    caseClauses[valueList.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(meta.ide.getRef()));
 
     letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(factory.app(
         factory.ref(meta.Data.getRef()), true,

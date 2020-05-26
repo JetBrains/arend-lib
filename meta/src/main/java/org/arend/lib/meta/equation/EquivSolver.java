@@ -7,7 +7,7 @@ import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
-import org.arend.lib.Utils;
+import org.arend.lib.util.Maybe;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -54,7 +54,7 @@ public class EquivSolver implements EquationSolver {
   }
 
   @Override
-  public @Nullable Utils.Maybe<CoreExpression> getEqType(@Nullable TypedExpression leftExpr, @Nullable TypedExpression rightExpr) {
+  public @Nullable Maybe<CoreExpression> getEqType(@Nullable TypedExpression leftExpr, @Nullable TypedExpression rightExpr) {
     ConcreteExpression expr = factory.ref(meta.Equiv.getRef());
     if (leftExpr != null || rightExpr != null) {
       List<ConcreteExpression> args = new ArrayList<>(2);
@@ -67,7 +67,7 @@ public class EquivSolver implements EquationSolver {
       expr = factory.app(expr, false, args);
     }
     TypedExpression result = typechecker.typecheck(expr, null);
-    return result == null ? null : new Utils.Maybe<>(result.getExpression());
+    return result == null ? null : new Maybe<>(result.getExpression());
   }
 
   @Override

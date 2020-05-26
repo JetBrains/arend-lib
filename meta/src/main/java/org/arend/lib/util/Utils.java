@@ -1,4 +1,4 @@
-package org.arend.lib;
+package org.arend.lib.util;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
@@ -20,6 +20,7 @@ import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
+import org.arend.lib.StdExtension;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -191,14 +192,6 @@ public class Utils {
       }, action);
     } catch (MyException e) {
       return null;
-    }
-  }
-
-  public static class Maybe<T> {
-    public final T just;
-
-    public Maybe(T just) {
-      this.just = just;
     }
   }
 }

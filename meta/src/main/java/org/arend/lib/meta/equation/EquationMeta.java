@@ -16,8 +16,8 @@ import org.arend.ext.error.ListErrorReporter;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
-import org.arend.lib.Utils;
-import org.arend.lib.error.UnrecognizedTypeError;
+import org.arend.lib.util.Maybe;
+import org.arend.lib.error.TypeError;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -72,7 +72,7 @@ public class EquationMeta extends BaseMetaDefinition {
         }
       }
       if (solver == null) {
-        errorReporter.report(new UnrecognizedTypeError(type, refExpr));
+        errorReporter.report(new TypeError("Unrecognized type", type, refExpr));
         return null;
       }
     } else {
@@ -164,7 +164,7 @@ public class EquationMeta extends BaseMetaDefinition {
         }
         equalities.add(goalExpr == null ? result : factory.withData(goalExpr.getData()).goal(goalExpr.getName(), result, null, errors));
       } else if (value instanceof ConcreteExpression) {
-        Utils.Maybe<CoreExpression> eqType = solver.getEqType(
+        Maybe<CoreExpression> eqType = solver.getEqType(
             i > 0 && values.get(i - 1) instanceof TypedExpression ? (TypedExpression) values.get(i - 1) : null,
             i < values.size() - 1 && values.get(i + 1) instanceof TypedExpression ? (TypedExpression) values.get(i + 1) : null);
 
