@@ -26,6 +26,14 @@
     \func loop-comp {G : Group} (g g' : G) : path (loop g) *> path (loop g') = path (loop (g * g'))
       => movePath2 (Equiv.ret {=-to-Equiv (Cube2.equality (path (loop g)) (path (loop (g * g'))) idp (path (loop g')))}
                              (path (\lam j => path (\lam i => relation g g' i j))))
+
+    \func loop-ide {G : Group} : path (loop (ide {G})) = idp
+      => idp-lemma (path (loop ide)) (path (loop ide)) (loop-comp ide ide *> pmap (\lam g => path (loop g)) (ide-left ide))
+      \where {
+        \func idp-lemma {A : \Type} {a a' : A} (p : a = a') (q : a = a) (h : q *> p = p) : q = idp \elim p
+          | idp => h
+      }
+
   }
 
 \func movePath1 {A : \1-Type} {a a' a'' : A} {p : a = a'} {q : a' = a''} {r : a = a''} (h : p *> q = r) : p = r *> inv q
@@ -33,13 +41,6 @@
 
 \func movePath2 {A : \Type} {a a' a'' : A} {p : a = a'} {q : a' = a''} {r : a = a''} (h : p = r *> inv q) : p *> q = r
   => (pmap (`*> q) h) *> (*>-assoc r (inv q) q) *> pmap (r *>) (inv_*> q)
-
-\func isConnected (X : \Type) => \Pi (x y : X) -> TruncP (x = y)
-
-\func K1-connected (G : Group) : isConnected (K1 G)
-  => {?}
-
-\func grp-to-ptconn (G : Group) : \Sigma (X : Pointed) (isConnected X) => (\new Pointed (K1 G) { | base => base}, K1-connected G)
 
 \func leftMulEquiv {G : Group} (g : G) : QEquiv (g *) \cowith
   | ret => inverse g *
@@ -74,7 +75,7 @@
 \func compToMult {G : Group} (g g' : G) : Path (equivFibr g g') ((rightMulEquiv g) >~~ (rightMulEquiv g')) (rightMulEquiv (g * g'))
   => pathInProp (equivFibr g g') ((rightMulEquiv g) >~~ (rightMulEquiv g')) (rightMulEquiv (g * g'))
 
-\func equivPathComposition {G : Group} (g g' : G)
+\lemma equivPathComposition {G : Group} (g g' : G)
   : (Equiv-to-= (rightMulEquiv g)) *> (Equiv-to-= (rightMulEquiv g')) = {G = {\Set} G} (Equiv-to-= (rightMulEquiv (g * g')))
   => Equiv-to-= (rightMulEquiv g) *> Equiv-to-= (rightMulEquiv g') ==<
             Equiv-to-=-functorial (rightMulEquiv g) (rightMulEquiv g') >==
@@ -93,7 +94,7 @@
 
 \func decode {G : Group} (x : K1 G) : code x -> base = x \elim x
   | base => \lam c => path (loop c)
-  | loop g i => (decode_loop_hetero g) @ i
+  | loop g i => decode_loop_hetero g @ i
   \where {
     \func wind {G : Group} (g : G) : base {G} = base => path (loop g)
 
@@ -108,3 +109,12 @@
     \func decode_loop_hetero {G : Group} (g : G)
       => pathOver (path (\lam j x => decode_loop_homo g x @ j))
   }
+
+\func encode_decode {G : Group} {x : K1 G} (p : base = x) : decode x (encode x p) = p
+  | idp => K1.loop-ide
+
+\func decode_encode {G : Group} (x : K1 G) (c : code x) : encode x (decode x c) = c \elim x
+  | base => encode base (path (loop c)) ==< ide-left c >== c `qed
+
+\func Loop_K1 {G : Group} : (base {G} = base) = G
+  => path (iso (encode base) (decode base) (encode_decode {G} {base}) (decode_encode base))
