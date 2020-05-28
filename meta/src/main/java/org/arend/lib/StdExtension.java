@@ -15,6 +15,7 @@ import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
 import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.goal.StdGoalSolver;
+import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
 
 import org.arend.lib.meta.equation.EquationMeta;
@@ -40,8 +41,11 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Logic") public CoreDataDefinition Empty;
 
   public EquationMeta equationMeta = new EquationMeta(this);
+  public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
+
+  private final StdLevelProver levelProver = new StdLevelProver(this);
 
   public ArendUI ui;
 
@@ -128,11 +132,16 @@ public class StdExtension implements ArendExtension {
         "Derives a contradiction from assumptions in the context\n\n" +
         "A proof of a contradiction can be explicitly specified as an implicit argument\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
-        Precedence.DEFAULT, new ContradictionMeta(this));
+        Precedence.DEFAULT, contradictionMeta);
   }
 
   @Override
   public @Nullable StdGoalSolver getGoalSolver() {
     return goalSolver;
+  }
+
+  @Override
+  public @Nullable LevelProver getLevelProver() {
+    return levelProver;
   }
 }

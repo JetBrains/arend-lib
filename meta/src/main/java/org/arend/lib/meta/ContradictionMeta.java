@@ -1,6 +1,7 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
@@ -38,15 +39,20 @@ public class ContradictionMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    ContextHelper contextHelper = new ContextHelper(contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression());
-    ConcreteFactory factory = ext.factory.withData(contextData.getReferenceExpression().getData());
+    ConcreteExpression expr = check(contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression(), contextData.getExpectedType(), contextData.getExpectedType() != null, contextData.getReferenceExpression(), typechecker);
+    return expr == null ? null : typechecker.typecheck(expr, contextData.getExpectedType());
+  }
+
+  public ConcreteExpression check(ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
+    ContextHelper contextHelper = new ContextHelper(argument);
+    ConcreteFactory factory = ext.factory.withData(marker.getData());
 
     CoreExpression type = null;
     ConcreteExpression contr = null;
     List<Pair<Object, CorePiExpression>> piExpressions = new ArrayList<>();
     boolean searchForContradiction = true;
-    if (!contextData.getArguments().isEmpty() && contextHelper.meta == null) {
-      TypedExpression contradiction = typechecker.typecheck(contextData.getArguments().get(0).getExpression(), null);
+    if (argument != null && contextHelper.meta == null) {
+      TypedExpression contradiction = typechecker.typecheck(argument, null);
       if (contradiction == null) {
         return null;
       }
@@ -57,13 +63,13 @@ public class ContradictionMeta extends BaseMetaDefinition {
         piExpressions.add(new Pair<>(contradiction, (CorePiExpression) type));
         searchForContradiction = false;
       } else {
-        typechecker.getErrorReporter().report(new TypeError("The expression does not prove a contradiction", type, contextData.getArguments().get(0).getExpression()));
+        typechecker.getErrorReporter().report(new TypeError("The expression does not prove a contradiction", type, argument));
         return null;
       }
     }
 
     if (contr == null) {
-      Values values = new Values(typechecker, contextData.getReferenceExpression());
+      Values values = new Values(typechecker, marker);
       Map<Integer, CoreBinding> assumptions = new HashMap<>();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
         type = binding.getTypeExpr().normalize(NormalizationMode.WHNF);
@@ -105,7 +111,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
               if (paramType instanceof CoreExpression) {
                 checkedType = (CoreExpression) paramType;
               } else {
-                TypedExpression typedExpr = typechecker.check(paramType, contextData.getReferenceExpression());
+                TypedExpression typedExpr = typechecker.check(paramType, marker);
                 if (typedExpr == null) {
                   continue loop;
                 }
@@ -127,13 +133,13 @@ public class ContradictionMeta extends BaseMetaDefinition {
         }
 
         if (contr == null) {
-          typechecker.getErrorReporter().report(new TypecheckingError("Cannot infer contradiction", contextData.getReferenceExpression()));
+          typechecker.getErrorReporter().report(new TypecheckingError("Cannot infer contradiction", marker));
           return null;
         }
       }
     }
 
-    return typechecker.typecheck(contextData.getExpectedType() != null && contextData.getExpectedType().compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), contextData.getExpectedType() != null ? null : factory.ref(ext.Empty.getRef()), null), contextData.getExpectedType());
+    return expectedType != null && expectedType.compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), withExpectedType ? null : factory.ref(ext.Empty.getRef()), null);
   }
 
   private static boolean isEmpty(CoreExpression type) {
