@@ -30,7 +30,7 @@ public class StdLevelProver implements LevelProver {
   }
 
   @Override
-  public @Nullable TypedExpression prove(@NotNull CoreExpression expression, @NotNull CoreExpression type, int level, @NotNull ConcreteSourceNode marker, @NotNull ExpressionTypechecker typechecker) {
+  public @Nullable TypedExpression prove(@Nullable ConcreteExpression hint, @NotNull CoreExpression type, @NotNull CoreExpression expectedType, int level, @NotNull ConcreteSourceNode marker, @NotNull ExpressionTypechecker typechecker) {
     if (level != -1) {
       return null;
     }
@@ -39,8 +39,8 @@ public class StdLevelProver implements LevelProver {
       ConcreteFactory factory = ext.factory.withData(marker.getData());
       ArendRef x = factory.local("x");
       ArendRef y = factory.local("y");
-      ConcreteExpression result = proveProp(expression, factory.ref(x), factory.ref(y), marker, factory, typechecker);
-      return result == null ? null : typechecker.typecheck(factory.lam(Arrays.asList(factory.param(x), factory.param(y)), result), type);
+      ConcreteExpression result = proveProp(type, factory.ref(x), factory.ref(y), marker, factory, typechecker);
+      return result == null ? null : typechecker.typecheck(factory.lam(Arrays.asList(factory.param(x), factory.param(y)), result), expectedType);
     });
   }
 
