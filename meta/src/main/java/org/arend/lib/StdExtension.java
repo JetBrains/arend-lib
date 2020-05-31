@@ -6,7 +6,6 @@ import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.dependency.Dependency;
-import org.arend.ext.dependency.ArendDependencyLoader;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
@@ -76,12 +75,12 @@ public class StdExtension implements ArendExtension {
 
   @Override
   public void load(@NotNull ArendDependencyProvider provider) {
-    ArendDependencyLoader.load(this, provider);
-    ArendDependencyLoader.load(equationMeta, provider);
+    provider.load(this);
+    provider.load(equationMeta);
   }
 
   @Override
-  public void declareDefinitions(DefinitionContributor contributor) {
+  public void declareDefinitions(@NotNull DefinitionContributor contributor) {
     ModulePath meta = new ModulePath("Meta");
     contributor.declare(meta, new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, new LaterMeta());
     contributor.declare(meta, new LongName("fails"),
