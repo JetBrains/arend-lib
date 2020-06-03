@@ -98,6 +98,7 @@ public class StdExtension implements ArendExtension {
     contributor.declare(meta, new LongName("hiding"),
         "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
         Precedence.DEFAULT, new HidingMeta());
+    contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
