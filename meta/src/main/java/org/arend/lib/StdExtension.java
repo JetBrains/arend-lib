@@ -46,6 +46,8 @@ public class StdExtension implements ArendExtension {
 
   private final StdLevelProver levelProver = new StdLevelProver(this);
 
+  private final StdNumberTypechecker numberTypechecker = new StdNumberTypechecker(this);
+
   public ArendUI ui;
 
   @Override
@@ -142,5 +144,10 @@ public class StdExtension implements ArendExtension {
   @Override
   public @Nullable LevelProver getLevelProver() {
     return levelProver;
+  }
+
+  @Override
+  public @Nullable NumberTypechecker getNumberTypechecker() {
+    return numberTypechecker;
   }
 }

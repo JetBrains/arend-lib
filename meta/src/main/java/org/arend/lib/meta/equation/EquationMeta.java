@@ -26,12 +26,17 @@ import java.util.*;
 public class EquationMeta extends BaseMetaDefinition {
   final StdExtension ext;
 
+  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
+  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
+  @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
+  @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
+
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition Monoid;
-  @Dependency(module = "Algebra.Monoid", name = "Monoid.E")    CoreClassField carrier;
-  @Dependency(module = "Algebra.Monoid", name = "Monoid.ide")  CoreClassField ide;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.E")    public CoreClassField carrier;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    CoreClassField mul;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
+  @Dependency(module = "Algebra.Monoid", name = "AddMonoid.+") public CoreClassField plus;
 
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.var")  CoreConstructor varTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideTerm;
@@ -41,6 +46,10 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")      CoreFunctionDefinition termsEq;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv") CoreFunctionDefinition termsEqConv;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")  CoreFunctionDefinition replaceDef;
+
+  @Dependency(module = "Algebra.Group", name = "AddGroup.negative") public CoreClassField negative;
+  @Dependency(module = "Algebra.Semiring")                          public CoreClassDefinition Semiring;
+  @Dependency(module = "Algebra.Ring")                              public CoreClassDefinition Ring;
 
   @Dependency(module = "Equiv")                 CoreClassDefinition Equiv;
   @Dependency(module = "Equiv", name = "Map.A") CoreClassField equivLeft;
@@ -162,7 +171,7 @@ public class EquationMeta extends BaseMetaDefinition {
           ok = false;
           continue;
         }
-        equalities.add(goalExpr == null ? result : factory.withData(goalExpr.getData()).goal(goalExpr.getName(), result, null, errors));
+        equalities.add(goalExpr == null ? result : factory.withData(goalExpr.getData()).goal(goalExpr.getName(), result, null, Objects.requireNonNull(errors)));
       } else if (value instanceof ConcreteExpression) {
         Maybe<CoreExpression> eqType = solver.getEqType(
             i > 0 && values.get(i - 1) instanceof TypedExpression ? (TypedExpression) values.get(i - 1) : null,
