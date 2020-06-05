@@ -13,7 +13,7 @@ import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 
-import org.arend.lib.Utils;
+import org.arend.lib.util.Utils;
 import org.arend.lib.error.SubexprError;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

@@ -9,7 +9,7 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
-import org.arend.lib.Utils;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,7 +30,7 @@ public class StdGoalSolver implements GoalSolver {
       return new CheckGoalResult(null, null);
     }
 
-    if (!(expectedType != null && (expr instanceof ConcreteReferenceExpression || expr instanceof ConcreteAppExpression))) {
+    if (expectedType == null || !(expr instanceof ConcreteReferenceExpression || expr instanceof ConcreteAppExpression)) {
       return new CheckGoalResult(expr, typechecker.typecheck(expr, expectedType));
     }
 
@@ -43,7 +43,7 @@ public class StdGoalSolver implements GoalSolver {
       if (!(error.level == GeneralError.Level.GOAL && error.getCause() == exprData)) {
         errorReporter.report(error);
       }
-    }, tc -> tc.typecheck(extExpr, null));
+    }, tc -> tc.typecheck(extExpr, extExpr == expr ? expectedType : null));
 
     return new CheckGoalResult(result == null ? extExpr : Utils.addArguments(extExpr, ext.factory.withData(exprData), Utils.numberOfExplicitPiParameters(result.getType()) - expectedParams, true), result);
   }

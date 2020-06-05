@@ -3,9 +3,9 @@ package org.arend.lib;
 import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.dependency.Dependency;
-import org.arend.ext.dependency.ArendDependencyLoader;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
@@ -14,8 +14,10 @@ import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
 import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.goal.StdGoalSolver;
+import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
 
+import org.arend.lib.meta.equation.EquationMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,9 +37,16 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
 
-  public AlgebraSolverMeta algebraMeta = new AlgebraSolverMeta(this);
+  @Dependency(module = "Logic") public CoreDataDefinition Empty;
+
+  public EquationMeta equationMeta = new EquationMeta(this);
+  public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
+
+  private final StdLevelProver levelProver = new StdLevelProver(this);
+
+  private final StdNumberTypechecker numberTypechecker = new StdNumberTypechecker(this);
 
   public ArendUI ui;
 
@@ -68,18 +77,28 @@ public class StdExtension implements ArendExtension {
 
   @Override
   public void load(@NotNull ArendDependencyProvider provider) {
-    ArendDependencyLoader.load(this, provider);
-    ArendDependencyLoader.load(algebraMeta, provider);
+    provider.load(this);
+    provider.load(equationMeta);
   }
 
   @Override
-  public void declareDefinitions(DefinitionContributor contributor) {
+  public void declareDefinitions(@NotNull DefinitionContributor contributor) {
     ModulePath meta = new ModulePath("Meta");
     contributor.declare(meta, new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, new LaterMeta());
-    contributor.declare(meta, new LongName("fail"),
-        "`fail meta args` succeeds if and only if `meta args` fails\n\n" +
-        "`fail {T} meta args` succeeds if and only if `meta args : T` fails",
-        Precedence.DEFAULT, new FailMeta(this));
+    contributor.declare(meta, new LongName("fails"),
+        "`fails meta args` succeeds if and only if `meta args` fails\n\n" +
+        "`fails {T} meta args` succeeds if and only if `meta args : T` fails",
+        Precedence.DEFAULT, new FailsMeta(this));
+    contributor.declare(meta, new LongName("using"),
+        "`using (e_1, ... e_n) e` adds `e_1`, ... `e_n` to the context before checking `e`",
+        Precedence.DEFAULT, new UsingMeta(true));
+    contributor.declare(meta, new LongName("usingOnly"),
+        "`usingOnly (e_1, ... e_n) e` replaces the context with `e_1`, ... `e_n` before checking `e`",
+        Precedence.DEFAULT, new UsingMeta(false));
+    contributor.declare(meta, new LongName("hiding"),
+        "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
+        Precedence.DEFAULT, new HidingMeta());
+    contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
@@ -104,16 +123,32 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new RepeatMeta(this));
 
     ModulePath algebra = ModulePath.fromString("Algebra.Meta");
-    contributor.declare(algebra, new LongName("solve"), "Proves equations in monoids", Precedence.DEFAULT, new DeferredMetaDefinition(algebraMeta));
     contributor.declare(algebra, new LongName("equation"),
-        "Proves equations\n\n" +
-        "`equation a_1 ... a_n` proves an equation a_0 = a_{n+1} using a_1, ... a_n as intermediate steps\n" +
-        "A proof of a_i = a_{i+1} can be specified as implicit arguments between them",
-        Precedence.DEFAULT, new DeferredMetaDefinition(new EquationMeta(this), true));
+        "`equation a_1 ... a_n` proves an equation a_0 = a_{n+1} using a_1, ... a_n as intermediate steps\n\n" +
+        "A proof of a_i = a_{i+1} can be specified as implicit arguments between them\n" +
+        "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
+        Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
+
+    ModulePath logic = ModulePath.fromString("Logic.Meta");
+    contributor.declare(algebra, new LongName("contradiction"),
+        "Derives a contradiction from assumptions in the context\n\n" +
+        "A proof of a contradiction can be explicitly specified as an implicit argument\n" +
+        "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
+        Precedence.DEFAULT, contradictionMeta);
   }
 
   @Override
   public @Nullable StdGoalSolver getGoalSolver() {
     return goalSolver;
+  }
+
+  @Override
+  public @Nullable LevelProver getLevelProver() {
+    return levelProver;
+  }
+
+  @Override
+  public @Nullable NumberTypechecker getNumberTypechecker() {
+    return numberTypechecker;
   }
 }

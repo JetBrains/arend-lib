@@ -1,18 +1,18 @@
-package org.arend.lib;
+package org.arend.lib.util;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
-import org.arend.ext.core.expr.CoreAppExpression;
-import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.expr.CoreFunCallExpression;
+import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.TypeMismatchError;
 import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.MetaRef;
@@ -20,6 +20,7 @@ import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
+import org.arend.lib.StdExtension;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -191,6 +192,17 @@ public class Utils {
       }, action);
     } catch (MyException e) {
       return null;
+    }
+  }
+
+  public static TypedExpression findInstance(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
+    CoreExpression expr = classifyingExpr.normalize(NormalizationMode.WHNF);
+    if (expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == classifyingField) {
+      TypedExpression result = ((CoreFieldCallExpression) expr).getArgument().computeTyped();
+      CoreExpression type = result.getType().normalize(NormalizationMode.WHNF);
+      return type instanceof CoreClassCallExpression && parameters.testClass(((CoreClassCallExpression) type).getDefinition()) ? result : null;
+    } else {
+      return typechecker.findInstance(parameters, expr, null, marker);
     }
   }
 }

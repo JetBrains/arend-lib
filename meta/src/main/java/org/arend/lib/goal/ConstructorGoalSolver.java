@@ -19,7 +19,7 @@ import org.arend.ext.ui.ArendSession;
 import org.arend.ext.ui.ArendUI;
 import org.arend.ext.variable.VariableRenamer;
 import org.arend.lib.StdExtension;
-import org.arend.lib.Utils;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
