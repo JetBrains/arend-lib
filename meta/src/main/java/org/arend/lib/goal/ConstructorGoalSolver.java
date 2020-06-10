@@ -63,7 +63,7 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
       VariableRenamer renamer = ext.renamerFactory.variableRenamer();
       List<CoreBinding> freeVars = typechecker.getFreeBindingsList();
       for (CoreParameter param : params) {
-        cParams.add(factory.param(factory.local(renamer.generateFreshName(param.getBinding(), freeVars))));
+        cParams.add(factory.param(param.isExplicit(), factory.local(renamer.generateFreshName(param.getBinding(), freeVars))));
         freeVars.add(param.getBinding());
       }
       result = factory.lam(cParams, factory.goal());
