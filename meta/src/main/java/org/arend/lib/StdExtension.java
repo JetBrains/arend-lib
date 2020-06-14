@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
 import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.goal.StdGoalSolver;
+import org.arend.lib.key.IrreflexivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
 
@@ -29,6 +30,8 @@ public class StdExtension implements ArendExtension {
   public DefinitionProvider definitionProvider;
   public VariableRenamerFactory renamerFactory;
 
+  public final IrreflexivityKey irreflexivityKey = new IrreflexivityKey("irreflexivity", this);
+
   @Dependency(module = "Paths")              public CoreFunctionDefinition transport;
   @Dependency(module = "Paths")              public CoreFunctionDefinition transportInv;
   @Dependency(module = "Paths", name = "*>") public CoreFunctionDefinition concat;
@@ -43,11 +46,9 @@ public class StdExtension implements ArendExtension {
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
-
   private final StdLevelProver levelProver = new StdLevelProver(this);
-
   private final StdNumberTypechecker numberTypechecker = new StdNumberTypechecker(this);
-
+  private final ListDefinitionListener definitionListener = new ListDefinitionListener().addDeclaredListeners(this);
   public ArendUI ui;
 
   @Override
@@ -130,7 +131,7 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
 
     ModulePath logic = ModulePath.fromString("Logic.Meta");
-    contributor.declare(algebra, new LongName("contradiction"),
+    contributor.declare(logic, new LongName("contradiction"),
         "Derives a contradiction from assumptions in the context\n\n" +
         "A proof of a contradiction can be explicitly specified as an implicit argument\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
@@ -150,5 +151,10 @@ public class StdExtension implements ArendExtension {
   @Override
   public @Nullable NumberTypechecker getNumberTypechecker() {
     return numberTypechecker;
+  }
+
+  @Override
+  public @Nullable DefinitionListener getDefinitionListener() {
+    return definitionListener;
   }
 }

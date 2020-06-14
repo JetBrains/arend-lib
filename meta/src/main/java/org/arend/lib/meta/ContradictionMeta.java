@@ -6,24 +6,24 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
-import org.arend.ext.core.expr.CoreDataCallExpression;
-import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.expr.CorePiExpression;
-import org.arend.ext.core.expr.UncheckedExpression;
+import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.TypeError;
+import org.arend.lib.meta.closure.EqualityClosure;
+import org.arend.lib.meta.closure.ValuesRelationClosure;
 import org.arend.lib.util.ContextHelper;
-import org.arend.lib.util.Pair;
 import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.function.Function;
 
 public class ContradictionMeta extends BaseMetaDefinition {
   public final StdExtension ext;
@@ -43,14 +43,103 @@ public class ContradictionMeta extends BaseMetaDefinition {
     return expr == null ? null : typechecker.typecheck(expr, contextData.getExpectedType());
   }
 
+  private static class RType {
+    final CoreBinding binding;
+    final CoreExpression type;
+
+    RType(CoreBinding binding, CoreExpression type) {
+      this.binding = binding;
+      this.type = type;
+    }
+  }
+
+  private static class EqType extends RType {
+    final CoreExpression leftExpr;
+    final CoreExpression rightExpr;
+
+    EqType(CoreBinding binding, CoreFunCallExpression eqType, CoreExpression leftExpr, CoreExpression rightExpr) {
+      super(binding, eqType);
+      this.leftExpr = leftExpr;
+      this.rightExpr = rightExpr;
+    }
+  }
+
+  private static class Negation {
+    final List<RType> assumptions;
+    final CoreExpression type;
+    final Function<List<ConcreteExpression>, ConcreteExpression> proof;
+
+    private Negation(List<RType> assumptions, CoreExpression type, Function<List<ConcreteExpression>, ConcreteExpression> proof) {
+      this.assumptions = assumptions;
+      this.type = type;
+      this.proof = proof;
+    }
+  }
+
+  private static RType makeRType(CoreBinding binding, CoreExpression paramType) {
+    CoreFunCallExpression equality = paramType.toEquality();
+    return equality != null ? new EqType(binding, equality, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2)) : new RType(binding, paramType);
+  }
+
+  public boolean makeNegation(CoreExpression type, ConcreteExpression proof, ConcreteFactory factory, List<Negation> negations) {
+    List<CoreParameter> parameters;
+    if (type instanceof CorePiExpression) {
+      parameters = new ArrayList<>();
+      type = type.getPiParameters(parameters).normalize(NormalizationMode.WHNF);
+    } else {
+      parameters = Collections.emptyList();
+    }
+
+    if (isEmpty(type)) {
+      List<RType> types = new ArrayList<>(parameters.size());
+      for (CoreParameter parameter : parameters) {
+        types.add(makeRType(parameter.getBinding(), parameter.getTypeExpr().normalize(NormalizationMode.WHNF)));
+      }
+      negations.add(new Negation(types, type, arguments -> {
+        List<ConcreteArgument> args = new ArrayList<>(arguments.size());
+        for (int i = 0; i < arguments.size(); i++) {
+          args.add(factory.arg(arguments.get(i), parameters.get(i).isExplicit()));
+        }
+        return factory.app(proof, args);
+      }));
+      return true;
+    } else if (type instanceof CoreAppExpression) {
+      CoreAppExpression app2 = (CoreAppExpression) type;
+      if (app2.getFunction() instanceof CoreAppExpression) {
+        CoreAppExpression app1 = (CoreAppExpression) app2.getFunction();
+        CoreExpression fun = app1.getFunction().normalize(NormalizationMode.WHNF);
+        if (fun instanceof CoreFieldCallExpression) {
+          CoreClassField irreflexivity = ((CoreFieldCallExpression) fun).getDefinition().getUserData(ext.irreflexivityKey);
+          if (irreflexivity != null) {
+            List<CoreParameter> irrParams = new ArrayList<>(2);
+            CoreExpression irrCodomain = irreflexivity.getResultType().getPiParameters(irrParams);
+            if (irrParams.size() != 2) { // This shouldn't happen
+              return false;
+            }
+            negations.add(new Negation(Collections.singletonList(new EqType(null, null, app1.getArgument(), app2.getArgument())), irrCodomain, args -> {
+              List<ConcreteArgument> irrArgs = new ArrayList<>(2);
+              if (irrParams.get(0).isExplicit()) {
+                irrArgs.add(factory.arg(factory.hole(), true));
+              }
+              irrArgs.add(factory.arg(factory.app(factory.ref(ext.transportInv.getRef()), true, Arrays.asList(factory.core(app1.computeTyped()), args.get(0), proof)), irrParams.get(1).isExplicit()));
+              return factory.app(factory.ref(irreflexivity.getRef()), irrArgs);
+            }));
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   public ConcreteExpression check(ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
     ContextHelper contextHelper = new ContextHelper(argument);
     ConcreteFactory factory = ext.factory.withData(marker.getData());
 
     CoreExpression type = null;
     ConcreteExpression contr = null;
-    List<Pair<Object, CorePiExpression>> piExpressions = new ArrayList<>();
-    boolean searchForContradiction = true;
+    List<Negation> negations = new ArrayList<>();
     if (argument != null && contextHelper.meta == null) {
       TypedExpression contradiction = typechecker.typecheck(argument, null);
       if (contradiction == null) {
@@ -58,55 +147,57 @@ public class ContradictionMeta extends BaseMetaDefinition {
       }
       type = contradiction.getType().normalize(NormalizationMode.WHNF);
       if (isEmpty(type)) {
-        contr = factory.core(null, contradiction);
-      } else if (type instanceof CorePiExpression) {
-        piExpressions.add(new Pair<>(contradiction, (CorePiExpression) type));
-        searchForContradiction = false;
+        contr = factory.core(contradiction);
       } else {
-        typechecker.getErrorReporter().report(new TypeError("The expression does not prove a contradiction", type, argument));
-        return null;
+        if (!makeNegation(type, factory.core(contradiction), factory, negations)) {
+          typechecker.getErrorReporter().report(new TypeError("The expression does not prove a contradiction", type, argument));
+          return null;
+        }
       }
     }
 
     if (contr == null) {
-      Values values = new Values(typechecker, marker);
-      Map<Integer, CoreBinding> assumptions = new HashMap<>();
+      ValuesRelationClosure closure = new ValuesRelationClosure(new Values<>(typechecker, marker), new EqualityClosure<>(ext, factory));
+      Values<CoreExpression> typeValues = new Values<>(typechecker, marker);
+      Map<Integer, RType> assumptions = new HashMap<>();
+      boolean searchForContradiction = negations.isEmpty();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
         type = binding.getTypeExpr().normalize(NormalizationMode.WHNF);
         if (isEmpty(type)) {
           contr = factory.ref(binding);
           break;
         }
-        CoreBinding prev = assumptions.putIfAbsent(values.addValue(type), binding);
-        if (searchForContradiction && type instanceof CorePiExpression && prev == null) {
-          piExpressions.add(new Pair<>(binding, (CorePiExpression) type));
+
+        RType rType = makeRType(binding, type);
+        RType prev = null;
+        if (rType instanceof EqType) {
+          closure.addRelation(((EqType) rType).leftExpr, ((EqType) rType).rightExpr, factory.ref(binding));
+        } else {
+          prev = assumptions.putIfAbsent(typeValues.addValue(type), rType);
+        }
+        if (searchForContradiction && prev == null) {
+          makeNegation(type, factory.ref(binding), factory, negations);
         }
       }
 
       if (contr == null) {
         loop:
-        for (Pair<Object, CorePiExpression> pair : piExpressions) {
-          List<CoreParameter> parameters = new ArrayList<>();
-          type = pair.proj2.getPiParameters(parameters);
-          if (!isEmpty(type)) {
-            continue;
-          }
-
-          List<ConcreteArgument> arguments = new ArrayList<>();
+        for (Negation negation : negations) {
+          List<ConcreteExpression> arguments = new ArrayList<>();
           Map<CoreBinding, CoreExpression> subst = new HashMap<>();
-          for (int i = 0; i < parameters.size(); i++) {
-            CoreParameter parameter = parameters.get(i);
+          for (int i = 0; i < negation.assumptions.size(); i++) {
+            RType assumption = negation.assumptions.get(i);
             boolean isFree = false;
-            for (int j = i + 1; j < parameters.size(); j++) {
-              if (parameters.get(j).getTypeExpr().findFreeBinding(parameter.getBinding())) {
+            for (int j = i + 1; j < negation.assumptions.size(); j++) {
+              if (negation.assumptions.get(j).type.findFreeBinding(assumption.binding)) {
                 isFree = true;
                 break;
               }
             }
 
             ConcreteExpression argExpr;
-            UncheckedExpression paramType = parameter.getTypeExpr().findFreeBindings(subst.keySet()) != null ? parameter.getTypeExpr().substitute(subst) : parameter.getTypeExpr();
             if (isFree) {
+              UncheckedExpression paramType = assumption.type.findFreeBindings(subst.keySet()) != null ? assumption.type.substitute(subst) : assumption.type;
               CoreExpression checkedType;
               if (paramType instanceof CoreExpression) {
                 checkedType = (CoreExpression) paramType;
@@ -118,18 +209,28 @@ public class ContradictionMeta extends BaseMetaDefinition {
                 checkedType = typedExpr.getExpression();
               }
               argExpr = factory.hole();
-              subst.put(parameter.getBinding(), Objects.requireNonNull(typechecker.typecheck(argExpr, checkedType)).getExpression());
+              subst.put(assumption.binding, Objects.requireNonNull(typechecker.typecheck(argExpr, checkedType)).getExpression());
             } else {
-              int index = values.getValue(paramType.normalize(NormalizationMode.WHNF));
-              if (index == -1) {
-                continue loop;
+              if (assumption instanceof EqType) {
+                argExpr = closure.checkRelation(((EqType) assumption).leftExpr.substitute(subst), ((EqType) assumption).rightExpr.substitute(subst));
+                if (argExpr == null) {
+                  continue loop;
+                }
+              } else {
+                int index = typeValues.getValue(assumption.type.substitute(subst));
+                if (index == -1) {
+                  continue loop;
+                }
+                argExpr = factory.ref(assumptions.get(index).binding);
               }
-              argExpr = factory.ref(assumptions.get(index));
             }
 
-            arguments.add(factory.arg(argExpr, parameter.isExplicit()));
+            arguments.add(argExpr);
           }
-          contr = factory.app(pair.proj1 instanceof CoreBinding ? factory.ref((CoreBinding) pair.proj1) : factory.core(null, (TypedExpression) pair.proj1), arguments);
+
+          contr = negation.proof.apply(arguments);
+          type = negation.type;
+          break;
         }
 
         if (contr == null) {
@@ -142,7 +243,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
     return expectedType != null && expectedType.compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), withExpectedType ? null : factory.ref(ext.Empty.getRef()), null);
   }
 
-  private static boolean isEmpty(CoreExpression type) {
+  public static boolean isEmpty(CoreExpression type) {
     if (type instanceof CoreDataCallExpression) {
       List<CoreConstructor> constructors = ((CoreDataCallExpression) type).computeMatchedConstructors();
       return constructors != null && constructors.isEmpty();

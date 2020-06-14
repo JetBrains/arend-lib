@@ -1,7 +1,6 @@
 package org.arend.lib.util;
 
 import org.arend.ext.concrete.ConcreteSourceNode;
-import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -9,17 +8,17 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Values {
+public class Values<E extends UncheckedExpression> {
   private final ExpressionTypechecker typechecker;
   private final ConcreteSourceNode marker;
-  private final List<CoreExpression> values = new ArrayList<>();
+  private final List<E> values = new ArrayList<>();
 
   public Values(ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
     this.typechecker = typechecker;
     this.marker = marker;
   }
 
-  public int addValue(CoreExpression value) {
+  public int addValue(E value) {
     int index = getValue(value);
     if (index == -1) {
       values.add(value);
@@ -38,7 +37,7 @@ public class Values {
     return -1;
   }
 
-  public List<CoreExpression> getValues() {
+  public List<E> getValues() {
     return values;
   }
 }

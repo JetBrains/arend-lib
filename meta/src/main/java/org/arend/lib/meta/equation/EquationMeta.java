@@ -26,13 +26,15 @@ import java.util.*;
 public class EquationMeta extends BaseMetaDefinition {
   final StdExtension ext;
 
+  @Dependency(module = "Set")                     public CoreClassDefinition BaseSet;
+  @Dependency(module = "Set", name = "BaseSet.E") public CoreClassField carrier;
+
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
   @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
   @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
 
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition Monoid;
-  @Dependency(module = "Algebra.Monoid", name = "Monoid.E")    public CoreClassField carrier;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    CoreClassField mul;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;

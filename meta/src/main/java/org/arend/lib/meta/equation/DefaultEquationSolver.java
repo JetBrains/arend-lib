@@ -35,7 +35,7 @@ public class DefaultEquationSolver implements EquationSolver {
   private CoreExpression valuesType;
 
   private CoreClassDefinition classDef;
-  private Values values;
+  private Values<CoreExpression> values;
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
   private ArendRef dataRef;
@@ -104,7 +104,7 @@ public class DefaultEquationSolver implements EquationSolver {
     if (classDef == null) {
       return false;
     }
-    values = new Values(typechecker, refExpr);
+    values = new Values<>(typechecker, refExpr);
     dataRef = factory.local("d");
     letClauses = new ArrayList<>();
     letClauses.add(null);
