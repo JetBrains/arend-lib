@@ -1,4 +1,4 @@
-package org.arend.lib.util;
+package org.arend.lib.context;
 
 import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
@@ -15,11 +15,13 @@ import org.arend.lib.meta.UsingMeta;
 import java.util.Collections;
 import java.util.List;
 
-public class ContextHelper {
+public class ContextHelper implements Context {
   public final MetaDefinition meta;
   public final ConcreteExpression argument;
+  public final Context context;
 
-  public ContextHelper(ConcreteExpression hint) {
+  public ContextHelper(Context context, ConcreteExpression hint) {
+    this.context = context;
     meta = getMeta(hint);
     if (meta != null) {
       ConcreteExpression expr = hint instanceof ConcreteGoalExpression ? ((ConcreteGoalExpression) hint).getExpression() : hint;
@@ -28,6 +30,10 @@ public class ContextHelper {
     } else {
       argument = null;
     }
+  }
+
+  public ContextHelper(ConcreteExpression hint) {
+    this(Context.TRIVIAL, hint);
   }
 
   public static MetaDefinition getMeta(ConcreteExpression expr) {
@@ -44,26 +50,17 @@ public class ContextHelper {
     return metaDef instanceof UsingMeta || metaDef instanceof HidingMeta ? metaDef : null;
   }
 
+  @Override
   public List<CoreBinding> getContextBindings(ExpressionTypechecker typechecker) {
     return meta instanceof HidingMeta
       ? HidingMeta.updateBindings(argument, typechecker)
       : meta instanceof UsingMeta && !((UsingMeta) meta).keepOldContext
         ? Collections.emptyList()
-        : typechecker.getFreeBindingsList();
+        : context.getContextBindings(typechecker);
   }
 
+  @Override
   public List<CoreBinding> getAdditionalBindings(ExpressionTypechecker typechecker) {
-    return meta instanceof UsingMeta ? ((UsingMeta) meta).getNewBindings(argument, typechecker) : Collections.emptyList();
-  }
-
-  public List<CoreBinding> getAllBindings(ExpressionTypechecker typechecker) {
-    List<CoreBinding> list1 = getContextBindings(typechecker);
-    List<CoreBinding> list2 = getAdditionalBindings(typechecker);
-    if (!list1.isEmpty() && !list2.isEmpty()) {
-      list1.addAll(list2);
-      return list1;
-    } else {
-      return list2.isEmpty() ? list1 : list2;
-    }
+    return meta instanceof UsingMeta ? ((UsingMeta) meta).getNewBindings(argument, typechecker) : context.getAdditionalBindings(typechecker);
   }
 }

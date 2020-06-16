@@ -1,8 +1,11 @@
 package org.arend.lib.meta;
 
+import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcretePattern;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteArgument;
+import org.arend.ext.concrete.expr.ConcreteCaseExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
@@ -14,10 +17,13 @@ import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.context.Context;
+import org.arend.lib.context.HidingContext;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.meta.closure.EqualityClosure;
 import org.arend.lib.meta.closure.ValuesRelationClosure;
-import org.arend.lib.util.ContextHelper;
+import org.arend.lib.context.ContextHelper;
+import org.arend.lib.util.Utils;
 import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -40,6 +46,9 @@ public class ContradictionMeta extends BaseMetaDefinition {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ConcreteExpression expr = check(contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression(), contextData.getExpectedType(), contextData.getExpectedType() != null, contextData.getReferenceExpression(), typechecker);
+    if (expr instanceof ConcreteCaseExpression && !((ConcreteCaseExpression) expr).getClauses().isEmpty()) {
+      return Utils.tryTypecheck(typechecker, tc -> tc.typecheck(expr, contextData.getExpectedType()));
+    }
     return expr == null ? null : typechecker.typecheck(expr, contextData.getExpectedType());
   }
 
@@ -134,12 +143,17 @@ public class ContradictionMeta extends BaseMetaDefinition {
   }
 
   public ConcreteExpression check(ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
-    ContextHelper contextHelper = new ContextHelper(argument);
+    return check(Context.TRIVIAL, argument, expectedType, withExpectedType, marker, typechecker);
+  }
+
+  public ConcreteExpression check(Context context, ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
+    ContextHelper contextHelper = new ContextHelper(context, argument);
     ConcreteFactory factory = ext.factory.withData(marker.getData());
 
     CoreExpression type = null;
     ConcreteExpression contr = null;
     List<Negation> negations = new ArrayList<>();
+    List<ConcreteClause> clauses = new ArrayList<>();
     if (argument != null && contextHelper.meta == null) {
       TypedExpression contradiction = typechecker.typecheck(argument, null);
       if (contradiction == null) {
@@ -163,8 +177,27 @@ public class ContradictionMeta extends BaseMetaDefinition {
       boolean searchForContradiction = negations.isEmpty();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
         type = binding.getTypeExpr().normalize(NormalizationMode.WHNF);
-        if (isEmpty(type)) {
+        List<CoreDataCallExpression.ConstructorWithParameters> constructors = type instanceof CoreDataCallExpression ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithParameters() : null;
+        if (constructors != null && constructors.isEmpty()) {
           contr = factory.ref(binding);
+          break;
+        }
+
+        if (constructors != null && ((CoreDataCallExpression) type).getDefinition() != ext.prelude.getPath() && ((CoreDataCallExpression) type).getDefinition().getRecursiveDefinitions().isEmpty()) {
+          contr = factory.ref(binding);
+          for (CoreDataCallExpression.ConstructorWithParameters con : constructors) {
+            List<ConcretePattern> subPatterns = new ArrayList<>();
+            for (CoreParameter param = con.parameters; param.hasNext(); param = param.getNext()) {
+              subPatterns.add(factory.refPattern(factory.local(ext.renamerFactory.getNameFromType(param.getTypeExpr(), null) + "1"), null));
+            }
+            clauses.add(factory.clause(Collections.singletonList(factory.conPattern(con.constructor.getRef(), subPatterns)), factory.meta("case_" + con.constructor.getName(), new MetaDefinition() {
+              @Override
+              public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+                ConcreteExpression result = check(new HidingContext(context, Collections.singleton(binding)), null, null, true, marker, typechecker);
+                return result == null ? null : typechecker.typecheck(result, contextData.getExpectedType());
+              }
+            })));
+          }
           break;
         }
 
@@ -240,7 +273,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
       }
     }
 
-    return expectedType != null && expectedType.compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), withExpectedType ? null : factory.ref(ext.Empty.getRef()), null);
+    return expectedType != null && expectedType.compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), withExpectedType ? null : factory.ref(ext.Empty.getRef()), null, clauses);
   }
 
   public static boolean isEmpty(CoreExpression type) {

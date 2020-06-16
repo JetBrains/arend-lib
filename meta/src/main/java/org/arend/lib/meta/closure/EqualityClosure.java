@@ -33,7 +33,12 @@ public class EqualityClosure<V> implements BinaryRelationClosure<V> {
       return new ArrayList<>();
     }
 
-    for (Pair<V, ConcreteExpression> pair : graph.get(start)) {
+    List<Pair<V, ConcreteExpression>> pairs = graph.get(start);
+    if (pairs == null) {
+      return null;
+    }
+
+    for (Pair<V, ConcreteExpression> pair : pairs) {
       List<ConcreteExpression> path = findPath(pair.proj1, end, visited);
       if (path != null) {
         path.add(pair.proj2);

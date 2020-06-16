@@ -15,7 +15,7 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
-import org.arend.lib.util.ContextHelper;
+import org.arend.lib.context.ContextHelper;
 import org.arend.lib.util.Maybe;
 import org.arend.lib.util.Utils;
 import org.arend.lib.error.AlgebraSolverError;

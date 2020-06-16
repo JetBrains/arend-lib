@@ -123,7 +123,7 @@ public class StdLevelProver implements LevelProver {
         }
 
         // We need a meta here because the context changes and we use it in both proveProp and ContradictionMeta.check
-        clauses.add(factory.clause(Arrays.asList(factory.conPattern(con1.constructor.getRef(), subPatterns1), factory.conPattern(con2.constructor.getRef(), subPatterns2)), factory.meta("case " + con1.constructor.getName() + " " + con2.constructor.getName(), new MetaDefinition() {
+        clauses.add(factory.clause(Arrays.asList(factory.conPattern(con1.constructor.getRef(), subPatterns1), factory.conPattern(con2.constructor.getRef(), subPatterns2)), factory.meta("case_" + con1.constructor.getName() + "_" + con2.constructor.getName(), new MetaDefinition() {
           @Override
           public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
             ConcreteExpression result;
