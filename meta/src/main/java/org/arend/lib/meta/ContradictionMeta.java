@@ -11,6 +11,7 @@ import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -135,7 +136,11 @@ public class ContradictionMeta extends BaseMetaDefinition {
   }
 
   private boolean isAppropriateDataCall(CoreExpression type) {
-    return type instanceof CoreDataCallExpression && ((CoreDataCallExpression) type).getDefinition() != ext.prelude.getPath() && ((CoreDataCallExpression) type).getDefinition().getRecursiveDefinitions().isEmpty();
+    if (!(type instanceof CoreDataCallExpression)) {
+      return false;
+    }
+    CoreDataDefinition dataDef = ((CoreDataCallExpression) type).getDefinition();
+    return dataDef != ext.prelude.getPath() && dataDef != ext.prelude.getInterval() && dataDef.getRecursiveDefinitions().isEmpty();
   }
 
   private void makeNegationData(Deque<CoreParameter> parameters, CoreExpression codomain, NegationData negationData, List<NegationData> result) {
