@@ -76,9 +76,9 @@ public class ContradictionMeta extends BaseMetaDefinition {
   private static class Negation {
     final List<RType> assumptions;
     final CoreExpression type;
-    final Function<List<ConcreteExpression>, ConcreteExpression> proof;
+    final Function<Deque<ConcreteExpression>, ConcreteExpression> proof;
 
-    private Negation(List<RType> assumptions, CoreExpression type, Function<List<ConcreteExpression>, ConcreteExpression> proof) {
+    private Negation(List<RType> assumptions, CoreExpression type, Function<Deque<ConcreteExpression>, ConcreteExpression> proof) {
       this.assumptions = assumptions;
       this.type = type;
       this.proof = proof;
@@ -88,6 +88,92 @@ public class ContradictionMeta extends BaseMetaDefinition {
   private static RType makeRType(CoreBinding binding, CoreExpression paramType) {
     CoreFunCallExpression equality = paramType.toEquality();
     return equality != null ? new EqType(binding, equality, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2)) : new RType(binding, paramType);
+  }
+
+  private static class NegationData {
+    final List<RType> types;
+    final Deque<Object> instructions; // either CoreConstructor or not; the latter indicates a variable
+
+    NegationData(List<RType> types, Deque<Object> instructions) {
+      this.types = types;
+      this.instructions = instructions;
+    }
+
+    private ConcreteExpression makeExpression(Deque<ConcreteExpression> arguments, CoreConstructor constructor, ConcreteFactory factory) {
+      List<ConcreteArgument> args = new ArrayList<>();
+      CoreParameter param = constructor.getParameters();
+      if (param.hasNext() && !param.isExplicit()) {
+        for (CoreParameter dataParam = constructor.getDataType().getParameters(); dataParam.hasNext(); dataParam = dataParam.getNext()) {
+          args.add(factory.arg(factory.hole(), false));
+        }
+      }
+      for (; param.hasNext(); param = param.getNext()) {
+        Object con = instructions.removeFirst();
+        if (con instanceof CoreConstructor) {
+          args.add(factory.arg(makeExpression(arguments, (CoreConstructor) con, factory), param.isExplicit()));
+        } else {
+          args.add(factory.arg(arguments.removeFirst(), param.isExplicit()));
+        }
+      }
+      return factory.app(factory.ref(constructor.getRef()), args);
+    }
+
+    Negation make(List<CoreParameter> parameters, CoreExpression codomain, ConcreteExpression proof, ConcreteFactory factory) {
+      return new Negation(types, codomain, arguments -> {
+        List<ConcreteArgument> args = new ArrayList<>();
+        for (CoreParameter param : parameters) {
+          Object con = instructions.removeFirst();
+          if (con instanceof CoreConstructor) {
+            args.add(factory.arg(makeExpression(arguments, (CoreConstructor) con, factory), param.isExplicit()));
+          } else {
+            args.add(factory.arg(arguments.removeFirst(), param.isExplicit()));
+          }
+        }
+        return factory.app(proof, args);
+      });
+    }
+  }
+
+  private boolean isAppropriateDataCall(CoreExpression type) {
+    return type instanceof CoreDataCallExpression && ((CoreDataCallExpression) type).getDefinition() != ext.prelude.getPath() && ((CoreDataCallExpression) type).getDefinition().getRecursiveDefinitions().isEmpty();
+  }
+
+  private void makeNegationData(Deque<CoreParameter> parameters, CoreExpression codomain, NegationData negationData, List<NegationData> result) {
+    while (!parameters.isEmpty()) {
+      CoreParameter parameter = parameters.removeFirst();
+      CoreExpression type = parameter.getTypeExpr().normalize(NormalizationMode.WHNF);
+      List<CoreDataCallExpression.ConstructorWithParameters> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithParameters() : null;
+      if (constructors != null) {
+        boolean ok = codomain == null || !codomain.findFreeBinding(parameter.getBinding());
+        if (ok) {
+          for (CoreParameter param : parameters) {
+            if (param.getTypeExpr().findFreeBinding(parameter.getBinding())) {
+              ok = false;
+              break;
+            }
+          }
+        }
+        if (ok) {
+          for (CoreDataCallExpression.ConstructorWithParameters constructor : constructors) {
+            NegationData conData = new NegationData(new ArrayList<>(negationData.types), new ArrayDeque<>(negationData.instructions));
+            conData.instructions.addLast(constructor.constructor);
+            List<CoreParameter> conParams = new ArrayList<>();
+            for (CoreParameter conParam = constructor.parameters; conParam.hasNext(); conParam = conParam.getNext()) {
+              conParams.add(conParam);
+            }
+            for (int i = conParams.size() - 1; i >= 0; i--) {
+              parameters.addFirst(conParams.get(i));
+            }
+            makeNegationData(parameters, null, conData, result);
+          }
+          return;
+        }
+      }
+
+      negationData.types.add(makeRType(parameter.getBinding(), type));
+      negationData.instructions.addLast(Boolean.TRUE); // it doesn't matter what we add here
+    }
+    result.add(negationData);
   }
 
   public boolean makeNegation(CoreExpression type, ConcreteExpression proof, ConcreteFactory factory, List<Negation> negations) {
@@ -100,17 +186,11 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
 
     if (isEmpty(type)) {
-      List<RType> types = new ArrayList<>(parameters.size());
-      for (CoreParameter parameter : parameters) {
-        types.add(makeRType(parameter.getBinding(), parameter.getTypeExpr().normalize(NormalizationMode.WHNF)));
+      List<NegationData> negationDataList = new ArrayList<>();
+      makeNegationData(new ArrayDeque<>(parameters), type, new NegationData(new ArrayList<>(), new ArrayDeque<>()), negationDataList);
+      for (NegationData negationData : negationDataList) {
+        negations.add(negationData.make(parameters, type, proof, factory));
       }
-      negations.add(new Negation(types, type, arguments -> {
-        List<ConcreteArgument> args = new ArrayList<>(arguments.size());
-        for (int i = 0; i < arguments.size(); i++) {
-          args.add(factory.arg(arguments.get(i), parameters.get(i).isExplicit()));
-        }
-        return factory.app(proof, args);
-      }));
       return true;
     } else if (type instanceof CoreAppExpression) {
       CoreAppExpression app2 = (CoreAppExpression) type;
@@ -130,7 +210,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
               if (irrParams.get(0).isExplicit()) {
                 irrArgs.add(factory.arg(factory.hole(), true));
               }
-              irrArgs.add(factory.arg(factory.app(factory.ref(ext.transportInv.getRef()), true, Arrays.asList(factory.core(app1.computeTyped()), args.get(0), proof)), irrParams.get(1).isExplicit()));
+              irrArgs.add(factory.arg(factory.app(factory.ref(ext.transportInv.getRef()), true, Arrays.asList(factory.core(app1.computeTyped()), args.getFirst(), proof)), irrParams.get(1).isExplicit()));
               return factory.app(factory.ref(irreflexivity.getRef()), irrArgs);
             }));
             return true;
@@ -177,13 +257,13 @@ public class ContradictionMeta extends BaseMetaDefinition {
       boolean searchForContradiction = negations.isEmpty();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
         type = binding.getTypeExpr().normalize(NormalizationMode.WHNF);
-        List<CoreDataCallExpression.ConstructorWithParameters> constructors = type instanceof CoreDataCallExpression ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithParameters() : null;
+        List<CoreDataCallExpression.ConstructorWithParameters> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithParameters() : null;
         if (constructors != null && constructors.isEmpty()) {
           contr = factory.ref(binding);
           break;
         }
 
-        if (constructors != null && ((CoreDataCallExpression) type).getDefinition() != ext.prelude.getPath() && ((CoreDataCallExpression) type).getDefinition().getRecursiveDefinitions().isEmpty()) {
+        if (constructors != null) {
           contr = factory.ref(binding);
           for (CoreDataCallExpression.ConstructorWithParameters con : constructors) {
             List<ConcretePattern> subPatterns = new ArrayList<>();
@@ -193,7 +273,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
             clauses.add(factory.clause(Collections.singletonList(factory.conPattern(con.constructor.getRef(), subPatterns)), factory.meta("case_" + con.constructor.getName(), new MetaDefinition() {
               @Override
               public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-                ConcreteExpression result = check(new HidingContext(context, Collections.singleton(binding)), null, null, true, marker, typechecker);
+                ConcreteExpression result = check(HidingContext.make(context, Collections.singleton(binding)), null, null, true, marker, typechecker);
                 return result == null ? null : typechecker.typecheck(result, contextData.getExpectedType());
               }
             })));
@@ -216,7 +296,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
       if (contr == null) {
         loop:
         for (Negation negation : negations) {
-          List<ConcreteExpression> arguments = new ArrayList<>();
+          Deque<ConcreteExpression> arguments = new ArrayDeque<>();
           Map<CoreBinding, CoreExpression> subst = new HashMap<>();
           for (int i = 0; i < negation.assumptions.size(); i++) {
             RType assumption = negation.assumptions.get(i);
