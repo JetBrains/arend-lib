@@ -2,26 +2,31 @@ package org.arend.lib.meta.closure;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.lib.StdExtension;
 import org.arend.lib.util.Pair;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class EqualityClosure<V> implements BinaryRelationClosure<V> {
-  private final StdExtension ext;
-  private final ConcreteFactory factory;
-  private final Map<V, List<Pair<V, ConcreteExpression>>> graph = new HashMap<>();
+public class EquivalenceClosure<V> implements BinaryRelationClosure<V> {
+  protected final ConcreteExpression refl;
+  protected final ConcreteExpression sym;
+  protected final ConcreteExpression trans;
+  protected final ConcreteFactory factory;
+  protected final Map<V, List<Pair<V, ConcreteExpression>>> graph = new HashMap<>();
 
-  public EqualityClosure(StdExtension ext, ConcreteFactory factory) {
-    this.ext = ext;
+  public EquivalenceClosure(ConcreteExpression refl, ConcreteExpression sym, ConcreteExpression trans, ConcreteFactory factory) {
+    this.refl = refl;
+    this.sym = sym;
+    this.trans = trans;
     this.factory = factory;
   }
 
   @Override
   public void addRelation(V value1, V value2, ConcreteExpression proof) {
     graph.computeIfAbsent(value1, v -> new ArrayList<>()).add(new Pair<>(value2, proof));
-    graph.computeIfAbsent(value2, v -> new ArrayList<>()).add(new Pair<>(value1, factory.app(factory.ref(ext.inv.getRef()), true, Collections.singletonList(proof))));
+    if (sym != null) {
+      graph.computeIfAbsent(value2, v -> new ArrayList<>()).add(new Pair<>(value1, factory.app(sym, true, Collections.singletonList(proof))));
+    }
   }
 
   private List<ConcreteExpression> findPath(V start, V end, Set<V> visited) {
@@ -49,21 +54,24 @@ public class EqualityClosure<V> implements BinaryRelationClosure<V> {
     return null;
   }
 
-  @Override
-  public @Nullable ConcreteExpression checkRelation(V value1, V value2) {
-    if (value1.equals(value2)) {
-      return factory.ref(ext.prelude.getIdp().getRef());
-    }
-
-    List<ConcreteExpression> path = findPath(value1, value2, new HashSet<>());
+  protected ConcreteExpression pathToExpr(List<ConcreteExpression> path) {
     if (path == null) {
       return null;
     }
 
+    if (path.isEmpty()) {
+      return refl;
+    }
+
     ConcreteExpression result = null;
     for (ConcreteExpression proof : path) {
-      result = result == null ? proof : factory.app(factory.ref(ext.concat.getRef()), true, Arrays.asList(proof, result));
+      result = result == null ? proof : factory.app(trans, true, Arrays.asList(proof, result));
     }
     return result;
+  }
+
+  @Override
+  public @Nullable ConcreteExpression checkRelation(V value1, V value2) {
+    return pathToExpr(findPath(value1, value2, new HashSet<>()));
   }
 }

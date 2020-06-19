@@ -75,7 +75,7 @@ public class EquationMeta extends BaseMetaDefinition {
     EquationSolver solver = null;
     if (contextData.getExpectedType() != null) {
       CoreExpression type = contextData.getExpectedType().normalize(NormalizationMode.WHNF);
-      final List<EquationSolver> solvers = Arrays.asList(new EqualitySolver(this, typechecker, factory, refExpr), new EquivSolver(this, typechecker, factory));
+      final List<EquationSolver> solvers = Arrays.asList(new EqualitySolver(this, typechecker, factory, refExpr), new EquivSolver(this, typechecker, factory), new TransitivitySolver(this, typechecker, factory, refExpr));
       for (EquationSolver eqSolver : solvers) {
         if (eqSolver.isApplicable(type)) {
           solver = eqSolver;

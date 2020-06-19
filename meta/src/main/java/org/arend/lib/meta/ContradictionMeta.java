@@ -9,7 +9,6 @@ import org.arend.ext.concrete.expr.ConcreteCaseExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
-import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.expr.*;
@@ -21,7 +20,8 @@ import org.arend.lib.StdExtension;
 import org.arend.lib.context.Context;
 import org.arend.lib.context.HidingContext;
 import org.arend.lib.error.TypeError;
-import org.arend.lib.meta.closure.EqualityClosure;
+import org.arend.lib.key.FieldKey;
+import org.arend.lib.meta.closure.EquivalenceClosure;
 import org.arend.lib.meta.closure.ValuesRelationClosure;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.util.Utils;
@@ -203,10 +203,10 @@ public class ContradictionMeta extends BaseMetaDefinition {
         CoreAppExpression app1 = (CoreAppExpression) app2.getFunction();
         CoreExpression fun = app1.getFunction().normalize(NormalizationMode.WHNF);
         if (fun instanceof CoreFieldCallExpression) {
-          CoreClassField irreflexivity = ((CoreFieldCallExpression) fun).getDefinition().getUserData(ext.irreflexivityKey);
-          if (irreflexivity != null) {
+          FieldKey.Data irreflexivityData = ((CoreFieldCallExpression) fun).getDefinition().getUserData(ext.irreflexivityKey);
+          if (irreflexivityData != null) {
             List<CoreParameter> irrParams = new ArrayList<>(2);
-            CoreExpression irrCodomain = irreflexivity.getResultType().getPiParameters(irrParams);
+            CoreExpression irrCodomain = irreflexivityData.field.getResultType().getPiParameters(irrParams);
             if (irrParams.size() != 2) { // This shouldn't happen
               return false;
             }
@@ -216,7 +216,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
                 irrArgs.add(factory.arg(factory.hole(), true));
               }
               irrArgs.add(factory.arg(factory.app(factory.ref(ext.transportInv.getRef()), true, Arrays.asList(factory.core(app1.computeTyped()), args.getFirst(), proof)), irrParams.get(1).isExplicit()));
-              return factory.app(factory.ref(irreflexivity.getRef()), irrArgs);
+              return factory.app(factory.ref(irreflexivityData.field.getRef()), irrArgs);
             }));
             return true;
           }
@@ -256,7 +256,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
 
     if (contr == null) {
-      ValuesRelationClosure closure = new ValuesRelationClosure(new Values<>(typechecker, marker), new EqualityClosure<>(ext, factory));
+      ValuesRelationClosure closure = new ValuesRelationClosure(new Values<>(typechecker, marker), new EquivalenceClosure<>(factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef()), factory));
       Values<CoreExpression> typeValues = new Values<>(typechecker, marker);
       Map<Integer, RType> assumptions = new HashMap<>();
       boolean searchForContradiction = negations.isEmpty();

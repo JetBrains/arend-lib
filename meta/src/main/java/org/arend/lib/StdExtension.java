@@ -15,6 +15,8 @@ import org.arend.ext.ui.ArendUI;
 import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.goal.StdGoalSolver;
 import org.arend.lib.key.IrreflexivityKey;
+import org.arend.lib.key.ReflexivityKey;
+import org.arend.lib.key.TransitivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
 
@@ -31,6 +33,8 @@ public class StdExtension implements ArendExtension {
   public VariableRenamerFactory renamerFactory;
 
   public final IrreflexivityKey irreflexivityKey = new IrreflexivityKey("irreflexivity", this);
+  public final TransitivityKey transitivityKey = new TransitivityKey("transitivity", this);
+  public final ReflexivityKey reflexivityKey = new ReflexivityKey("reflexivity", this);
 
   @Dependency(module = "Paths")              public CoreFunctionDefinition transport;
   @Dependency(module = "Paths")              public CoreFunctionDefinition transportInv;
