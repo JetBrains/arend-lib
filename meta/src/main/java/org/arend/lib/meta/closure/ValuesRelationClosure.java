@@ -5,8 +5,8 @@ import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.lib.util.Values;
 
 public class ValuesRelationClosure implements BinaryRelationClosure<UncheckedExpression> {
-  private final Values<UncheckedExpression> values;
-  private final BinaryRelationClosure<Integer> closure;
+  public final Values<UncheckedExpression> values;
+  public final BinaryRelationClosure<Integer> closure;
 
   public ValuesRelationClosure(Values<UncheckedExpression> values, BinaryRelationClosure<Integer> closure) {
     this.values = values;

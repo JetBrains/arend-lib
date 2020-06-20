@@ -9,6 +9,7 @@ import org.arend.ext.concrete.expr.ConcreteCaseExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.core.expr.*;
@@ -21,6 +22,7 @@ import org.arend.lib.context.Context;
 import org.arend.lib.context.HidingContext;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.key.FieldKey;
+import org.arend.lib.meta.closure.BinaryRelationClosure;
 import org.arend.lib.meta.closure.EquivalenceClosure;
 import org.arend.lib.meta.closure.ValuesRelationClosure;
 import org.arend.lib.context.ContextHelper;
@@ -181,7 +183,19 @@ public class ContradictionMeta extends BaseMetaDefinition {
     result.add(negationData);
   }
 
-  public boolean makeNegation(CoreExpression type, ConcreteExpression proof, ConcreteFactory factory, List<Negation> negations) {
+  private static class TransData {
+    final CoreAppExpression leftApp;
+    final int rightArg;
+    final ConcreteExpression proof;
+
+    private TransData(CoreAppExpression leftApp, int rightArg, ConcreteExpression proof) {
+      this.leftApp = leftApp;
+      this.rightArg = rightArg;
+      this.proof = proof;
+    }
+  }
+
+  private boolean makeNegation(CoreExpression type, ConcreteExpression proof, ConcreteFactory factory, List<Negation> negations, Values<UncheckedExpression> values, Map<CoreClassField, Map<Integer, List<TransData>>> transGraphs) {
     List<CoreParameter> parameters;
     if (type instanceof CorePiExpression) {
       parameters = new ArrayList<>();
@@ -203,8 +217,14 @@ public class ContradictionMeta extends BaseMetaDefinition {
         CoreAppExpression app1 = (CoreAppExpression) app2.getFunction();
         CoreExpression fun = app1.getFunction().normalize(NormalizationMode.WHNF);
         if (fun instanceof CoreFieldCallExpression) {
-          FieldKey.Data irreflexivityData = ((CoreFieldCallExpression) fun).getDefinition().getUserData(ext.irreflexivityKey);
+          CoreClassField field = ((CoreFieldCallExpression) fun).getDefinition();
+          FieldKey.Data irreflexivityData = field.getUserData(ext.irreflexivityKey);
           if (irreflexivityData != null) {
+            if (field.getUserData(ext.transitivityKey) != null) {
+              transGraphs.computeIfAbsent(field, f -> new HashMap<>()).computeIfAbsent(values.addValue(app1.getArgument()), i -> new ArrayList<>()).add(new TransData(app1, values.addValue(app2.getArgument()), proof));
+              return true;
+            }
+
             List<CoreParameter> irrParams = new ArrayList<>(2);
             CoreExpression irrCodomain = irreflexivityData.field.getResultType().getPiParameters(irrParams);
             if (irrParams.size() != 2) { // This shouldn't happen
@@ -237,6 +257,8 @@ public class ContradictionMeta extends BaseMetaDefinition {
 
     CoreExpression type = null;
     ConcreteExpression contr = null;
+    Values<UncheckedExpression> values = new Values<>(typechecker, marker);
+    Map<CoreClassField, Map<Integer, List<TransData>>> transGraphs = new HashMap<>();
     List<Negation> negations = new ArrayList<>();
     List<ConcreteClause> clauses = new ArrayList<>();
     if (argument != null && contextHelper.meta == null) {
@@ -248,7 +270,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
       if (isEmpty(type)) {
         contr = factory.core(contradiction);
       } else {
-        if (!makeNegation(type, factory.core(contradiction), factory, negations)) {
+        if (!makeNegation(type, factory.core(contradiction), factory, negations, values, transGraphs)) {
           typechecker.getErrorReporter().report(new TypeError("The expression does not prove a contradiction", type, argument));
           return null;
         }
@@ -256,10 +278,10 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
 
     if (contr == null) {
-      ValuesRelationClosure closure = new ValuesRelationClosure(new Values<>(typechecker, marker), new EquivalenceClosure<>(factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef()), factory));
+      ValuesRelationClosure closure = new ValuesRelationClosure(values, new EquivalenceClosure<>(factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef()), factory));
       Values<CoreExpression> typeValues = new Values<>(typechecker, marker);
       Map<Integer, RType> assumptions = new HashMap<>();
-      boolean searchForContradiction = negations.isEmpty();
+      boolean searchForContradiction = negations.isEmpty() && transGraphs.isEmpty();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
         type = binding.getTypeExpr().normalize(NormalizationMode.WHNF);
         List<CoreDataCallExpression.ConstructorWithParameters> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithParameters() : null;
@@ -294,7 +316,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
           prev = assumptions.putIfAbsent(typeValues.addValue(type), rType);
         }
         if (searchForContradiction && prev == null) {
-          makeNegation(type, factory.ref(binding), factory, negations);
+          makeNegation(type, factory.ref(binding), factory, negations, values, transGraphs);
         }
       }
 
@@ -335,7 +357,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
                   continue loop;
                 }
               } else {
-                int index = typeValues.getValue(assumption.type.substitute(subst));
+                int index = typeValues.getIndex(assumption.type.substitute(subst));
                 if (index == -1) {
                   continue loop;
                 }
@@ -352,6 +374,47 @@ public class ContradictionMeta extends BaseMetaDefinition {
         }
 
         if (contr == null) {
+          loop:
+          for (Map.Entry<CoreClassField, Map<Integer, List<TransData>>> entry : transGraphs.entrySet()) {
+            for (Integer index : entry.getValue().keySet()) {
+              Set<Integer> visited = new HashSet<>();
+              List<TransData> transDataList = new ArrayList<>();
+              Object eqProof = findContradiction(closure.closure, entry.getValue(), index, index, visited, transDataList);
+              if (eqProof != null) {
+                ConcreteExpression transProof = transDataList.get(0).proof;
+                FieldKey.Data transitivityData = Objects.requireNonNull(entry.getKey().getUserData(ext.transitivityKey));
+                for (int i = 1; i < transDataList.size(); i++) {
+                  List<ConcreteArgument> args = new ArrayList<>(5);
+                  for (int j = 0; j < 3; j++) {
+                    if (transitivityData.parametersExplicitness.get(j)) {
+                      args.add(factory.arg(factory.hole(), true));
+                    }
+                  }
+                  args.add(factory.arg(transDataList.get(i).proof, transitivityData.parametersExplicitness.get(3)));
+                  args.add(factory.arg(transProof, transitivityData.parametersExplicitness.get(4)));
+                  transProof = factory.app(factory.ref(transitivityData.field.getRef()), args);
+                }
+
+                if (eqProof instanceof ConcreteExpression) {
+                  transProof = factory.app(factory.ref(ext.transportInv.getRef()), true, Arrays.asList(factory.core(transDataList.get(transDataList.size() - 1).leftApp.computeTyped()), (ConcreteExpression) eqProof, transProof));
+                }
+
+                List<CoreParameter> irrParams = new ArrayList<>(2);
+                FieldKey.Data irreflexivityData = Objects.requireNonNull(entry.getKey().getUserData(ext.irreflexivityKey));
+                type = irreflexivityData.field.getResultType().getPiParameters(irrParams);
+                List<ConcreteArgument> irrArgs = new ArrayList<>(2);
+                if (irrParams.get(0).isExplicit()) {
+                  irrArgs.add(factory.arg(factory.hole(), true));
+                }
+                irrArgs.add(factory.arg(transProof, irrParams.get(1).isExplicit()));
+                contr = factory.app(factory.ref(irreflexivityData.field.getRef()), irrArgs);
+                break loop;
+              }
+            }
+          }
+        }
+
+        if (contr == null) {
           typechecker.getErrorReporter().report(new TypecheckingError("Cannot infer contradiction", marker));
           return null;
         }
@@ -359,6 +422,37 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
 
     return expectedType != null && expectedType.compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), withExpectedType ? null : factory.ref(ext.Empty.getRef()), null, clauses);
+  }
+
+  private Object findContradiction(BinaryRelationClosure<Integer> closure, Map<Integer, List<TransData>> map, int index, int startIndex, Set<Integer> visited, List<TransData> result) {
+    if (!visited.add(index)) {
+      return null;
+    }
+
+    List<TransData> transDataList = map.get(index);
+    if (transDataList == null) {
+      return null;
+    }
+
+    for (TransData transData : transDataList) {
+      if (startIndex == transData.rightArg) {
+        result.add(transData);
+        return true;
+      }
+      Object resultExpr = closure.checkRelation(startIndex, transData.rightArg);
+      if (resultExpr != null) {
+        result.add(transData);
+        return resultExpr;
+      }
+
+      resultExpr = findContradiction(closure, map, transData.rightArg, startIndex, visited, result);
+      if (resultExpr != null) {
+        result.add(transData);
+        return resultExpr;
+      }
+    }
+
+    return null;
   }
 
   public static boolean isEmpty(CoreExpression type) {

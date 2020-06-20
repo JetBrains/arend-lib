@@ -19,7 +19,7 @@ public class Values<E extends UncheckedExpression> {
   }
 
   public int addValue(E value) {
-    int index = getValue(value);
+    int index = getIndex(value);
     if (index == -1) {
       values.add(value);
       return values.size() - 1;
@@ -28,13 +28,17 @@ public class Values<E extends UncheckedExpression> {
     }
   }
 
-  public int getValue(UncheckedExpression value) {
+  public int getIndex(UncheckedExpression value) {
     for (int i = 0; i < values.size(); i++) {
       if (typechecker != null ? typechecker.compare(value, values.get(i), CMP.EQ, marker, false, true) : value.compare(values.get(i), CMP.EQ)) {
         return i;
       }
     }
     return -1;
+  }
+
+  public E getValue(int index) {
+    return values.get(index);
   }
 
   public List<E> getValues() {
