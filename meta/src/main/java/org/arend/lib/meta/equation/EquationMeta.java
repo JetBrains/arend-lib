@@ -2,10 +2,7 @@ package org.arend.lib.meta.equation;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
-import org.arend.ext.core.definition.CoreClassDefinition;
-import org.arend.ext.core.definition.CoreClassField;
-import org.arend.ext.core.definition.CoreConstructor;
-import org.arend.ext.core.definition.CoreFunctionDefinition;
+import org.arend.ext.core.definition.*;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -58,6 +55,18 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Equiv", name = "Map.B") CoreClassField equivRight;
   @Dependency(module = "Equiv")                 CoreFunctionDefinition idEquiv;
   @Dependency(module = "Equiv")                 CoreFunctionDefinition transEquiv;
+
+  public static class TransitivityInstanceCache {
+    public final CoreFunctionDefinition instance;
+    public final CoreClassField relationField;
+
+    public TransitivityInstanceCache(CoreFunctionDefinition instance, CoreClassField relationField) {
+      this.instance = instance;
+      this.relationField = relationField;
+    }
+  }
+
+  public final Map<CoreDefinition, TransitivityInstanceCache> transitivityInstanceCache = new HashMap<>();
 
   public EquationMeta(StdExtension ext) {
     this.ext = ext;

@@ -4,27 +4,28 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
-import org.arend.ext.core.expr.CoreAppExpression;
-import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.expr.CoreFieldCallExpression;
-import org.arend.ext.core.expr.UncheckedExpression;
+import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreClassDefinition;
+import org.arend.ext.core.definition.CoreClassField;
+import org.arend.ext.core.definition.CoreDefinition;
+import org.arend.ext.core.definition.CoreFunctionDefinition;
+import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.key.FieldKey;
 import org.arend.lib.meta.closure.EquivalenceClosure;
 import org.arend.lib.meta.closure.ValuesRelationClosure;
+import org.arend.lib.util.Lazy;
 import org.arend.lib.util.Maybe;
 import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class TransitivitySolver implements EquationSolver {
   private final EquationMeta meta;
@@ -32,13 +33,14 @@ public class TransitivitySolver implements EquationSolver {
   private final ConcreteFactory factory;
   private final ConcreteExpression refExpr;
 
-  private ConcreteExpression relation;
+  private Lazy<ConcreteExpression> relation;
   private FieldKey.Data reflFieldData;
   private FieldKey.Data transFieldData;
   private ConcreteExpression trans;
-  private CoreExpression valuesType;
+  private Lazy<CoreExpression> valuesType;
   private CoreExpression leftValue;
   private CoreExpression rightValue;
+  private CoreDefinition instanceDefinition;
 
   private Values<UncheckedExpression> values;
 
@@ -50,18 +52,39 @@ public class TransitivitySolver implements EquationSolver {
   }
 
   private static class RelationData {
-    final CoreFieldCallExpression fieldCall;
+    final CoreDefCallExpression defCall;
     final CoreExpression leftExpr;
     final CoreExpression rightExpr;
 
-    private RelationData(CoreFieldCallExpression fieldCall, CoreExpression leftExpr, CoreExpression rightExpr) {
-      this.fieldCall = fieldCall;
+    private RelationData(CoreDefCallExpression defCall, CoreExpression leftExpr, CoreExpression rightExpr) {
+      this.defCall = defCall;
       this.leftExpr = leftExpr;
       this.rightExpr = rightExpr;
     }
   }
 
   private RelationData getRelationData(CoreExpression type) {
+    if (type instanceof CoreDefCallExpression) {
+      CoreDefCallExpression defCall = (CoreDefCallExpression) type;
+      if (instanceDefinition != null && defCall.getDefinition() != instanceDefinition) {
+        return null;
+      }
+
+      if (defCall instanceof CoreClassCallExpression) {
+        var impls = ((CoreClassCallExpression) defCall).getImplementations();
+        if (impls.size() != 2) {
+          return null;
+        }
+        var it = impls.iterator();
+        return new RelationData(defCall, it.next().getValue(), it.next().getValue());
+      } else {
+        if (defCall.getDefCallArguments().size() != 2) {
+          return null;
+        }
+        return new RelationData(defCall, defCall.getDefCallArguments().get(0), defCall.getDefCallArguments().get(1));
+      }
+    }
+
     if (!(type instanceof CoreAppExpression)) {
       return null;
     }
@@ -81,6 +104,65 @@ public class TransitivitySolver implements EquationSolver {
     return new RelationData((CoreFieldCallExpression) fun1, app1.getArgument(), app2.getArgument());
   }
 
+  private class MyInstanceSearchParameters implements InstanceSearchParameters {
+    private final CoreDefinition definition;
+    private CoreClassField relationField;
+
+    private MyInstanceSearchParameters(CoreDefinition definition) {
+      this.definition = definition;
+    }
+
+    @Override
+    public boolean searchLocal() {
+      return false;
+    }
+
+    @Override
+    public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
+      for (CoreClassField field : classDefinition.getFields()) {
+        transFieldData = field.getUserData(meta.ext.transitivityKey);
+        if (transFieldData != null) {
+          relationField = field;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    @Override
+    public boolean testGlobalInstance(@NotNull CoreFunctionDefinition instance) {
+      if (!(instance.getResultType() instanceof CoreClassCallExpression)) {
+        return false;
+      }
+
+      CoreExpression impl = ((CoreClassCallExpression) instance.getResultType()).getAbsImplementationHere(relationField);
+      if (!(impl instanceof CoreLamExpression)) {
+        return false;
+      }
+
+      CoreParameter param1 = ((CoreLamExpression) impl).getParameters();
+      CoreParameter param2 = param1.getNext();
+      CoreExpression body = ((CoreLamExpression) impl).getBody();
+      if (!param2.hasNext()) {
+        if (!(body instanceof CoreLamExpression)) {
+          return false;
+        }
+        param2 = ((CoreLamExpression) body).getParameters();
+        body = ((CoreLamExpression) body).getBody();
+      }
+      if (param2.getNext().hasNext()) {
+        return false;
+      }
+
+      if (!(body instanceof CoreDefCallExpression)) {
+        return false;
+      }
+      CoreDefCallExpression defCall = (CoreDefCallExpression) body;
+      var args = defCall.getDefCallArguments();
+      return defCall.getDefinition() == definition && args.size() == 2 && args.get(0) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(0)).getBinding() == param1.getBinding() && args.get(1) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(1)).getBinding() == param2.getBinding();
+    }
+  }
+
   @Override
   public boolean isApplicable(CoreExpression type) {
     RelationData relationData = getRelationData(type);
@@ -88,9 +170,75 @@ public class TransitivitySolver implements EquationSolver {
       return false;
     }
 
-    transFieldData = relationData.fieldCall.getDefinition().getUserData(meta.ext.transitivityKey);
-    if (transFieldData == null) {
-      return false;
+    if (relationData.defCall instanceof CoreFieldCallExpression) {
+      CoreFieldCallExpression fieldCall = (CoreFieldCallExpression) relationData.defCall;
+      transFieldData = fieldCall.getDefinition().getUserData(meta.ext.transitivityKey);
+      if (transFieldData == null) {
+        return false;
+      }
+
+      reflFieldData = fieldCall.getDefinition().getUserData(meta.ext.reflexivityKey);
+      relation = new Lazy<>(() -> factory.core(fieldCall.computeTyped()));
+      valuesType = new Lazy<>(() -> {
+        TypedExpression instance = fieldCall.getArgument().computeTyped();
+        if (instance.getType() instanceof CoreClassCallExpression) {
+          CoreExpression result = ((CoreClassCallExpression) instance.getType()).getImplementation(meta.carrier, instance);
+          if (result != null) {
+            return result;
+          }
+        }
+        return Objects.requireNonNull(typechecker.typecheck(factory.app(factory.ref(meta.carrier.getRef()), false, Collections.singletonList(factory.core(instance))), null)).getExpression();
+      });
+      leftValue = relationData.leftExpr;
+      rightValue = relationData.rightExpr;
+    } else {
+      CoreDefCallExpression defCall = relationData.defCall;
+      if (defCall instanceof CoreClassCallExpression) {
+        var impls = ((CoreClassCallExpression) defCall).getImplementations();
+        if (impls.size() != 2) {
+          return false;
+        }
+        var it = impls.iterator();
+        leftValue = it.next().getValue();
+        rightValue = it.next().getValue();
+      } else {
+        if (defCall.getDefCallArguments().size() != 2) {
+          return false;
+        }
+        leftValue = defCall.getDefCallArguments().get(0);
+        rightValue = defCall.getDefCallArguments().get(1);
+      }
+
+      EquationMeta.TransitivityInstanceCache cache = meta.transitivityInstanceCache.get(defCall.getDefinition());
+      CoreClassField relationField;
+      TypedExpression instance;
+      if (cache != null) {
+        List<ConcreteExpression> args = new ArrayList<>();
+        for (CoreParameter param = cache.instance.getParameters(); param.hasNext(); param = param.getNext()) {
+          if (param.isExplicit()) {
+            args.add(factory.hole());
+          }
+        }
+        instance = typechecker.typecheck(factory.app(factory.ref(cache.instance.getRef()), true, args), null);
+        relationField = cache.relationField;
+      } else {
+        MyInstanceSearchParameters parameters = new MyInstanceSearchParameters(defCall.getDefinition());
+        instance = typechecker.findInstance(parameters, null, null, refExpr);
+        if (instance != null && instance.getExpression() instanceof CoreFunCallExpression) {
+          meta.transitivityInstanceCache.put(defCall.getDefinition(), new EquationMeta.TransitivityInstanceCache(((CoreFunCallExpression) instance.getExpression()).getDefinition(), parameters.relationField));
+        }
+        relationField = parameters.relationField;
+      }
+
+      if (instance == null || !(instance.getType() instanceof CoreClassCallExpression)) {
+        return false;
+      }
+
+      transFieldData = relationField.getUserData(meta.ext.transitivityKey);
+      reflFieldData = relationField.getUserData(meta.ext.reflexivityKey);
+      relation = new Lazy<>(() -> factory.core(Objects.requireNonNull(((CoreClassCallExpression) instance.getType()).getImplementation(relationField, instance)).computeTyped()));
+      valuesType = new Lazy<>(() -> ((CoreClassCallExpression) instance.getType()).getImplementation(meta.carrier, instance));
+      instanceDefinition = defCall.getDefinition();
     }
 
     List<ConcreteArgument> args = new ArrayList<>(3);
@@ -101,17 +249,12 @@ public class TransitivitySolver implements EquationSolver {
     }
     trans = factory.app(factory.ref(transFieldData.field.getRef()), args);
 
-    reflFieldData = relationData.fieldCall.getDefinition().getUserData(meta.ext.reflexivityKey);
-    relation = factory.core(relationData.fieldCall.computeTyped());
-    valuesType = relationData.fieldCall.getArgument();
-    leftValue = relationData.leftExpr;
-    rightValue = relationData.rightExpr;
     return true;
   }
 
   @Override
   public CoreExpression getValuesType() {
-    return valuesType;
+    return valuesType.get();
   }
 
   @Override
@@ -127,7 +270,7 @@ public class TransitivitySolver implements EquationSolver {
   @Override
   public @Nullable Maybe<CoreExpression> getEqType(@Nullable TypedExpression leftExpr, @Nullable TypedExpression rightExpr) {
     if (leftExpr != null && rightExpr != null) {
-      TypedExpression result = typechecker.typecheck(factory.app(relation, true, Arrays.asList(factory.core(null, leftExpr), factory.core(null, rightExpr))), null);
+      TypedExpression result = typechecker.typecheck(factory.app(relation.get(), true, Arrays.asList(factory.core(null, leftExpr), factory.core(null, rightExpr))), null);
       return result == null ? null : new Maybe<>(result.getExpression());
     } else {
       return new Maybe<>(null);
