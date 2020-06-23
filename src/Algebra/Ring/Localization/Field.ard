@@ -17,19 +17,19 @@
 \lemma localization-inv {R : CRing} (S : MSubset R) (a : SType S) (r : R) (p : contains (a.1 * r)) : Inv (inl~ a)
   => Inv.lmake {LocRing S} (in~ (a.2.1 * r, (a.1 * r, p)))
                (path (~-equiv {SType S} _ _ (
-                 ((a.2.1 * r) * a.1) * ide ==< ide-right _ >==
-                 (a.2.1 * r) * a.1         ==< *-comm _ _ >==
-                 a.1 * (a.2.1 * r)         ==< inv (*-assoc _ _ _) >==
-                 (a.1 * a.2.1) * r         ==< pmap (`* r) (*-comm _ _) >==
-                 (a.2.1 * a.1) * r         ==< *-assoc _ _ _ >==
-                 a.2.1 * (a.1 * r)         ==< *-comm _ _ >==
-                 (a.1 * r) * a.2.1         ==< inv (ide-left _) >==
+                 ((a.2.1 * r) * a.1) * ide ==< ide-right >==
+                 (a.2.1 * r) * a.1         ==< *-comm >==
+                 a.1 * (a.2.1 * r)         ==< inv *-assoc >==
+                 (a.1 * a.2.1) * r         ==< pmap (`* r) *-comm >==
+                 (a.2.1 * a.1) * r         ==< *-assoc >==
+                 a.2.1 * (a.1 * r)         ==< *-comm >==
+                 (a.1 * r) * a.2.1         ==< inv ide-left >==
                  ide * ((a.1 * r) * a.2.1) `qed)))
   \where {
     \lemma converse {R : CRing} (S : MSubset R) (a : SType S) (j : Inv (inl~ a)) : TruncP (\Sigma (r : R) (contains (a.1 * r)))
       => \case j.inv \as i, j.inv-right : inl~ a * i = ide \with {
         | in~ b, p => \case unequals S p \with {
-          | inP (c,cs,q) => inP (b.1 * (ide * c), transport contains (inv q *> *-assoc _ _ _ *> *-assoc _ _ _)
+          | inP (c,cs,q) => inP (b.1 * (ide * c), transport contains (inv q *> *-assoc *> *-assoc)
                                                             (contains_* _ _ (contains_* _ _ contains_ide (contains_* _ _ a.2.2 b.2.2)) cs))
         }
       }
@@ -37,7 +37,7 @@
 
 \lemma localization-zro {R : CRing} (S : MSubset R) (a : SType S) (s : R) (c : contains s) (p : a.1 * s = zro) : inl~ a = zro
   => equals S s c (
-    (a.1 * ide) * s   ==< pmap (`* s) (ide-right a.1) >==
+    (a.1 * ide) * s   ==< pmap (`* s) ide-right >==
     a.1 * s           ==< p >==
     zro               ==< inv (Ring.zro_*-left s) >==
     zro * s           ==< inv (pmap (`* s) (Ring.zro_*-left a.2.1)) >==
@@ -46,10 +46,10 @@
 \lemma localization-nonTrivial {R : CRing} (S : MSubset R) (p : Not (S.contains zro)) : Not (zro = {LocRing S} ide)
   => \case unequals S __ \with {
     | inP (c, s, q) => p (transport contains (
-      c               ==< inv (ide-left c) >==
-      ide * c         ==< inv (pmap (`* c) (ide-left ide)) >==
+      c               ==< inv ide-left >==
+      ide * c         ==< inv (pmap (`* c) ide-left) >==
       (ide * ide) * c ==< inv q >==
-      (zro * ide) * c ==< pmap (`* c) (ide-right zro) >==
+      (zro * ide) * c ==< pmap (`* c) ide-right >==
       zro * c         ==< Ring.zro_*-left c >==
       zro             `qed) s)
   }
@@ -62,7 +62,7 @@
     | in~ x => \case loc x.1 x.2.1 x.2.2 \with {
       | byLeft (r,c) => byLeft (localization-inv S x r c)
       | byRight (r,c) => byRight (localization-inv S (x.1 * ide + ide * x.2.1, (x.2.1 * ide, contains_* x.2.1 ide x.2.2 contains_ide)) r
-                                                   (transport contains (inv (pmap2 ((__ + __) * r) (ide-right x.1) (ide-left x.2.1))) c))
+                                                   (transport contains (inv (pmap2 ((__ + __) * r) ide-right ide-left)) c))
     }
   }
 
@@ -71,7 +71,7 @@
                             (fp : \Pi (x : R) -> (\Pi (r : R) -> Not (contains (x * r))) -> TruncP (\Sigma (s : R) (contains s) (x * s = zro)))
   : Field { | CRing => LocRing S } \cowith
   | LocalCRing => localization-isLocal S nt loc
-  | #0-tight x~ x~-ni => \case \elim x~, x~-ni \with {
+  | #0-tight {x~} x~-ni => \case \elim x~, x~-ni \with {
     | in~ x, x-ni => \case fp x.1 (\lam r c[x*r] => x-ni (localization-inv S x r c[x*r])) \with {
       | inP (s,c,p) => localization-zro S x s c p
     }
@@ -91,17 +91,17 @@
 -- | The localization of an ordering commutative ring at the set of positive elements is an ordered field.
 \func localization-isOrderedField (R : OrderedCRing) : OrderedField \cowith
   | Field => localization-isField (positiveSubset R) zro/>0
-    (\lam x y y>0 => \case <_+-comparison (negative x) (x + y) (transport isPos (inv (inv (+-assoc _ _ _) *> pmap (`+ y) (negative-left x) *> zro-left y)) y>0) \with {
-      | byLeft -x>0 => byLeft (negative ide, transport isPos (inv (Ring.negative_*-right x ide *> pmap negative (ide-right x))) -x>0)
-      | byRight x+y>0 => byRight (ide, transport isPos (inv (ide-right (x + y))) x+y>0)
+    (\lam x y y>0 => \case <_+-comparison (negative x) (x + y) (transport isPos (inv (inv +-assoc *> pmap (`+ y) (negative-left x) *> zro-left)) y>0) \with {
+      | byLeft -x>0 => byLeft (negative ide, transport isPos (inv (Ring.negative_*-right x ide *> pmap negative ide-right)) -x>0)
+      | byRight x+y>0 => byRight (ide, transport isPos (inv ide-right) x+y>0)
     })
-    (\lam x x-ni => inP (ide, ide>zro, ide-right x *>
-      <_+-connectedness x (\lam x>0 => x-ni ide (transport isPos (inv (ide-right x)) x>0))
-                          (\lam -x>0 => x-ni (negative ide) (transport isPos (inv (Ring.negative_*-right x ide *> pmap negative (ide-right x))) -x>0))))
+    (\lam x x-ni => inP (ide, ide>zro, ide-right *>
+      <_+-connectedness (\lam x>0 => x-ni ide (transport isPos (inv ide-right) x>0))
+                        (\lam -x>0 => x-ni (negative ide) (transport isPos (inv (Ring.negative_*-right x ide *> pmap negative ide-right)) -x>0))))
   | isPos => isPositive
   | zro/>0 => zro/>0
-  | positive_+ x~ y~ => \case \elim x~, \elim y~ \with {
-    | in~ x, in~ y => \lam x>0 y>0 => positive_+ _ _ (positive_* x.1 y.2.1 x>0 y.2.2) (positive_* y.1 x.2.1 y>0 x.2.2)
+  | positive_+ {x~} {y~} => \case \elim x~, \elim y~ \with {
+    | in~ x, in~ y => \lam x>0 y>0 => positive_+ (positive_* x>0 y.2.2) (positive_* y>0 x.2.2)
   }
   | ide>zro => ide>zro
   | <_+-comparison x~ y~ => \case \elim x~, \elim y~ \with {
@@ -109,38 +109,38 @@
                                            (OrderedRing.positive_*-cancel-left __ x.2.2)
                                            (<_+-comparison _ _ x+y>0)
   }
-  | <_+-connectedness x~ => \case \elim x~ \with {
-    | in~ x => \lam x/>0 -x/>0 => localization-zro (positiveSubset R) x ide ide>zro (ide-right x.1 *> <_+-connectedness x.1 x/>0 -x/>0)
+  | <_+-connectedness {x~} => \case \elim x~ \with {
+    | in~ x => \lam x/>0 -x/>0 => localization-zro (positiveSubset R) x ide ide>zro (ide-right *> <_+-connectedness x/>0 -x/>0)
   }
-  | positive_* x~ y~ => \case \elim x~, \elim y~ \with {
-    | in~ x, in~ y => positive_* x.1 y.1
+  | positive_* {x~} {y~} => \case \elim x~, \elim y~ \with {
+    | in~ x, in~ y => positive_* {_} {x.1} {y.1}
   }
-  | positive=>#0 x~ => \case \elim x~ \with {
-    | in~ x => \lam x>0 => localization-inv (positiveSubset R) x ide (transport isPos (inv (ide-right x.1)) x>0)
+  | positive=>#0 {x~} => \case \elim x~ \with {
+    | in~ x => \lam x>0 => localization-inv (positiveSubset R) x ide (transport isPos (inv ide-right) x>0)
   }
-  | #0=>eitherPosOrNeg x~ => \case \elim x~ \with {
+  | #0=>eitherPosOrNeg {x~} => \case \elim x~ \with {
     | in~ x => \case localization-inv.converse (positiveSubset R) x __ \with {
-      | inP (r, x*r>0) => ||.map __.1 __.1 (positive_*-cancel x.1 r x*r>0)
+      | inP (r, x*r>0) => ||.map __.1 __.1 (positive_*-cancel x*r>0)
     }
   }
   \where {
     \func positiveSubset (R : OrderedCRing) : MSubset R \cowith
       | contains => isPos
       | contains_ide => ide>zro
-      | contains_* => positive_*
+      | contains_* _ _ => positive_*
 
     \func isPositive {R : OrderedCRing} (x : Type (positiveSubset R)) : \Prop \elim x
       | in~ x => isPos x.1
       | ~-equiv x y x~y i => propExt {isPos x.1} {isPos y.1}
-          (\lam x>0 => OrderedRing.positive_*-cancel-left (transport isPos x~y (positive_* x.1 y.2.1 x>0 y.2.2)) x.2.2)
-          (\lam y>0 => OrderedRing.positive_*-cancel-left (transport isPos (inv x~y) (positive_* y.1 x.2.1 y>0 x.2.2)) y.2.2) @ i
+          (\lam x>0 => OrderedRing.positive_*-cancel-left (transport isPos x~y (positive_* x>0 y.2.2)) x.2.2)
+          (\lam y>0 => OrderedRing.positive_*-cancel-left (transport isPos (inv x~y) (positive_* y>0 x.2.2)) y.2.2) @ i
   }
 
 -- | The localization of a decidable ordered commutative ring at the set of positive elements is a discrete ordered field.
 \func localization-isDiscreteOrderedField (R : OrderedCRing.Dec) : DiscreteOrderedField \cowith
   | DiscreteField => localization-isDiscreteField (localization-isOrderedField.positiveSubset R) zro/>0 (\lam x => \case OrderedRing.+_trichotomy x \with {
-    | byLeft x=0 => byLeft (ide, ide>zro, ide-right x *> x=0)
-    | byRight (byLeft x>0) => byRight (ide, transport isPos (inv (ide-right x)) x>0)
-    | byRight (byRight x<0) => byRight (negative ide, transport isPos (inv (Ring.negative_*-right x ide *> pmap negative (ide-right x))) x<0)
+    | byLeft x=0 => byLeft (ide, ide>zro, ide-right *> x=0)
+    | byRight (byLeft x>0) => byRight (ide, transport isPos (inv ide-right) x>0)
+    | byRight (byRight x<0) => byRight (negative ide, transport isPos (inv (Ring.negative_*-right x ide *> pmap negative ide-right)) x<0)
   })
   | OrderedField => localization-isOrderedField R

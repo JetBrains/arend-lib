@@ -1,4 +1,5 @@
 \import Category
+\import Function.Meta
 \import HLevel
 \import Paths
 \import Order.PartialOrder
@@ -11,107 +12,96 @@
 
 \class JoinSemilattice \extends Poset {
   | join : E -> E -> E
-  | join-left (x y : E) : join x y <= x
-  | join-right (x y : E) : join x y <= y
-  | join-univ (x y z : E) : z <= x -> z <= y -> z <= join x y
+  | join-left {x y : E} : join x y <= x
+  | join-right {x y : E} : join x y <= y
+  | join-univ {x y z : E} : z <= x -> z <= y -> z <= join x y
 
-  \lemma join-idemp (x : E) : join x x = x =>
-    <=-antisymmetric (join x x) x (join-left x x) (join-univ x x x (<=-reflexive x) (<=-reflexive x))
+  \lemma join-idemp {x : E} : join x x = x =>
+    <=-antisymmetric join-left (join-univ <=-reflexive <=-reflexive)
 
-  \lemma join-comm (x y : E) : join x y = join y x =>
-    <=-antisymmetric (join x y) (join y x)
-                     (join-univ y x (join x y) (join-right x y) (join-left x y))
-                     (join-univ x y (join y x) (join-right y x) (join-left y x))
+  \lemma join-comm {x y : E} : join x y = join y x =>
+    <=-antisymmetric (join-univ join-right join-left)
+                     (join-univ join-right join-left)
 
-  \lemma join-assoc (x y z : E) : join (join x y) z = join x (join y z) =>
-    <=-antisymmetric (join (join x y) z) (join x (join y z))
-                     (join-univ x (join y z) (join (join x y) z)
-                                (<=-transitive (join (join x y) z) (join x y) x (join-left (join x y) z) (join-left x y))
-                                (join-univ y z (join (join x y) z)
-                                           (<=-transitive (join (join x y) z) (join x y) y (join-left (join x y) z) (join-right x y))
-                                           (join-right (join x y) z)))
-                     (join-univ (join x y) z (join x (join y z))
-                                (join-univ x y (join x (join y z))
-                                           (join-left x (join y z))
-                                           (<=-transitive (join x (join y z)) (join y z) y (join-right x (join y z)) (join-left y z)))
-                                (<=-transitive (join x (join y z)) (join y z) z (join-right x (join y z)) (join-right y z)))
+  \lemma join-assoc {x y z : E} : join (join x y) z = join x (join y z) =>
+    <=-antisymmetric (join-univ (<=-transitive join-left join-left)
+                                (join-univ (<=-transitive join-left join-right)
+                                           join-right))
+                     (join-univ (join-univ join-left
+                                           (<=-transitive join-right join-left))
+                                (<=-transitive join-right join-right))
 
-  \lemma join_<= (x y : E) (x<=y : x <= y) : join x y = x =>
-    <=-antisymmetric (join x y) x (join-left x y) (join-univ x y x (<=-reflexive x) x<=y)
+  \lemma join_<= {x y : E} (x<=y : x <= y) : join x y = x =>
+    <=-antisymmetric join-left (join-univ <=-reflexive x<=y)
 } \where {
   -- | ``Join x y`` is the type of elements which are joins of {x} and {y}.
   \func Join {E : Poset} (x y : E) =>
     \Sigma (j : E) (\Sigma (j <= x) (j <= y) (\Pi (z : E) -> z <= x -> z <= y -> z <= j))
 
-  \lemma Join-isProp {E : Poset} (x y : E) : isProp (Join x y) => \lam p1 p2 =>
+  \lemma Join-isProp {E : Poset} {x y : E} : isProp (Join x y) => \lam p1 p2 =>
       SigmaPropExt (\lam j => \Sigma (j <= x) (j <= y) (\Pi (z : E) -> z <= x -> z <= y -> z <= j)) p1 p2
-                   (<=-antisymmetric p1.1 p2.1 (p2.2.3 p1.1 p1.2.1 p1.2.2) (p1.2.3 p2.1 p2.2.1 p2.2.2))
+                   (<=-antisymmetric (p2.2.3 p1.1 p1.2.1 p1.2.2) (p1.2.3 p2.1 p2.2.1 p2.2.2))
 }
 
 \class MeetSemilattice \extends Poset {
   | meet : E -> E -> E
-  | meet-left (x y : E) : x <= meet x y
-  | meet-right (x y : E) : y <= meet x y
-  | meet-univ (x y z : E) : x <= z -> y <= z -> meet x y <= z
+  | meet-left {x y : E} : x <= meet x y
+  | meet-right {x y : E} : y <= meet x y
+  | meet-univ {x y z : E} : x <= z -> y <= z -> meet x y <= z
 
 
-  \lemma meet-idemp (x : E) : meet x x = x =>
-    <=-antisymmetric _ _ (meet-univ _ _ _ (<=-reflexive x) (<=-reflexive x)) (meet-left x x)
+  \lemma meet-idemp {x : E} : meet x x = x =>
+    <=-antisymmetric (meet-univ <=-reflexive <=-reflexive) meet-left
 
-  \lemma meet-comm (x y : E) : meet x y = meet y x =>
-    <=-antisymmetric (meet x y) (meet y x)
-                     (meet-univ x y (meet y x) (meet-right y x) (meet-left y x))
-                     (meet-univ y x (meet x y) (meet-right x y) (meet-left x y))
+  \lemma meet-comm {x y : E} : meet x y = meet y x =>
+    <=-antisymmetric (meet-univ meet-right meet-left)
+                     (meet-univ meet-right meet-left)
 
-  \lemma meet-assoc (x y z : E) : meet (meet x y) z = meet x (meet y z) =>
-    <=-antisymmetric _ _
-                     (meet-univ _ _ _
-                                (meet-univ _ _ _ (meet-left _ _) (meet-left y z >> meet-right _ _))
-                                (meet-right y z >> meet-right _ _))
-                     (meet-univ _ _ _
-                                (meet-left x y >> meet-left _ _)
-                                (meet-univ _ _ _ (meet-right x y >> meet-left _ _ ) (meet-right _ _)))
+  \lemma meet-assoc {x y z : E} : meet (meet x y) z = meet x (meet y z) =>
+    <=-antisymmetric (meet-univ (meet-univ meet-left (meet-left >> meet-right))
+                                (meet-right >> meet-right))
+                     (meet-univ (meet-left >> meet-left)
+                                (meet-univ (meet-right >> meet-left) meet-right))
 
-  \lemma meet_<= (x y : E) (x<=y : x <= y) : meet x y = y =>
-    <=-antisymmetric _ _ (meet-univ _ _ _ x<=y (<=-reflexive y)) (meet-right x y)
+  \lemma meet_<= {x y : E} (x<=y : x <= y) : meet x y = y =>
+    <=-antisymmetric (meet-univ x<=y <=-reflexive) meet-right
 
 } \where {
   -- | ``Meet x y`` is the type of elements which are meets of {x} and {y}.
   \func Meet {E : Poset} (x y : E) =>
     \Sigma (m : E) (\Sigma (x <= m) (y <= m) (\Pi (z : E) -> x <= z -> y <= z -> m <= z))
 
-  \lemma Meet-isProp {E : Poset} (x y : E) : isProp (Meet x y) => \lam p1 p2 =>
+  \lemma Meet-isProp {E : Poset} {x y : E} : isProp (Meet x y) => \lam p1 p2 =>
       SigmaPropExt (\lam m => \Sigma (x <= m) (y <= m) (\Pi (z : E) -> x <= z -> y <= z -> m <= z)) p1 p2
-                   (<=-antisymmetric p1.1 p2.1 (p1.2.3 p2.1 p2.2.1 p2.2.2) (p2.2.3 p1.1 p1.2.1 p1.2.2))
+                   (<=-antisymmetric (p1.2.3 p2.1 p2.2.1 p2.2.2) (p2.2.3 p1.1 p1.2.1 p1.2.2))
 }
 
 \class Lattice \extends JoinSemilattice, MeetSemilattice {
-  \lemma distrib<= (x y z : E) : meet x (join y z) <= join (meet x y) (meet x z) =>
-    meet-univ _ _ _
-              (join-univ _ _ _ (meet-left x y) (meet-left x z))
-              (join-univ _ _ _ (join-left y z >> meet-right x y) (join-right y z >> meet-right x z))
+  \lemma distrib<= {x y z : E} : meet x (join y z) <= join (meet x y) (meet x z) =>
+    meet-univ (join-univ meet-left meet-left)
+              (join-univ (join-left >> meet-right) (join-right >> meet-right))
 }
 
 \class DistributiveLattice \extends Lattice {
-  \property distrib>= (x y z : E) : meet x (join y z) >= join (meet x y) (meet x z)
+  \property distrib>= {x y z : E} : meet x (join y z) >= join (meet x y) (meet x z)
 
-  \lemma distrib (x y z : E) : meet x (join y z) = join (meet x y) (meet x z) =>
-    <=-antisymmetric _ _ (distrib<= x y z) (distrib>= x y z)
+  \lemma distrib {x y z : E} : meet x (join y z) = join (meet x y) (meet x z) =>
+    <=-antisymmetric distrib<= distrib>=
 
-  \lemma codistrib (x y z : E) : join x (meet y z) = meet (join x y) (join x z) =>
-    inv (distrib _ _ _ *>
-    pmap2 join (meet_<= _ _ (join-left x y)) (meet-comm _ _ *> distrib z x y)  *>
-    inv (join-assoc _ _ _) *> pmap2 join (join_<= _ _ (meet-right z x)) (meet-comm z y))
+  \lemma codistrib {x y z : E} : join x (meet y z) = meet (join x y) (join x z) => inv $
+    distrib *>
+    pmap2 join (meet_<= join-left) (meet-comm *> distrib)  *>
+    inv join-assoc *> pmap2 join (join_<= meet-right) meet-comm
 }
 
 \module Bounded \where {
   \class JoinSemilattice \extends Order.Lattice.JoinSemilattice
     | bottom : E
-    | bottom-univ (x : E) : bottom <= x
+    | bottom-univ {x : E} : bottom <= x
 
   \class MeetSemilattice \extends Order.Lattice.MeetSemilattice
     | top : E
-    | top-univ (x : E) : x <= top
+    | top-univ {x : E} : x <= top
 
   \class Lattice \extends Order.Lattice.Lattice, JoinSemilattice, MeetSemilattice
 }

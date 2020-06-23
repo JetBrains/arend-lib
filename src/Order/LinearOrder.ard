@@ -13,49 +13,49 @@
 \class TotalOrder \extends DistributiveLattice {
   | totality (x y : E) : x <= y || y <= x
 
-  | join x y => (tjoin x y (totality x y)).1
-  | join-left x y => (tjoin x y (totality x y)).2.1
-  | join-right x y => (tjoin x y (totality x y)).2.2
-  | join-univ x y => (tjoin x y (totality x y)).2.3
+  | join x y => (tjoin (totality x y)).1
+  | join-left {x} {y} => (tjoin (totality x y)).2.1
+  | join-right {x} {y} => (tjoin (totality x y)).2.2
+  | join-univ {x} {y} {z} => (tjoin (totality x y)).2.3 z
 
-  | meet x y => (tmeet x y (totality x y)).1
-  | meet-left x y => (tmeet x y (totality x y)).2.1
-  | meet-right x y => (tmeet x y (totality x y)).2.2
-  | meet-univ x y => (tmeet x y (totality x y)).2.3
+  | meet x y => (tmeet (totality x y)).1
+  | meet-left {x} {y} => (tmeet (totality x y)).2.1
+  | meet-right {x} {y} => (tmeet (totality x y)).2.2
+  | meet-univ {x} {y} {z} => (tmeet (totality x y)).2.3 z
 
-  | distrib>= x y z => rewriteI (total-distrib totality x y z) (<=-reflexive _)
+  | distrib>= {_} {_} {_} => rewriteI (total-distrib totality) <=-reflexive
 } \where {
-  \func tjoin {E : Poset} (x y : E) => ||.rec (JoinSemilattice.Join-isProp x y)
-                                              (\lam x<=y => (x, (E.<=-reflexive x, x<=y, \lam z z<=x _ => z<=x)))
-                                              (\lam y<=x => (y, (y<=x, E.<=-reflexive y, \lam z _ z<=y => z<=y)))
+  \func tjoin {E : Poset} {x y : E} => ||.rec JoinSemilattice.Join-isProp
+                                              (\lam x<=y => (x, (E.<=-reflexive, x<=y, \lam z z<=x _ => z<=x)))
+                                              (\lam y<=x => (y, (y<=x, E.<=-reflexive, \lam z _ z<=y => z<=y)))
 
-  \func tmeet {E : Poset} (x y : E) => ||.rec (MeetSemilattice.Meet-isProp x y)
-                                              (\lam x<=y => (y, (x<=y, E.<=-reflexive y, \lam z _ y<=z => y<=z)))
-                                              (\lam y<=x => (x, (E.<=-reflexive x, y<=x, \lam z z<=x _ => z<=x)))
+  \func tmeet {E : Poset} {x y : E} => ||.rec MeetSemilattice.Meet-isProp
+                                              (\lam x<=y => (y, (x<=y, E.<=-reflexive, \lam z _ y<=z => y<=z)))
+                                              (\lam y<=x => (x, (E.<=-reflexive, y<=x, \lam z z<=x _ => z<=x)))
 
-  \lemma total-distrib {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x) (x y z : E) : meet x (join y z) = join (meet x y) (meet x z) =>
+  \lemma total-distrib {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x) {x y z : E} : meet x (join y z) = join (meet x y) (meet x z) =>
     \case totality y z \with {
-      | byLeft y<=z => distrib-x-y totality x y z y<=z
-      | byRight z<=y => transport2 (meet x __ = __) (join-comm z y) (join-comm (meet x z) (meet x y)) (distrib-x-y totality x z y z<=y)
+      | byLeft y<=z => distrib-x-y totality y<=z
+      | byRight z<=y => transport2 (meet x __ = __) join-comm join-comm (distrib-x-y totality z<=y)
     } \where {
     \lemma distrib-x-y {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x)
-                       (x y z : E) (y<=z : y <= z) : meet x (join y z) = join (meet x y) (meet x z) =>
-      pmap (meet x) (join_<= y z y<=z) *>
+                       {x y z : E} (y<=z : y <= z) : meet x (join y z) = join (meet x y) (meet x z) =>
+      pmap (meet x) (join_<= y<=z) *>
       (\case totality x y \with {
         | byLeft x<=y =>
-          meet_<= x y x<=y *>
-          inv (join_<= y z y<=z) *>
-          pmap2 join (inv (meet_<= x y x<=y)) (inv (meet_<= x z (x<=y Precat.>> y<=z)))
+          meet_<= x<=y *>
+          inv (join_<= y<=z) *>
+          pmap2 join (inv (meet_<= x<=y)) (inv (meet_<= (x<=y Precat.>> y<=z)))
         | byRight y<=x =>
-          meet-comm x y *>
-          meet_<= y x y<=x *>
+          meet-comm *>
+          meet_<= y<=x *>
           (\case totality x z \with {
             | byLeft x<=z =>
-              inv (join_<= x z x<=z) *>
-              pmap2 join (inv (meet-comm x y *> meet_<= y x y<=x)) (inv (meet_<= x z x<=z))
+              inv (join_<= x<=z) *>
+              pmap2 join (inv (meet-comm *> meet_<= y<=x)) (inv (meet_<= x<=z))
             | byRight z<=x =>
-              inv (join-idemp x) *>
-              pmap2 join (inv (meet-comm x y *> meet_<= y x y<=x)) (inv (meet-comm x z *> meet_<= z x z<=x))
+              inv join-idemp *>
+              pmap2 join (inv (meet-comm *> meet_<= y<=x)) (inv (meet-comm *> meet_<= z<=x))
           })
       })
   }
@@ -64,15 +64,15 @@
 -- | A linearly ordered set.
 \class LinearOrder \extends StrictPoset {
   | <-comparison (x y z : E) : x < z -> x < y || y < z
-  | <-connectedness (x y : E) : Not (x < y) -> Not (y < x) -> x = y
+  | <-connectedness {x y : E} : Not (x < y) -> Not (y < x) -> x = y
 } \where {
   \class With# \extends LinearOrder, Set#
     | # x y => x < y || y < x
-    | #-irreflexive x x#x => \case x#x \with {
-      | byLeft x<x => <-irreflexive x x<x
-      | byRight x<x => <-irreflexive x x<x
+    | #-irreflexive x#x => \case x#x \with {
+      | byLeft x<x => <-irreflexive x<x
+      | byRight x<x => <-irreflexive x<x
     }
-    | #-symmetric x y x#y => \case x#y \with {
+    | #-symmetric x#y => \case x#y \with {
       | byLeft x<y => byRight x<y
       | byRight y<x => byLeft y<x
     }
@@ -86,7 +86,7 @@
         | byRight y<x => byLeft (byRight y<x)
       }
     }
-    | tightness x y x/#y => <-connectedness x y (\lam x<y => x/#y (byLeft x<y)) (\lam y<x => x/#y (byRight y<x))
+    | tightness x/#y => <-connectedness (\lam x<y => x/#y (byLeft x<y)) (\lam y<x => x/#y (byRight y<x))
 
   -- | A linearly ordered set with decidable inequality.
   \class Dec \extends LinearOrder, DecSet {
@@ -95,9 +95,9 @@
     | <-comparison x y z x<z => \case trichotomy x y \with {
       | inl x=y => byRight (transport (`< z) x=y x<z)
       | inr (inl x<y) => byLeft x<y
-      | inr (inr y<x) => byRight (<-transitive y x z y<x x<z)
+      | inr (inr y<x) => byRight (<-transitive y<x x<z)
     }
-    | <-connectedness x y x/<y y/<x => \case trichotomy x y \with {
+    | <-connectedness {x} {y} x/<y y/<x => \case trichotomy x y \with {
       | inl x=y => x=y
       | inr (inl x<y) => absurd (x/<y x<y)
       | inr (inr y<x) => absurd (y/<x y<x)
@@ -105,28 +105,28 @@
 
     | decideEq x y => \case trichotomy x y \with {
       | inl x=y => yes x=y
-      | inr (inl x<y) => no (\lam x=y => <-irreflexive y (transport (`< y) x=y x<y))
-      | inr (inr y<x) => no (\lam x=y => <-irreflexive y (transport (y <) x=y y<x))
+      | inr (inl x<y) => no (\lam x=y => <-irreflexive (transport (`< y) x=y x<y))
+      | inr (inr y<x) => no (\lam x=y => <-irreflexive (transport (y <) x=y y<x))
     }
   } \where {
     \func =>TotalOrder {L : Dec} : TotalOrder L \cowith
       | <= x y => (x = y) || x < y
-      | <=-reflexive x => byLeft idp
-      | <=-transitive x y z x<=y y<=z => \case x<=y, y<=z \with {
+      | <=-reflexive {x} => byLeft idp
+      | <=-transitive {x} {_} {z} x<=y y<=z => \case x<=y, y<=z \with {
         | byLeft x=y, byLeft y=z => byLeft (x=y *> y=z)
         | byLeft x=y, byRight y<z => byRight (transport (`< z) (inv x=y) y<z)
         | byRight x<y, byLeft y=z => byRight (transport (x <) y=z x<y)
-        | byRight x<y, byRight y<z => byRight (<-transitive x y z x<y y<z)
+        | byRight x<y, byRight y<z => byRight (<-transitive x<y y<z)
       }
       | totality x y => \case trichotomy x y \with {
         | inl x=y => byLeft (byLeft x=y)
         | inr (inl x<y) => byLeft (byRight x<y)
         | inr (inr y<x) => byRight (byRight y<x)
       }
-      | <=-antisymmetric x y x<=y y<=x => \case x<=y, y<=x \with {
+      | <=-antisymmetric x<=y y<=x => \case x<=y, y<=x \with {
         | byLeft x=y, _ => x=y
         | _, byLeft y=x => inv y=x
-        | byRight x<y, byRight y<x => absurd (<-irreflexive x (<-transitive x y x x<y y<x))
+        | byRight x<y, byRight y<x => absurd (<-irreflexive (<-transitive x<y y<x))
       }
 
     \class Impl \extends Dec, DecSet.Impl

@@ -29,17 +29,17 @@
 
 \instance NatLE : TotalOrder Nat
   | <= => <=
-  | <=-reflexive (n : Nat) : n <= n \with {
+  | <=-reflexive {n : Nat} : n <= n \elim n {
     | 0 => zero<=_
-    | suc n => suc<=suc (<=-reflexive n)
+    | suc n => suc<=suc <=-reflexive
   }
-  | <=-transitive (n m k : Nat) (p : n <= m) (q : m <= k) : n <= k \with {
-    | 0, _, _, _, _ => zero<=_
-    | suc n, suc m, suc k, suc<=suc p, suc<=suc q => suc<=suc (<=-transitive n m k p q)
+  | <=-transitive {n m k : Nat} (p : n <= m) (q : m <= k) : n <= k \with {
+    | {0}, _, _ => zero<=_
+    | {suc n}, {suc m}, {suc k}, suc<=suc p, suc<=suc q => suc<=suc (<=-transitive p q)
   }
-  | <=-antisymmetric (n m : Nat) (p : n <= m) (q : m <= n) : n = m \with {
+  | <=-antisymmetric {n m : Nat} (p : n <= m) (q : m <= n) : n = m \elim n, m, p, q {
     | 0, 0, _, _ => idp
-    | suc n, suc m, suc<=suc p, suc<=suc q => pmap suc (<=-antisymmetric n m p q)
+    | suc n, suc m, suc<=suc p, suc<=suc q => pmap suc (<=-antisymmetric p q)
   }
   | totality (n m : Nat) : n <= m || m <= n \with {
     | 0, _ => byLeft zero<=_
@@ -53,7 +53,7 @@
 \instance NatBSemilattice : Bounded.JoinSemilattice
   | JoinSemilattice => NatLE
   | bottom => 0
-  | bottom-univ _ => zero<=_
+  | bottom-univ => zero<=_
 
 \lemma <=-suc {n : Nat} : n <= suc n \elim n
   | 0 => zero<=_
@@ -64,76 +64,76 @@
   | suc n => suc<=suc (<=_0_+-left m)
 
 \lemma <=_0_+-right {n : Nat} (m : Nat) : n <= n + m \elim m
-  | 0 => <=-reflexive n
-  | suc m => <=-transitive n (n + m) (suc (n + m)) (<=_0_+-right m) <=-suc
+  | 0 => <=-reflexive
+  | suc m => <=-transitive (<=_0_+-right m) <=-suc
 
 \lemma <=-+ {n m : Nat} (p : n <= m) : n + (m -' n) = m \elim n, m, p
   | 0, 0, _ => idp
-  | 0, suc m, _ => pmap suc (+-comm 0 m)
-  | suc n, suc m, suc<=suc p => +-comm _ _ *> pmap suc (+-comm _ _ *> <=-+ p)
+  | 0, suc m, _ => pmap suc +-comm
+  | suc n, suc m, suc<=suc p => +-comm *> pmap suc (+-comm *> <=-+ p)
   \where \open NatSemiring (+-comm)
 
 \lemma <=_+ {n m k l : Nat} (n<=m : n <= m) (k<=l : k <= l) : n + k <= m + l \elim k, l, k<=l
-  | 0, l, _ => <=-transitive n m (m + l) n<=m (<=_0_+-right l)
+  | 0, l, _ => <=-transitive n<=m (<=_0_+-right l)
   | suc k, suc l, suc<=suc k<=l => suc<=suc (<=_+ n<=m k<=l)
 
-\lemma <-implies-<= {n m : Nat} (p : suc n <= m) : n <= m => <=-transitive n (suc n) m <=-suc p
+\lemma <-implies-<= {n m : Nat} (p : suc n <= m) : n <= m => <=-transitive <=-suc p
 
 \lemma monotone-diagonal (f : Nat -> Nat) (mon : \Pi (n : Nat) -> suc (f n) <= f (suc n)) {n : Nat} : n <= f n \elim n
   | 0 => zero<=_
-  | suc n => <=-transitive (suc n) (suc (f n)) (f (suc n)) (suc<=suc (monotone-diagonal f mon)) (mon n)
+  | suc n => <=-transitive (suc<=suc (monotone-diagonal f mon)) (mon n)
 
 -- # Properties of +, *, and <
 
 \instance NatSemiring : LinearlyOrderedCSemiring.Dec.Impl Nat
   | zro => 0
   | + => +
-  | zro-left => +-comm 0
-  | +-assoc (n m k : Nat) : (n + m) + k = n + (m + k) \elim k {
+  | zro-left => +-comm
+  | +-assoc {n m k : Nat} : (n + m) + k = n + (m + k) \elim k {
     | 0 => idp
-    | suc k => pmap suc (+-assoc n m k)
+    | suc k => pmap suc +-assoc
   }
-  | +-comm (n m : Nat) : n + m = m + n \with {
+  | +-comm {n m : Nat} : n + m = m + n \elim n, m {
     | 0, 0 => idp
-    | suc n, 0 => pmap suc (+-comm n 0)
-    | 0, suc m => pmap suc (+-comm 0 m)
-    | suc n, suc m => pmap suc (+-comm (suc n) m *> pmap suc (inv (+-comm n m)) *> +-comm n (suc m))
+    | suc n, 0 => pmap suc +-comm
+    | 0, suc m => pmap suc +-comm
+    | suc n, suc m => pmap suc (+-comm *> pmap suc (inv +-comm) *> +-comm)
   }
   | ide => 1
   | * => *
-  | ide-left (n : Nat) : 1 * n = n \with {
+  | ide-left {n : Nat} : 1 * n = n \elim n {
     | 0 => idp
-    | suc n => pmap suc (ide-left n)
+    | suc n => pmap suc ide-left
   }
-  | *-assoc (n m k : Nat) : (n * m) * k = n * (m * k) \elim k {
+  | *-assoc {n m k : Nat} : (n * m) * k = n * (m * k) \elim k {
     | 0 => idp
-    | suc k => pmap (`+ n * m) (*-assoc _ _ _) *> inv (ldistr _ _ _)
+    | suc k => pmap (`+ n * m) *-assoc *> inv (ldistr _ _ _)
   }
   | ldistr (n m k : Nat) : n * (m + k) = n * m + n * k \elim k {
     | 0 => idp
     | suc k =>
         n * (m + k) + n     ==< pmap (`+ n) (ldistr _ _ _) >==
-        n * m + n * k + n   ==< +-assoc _ _ _ >==
+        n * m + n * k + n   ==< +-assoc >==
         n * m + (n * k + n) `qed
   }
-  | *-comm (n m : Nat) : n * m = m * n \with {
+  | *-comm {n m : Nat} : n * m = m * n \elim n, m {
     | 0, 0 => idp
-    | suc n, 0 => *-comm n 0
-    | 0, suc m => *-comm 0 m
+    | suc n, 0 => *-comm
+    | 0, suc m => *-comm
     | suc n, suc m => pmap suc (
-        suc n * m + n   ==< pmap (`+ n) (*-comm _ _) >==
-        m * n + m + n   ==< +-assoc _ _ _ >==
-        m * n + (m + n) ==< pmap2 (+) (inv (*-comm n m)) (+-comm m n) >==
-        n * m + (n + m) ==< inv (+-assoc _ _ _) >==
-        n * m + n + m   ==< pmap (`+ m) (*-comm _ _) >==
+        suc n * m + n   ==< pmap (`+ n) *-comm >==
+        m * n + m + n   ==< +-assoc >==
+        m * n + (m + n) ==< pmap2 (+) (inv *-comm) +-comm >==
+        n * m + (n + m) ==< inv +-assoc >==
+        n * m + n + m   ==< pmap (`+ m) *-comm >==
         suc m * n + m   `qed)
   }
-  | zro_*-left => *-comm 0
+  | zro_*-left _ => *-comm
   | < n m => suc n <= m
-  | <-irreflexive (n : Nat) (p : suc n <= n) : Empty \with {
-    | suc n, suc<=suc p => <-irreflexive n p
+  | <-irreflexive {n : Nat} (p : suc n <= n) : Empty \elim n, p {
+    | suc n, suc<=suc p => <-irreflexive p
   }
-  | <-transitive n m k p q => <=-transitive _ _ _ p (<=-transitive _ _ _ <=-suc q)
+  | <-transitive p q => <=-transitive p (<=-transitive <=-suc q)
   | trichotomy (n m : Nat) : (n = m) `Or` (suc n <= m) `Or` (suc m <= n) \with {
     | 0, 0 => inl idp
     | 0, suc m => inr (inl (suc<=suc zero<=_))
@@ -149,8 +149,8 @@
     | suc k => suc<=suc (<_+-left n m k p)
   }
   | zro<ide => suc<=suc zero<=_
-  | <_*_positive-left (n m k : Nat) (p : suc n <= m) (q : 1 <= k) : suc (n * k) <= m * k \elim k, q {
-    | 1, _ => transport2 (suc __ <= __) (inv (+-comm _ _)) (inv (+-comm _ _)) p
-    | suc (suc k), q => <=_+ (<=-transitive _ _ _ <=-suc (<_*_positive-left n m (suc k) p (suc<=suc zero<=_))) p
+  | <_*_positive-left {n m k : Nat} (p : suc n <= m) (q : 1 <= k) : suc (n * k) <= m * k \elim k, q {
+    | 1, _ => transport2 (suc __ <= __) (inv +-comm) (inv +-comm) p
+    | suc (suc k), q => <=_+ (<=-transitive <=-suc (<_*_positive-left p (suc<=suc zero<=_))) p
   }
-  | <_*_negative-left x y z x<y z<0 => \case z<0 \with {}
+  | <_*_negative-left x<y z<0 => \case z<0 \with {}
