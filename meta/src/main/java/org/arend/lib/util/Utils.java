@@ -126,9 +126,12 @@ public class Utils {
     if (ref instanceof MetaRef) {
       MetaDefinition meta = ((MetaRef) ref).getDefinition();
       if (meta instanceof BaseMetaDefinition) {
-        for (boolean explicit : ((BaseMetaDefinition) meta).argumentExplicitness()) {
-          if (explicit) {
-            numberOfArgs++;
+        boolean[] explicitness = ((BaseMetaDefinition) meta).argumentExplicitness();
+        if (explicitness != null) {
+          for (boolean explicit : explicitness) {
+            if (explicit) {
+              numberOfArgs++;
+            }
           }
         }
       }
