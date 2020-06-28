@@ -1,4 +1,3 @@
-\import Category
 \import Data.Or
 \import Logic
 \import Order.Lattice
@@ -7,8 +6,8 @@
 \import Paths
 \import Paths.Meta
 \import Set
-\open JoinSemilattice (join_<=, join-comm)
-\open MeetSemilattice (meet_<=, meet-comm, meet-idemp)
+\open JoinSemilattice
+\open MeetSemilattice
 
 \class TotalOrder \extends DistributiveLattice {
   | totality (x y : E) : x <= y || y <= x
@@ -33,30 +32,18 @@
                                               (\lam x<=y => (y, (x<=y, E.<=-reflexive, \lam z _ y<=z => y<=z)))
                                               (\lam y<=x => (x, (E.<=-reflexive, y<=x, \lam z z<=x _ => z<=x)))
 
-  \lemma total-distrib {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x) {x y z : E} : x ∨ (y ∧ z) = (x ∨ y) ∧ (x ∨ z) =>
+  \lemma total-distrib {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x) {x y z : E} : x ∧ (y ∨ z) = (x ∧ y) ∨ (x ∧ z) =>
     \case totality y z \with {
       | byLeft y<=z => distrib-x-y totality y<=z
-      | byRight z<=y => transport2 (x ∨ __ = __) meet-comm meet-comm (distrib-x-y totality z<=y)
+      | byRight z<=y => transport2 (x ∧ __ = __) join-comm join-comm (distrib-x-y totality z<=y)
     } \where {
     \lemma distrib-x-y {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x)
-                       {x y z : E} (y<=z : y <= z) : x ∨ (y ∧ z) = (x ∨ y) ∧ (x ∨ z) =>
-      pmap (x ∨) (meet_<= y<=z) *>
-      (\case totality x y \with {
-        | byLeft x<=y =>
-          join_<= x<=y *>
-          inv (meet_<= y<=z) *>
-          pmap2 (∧) (inv (join_<= x<=y)) (inv (join_<= (x<=y Precat.>> y<=z)))
-        | byRight y<=x =>
-          join-comm *>
-          join_<= y<=x *>
-          (\case totality x z \with {
-            | byLeft x<=z =>
-              inv (meet_<= x<=z) *>
-              pmap2 (∧) (inv (join-comm *> join_<= y<=x)) (inv (join_<= x<=z))
-            | byRight z<=x =>
-              inv meet-idemp *>
-              pmap2 (∧) (inv (join-comm *> join_<= y<=x)) (inv (join-comm *> join_<= z<=x))
-          })
+                       {x y z : E} (y<=z : y <= z) : x ∧ (y ∨ z) = (x ∧ y) ∨ (x ∧ z) =>
+      pmap (x ∧) (join_<= y<=z) *> (\case totality (x ∧ y) (x ∧ z) \with {
+        | byLeft xy<=xz => inv (join_<= xy<=xz)
+        | byRight xz<=xy =>
+          \let xz=xy => <=-antisymmetric xz<=xy (meet-univ meet-left (<=-transitive meet-right y<=z))
+          \in rewriteI xz=xy (inv join-idemp)
       })
   }
 }
