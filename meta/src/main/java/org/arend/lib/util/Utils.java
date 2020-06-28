@@ -6,6 +6,7 @@ import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
+import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
@@ -69,9 +70,10 @@ public class Utils {
     return expression;
   }
 
-  public static int numberOfExplicitParameters(CoreParameter parameter) {
-    int result = 0;
-    for (; parameter.hasNext(); parameter = parameter.getNext()) {
+  public static int numberOfExplicitParameters(CoreDefinition def) {
+    int result = def instanceof CoreFunctionDefinition ? numberOfExplicitPiParameters(((CoreFunctionDefinition) def).getResultType())
+      : def instanceof CoreClassField ? numberOfExplicitPiParameters(((CoreClassField) def).getResultType()) : 0;
+    for (CoreParameter parameter = def.getParameters(); parameter.hasNext(); parameter = parameter.getNext()) {
       if (parameter.isExplicit()) {
         result++;
       }
@@ -135,7 +137,7 @@ public class Utils {
       if (argDef == null) {
         return expr;
       }
-      numberOfArgs = numberOfExplicitParameters(argDef.getParameters()) - expectedParameters;
+      numberOfArgs = numberOfExplicitParameters(argDef) - expectedParameters;
     }
 
     if (expr instanceof ConcreteAppExpression && numberOfArgs > 0) {

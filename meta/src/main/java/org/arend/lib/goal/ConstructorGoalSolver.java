@@ -99,7 +99,7 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
           if (ok) {
             CoreConstructor constructor = query.getResult();
             if (constructor != null) {
-              callback.accept(Utils.addArguments(factory.ref(constructor.getRef()), factory, Utils.numberOfExplicitParameters(constructor.getParameters()), true));
+              callback.accept(Utils.addArguments(factory.ref(constructor.getRef()), factory, Utils.numberOfExplicitParameters(constructor), true));
             }
           }
         });

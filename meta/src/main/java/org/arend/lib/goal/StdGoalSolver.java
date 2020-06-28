@@ -43,7 +43,7 @@ public class StdGoalSolver implements GoalSolver {
       if (!(error.level == GeneralError.Level.GOAL && error.getCause() == exprData)) {
         errorReporter.report(error);
       }
-    }, tc -> tc.typecheck(extExpr, extExpr == expr ? expectedType : null));
+    }, tc -> tc.typecheck(extExpr, expectedType));
 
     return new CheckGoalResult(result == null ? extExpr : Utils.addArguments(extExpr, ext.factory.withData(exprData), Utils.numberOfExplicitPiParameters(result.getType()) - expectedParams, true), result);
   }
