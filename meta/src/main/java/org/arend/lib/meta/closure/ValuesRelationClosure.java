@@ -18,6 +18,10 @@ public class ValuesRelationClosure implements BinaryRelationClosure<UncheckedExp
     closure.addRelation(values.addValue(value1), values.addValue(value2), proof);
   }
 
+  public void addRelation(int value1, int value2, ConcreteExpression proof) {
+    closure.addRelation(value1, value2, proof);
+  }
+
   @Override
   public ConcreteExpression checkRelation(UncheckedExpression value1, UncheckedExpression value2) {
     return closure.checkRelation(values.addValue(value1), values.addValue(value2));
