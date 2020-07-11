@@ -74,7 +74,10 @@ public class RewriteMeta extends BaseMetaDefinition {
     }
 
     CoreExpression expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().getUnderlyingExpression();
-    boolean isForward = this.isForward || expectedType == null || args.size() > currentArg + 2;
+    boolean reverse = expectedType == null || args.size() > currentArg + 2;
+    boolean isForward = reverse || this.isForward;
+    //noinspection SimplifiableConditionalExpression
+    boolean isInverse = reverse && !this.isForward ? !this.isInverse : this.isInverse;
 
     // Add inference holes to functions and type-check the path argument
     ConcreteExpression arg0 = args.get(currentArg++).getExpression();
