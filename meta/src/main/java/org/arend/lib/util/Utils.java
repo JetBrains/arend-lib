@@ -46,7 +46,7 @@ public class Utils {
 
   public static CoreFunCallExpression toEquality(CoreExpression expression, ErrorReporter errorReporter, ConcreteSourceNode sourceNode) {
     CoreFunCallExpression equality = expression.toEquality();
-    if (equality == null && errorReporter != null) {
+    if (equality == null && errorReporter != null && !expression.isError()) {
       errorReporter.report(new TypeMismatchError(DocFactory.text("_ = _"), expression, sourceNode));
     }
     return equality;
