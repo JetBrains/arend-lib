@@ -106,7 +106,7 @@ public class Utils {
     return factory.app(expr, true, args);
   }
 
-  public static ConcreteExpression addArguments(ConcreteExpression expr, StdExtension ext, int expectedParameters, boolean addGoals) {
+  public static List<ConcreteExpression> addArguments(ConcreteExpression expr, StdExtension ext, int expectedParameters, boolean addGoals) {
     ConcreteReferenceExpression refExpr = null;
     if (expr instanceof ConcreteReferenceExpression) {
       refExpr = (ConcreteReferenceExpression) expr;
@@ -118,7 +118,7 @@ public class Utils {
     }
 
     if (refExpr == null) {
-      return expr;
+      return Collections.emptyList();
     }
 
     int numberOfArgs = 0;
@@ -138,7 +138,7 @@ public class Utils {
     } else {
       CoreDefinition argDef = ext.definitionProvider.getCoreDefinition(ref);
       if (argDef == null) {
-        return expr;
+        return Collections.emptyList();
       }
       numberOfArgs = numberOfExplicitParameters(argDef) - expectedParameters;
     }
@@ -151,11 +151,21 @@ public class Utils {
       }
     }
 
-    return addArguments(expr, ext.factory.withData(expr.getData()), numberOfArgs, addGoals);
+    if (numberOfArgs <= 0) {
+      return Collections.emptyList();
+    }
+
+    ConcreteFactory factory = ext.factory.withData(expr.getData());
+    List<ConcreteExpression> args = new ArrayList<>(numberOfArgs);
+    for (int i = 0; i < numberOfArgs; i++) {
+      args.add(addGoals ? factory.goal() : factory.hole());
+    }
+    return args;
   }
 
   public static TypedExpression typecheckWithAdditionalArguments(ConcreteExpression expr, ExpressionTypechecker typechecker, StdExtension ext, int expectedParameters, boolean addGoals) {
-    TypedExpression result = typechecker.typecheck(addArguments(expr, ext, expectedParameters, addGoals), null);
+    List<ConcreteExpression> args = addArguments(expr, ext, expectedParameters, addGoals);
+    TypedExpression result = typechecker.typecheck(args.isEmpty() ? expr : ext.factory.withData(expr.getData()).app(expr, true, args), null);
     if (result == null) {
       return null;
     }
