@@ -104,11 +104,13 @@ public class StdExtension implements ArendExtension {
         "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
         Precedence.DEFAULT, new HidingMeta());
     contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
+    contributor.declare(meta, new LongName("at"), "`(f at x) r` replaces variable `x` with `f x` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
-        "`rewrite (p : a = b) : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transport (\\lam x => T[x/a]) p`\n\n" +
-        "`rewrite {i_1, ... i_k} p` replaces only occurrences with indices `i_1`, ... `i_k`\n" +
+        "`rewrite (p : a = b) t : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transport (\\lam x => T[x/a]) p t`\n\n" +
+        "If the expected type is unknown, {rewrite} works like {rewriteF}.\n" +
+        "`rewrite {i_1, ... i_k} p t` replaces only occurrences with indices `i_1`, ... `i_k`.\n" +
         "Also, `p` may be a function, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`",
         Precedence.DEFAULT, new RewriteMeta(this, false, true));
     contributor.declare(paths, new LongName("rewriteI"),

@@ -23,7 +23,7 @@ import org.arend.lib.context.HidingContext;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.key.FieldKey;
 import org.arend.lib.meta.closure.BinaryRelationClosure;
-import org.arend.lib.meta.closure.EquivalenceClosure;
+import org.arend.lib.meta.closure.BunchedEquivalenceClosure;
 import org.arend.lib.meta.closure.ValuesRelationClosure;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.util.Utils;
@@ -48,7 +48,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    ConcreteExpression expr = check(contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression(), contextData.getExpectedType(), contextData.getExpectedType() != null, contextData.getReferenceExpression(), typechecker);
+    ConcreteExpression expr = check(contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression(), contextData.getExpectedType(), contextData.getExpectedType() != null, contextData.getMarker(), typechecker);
     if (expr instanceof ConcreteCaseExpression && !((ConcreteCaseExpression) expr).getClauses().isEmpty()) {
       return Utils.tryTypecheck(typechecker, tc -> tc.typecheck(expr, contextData.getExpectedType()));
     }
@@ -278,10 +278,12 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
 
     if (contr == null) {
-      ValuesRelationClosure closure = new ValuesRelationClosure(values, new EquivalenceClosure<>(factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef()), factory));
+      BunchedEquivalenceClosure<Integer> equivalenceClosure = new BunchedEquivalenceClosure<>(factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef()), factory);
+      ValuesRelationClosure closure = new ValuesRelationClosure(values, equivalenceClosure);
       Values<CoreExpression> typeValues = new Values<>(typechecker, marker);
       Map<Integer, RType> assumptions = new HashMap<>();
       boolean searchForContradiction = negations.isEmpty() && transGraphs.isEmpty();
+      List<Integer> conIndices = new ArrayList<>();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
         type = binding.getTypeExpr().normalize(NormalizationMode.WHNF);
         List<CoreDataCallExpression.ConstructorWithParameters> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithParameters() : null;
@@ -311,7 +313,17 @@ public class ContradictionMeta extends BaseMetaDefinition {
         RType rType = makeRType(binding, type);
         RType prev = null;
         if (rType instanceof EqType) {
-          closure.addRelation(((EqType) rType).leftExpr, ((EqType) rType).rightExpr, factory.ref(binding));
+          CoreExpression expr1 = ((EqType) rType).leftExpr.normalize(NormalizationMode.WHNF);
+          CoreExpression expr2 = ((EqType) rType).rightExpr.normalize(NormalizationMode.WHNF);
+          int value1 = values.addValue(expr1);
+          int value2 = values.addValue(expr2);
+          if (expr1 instanceof CoreConCallExpression || expr1 instanceof CoreIntegerExpression) {
+            conIndices.add(value1);
+          }
+          if (expr2 instanceof CoreConCallExpression || expr2 instanceof CoreIntegerExpression) {
+            conIndices.add(value2);
+          }
+          closure.addRelation(value1, value2, factory.ref(binding));
         } else {
           prev = assumptions.putIfAbsent(typeValues.addValue(type), rType);
         }
@@ -322,106 +334,119 @@ public class ContradictionMeta extends BaseMetaDefinition {
 
       if (contr == null) {
         loop:
-        for (Negation negation : negations) {
-          Deque<ConcreteExpression> arguments = new ArrayDeque<>();
-          Map<CoreBinding, CoreExpression> subst = new HashMap<>();
-          for (int i = 0; i < negation.assumptions.size(); i++) {
-            RType assumption = negation.assumptions.get(i);
-            boolean isFree = false;
-            for (int j = i + 1; j < negation.assumptions.size(); j++) {
-              if (negation.assumptions.get(j).type.findFreeBinding(assumption.binding)) {
-                isFree = true;
-                break;
-              }
+        for (Integer conIndex1 : conIndices) {
+          for (Integer conIndex2 : conIndices) {
+            if (equivalenceClosure.areRelated(conIndex1, conIndex2) && values.getValue(conIndex1).areDisjointConstructors(values.getValue(conIndex2))) {
+              contr = equivalenceClosure.checkRelation(conIndex1, conIndex2);
+              type = null;
+              break loop;
             }
-
-            ConcreteExpression argExpr;
-            if (isFree) {
-              UncheckedExpression paramType = assumption.type.findFreeBindings(subst.keySet()) != null ? assumption.type.substitute(subst) : assumption.type;
-              CoreExpression checkedType;
-              if (paramType instanceof CoreExpression) {
-                checkedType = (CoreExpression) paramType;
-              } else {
-                TypedExpression typedExpr = typechecker.check(paramType, marker);
-                if (typedExpr == null) {
-                  continue loop;
-                }
-                checkedType = typedExpr.getExpression();
-              }
-              argExpr = factory.hole();
-              subst.put(assumption.binding, Objects.requireNonNull(typechecker.typecheck(argExpr, checkedType)).getExpression());
-            } else {
-              if (assumption instanceof EqType) {
-                argExpr = closure.checkRelation(((EqType) assumption).leftExpr.substitute(subst), ((EqType) assumption).rightExpr.substitute(subst));
-                if (argExpr == null) {
-                  continue loop;
-                }
-              } else {
-                int index = typeValues.getIndex(assumption.type.substitute(subst));
-                if (index == -1) {
-                  continue loop;
-                }
-                argExpr = factory.ref(assumptions.get(index).binding);
-              }
-            }
-
-            arguments.add(argExpr);
           }
-
-          contr = negation.proof.apply(arguments);
-          type = negation.type;
-          break;
         }
 
         if (contr == null) {
           loop:
-          for (Map.Entry<CoreClassField, Map<Integer, List<TransData>>> entry : transGraphs.entrySet()) {
-            for (Integer index : entry.getValue().keySet()) {
-              Set<Integer> visited = new HashSet<>();
-              List<TransData> transDataList = new ArrayList<>();
-              Object eqProof = findContradiction(closure.closure, entry.getValue(), index, index, visited, transDataList);
-              if (eqProof != null) {
-                ConcreteExpression transProof = transDataList.get(0).proof;
-                FieldKey.Data transitivityData = Objects.requireNonNull(entry.getKey().getUserData(ext.transitivityKey));
-                for (int i = 1; i < transDataList.size(); i++) {
-                  List<ConcreteArgument> args = new ArrayList<>(5);
-                  for (int j = 0; j < 3; j++) {
-                    if (transitivityData.parametersExplicitness.get(j)) {
-                      args.add(factory.arg(factory.hole(), true));
-                    }
+          for (Negation negation : negations) {
+            Deque<ConcreteExpression> arguments = new ArrayDeque<>();
+            Map<CoreBinding, CoreExpression> subst = new HashMap<>();
+            for (int i = 0; i < negation.assumptions.size(); i++) {
+              RType assumption = negation.assumptions.get(i);
+              boolean isFree = false;
+              for (int j = i + 1; j < negation.assumptions.size(); j++) {
+                if (negation.assumptions.get(j).type.findFreeBinding(assumption.binding)) {
+                  isFree = true;
+                  break;
+                }
+              }
+
+              ConcreteExpression argExpr;
+              if (isFree) {
+                UncheckedExpression paramType = assumption.type.findFreeBindings(subst.keySet()) != null ? assumption.type.substitute(subst) : assumption.type;
+                CoreExpression checkedType;
+                if (paramType instanceof CoreExpression) {
+                  checkedType = (CoreExpression) paramType;
+                } else {
+                  TypedExpression typedExpr = typechecker.check(paramType, marker);
+                  if (typedExpr == null) {
+                    continue loop;
                   }
-                  args.add(factory.arg(transDataList.get(i).proof, transitivityData.parametersExplicitness.get(3)));
-                  args.add(factory.arg(transProof, transitivityData.parametersExplicitness.get(4)));
-                  transProof = factory.app(factory.ref(transitivityData.field.getRef()), args);
+                  checkedType = typedExpr.getExpression();
                 }
+                argExpr = factory.hole();
+                subst.put(assumption.binding, Objects.requireNonNull(typechecker.typecheck(argExpr, checkedType)).getExpression());
+              } else {
+                if (assumption instanceof EqType) {
+                  argExpr = closure.checkRelation(((EqType) assumption).leftExpr.substitute(subst), ((EqType) assumption).rightExpr.substitute(subst));
+                  if (argExpr == null) {
+                    continue loop;
+                  }
+                } else {
+                  int index = typeValues.getIndex(assumption.type.substitute(subst));
+                  if (index == -1) {
+                    continue loop;
+                  }
+                  argExpr = factory.ref(assumptions.get(index).binding);
+                }
+              }
 
-                if (eqProof instanceof ConcreteExpression) {
-                  transProof = factory.app(factory.ref(ext.transportInv.getRef()), true, Arrays.asList(factory.core(transDataList.get(transDataList.size() - 1).leftApp.computeTyped()), (ConcreteExpression) eqProof, transProof));
-                }
+              arguments.add(argExpr);
+            }
 
-                List<CoreParameter> irrParams = new ArrayList<>(2);
-                FieldKey.Data irreflexivityData = Objects.requireNonNull(entry.getKey().getUserData(ext.irreflexivityKey));
-                type = irreflexivityData.field.getResultType().getPiParameters(irrParams);
-                List<ConcreteArgument> irrArgs = new ArrayList<>(2);
-                if (irrParams.get(0).isExplicit()) {
-                  irrArgs.add(factory.arg(factory.hole(), true));
+            contr = negation.proof.apply(arguments);
+            type = negation.type;
+            break;
+          }
+
+          if (contr == null) {
+            loop:
+            for (Map.Entry<CoreClassField, Map<Integer, List<TransData>>> entry : transGraphs.entrySet()) {
+              for (Integer index : entry.getValue().keySet()) {
+                Set<Integer> visited = new HashSet<>();
+                List<TransData> transDataList = new ArrayList<>();
+                Object eqProof = findContradiction(equivalenceClosure, entry.getValue(), index, index, visited, transDataList);
+                if (eqProof != null) {
+                  ConcreteExpression transProof = transDataList.get(0).proof;
+                  FieldKey.Data transitivityData = Objects.requireNonNull(entry.getKey().getUserData(ext.transitivityKey));
+                  for (int i = 1; i < transDataList.size(); i++) {
+                    List<ConcreteArgument> args = new ArrayList<>(5);
+                    for (int j = 0; j < 3; j++) {
+                      if (transitivityData.parametersExplicitness.get(j)) {
+                        args.add(factory.arg(factory.hole(), true));
+                      }
+                    }
+                    args.add(factory.arg(transDataList.get(i).proof, transitivityData.parametersExplicitness.get(3)));
+                    args.add(factory.arg(transProof, transitivityData.parametersExplicitness.get(4)));
+                    transProof = factory.app(factory.ref(transitivityData.field.getRef()), args);
+                  }
+
+                  if (eqProof instanceof ConcreteExpression) {
+                    transProof = factory.app(factory.ref(ext.transportInv.getRef()), true, Arrays.asList(factory.core(transDataList.get(transDataList.size() - 1).leftApp.computeTyped()), (ConcreteExpression) eqProof, transProof));
+                  }
+
+                  List<CoreParameter> irrParams = new ArrayList<>(2);
+                  FieldKey.Data irreflexivityData = Objects.requireNonNull(entry.getKey().getUserData(ext.irreflexivityKey));
+                  type = irreflexivityData.field.getResultType().getPiParameters(irrParams);
+                  List<ConcreteArgument> irrArgs = new ArrayList<>(2);
+                  if (irrParams.get(0).isExplicit()) {
+                    irrArgs.add(factory.arg(factory.hole(), true));
+                  }
+                  irrArgs.add(factory.arg(transProof, irrParams.get(1).isExplicit()));
+                  contr = factory.app(factory.ref(irreflexivityData.field.getRef()), irrArgs);
+                  break loop;
                 }
-                irrArgs.add(factory.arg(transProof, irrParams.get(1).isExplicit()));
-                contr = factory.app(factory.ref(irreflexivityData.field.getRef()), irrArgs);
-                break loop;
               }
             }
           }
-        }
 
-        if (contr == null) {
-          typechecker.getErrorReporter().report(new TypecheckingError("Cannot infer contradiction", marker));
-          return null;
+          if (contr == null) {
+            typechecker.getErrorReporter().report(new TypecheckingError("Cannot infer contradiction", marker));
+            return null;
+          }
         }
       }
     }
 
-    return expectedType != null && expectedType.compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), withExpectedType ? null : factory.ref(ext.Empty.getRef()), null, clauses);
+    return expectedType != null && type != null && expectedType.compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), withExpectedType ? null : factory.ref(ext.Empty.getRef()), null, clauses);
   }
 
   private Object findContradiction(BinaryRelationClosure<Integer> closure, Map<Integer, List<TransData>> map, int index, int startIndex, Set<Integer> visited, List<TransData> result) {

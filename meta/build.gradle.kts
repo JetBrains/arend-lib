@@ -13,13 +13,16 @@ task<JavaExec>("cliCheck") {
     workingDir(projectDir.parent)
 }
 
+task("copyJarDep") {
+    dependsOn(projectArend.task(":cli:copyJarDep"))
+}
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
     implementation("org.arend:api")
-    implementation("org.jetbrains:annotations:19.0.0")
 }
 
 java {

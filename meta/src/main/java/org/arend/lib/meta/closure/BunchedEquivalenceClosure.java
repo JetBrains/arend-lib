@@ -41,15 +41,43 @@ public class BunchedEquivalenceClosure<V> extends EquivalenceClosure<V> {
     return true;
   }
 
-  private List<ConcreteExpression> computePathToRepr(V value) {
+  private List<ConcreteExpression> computePathToRepr(V value, List<ConcreteExpression> result) {
     Pair<V, ConcreteExpression> pair = pathToRepr.get(value);
     if (pair == null) {
-      return new ArrayList<>();
+      return result;
     }
 
-    List<ConcreteExpression> path = computePathToRepr(pair.proj1);
-    path.add(pair.proj2);
-    return path;
+    result.add(pair.proj2);
+    return computePathToRepr(pair.proj1, result);
+  }
+
+  private void compute() {
+    if (representatives.isEmpty()) {
+      pathToRepr.clear();
+      for (V value : graph.keySet()) {
+        setRepresentative(value, value);
+      }
+    }
+  }
+
+  public boolean areRelated(V value1, V value2) {
+    if (value1.equals(value2)) {
+      return true;
+    }
+
+    compute();
+
+    var repr1 = representatives.get(value1);
+    if (repr1 == null) {
+      return false;
+    }
+
+    var repr2 = representatives.get(value2);
+    if (!repr1.equals(repr2)) {
+      return false;
+    }
+
+    return repr1.equals(repr2);
   }
 
   @Override
@@ -58,12 +86,7 @@ public class BunchedEquivalenceClosure<V> extends EquivalenceClosure<V> {
       return refl;
     }
 
-    if (representatives.isEmpty()) {
-      pathToRepr.clear();
-      for (V value : graph.keySet()) {
-        setRepresentative(value, value);
-      }
-    }
+    compute();
 
     var repr1 = representatives.get(value1);
     if (repr1 == null) {
@@ -75,8 +98,8 @@ public class BunchedEquivalenceClosure<V> extends EquivalenceClosure<V> {
       return null;
     }
 
-    List<ConcreteExpression> path1 = computePathToRepr(value1);
-    List<ConcreteExpression> path2 = computePathToRepr(value2);
+    List<ConcreteExpression> path1 = computePathToRepr(value1, new ArrayList<>());
+    List<ConcreteExpression> path2 = computePathToRepr(value2, new ArrayList<>());
     if (path1.isEmpty()) {
       return pathToExpr(path2);
     }
