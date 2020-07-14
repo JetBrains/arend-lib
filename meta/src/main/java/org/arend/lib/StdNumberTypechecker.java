@@ -1,6 +1,6 @@
 package org.arend.lib;
 
-import org.arend.ext.NumberTypechecker;
+import org.arend.ext.LiteralTypechecker;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.definition.CoreClassDefinition;
@@ -18,11 +18,16 @@ import org.jetbrains.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.Collections;
 
-public class StdNumberTypechecker implements NumberTypechecker {
+public class StdNumberTypechecker implements LiteralTypechecker {
   private final StdExtension ext;
 
   public StdNumberTypechecker(StdExtension ext) {
     this.ext = ext;
+  }
+
+  @Override
+  public @Nullable TypedExpression typecheckString(@NotNull String unescapedString, @NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+    return null;
   }
 
   @Override
