@@ -19,7 +19,6 @@ import org.arend.lib.key.ReflexivityKey;
 import org.arend.lib.key.TransitivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
-
 import org.arend.lib.meta.equation.EquationMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -155,7 +154,7 @@ public class StdExtension implements ArendExtension {
   }
 
   @Override
-  public @Nullable NumberTypechecker getNumberTypechecker() {
+  public @Nullable LiteralTypechecker getLiteralTypechecker() {
     return numberTypechecker;
   }
 
