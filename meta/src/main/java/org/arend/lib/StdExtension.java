@@ -19,7 +19,6 @@ import org.arend.lib.key.ReflexivityKey;
 import org.arend.lib.key.TransitivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
-
 import org.arend.lib.meta.equation.EquationMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -103,7 +102,7 @@ public class StdExtension implements ArendExtension {
     contributor.declare(meta, new LongName("hiding"),
         "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
         Precedence.DEFAULT, new HidingMeta());
-    contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
+    contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new DeferredMetaDefinition(new RunMeta(this)));
     contributor.declare(meta, new LongName("at"), "`(f at x) r` replaces variable `x` with `f x` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
@@ -155,7 +154,7 @@ public class StdExtension implements ArendExtension {
   }
 
   @Override
-  public @Nullable NumberTypechecker getNumberTypechecker() {
+  public @Nullable LiteralTypechecker getLiteralTypechecker() {
     return numberTypechecker;
   }
 
