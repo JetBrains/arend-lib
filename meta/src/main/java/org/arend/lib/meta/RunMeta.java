@@ -13,7 +13,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collections;
 import java.util.List;
 
-public class RunMeta extends BaseMetaDefinition {
+public class RunMeta extends BaseMetaDefinition implements MetaResolver {
   private final StdExtension ext;
 
   public RunMeta(StdExtension ext) {
@@ -60,11 +60,6 @@ public class RunMeta extends BaseMetaDefinition {
     } else {
       return typechecker.typecheck(getConcreteRepresentation(contextData.getArguments(), contextData.getMarker()), contextData.getExpectedType());
     }
-  }
-
-  @Override
-  public boolean isResolver() {
-    return true;
   }
 
   @Override
