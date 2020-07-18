@@ -44,6 +44,7 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
 
   @Dependency(module = "Logic") public CoreDataDefinition Empty;
+  @Dependency(module = "Logic") public CoreDataDefinition TruncP;
 
   public EquationMeta equationMeta = new EquationMeta(this);
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
@@ -141,6 +142,9 @@ public class StdExtension implements ArendExtension {
         "A proof of a contradiction can be explicitly specified as an implicit argument\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, contradictionMeta);
+    contributor.declare(logic, new LongName("Exists"),
+      "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
+      "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, null, new ExistsMeta(this));
   }
 
   @Override
