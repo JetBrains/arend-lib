@@ -69,6 +69,12 @@ public class RunMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ConcreteReferenceExpression refExpr, @NotNull List<? extends ConcreteArgument> arguments) {
-    return checkArguments(arguments) ? resolver.resolve(getConcreteRepresentation(arguments, refExpr)) : null;
+    if (!checkArguments(arguments)) {
+      return null;
+    }
+
+    ConcreteExpression repr = getConcreteRepresentation(arguments, refExpr);
+    ConcreteExpression result = resolver.resolve(repr);
+    return result == repr ? ext.factory.withData(refExpr.getData()).app(refExpr, arguments) : result;
   }
 }
