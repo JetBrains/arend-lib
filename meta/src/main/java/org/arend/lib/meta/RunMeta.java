@@ -3,6 +3,8 @@ package org.arend.lib.meta;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.error.NameResolverError;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
@@ -13,7 +15,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collections;
 import java.util.List;
 
-public class RunMeta extends BaseMetaDefinition implements MetaResolver {
+public class RunMeta implements MetaDefinition, MetaResolver {
   private final StdExtension ext;
 
   public RunMeta(StdExtension ext) {
@@ -21,8 +23,18 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
   }
 
   @Override
-  public @Nullable boolean[] argumentExplicitness() {
-    return new boolean[] { false };
+  public boolean checkArguments(@NotNull List<? extends ConcreteArgument> arguments) {
+    return arguments.size() == 1 && !arguments.get(0).isExplicit();
+  }
+
+  @Override
+  public boolean checkContextData(@NotNull ContextData contextData, @NotNull ErrorReporter errorReporter) {
+    List<? extends ConcreteArgument> args = contextData.getArguments();
+    if (args.size() != 1 || args.get(0).isExplicit()) {
+      errorReporter.report(new NameResolverError("Expected 1 implicit argument", args.isEmpty() ? contextData.getMarker() : args.get(0).getExpression()));
+      return false;
+    }
+    return true;
   }
 
   private ConcreteExpression getConcreteRepresentation(List<? extends ConcreteArgument> arguments, ConcreteSourceNode marker) {
