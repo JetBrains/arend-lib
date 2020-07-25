@@ -33,3 +33,7 @@ java {
 tasks.withType<Wrapper> {
     gradleVersion = "6.5"
 }
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+}

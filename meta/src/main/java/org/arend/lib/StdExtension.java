@@ -45,6 +45,7 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
 
   @Dependency(module = "Logic") public CoreDataDefinition Empty;
+  @Dependency(module = "Logic") public CoreDataDefinition TruncP;
 
   public EquationMeta equationMeta = new EquationMeta(this);
   public CongruenceMeta congruenceMeta = new CongruenceMeta(this);
@@ -104,7 +105,7 @@ public class StdExtension implements ArendExtension {
     contributor.declare(meta, new LongName("hiding"),
         "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
         Precedence.DEFAULT, new HidingMeta());
-    contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new DeferredMetaDefinition(new RunMeta(this)));
+    contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
     contributor.declare(meta, new LongName("at"), "`(f at x) r` replaces variable `x` with `f x` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
@@ -147,6 +148,9 @@ public class StdExtension implements ArendExtension {
         "A proof of a contradiction can be explicitly specified as an implicit argument\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, contradictionMeta);
+    contributor.declare(logic, new LongName("Exists"),
+      "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
+      "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, null, new ExistsMeta(this));
   }
 
   @Override
