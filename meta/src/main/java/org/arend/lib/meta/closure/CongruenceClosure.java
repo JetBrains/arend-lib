@@ -22,8 +22,7 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
     private final Map<Integer, List<Integer>> occurrenceLists = new HashMap<>();
     private final Map<Integer, List<Integer>> congrTable = new HashMap<>();
 
-    private final Function<Integer, ConcreteExpression> congrLemma;
-    private final ConcreteFactory factory;
+    private final Function<List<ConcreteExpression>, ConcreteExpression> congrLemma;
 
     public static class EqualityIsEquivProof {
         public ConcreteExpression refl;
@@ -37,9 +36,8 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         }
     }
 
-    public CongruenceClosure(ExpressionTypechecker typechecker, ConcreteSourceNode marker, Function<Integer, ConcreteExpression> congrLemma, EqualityIsEquivProof equalityIsEquivLemma, ConcreteFactory factory) {
+    public CongruenceClosure(ExpressionTypechecker typechecker, ConcreteSourceNode marker, Function<List<ConcreteExpression>, ConcreteExpression> congrLemma, EqualityIsEquivProof equalityIsEquivLemma, ConcreteFactory factory) {
         this.congrLemma = congrLemma;
-        this.factory = factory;
         this.terms = new Values<>(typechecker, marker);
         this.equivalenceClosure = new EquivalenceClosure<>(equalityIsEquivLemma.refl, equalityIsEquivLemma.sym, equalityIsEquivLemma.trans, factory);
     }
@@ -127,7 +125,8 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         }
 
         eqProofs.add(equivalenceClosure.checkRelation(var1, var2));
-        return factory.app(congrLemma.apply(eqProofs.size() - 1), true, eqProofs);
+        Collections.reverse(eqProofs);
+        return congrLemma.apply(eqProofs);
     }
 
     private void updateCongrTable(int var1, int var2, Queue<Equality> pending) {

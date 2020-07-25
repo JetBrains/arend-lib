@@ -19,6 +19,7 @@ import org.arend.lib.key.ReflexivityKey;
 import org.arend.lib.key.TransitivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
+import org.arend.lib.meta.equation.CongruenceMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,6 +47,7 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Logic") public CoreDataDefinition Empty;
 
   public EquationMeta equationMeta = new EquationMeta(this);
+  public CongruenceMeta congruenceMeta = new CongruenceMeta(this);
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
@@ -134,6 +136,10 @@ public class StdExtension implements ArendExtension {
         "A proof of a_i = a_{i+1} can be specified as implicit arguments between them\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
+
+    contributor.declare(algebra, new LongName("congruence"),
+            "",
+            Precedence.DEFAULT, new DeferredMetaDefinition(congruenceMeta, true));
 
     ModulePath logic = ModulePath.fromString("Logic.Meta");
     contributor.declare(logic, new LongName("contradiction"),
