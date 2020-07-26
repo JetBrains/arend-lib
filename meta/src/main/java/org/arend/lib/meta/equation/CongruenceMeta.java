@@ -60,15 +60,29 @@ public class CongruenceMeta extends BaseMetaDefinition {
 
     @Override
     public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-        CoreFunCallExpression type = contextData.getExpectedType().toEquality();
-        if (type == null) return null;
-
-        CoreExpression leftEqArg = type.getDefCallArguments().get(1);
-        CoreExpression rightEqArg = type.getDefCallArguments().get(2);
-
         ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
         CongruenceClosure<CoreExpression> congruenceClosure = new CongruenceClosure<>(typechecker, refExpr, eqProofs -> applyCongruence(typechecker, eqProofs),
                 new CongruenceClosure.EqualityIsEquivProof(ext.factory.ref(ext.prelude.getIdp().getRef()), ext.factory.ref(ext.inv.getRef()), ext.factory.ref(ext.concat.getRef())), ext.factory);
+
+        for (ConcreteArgument argument : contextData.getArguments()) {
+            TypedExpression eqProof = typechecker.typecheck(argument.getExpression(), null);
+            if (eqProof == null) return null;
+
+            CoreFunCallExpression equality = eqProof.getType().toEquality();
+            if (equality == null) return null;
+
+            CoreExpression leftEqArg = equality.getDefCallArguments().get(1);
+            CoreExpression rightEqArg = equality.getDefCallArguments().get(2);
+
+            congruenceClosure.addRelation(leftEqArg, rightEqArg, ext.factory.core(eqProof));
+        }
+
+        CoreFunCallExpression expectedType = contextData.getExpectedType().toEquality();
+        if (expectedType == null) return null;
+
+        CoreExpression leftEqArg = expectedType.getDefCallArguments().get(1);
+        CoreExpression rightEqArg = expectedType.getDefCallArguments().get(2);
+
         ConcreteExpression goalProof = congruenceClosure.checkRelation(leftEqArg,rightEqArg);
         if (goalProof == null) return null;
         return typechecker.typecheck(goalProof, contextData.getExpectedType());
