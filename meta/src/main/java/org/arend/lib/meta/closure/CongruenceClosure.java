@@ -45,7 +45,7 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
     private void initAppExprVar(int var, int parentVar) {
         List<Integer> occurList = occurrenceLists.get(var);
         if (occurList == null) {
-            occurList = Collections.singletonList(parentVar);
+            occurList = new ArrayList<>(Collections.singletonList(parentVar));
             occurrenceLists.put(var, occurList);
         } else { occurList.add(parentVar); }
     }
@@ -92,7 +92,7 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         for (int var : toBeAddedToCongrTable) {
             List<Integer> congrList = congrTable.get(varHashCode(var));
             if (congrList == null) {
-                congrTable.put(varHashCode(var), Collections.singletonList(var));
+                congrTable.put(varHashCode(var), new ArrayList<>(Collections.singletonList(var)));
             } else {
                 congrList.add(var);
             }
@@ -134,7 +134,7 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         if (occurList == null) return;
 
         for (int containingDef : occurList) {
-            congrTable.get(varHashCode(containingDef)).remove(containingDef);
+            congrTable.get(varHashCode(containingDef)).remove(Integer.valueOf(containingDef));
         }
 
         varsEquivClasses.union(var1, var2);
@@ -142,7 +142,7 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         for (int containingDef : occurList) {
             List<Integer> congrList = congrTable.get(varHashCode(containingDef));
             if (congrList == null) {
-                congrTable.put(varHashCode(containingDef), Collections.singletonList(containingDef));
+                congrTable.put(varHashCode(containingDef), new ArrayList<>(Collections.singletonList(containingDef)));
             } else {
                 for (int congrDef : congrList) {
                     if (areCongruent(containingDef, congrDef)) {
@@ -177,8 +177,8 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
 
             equivalenceClosure.addRelation(v1, v2, pr);
 
-            int var1Rep = varsEquivClasses.find(var1);
-            int var2Rep = varsEquivClasses.find(var2);
+            int var1Rep = varsEquivClasses.find(v1);
+            int var2Rep = varsEquivClasses.find(v2);
             int unionVar = varsEquivClasses.compare(var1Rep, var2Rep);
 
             if (var1Rep == unionVar) {
@@ -210,7 +210,7 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
             int arg = def.proj2;
             return Objects.hash(varHashCode(func), varHashCode(arg));
         }
-        return Objects.hash(var);
+        return Objects.hash(varsEquivClasses.find(var));
     }
 
     interface DisjointSet<W> {
