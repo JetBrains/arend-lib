@@ -3,10 +3,7 @@ package org.arend.lib.meta.equation;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
-import org.arend.ext.core.expr.CoreDefCallExpression;
-import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.expr.CoreFunCallExpression;
-import org.arend.ext.core.expr.CoreLamExpression;
+import org.arend.ext.core.expr.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
@@ -29,8 +26,21 @@ public class CongruenceMeta extends BaseMetaDefinition {
         this.ext = ext;
     }
 
-    private ConcreteExpression appAt(ConcreteExpression path, ArendRef param) {
-        return ext.factory.app(ext.factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(ext.factory.arg(path, true), ext.factory.arg(ext.factory.ref(param), true)));
+    private ConcreteExpression appAt(TypedExpression path, ArendRef param) {
+        ConcreteArgument atA = ext.factory.arg(ext.factory.lam(Collections.singleton(ext.factory.param(param)), ext.factory.core(path)), false);
+        CoreExpression element = elementFromIdp(path.getExpression());
+        if (element != null) {
+            return ext.factory.core(element.computeTyped());
+        }
+        ConcreteExpression cpath = ext.factory.core(path);
+        return ext.factory.app(ext.factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(ext.factory.arg(cpath, true), ext.factory.arg(ext.factory.ref(param), true)));
+    }
+
+    private CoreExpression elementFromIdp(CoreExpression path) {
+        if (path instanceof CoreDefCallExpression && ((CoreDefCallExpression) path).getDefinition().equals(ext.prelude.getIdp())) {
+            return ((CoreDefCallExpression) path).getDefCallArguments().get(1);
+        }
+        return null;
     }
 
     private ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<ConcreteExpression> eqProofs) {
@@ -43,17 +53,19 @@ public class CongruenceMeta extends BaseMetaDefinition {
         if (funcEquality == null) return null;
 
         CoreExpression funcType = funcEquality.getDefCallArguments().get(0);
-        if (!(funcType instanceof CoreLamExpression)) return null;
+        if (!(funcType instanceof CorePiExpression)) return null;
        // funcType = ((CoreLamExpression) funcType).getBody();
 
         ArendRef jParam = ext.factory.local("j");
         List<ConcreteArgument> eqProofsAtJ = new ArrayList<>();
 
         for (int i = 1; i < eqProofs.size(); ++i) {
-            eqProofsAtJ.add(ext.factory.arg(appAt(eqProofs.get(i), jParam), true));
+            TypedExpression argProof = typechecker.typecheck(eqProofs.get(i), null);
+            CoreExpression argType = argProof.getType().toEquality().getDefCallArguments().get(0);
+            eqProofsAtJ.add(ext.factory.arg(appAt(argProof, jParam), true));
         }
 
-        ConcreteExpression congrLambda = ext.factory.lam(Collections.singleton(ext.factory.param(jParam)), ext.factory.app(appAt(eqProofs.get(0), jParam), eqProofsAtJ));
+        ConcreteExpression congrLambda = ext.factory.lam(Collections.singleton(ext.factory.param(jParam)), ext.factory.app(appAt(funcProof, jParam), eqProofsAtJ));
 
         return ext.factory.appBuilder(ext.factory.ref(ext.prelude.getPathCon().getRef())).app(congrLambda).build();
     }

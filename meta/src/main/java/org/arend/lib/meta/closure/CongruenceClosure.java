@@ -4,6 +4,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.expr.CoreAppExpression;
+import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.lib.util.Pair;
@@ -13,8 +14,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 import java.util.function.Function;
 
-public class CongruenceClosure<V extends UncheckedExpression> implements BinaryRelationClosure<V> {
-    private final Values<UncheckedExpression> terms;
+public class CongruenceClosure<V extends CoreExpression> implements BinaryRelationClosure<V> {
+    private final Values<CoreExpression> terms;
 
     private final DisjointSet<Integer> varsEquivClasses = new DisjointSetImpl<>();
     private final EquivalenceClosure<Integer> equivalenceClosure;
@@ -51,7 +52,7 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
     }
 
     private Integer splitIntoSubterms(V term) {
-        Queue<Pair<UncheckedExpression, Integer>> termsToSplit = new ArrayDeque<>();
+        Queue<Pair<CoreExpression, Integer>> termsToSplit = new ArrayDeque<>();
         List<Integer> toBeAddedToCongrTable = new ArrayList<>();
 
         int numOfTerms = terms.getValues().size();
@@ -62,14 +63,14 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         termsToSplit.add(new Pair<>(term, inputTermVar));
 
         while (!termsToSplit.isEmpty()) {
-            Pair<UncheckedExpression, Integer> subtermPair = termsToSplit.poll();
-            UncheckedExpression subterm = subtermPair.proj1;
+            Pair<CoreExpression, Integer> subtermPair = termsToSplit.poll();
+            CoreExpression subterm = subtermPair.proj1;
             int var = subtermPair.proj2;
 
             toBeAddedToCongrTable.add(var);
             if (subterm instanceof CoreAppExpression) {
-                UncheckedExpression func = ((CoreAppExpression) subterm).getFunction();
-                UncheckedExpression arg = ((CoreAppExpression) subterm).getArgument();
+                CoreExpression func = ((CoreAppExpression) subterm).getFunction();
+                CoreExpression arg = ((CoreAppExpression) subterm).getArgument();
 
                 int funcVar = terms.addValue(func);
                 if (numOfTerms != terms.getValues().size()) {
@@ -89,28 +90,43 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
             }
         }
 
+        Queue<Equality> pending = new ArrayDeque<>();
         for (int var : toBeAddedToCongrTable) {
-            List<Integer> congrList = congrTable.get(varHashCode(var));
-            if (congrList == null) {
-                congrTable.put(varHashCode(var), new ArrayList<>(Collections.singletonList(var)));
-            } else {
-                congrList.add(var);
-            }
+            //List<Integer> congrList = congrTable.get(varHashCode(var));
+           // if (congrList == null) {
+           //     congrTable.put(varHashCode(var), new ArrayList<>(Collections.singletonList(var)));
+           // } else {
+           //     congrList.add(var);
+           // }
+            addToCongrTable(var, pending);
         }
 
+        addEqualities(pending);
         return inputTermVar;
     }
 
-    private boolean areCongruent(int var1, int var2) {
+    private boolean areCongruent(int var1, int var2, boolean canBeEqual) {
+        if (canBeEqual && varsEquivClasses.find(var1).equals(varsEquivClasses.find(var2))) {
+            return true;
+        }
+
         Pair<Integer, Integer> def1 = varDefs.get(var1);
         Pair<Integer, Integer> def2 = varDefs.get(var2);
 
         if ((def1 == null) != (def2 == null)) return false;
 
-        if (def1 == null) return varsEquivClasses.find(var1).equals(varsEquivClasses.find(var2));
+        if (def1 == null) return false; //varsEquivClasses.find(var1).equals(varsEquivClasses.find(var2));
 
         return varsEquivClasses.find(def1.proj2).equals(varsEquivClasses.find(def2.proj2)) &&
-                areCongruent(def1.proj1, def2.proj1);
+                areCongruent(def1.proj1, def2.proj1, true);
+    }
+
+    private ConcreteExpression checkEquality(int var1, int var2) {
+        if (var1 == var2) {
+            ConcreteFactory factory = equivalenceClosure.factory;
+            return factory.app(equivalenceClosure.refl, false, Arrays.asList(factory.hole(), factory.core(terms.getValue(var1).computeTyped())));
+        }
+        return equivalenceClosure.checkRelation(var1, var2);
     }
 
     private ConcreteExpression genCongrProof(int var1, int var2) {
@@ -120,19 +136,63 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         while (def1 != null) {
             Pair<Integer, Integer> def2 = varDefs.get(var2);
             var1 = def1.proj1; var2 = def2.proj1;
-            eqProofs.add(equivalenceClosure.checkRelation(def1.proj2, def2.proj2));
+            eqProofs.add(checkEquality(def1.proj2, def2.proj2));
             def1 = varDefs.get(var1);
         }
 
-        eqProofs.add(equivalenceClosure.checkRelation(var1, var2));
+        eqProofs.add(checkEquality(var1, var2));
+        if (eqProofs.size() == 1) {
+            return eqProofs.get(0);
+        }
         Collections.reverse(eqProofs);
         return congrLemma.apply(eqProofs);
     }
 
-    private void updateCongrTable(int var1, int var2, Queue<Equality> pending) {
-        List<Integer> occurList = occurrenceLists.get(var1);
-        if (occurList == null) return;
+    private void addToCongrTable(int var, Queue<Equality> pending) {
+        List<Integer> congrList = congrTable.get(varHashCode(var));
+        if (congrList == null) {
+            congrTable.put(varHashCode(var), new ArrayList<>(Collections.singletonList(var)));
+        } else {
+            for (int congrDef : congrList) {
+                if (areCongruent(var, congrDef, false)) {
+                    ConcreteExpression proof = genCongrProof(var, congrDef);
+                    if (proof == null) continue;
+                    pending.add(new Equality(var, congrDef, proof));
+                }
+            }
+            congrList.add(var);
+        }
+    }
 
+    private Set<Integer> getTransitiveOccurrences(int var) {
+        Queue<Integer> toProcess = new ArrayDeque<>();
+        Set<Integer> occurrences = new HashSet<>();
+
+        toProcess.add(var);
+        while (!toProcess.isEmpty()) {
+            int v = toProcess.poll();
+            List<Integer> occurList = occurrenceLists.get(v);
+            if (occurList == null) continue;
+
+            for (int u : occurList) {
+                if (occurrences.add(u)) {
+                    toProcess.add(u);
+                }
+            }
+        }
+
+        return occurrences;
+    }
+
+    private void updateCongrTable(int var1, int var2, Queue<Equality> pending) {
+        Set<Integer> occurList = getTransitiveOccurrences(var1); // occurrenceLists.get(var1);
+
+       // if (occurList == null) {
+       //     varsEquivClasses.union(var1, var2);
+       //     return;
+       // }
+
+        occurList.add(var1);
         for (int containingDef : occurList) {
             congrTable.get(varHashCode(containingDef)).remove(Integer.valueOf(containingDef));
         }
@@ -140,17 +200,7 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         varsEquivClasses.union(var1, var2);
 
         for (int containingDef : occurList) {
-            List<Integer> congrList = congrTable.get(varHashCode(containingDef));
-            if (congrList == null) {
-                congrTable.put(varHashCode(containingDef), new ArrayList<>(Collections.singletonList(containingDef)));
-            } else {
-                for (int congrDef : congrList) {
-                    if (areCongruent(containingDef, congrDef)) {
-                        pending.add(new Equality(containingDef, congrDef, genCongrProof(containingDef, congrDef)));
-                    }
-                }
-                congrList.add(containingDef);
-            }
+            addToCongrTable(containingDef, pending);
         }
     }
 
@@ -166,14 +216,18 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         }
     }
 
-    private void addVarsEquality(int var1, int var2, ConcreteExpression proof) {
-        Queue<Equality> pending = new ArrayDeque<>();
-        pending.add(new Equality(var1, var2, proof));
+    private void addEqualities(Queue<Equality> eqProofs) {
+        //Queue<Equality> pending = new ArrayDeque<>();
+        //pending.add(new Equality(var1, var2, proof));
 
-        while (!pending.isEmpty()) {
-            Equality eq = pending.poll();
+        while (!eqProofs.isEmpty()) {
+            Equality eq = eqProofs.poll();
             int v1 = eq.var1,  v2 = eq.var2;
             ConcreteExpression pr = eq.proof;
+
+            if (varsEquivClasses.find(v1).equals(varsEquivClasses.find(v2))) {
+                continue;
+            }
 
             equivalenceClosure.addRelation(v1, v2, pr);
 
@@ -181,10 +235,10 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
             int var2Rep = varsEquivClasses.find(v2);
             int unionVar = varsEquivClasses.compare(var1Rep, var2Rep);
 
-            if (var1Rep == unionVar) {
-                updateCongrTable(var1Rep, var2Rep, pending);
+            if (var1Rep != unionVar) {
+                updateCongrTable(var1Rep, var2Rep, eqProofs);
             } else {
-                updateCongrTable(var2Rep, var1Rep, pending);
+                updateCongrTable(var2Rep, var1Rep, eqProofs);
             }
         }
     }
@@ -193,21 +247,31 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
     public void addRelation(V value1, V value2, ConcreteExpression proof) {
         int var1 = splitIntoSubterms(value1);
         int var2 = splitIntoSubterms(value2);
-        addVarsEquality(var1, var2, proof);
+        addEqualities(new ArrayDeque<>(Collections.singletonList(new Equality(var1, var2, proof))));
     }
 
     @Override
     public @Nullable ConcreteExpression checkRelation(V value1, V value2) {
         int var1 = splitIntoSubterms(value1);
         int var2 = splitIntoSubterms(value2);
-        return equivalenceClosure.checkRelation(var1, var2);
+
+        ConcreteExpression eqProof = checkEquality(var1, var2);
+        if (eqProof != null) return eqProof;
+
+        if (congrTable.get(varHashCode(var1)).contains(var2)) {
+            if (areCongruent(var1, var2, false)) {
+                return genCongrProof(var1, var2);
+            }
+        }
+
+        return null;
     }
 
     private int varHashCode(int var) {
         Pair<Integer, Integer> def = varDefs.get(var);
         if (def != null) {
-            int func = def.proj1;
-            int arg = def.proj2;
+            int func = varsEquivClasses.find(def.proj1);
+            int arg = varsEquivClasses.find(def.proj2);
             return Objects.hash(varHashCode(func), varHashCode(arg));
         }
         return Objects.hash(varsEquivClasses.find(var));
@@ -245,7 +309,10 @@ public class CongruenceClosure<V extends UncheckedExpression> implements BinaryR
         @Override
         public void union(W x, W y) {
             W xRep = find(x), yRep = find(y);
-            if (size.get(xRep) > size.get(yRep)) {
+            if (xRep == yRep) return;
+
+            W z = compare(xRep, yRep);
+            if (z == xRep) {
                 parent.put(yRep, xRep);
                 size.put(xRep, size.get(xRep) + size.get(yRep));
                 size.remove(yRep);
