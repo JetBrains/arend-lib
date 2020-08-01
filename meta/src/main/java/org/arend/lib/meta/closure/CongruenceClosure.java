@@ -2,10 +2,9 @@ package org.arend.lib.meta.closure;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.core.expr.CoreAppExpression;
-import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.expr.UncheckedExpression;
+import org.arend.ext.core.expr.*;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.lib.util.Pair;
 import org.arend.lib.util.Values;
@@ -13,17 +12,18 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class CongruenceClosure<V extends CoreExpression> implements BinaryRelationClosure<V> {
-    private final Values<CoreExpression> terms;
+    private final ValuesEx terms;
 
-    private final DisjointSet<Integer> varsEquivClasses = new DisjointSetImpl<>();
-    private final EquivalenceClosure<Integer> equivalenceClosure;
-    private final Map<Integer, Pair<Integer, Integer>> varDefs = new HashMap<>();
-    private final Map<Integer, List<Integer>> occurrenceLists = new HashMap<>();
-    private final Map<Integer, List<Integer>> congrTable = new HashMap<>();
+    private final DisjointSet<VarId> varsEquivClasses = new DisjointSetImpl<>();
+    private final EquivalenceClosure<VarId> equivalenceClosure;
+    private final Map<VarId, Pair<VarId, VarId>> varDefs = new HashMap<>();
+    private final Map<VarId, List<VarId>> occurrenceLists = new HashMap<>();
+    private final Map<Integer, List<VarId>> congrTable = new HashMap<>();
 
-    private final Function<List<ConcreteExpression>, ConcreteExpression> congrLemma;
+    private final Function<List<EqProofOrElement>, ConcreteExpression> congrLemma;
 
     public static class EqualityIsEquivProof {
         public ConcreteExpression refl;
@@ -37,67 +37,107 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
         }
     }
 
-    public CongruenceClosure(ExpressionTypechecker typechecker, ConcreteSourceNode marker, Function<List<ConcreteExpression>, ConcreteExpression> congrLemma, EqualityIsEquivProof equalityIsEquivLemma, ConcreteFactory factory) {
+    public CongruenceClosure(ExpressionTypechecker typechecker, ConcreteSourceNode marker, Function<List<EqProofOrElement>, ConcreteExpression> congrLemma, EqualityIsEquivProof equalityIsEquivLemma, ConcreteFactory factory) {
         this.congrLemma = congrLemma;
-        this.terms = new Values<>(typechecker, marker);
+        this.terms = new ValuesEx(typechecker, marker);
         this.equivalenceClosure = new EquivalenceClosure<>(equalityIsEquivLemma.refl, equalityIsEquivLemma.sym, equalityIsEquivLemma.trans, factory);
     }
 
-    private void initAppExprVar(int var, int parentVar) {
-        List<Integer> occurList = occurrenceLists.get(var);
+    private void initAppExprVar(VarId var, VarId parentVar) {
+        List<VarId> occurList = occurrenceLists.get(var);
         if (occurList == null) {
             occurList = new ArrayList<>(Collections.singletonList(parentVar));
             occurrenceLists.put(var, occurList);
         } else { occurList.add(parentVar); }
     }
 
+    private int addTerm(CoreExpression term, VarId parentVar, Queue<Pair<CoreExpression, Integer>> termsToSplit) {
+        int numOfTerms = terms.getValues().size();
+        int termInd = terms.addValue(term);
+        //int defCallArgs = -1;
+
+        //if (term instanceof CoreDefCallExpression) {
+        //    defCallArgs = ((CoreDefCallExpression) term).getDefCallArguments().size() - 1;
+       // }
+
+        if (parentVar != null) {
+            initAppExprVar(new VarId(termInd, -1), parentVar);
+        }
+
+        if (terms.getValues().size() != numOfTerms) {
+            termsToSplit.add(new Pair<>(term, termInd));
+        }
+
+        return termInd;
+
+        //if (term instanceof CoreDefCallExpression) {
+        //    for (CoreExpression arg : ((CoreDefCallExpression) term).getDefCallArguments()) {
+        //        termsToSplit.add()
+        //    }
+       // }
+    }
+
     private Integer splitIntoSubterms(V term) {
         Queue<Pair<CoreExpression, Integer>> termsToSplit = new ArrayDeque<>();
-        List<Integer> toBeAddedToCongrTable = new ArrayList<>();
+        Set<VarId> toBeAddedToCongrTable = new HashSet<>();
 
-        int numOfTerms = terms.getValues().size();
-        int inputTermVar = terms.addValue(term);
-
-        if (numOfTerms == terms.getValues().size()) return inputTermVar;
-        ++ numOfTerms;
-        termsToSplit.add(new Pair<>(term, inputTermVar));
+        int inputTermVar = addTerm(term, null, termsToSplit);
 
         while (!termsToSplit.isEmpty()) {
             Pair<CoreExpression, Integer> subtermPair = termsToSplit.poll();
             CoreExpression subterm = subtermPair.proj1;
             int var = subtermPair.proj2;
 
-            toBeAddedToCongrTable.add(var);
+            toBeAddedToCongrTable.add(new VarId(var, -1));
             if (subterm instanceof CoreAppExpression) {
                 CoreExpression func = ((CoreAppExpression) subterm).getFunction();
                 CoreExpression arg = ((CoreAppExpression) subterm).getArgument();
 
-                int funcVar = terms.addValue(func);
-                if (numOfTerms != terms.getValues().size()) {
-                    termsToSplit.add(new Pair<>(func, funcVar));
-                    initAppExprVar(funcVar, var);
-                    ++numOfTerms;
-                }
+                int funcVar = addTerm(func, new VarId(var, -1), termsToSplit);
+                        //terms.addValue(func);
+                //if (numOfTerms != terms.getValues().size()) {
+                  //  termsToSplit.add(new Pair<>(func, funcVar));
+                  //  initAppExprVar(funcVar, var);
+                  //  ++numOfTerms;
+               // }
 
-                int argVar = terms.addValue(arg);
-                if (numOfTerms != terms.getValues().size()) {
-                    termsToSplit.add(new Pair<>(arg, argVar));
-                    initAppExprVar(argVar, var);
-                    ++numOfTerms;
-                }
+                int argVar = addTerm(arg, new VarId(var, -1), termsToSplit);
+                        //terms.addValue(arg);
+                //if (numOfTerms != terms.getValues().size()) {
+                //    termsToSplit.add(new Pair<>(arg, argVar));
+                //    initAppExprVar(argVar, var);
+                //    ++numOfTerms;
+               // }
 
-                varDefs.put(var, new Pair<>(funcVar, argVar));
+                varDefs.put(new VarId(var, -1), new Pair<>(new VarId(funcVar, -1), new VarId(argVar, -1)));
+            } else if (subterm instanceof CoreDefCallExpression && !(subterm instanceof CoreFieldCallExpression)) {
+                int numArgs = ((CoreDefCallExpression) subterm).getDefCallArguments().size();
+                List<VarId> prefixVars = terms.getVarIds(subterm);
+                VarId appVar = prefixVars.get(0);
+
+                for (int i = 0; i < numArgs; ++i) {
+                    int argVar = addTerm(((CoreDefCallExpression) subterm).getDefCallArguments().get(numArgs - 1 - i), appVar, termsToSplit);
+                    VarId funcVar = prefixVars.get(i + 1);
+                    boolean stop = funcVar != null;
+                    if (funcVar == null) {
+                        funcVar = new VarId(var, i);
+                    }
+                    varDefs.put(appVar, new Pair<>(funcVar, new VarId(argVar, -1)));
+                    initAppExprVar(funcVar, appVar);
+                    toBeAddedToCongrTable.add(appVar);
+                    if (stop) {
+                        break;
+                    }
+                    if (i == numArgs - 1) {
+                        toBeAddedToCongrTable.add(funcVar);
+                    }
+                    appVar = funcVar;
+                }
             }
         }
 
         Queue<Equality> pending = new ArrayDeque<>();
-        for (int var : toBeAddedToCongrTable) {
-            //List<Integer> congrList = congrTable.get(varHashCode(var));
-           // if (congrList == null) {
-           //     congrTable.put(varHashCode(var), new ArrayList<>(Collections.singletonList(var)));
-           // } else {
-           //     congrList.add(var);
-           // }
+        for (VarId var : toBeAddedToCongrTable) {
             addToCongrTable(var, pending);
         }
 
@@ -105,13 +145,13 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
         return inputTermVar;
     }
 
-    private boolean areCongruent(int var1, int var2, boolean canBeEqual) {
+    private boolean areCongruent(VarId var1, VarId var2, boolean canBeEqual) {
         if (canBeEqual && varsEquivClasses.find(var1).equals(varsEquivClasses.find(var2))) {
             return true;
         }
 
-        Pair<Integer, Integer> def1 = varDefs.get(var1);
-        Pair<Integer, Integer> def2 = varDefs.get(var2);
+        Pair<VarId, VarId> def1 = varDefs.get(var1);
+        Pair<VarId, VarId> def2 = varDefs.get(var2);
 
         if ((def1 == null) != (def2 == null)) return false;
 
@@ -121,20 +161,43 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
                 areCongruent(def1.proj1, def2.proj1, true);
     }
 
-    private ConcreteExpression checkEquality(int var1, int var2) {
-        if (var1 == var2) {
-            ConcreteFactory factory = equivalenceClosure.factory;
-            return factory.app(equivalenceClosure.refl, false, Arrays.asList(factory.hole(), factory.core(terms.getValue(var1).computeTyped())));
+    public static class EqProofOrElement {
+        public ConcreteExpression eqProofOrElement;
+        public boolean isElement;
+
+        public EqProofOrElement(ConcreteExpression eqProofOrElement, boolean isRefl) {
+            this.eqProofOrElement = eqProofOrElement;
+            this.isElement = isRefl;
         }
-        return equivalenceClosure.checkRelation(var1, var2);
     }
 
-    private ConcreteExpression genCongrProof(int var1, int var2) {
-        Pair<Integer, Integer> def1 = varDefs.get(var1);
-        List<ConcreteExpression> eqProofs = new ArrayList<>();
+    private ConcreteExpression getConcreteTerm(VarId var) {
+        CoreExpression term = terms.getValue(var.value);
+        ConcreteFactory factory = equivalenceClosure.factory;
+        if (var.prefix == -1) {
+            return factory.core(term.computeTyped());
+        }
+        if (!(term instanceof CoreDefCallExpression)) return null;
+        int numArgs = ((CoreDefCallExpression) term).getDefCallArguments().size();
+        List<ConcreteArgument> args = ((CoreDefCallExpression) term).getDefCallArguments().subList(0, numArgs - 1 - var.prefix).stream().map(x -> factory.arg(factory.core(x.computeTyped()), true)).collect(Collectors.toList());
+        return factory.app(factory.ref(((CoreDefCallExpression) term).getDefinition().getRef()), args);
+    }
+
+    private EqProofOrElement checkEquality(VarId var1, VarId var2) {
+        if (var1.equals(var2)) {
+            //ConcreteFactory factory = equivalenceClosure.factory;
+            //return factory.app(equivalenceClosure.refl, false, Arrays.asList(factory.hole(), factory.core(terms.getValue(var1).computeTyped())));
+            return new EqProofOrElement(getConcreteTerm(var1), true);
+        }
+        return new EqProofOrElement(equivalenceClosure.checkRelation(var1, var2), false);
+    }
+
+    private EqProofOrElement genCongrProof(VarId var1, VarId var2) {
+        Pair<VarId, VarId> def1 = varDefs.get(var1);
+        List<EqProofOrElement> eqProofs = new ArrayList<>();
 
         while (def1 != null) {
-            Pair<Integer, Integer> def2 = varDefs.get(var2);
+            Pair<VarId, VarId> def2 = varDefs.get(var2);
             var1 = def1.proj1; var2 = def2.proj1;
             eqProofs.add(checkEquality(def1.proj2, def2.proj2));
             def1 = varDefs.get(var1);
@@ -145,17 +208,17 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
             return eqProofs.get(0);
         }
         Collections.reverse(eqProofs);
-        return congrLemma.apply(eqProofs);
+        return new EqProofOrElement(congrLemma.apply(eqProofs), false);
     }
 
-    private void addToCongrTable(int var, Queue<Equality> pending) {
-        List<Integer> congrList = congrTable.get(varHashCode(var));
+    private void addToCongrTable(VarId var, Queue<Equality> pending) {
+        List<VarId> congrList = congrTable.get(varHashCode(var));
         if (congrList == null) {
             congrTable.put(varHashCode(var), new ArrayList<>(Collections.singletonList(var)));
         } else {
-            for (int congrDef : congrList) {
+            for (VarId congrDef : congrList) {
                 if (areCongruent(var, congrDef, false)) {
-                    ConcreteExpression proof = genCongrProof(var, congrDef);
+                    EqProofOrElement proof = genCongrProof(var, congrDef);
                     if (proof == null) continue;
                     pending.add(new Equality(var, congrDef, proof));
                 }
@@ -164,17 +227,17 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
         }
     }
 
-    private Set<Integer> getTransitiveOccurrences(int var) {
-        Queue<Integer> toProcess = new ArrayDeque<>();
-        Set<Integer> occurrences = new HashSet<>();
+    private Set<VarId> getTransitiveOccurrences(VarId var) {
+        Queue<VarId> toProcess = new ArrayDeque<>();
+        Set<VarId> occurrences = new HashSet<>();
 
         toProcess.add(var);
         while (!toProcess.isEmpty()) {
-            int v = toProcess.poll();
-            List<Integer> occurList = occurrenceLists.get(v);
+            VarId v = toProcess.poll();
+            List<VarId> occurList = occurrenceLists.get(v);
             if (occurList == null) continue;
 
-            for (int u : occurList) {
+            for (VarId u : occurList) {
                 if (occurrences.add(u)) {
                     toProcess.add(u);
                 }
@@ -184,32 +247,27 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
         return occurrences;
     }
 
-    private void updateCongrTable(int var1, int var2, Queue<Equality> pending) {
-        Set<Integer> occurList = getTransitiveOccurrences(var1); // occurrenceLists.get(var1);
-
-       // if (occurList == null) {
-       //     varsEquivClasses.union(var1, var2);
-       //     return;
-       // }
+    private void updateCongrTable(VarId var1, VarId var2, Queue<Equality> pending) {
+        Set<VarId> occurList = getTransitiveOccurrences(var1); // occurrenceLists.get(var1);
 
         occurList.add(var1);
-        for (int containingDef : occurList) {
-            congrTable.get(varHashCode(containingDef)).remove(Integer.valueOf(containingDef));
+        for (VarId containingDef : occurList) {
+            congrTable.get(varHashCode(containingDef)).remove(containingDef);
         }
 
         varsEquivClasses.union(var1, var2);
 
-        for (int containingDef : occurList) {
+        for (VarId containingDef : occurList) {
             addToCongrTable(containingDef, pending);
         }
     }
 
     private static class Equality {
-        public int var1;
-        public int var2;
-        ConcreteExpression proof;
+        public VarId var1;
+        public VarId var2;
+        EqProofOrElement proof;
 
-        public Equality(int var1, int var2, ConcreteExpression proof) {
+        public Equality(VarId var1, VarId var2, EqProofOrElement proof) {
             this.var1 = var1;
             this.var2 = var2;
             this.proof = proof;
@@ -222,18 +280,18 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
 
         while (!eqProofs.isEmpty()) {
             Equality eq = eqProofs.poll();
-            int v1 = eq.var1,  v2 = eq.var2;
-            ConcreteExpression pr = eq.proof;
+            VarId v1 = eq.var1,  v2 = eq.var2;
+            EqProofOrElement pr = eq.proof;
 
             if (varsEquivClasses.find(v1).equals(varsEquivClasses.find(v2))) {
                 continue;
             }
 
-            equivalenceClosure.addRelation(v1, v2, pr);
+            equivalenceClosure.addRelation(v1, v2, pr.eqProofOrElement);
 
-            int var1Rep = varsEquivClasses.find(v1);
-            int var2Rep = varsEquivClasses.find(v2);
-            int unionVar = varsEquivClasses.compare(var1Rep, var2Rep);
+            VarId var1Rep = varsEquivClasses.find(v1);
+            VarId var2Rep = varsEquivClasses.find(v2);
+            VarId unionVar = varsEquivClasses.compare(var1Rep, var2Rep);
 
             if (var1Rep != unionVar) {
                 updateCongrTable(var1Rep, var2Rep, eqProofs);
@@ -247,41 +305,138 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
     public void addRelation(V value1, V value2, ConcreteExpression proof) {
         int var1 = splitIntoSubterms(value1);
         int var2 = splitIntoSubterms(value2);
-        addEqualities(new ArrayDeque<>(Collections.singletonList(new Equality(var1, var2, proof))));
+        addEqualities(new ArrayDeque<>(Collections.singletonList(new Equality(new VarId(var1, -1), new VarId(var2, -1), new EqProofOrElement(proof, false)))));
     }
 
     @Override
     public @Nullable ConcreteExpression checkRelation(V value1, V value2) {
-        int var1 = splitIntoSubterms(value1);
-        int var2 = splitIntoSubterms(value2);
+        VarId var1 = new VarId(splitIntoSubterms(value1), -1);
+        VarId var2 = new VarId(splitIntoSubterms(value2), -1);
 
-        ConcreteExpression eqProof = checkEquality(var1, var2);
-        if (eqProof != null) return eqProof;
+        EqProofOrElement eqProof = checkEquality(var1, var2);
+        // handle reflexivity!
+        if (eqProof != null) return eqProof.eqProofOrElement;
 
         if (congrTable.get(varHashCode(var1)).contains(var2)) {
             if (areCongruent(var1, var2, false)) {
-                return genCongrProof(var1, var2);
+                return genCongrProof(var1, var2).eqProofOrElement;
             }
         }
 
         return null;
     }
 
-    private int varHashCode(int var) {
-        Pair<Integer, Integer> def = varDefs.get(var);
+    private int varHashCode(VarId var) {
+        Pair<VarId, VarId> def = varDefs.get(var);
         if (def != null) {
-            int func = varsEquivClasses.find(def.proj1);
-            int arg = varsEquivClasses.find(def.proj2);
+            VarId func = varsEquivClasses.find(def.proj1);
+            VarId arg = varsEquivClasses.find(def.proj2);
             return Objects.hash(varHashCode(func), varHashCode(arg));
         }
         return Objects.hash(varsEquivClasses.find(var));
     }
 
+
+    private static class VarId {
+        public int value;
+        public int prefix;
+
+        public VarId(int value, int prefix) {
+            this.value = value;
+            this.prefix = prefix;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            VarId varId = (VarId) o;
+            return value == varId.value &&
+                    prefix == varId.prefix;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value, prefix);
+        }
+    }
+
+    private static class ValuesEx extends Values<CoreExpression> {
+        public ValuesEx(ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
+            super(typechecker, marker);
+        }
+
+        public List<VarId> getVarIds(CoreExpression value) {
+            int prefixSize = 0;
+            List<VarId> result = new ArrayList<>();
+            int index = getIndex(value);
+
+          //  if (index != -1) {
+          //      result.add(new VarId(index, -1));
+           // } else {
+            if (index == -1) {
+                return result;
+            }
+
+            if (!(value instanceof CoreDefCallExpression)) {
+                return result;
+            }
+
+            List<Integer> argInds = new ArrayList<>();
+
+            for (CoreExpression arg : ((CoreDefCallExpression) value).getDefCallArguments()) {
+                int argInd = getIndex(arg);
+                // if (argInd == -1) return result;
+                argInds.add(argInd);
+            }
+
+            int numArgs = argInds.size();
+
+            for (int i = 0; i < values.size(); i++) {
+                if (i == index) continue;
+                CoreExpression element = values.get(i);
+                if (element instanceof CoreDefCallExpression && ((CoreDefCallExpression)value).getDefinition().equals(((CoreDefCallExpression)element).getDefinition())) {
+                    if (((CoreDefCallExpression) element).getDefCallArguments().size() != numArgs) return Collections.emptyList();
+                    if (prefixSize == 0) {
+                        result.add(new VarId(i, numArgs - prefixSize - 1));
+                        ++prefixSize;
+                    }
+                    for (int j = 0; j < numArgs; ++j) {
+                        if (argInds.get(j) == -1) {
+                            break;
+                        }
+                        int elementArg = getIndex(((CoreDefCallExpression) element).getDefCallArguments().get(j));
+                        if (argInds.get(j) == elementArg) {
+                            if (prefixSize <= j + 1) {
+                                result.add(new VarId(i, numArgs - prefixSize - 1));
+                                ++prefixSize;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    if (prefixSize > 0 && argInds.get(prefixSize - 1) == -1) {
+                        break;
+                    }
+                }
+            }
+
+            for (int i = 0; i < numArgs - prefixSize; ++i) {
+                result.add(null);
+            }
+
+            result.add(new VarId(index, -1));
+            Collections.reverse(result);
+
+            return result;
+        }
+
+    } /**/
+
     interface DisjointSet<W> {
         W find(W x);
         void union(W x, W y);
         W compare(W x, W y);
-       // void makeSet(W x);
     }
 
     private static class DisjointSetImpl<W> implements DisjointSet<W> {

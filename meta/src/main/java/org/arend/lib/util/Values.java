@@ -9,9 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Values<E extends UncheckedExpression> {
-  private final ExpressionTypechecker typechecker;
-  private final ConcreteSourceNode marker;
-  private final List<E> values = new ArrayList<>();
+  protected final ExpressionTypechecker typechecker;
+  protected final ConcreteSourceNode marker;
+  protected final List<E> values = new ArrayList<>();
 
   public Values(ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
     this.typechecker = typechecker;
@@ -28,9 +28,13 @@ public class Values<E extends UncheckedExpression> {
     }
   }
 
+  protected boolean matches(UncheckedExpression value, UncheckedExpression element) {
+    return typechecker != null ? typechecker.compare(value, element, CMP.EQ, marker, false, true) : value.compare(element, CMP.EQ);
+  }
+
   public int getIndex(UncheckedExpression value) {
     for (int i = 0; i < values.size(); i++) {
-      if (typechecker != null ? typechecker.compare(value, values.get(i), CMP.EQ, marker, false, true) : value.compare(values.get(i), CMP.EQ)) {
+      if (matches(value, values.get(i))) {
         return i;
       }
     }

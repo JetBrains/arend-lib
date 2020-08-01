@@ -26,14 +26,21 @@ public class CongruenceMeta extends BaseMetaDefinition {
         this.ext = ext;
     }
 
-    private ConcreteExpression appAt(TypedExpression path, ArendRef param) {
-        ConcreteArgument atA = ext.factory.arg(ext.factory.lam(Collections.singleton(ext.factory.param(param)), ext.factory.core(path)), false);
-        CoreExpression element = elementFromIdp(path.getExpression());
-        if (element != null) {
-            return ext.factory.core(element.computeTyped());
+    private ConcreteExpression appAt(ExpressionTypechecker typechecker, CongruenceClosure.EqProofOrElement path, ArendRef param) {
+        //ConcreteArgument atA = ext.factory.arg(ext.factory.lam(Collections.singleton(ext.factory.param(param)), ext.factory.core(path)), false);
+        //CoreExpression element = elementFromIdp(path.getExpression());
+        if (path.isElement) {
+            return path.eqProofOrElement; //ext.factory.core(element.computeTyped());
         }
-        ConcreteExpression cpath = ext.factory.core(path);
-        return ext.factory.app(ext.factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(ext.factory.arg(cpath, true), ext.factory.arg(ext.factory.ref(param), true)));
+        // ConcreteExpression cpath = ext.factory.core(path);
+        TypedExpression pathChecked = typechecker.typecheck(path.eqProofOrElement, null);
+        CoreDefCallExpression equality = pathChecked != null ? pathChecked.getType().toEquality() : null;
+        if (equality != null) {
+            ArendRef iParam = ext.factory.local("i");
+            ConcreteExpression funcLam = ext.factory.lam(Collections.singletonList(ext.factory.param(iParam)), ext.factory.core(equality.getDefCallArguments().get(0).computeTyped()));
+            return ext.factory.app(ext.factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(ext.factory.arg(funcLam, false), ext.factory.arg(path.eqProofOrElement, true), ext.factory.arg(ext.factory.ref(param), true)));
+        }
+        return ext.factory.app(ext.factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(ext.factory.arg(path.eqProofOrElement, true), ext.factory.arg(ext.factory.ref(param), true)));
     }
 
     private CoreExpression elementFromIdp(CoreExpression path) {
@@ -43,29 +50,28 @@ public class CongruenceMeta extends BaseMetaDefinition {
         return null;
     }
 
-    private ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<ConcreteExpression> eqProofs) {
+    private ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<CongruenceClosure.EqProofOrElement> eqProofs) {
         if (eqProofs.isEmpty()) return null;
 
-        TypedExpression funcProof = typechecker.typecheck(eqProofs.get(0), null);
-        if (funcProof == null)  return null;
+        //TypedExpression funcProof = typechecker.typecheck(eqProofs.get(0), null);
+       // if (funcProof == null)  return null;
 
-        CoreDefCallExpression funcEquality = funcProof.getType().toEquality();
-        if (funcEquality == null) return null;
+       // CoreDefCallExpression funcEquality = funcProof.getType().toEquality();
+       // if (funcEquality == null) return null;
 
-        CoreExpression funcType = funcEquality.getDefCallArguments().get(0);
-        if (!(funcType instanceof CorePiExpression)) return null;
+       // CoreExpression funcType = funcEquality.getDefCallArguments().get(0);
+       // if (!(funcType instanceof CorePiExpression)) return null;
        // funcType = ((CoreLamExpression) funcType).getBody();
 
         ArendRef jParam = ext.factory.local("j");
         List<ConcreteArgument> eqProofsAtJ = new ArrayList<>();
 
         for (int i = 1; i < eqProofs.size(); ++i) {
-            TypedExpression argProof = typechecker.typecheck(eqProofs.get(i), null);
-            CoreExpression argType = argProof.getType().toEquality().getDefCallArguments().get(0);
-            eqProofsAtJ.add(ext.factory.arg(appAt(argProof, jParam), true));
+            //TypedExpression argProof = typechecker.typecheck(eqProofs.get(i), null);
+            eqProofsAtJ.add(ext.factory.arg(appAt(typechecker, eqProofs.get(i), jParam), true));
         }
 
-        ConcreteExpression congrLambda = ext.factory.lam(Collections.singleton(ext.factory.param(jParam)), ext.factory.app(appAt(funcProof, jParam), eqProofsAtJ));
+        ConcreteExpression congrLambda = ext.factory.lam(Collections.singleton(ext.factory.param(jParam)), ext.factory.app(appAt(typechecker, eqProofs.get(0), jParam), eqProofsAtJ));
 
         return ext.factory.appBuilder(ext.factory.ref(ext.prelude.getPathCon().getRef())).app(congrLambda).build();
     }
