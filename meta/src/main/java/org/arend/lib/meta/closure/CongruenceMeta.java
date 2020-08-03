@@ -1,4 +1,4 @@
-package org.arend.lib.meta.equation;
+package org.arend.lib.meta.closure;
 
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
@@ -10,7 +10,6 @@ import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
-import org.arend.lib.meta.closure.CongruenceClosure;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,13 +40,6 @@ public class CongruenceMeta extends BaseMetaDefinition {
             return ext.factory.app(ext.factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(ext.factory.arg(funcLam, false), ext.factory.arg(path.eqProofOrElement, true), ext.factory.arg(ext.factory.ref(param), true)));
         }
         return ext.factory.app(ext.factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(ext.factory.arg(path.eqProofOrElement, true), ext.factory.arg(ext.factory.ref(param), true)));
-    }
-
-    private CoreExpression elementFromIdp(CoreExpression path) {
-        if (path instanceof CoreDefCallExpression && ((CoreDefCallExpression) path).getDefinition().equals(ext.prelude.getIdp())) {
-            return ((CoreDefCallExpression) path).getDefCallArguments().get(1);
-        }
-        return null;
     }
 
     private ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<CongruenceClosure.EqProofOrElement> eqProofs) {
@@ -94,6 +86,8 @@ public class CongruenceMeta extends BaseMetaDefinition {
 
             congruenceClosure.addRelation(leftEqArg, rightEqArg, ext.factory.core(eqProof));
         }
+
+        if (contextData.getExpectedType() == null) return null;
 
         CoreFunCallExpression expectedType = contextData.getExpectedType().toEquality();
         if (expectedType == null) return null;
