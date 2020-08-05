@@ -1,3 +1,4 @@
+\import Order.Lattice
 \import Paths
 
 \data List (A : \Type)
@@ -35,3 +36,47 @@
       | nil, suc i, 0 => idp
       | nil, suc i, suc s => idp
       | :: a l, suc i, s => pmap (a ::) (appendLem l i s)
+
+\module Sort \where {
+{-
+  \data Perm {A : \Type} (xs ys : List A) \elim xs, ys
+    | nil, nil => perm-nil
+    | :: x xs, :: y ys => perm-:: (x = y) (Perm xs ys)
+    | :: x (:: x' xs), :: y (:: y' ys) => perm-swap (x = y') (x' = y) (xs = ys)
+    | xs, ys => perm-trans {zs : List A} (Perm xs zs) (Perm zs ys)
+
+  \module Insertion \where {
+    \func sort {A : Lattice} (xs : List A) : List A
+      | nil => nil
+      | :: a xs => insert a (sort xs)
+      \where
+        \func insert {A : TotalPreorder} (a : A) (xs : List A) : List A \elim xs
+          | nil => a :: nil
+          | :: x xs => \case totality x a \with {
+            | inl _ => x :: insert a xs
+            | inr _ => a :: x :: xs
+          }
+
+    \func perm-refl {A : \Type} {xs : List A} : Perm xs xs \elim xs
+      | nil => perm-nil
+      | cons a l => perm-cons idp perm-refl
+
+    \func sort-perm {A : TotalPreorder} (xs : List A) : Perm xs (sort xs) \elim xs
+      | nil => perm-nil
+      | cons a l => perm-trans (perm-cons idp (sort-perm l)) (insert-perm a (sort l))
+      \where {
+        \func insert-perm {A : TotalPreorder} (a : A) (xs : List A)
+          : Perm (cons a xs) (sort.insert a xs) \elim xs
+          | nil => perm-cons idp perm-nil
+          | cons b xs => \case totality b a \as r \return
+          Perm (cons a (cons b xs)) (\case r \with {
+            | inl _ => cons b (sort.insert a xs)
+            | inr _ => cons a (cons b xs)
+          }) \with {
+            | inl b<=a => perm-trans (perm-swap idp idp idp) (perm-cons idp (insert-perm a xs))
+            | inr a<=b => perm-refl
+          }
+      }
+  }
+-}
+}
