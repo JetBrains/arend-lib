@@ -19,6 +19,9 @@ import org.arend.lib.key.ReflexivityKey;
 import org.arend.lib.key.TransitivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
+import org.arend.lib.meta.debug.PrintMeta;
+import org.arend.lib.meta.debug.RandomMeta;
+import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -145,6 +148,15 @@ public class StdExtension implements ArendExtension {
     contributor.declare(logic, new LongName("Exists"),
       "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
       "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, null, new ExistsMeta(this));
+
+    ModulePath debug = ModulePath.fromString("Debug.Meta");
+    contributor.declare(debug, new LongName("time"), "Returns current time in milliseconds", Precedence.DEFAULT, new TimeMeta(this));
+    contributor.declare(debug, new LongName("println"), "Prints the argument to the console", Precedence.DEFAULT, new PrintMeta(this));
+    contributor.declare(debug, new LongName("random"),
+      "`random` returns a random number.\n" +
+      "`random n` returns a random number between 0 and `n`.\n" +
+      "`random (l,u)` returns a random number between `l` and `u`.",
+      Precedence.DEFAULT, new RandomMeta(this));
   }
 
   @Override
