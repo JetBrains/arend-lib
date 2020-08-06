@@ -86,8 +86,9 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
         }
       }
 
-      List<CoreConstructor> constructors = dataCall.computeMatchedConstructors();
-      if (constructors == null || constructors.isEmpty()) {
+      List<CoreConstructor> constructors = new ArrayList<>();
+      dataCall.computeMatchedConstructors(constructors);
+      if (constructors.isEmpty()) {
         result = null;
       } else if (constructors.size() == 1) {
         result = factory.ref(constructors.get(0).getRef());
