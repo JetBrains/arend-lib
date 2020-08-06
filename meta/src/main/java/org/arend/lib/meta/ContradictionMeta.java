@@ -1,12 +1,10 @@
 package org.arend.lib.meta;
 
-import org.arend.ext.concrete.ConcreteClause;
-import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcretePattern;
-import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteCaseExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.concrete.expr.ConcreteLamExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
@@ -48,11 +46,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    ConcreteExpression expr = check(contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression(), contextData.getExpectedType(), contextData.getExpectedType() != null, contextData.getMarker(), typechecker);
-    if (expr instanceof ConcreteCaseExpression && !((ConcreteCaseExpression) expr).getClauses().isEmpty()) {
-      return Utils.tryTypecheck(typechecker, tc -> tc.typecheck(expr, contextData.getExpectedType()));
-    }
-    return expr == null ? null : typechecker.typecheck(expr, contextData.getExpectedType());
+    return checkCore(contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression(), contextData.getExpectedType(), contextData.getExpectedType() != null, contextData.getMarker(), typechecker);
   }
 
   private static class RType {
@@ -247,11 +241,48 @@ public class ContradictionMeta extends BaseMetaDefinition {
     return false;
   }
 
+  public TypedExpression checkCore(ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
+    ConcreteExpression expr = check(Context.TRIVIAL, argument, expectedType, withExpectedType, marker, typechecker);
+    if (expr instanceof ConcreteLamExpression || expr instanceof ConcreteCaseExpression && !((ConcreteCaseExpression) expr).getClauses().isEmpty()) {
+      return Utils.tryTypecheck(typechecker, tc -> tc.typecheck(expr, expectedType));
+    }
+    return expr == null ? null : typechecker.typecheck(expr, expectedType);
+  }
+
   public ConcreteExpression check(ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
     return check(Context.TRIVIAL, argument, expectedType, withExpectedType, marker, typechecker);
   }
 
   public ConcreteExpression check(Context context, ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
+    CoreExpression type;
+    List<CoreParameter> parameters;
+    if (expectedType != null) {
+      parameters = new ArrayList<>();
+      type = expectedType.getPiParameters(parameters);
+    } else {
+      parameters = Collections.emptyList();
+      type = null;
+    }
+
+    if (parameters.isEmpty()) {
+      return checkInternal(context, argument, type, withExpectedType, marker, typechecker);
+    }
+
+    ConcreteFactory factory = ext.factory.withData(marker.getData());
+    List<ConcreteParameter> cParams = new ArrayList<>();
+    for (CoreParameter parameter : parameters) {
+      cParams.add(factory.param(parameter.isExplicit(), factory.local(ext.renamerFactory.getNameFromBinding(parameter.getBinding(), null))));
+    }
+
+    return factory.lam(cParams, factory.meta("contradiction_lambda", new MetaDefinition() {
+      @Override
+      public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+        return checkCore(argument, type, withExpectedType, marker, typechecker);
+      }
+    }));
+  }
+
+  private ConcreteExpression checkInternal(Context context, ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
     ContextHelper contextHelper = new ContextHelper(context, argument);
     ConcreteFactory factory = ext.factory.withData(marker.getData());
 
@@ -297,7 +328,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
           for (CoreDataCallExpression.ConstructorWithParameters con : constructors) {
             List<ConcretePattern> subPatterns = new ArrayList<>();
             for (CoreParameter param = con.parameters; param.hasNext(); param = param.getNext()) {
-              subPatterns.add(factory.refPattern(factory.local(ext.renamerFactory.getNameFromType(param.getTypeExpr(), null) + "1"), null));
+              subPatterns.add(factory.refPattern(factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null) + "1"), null));
             }
             clauses.add(factory.clause(Collections.singletonList(factory.conPattern(con.constructor.getRef(), subPatterns)), factory.meta("case_" + con.constructor.getName(), new MetaDefinition() {
               @Override
