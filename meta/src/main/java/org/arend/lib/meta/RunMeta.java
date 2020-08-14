@@ -3,7 +3,6 @@ package org.arend.lib.meta;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
-import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.NameResolverError;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
@@ -15,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collections;
 import java.util.List;
 
-public class RunMeta implements MetaDefinition, MetaResolver {
+public class RunMeta extends BaseMetaDefinition implements MetaResolver {
   private final StdExtension ext;
 
   public RunMeta(StdExtension ext) {
@@ -23,17 +22,12 @@ public class RunMeta implements MetaDefinition, MetaResolver {
   }
 
   @Override
-  public boolean checkArguments(@NotNull List<? extends ConcreteArgument> arguments) {
-    return arguments.size() == 1 && !arguments.get(0).isExplicit();
+  public @Nullable boolean[] argumentExplicitness() {
+    return new boolean[] { false };
   }
 
   @Override
-  public boolean checkContextData(@NotNull ContextData contextData, @NotNull ErrorReporter errorReporter) {
-    List<? extends ConcreteArgument> args = contextData.getArguments();
-    if (args.size() != 1 || args.get(0).isExplicit()) {
-      errorReporter.report(new NameResolverError("Expected 1 implicit argument", args.isEmpty() ? contextData.getMarker() : args.get(0).getExpression()));
-      return false;
-    }
+  public boolean allowEmptyCoclauses() {
     return true;
   }
 
@@ -76,12 +70,19 @@ public class RunMeta implements MetaDefinition, MetaResolver {
 
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
-    ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
-    List<? extends ConcreteArgument> arguments = contextData.getArguments();
-    if (!checkArguments(arguments)) {
+    if (!checkContextData(contextData, resolver.getErrorReporter())) {
       return null;
     }
+    if (contextData.getArguments().isEmpty() == (contextData.getCoclauses() == null)) {
+      resolver.getErrorReporter().report(new NameResolverError("Expected 1 implicit argument", contextData.getMarker()));
+      return null;
+    }
+    if (contextData.getCoclauses() != null) {
+      return ext.factory.withData(contextData.getCoclauses().getData()).goal();
+    }
 
+    ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
+    List<? extends ConcreteArgument> arguments = contextData.getArguments();
     ConcreteExpression repr = getConcreteRepresentation(arguments, refExpr);
     ConcreteExpression result = resolver.resolve(repr);
     return result == repr ? ext.factory.withData(refExpr.getData()).app(refExpr, arguments) : result;
