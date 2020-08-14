@@ -142,7 +142,7 @@ public class StdExtension implements ArendExtension {
 
     contributor.declare(algebra, new LongName("congruence"),
         "",
-        Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this), true));
+        Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this)));
 
     ModulePath logic = ModulePath.fromString("Logic.Meta");
     contributor.declare(logic, new LongName("contradiction"),

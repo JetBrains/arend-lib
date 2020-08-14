@@ -3,13 +3,19 @@ package org.arend.lib.meta.closure;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.expr.*;
+import org.arend.ext.error.GeneralError;
+import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
+import org.arend.lib.context.Context;
+import org.arend.lib.context.ContextHelper;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,6 +29,16 @@ public class CongruenceMeta extends BaseMetaDefinition {
 
   public CongruenceMeta(StdExtension ext) {
     this.ext = ext;
+  }
+
+  @Override
+  public @Nullable boolean[] argumentExplicitness() {
+    return new boolean[] { false };
+  }
+
+  @Override
+  public boolean requireExpectedType() {
+    return true;
   }
 
   private ConcreteExpression appAt(ExpressionTypechecker typechecker, CongruenceClosure.EqProofOrElement path, ArendRef param) {
@@ -71,26 +87,24 @@ public class CongruenceMeta extends BaseMetaDefinition {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
-    CongruenceClosure<CoreExpression> congruenceClosure = new CongruenceClosure<>(typechecker, refExpr, eqProofs -> applyCongruence(typechecker, eqProofs),
-        new CongruenceClosure.EqualityIsEquivProof(ext.factory.ref(ext.prelude.getIdp().getRef()), ext.factory.ref(ext.inv.getRef()), ext.factory.ref(ext.concat.getRef())), ext.factory);
-
-    for (ConcreteArgument argument : contextData.getArguments()) {
-      TypedExpression eqProof = typechecker.typecheck(argument.getExpression(), null);
-      if (eqProof == null) return null;
-
-      CoreFunCallExpression equality = eqProof.getType().toEquality();
-      if (equality == null) return null;
-
-      CoreExpression leftEqArg = equality.getDefCallArguments().get(1);
-      CoreExpression rightEqArg = equality.getDefCallArguments().get(2);
-
-      congruenceClosure.addRelation(leftEqArg, rightEqArg, ext.factory.core(eqProof));
+    CoreFunCallExpression expectedType = Utils.toEquality(contextData.getExpectedType(), typechecker.getErrorReporter(), refExpr);
+    if (expectedType == null) {
+      return null;
     }
 
-    if (contextData.getExpectedType() == null) return null;
+    ContextHelper contextHelper = new ContextHelper(Context.TRIVIAL, contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression());
+    if (contextHelper.meta == null && !contextData.getArguments().isEmpty()) {
+      typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", contextData.getArguments().get(0).getExpression()));
+    }
 
-    CoreFunCallExpression expectedType = contextData.getExpectedType().toEquality();
-    if (expectedType == null) return null;
+    CongruenceClosure<CoreExpression> congruenceClosure = new CongruenceClosure<>(typechecker, refExpr, eqProofs -> applyCongruence(typechecker, eqProofs),
+        new CongruenceClosure.EqualityIsEquivProof(ext.factory.ref(ext.prelude.getIdp().getRef()), ext.factory.ref(ext.inv.getRef()), ext.factory.ref(ext.concat.getRef())), ext.factory);
+    for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
+      CoreFunCallExpression equality = binding.getTypeExpr().toEquality();
+      if (equality != null) {
+        congruenceClosure.addRelation(equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2), ext.factory.ref(binding));
+      }
+    }
 
     CoreExpression leftEqArg = expectedType.getDefCallArguments().get(1);
     CoreExpression rightEqArg = expectedType.getDefCallArguments().get(2);
