@@ -6,6 +6,7 @@
 \import Algebra.Semiring
 \import Data.Or
 \import Logic
+\import Meta
 \import Order.LinearOrder
 \import Order.StrictOrder
 \import Paths
@@ -79,33 +80,34 @@
 
   \class Dec \extends LinearlyOrderedSemiring, LinearOrder.Dec {
     | <_+-cancel-left x y z x+y<x+z => \case trichotomy y z \with {
-      | inl y=z => absurd (<-irreflexive (rewriteF y=z x+y<x+z))
-      | inr (inl y<z) => y<z
-      | inr (inr y>z) => absurd (<-irreflexive (<-transitive (<_+-right z y x y>z) x+y<x+z))
+      | equals y=z => absurd (<-irreflexive (rewriteF y=z x+y<x+z))
+      | less y<z => y<z
+      | greater y>z => absurd (<-irreflexive (<-transitive (<_+-right z y x y>z) x+y<x+z))
     }
     | <_+-cancel-right x y z x+z<y+z => \case trichotomy x y \with {
-      | inl x=y => absurd (<-irreflexive (rewriteF x=y x+z<y+z))
-      | inr (inl x<y) => x<y
-      | inr (inr x>y) => absurd (<-irreflexive (<-transitive (<_+-left y x z x>y) x+z<y+z))
+      | equals x=y => absurd (<-irreflexive (rewriteF x=y x+z<y+z))
+      | less x<y => x<y
+      | greater x>y => absurd (<-irreflexive (<-transitive (<_+-left y x z x>y) x+z<y+z))
     }
     | <_*-cancel-left x y z x*y<x*z => \case trichotomy x zro, trichotomy y z \with {
-      | inl x=0, _ => absurd (<-irreflexive (transport2 (<) (zro_*-left y) (zro_*-left z) (rewriteF x=0 x*y<x*z)))
-      | _, inl y=z => absurd (<-irreflexive (rewriteF y=z x*y<x*z))
-      | inr (inl x<0), inr (inl y<z) => absurd (<-irreflexive (<-transitive (<_*_negative-right x<0 y<z) x*y<x*z))
-      | inr (inr x>0), inr (inl y<z) => byLeft (x>0, y<z)
-      | inr (inl x<0), inr (inr y>z) => byRight (x<0, y>z)
-      | inr (inr x>0), inr (inr y>z) => absurd (<-irreflexive (<-transitive (<_*_positive-right x>0 y>z) x*y<x*z))
+      | equals x=0, _ => absurd (<-irreflexive (transport2 (<) (zro_*-left y) (zro_*-left z) (rewriteF x=0 x*y<x*z)))
+      | _, equals y=z => absurd (<-irreflexive (rewriteF y=z x*y<x*z))
+      | less x<0, less y<z => absurd (<-irreflexive (<-transitive (<_*_negative-right x<0 y<z) x*y<x*z))
+      | greater x>0, less y<z => byLeft (x>0, y<z)
+      | less x<0, greater y>z => byRight (x<0, y>z)
+      | greater x>0, greater y>z => absurd (<-irreflexive (<-transitive (<_*_positive-right x>0 y>z) x*y<x*z))
     }
     | <_*-cancel-right x y z x*z<y*z => \case trichotomy x y, trichotomy z zro \with {
-      | inl x=y, _ => absurd (<-irreflexive (rewriteF x=y x*z<y*z))
-      | _, inl z=0 => absurd (<-irreflexive (transport2 (<) (zro_*-right x) (zro_*-right y) (rewriteF z=0 x*z<y*z)))
-      | inr (inl x<y), inr (inl z<0) => absurd (<-irreflexive (<-transitive x*z<y*z (<_*_negative-left x<y z<0)))
-      | inr (inl x<y), inr (inr z>0) => byLeft (z>0, x<y)
-      | inr (inr x>y), inr (inl z<0) => byRight (z<0, x>y)
-      | inr (inr x>y), inr (inr z>0) => absurd (<-irreflexive (<-transitive x*z<y*z (<_*_positive-left x>y z>0)))
+      | equals x=y, _ => absurd (<-irreflexive (rewriteF x=y x*z<y*z))
+      | _, equals z=0 => absurd (<-irreflexive (transport2 (<) (zro_*-right x) (zro_*-right y) (rewriteF z=0 x*z<y*z)))
+      | less x<y, less z<0 => absurd (<-irreflexive (<-transitive x*z<y*z (<_*_negative-left x<y z<0)))
+      | less x<y, greater z>0 => byLeft (z>0, x<y)
+      | greater x>y, less z<0 => byRight (z<0, x>y)
+      | greater x>y, greater z>0 => absurd (<-irreflexive (<-transitive x*z<y*z (<_*_positive-left x>y z>0)))
     }
   } \where {
     \class Impl \extends Dec, LinearOrder.Dec.Impl
+    \open LinearOrder
   }
 }
 
@@ -250,44 +252,50 @@
     | negative=>#0 {_} => byRight
     | #0=>eitherPosOrNeg x#0 => x#0
 
+  -- TODO: \use \level instead of \truncated
+  \truncated \data Tri {A : OrderedAddGroup} (x : A) : \Prop
+    | triZro (x = 0)
+    | triPos (isPos x)
+    | triNeg (isNeg x)
+
   \class Dec \extends OrderedRing, LinearlyOrderedSemiring.Dec, Domain.Dec
-    | +_trichotomy (x : E) : (x = zro) || isPos x || isNeg x
+    | +_trichotomy (x : E) : Tri x
 
     | trichotomy x y => \case +_trichotomy (x - y) \with {
-      | byLeft x-y=0 => inl (fromZero x y x-y=0)
-      | byRight (byLeft x-y>0) => inr (inr x-y>0)
-      | byRight (byRight x-y<0) => inr (inl (fromNeg x-y<0))
+      | triZro x-y=0 => LinearOrder.equals (fromZero x y x-y=0)
+      | triPos x-y>0 => LinearOrder.greater x-y>0
+      | triNeg x-y<0 => LinearOrder.less (fromNeg x-y<0)
     }
     | <_+-comparison x y x+y>0 => \case +_trichotomy x \with {
-      | byLeft x=0 => byRight (transport isPos (pmap (`+ y) x=0 *> zro-left) x+y>0)
-      | byRight (byLeft x>0) => byLeft x>0
-      | byRight (byRight x<0) => byRight (transport isPos (inv +-assoc *> pmap (`+ y) (negative-left x) *> zro-left) (positive_+ x<0 x+y>0))
+      | triZro x=0 => byRight (transport isPos (pmap (`+ y) x=0 *> zro-left) x+y>0)
+      | triPos x>0 => byLeft x>0
+      | triNeg x<0 => byRight (transport isPos (inv +-assoc *> pmap (`+ y) (negative-left x) *> zro-left) (positive_+ x<0 x+y>0))
     }
     | <_+-connectedness {x} x/>0 x/<0 => \case +_trichotomy x \with {
-      | byLeft x=0 => x=0
-      | byRight (byLeft x>0) => absurd (x/>0 x>0)
-      | byRight (byRight x<0) => absurd (x/<0 x<0)
+      | triZro x=0 => x=0
+      | triPos x>0 => absurd (x/>0 x>0)
+      | triNeg x<0 => absurd (x/<0 x<0)
     }
     | positive_*-cancel {x} {y} x*y>0 => \case +_trichotomy x, +_trichotomy y \with {
-      | byLeft x=0, _ => absurd (zro/>0 (transport isPos (pmap (`* y) x=0 *> zro_*-left y) x*y>0))
-      | _, byLeft y=0 => absurd (zro/>0 (transport isPos (pmap (x *) y=0 *> zro_*-right x) x*y>0))
-      | byRight (byLeft x>0), byRight (byLeft y>0) => byLeft (x>0, y>0)
-      | byRight (byLeft x>0), byRight (byRight y<0) => absurd (zro/>0 (transport isPos (negative-right _) (positive_+ x*y>0 (positive_negative_* x>0 y<0))))
-      | byRight (byRight x<0), byRight (byLeft y>0) => absurd (zro/>0 (transport isPos (negative-right _) (positive_+ x*y>0 (negative_positive_* x<0 y>0))))
-      | byRight (byRight x<0), byRight (byRight y<0) => byRight (x<0, y<0)
+      | triZro x=0, _ => absurd (zro/>0 (transport isPos (pmap (`* y) x=0 *> zro_*-left y) x*y>0))
+      | _, triZro y=0 => absurd (zro/>0 (transport isPos (pmap (x *) y=0 *> zro_*-right x) x*y>0))
+      | triPos x>0, triPos y>0 => byLeft (x>0, y>0)
+      | triPos x>0, triNeg y<0 => absurd (zro/>0 (transport isPos (negative-right _) (positive_+ x*y>0 (positive_negative_* x>0 y<0))))
+      | triNeg x<0, triPos y>0 => absurd (zro/>0 (transport isPos (negative-right _) (positive_+ x*y>0 (negative_positive_* x<0 y>0))))
+      | triNeg x<0, triNeg y<0 => byRight (x<0, y<0)
     }
     | nonEqualApart x x/=0 => \case +_trichotomy x \with {
-      | byLeft x=0 => absurd (x/=0 x=0)
-      | byRight (byLeft x>0) => positive=>#0 x>0
-      | byRight (byRight x<0) => negative=>#0 x<0
+      | triZro x=0 => absurd (x/=0 x=0)
+      | triPos x>0 => positive=>#0 x>0
+      | triNeg x<0 => negative=>#0 x<0
     } \where
       \class Impl \extends Dec, Domain.Dec.Impl
         | positive=>#0 x>0 x=0 => zro/>0 (transport isPos x=0 x>0)
         | negative=>#0 x<0 x=0 => zro/>0 (transport isPos (pmap negative x=0 *> negative_zro) x<0)
         | #0=>eitherPosOrNeg {x} x/=0 => \case +_trichotomy x \with {
-          | byLeft x=0 => absurd (x/=0 x=0)
-          | byRight (byLeft x>0) => byLeft x>0
-          | byRight (byRight x<0) => byRight x<0
+          | triZro x=0 => absurd (x/=0 x=0)
+          | triPos x>0 => byLeft x>0
+          | triNeg x<0 => byRight x<0
         }
 }
 
@@ -322,10 +330,10 @@
     | byRight x-isInv => x-isInv
   }
   | +_trichotomy x => \case eitherZeroOrInv x \with {
-    | byLeft x=0 => byLeft x=0
+    | byLeft x=0 => OrderedRing.triZro x=0
     | byRight x-isInv => \case #0=>eitherPosOrNeg x-isInv \with {
-      | byLeft x>0 => byRight (byLeft x>0)
-      | byRight x<0 => byRight (byRight x<0)
+      | byLeft x>0 => OrderedRing.triPos x>0
+      | byRight x<0 => OrderedRing.triNeg x<0
     }
   }
 }

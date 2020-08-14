@@ -75,7 +75,9 @@ public class RunMeta implements MetaDefinition, MetaResolver {
   }
 
   @Override
-  public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ConcreteReferenceExpression refExpr, @NotNull List<? extends ConcreteArgument> arguments) {
+  public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
+    ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
+    List<? extends ConcreteArgument> arguments = contextData.getArguments();
     if (!checkArguments(arguments)) {
       return null;
     }

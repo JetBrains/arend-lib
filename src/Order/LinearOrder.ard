@@ -75,25 +75,32 @@
     }
     | tightness x/#y => <-connectedness (\lam x<y => x/#y (byLeft x<y)) (\lam y<x => x/#y (byRight y<x))
 
+  \data Tri {A : StrictPoset} (a a' : A)
+    | less (a < a')
+    | equals (a = a')
+    | greater (a > a')
+    \where
+      \use \level levelProp : \Prop
+
   -- | A linearly ordered set with decidable inequality.
   \class Dec \extends LinearOrder, DecSet {
-    \property trichotomy (x y : E) : (x = y) `Or` (x < y) `Or` (y < x)
+    | trichotomy (x y : E) : Tri x y
 
     | <-comparison x y z x<z => \case trichotomy x y \with {
-      | inl x=y => byRight (transport (`< z) x=y x<z)
-      | inr (inl x<y) => byLeft x<y
-      | inr (inr y<x) => byRight (<-transitive y<x x<z)
+      | less x<y => byLeft x<y
+      | equals x=y => byRight (transport (`< z) x=y x<z)
+      | greater y<x => byRight (<-transitive y<x x<z)
     }
     | <-connectedness {x} {y} x/<y y/<x => \case trichotomy x y \with {
-      | inl x=y => x=y
-      | inr (inl x<y) => absurd (x/<y x<y)
-      | inr (inr y<x) => absurd (y/<x y<x)
+      | less x<y => absurd (x/<y x<y)
+      | equals x=y => x=y
+      | greater y<x => absurd (y/<x y<x)
     }
 
     | decideEq x y => \case trichotomy x y \with {
-      | inl x=y => yes x=y
-      | inr (inl x<y) => no (\lam x=y => <-irreflexive (transport (`< y) x=y x<y))
-      | inr (inr y<x) => no (\lam x=y => <-irreflexive (transport (y <) x=y y<x))
+      | less x<y => no (\lam x=y => <-irreflexive (transport (`< y) x=y x<y))
+      | equals x=y => yes x=y
+      | greater y<x => no (\lam x=y => <-irreflexive (transport (y <) x=y y<x))
     }
   } \where {
     \func =>TotalOrder {L : Dec} : TotalOrder L \cowith
@@ -106,9 +113,9 @@
         | byRight x<y, byRight y<z => byRight (<-transitive x<y y<z)
       }
       | totality x y => \case trichotomy x y \with {
-        | inl x=y => byLeft (byLeft x=y)
-        | inr (inl x<y) => byLeft (byRight x<y)
-        | inr (inr y<x) => byRight (byRight y<x)
+        | equals x=y => byLeft (byLeft x=y)
+        | less x<y => byLeft (byRight x<y)
+        | greater y<x => byRight (byRight y<x)
       }
       | <=-antisymmetric x<=y y<=x => \case x<=y, y<=x \with {
         | byLeft x=y, _ => x=y

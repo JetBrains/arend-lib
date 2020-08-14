@@ -4,6 +4,7 @@
 \import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder \hiding (<=)
+\import Order.StrictOrder
 \import Paths
 \open Nat
 
@@ -85,6 +86,13 @@
 
 -- # Properties of +, *, and <
 
+\instance NatStrictPoset : StrictPoset Nat
+  | < n m => suc n <= m
+  | <-irreflexive {n : Nat} (p : suc n <= n) : Empty \elim n, p {
+    | suc n, suc<=suc p => <-irreflexive p
+  }
+  | <-transitive p q => <=-transitive p (<=-transitive <=-suc q)
+
 \instance NatSemiring : LinearlyOrderedCSemiring.Dec.Impl Nat
   | zro => 0
   | + => +
@@ -129,19 +137,15 @@
         suc m * n + m   `qed)
   }
   | zro_*-left _ => *-comm
-  | < n m => suc n <= m
-  | <-irreflexive {n : Nat} (p : suc n <= n) : Empty \elim n, p {
-    | suc n, suc<=suc p => <-irreflexive p
-  }
-  | <-transitive p q => <=-transitive p (<=-transitive <=-suc q)
-  | trichotomy (n m : Nat) : (n = m) `Or` (suc n <= m) `Or` (suc m <= n) \with {
-    | 0, 0 => inl idp
-    | 0, suc m => inr (inl (suc<=suc zero<=_))
-    | suc n, 0 => inr (inr (suc<=suc zero<=_))
+  | StrictPoset => NatStrictPoset
+  | trichotomy (n m : Nat) : Tri n m \with {
+    | 0, 0 => equals idp
+    | 0, suc m => less (suc<=suc zero<=_)
+    | suc n, 0 => greater (suc<=suc zero<=_)
     | suc n, suc m => \case trichotomy n m \with {
-      | inl n=m => inl (pmap suc n=m)
-      | inr (inl sucn<=m) => inr (inl (suc<=suc sucn<=m))
-      | inr (inr sucm<=n) => inr (inr (suc<=suc sucm<=n))
+      | equals n=m => equals (pmap suc n=m)
+      | less sucn<=m => less (suc<=suc sucn<=m)
+      | greater sucm<=n => greater (suc<=suc sucm<=n)
     }
   }
   | <_+-left (n m k : Nat) (p : suc n <= m) : suc (n + k) <= m + k \elim k {
@@ -154,3 +158,4 @@
     | suc (suc k), q => <=_+ (<=-transitive <=-suc (<_*_positive-left p (suc<=suc zero<=_))) p
   }
   | <_*_negative-left x<y z<0 => \case z<0 \with {}
+  \where \open LinearOrder

@@ -108,14 +108,14 @@ public class StdLevelProver implements LevelProver {
         List<ArendRef> refs1 = con1.constructor == con2.constructor ? new ArrayList<>() : null;
         List<ArendRef> refs2 = con1.constructor == con2.constructor ? new ArrayList<>() : null;
         for (CoreParameter param = con1.parameters; param.hasNext(); param = param.getNext()) {
-          ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(param.getTypeExpr(), null) + "1");
+          ArendRef ref = factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null) + "1");
           subPatterns1.add(factory.refPattern(ref, null));
           if (refs1 != null) {
             refs1.add(ref);
           }
         }
         for (CoreParameter param = con2.parameters; param.hasNext(); param = param.getNext()) {
-          ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(param.getTypeExpr(), null) + "2");
+          ArendRef ref = factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null) + "2");
           subPatterns2.add(factory.refPattern(ref, null));
           if (refs2 != null) {
             refs2.add(ref);
