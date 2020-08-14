@@ -277,7 +277,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
     return factory.lam(cParams, factory.meta("contradiction_lambda", new MetaDefinition() {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-        return checkCore(argument, type, withExpectedType, marker, typechecker);
+        return checkCore(argument, contextData.getExpectedType(), withExpectedType, marker, typechecker);
       }
     }));
   }
