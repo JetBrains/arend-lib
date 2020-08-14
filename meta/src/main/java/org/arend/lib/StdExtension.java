@@ -51,7 +51,6 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Logic") public CoreDataDefinition TruncP;
 
   public EquationMeta equationMeta = new EquationMeta(this);
-  public CongruenceMeta congruenceMeta = new CongruenceMeta(this);
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
@@ -142,8 +141,8 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
 
     contributor.declare(algebra, new LongName("congruence"),
-            "",
-            Precedence.DEFAULT, new DeferredMetaDefinition(congruenceMeta, true));
+        "",
+        Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this), true));
 
     ModulePath logic = ModulePath.fromString("Logic.Meta");
     contributor.declare(logic, new LongName("contradiction"),
