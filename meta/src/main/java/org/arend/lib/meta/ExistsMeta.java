@@ -8,6 +8,7 @@ import org.arend.ext.error.NameResolverError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.ContextData;
+import org.arend.ext.typechecking.ContextDataChecker;
 import org.arend.ext.typechecking.MetaResolver;
 import org.arend.lib.StdExtension;
 import org.jetbrains.annotations.NotNull;
@@ -56,6 +57,9 @@ public class ExistsMeta implements MetaResolver {
 
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
+    if (!new ContextDataChecker().checkContextData(contextData, resolver.getErrorReporter())) {
+      return null;
+    }
     ConcreteFactory factory = ext.factory.withData(contextData.getReferenceExpression().getData());
 
     List<? extends ConcreteArgument> arguments = contextData.getArguments();
