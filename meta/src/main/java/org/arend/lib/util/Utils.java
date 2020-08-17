@@ -94,6 +94,14 @@ public class Utils {
     return result;
   }
 
+  public static int parametersSize(CoreParameter param) {
+    int s = 0;
+    for (; param.hasNext(); param = param.getNext()) {
+      s++;
+    }
+    return s;
+  }
+
   public static ConcreteExpression addArguments(ConcreteExpression expr, ConcreteFactory factory, int numberOfArgs, boolean addGoals) {
     if (numberOfArgs <= 0) {
       return expr;
