@@ -12,10 +12,7 @@ import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.CoreCaseExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.UncheckedExpression;
-import org.arend.ext.error.GeneralError;
-import org.arend.ext.error.MissingClausesError;
-import org.arend.ext.error.NameResolverError;
-import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
@@ -165,7 +162,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     if (caseParam + 1 < args.size()) {
       ConcreteExpression def = args.get(caseParam + 1).getExpression();
       if (expectedPatterns.isEmpty()) {
-        typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", def));
+        typechecker.getErrorReporter().report(new IgnoredArgumentError(def));
       } else {
         List<ConcreteClause> clauses = new ArrayList<>(actualClauses);
         for (List<CorePattern> row : expectedPatterns) {
