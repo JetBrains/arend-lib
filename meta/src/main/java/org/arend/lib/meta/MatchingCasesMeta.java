@@ -12,6 +12,7 @@ import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.CoreCaseExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.UncheckedExpression;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
@@ -81,7 +82,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<ConcreteCaseArgument> caseArgs = new ArrayList<>();
     Deque<CoreExpression> subexpressions = new ArrayDeque<>();
     List<ConcreteParameter> types = new ArrayList<>();
-    CoreExpression expectedType = contextData.getExpectedType();
+    CoreExpression expectedType = contextData.getExpectedType().normalize(NormalizationMode.RNF);
     boolean[] isSCase = new boolean[] { false };
     List<List<CorePattern>> patterns = new ArrayList<>();
 
