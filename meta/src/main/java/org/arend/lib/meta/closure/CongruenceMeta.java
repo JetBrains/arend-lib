@@ -42,12 +42,9 @@ public class CongruenceMeta extends BaseMetaDefinition {
   }
 
   private ConcreteExpression appAt(ExpressionTypechecker typechecker, CongruenceClosure.EqProofOrElement path, ArendRef param) {
-    //ConcreteArgument atA = ext.factory.arg(ext.factory.lam(Collections.singleton(ext.factory.param(param)), ext.factory.core(path)), false);
-    //CoreExpression element = elementFromIdp(path.getExpression());
     if (path.isElement) {
-      return path.eqProofOrElement; //ext.factory.core(element.computeTyped());
+      return path.eqProofOrElement;
     }
-    // ConcreteExpression cpath = ext.factory.core(path);
     TypedExpression pathChecked = typechecker.typecheck(path.eqProofOrElement, null);
     CoreDefCallExpression equality = pathChecked != null ? pathChecked.getType().toEquality() : null;
     if (equality != null) {
@@ -61,21 +58,10 @@ public class CongruenceMeta extends BaseMetaDefinition {
   private ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<CongruenceClosure.EqProofOrElement> eqProofs) {
     if (eqProofs.isEmpty()) return null;
 
-    //TypedExpression funcProof = typechecker.typecheck(eqProofs.get(0), null);
-    // if (funcProof == null)  return null;
-
-    // CoreDefCallExpression funcEquality = funcProof.getType().toEquality();
-    // if (funcEquality == null) return null;
-
-    // CoreExpression funcType = funcEquality.getDefCallArguments().get(0);
-    // if (!(funcType instanceof CorePiExpression)) return null;
-    // funcType = ((CoreLamExpression) funcType).getBody();
-
     ArendRef jParam = ext.factory.local("j");
     List<ConcreteArgument> eqProofsAtJ = new ArrayList<>();
 
     for (int i = 1; i < eqProofs.size(); ++i) {
-      //TypedExpression argProof = typechecker.typecheck(eqProofs.get(i), null);
       eqProofsAtJ.add(ext.factory.arg(appAt(typechecker, eqProofs.get(i), jParam), true));
     }
 
@@ -111,6 +97,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
 
     ConcreteExpression goalProof = congruenceClosure.checkRelation(leftEqArg, rightEqArg);
     if (goalProof == null) return null;
+
     return typechecker.typecheck(goalProof, contextData.getExpectedType());
   }
 }

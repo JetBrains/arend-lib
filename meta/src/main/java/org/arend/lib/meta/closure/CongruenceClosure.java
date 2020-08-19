@@ -56,11 +56,6 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
   private int addTerm(CoreExpression term, VarId parentVar, Queue<Pair<CoreExpression, Integer>> termsToSplit) {
     int numOfTerms = terms.getValues().size();
     int termInd = terms.addValue(term);
-    //int defCallArgs = -1;
-
-    //if (term instanceof CoreDefCallExpression) {
-    //    defCallArgs = ((CoreDefCallExpression) term).getDefCallArguments().size() - 1;
-    // }
 
     if (parentVar != null) {
       initAppExprVar(new VarId(termInd, -1), parentVar);
@@ -71,12 +66,6 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
     }
 
     return termInd;
-
-    //if (term instanceof CoreDefCallExpression) {
-    //    for (CoreExpression arg : ((CoreDefCallExpression) term).getDefCallArguments()) {
-    //        termsToSplit.add()
-    //    }
-    // }
   }
 
   private Integer splitIntoSubterms(V term) {
@@ -94,24 +83,19 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
       if (subterm instanceof CoreAppExpression) {
         CoreExpression func = ((CoreAppExpression) subterm).getFunction();
         CoreExpression arg = ((CoreAppExpression) subterm).getArgument();
+        CoreExpression funcType = func.computeType();
+        boolean doSplitting = true;
 
-        int funcVar = addTerm(func, new VarId(var, -1), termsToSplit);
-        //terms.addValue(func);
-        //if (numOfTerms != terms.getValues().size()) {
-        //  termsToSplit.add(new Pair<>(func, funcVar));
-        //  initAppExprVar(funcVar, var);
-        //  ++numOfTerms;
-        // }
+        if (funcType instanceof CorePiExpression) {
+          doSplitting = !((CorePiExpression) funcType).getCodomain().findFreeBinding(((CorePiExpression) funcType).getParameters().getBinding());
+        }
 
-        int argVar = addTerm(arg, new VarId(var, -1), termsToSplit);
-        //terms.addValue(arg);
-        //if (numOfTerms != terms.getValues().size()) {
-        //    termsToSplit.add(new Pair<>(arg, argVar));
-        //    initAppExprVar(argVar, var);
-        //    ++numOfTerms;
-        // }
+        if (doSplitting) {
+          int funcVar = addTerm(func, new VarId(var, -1), termsToSplit);
+          int argVar = addTerm(arg, new VarId(var, -1), termsToSplit);
 
-        varDefs.put(new VarId(var, -1), new Pair<>(new VarId(funcVar, -1), new VarId(argVar, -1)));
+          varDefs.put(new VarId(var, -1), new Pair<>(new VarId(funcVar, -1), new VarId(argVar, -1)));
+        }
       } else if (subterm instanceof CoreDefCallExpression && !(subterm instanceof CoreFieldCallExpression)) {
         int numArgs = ((CoreDefCallExpression) subterm).getDefCallArguments().size();
         List<VarId> prefixVars = terms.getVarIds(subterm);
@@ -157,7 +141,7 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
 
     if ((def1 == null) != (def2 == null)) return false;
 
-    if (def1 == null) return false; //varsEquivClasses.find(var1).equals(varsEquivClasses.find(var2));
+    if (def1 == null) return false;
 
     return varsEquivClasses.find(def1.proj2).equals(varsEquivClasses.find(def2.proj2)) &&
         areCongruent(def1.proj1, def2.proj1, true);
@@ -251,7 +235,7 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
   }
 
   private void updateCongrTable(VarId var1, VarId var2, Queue<Equality> pending) {
-    Set<VarId> occurList = getTransitiveOccurrences(var1); // occurrenceLists.get(var1);
+    Set<VarId> occurList = getTransitiveOccurrences(var1);
 
     occurList.add(var1);
     for (VarId containingDef : occurList) {
@@ -278,9 +262,6 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
   }
 
   private void addEqualities(Queue<Equality> eqProofs) {
-    //Queue<Equality> pending = new ArrayDeque<>();
-    //pending.add(new Equality(var1, var2, proof));
-
     while (!eqProofs.isEmpty()) {
       Equality eq = eqProofs.poll();
       VarId v1 = eq.var1, v2 = eq.var2;
@@ -317,8 +298,7 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
     VarId var2 = new VarId(splitIntoSubterms(value2), -1);
 
     EqProofOrElement eqProof = checkEquality(var1, var2);
-    // handle reflexivity!
-    if (eqProof != null) return eqProof.eqProofOrElement;
+    if (eqProof.eqProofOrElement != null) return eqProof.eqProofOrElement;
 
     if (congrTable.get(varHashCode(var1)).contains(var2)) {
       if (areCongruent(var1, var2, false)) {
@@ -374,9 +354,6 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
       List<VarId> result = new ArrayList<>();
       int index = getIndex(value);
 
-      //  if (index != -1) {
-      //      result.add(new VarId(index, -1));
-      // } else {
       if (index == -1) {
         return result;
       }
@@ -389,7 +366,6 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
 
       for (CoreExpression arg : ((CoreDefCallExpression) value).getDefCallArguments()) {
         int argInd = getIndex(arg);
-        // if (argInd == -1) return result;
         argInds.add(argInd);
       }
 
@@ -449,13 +425,13 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
     private final Map<W, Integer> size = new HashMap<>();
 
     @Override
-    public W find(W x) {
-      if (parent.get(x) == null) {
-        parent.put(x, x);
-        size.put(x, 1);
-        return x;
+    public W find(W w) {
+      if (parent.get(w) == null) {
+        parent.put(w, w);
+        size.put(w, 1);
+        return w;
       }
-      W z = x;
+      W z = w;
       W p = parent.get(z);
       while (z != p) {
         W pp = parent.get(p);
