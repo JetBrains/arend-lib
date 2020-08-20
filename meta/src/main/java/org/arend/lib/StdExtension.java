@@ -108,7 +108,14 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new HidingMeta());
     contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
     contributor.declare(meta, new LongName("at"), "`(f at x) r` replaces variable `x` with `f x` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
-    contributor.declare(meta, new LongName("mcases"), "", Precedence.DEFAULT, new MatchingCasesMeta(this));
+    contributor.declare(meta, new LongName("mcases"),
+      "`mcases def \\with { ... }` matches all expressions that are matched in \\case expressions in the expected type.\n\n" +
+      "`def` is an optional argument which is used as a default result for missing clauses.",
+      Precedence.DEFAULT, new MatchingCasesMeta(this));
+    contributor.declare(meta, new LongName("unfold"),
+      "`unfold (f_1, ... f_n) e` unfolds functions f_1, ... f_n in the expected type before type-checking of `e` and returns `e` itself.\n" +
+      "If the expected type is unknown, it unfolds these function in the result type of `e`.",
+      Precedence.DEFAULT, new UnfoldMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
