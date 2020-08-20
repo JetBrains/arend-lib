@@ -7,6 +7,7 @@ import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.expr.CoreInferenceReferenceExpression;
 import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.ext.core.ops.CMP;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
@@ -125,6 +126,7 @@ public class RewriteMeta extends BaseMetaDefinition {
       lastArg = null;
       type = expectedType;
     }
+    CoreExpression normType = type.normalize(NormalizationMode.RNF);
 
     // Replace occurrences and return the result
     ArendRef ref = factory.local("x");
@@ -135,7 +137,7 @@ public class RewriteMeta extends BaseMetaDefinition {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
           final int[] num = { 0 };
-          UncheckedExpression absExpr = type.replaceSubexpressions(expression -> {
+          UncheckedExpression absExpr = normType.replaceSubexpressions(expression -> {
             if (typechecker.compare(expression, value, CMP.EQ, refExpr, false, true)) {
               num[0]++;
               if (occurrences == null || occurrences.contains(num[0])) {
@@ -152,7 +154,7 @@ public class RewriteMeta extends BaseMetaDefinition {
             occurrences.removeIf(i -> i <= num[0]);
           }
           if (num[0] == 0 || occurrences != null && !occurrences.isEmpty()) {
-            errorReporter.report(new SubexprError(occurrences, value, type, refExpr));
+            errorReporter.report(new SubexprError(occurrences, value, normType, refExpr));
             return null;
           }
           return typechecker.check(absExpr, refExpr);
