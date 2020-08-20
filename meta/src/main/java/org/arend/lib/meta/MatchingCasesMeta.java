@@ -1,10 +1,7 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.concrete.*;
-import org.arend.ext.concrete.expr.ConcreteArgument;
-import org.arend.ext.concrete.expr.ConcreteCaseArgument;
-import org.arend.ext.concrete.expr.ConcreteCaseExpression;
-import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreElimClause;
 import org.arend.ext.core.body.CorePattern;
 import org.arend.ext.core.context.CoreBinding;
@@ -76,6 +73,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     List<? extends ConcreteArgument> args = contextData.getArguments();
+    ErrorReporter errorReporter = typechecker.getErrorReporter();
     ConcreteExpression marker = contextData.getMarker();
     ConcreteFactory factory = ext.factory.withData(marker);
     List<ArendRef> caseRefs = new ArrayList<>();
@@ -86,8 +84,23 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     boolean[] isSCase = new boolean[] { false };
     List<List<CorePattern>> patterns = new ArrayList<>();
 
+    Set<Integer> caseOccurrences;
+    if (!args.get(0).isExplicit()) {
+      caseOccurrences = new HashSet<>();
+      for (ConcreteExpression param : Utils.getArgumentList(args.get(0).getExpression())) {
+        if (param instanceof ConcreteNumberExpression) {
+          caseOccurrences.add(((ConcreteNumberExpression) param).getNumber().intValue());
+        } else {
+          errorReporter.report(new TypecheckingError("Unrecognized parameter", param));
+        }
+      }
+    } else {
+      caseOccurrences = null;
+    }
+
+    int[] caseCount = { 0 };
     expectedType.findSubexpression(expr -> {
-      if (expr instanceof CoreCaseExpression) {
+      if (expr instanceof CoreCaseExpression && (caseOccurrences == null || caseOccurrences.remove(++caseCount[0]))) {
         CoreCaseExpression caseExpr = (CoreCaseExpression) expr;
         if (caseExpr.isSCase()) {
           isSCase[0] = true;
@@ -117,12 +130,13 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             }
           }
         }
+        return caseOccurrences != null && caseOccurrences.isEmpty();
       }
       return false;
     });
 
     if (subexpressions.isEmpty()) {
-      typechecker.getErrorReporter().report(new TypecheckingError("Cannot find matching subexpressions", contextData.getMarker()));
+      errorReporter.report(new TypecheckingError("Cannot find matching subexpressions", contextData.getMarker()));
       return null;
     }
 
@@ -140,7 +154,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       actualPatterns = new ArrayList<>();
       for (ConcreteClause clause : actualClauses) {
         if (clause.getPatterns().size() != s) {
-          typechecker.getErrorReporter().report(new TypecheckingError("Expected " + s + " patterns", clause));
+          errorReporter.report(new TypecheckingError("Expected " + s + " patterns", clause));
           ok = false;
           continue;
         }
@@ -163,7 +177,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     if (caseParam + 1 < args.size()) {
       ConcreteExpression def = args.get(caseParam + 1).getExpression();
       if (expectedPatterns.isEmpty()) {
-        typechecker.getErrorReporter().report(new IgnoredArgumentError(def));
+        errorReporter.report(new IgnoredArgumentError(def));
       } else {
         List<ConcreteClause> clauses = new ArrayList<>(actualClauses);
         for (List<CorePattern> row : expectedPatterns) {
@@ -176,7 +190,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         finalClauses = clauses;
       }
     } else if (!expectedPatterns.isEmpty()) {
-      typechecker.getErrorReporter().report(new MissingClausesError(expectedPatterns, caseParams, Collections.emptyList(), false, marker));
+      errorReporter.report(new MissingClausesError(expectedPatterns, caseParams, Collections.emptyList(), false, marker));
       return null;
     }
 
@@ -192,7 +206,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           return null;
         });
         if (result == null) {
-          typechecker.getErrorReporter().report(new TypecheckingError("Cannot substitute expressions", marker));
+          errorReporter.report(new TypecheckingError("Cannot substitute expressions", marker));
           return null;
         }
         return typechecker.check(result, marker);
