@@ -2,12 +2,17 @@ package org.arend.lib.meta;
 
 import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.core.body.CoreBody;
+import org.arend.ext.core.body.CoreElimBody;
 import org.arend.ext.core.body.CoreElimClause;
 import org.arend.ext.core.body.CorePattern;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreDefinition;
+import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.CoreCaseExpression;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.*;
@@ -84,29 +89,107 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     boolean[] isSCase = new boolean[] { false };
     List<List<CorePattern>> patterns = new ArrayList<>();
 
-    Set<Integer> caseOccurrences;
+    // Parse parameters
+    Set<Integer> caseOccurrences; // we are looking for \case expressions if caseOccurrences is either null or non-empty
+    Map<CoreFunctionDefinition, Integer> defCount = new HashMap<>(); // if defCount.get(def) != null, then we are looking for def
+    Map<CoreFunctionDefinition, Set<Integer>> defOccurrences = new HashMap<>(); // if we are looking for def and defOccurrences.get(def) == null, then we are looking for all occurrences; otherwise only for the specified ones; defOccurrences.get(def) is never empty
     if (!args.get(0).isExplicit()) {
-      caseOccurrences = new HashSet<>();
-      for (ConcreteExpression param : Utils.getArgumentList(args.get(0).getExpression())) {
-        if (param instanceof ConcreteNumberExpression) {
-          caseOccurrences.add(((ConcreteNumberExpression) param).getNumber().intValue());
-        } else {
-          errorReporter.report(new TypecheckingError("Unrecognized parameter", param));
+      List<? extends ConcreteExpression> params = Utils.getArgumentList(args.get(0).getExpression());
+      if (params.isEmpty()) {
+        errorReporter.report(new IgnoredArgumentError(args.get(0).getExpression()));
+        caseOccurrences = null;
+      } else {
+        List<List<? extends ConcreteExpression>> lists = new ArrayList<>();
+        List<ConcreteExpression> defList = new ArrayList<>();
+        for (ConcreteExpression param : params) {
+          if (param instanceof ConcreteTupleExpression) {
+            lists.add(Utils.getArgumentList(param));
+          } else {
+            defList.add(param);
+          }
         }
+        if (!defList.isEmpty()) {
+          lists.add(defList);
+        }
+
+        Set<Integer> myCaseOccurrences = new HashSet<>();
+        for (List<? extends ConcreteExpression> list : lists) {
+          Set<Integer> occurrences = new HashSet<>();
+          for (ConcreteExpression param : list) {
+            if (param instanceof ConcreteNumberExpression) {
+              occurrences.add(((ConcreteNumberExpression) param).getNumber().intValue());
+            } else if (!(param instanceof ConcreteReferenceExpression)) {
+              errorReporter.report(new TypecheckingError("Unrecognized parameter", param));
+            }
+          }
+          boolean isCase = true;
+          for (ConcreteExpression param : list) {
+            if (param instanceof ConcreteReferenceExpression) {
+              CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) param).getReferent());
+              if (def instanceof CoreFunctionDefinition && ((CoreFunctionDefinition) def).getBody() instanceof CoreElimBody) {
+                isCase = false;
+                if (defCount.putIfAbsent((CoreFunctionDefinition) def, 0) == null) {
+                  if (!occurrences.isEmpty()) {
+                    defOccurrences.put((CoreFunctionDefinition) def, occurrences);
+                  }
+                } else {
+                  errorReporter.report(new IgnoredArgumentError("Parameters for '" + def.getName() + "' are already specified", param));
+                }
+              } else {
+                errorReporter.report(new TypecheckingError("Expected a function defined by pattern matching", param));
+              }
+            }
+          }
+          if (isCase) {
+            if (myCaseOccurrences != null && myCaseOccurrences.isEmpty()) {
+              myCaseOccurrences = occurrences.isEmpty() ? null : occurrences;
+            } else {
+              errorReporter.report(new IgnoredArgumentError("Parameters for \\case expressions are already specified", list.isEmpty() ? args.get(0).getExpression() : list.get(0)));
+            }
+          }
+        }
+        caseOccurrences = myCaseOccurrences;
       }
     } else {
       caseOccurrences = null;
     }
 
+    // Find subexpressions
     int[] caseCount = { 0 };
     expectedType.findSubexpression(expr -> {
+      Collection<? extends CoreExpression> matchArgs = null;
+      List<? extends CoreElimClause> clauses = null;
       if (expr instanceof CoreCaseExpression && (caseOccurrences == null || caseOccurrences.remove(++caseCount[0]))) {
         CoreCaseExpression caseExpr = (CoreCaseExpression) expr;
         if (caseExpr.isSCase()) {
           isSCase[0] = true;
         }
-        for (CoreExpression argument : caseExpr.getArguments()) {
-          if (!(argument instanceof CoreCaseExpression)) {
+        matchArgs = caseExpr.getArguments();
+        clauses = caseExpr.getElimBody().getClauses();
+      } else if (expr instanceof CoreFunCallExpression) {
+        CoreFunctionDefinition def = ((CoreFunCallExpression) expr).getDefinition();
+        Integer count = defCount.get(def);
+        if (count != null) {
+          Set<Integer> occurrences = defOccurrences.get(def);
+          if (occurrences == null || occurrences.contains(count + 1)) {
+            CoreBody body = def.getBody();
+            if (body instanceof CoreElimBody) {
+              if (def.getKind() == CoreFunctionDefinition.Kind.SFUNC) {
+                isSCase[0] = true;
+              }
+              matchArgs = ((CoreFunCallExpression) expr).getDefCallArguments();
+              clauses = ((CoreElimBody) body).getClauses();
+            }
+          }
+          if (occurrences != null) {
+            defCount.put(def, count + 1);
+          }
+        }
+      }
+
+      if (matchArgs != null) {
+        for (CoreExpression argument : matchArgs) {
+          if (!(argument instanceof CoreCaseExpression) || caseOccurrences != null) {
             subexpressions.add(argument);
             TypedExpression typed = argument.computeTyped();
             ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(typed.getType(), null));
@@ -116,9 +199,8 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           }
         }
 
-        List<? extends CoreElimClause> clauses = caseExpr.getElimBody().getClauses();
         if (!clauses.isEmpty()) {
-          int s = caseExpr.getArguments().size();
+          int s = matchArgs.size();
           for (int i = 0; i < s; i++) {
             patterns.add(new ArrayList<>());
           }
@@ -130,8 +212,10 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             }
           }
         }
-        return caseOccurrences != null && caseOccurrences.isEmpty();
+
+        return caseOccurrences != null && caseOccurrences.isEmpty() && defCount.isEmpty();
       }
+
       return false;
     });
 
