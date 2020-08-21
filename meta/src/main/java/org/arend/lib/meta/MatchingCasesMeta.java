@@ -4,7 +4,6 @@ import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreBody;
 import org.arend.ext.core.body.CoreElimBody;
-import org.arend.ext.core.body.CoreElimClause;
 import org.arend.ext.core.body.CorePattern;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
@@ -87,7 +86,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<ConcreteParameter> types = new ArrayList<>();
     CoreExpression expectedType = contextData.getExpectedType().normalize(NormalizationMode.RNF);
     boolean[] isSCase = new boolean[] { false };
-    List<List<CorePattern>> patterns = new ArrayList<>();
+    List<List<List<CorePattern>>> blocks = new ArrayList<>();
 
     // Parse parameters
     Set<Integer> caseOccurrences; // we are looking for \case expressions if caseOccurrences is either null or non-empty
@@ -158,14 +157,14 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     int[] caseCount = { 0 };
     expectedType.findSubexpression(expr -> {
       Collection<? extends CoreExpression> matchArgs = null;
-      List<? extends CoreElimClause> clauses = null;
+      List<List<CorePattern>> clauses = null;
       if (expr instanceof CoreCaseExpression && (caseOccurrences == null || caseOccurrences.remove(++caseCount[0]))) {
         CoreCaseExpression caseExpr = (CoreCaseExpression) expr;
         if (caseExpr.isSCase()) {
           isSCase[0] = true;
         }
         matchArgs = caseExpr.getArguments();
-        clauses = caseExpr.getElimBody().getClauses();
+        clauses = caseExpr.getElimBody().computeRefinedPatterns(caseExpr.getParameters());
       } else if (expr instanceof CoreFunCallExpression) {
         CoreFunctionDefinition def = ((CoreFunCallExpression) expr).getDefinition();
         Integer count = defCount.get(def);
@@ -178,7 +177,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                 isSCase[0] = true;
               }
               matchArgs = ((CoreFunCallExpression) expr).getDefCallArguments();
-              clauses = ((CoreElimBody) body).getClauses();
+              clauses = ((CoreElimBody) body).computeRefinedPatterns(def.getParameters());
             }
           }
           if (occurrences != null) {
@@ -200,17 +199,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
 
         if (!clauses.isEmpty()) {
-          int s = matchArgs.size();
-          for (int i = 0; i < s; i++) {
-            patterns.add(new ArrayList<>());
-          }
-          for (CoreElimClause clause : clauses) {
-            List<? extends CorePattern> clausePatterns = clause.getPatterns();
-            assert clausePatterns.size() == s;
-            for (int i = 0; i < s; i++) {
-              patterns.get(patterns.size() - (s - i)).add(clausePatterns.get(i));
-            }
-          }
+          blocks.add(clauses);
         }
 
         return caseOccurrences != null && caseOccurrences.isEmpty() && defCount.isEmpty();
@@ -256,7 +245,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       actualPatterns = Collections.emptyList();
     }
 
-    List<List<CorePattern>> expectedPatterns = deletePatterns(product(patterns), actualPatterns);
+    List<List<CorePattern>> expectedPatterns = deletePatterns(product(blocks), actualPatterns);
     List<? extends ConcreteClause> finalClauses = actualClauses;
     if (caseParam + 1 < args.size()) {
       ConcreteExpression def = args.get(caseParam + 1).getExpression();
@@ -298,15 +287,18 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     }), null, finalClauses), contextData.getExpectedType());
   }
 
-  private List<List<CorePattern>> product(List<List<CorePattern>> patterns) {
-    List<List<CorePattern>> result = Collections.singletonList(Collections.emptyList());
-    for (List<CorePattern> column : patterns) {
-      List<List<CorePattern>> newResult = new ArrayList<>();
-      for (List<CorePattern> list : result) {
-        for (CorePattern pattern : column) {
-          List<CorePattern> newList = new ArrayList<>(list.size() + 1);
+  // Each block correspond to a single function or \case expression.
+  // It is a list of rows and each row is a sequence of patterns.
+  // Each row has the same length.
+  private <T> List<List<T>> product(List<List<List<T>>> blocks) {
+    List<List<T>> result = Collections.singletonList(Collections.emptyList());
+    for (List<List<T>> block : blocks) {
+      List<List<T>> newResult = new ArrayList<>();
+      for (List<T> list : result) {
+        for (List<T> row : block) {
+          List<T> newList = new ArrayList<>(list.size() + 1);
           newList.addAll(list);
-          newList.add(pattern);
+          newList.addAll(row);
           newResult.add(newList);
         }
       }
