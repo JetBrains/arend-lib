@@ -360,7 +360,10 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         ArendRef letRef = letRefs.computeIfAbsent(pair.proj1, k -> {
           ArendRef ref = factory.local("h" + (letClauses.size() + 1));
           ConcreteExpression cExpr = pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1).getExpression() : args.get(caseParam + 1).getExpression();
-          assert cExpr != null;
+          if (cExpr == null) {
+            errorReporter.report(new TypecheckingError("Clause must have a right hand side", actualClauses.get(pair.proj1)));
+            return null;
+          }
           if (lamParams != null) {
             List<ConcreteParameter> cParams = new ArrayList<>();
             for (CoreParameter param = lamParams; param.hasNext(); param = param.getNext()) {
