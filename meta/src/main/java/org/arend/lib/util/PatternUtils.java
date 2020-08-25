@@ -190,9 +190,10 @@ public class PatternUtils {
   /**
    * Checks coverage for a list of patterns with {@code type} as their type.
    */
-  private static boolean checkCoverage(List<? extends CorePattern> patterns, CoreExpression type) {
-    for (CorePattern pattern : patterns) {
-      if (pattern.isAbsurd() || pattern.getBinding() != null || pattern.getConstructor() instanceof CoreFunctionDefinition) {
+  private static boolean checkCoverage(List<Pair<Integer, CorePattern>> patterns, CoreExpression type, Set<Integer> result) {
+    for (Pair<Integer, CorePattern> pair : patterns) {
+      if (pair.proj2.isAbsurd() || pair.proj2.getBinding() != null || pair.proj2.getConstructor() instanceof CoreFunctionDefinition) {
+        result.add(pair.proj1);
         return true;
       }
     }
@@ -207,9 +208,9 @@ public class PatternUtils {
       return constructors != null && constructors.isEmpty();
     }
 
-    boolean isTuple = patterns.get(0).getConstructor() == null;
-    for (CorePattern pattern : patterns) {
-      if (isTuple != (pattern.getConstructor() == null)) {
+    boolean isTuple = patterns.get(0).proj2.getConstructor() == null;
+    for (Pair<Integer, CorePattern> pair : patterns) {
+      if (isTuple != (pair.proj2.getConstructor() == null)) {
         return false;
       }
     }
@@ -223,7 +224,7 @@ public class PatternUtils {
       } else {
         return false;
       }
-      return checkCoverage(patterns, parameters);
+      return checkCoverage(patterns, parameters, result);
     }
 
     if (!(type instanceof CoreDataCallExpression)) {
@@ -235,14 +236,14 @@ public class PatternUtils {
       return false;
     }
 
-    Map<CoreDefinition, List<CorePattern>> map = new HashMap<>();
-    for (CorePattern pattern : patterns) {
-      map.computeIfAbsent(pattern.getConstructor(), k -> new ArrayList<>()).add(pattern);
+    Map<CoreDefinition, List<Pair<Integer, CorePattern>>> map = new HashMap<>();
+    for (Pair<Integer, CorePattern> pair : patterns) {
+      map.computeIfAbsent(pair.proj2.getConstructor(), k -> new ArrayList<>()).add(pair);
     }
 
     for (CoreDataCallExpression.ConstructorWithDataArguments conCall : constructors) {
-      List<CorePattern> list = map.get(conCall.getConstructor());
-      if (list == null || !checkCoverage(list, conCall.getParameters())) {
+      List<Pair<Integer, CorePattern>> list = map.get(conCall.getConstructor());
+      if (list == null || !checkCoverage(list, conCall.getParameters(), result)) {
         return false;
       }
     }
@@ -250,15 +251,10 @@ public class PatternUtils {
     return true;
   }
 
-  private static boolean checkCoverage(List<? extends CorePattern> patterns, CoreParameter parameters) {
-    List<List<? extends CorePattern>> rows = new ArrayList<>(patterns.size());
-    for (CorePattern pattern : patterns) {
-      rows.add(pattern.getSubPatterns());
-    }
-
-    int numberOfColumns = rows.get(0).size();
-    for (List<? extends CorePattern> row : rows) {
-      if (row.size() != numberOfColumns) {
+  private static boolean checkCoverage(List<Pair<Integer, CorePattern>> rows, CoreParameter parameters, Set<Integer> result) {
+    int numberOfColumns = rows.get(0).proj2.getSubPatterns().size();
+    for (Pair<Integer, CorePattern> row : rows) {
+      if (row.proj2.getSubPatterns().size() != numberOfColumns) {
         return false;
       }
     }
@@ -268,17 +264,24 @@ public class PatternUtils {
       if (!param.hasNext()) {
         return false;
       }
-      List<CorePattern> column = new ArrayList<>(rows.size());
-      for (List<? extends CorePattern> row : rows) {
-        column.add(row.get(i));
+      List<Pair<Integer, CorePattern>> column = new ArrayList<>(rows.size());
+      for (Pair<Integer, CorePattern> row : rows) {
+        column.add(new Pair<>(row.proj1, row.proj2.getSubPatterns().get(i)));
       }
-      if (!checkCoverage(column, param.getTypeExpr())) {
+      if (!checkCoverage(column, param.getTypeExpr(), result)) {
         return false;
       }
       param = param.getNext();
     }
 
-    return !param.hasNext();
+    if (param.hasNext()) {
+      return false;
+    }
+
+    if (numberOfColumns == 0) {
+      result.add(rows.get(0).proj1);
+    }
+    return true;
   }
 
   /**
@@ -294,29 +297,41 @@ public class PatternUtils {
       return null;
     }
 
-    List<Integer> coveringIndices = new ArrayList<>();
-    Map<CoreBinding, List<CorePattern>> substs = new HashMap<>();
+    int coveringIndex = -1;
+    Map<CoreBinding, List<Pair<Integer, CorePattern>>> substs = new HashMap<>();
     for (int i = 0; i < actualRows.size(); i++) {
       Map<CoreBinding, CorePattern> subst = new HashMap<>();
       if (unify(actualRows.get(i), row, null, subst)) {
-        coveringIndices.add(i);
+        if (coveringIndex == -1) {
+          coveringIndex = i;
+        }
         for (Map.Entry<CoreBinding, CorePattern> entry : subst.entrySet()) {
-          substs.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(entry.getValue());
+          substs.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(new Pair<>(i, entry.getValue()));
         }
       }
     }
 
-    if (coveringIndices.isEmpty()) {
+    if (coveringIndex == -1) {
       return null;
     }
+    if (substs.isEmpty()) {
+      return Collections.singletonList(coveringIndex);
+    }
 
-    for (Map.Entry<CoreBinding, List<CorePattern>> entry : substs.entrySet()) {
-      if (!checkCoverage(entry.getValue(), entry.getKey().getTypeExpr())) {
+    Set<Integer> coveringIndices = new HashSet<>();
+    for (Map.Entry<CoreBinding, List<Pair<Integer, CorePattern>>> entry : substs.entrySet()) {
+      if (!checkCoverage(entry.getValue(), entry.getKey().getTypeExpr(), coveringIndices)) {
         return null;
       }
     }
 
-    return coveringIndices;
+    List<Integer> coveringList = new ArrayList<>();
+    for (int i = 0; i < actualRows.size(); i++) {
+      if (coveringIndices.contains(i)) {
+        coveringList.add(i);
+      }
+    }
+    return coveringList;
   }
 
   public static List<CorePattern> subst(Collection<? extends CorePattern> patterns, Map<CoreBinding, CorePattern> map) {

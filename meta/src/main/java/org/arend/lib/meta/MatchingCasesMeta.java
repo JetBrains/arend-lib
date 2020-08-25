@@ -358,7 +358,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       if (!isAbsurd && (!pair.proj2.isEmpty() || actualUsages.get(pair.proj1) > 1)) {
         CoreParameter lamParams = PatternUtils.getAllBindings(actualRows.get(pair.proj1));
         ArendRef letRef = letRefs.computeIfAbsent(pair.proj1, k -> {
-          ArendRef ref = factory.local("let" + (letClauses.size() + 1));
+          ArendRef ref = factory.local("h" + (letClauses.size() + 1));
           ConcreteExpression cExpr = pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1).getExpression() : args.get(caseParam + 1).getExpression();
           assert cExpr != null;
           if (lamParams != null) {
