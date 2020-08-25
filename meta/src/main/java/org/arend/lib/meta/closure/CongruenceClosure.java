@@ -2,6 +2,7 @@ package org.arend.lib.meta.closure;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.expr.*;
@@ -169,13 +170,56 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
     return factory.app(factory.ref(((CoreDefCallExpression) term).getDefinition().getRef()), args);
   }
 
+  private int getNumberOfInvs(List<ConcreteExpression> path) {
+    int numOfInvs = 0;
+    for (ConcreteExpression proof : path) {
+      if (proof instanceof ConcreteAppExpression && ((ConcreteAppExpression) proof).getFunction().equals(equivalenceClosure.sym)) {
+        ++numOfInvs;
+      }
+    }
+    return numOfInvs;
+  }
+
+  private boolean shouldBeInverted(VarId var1, VarId var2) {
+    List<ConcreteExpression> path12 = equivalenceClosure.getPath(var1, var2);
+    List<ConcreteExpression> path21 = equivalenceClosure.getPath(var2, var1);
+    return (path12 != null && path21 != null && getNumberOfInvs(path12) > getNumberOfInvs(path21));
+  }
+
   private EqProofOrElement checkEquality(VarId var1, VarId var2) {
     if (var1.equals(var2)) {
-      //ConcreteFactory factory = equivalenceClosure.factory;
-      //return factory.app(equivalenceClosure.refl, false, Arrays.asList(factory.hole(), factory.core(terms.getValue(var1).computeTyped())));
       return new EqProofOrElement(getConcreteTerm(var1), true);
     }
     return new EqProofOrElement(equivalenceClosure.checkRelation(var1, var2), false);
+  }
+
+  private boolean shouldInvertCongrProof(VarId var1, VarId var2) {
+    Pair<VarId, VarId> def1 = varDefs.get(var1);
+    int numShouldBeInverted = 0;
+    int totalNum = 0;
+    VarId var1_ = var1, var2_ = var2;
+
+    while (def1 != null) {
+      Pair<VarId, VarId> def2 = varDefs.get(var2_);
+      var1_ = def1.proj1;
+      var2_ = def2.proj1;
+      if (shouldBeInverted(def1.proj2, def2.proj2)) {
+        ++numShouldBeInverted;
+      }
+      if (!def1.proj2.equals(def2.proj2)) {
+        ++totalNum;
+      }
+      def1 = varDefs.get(var1_);
+
+    }
+
+    if (shouldBeInverted(var1_, var2_)) {
+      ++numShouldBeInverted;
+    }
+
+    if (!var1_.equals(var2_)) totalNum++;
+
+    return 2 * numShouldBeInverted > totalNum;
   }
 
   private EqProofOrElement genCongrProof(VarId var1, VarId var2) {
@@ -191,9 +235,11 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
     }
 
     eqProofs.add(checkEquality(var1, var2));
+
     if (eqProofs.size() == 1) {
       return eqProofs.get(0);
     }
+
     Collections.reverse(eqProofs);
     return new EqProofOrElement(congrLemma.apply(eqProofs), false);
   }
@@ -205,9 +251,14 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
     } else {
       for (VarId congrDef : congrList) {
         if (areCongruent(var, congrDef, false)) {
-          EqProofOrElement proof = genCongrProof(var, congrDef);
+          boolean shouldInvert = shouldInvertCongrProof(var, congrDef);
+          EqProofOrElement proof = !shouldInvert ? genCongrProof(var, congrDef) : genCongrProof(congrDef, var);
           if (proof == null) continue;
-          pending.add(new Equality(var, congrDef, proof));
+          if (!shouldInvert) {
+            pending.add(new Equality(var, congrDef, proof));
+          } else {
+            pending.add(new Equality(congrDef, var, proof));
+          }
         }
       }
       congrList.add(var);

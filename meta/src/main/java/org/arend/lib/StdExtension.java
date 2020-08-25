@@ -141,7 +141,7 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
 
     contributor.declare(algebra, new LongName("congruence"),
-        "",
+        "Proves an equality by congruence closure of equalities in the context. E.g. derives f a = g b from f = g and a = b",
         Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this)));
 
     ModulePath logic = ModulePath.fromString("Logic.Meta");
