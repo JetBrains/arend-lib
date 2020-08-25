@@ -4,6 +4,7 @@ import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreBody;
 import org.arend.ext.core.body.CoreElimBody;
+import org.arend.ext.core.body.CoreElimClause;
 import org.arend.ext.core.body.CorePattern;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
@@ -19,6 +20,7 @@ import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.util.Pair;
 import org.arend.lib.util.PatternUtils;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -86,7 +88,8 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<ConcreteParameter> types = new ArrayList<>();
     CoreExpression expectedType = contextData.getExpectedType().normalize(NormalizationMode.RNF);
     boolean[] isSCase = new boolean[] { false };
-    List<List<List<CorePattern>>> blocks = new ArrayList<>();
+    List<List<List<? extends CorePattern>>> requiredBlocks = new ArrayList<>();
+    List<List<List<CorePattern>>> refinedBlocks = new ArrayList<>();
 
     // Parse parameters
     Set<Integer> caseOccurrences; // we are looking for \case expressions if caseOccurrences is either null or non-empty
@@ -157,14 +160,16 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     int[] caseCount = { 0 };
     expectedType.findSubexpression(expr -> {
       Collection<? extends CoreExpression> matchArgs = null;
-      List<List<CorePattern>> clauses = null;
+      List<? extends CoreElimClause> clauses = null;
+      List<List<CorePattern>> refinedClauses = null;
       if (expr instanceof CoreCaseExpression && (caseOccurrences == null || caseOccurrences.remove(++caseCount[0]))) {
         CoreCaseExpression caseExpr = (CoreCaseExpression) expr;
         if (caseExpr.isSCase()) {
           isSCase[0] = true;
         }
         matchArgs = caseExpr.getArguments();
-        clauses = caseExpr.getElimBody().computeRefinedPatterns(caseExpr.getParameters());
+        clauses = caseExpr.getElimBody().getClauses();
+        refinedClauses = caseExpr.getElimBody().computeRefinedPatterns(caseExpr.getParameters());
       } else if (expr instanceof CoreFunCallExpression) {
         CoreFunctionDefinition def = ((CoreFunCallExpression) expr).getDefinition();
         Integer count = defCount.get(def);
@@ -177,7 +182,8 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                 isSCase[0] = true;
               }
               matchArgs = ((CoreFunCallExpression) expr).getDefCallArguments();
-              clauses = ((CoreElimBody) body).computeRefinedPatterns(def.getParameters());
+              clauses = ((CoreElimBody) body).getClauses();
+              refinedClauses = ((CoreElimBody) body).computeRefinedPatterns(def.getParameters());
             }
           }
           if (occurrences != null) {
@@ -198,10 +204,12 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           }
         }
 
-        if (!clauses.isEmpty()) {
-          blocks.add(clauses);
+        List<List<? extends CorePattern>> block = new ArrayList<>();
+        for (CoreElimClause clause : clauses) {
+          block.add(clause.getPatterns());
         }
-
+        requiredBlocks.add(block);
+        refinedBlocks.add(refinedClauses);
         return caseOccurrences != null && caseOccurrences.isEmpty() && defCount.isEmpty();
       }
 
@@ -220,11 +228,10 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
     int caseParam = args.get(0).isExplicit() ? 0 : 1;
     List<? extends ConcreteClause> actualClauses = ((ConcreteCaseExpression) args.get(caseParam).getExpression()).getClauses();
-    List<List<CorePattern>> actualPatterns;
+    List<List<CorePattern>> actualRows = new ArrayList<>();
     if (!actualClauses.isEmpty()) {
       boolean ok = true;
       int s = Utils.parametersSize(caseParams);
-      actualPatterns = new ArrayList<>();
       for (ConcreteClause clause : actualClauses) {
         if (clause.getPatterns().size() != s) {
           errorReporter.report(new TypecheckingError("Expected " + s + " patterns", clause));
@@ -236,38 +243,162 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           ok = false;
           continue;
         }
-        actualPatterns.add(row);
+        actualRows.add(row);
       }
       if (!ok) {
         return null;
       }
-    } else {
-      actualPatterns = Collections.emptyList();
     }
 
-    List<List<CorePattern>> expectedPatterns = deletePatterns(product(blocks), actualPatterns);
-    List<? extends ConcreteClause> finalClauses = actualClauses;
-    if (caseParam + 1 < args.size()) {
-      ConcreteExpression def = args.get(caseParam + 1).getExpression();
-      if (expectedPatterns.isEmpty()) {
-        errorReporter.report(new IgnoredArgumentError(def));
-      } else {
-        List<ConcreteClause> clauses = new ArrayList<>(actualClauses);
-        for (List<CorePattern> row : expectedPatterns) {
-          List<ConcretePattern> concretePatterns = new ArrayList<>();
-          for (CorePattern pattern : row) {
-            concretePatterns.add(PatternUtils.toConcrete(pattern, ext.renamerFactory, factory));
-          }
-          clauses.add(factory.clause(concretePatterns, def));
-        }
-        finalClauses = clauses;
+    // Find coverings of required rows by actual rows
+    List<List<CorePattern>> requiredBlock = product(requiredBlocks);
+    List<List<CorePattern>> refinedBlock = product(refinedBlocks);
+    Map<Integer, List<Integer>> coveringRows = new HashMap<>(); // keys are indexing requiredBlock, values are indexing actualRows
+    for (int i = 0; i < requiredBlock.size(); i++) {
+      List<Integer> covering = PatternUtils.computeCovering(actualRows, requiredBlock.get(i));
+      if (covering != null) {
+        coveringRows.put(i, covering);
       }
-    } else if (!expectedPatterns.isEmpty()) {
-      errorReporter.report(new MissingClausesError(expectedPatterns, caseParams, Collections.emptyList(), false, marker));
+    }
+
+    // If there is no default expression and not all rows are covered, report them and quit
+    if (caseParam + 1 >= args.size() && coveringRows.size() < requiredBlock.size()) {
+      List<List<CorePattern>> missingRows = new ArrayList<>();
+      for (int i = 0; i < requiredBlock.size(); i++) {
+        if (!coveringRows.containsKey(i)) {
+          missingRows.add(requiredBlock.get(i));
+        }
+      }
+      errorReporter.report(new MissingClausesError(missingRows, caseParams, Collections.emptyList(), false, marker));
       return null;
     }
 
-    return typechecker.typecheck(factory.caseExpr(isSCase[0], caseArgs, factory.meta("case_return", new MetaDefinition() {
+    // Add not covered clauses to actual clauses
+    if (coveringRows.size() == requiredBlock.size()) {
+      if (caseParam + 1 < args.size()) {
+        errorReporter.report(new IgnoredArgumentError(args.get(caseParam + 1).getExpression()));
+      }
+    } else {
+      for (int i = 0; i < requiredBlock.size(); i++) {
+        if (!coveringRows.containsKey(i)) {
+          actualRows.add(requiredBlock.get(i));
+        }
+      }
+    }
+
+    // Find actual rows that cover refined rows
+    Map<Integer, Integer> actualUsages = new HashMap<>(); // keys are indexing actualRows
+    List<List<CorePattern>> refinedRows = new ArrayList<>();
+    List<Pair<Integer, Map<CoreBinding, CorePattern>>> refinedToActual = new ArrayList<>(); // indices of this list = indices of refinedRows, and refinedToActual[i].proj1 indexing actualRows
+    for (List<CorePattern> refinedRow : refinedBlock) {
+      for (int i = 0, j = actualClauses.size(); i < requiredBlock.size(); i++) {
+        List<Integer> covering = coveringRows.get(i);
+        Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
+        Map<CoreBinding, CorePattern> subst2 = new HashMap<>();
+        // This conditions is equivalent to PatternUtils.refines(refinedRow, requiredBlock.get(i))
+        if (PatternUtils.unify(refinedRow, requiredBlock.get(i), subst1, subst2) && PatternUtils.isTrivial(subst1.values())) {
+          if (covering == null) {
+            boolean trivial = PatternUtils.isTrivial(subst2.values());
+            actualUsages.compute(j, (k, v) -> v == null ? 1 : v + 1);
+            refinedToActual.add(new Pair<>(j, trivial ? Collections.emptyMap() : subst2));
+            refinedRows.add(refinedRow);
+          } else {
+            // here we need to further refine refinedRow
+            for (Integer index : covering) {
+              Map<CoreBinding, CorePattern> subst3 = new HashMap<>();
+              Map<CoreBinding, CorePattern> subst4 = new HashMap<>();
+              if (PatternUtils.unify(refinedRow, actualRows.get(index), subst3, subst4)) {
+                boolean trivial = PatternUtils.isTrivial(subst4.values());
+                actualUsages.compute(index, (k, v) -> v == null ? 1 : v + 1);
+                refinedToActual.add(new Pair<>(index, trivial ? Collections.emptyMap() : subst4));
+                subst3.entrySet().removeIf(e -> e.getValue().getBinding() != null);
+                refinedRows.add(PatternUtils.subst(refinedRow, subst3));
+              }
+            }
+          }
+          break;
+        }
+        if (covering == null) {
+          j++;
+        }
+      }
+    }
+
+    // Report clauses that were not used
+    for (int i = 0; i < actualClauses.size(); i++) {
+      if (!actualUsages.containsKey(i)) {
+        errorReporter.report(new RedundantClauseError(actualClauses.get(i)));
+      }
+    }
+
+    // Find all actual rows with absurd patterns
+    Set<Integer> absurdActualRows = new HashSet<>();
+    for (int i = 0; i < actualRows.size(); i++) {
+      if (PatternUtils.isAbsurd(actualRows.get(i))) {
+        absurdActualRows.add(i);
+      }
+    }
+
+    // For every refined row, we add a concrete clause to the resulting list of clauses
+    List<ConcreteLetClause> letClauses = new ArrayList<>();
+    List<ConcreteClause> resultClauses = new ArrayList<>();
+    Map<Integer, ArendRef> letRefs = new HashMap<>();
+    for (int i = 0; i < refinedRows.size(); i++) {
+      Pair<Integer, Map<CoreBinding, CorePattern>> pair = refinedToActual.get(i);
+      boolean isAbsurd = absurdActualRows.contains(pair.proj1);
+      if (!isAbsurd) {
+        for (CorePattern pattern : pair.proj2.values()) {
+          if (PatternUtils.isAbsurd(pattern)) {
+            isAbsurd = true;
+            break;
+          }
+        }
+      }
+
+      if (!isAbsurd && (!pair.proj2.isEmpty() || actualUsages.get(pair.proj1) > 1)) {
+        CoreParameter lamParams = PatternUtils.getAllBindings(actualRows.get(pair.proj1));
+        ArendRef letRef = letRefs.computeIfAbsent(pair.proj1, k -> {
+          ArendRef ref = factory.local("let" + (letClauses.size() + 1));
+          ConcreteExpression cExpr = pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1).getExpression() : args.get(caseParam + 1).getExpression();
+          assert cExpr != null;
+          if (lamParams != null) {
+            List<ConcreteParameter> cParams = new ArrayList<>();
+            for (CoreParameter param = lamParams; param.hasNext(); param = param.getNext()) {
+              cParams.add(factory.param(factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null))));
+            }
+            TypedExpression lamExpr = typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(cParams, cExpr), lamParams);
+            if (lamExpr == null) {
+              return null;
+            }
+            cExpr = factory.core(lamExpr);
+          }
+          letClauses.add(factory.letClause(ref, Collections.emptyList(), null, cExpr));
+          return ref;
+        });
+
+        if (letRef == null) {
+          return null;
+        }
+
+        Map<CoreBinding, ArendRef> bindings = new HashMap<>();
+        List<ConcretePattern> cPatterns = PatternUtils.toConcrete(refinedRows.get(i), ext.renamerFactory, factory, bindings);
+        CoreParameter param = PatternUtils.getAllBindings(actualRows.get(pair.proj1));
+        ConcreteExpression rhs = factory.ref(letRef);
+        if (param != null) {
+          List<ConcreteExpression> rhsArgs = new ArrayList<>();
+          for (; param.hasNext(); param = param.getNext()) {
+            CorePattern pattern = pair.proj2.get(param.getBinding());
+            rhsArgs.add(pattern == null ? factory.ref(param.getBinding()) : PatternUtils.toExpression(pattern, ext.renamerFactory, factory, bindings));
+          }
+          rhs = factory.app(rhs, true, rhsArgs);
+        }
+        resultClauses.add(factory.clause(cPatterns, rhs));
+      } else {
+        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRows.get(pair.proj1), ext.renamerFactory, factory, null), isAbsurd ? null : args.get(caseParam + 1).getExpression()));
+      }
+    }
+
+    ConcreteExpression result = factory.caseExpr(isSCase[0], caseArgs, factory.meta("case_return", new MetaDefinition() {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
         UncheckedExpression result = expectedType.replaceSubexpressions(expr -> {
@@ -284,18 +415,20 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
         return typechecker.check(result, marker);
       }
-    }), null, finalClauses), contextData.getExpectedType());
+    }), null, resultClauses);
+
+    return typechecker.typecheck(letClauses.isEmpty() ? result : factory.letExpr(false, letClauses, result), contextData.getExpectedType());
   }
 
   // Each block correspond to a single function or \case expression.
   // It is a list of rows and each row is a sequence of patterns.
   // Each row has the same length.
-  private <T> List<List<T>> product(List<List<List<T>>> blocks) {
+  private <T> List<List<T>> product(List<? extends List<? extends List<? extends T>>> blocks) {
     List<List<T>> result = Collections.singletonList(Collections.emptyList());
-    for (List<List<T>> block : blocks) {
+    for (List<? extends List<? extends T>> block : blocks) {
       List<List<T>> newResult = new ArrayList<>();
       for (List<T> list : result) {
-        for (List<T> row : block) {
+        for (List<? extends T> row : block) {
           List<T> newList = new ArrayList<>(list.size() + 1);
           newList.addAll(list);
           newList.addAll(row);
@@ -303,28 +436,6 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
       }
       result = newResult;
-    }
-
-    return result;
-  }
-
-  private List<List<CorePattern>> deletePatterns(List<List<CorePattern>> expectedPatterns, List<List<CorePattern>> actualPatterns) {
-    if (actualPatterns.isEmpty()) {
-      return expectedPatterns;
-    }
-
-    List<List<CorePattern>> result = new ArrayList<>();
-    for (List<CorePattern> expectedRow : expectedPatterns) {
-      boolean take = true;
-      for (List<CorePattern> actualRow : actualPatterns) {
-        if (PatternUtils.refines(expectedRow, actualRow)) {
-          take = false;
-          break;
-        }
-      }
-      if (take) {
-        result.add(expectedRow);
-      }
     }
 
     return result;

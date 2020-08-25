@@ -143,7 +143,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
     while (!parameters.isEmpty()) {
       CoreParameter parameter = parameters.removeFirst();
       CoreExpression type = parameter.getTypeExpr().normalize(NormalizationMode.WHNF);
-      List<CoreDataCallExpression.ConstructorWithParameters> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithParameters() : null;
+      List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithDataArguments() : null;
       if (constructors != null) {
         boolean ok = codomain == null || !codomain.findFreeBinding(parameter.getBinding());
         if (ok) {
@@ -155,11 +155,11 @@ public class ContradictionMeta extends BaseMetaDefinition {
           }
         }
         if (ok) {
-          for (CoreDataCallExpression.ConstructorWithParameters constructor : constructors) {
+          for (CoreDataCallExpression.ConstructorWithDataArguments constructor : constructors) {
             NegationData conData = new NegationData(new ArrayList<>(negationData.types), new ArrayDeque<>(negationData.instructions));
-            conData.instructions.addLast(constructor.constructor);
+            conData.instructions.addLast(constructor.getConstructor());
             List<CoreParameter> conParams = new ArrayList<>();
-            for (CoreParameter conParam = constructor.parameters; conParam.hasNext(); conParam = conParam.getNext()) {
+            for (CoreParameter conParam = constructor.getParameters(); conParam.hasNext(); conParam = conParam.getNext()) {
               conParams.add(conParam);
             }
             for (int i = conParams.size() - 1; i >= 0; i--) {
@@ -317,7 +317,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
       List<Integer> conIndices = new ArrayList<>();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
         type = binding.getTypeExpr().normalize(NormalizationMode.WHNF);
-        List<CoreDataCallExpression.ConstructorWithParameters> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithParameters() : null;
+        List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithDataArguments() : null;
         if (constructors != null && constructors.isEmpty()) {
           contr = factory.ref(binding);
           break;
@@ -325,12 +325,12 @@ public class ContradictionMeta extends BaseMetaDefinition {
 
         if (constructors != null) {
           contr = factory.ref(binding);
-          for (CoreDataCallExpression.ConstructorWithParameters con : constructors) {
+          for (CoreDataCallExpression.ConstructorWithDataArguments con : constructors) {
             List<ConcretePattern> subPatterns = new ArrayList<>();
-            for (CoreParameter param = con.parameters; param.hasNext(); param = param.getNext()) {
+            for (CoreParameter param = con.getParameters(); param.hasNext(); param = param.getNext()) {
               subPatterns.add(factory.refPattern(factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null) + "1"), null));
             }
-            clauses.add(factory.clause(Collections.singletonList(factory.conPattern(con.constructor.getRef(), subPatterns)), factory.meta("case_" + con.constructor.getName(), new MetaDefinition() {
+            clauses.add(factory.clause(Collections.singletonList(factory.conPattern(con.getConstructor().getRef(), subPatterns)), factory.meta("case_" + con.getConstructor().getName(), new MetaDefinition() {
               @Override
               public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
                 ConcreteExpression result = check(HidingContext.make(context, Collections.singleton(binding)), null, null, true, marker, typechecker);
