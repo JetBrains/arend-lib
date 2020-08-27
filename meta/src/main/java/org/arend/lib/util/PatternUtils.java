@@ -3,18 +3,19 @@ package org.arend.lib.util;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcretePattern;
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.core.body.CoreElimBody;
+import org.arend.ext.core.body.CoreElimClause;
 import org.arend.ext.core.body.CorePattern;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
-import org.arend.ext.core.expr.CoreClassCallExpression;
-import org.arend.ext.core.expr.CoreDataCallExpression;
-import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.expr.CoreSigmaExpression;
+import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.reference.ArendRef;
+import org.arend.ext.typechecking.ExpressionTypechecker;
+import org.arend.ext.variable.VariableRenamer;
 import org.arend.ext.variable.VariableRenamerFactory;
 
 import java.util.*;
@@ -184,6 +185,36 @@ public class PatternUtils {
     }
 
     return true;
+  }
+
+
+  public static CoreExpression eval(CoreElimBody body, List<? extends CorePattern> patterns, ExpressionTypechecker typechecker, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+    loop:
+    for (CoreElimClause clause : body.getClauses()) {
+      Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
+      Map<CoreBinding, CorePattern> subst2 = new HashMap<>();
+      if (unify(clause.getPatterns(), patterns, subst1, subst2)) {
+        for (CorePattern value : subst2.values()) {
+          if (value.getBinding() == null) {
+            continue loop;
+          }
+        }
+        AbstractedExpression expr = clause.getAbstractedExpression();
+        if (expr == null) {
+          return null;
+        }
+        CoreParameter param = getAllBindings(clause.getPatterns());
+        if (param == null) {
+          return (CoreExpression) expr;
+        }
+        List<ConcreteExpression> args = new ArrayList<>();
+        for (; param.hasNext(); param = param.getNext()) {
+          args.add(toExpression(subst1.get(param.getBinding()), renamer, factory, bindings));
+        }
+        return (CoreExpression) typechecker.substituteAbstractedExpression(expr, args);
+      }
+    }
+    return null;
   }
 
 
