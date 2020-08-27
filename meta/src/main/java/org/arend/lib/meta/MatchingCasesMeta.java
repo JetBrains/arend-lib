@@ -217,18 +217,10 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       return false;
     });
 
-    CoreParameter caseParams; {
-      List<CoreExpression> caseTypes = new ArrayList<>();
-      for (List<TypedExpression> list : subexpressionArgs) {
-        for (TypedExpression typed : list) {
-          caseTypes.add(typed.getType());
-        }
-      }
-      if (caseTypes.isEmpty()) {
-        errorReporter.report(new TypecheckingError("Cannot find matching subexpressions", contextData.getMarker()));
-        return null;
-      }
-      caseParams = typechecker.makeParameters(caseTypes, marker);
+    CoreParameter caseParams = typechecker.mergeParameters(bodyParameters);
+    if (!caseParams.hasNext()) {
+      errorReporter.report(new TypecheckingError("Cannot find matching subexpressions", contextData.getMarker()));
+      return null;
     }
 
     int caseParam = args.get(0).isExplicit() ? 0 : 1;
