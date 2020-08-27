@@ -377,10 +377,11 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
       if (!isAbsurd && (!pair.proj2.isEmpty() || actualUsages.get(pair.proj1) > 1)) {
         CoreParameter lamParams = PatternUtils.getAllBindings(actualRows.get(pair.proj1));
-        ArendRef letRef = letRefs.computeIfAbsent(pair.proj1, k -> {
-          String name = "h" + (letClauses.size() + 1);
-          ArendRef ref = factory.local(name);
-          ConcreteExpression cExpr = pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1).getExpression() : args.get(caseParam + 1).getExpression();
+        boolean makeLet = actualUsages.get(pair.proj1) > 1;
+        ArendRef letRef = makeLet ? letRefs.get(pair.proj1) : null;
+        ConcreteExpression cExpr = null;
+        if (!makeLet || letRef == null) {
+          cExpr = pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1).getExpression() : args.get(caseParam + 1).getExpression();
           if (cExpr == null) {
             errorReporter.report(new TypecheckingError("Clause must have a right hand side", actualClauses.get(pair.proj1)));
             return null;
@@ -393,7 +394,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
               cParams.add(factory.param(lamRef));
               bindings.put(param.getBinding(), lamRef);
             }
-            TypedExpression lamExpr = typechecker.typecheckLambda(factory.lam(cParams, factory.typed(cExpr, factory.meta(name + "_type", new MetaDefinition() {
+            TypedExpression lamExpr = typechecker.typecheckLambda(factory.lam(cParams, factory.typed(cExpr, factory.meta("c" + (resultClauses.size() + 1) + "_type", new MetaDefinition() {
               @Override
               public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
                 List<ConcreteExpression> args = new ArrayList<>();
@@ -414,18 +415,19 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             }
             cExpr = factory.core(lamExpr);
           }
-          letClauses.add(factory.letClause(ref, Collections.emptyList(), null, cExpr));
-          return ref;
-        });
 
-        if (letRef == null) {
-          return null;
+          if (makeLet) {
+            String name = "h" + (letClauses.size() + 1);
+            letRef = factory.local(name);
+            letRefs.put(pair.proj1, letRef);
+            letClauses.add(factory.letClause(letRef, Collections.emptyList(), null, cExpr));
+          }
         }
 
         Map<CoreBinding, ArendRef> bindings = new HashMap<>();
         List<ConcretePattern> cPatterns = PatternUtils.toConcrete(refinedRows.get(i), ext.renamerFactory, factory, bindings);
         CoreParameter param = PatternUtils.getAllBindings(actualRows.get(pair.proj1));
-        ConcreteExpression rhs = factory.ref(letRef);
+        ConcreteExpression rhs = makeLet ? factory.ref(letRef) : cExpr;
         if (param != null) {
           List<ConcreteExpression> rhsArgs = new ArrayList<>();
           for (; param.hasNext(); param = param.getNext()) {
