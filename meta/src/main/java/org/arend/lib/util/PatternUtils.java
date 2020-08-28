@@ -26,8 +26,16 @@ public class PatternUtils {
       return factory.tuplePattern();
     }
 
-    if (pattern.getBinding() != null) {
-      return factory.refPattern(makeRef(pattern.getBinding(), renamer, factory, bindings), null);
+    CoreBinding binding = pattern.getBinding();
+    if (binding != null) {
+      ArendRef ref = bindings == null ? null : bindings.get(binding);
+      if (ref == null) {
+        ref = factory.local(renamer.getNameFromBinding(binding, null));
+        if (bindings != null) {
+          bindings.put(binding, ref);
+        }
+      }
+      return factory.refPattern(ref, null);
     }
 
     List<ConcretePattern> subpatterns = toConcrete(pattern.getSubPatterns(), renamer, factory, bindings);
@@ -43,20 +51,11 @@ public class PatternUtils {
     return result;
   }
 
-  private static ArendRef makeRef(CoreBinding binding, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
-    ArendRef ref = bindings == null ? null : bindings.get(binding);
-    if (ref == null) {
-      ref = factory.local(renamer.getNameFromBinding(binding, null));
-      if (bindings != null) {
-        bindings.put(binding, ref);
-      }
-    }
-    return ref;
-  }
-
   public static ConcreteExpression toExpression(CorePattern pattern, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
-    if (pattern.getBinding() != null) {
-      return factory.ref(makeRef(pattern.getBinding(), renamer, factory, bindings));
+    CoreBinding binding = pattern.getBinding();
+    if (binding != null) {
+      ArendRef ref = bindings == null ? null : bindings.get(binding);
+      return ref != null ? factory.ref(ref) : factory.core(binding.makeReference().computeTyped());
     }
 
     if (pattern.getConstructor() == null) {

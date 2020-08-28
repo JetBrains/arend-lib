@@ -199,6 +199,36 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             for (CoreElimClause clause : body.getClauses()) {
               if (clause.getPatterns().get(i).getBinding() == null) {
                 matched.add(param.getBinding());
+                CoreFunCallExpression funCall = param.getTypeExpr().toEquality(); // try to take the type immediately
+                if (funCall == null) { // if it's not an equality, then this may be because we need to substitute patterns
+                  CoreExpression type = (CoreExpression) typechecker.substituteAbstractedExpression(parameters.abstractType(i), PatternUtils.toExpression(clause.getPatterns().subList(0, i), ext.renamerFactory, factory, null));
+                  funCall = type == null ? null : type.toEquality();
+                  if (funCall != null) {
+                    List<CoreBinding> patternBindings = new ArrayList<>(2);
+                    if (funCall.getDefCallArguments().get(1) instanceof CoreReferenceExpression) {
+                      patternBindings.add(((CoreReferenceExpression) funCall.getDefCallArguments().get(1)).getBinding());
+                    }
+                    if (funCall.getDefCallArguments().get(2) instanceof CoreReferenceExpression) {
+                      patternBindings.add(((CoreReferenceExpression) funCall.getDefCallArguments().get(2)).getBinding());
+                    }
+                    if (!patternBindings.isEmpty()) {
+                      CoreParameter param1 = parameters;
+                      for (CorePattern pattern : clause.getPatterns()) {
+                        if (pattern.getBinding() != null && patternBindings.contains(pattern.getBinding())) {
+                          matched.add(param1.getBinding());
+                        }
+                        param1 = param1.getNext();
+                      }
+                    }
+                  }
+                } else {
+                  if (funCall.getDefCallArguments().get(1) instanceof CoreReferenceExpression) {
+                    matched.add(((CoreReferenceExpression) funCall.getDefCallArguments().get(1)).getBinding());
+                  }
+                  if (funCall.getDefCallArguments().get(2) instanceof CoreReferenceExpression) {
+                    matched.add(((CoreReferenceExpression) funCall.getDefCallArguments().get(2)).getBinding());
+                  }
+                }
                 break;
               }
             }
