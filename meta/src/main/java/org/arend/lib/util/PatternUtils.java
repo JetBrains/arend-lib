@@ -15,7 +15,7 @@ import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.ext.variable.VariableRenamer;
+import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.variable.VariableRenamerFactory;
 
 import java.util.*;
@@ -152,7 +152,7 @@ public class PatternUtils {
 
 
   public static boolean unify(CorePattern pattern1, CorePattern pattern2, Map<CoreBinding, CorePattern> subst1, Map<CoreBinding, CorePattern> subst2) {
-    if (pattern1.isAbsurd() && pattern2.isAbsurd()) {
+    if (pattern1 == null || pattern2 == null || pattern1.isAbsurd() && pattern2.isAbsurd()) {
       return true;
     }
 
@@ -188,7 +188,9 @@ public class PatternUtils {
   }
 
 
-  public static CoreExpression eval(CoreElimBody body, List<? extends CorePattern> patterns, ExpressionTypechecker typechecker, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  // patterns[i] == null iff removedArgs[i] != null.
+  // Moreover, if these equivalent conditions hold, then body.getClauses().get(j)[i].getBinding() != null for every j.
+  public static CoreExpression eval(CoreElimBody body, List<? extends CorePattern> patterns, List<? extends TypedExpression> removedArgs, ExpressionTypechecker typechecker, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
     loop:
     for (CoreElimClause clause : body.getClauses()) {
       Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
@@ -207,9 +209,17 @@ public class PatternUtils {
         if (param == null) {
           return (CoreExpression) expr;
         }
+        Map<CoreBinding, TypedExpression> removedMap = new HashMap<>();
+        for (int i = 0; i < removedArgs.size(); i++) {
+          CoreBinding binding = clause.getPatterns().get(i).getBinding();
+          if (removedArgs.get(i) != null && binding != null) {
+            removedMap.put(binding, removedArgs.get(i));
+          }
+        }
         List<ConcreteExpression> args = new ArrayList<>();
         for (; param.hasNext(); param = param.getNext()) {
-          args.add(toExpression(subst1.get(param.getBinding()), renamer, factory, bindings));
+          TypedExpression removed = removedMap.get(param.getBinding());
+          args.add(removed != null ? factory.core(removed) : toExpression(subst1.get(param.getBinding()), renamer, factory, bindings));
         }
         return (CoreExpression) typechecker.substituteAbstractedExpression(expr, args);
       }

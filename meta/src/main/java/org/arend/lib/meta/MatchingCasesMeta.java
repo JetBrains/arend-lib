@@ -80,14 +80,14 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     ConcreteExpression marker = contextData.getMarker();
     ConcreteFactory factory = ext.factory.withData(marker);
     List<CoreElimBody> bodies = new ArrayList<>();
-    List<Integer> bodySizes = new ArrayList<>(); // bodySizes[i] is the number of parameters of bodies[i]
     List<CoreParameter> bodyParameters = new ArrayList<>(); // bodyParameters[i] is the parameters of bodies[i]
     List<CoreExpression> subexpressions = new ArrayList<>(); // found occurrences of \case expressions or defCalls
     List<CoreExpression> subexpressionTypes = new ArrayList<>(); // their types
-    List<List<TypedExpression>> subexpressionArgs = new ArrayList<>();
+    List<List<TypedExpression>> subexpressionMatchedArgs = new ArrayList<>(); // subexpressionMatchedArgs[i] are arguments of subexpressions[i] (which is either a \case expression or a defCall) which will be actually matched
+    List<List<TypedExpression>> subexpressionRemovedArgs = new ArrayList<>(); // subexpressionRemovedArgs[i] are arguments of subexpressions[i] with arguments that belong to subexpressionMatchedArgs[i] replaced with null
     CoreExpression expectedType = contextData.getExpectedType().normalize(NormalizationMode.RNF);
     boolean[] isSCase = new boolean[] { false };
-    List<List<List<? extends CorePattern>>> requiredBlocks = new ArrayList<>();
+    List<List<List<CorePattern>>> requiredBlocks = new ArrayList<>();
     List<List<List<CorePattern>>> refinedBlocks = new ArrayList<>();
 
     // Parse parameters
@@ -192,25 +192,62 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       }
 
       if (matchArgs != null) {
-        bodies.add(body);
-        bodySizes.add(matchArgs.size());
-        bodyParameters.add(parameters);
-        subexpressions.add(expr);
-        subexpressionTypes.add(expr.computeType());
-        List<TypedExpression> typedArgs = new ArrayList<>(matchArgs.size());
-        for (CoreExpression argument : matchArgs) {
-          if (!(argument instanceof CoreCaseExpression) || caseOccurrences != null) {
-            typedArgs.add(argument.computeTyped());
+        Set<CoreBinding> matched = new HashSet<>();
+        if (!body.getClauses().isEmpty()) {
+          int i = 0;
+          for (CoreParameter param = parameters; param.hasNext(); param = param.getNext(), i++) {
+            for (CoreElimClause clause : body.getClauses()) {
+              if (clause.getPatterns().get(i).getBinding() == null) {
+                matched.add(param.getBinding());
+                break;
+              }
+            }
           }
         }
-        subexpressionArgs.add(typedArgs);
+        if (parameters.hasNext()) {
+          for (CoreParameter param = parameters.getNext(); param.hasNext(); param = param.getNext()) {
+            if (param.getTypeExpr().findFreeBindings(matched) != null) {
+              matched.add(param.getBinding());
+            }
+          }
+        }
+
+        List<TypedExpression> matchedArgs = new ArrayList<>();
+        List<TypedExpression> removedArgs = new ArrayList<>(matchArgs.size());
+        CoreParameter param = parameters;
+        for (CoreExpression argument : matchArgs) {
+          if (matched.contains(param.getBinding())) {
+            matchedArgs.add(argument.computeTyped());
+            removedArgs.add(null);
+          } else {
+            removedArgs.add(argument.computeTyped());
+          }
+          param = param.getNext();
+        }
+        subexpressionMatchedArgs.add(matchedArgs);
+        subexpressionRemovedArgs.add(removedArgs);
+
+        List<ConcreteExpression> removedConcrete = new ArrayList<>(removedArgs.size());
+        for (TypedExpression typed : removedArgs) {
+          removedConcrete.add(typed == null ? null : factory.core(typed));
+        }
+        CoreParameter reducedParameters = typechecker.substituteParameters(parameters, removedConcrete);
+        if (reducedParameters == null) {
+          return false;
+        }
+
+        bodies.add(body);
+        bodyParameters.add(reducedParameters);
+        subexpressions.add(expr);
+        subexpressionTypes.add(expr.computeType());
 
         List<List<? extends CorePattern>> block = new ArrayList<>();
         for (CoreElimClause clause : body.getClauses()) {
           block.add(clause.getPatterns());
         }
-        requiredBlocks.add(block);
-        refinedBlocks.add(body.computeRefinedPatterns(parameters));
+
+        requiredBlocks.add(removeColumns(block, removedArgs));
+        refinedBlocks.add(removeColumns(body.computeRefinedPatterns(parameters), removedArgs));
         return caseOccurrences != null && caseOccurrences.isEmpty() && defCount.isEmpty();
       }
 
@@ -255,8 +292,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       subexpressionRefs.add(ref);
       resultLambdaParams.add(factory.param(ref));
     }
-    ConcreteExpression caseResult = factory.meta("case_return_lambda", new ReplaceSubexpressionsMeta(expectedType, subexpressions, subexpressionRefs));
-    TypedExpression resultLambda = resultLambdaParams.isEmpty() ? typechecker.typecheck(caseResult, null) : typechecker.typecheckLambda(factory.lam(resultLambdaParams, caseResult), typechecker.makeParameters(subexpressionTypes, marker));
+    TypedExpression resultLambda = typechecker.typecheckLambda(factory.lam(resultLambdaParams, factory.meta("case_return_lambda", new ReplaceSubexpressionsMeta(expectedType, subexpressions, subexpressionRefs))), typechecker.makeParameters(subexpressionTypes, marker));
     if (resultLambda == null) {
       return null;
     }
@@ -366,8 +402,9 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
       }
 
+      List<CorePattern> actualRow = actualRows.get(pair.proj1);
       if (!isAbsurd && (!pair.proj2.isEmpty() || actualUsages.get(pair.proj1) > 1)) {
-        CoreParameter lamParams = PatternUtils.getAllBindings(actualRows.get(pair.proj1));
+        CoreParameter lamParams = PatternUtils.getAllBindings(actualRow);
         boolean makeLet = actualUsages.get(pair.proj1) > 1;
         ArendRef letRef = makeLet ? letRefs.get(pair.proj1) : null;
         ConcreteExpression cExpr = null;
@@ -391,12 +428,15 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                 List<ConcreteExpression> args = new ArrayList<>();
                 int l = 0;
                 for (int j = 0; j < bodies.size(); j++) {
-                  CoreExpression arg = PatternUtils.eval(bodies.get(j), actualRows.get(pair.proj1).subList(l, l + bodySizes.get(j)), typechecker, ext.renamerFactory, factory, bindings);
+                  List<CorePattern> patternArgs = new ArrayList<>();
+                  for (TypedExpression arg : subexpressionRemovedArgs.get(j)) {
+                    patternArgs.add(arg == null ? actualRow.get(l++) : null);
+                  }
+                  CoreExpression arg = PatternUtils.eval(bodies.get(j), patternArgs, subexpressionRemovedArgs.get(j), typechecker, ext.renamerFactory, factory, bindings);
                   if (arg == null) {
                     return null;
                   }
                   args.add(factory.core(arg.computeTyped()));
-                  l += bodySizes.get(j);
                 }
                 return typechecker.typecheck(factory.app(factory.core(resultLambda), true, args), null);
               }
@@ -417,7 +457,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
         Map<CoreBinding, ArendRef> bindings = new HashMap<>();
         List<ConcretePattern> cPatterns = PatternUtils.toConcrete(refinedRows.get(i), ext.renamerFactory, factory, bindings);
-        CoreParameter param = PatternUtils.getAllBindings(actualRows.get(pair.proj1));
+        CoreParameter param = PatternUtils.getAllBindings(actualRow);
         ConcreteExpression rhs = makeLet ? factory.ref(letRef) : cExpr;
         if (param != null) {
           List<ConcreteExpression> rhsArgs = new ArrayList<>();
@@ -429,20 +469,20 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
         resultClauses.add(factory.clause(cPatterns, rhs));
       } else {
-        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRows.get(pair.proj1), ext.renamerFactory, factory, null), isAbsurd ? null : args.get(caseParam + 1).getExpression()));
+        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRow, ext.renamerFactory, factory, null), isAbsurd ? null : args.get(caseParam + 1).getExpression()));
       }
     }
 
     List<ConcreteCaseArgument> caseArgs = new ArrayList<>();
-    List<ConcreteExpression> caseRefExprs = new ArrayList<>(subexpressionArgs.size());
+    List<ConcreteExpression> caseRefExprs = new ArrayList<>(subexpressionMatchedArgs.size());
     for (int i = 0; i < subexpressions.size(); i++) {
-      int s = subexpressionArgs.get(i).size();
+      int s = subexpressionMatchedArgs.get(i).size();
       List<ArendRef> refs = new ArrayList<>(s);
       List<CoreExpression> exprs = new ArrayList<>(s);
       List<ConcreteExpression> refExprs = new ArrayList<>(s);
       String name = "case_return_arg_" + (i + 1);
       for (int j = 0; j < s; j++) {
-        TypedExpression typed = subexpressionArgs.get(i).get(j);
+        TypedExpression typed = subexpressionMatchedArgs.get(i).get(j);
         ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(typed.getType(), null));
         AbstractedExpression abstracted = bodyParameters.get(i).abstractType(j);
         List<ConcreteExpression> refExprsCopy = new ArrayList<>(refExprs);
@@ -497,7 +537,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
   // Each block correspond to a single function or \case expression.
   // It is a list of rows and each row is a sequence of patterns.
   // Each row has the same length.
-  private <T> List<List<T>> product(List<? extends List<? extends List<? extends T>>> blocks) {
+  private static <T> List<List<T>> product(List<? extends List<? extends List<? extends T>>> blocks) {
     List<List<T>> result = Collections.singletonList(Collections.emptyList());
     for (List<? extends List<? extends T>> block : blocks) {
       List<List<T>> newResult = new ArrayList<>();
@@ -513,5 +553,19 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     }
 
     return result;
+  }
+
+  private static <T,S> List<List<T>> removeColumns(List<? extends List<? extends T>> rows, List<S> removedArgs) {
+    List<List<T>> newRows = new ArrayList<>(rows.size());
+    for (List<? extends T> row : rows) {
+      List<T> newRow = new ArrayList<>();
+      for (int j = 0; j < row.size(); j++) {
+        if (removedArgs.get(j) == null) {
+          newRow.add(row.get(j));
+        }
+      }
+      newRows.add(newRow);
+    }
+    return newRows;
   }
 }
