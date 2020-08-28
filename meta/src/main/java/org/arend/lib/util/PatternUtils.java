@@ -17,6 +17,7 @@ import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.variable.VariableRenamerFactory;
+import org.arend.lib.StdExtension;
 
 import java.util.*;
 
@@ -51,7 +52,7 @@ public class PatternUtils {
     return result;
   }
 
-  public static ConcreteExpression toExpression(CorePattern pattern, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  public static ConcreteExpression toExpression(CorePattern pattern, StdExtension ext, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
     CoreBinding binding = pattern.getBinding();
     if (binding != null) {
       ArendRef ref = bindings == null ? null : bindings.get(binding);
@@ -59,17 +60,16 @@ public class PatternUtils {
     }
 
     if (pattern.getConstructor() == null) {
-      // TODO: Invoke 'constructor' meta
-      return factory.tuple(toExpression(pattern.getSubPatterns(), renamer, factory, bindings));
+      return factory.app(factory.ref(ext.constructorMetaRef), true, toExpression(pattern.getSubPatterns(), ext, factory, bindings));
     } else {
-      return factory.app(factory.ref(pattern.getConstructor().getRef()), true, toExpression(pattern.getSubPatterns(), renamer, factory, bindings));
+      return factory.app(factory.ref(pattern.getConstructor().getRef()), true, toExpression(pattern.getSubPatterns(), ext, factory, bindings));
     }
   }
 
-  public static List<ConcreteExpression> toExpression(Collection<? extends CorePattern> patterns, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  public static List<ConcreteExpression> toExpression(Collection<? extends CorePattern> patterns, StdExtension ext, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
     List<ConcreteExpression> result = new ArrayList<>(patterns.size());
     for (CorePattern pattern : patterns) {
-      result.add(toExpression(pattern, renamer, factory, bindings));
+      result.add(toExpression(pattern, ext, factory, bindings));
     }
     return result;
   }
@@ -189,7 +189,7 @@ public class PatternUtils {
 
   // patterns[i] == null iff removedArgs[i] != null.
   // Moreover, if these equivalent conditions hold, then body.getClauses().get(j)[i].getBinding() != null for every j.
-  public static CoreExpression eval(CoreElimBody body, List<? extends CorePattern> patterns, List<? extends TypedExpression> removedArgs, ExpressionTypechecker typechecker, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  public static CoreExpression eval(CoreElimBody body, List<? extends CorePattern> patterns, List<? extends TypedExpression> removedArgs, ExpressionTypechecker typechecker, StdExtension ext, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
     loop:
     for (CoreElimClause clause : body.getClauses()) {
       Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
@@ -218,7 +218,7 @@ public class PatternUtils {
         List<ConcreteExpression> args = new ArrayList<>();
         for (; param.hasNext(); param = param.getNext()) {
           TypedExpression removed = removedMap.get(param.getBinding());
-          args.add(removed != null ? factory.core(removed) : toExpression(subst1.get(param.getBinding()), renamer, factory, bindings));
+          args.add(removed != null ? factory.core(removed) : toExpression(subst1.get(param.getBinding()), ext, factory, bindings));
         }
         return (CoreExpression) typechecker.substituteAbstractedExpression(expr, args);
       }

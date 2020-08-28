@@ -201,7 +201,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                 matched.add(param.getBinding());
                 CoreFunCallExpression funCall = param.getTypeExpr().toEquality(); // try to take the type immediately
                 if (funCall == null) { // if it's not an equality, then this may be because we need to substitute patterns
-                  CoreExpression type = (CoreExpression) typechecker.substituteAbstractedExpression(parameters.abstractType(i), PatternUtils.toExpression(clause.getPatterns().subList(0, i), ext.renamerFactory, factory, null));
+                  CoreExpression type = (CoreExpression) typechecker.substituteAbstractedExpression(parameters.abstractType(i), PatternUtils.toExpression(clause.getPatterns().subList(0, i), ext, factory, null));
                   funCall = type == null ? null : type.toEquality();
                   if (funCall != null) {
                     List<CoreBinding> patternBindings = new ArrayList<>(2);
@@ -462,7 +462,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                   for (TypedExpression arg : subexpressionRemovedArgs.get(j)) {
                     patternArgs.add(arg == null ? actualRow.get(l++) : null);
                   }
-                  CoreExpression arg = PatternUtils.eval(bodies.get(j), patternArgs, subexpressionRemovedArgs.get(j), typechecker, ext.renamerFactory, factory, bindings);
+                  CoreExpression arg = PatternUtils.eval(bodies.get(j), patternArgs, subexpressionRemovedArgs.get(j), typechecker, ext, factory, bindings);
                   if (arg == null) {
                     return null;
                   }
@@ -493,7 +493,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           List<ConcreteExpression> rhsArgs = new ArrayList<>();
           for (; param.hasNext(); param = param.getNext()) {
             CorePattern pattern = pair.proj2.get(param.getBinding());
-            rhsArgs.add(pattern == null ? factory.ref(param.getBinding()) : PatternUtils.toExpression(pattern, ext.renamerFactory, factory, bindings));
+            rhsArgs.add(pattern == null ? factory.ref(param.getBinding()) : PatternUtils.toExpression(pattern, ext, factory, bindings));
           }
           rhs = factory.app(rhs, true, rhsArgs);
         }

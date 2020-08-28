@@ -9,6 +9,7 @@ import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
+import org.arend.ext.reference.MetaRef;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
@@ -51,6 +52,7 @@ public class StdExtension implements ArendExtension {
 
   public EquationMeta equationMeta = new EquationMeta(this);
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
+  public MetaRef constructorMetaRef;
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
   private final StdLevelProver levelProver = new StdLevelProver(this);
@@ -156,6 +158,9 @@ public class StdExtension implements ArendExtension {
     contributor.declare(logic, new LongName("Exists"),
       "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
       "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, null, new ExistsMeta(this));
+    constructorMetaRef = contributor.declare(logic, new LongName("constructor"),
+      "Returns either a tuple, a \\new expression, or a single constructor of a data type depending on the expected type",
+      Precedence.DEFAULT, new ConstructorMeta(this, false));
 
     ModulePath debug = ModulePath.fromString("Debug.Meta");
     contributor.declare(debug, new LongName("time"), "Returns current time in milliseconds", Precedence.DEFAULT, new TimeMeta(this));
