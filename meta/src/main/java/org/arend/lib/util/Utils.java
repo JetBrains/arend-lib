@@ -8,6 +8,7 @@ import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
+import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.GeneralError;
@@ -207,15 +208,18 @@ public class Utils {
   private static class MyException extends RuntimeException {}
 
   public static <T> T tryTypecheck(ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
-    try {
-      return typechecker.withErrorReporter(error -> {
-        if (error.level == GeneralError.Level.ERROR) {
-          throw new MyException();
-        }
-      }, action);
-    } catch (MyException e) {
-      return null;
-    }
+    return typechecker.withCurrentState(tc -> {
+      try {
+        return tc.withErrorReporter(error -> {
+          if (error.level == GeneralError.Level.ERROR) {
+            throw new MyException();
+          }
+        }, action);
+      } catch (MyException e) {
+        tc.loadSavedState();
+        return null;
+      }
+    });
   }
 
   public static TypedExpression findInstance(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
@@ -227,5 +231,15 @@ public class Utils {
     } else {
       return typechecker.findInstance(parameters, expr, null, marker);
     }
+  }
+
+  public static boolean safeCompare(ExpressionTypechecker typechecker, UncheckedExpression expr1, UncheckedExpression expr2, CMP cmp, ConcreteSourceNode marker, boolean allowEquations, boolean normalize) {
+    return typechecker.withCurrentState(tc -> {
+      if (tc.compare(expr1, expr2, cmp, marker, allowEquations, normalize)) {
+        return true;
+      }
+      tc.loadSavedState();
+      return false;
+    });
   }
 }

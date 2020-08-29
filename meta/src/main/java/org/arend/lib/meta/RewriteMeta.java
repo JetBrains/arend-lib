@@ -137,15 +137,18 @@ public class RewriteMeta extends BaseMetaDefinition {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
           final int[] num = { 0 };
-          UncheckedExpression absExpr = normType.replaceSubexpressions(expression -> {
-            if (typechecker.compare(expression, value, CMP.EQ, refExpr, false, true)) {
+          UncheckedExpression absExpr = typechecker.withCurrentState(tc -> normType.replaceSubexpressions(expression -> {
+            if (tc.compare(expression, value, CMP.EQ, refExpr, false, true)) {
+              tc.updateSavedState();
               num[0]++;
               if (occurrences == null || occurrences.contains(num[0])) {
                 return var.getExpression();
               }
+            } else {
+              tc.loadSavedState();
             }
             return null;
-          });
+          }));
           if (absExpr == null) {
             errorReporter.report(new TypecheckingError("Cannot substitute expression", refExpr));
             return null;

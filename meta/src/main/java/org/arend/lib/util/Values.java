@@ -30,7 +30,7 @@ public class Values<E extends UncheckedExpression> {
 
   public int getIndex(UncheckedExpression value) {
     for (int i = 0; i < values.size(); i++) {
-      if (typechecker != null ? typechecker.compare(value, values.get(i), CMP.EQ, marker, false, true) : value.compare(values.get(i), CMP.EQ)) {
+      if (typechecker != null ? Utils.safeCompare(typechecker, value, values.get(i), CMP.EQ, marker, false, true) : value.compare(values.get(i), CMP.EQ)) {
         return i;
       }
     }
