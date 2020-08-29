@@ -11,6 +11,7 @@ import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
+import org.arend.ext.core.level.CoreSort;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
@@ -75,11 +76,13 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
   private static class SubexpressionData {
     final CoreElimBody body;
+    final CoreSort sort; // the sort argument of the defCall
     final List<TypedExpression> matchedArgs; // dataList[i].matchedArgs are arguments of subexpressions[i] (which is either a \case expression or a defCall) which will be actually matched
     final List<TypedExpression> removedArgs; // dataList[i].removedArgs are arguments of subexpressions[i] with arguments that belong to subexpressionMatchedArgs[i] replaced with null
 
-    private SubexpressionData(CoreElimBody body, List<TypedExpression> matchedArgs, List<TypedExpression> removedArgs) {
+    private SubexpressionData(CoreElimBody body, CoreSort sort, List<TypedExpression> matchedArgs, List<TypedExpression> removedArgs) {
       this.body = body;
+      this.sort = sort;
       this.matchedArgs = matchedArgs;
       this.removedArgs = removedArgs;
     }
@@ -172,6 +175,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     expectedType.findSubexpression(expr -> {
       Collection<? extends CoreExpression> matchArgs = null;
       CoreElimBody body = null;
+      CoreSort sort = null;
       CoreParameter parameters = null;
       if (expr instanceof CoreCaseExpression && (caseOccurrences == null || caseOccurrences.remove(++caseCount[0]))) {
         CoreCaseExpression caseExpr = (CoreCaseExpression) expr;
@@ -194,6 +198,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
               }
               matchArgs = ((CoreFunCallExpression) expr).getDefCallArguments();
               body = (CoreElimBody) body1;
+              sort = ((CoreFunCallExpression) expr).getSortArgument();
               parameters = def.getParameters();
             }
           }
@@ -213,7 +218,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                 matched.add(param.getBinding());
                 CoreFunCallExpression funCall = param.getTypeExpr().toEquality(); // try to take the type immediately
                 if (funCall == null) { // if it's not an equality, then this may be because we need to substitute patterns
-                  CoreExpression type = (CoreExpression) typechecker.substituteAbstractedExpression(parameters.abstractType(i), PatternUtils.toExpression(clause.getPatterns().subList(0, i), ext, factory, null));
+                  CoreExpression type = (CoreExpression) typechecker.substituteAbstractedExpression(parameters.abstractType(i), sort, PatternUtils.toExpression(clause.getPatterns().subList(0, i), ext, factory, null));
                   funCall = type == null ? null : type.toEquality();
                   if (funCall != null) {
                     List<CoreBinding> patternBindings = new ArrayList<>(2);
@@ -271,12 +276,12 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         for (TypedExpression typed : removedArgs) {
           removedConcrete.add(typed == null ? null : factory.core(typed));
         }
-        CoreParameter reducedParameters = typechecker.substituteParameters(parameters, removedConcrete);
+        CoreParameter reducedParameters = typechecker.substituteParameters(parameters, sort, removedConcrete);
         if (reducedParameters == null) {
           return false;
         }
 
-        dataList.add(new SubexpressionData(body, matchedArgs, removedArgs));
+        dataList.add(new SubexpressionData(body, sort, matchedArgs, removedArgs));
         bodyParameters.add(reducedParameters);
         subexpressions.add(expr);
         subexpressionTypes.add(expr.computeType());
@@ -472,7 +477,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                   for (TypedExpression arg : data.removedArgs) {
                     patternArgs.add(arg == null ? actualRow.get(l++) : null);
                   }
-                  CoreExpression arg = PatternUtils.eval(data.body, patternArgs, data.removedArgs, typechecker, ext, factory, bindings);
+                  CoreExpression arg = PatternUtils.eval(data.body, data.sort, patternArgs, data.removedArgs, typechecker, ext, factory, bindings);
                   if (arg == null) {
                     return null;
                   }
@@ -526,10 +531,11 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(typed.getType(), null));
         AbstractedExpression abstracted = bodyParameters.get(i).abstractType(j);
         List<ConcreteExpression> refExprsCopy = new ArrayList<>(refExprs);
+        CoreSort sort = dataList.get(i).sort;
         caseArgs.add(factory.caseArg(factory.core(typed), ref, factory.meta(name + "_" + (j + 1), new MetaDefinition() {
             @Override
             public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-              AbstractedExpression argType = typechecker.substituteAbstractedExpression(abstracted, refExprsCopy);
+              AbstractedExpression argType = typechecker.substituteAbstractedExpression(abstracted, sort, refExprsCopy);
               return argType == null ? null : ((CoreExpression) argType).computeTyped();
             }
           })
