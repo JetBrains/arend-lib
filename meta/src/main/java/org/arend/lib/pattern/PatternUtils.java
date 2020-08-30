@@ -1,4 +1,4 @@
-package org.arend.lib.util;
+package org.arend.lib.pattern;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcretePattern;
@@ -19,6 +19,7 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.StdExtension;
+import org.arend.lib.util.Pair;
 
 import java.util.*;
 
@@ -84,6 +85,18 @@ public class PatternUtils {
       }
     }
     return null;
+  }
+
+  public static int getNumberOfBindings(CorePattern pattern) {
+    if (pattern.getBinding() != null) {
+      return 1;
+    }
+
+    int s = 0;
+    for (CorePattern subPattern : pattern.getSubPatterns()) {
+      s += getNumberOfBindings(subPattern);
+    }
+    return s;
   }
 
   public static boolean isAbsurd(CorePattern pattern) {
@@ -375,11 +388,38 @@ public class PatternUtils {
     return coveringList;
   }
 
-  public static List<CorePattern> subst(Collection<? extends CorePattern> patterns, Map<CoreBinding, CorePattern> map) {
+  public static List<CorePattern> subst(Collection<? extends CorePattern> patterns, Map<? extends CoreBinding, ? extends CorePattern> map) {
     List<CorePattern> result = new ArrayList<>(patterns.size());
     for (CorePattern pattern : patterns) {
       result.add(pattern.subst(map));
     }
     return result;
+  }
+
+  public static List<CorePattern> replaceParameters(List<? extends CorePattern> patterns, CoreParameter parameters) {
+    List<CorePattern> result = new ArrayList<>(patterns.size());
+    for (CorePattern pattern : patterns) {
+      parameters = replaceParameters(pattern, parameters, result);
+    }
+    return result;
+  }
+
+  public static CoreParameter replaceParameters(CorePattern pattern, CoreParameter parameters, List<CorePattern> result) {
+    if (pattern.isAbsurd()) {
+      result.add(pattern);
+      return parameters;
+    }
+
+    if (pattern.getBinding() != null) {
+      result.add(new ArendPattern(parameters.getBinding(), null, Collections.emptyList(), parameters));
+      return parameters.getNext();
+    }
+
+    List<CorePattern> subPatterns = new ArrayList<>();
+    result.add(new ArendPattern(null, pattern.getConstructor(), subPatterns, parameters));
+    for (CorePattern subPattern : pattern.getSubPatterns()) {
+      parameters = replaceParameters(subPattern, parameters, subPatterns);
+    }
+    return parameters;
   }
 }

@@ -20,7 +20,7 @@ import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.util.Pair;
-import org.arend.lib.util.PatternUtils;
+import org.arend.lib.pattern.PatternUtils;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -285,12 +285,28 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         dataList.add(new SubexpressionData(body, sort, expr, matchedArgs, removedArgs));
         bodyParameters.add(reducedParameters);
 
-        List<List<? extends CorePattern>> block = new ArrayList<>();
+        List<List<CorePattern>> block = new ArrayList<>();
         for (CoreElimClause clause : body.getClauses()) {
-          block.add(clause.getPatterns());
+          List<CorePattern> row = removeColumn(clause.getPatterns(), removedArgs);
+          CoreParameter patternsParams = PatternUtils.getAllBindings(clause.getPatterns());
+          if (patternsParams != null) {
+            List<ConcreteExpression> substExprs = new ArrayList<>();
+            for (int i = 0; i < removedArgs.size(); i++) {
+              if (removedArgs.get(i) != null) {
+                substExprs.add(factory.core(removedArgs.get(i)));
+              } else {
+                int s = PatternUtils.getNumberOfBindings(clause.getPatterns().get(i));
+                for (int j = 0; j < s; j++) {
+                  substExprs.add(null);
+                }
+              }
+            }
+            row = PatternUtils.replaceParameters(row, typechecker.substituteParameters(patternsParams, sort, substExprs));
+          }
+          block.add(row);
         }
 
-        requiredBlocks.add(removeColumns(block, removedArgs));
+        requiredBlocks.add(block);
         refinedBlocks.add(removeColumns(body.computeRefinedPatterns(parameters), removedArgs));
         return caseOccurrences != null && caseOccurrences.isEmpty() && defCount.isEmpty() ? CoreExpression.FindAction.STOP : CoreExpression.FindAction.CONTINUE;
       }
@@ -667,16 +683,20 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     return result;
   }
 
+  private static <T,S> List<T> removeColumn(List<? extends T> row, List<S> removedArgs) {
+    List<T> newRow = new ArrayList<>();
+    for (int j = 0; j < row.size(); j++) {
+      if (removedArgs.get(j) == null) {
+        newRow.add(row.get(j));
+      }
+    }
+    return newRow;
+  }
+
   private static <T,S> List<List<T>> removeColumns(List<? extends List<? extends T>> rows, List<S> removedArgs) {
     List<List<T>> newRows = new ArrayList<>(rows.size());
     for (List<? extends T> row : rows) {
-      List<T> newRow = new ArrayList<>();
-      for (int j = 0; j < row.size(); j++) {
-        if (removedArgs.get(j) == null) {
-          newRow.add(row.get(j));
-        }
-      }
-      newRows.add(newRow);
+      newRows.add(removeColumn(row, removedArgs));
     }
     return newRows;
   }
