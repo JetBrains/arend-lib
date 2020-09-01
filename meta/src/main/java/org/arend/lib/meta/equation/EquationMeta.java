@@ -97,7 +97,7 @@ public class EquationMeta extends BaseMetaDefinition {
         return null;
       }
     } else {
-      solver = new DefaultEquationSolver(this, typechecker, factory, refExpr);
+      solver = new EqualitySolver(this, typechecker, factory, refExpr);
     }
 
     for (ConcreteArgument argument : contextData.getArguments()) {
@@ -152,10 +152,10 @@ public class EquationMeta extends BaseMetaDefinition {
     }
 
     if (hasMissingProofs) {
-      if (solver instanceof DefaultEquationSolver && contextData.getExpectedType() == null) {
+      if (solver instanceof EqualitySolver && contextData.getExpectedType() == null) {
         for (Object value : values) {
           if (value instanceof TypedExpression) {
-            ((DefaultEquationSolver) solver).setValuesType(((TypedExpression) value).getType());
+            ((EqualitySolver) solver).setValuesType(((TypedExpression) value).getType());
             break;
           }
         }
