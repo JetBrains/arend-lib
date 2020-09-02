@@ -6,7 +6,7 @@ import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.prettyprinting.PrettyPrinterConfig;
 import org.arend.ext.prettyprinting.doc.Doc;
 import org.arend.ext.prettyprinting.doc.LineDoc;
-import org.arend.lib.meta.equation.EqualitySolver;
+import org.arend.lib.meta.equation.MonoidSolver;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -19,11 +19,11 @@ public class AlgebraSolverError extends TypecheckingError {
   public final List<Integer> nf1;
   public final List<Integer> nf2;
   public final List<CoreExpression> values;
-  public final List<? extends EqualitySolver.Rule> assumptions;
-  public final List<EqualitySolver.Step> trace1;
-  public final List<EqualitySolver.Step> trace2;
+  public final List<? extends MonoidSolver.Rule> assumptions;
+  public final List<MonoidSolver.Step> trace1;
+  public final List<MonoidSolver.Step> trace2;
 
-  public AlgebraSolverError(List<Integer> nf1, List<Integer> nf2, List<CoreExpression> values, List<? extends EqualitySolver.Rule> assumptions, List<EqualitySolver.Step> trace1, List<EqualitySolver.Step> trace2, @Nullable ConcreteSourceNode cause) {
+  public AlgebraSolverError(List<Integer> nf1, List<Integer> nf2, List<CoreExpression> values, List<? extends MonoidSolver.Rule> assumptions, List<MonoidSolver.Step> trace1, List<MonoidSolver.Step> trace2, @Nullable ConcreteSourceNode cause) {
     super("Cannot solve algebraic equation:", cause);
     this.nf1 = nf1;
     this.nf2 = nf2;
@@ -45,13 +45,13 @@ public class AlgebraSolverError extends TypecheckingError {
     return hSep(text(" * "), docs);
   }
 
-  private Doc traceToDoc(String text, List<Integer> term, List<EqualitySolver.Step> trace) {
+  private Doc traceToDoc(String text, List<Integer> term, List<MonoidSolver.Step> trace) {
     if (trace.isEmpty()) {
       return nullDoc();
     }
     List<LineDoc> docs = new ArrayList<>(trace.size() + 1);
     docs.add(nfToDoc(term));
-    for (EqualitySolver.Step step : trace) {
+    for (MonoidSolver.Step step : trace) {
       term = step.apply(term);
       docs.add(nfToDoc(term));
     }
@@ -65,8 +65,8 @@ public class AlgebraSolverError extends TypecheckingError {
     Doc assumptionsDoc;
     if (!assumptions.isEmpty()) {
       List<Doc> docs = new ArrayList<>();
-      for (EqualitySolver.Rule rule : assumptions) {
-        docs.add(hang(rule.expression != null ? termDoc(rule.expression.getExpression(), ppConfig) : rule.binding != null ? hList(rule.direction == EqualitySolver.Direction.BACKWARD ? text("inv ") : empty(), text(rule.binding.getName())) : nullDoc(), hList(text(": "), nfToDoc(rule.lhs), text(" = "), nfToDoc(rule.rhs))));
+      for (MonoidSolver.Rule rule : assumptions) {
+        docs.add(hang(rule.expression != null ? termDoc(rule.expression.getExpression(), ppConfig) : rule.binding != null ? hList(rule.direction == MonoidSolver.Direction.BACKWARD ? text("inv ") : empty(), text(rule.binding.getName())) : nullDoc(), hList(text(": "), nfToDoc(rule.lhs), text(" = "), nfToDoc(rule.rhs))));
       }
       assumptionsDoc = hang(text("Assumptions:"), vList(docs));
     } else {
