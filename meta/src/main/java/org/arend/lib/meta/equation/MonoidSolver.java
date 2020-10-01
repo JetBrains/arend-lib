@@ -3,7 +3,10 @@ package org.arend.lib.meta.equation;
 import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteLetClause;
-import org.arend.ext.concrete.expr.*;
+import org.arend.ext.concrete.expr.ConcreteAppExpression;
+import org.arend.ext.concrete.expr.ConcreteArgument;
+import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.CoreClassCallExpression;
@@ -16,9 +19,9 @@ import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
+import org.arend.lib.error.AlgebraSolverError;
 import org.arend.lib.util.Maybe;
 import org.arend.lib.util.Utils;
-import org.arend.lib.error.AlgebraSolverError;
 import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,50 +30,52 @@ import java.util.*;
 
 import static java.util.Collections.singletonList;
 
-public class DefaultEquationSolver implements EquationSolver {
+public class MonoidSolver implements EquationSolver {
   private final EquationMeta meta;
   private final ExpressionTypechecker typechecker;
   private final ConcreteFactory factory;
   private final ConcreteReferenceExpression refExpr;
-  private CoreExpression valuesType;
 
-  private CoreClassDefinition classDef;
-  private Values<CoreExpression> values;
+  private final CoreClassDefinition classDef;
+  private final Values<CoreExpression> values;
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
-  private ArendRef dataRef;
-  private List<ConcreteLetClause> letClauses;
+  private final ArendRef dataRef;
+  private final List<ConcreteLetClause> letClauses;
   private Map<CoreBinding, List<RuleExt>> contextRules;
+  private final CoreFunCallExpression equality;
 
-  public DefaultEquationSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr) {
+  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, CoreClassDefinition classDef) {
     this.meta = meta;
     this.typechecker = typechecker;
     this.factory = factory;
     this.refExpr = refExpr;
+    this.equality = equality;
+    this.classDef = classDef;
+    values = new Values<>(typechecker, refExpr);
+    dataRef = factory.local("d");
+    letClauses = new ArrayList<>();
+    letClauses.add(null);
   }
 
   @Override
   public boolean isApplicable(CoreExpression type) {
-    return false;
+    return true;
   }
 
   @Override
   public CoreExpression getValuesType() {
-    return valuesType;
-  }
-
-  public void setValuesType(CoreExpression type) {
-    valuesType = type;
+    return equality.getDefCallArguments().get(0);
   }
 
   @Override
   public CoreExpression getLeftValue() {
-    return null;
+    return equality.getDefCallArguments().get(1);
   }
 
   @Override
   public CoreExpression getRightValue() {
-    return null;
+    return equality.getDefCallArguments().get(2);
   }
 
   @Override
@@ -100,14 +105,6 @@ public class DefaultEquationSolver implements EquationSolver {
 
   @Override
   public boolean initializeSolver() {
-    classDef = getClassDef(valuesType);
-    if (classDef == null) {
-      return false;
-    }
-    values = new Values<>(typechecker, refExpr);
-    dataRef = factory.local("d");
-    letClauses = new ArrayList<>();
-    letClauses.add(null);
     return true;
   }
 
@@ -175,11 +172,11 @@ public class DefaultEquationSolver implements EquationSolver {
           }
           if (!isNF(rule.lhsTerm) || !isNF(rule.rhsTerm)) {
             cExpr = factory.appBuilder(factory.ref(meta.termsEqConv.getRef()))
-                .app(factory.ref(dataRef), false)
-                .app(rule.lhsTerm)
-                .app(rule.rhsTerm)
-                .app(cExpr)
-                .build();
+              .app(factory.ref(dataRef), false)
+              .app(rule.lhsTerm)
+              .app(rule.rhsTerm)
+              .app(cExpr)
+              .build();
           }
           if (rule.count > 1 && !(cExpr instanceof ConcreteReferenceExpression) || rule.binding == null) {
             ArendRef letClause = factory.local("rule" + letClauses.size());
@@ -233,7 +230,7 @@ public class DefaultEquationSolver implements EquationSolver {
       }
       List<ConcreteExpression> args = singletonList(binding != null ? factory.ref(binding) : factory.core(null, typed));
       return (!isLDiv || typeToRule(typechecker.typecheck(factory.app(factory.ref(meta.ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules)) &&
-          (!isRDiv || typeToRule(typechecker.typecheck(factory.app(factory.ref(meta.rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules));
+        (!isRDiv || typeToRule(typechecker.typecheck(factory.app(factory.ref(meta.rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules));
     }
 
     List<Integer> lhs = new ArrayList<>();
@@ -301,13 +298,13 @@ public class DefaultEquationSolver implements EquationSolver {
     ConcreteExpression result = null;
     for (Step step : trace) {
       ConcreteExpression expr = factory.appBuilder(factory.ref(meta.replaceDef.getRef()))
-          .app(factory.ref(dataRef), false)
-          .app(computeNFTerm(nf, factory))
-          .app(factory.number(step.position))
-          .app(factory.number(step.rule.lhs.size()))
-          .app(step.rule.rnfTerm)
-          .app(step.rule.cExpr)
-          .build();
+        .app(factory.ref(dataRef), false)
+        .app(computeNFTerm(nf, factory))
+        .app(factory.number(step.position))
+        .app(factory.number(step.rule.lhs.size()))
+        .app(step.rule.rnfTerm)
+        .app(step.rule.cExpr)
+        .build();
       if (result == null) {
         result = expr;
       } else {
@@ -336,23 +333,6 @@ public class DefaultEquationSolver implements EquationSolver {
       result = factory.appBuilder(factory.ref(meta.ext.cons.getRef())).app(factory.number(nf.get(i))).app(result).build();
     }
     return result;
-  }
-
-  private CoreClassDefinition getClassDef(CoreExpression type) {
-    type = type == null ? null : type.normalize(NormalizationMode.WHNF);
-    if (type instanceof CoreFieldCallExpression) {
-      if (((CoreFieldCallExpression) type).getDefinition() == meta.carrier) {
-        CoreExpression instanceType = ((CoreFieldCallExpression) type).getArgument().computeType().normalize(NormalizationMode.WHNF);
-        if (instanceType instanceof CoreClassCallExpression) {
-          CoreClassDefinition classDef = ((CoreClassCallExpression) instanceType).getDefinition();
-          if (classDef.isSubClassOf(meta.Monoid)) {
-            return classDef;
-          }
-        }
-      }
-    }
-
-    return null;
   }
 
   public enum Direction { FORWARD, BACKWARD, UNKNOWN }
@@ -482,6 +462,10 @@ public class DefaultEquationSolver implements EquationSolver {
 
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
+    if (classDef == null) {
+      return typechecker.typecheck(result, null);
+    }
+
     ArendRef lamParam = factory.local("n");
     List<CoreExpression> valueList = values.getValues();
     ConcreteClause[] caseClauses = new ConcreteClause[valueList.size() + 1];
@@ -491,9 +475,9 @@ public class DefaultEquationSolver implements EquationSolver {
     caseClauses[valueList.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(meta.ide.getRef()));
 
     letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(factory.app(
-        factory.ref(meta.Data.getRef()), true,
-        singletonList(factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(meta.ext.prelude.getNat().getRef()))),
-                                  factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses)))))));
+      factory.ref(meta.Data.getRef()), true,
+      singletonList(factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(meta.ext.prelude.getNat().getRef()))),
+        factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses)))))));
     return typechecker.typecheck(meta.ext.factory.letExpr(false, letClauses, result), null);
   }
 }

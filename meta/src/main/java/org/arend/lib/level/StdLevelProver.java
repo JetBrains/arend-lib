@@ -9,6 +9,7 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -82,17 +83,17 @@ public class StdLevelProver implements LevelProver {
     if (!dataCall.getDefinition().getRecursiveDefinitions().isEmpty()) {
       return null;
     }
-    List<CoreDataCallExpression.ConstructorWithParameters> constructors = dataCall.computeMatchedConstructorsWithParameters();
+    List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = dataCall.computeMatchedConstructorsWithDataArguments();
     if (constructors == null) {
       return null;
     }
-    for (CoreDataCallExpression.ConstructorWithParameters constructor : constructors) {
-      if (!constructor.parameters.hasNext() || !constructor.parameters.getNext().hasNext()) {
+    for (CoreDataCallExpression.ConstructorWithDataArguments constructor : constructors) {
+      if (!constructor.getParameters().hasNext() || !constructor.getParameters().getNext().hasNext()) {
         continue;
       }
 
       Set<CoreBinding> bindings = new HashSet<>();
-      for (CoreParameter parameter = constructor.parameters; parameter.hasNext(); parameter = parameter.getNext()) {
+      for (CoreParameter parameter = constructor.getParameters(); parameter.hasNext(); parameter = parameter.getNext()) {
         if (parameter.getTypeExpr().findFreeBindings(bindings) != null) {
           return null;
         }
@@ -101,20 +102,22 @@ public class StdLevelProver implements LevelProver {
     }
 
     List<ConcreteClause> clauses = new ArrayList<>();
-    for (CoreDataCallExpression.ConstructorWithParameters con1 : constructors) {
-      for (CoreDataCallExpression.ConstructorWithParameters con2 : constructors) {
+    for (CoreDataCallExpression.ConstructorWithDataArguments con1 : constructors) {
+      for (CoreDataCallExpression.ConstructorWithDataArguments con2 : constructors) {
         List<ConcretePattern> subPatterns1 = new ArrayList<>();
         List<ConcretePattern> subPatterns2 = new ArrayList<>();
-        List<ArendRef> refs1 = con1.constructor == con2.constructor ? new ArrayList<>() : null;
-        List<ArendRef> refs2 = con1.constructor == con2.constructor ? new ArrayList<>() : null;
-        for (CoreParameter param = con1.parameters; param.hasNext(); param = param.getNext()) {
+        CoreConstructor def1 = con1.getConstructor();
+        CoreConstructor def2 = con2.getConstructor();
+        List<ArendRef> refs1 = def1 == def2 ? new ArrayList<>() : null;
+        List<ArendRef> refs2 = def1 == def2 ? new ArrayList<>() : null;
+        for (CoreParameter param = con1.getParameters(); param.hasNext(); param = param.getNext()) {
           ArendRef ref = factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null) + "1");
           subPatterns1.add(factory.refPattern(ref, null));
           if (refs1 != null) {
             refs1.add(ref);
           }
         }
-        for (CoreParameter param = con2.parameters; param.hasNext(); param = param.getNext()) {
+        for (CoreParameter param = con2.getParameters(); param.hasNext(); param = param.getNext()) {
           ArendRef ref = factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null) + "2");
           subPatterns2.add(factory.refPattern(ref, null));
           if (refs2 != null) {
@@ -123,12 +126,12 @@ public class StdLevelProver implements LevelProver {
         }
 
         // We need a meta here because the context changes and we use it in both proveProp and ContradictionMeta.check
-        clauses.add(factory.clause(Arrays.asList(factory.conPattern(con1.constructor.getRef(), subPatterns1), factory.conPattern(con2.constructor.getRef(), subPatterns2)), factory.meta("case_" + con1.constructor.getName() + "_" + con2.constructor.getName(), new MetaDefinition() {
+        clauses.add(factory.clause(Arrays.asList(factory.conPattern(def1.getRef(), subPatterns1), factory.conPattern(def2.getRef(), subPatterns2)), factory.meta("case_" + def1.getName() + "_" + def2.getName(), new MetaDefinition() {
           @Override
           public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
             ConcreteExpression result;
-            if (con1.constructor == con2.constructor) {
-              CoreParameter conParam = con1.parameters;
+            if (def1 == def2) {
+              CoreParameter conParam = con1.getParameters();
               if (conParam.hasNext()) {
                 ArendRef iRef = factory.local("i");
                 ConcreteExpression iExpr = factory.ref(iRef);
@@ -140,7 +143,7 @@ public class StdLevelProver implements LevelProver {
                   }
                   args.add(factory.arg(factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(expr, iExpr)), conParam.isExplicit()));
                 }
-                result = factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(con1.constructor.getRef()), args))));
+                result = factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(def1.getRef()), args))));
               } else {
                 result = factory.ref(ext.prelude.getIdp().getRef());
               }

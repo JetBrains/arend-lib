@@ -9,6 +9,7 @@ import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
+import org.arend.ext.reference.MetaRef;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
@@ -52,6 +53,7 @@ public class StdExtension implements ArendExtension {
 
   public EquationMeta equationMeta = new EquationMeta(this);
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
+  public MetaRef constructorMetaRef;
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
   private final StdLevelProver levelProver = new StdLevelProver(this);
@@ -109,6 +111,14 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new HidingMeta());
     contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
     contributor.declare(meta, new LongName("at"), "`(f at x) r` replaces variable `x` with `f x` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
+    contributor.declare(meta, new LongName("mcases"),
+      "`mcases def \\with { ... }` matches all expressions that are matched in \\case expressions in the expected type.\n\n" +
+      "`def` is an optional argument which is used as a default result for missing clauses.",
+      Precedence.DEFAULT, new MatchingCasesMeta(this));
+    contributor.declare(meta, new LongName("unfold"),
+      "`unfold (f_1, ... f_n) e` unfolds functions f_1, ... f_n in the expected type before type-checking of `e` and returns `e` itself.\n" +
+      "If the expected type is unknown, it unfolds these function in the result type of `e`.",
+      Precedence.DEFAULT, new UnfoldMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
@@ -153,6 +163,9 @@ public class StdExtension implements ArendExtension {
     contributor.declare(logic, new LongName("Exists"),
       "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
       "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, null, new ExistsMeta(this));
+    constructorMetaRef = contributor.declare(logic, new LongName("constructor"),
+      "Returns either a tuple, a \\new expression, or a single constructor of a data type depending on the expected type",
+      Precedence.DEFAULT, new ConstructorMeta(this, false));
 
     ModulePath debug = ModulePath.fromString("Debug.Meta");
     contributor.declare(debug, new LongName("time"), "Returns current time in milliseconds", Precedence.DEFAULT, new TimeMeta(this));

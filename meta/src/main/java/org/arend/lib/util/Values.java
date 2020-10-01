@@ -29,7 +29,7 @@ public class Values<E extends UncheckedExpression> {
   }
 
   protected boolean matches(UncheckedExpression value, UncheckedExpression element) {
-    return typechecker != null ? typechecker.compare(value, element, CMP.EQ, marker, false, true) : value.compare(element, CMP.EQ);
+    return typechecker != null ? Utils.safeCompare(typechecker, value, element, CMP.EQ, marker, false, true) : value.compare(element, CMP.EQ);
   }
 
   public int getIndex(UncheckedExpression value) {

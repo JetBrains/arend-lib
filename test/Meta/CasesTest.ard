@@ -1,0 +1,195 @@
+\import Data.Bool
+\import Meta
+
+\lemma test1 (n : Nat) : (\case n \with { | 0 => 1 | suc _ => 1 }) = 1
+  => mcases \with {
+    | 0 => idp
+    | suc _ => idp
+  }
+
+\lemma test2 (n m : Nat) : (\case n \with { | 0 => 2 | suc _ => 2 }) = (\case m \with { | 0 => 2 | suc _ => 2 })
+  => mcases \with {
+    | 0, 0 => idp
+    | 0, suc n1 => idp
+    | suc n1, 0 => idp
+    | suc n1, suc n2 => idp
+  }
+
+\lemma test2_mixed (n m : Nat) : (\case n \with { | 0 => 2 | suc _ => 2 }) = (\case m \with { | 0 => 2 | suc _ => 2 })
+  => mcases idp \with {
+    | 0, 0 => idp
+    | suc n1, suc n2 => idp
+  }
+
+\lemma testOccurrences (n m : Nat) : \let x : Nat => \case m \with { | 0 => 0 | suc _ => 0 } \in (\case n \with { | 0 => 1 | suc _ => 1 }) = 1
+  => mcases {2} \with {
+    | 0 => idp
+    | suc _ => idp
+  }
+
+\module Common \where {
+  \func foo (n : Nat) : Nat
+    | 0 => 2
+    | suc _ => 2
+
+  \func bar (k n m : Nat) : Nat \elim n, m
+    | 0, m => 3
+    | n, 0 => 3
+    | suc n, suc m => 3
+
+  \func baz (n m : Nat) (p : n = m) : Nat \elim p
+    | idp => 4
+}
+
+\open Common
+
+\lemma testDef (n : Nat) : foo n = 2
+  => mcases {foo} \with {
+    | 0 => idp
+    | suc _ => idp
+  }
+
+\lemma testDefOccurrences (n m : Nat) : \let x => foo m \in foo n = 2
+  => mcases {foo,2} \with {
+    | 0 => idp
+    | suc _ => idp
+  }
+
+\lemma testCaseDefOccurrences (n m k : Nat) : \let x => foo m \in foo n = (\case k \with { | 0 => 2 | suc _ => 2 })
+  => mcases {1,(foo,2)} \with {
+    | 0, 0 => idp
+    | 0, suc _ => idp
+    | suc _, 0 => idp
+    | suc _, suc _ => idp
+  }
+
+\lemma testCaseDefOccurrences2 (n m k : Nat) : \let x => foo m \in foo n = (\case k \with { | 0 => 2 | suc _ => 2 })
+  => mcases {(),(foo,2)} \with {
+    | 0, 0 => idp
+    | 0, suc _ => idp
+    | suc _, 0 => idp
+    | suc _, suc _ => idp
+  }
+
+\lemma testCaseDefOccurrencesFail (n m k : Nat)
+  => fails {\let x => foo m \in foo n = (\case k \with { | 0 => 2 | suc _ => 2 })}
+           (mcases {foo,2} \with {
+             | 0, 0 => idp
+             | 0, suc _ => idp
+             | suc _, 0 => idp
+             | suc _, suc _ => idp
+           })
+
+\lemma testRefinedPatterns (n : Nat) : (\case n \with { | 0 => 2 | 1 => 2 | _ => 2 }) = 2
+  => mcases \with {
+    | 0 => idp
+    | 1 => idp
+    | suc (suc _) => idp
+  }
+
+\lemma testRefinedPatterns2 (k n m : Nat) : bar k n m = 3
+  => mcases {bar} \with {
+    | 0, 0 => idp
+    | 0, suc n1 => idp
+    | suc n1, 0 => idp
+    | suc n1, suc n2 => idp
+  }
+
+\lemma testRefinedPatterns3 (n : Nat) : (\case n \with { | 0 => 2 | 1 => 2 | _ => 2 }) = 2
+  => mcases idp
+
+\lemma testRefinedPatterns4 (k n m : Nat) : bar k n m = 3
+  => mcases {bar} idp
+
+\lemma letTest (k n m : Nat) : bar k n m = 3
+  => mcases {bar} \with {
+    | 0, m1 => idp
+    | n1, 0 => idp
+    | suc n1, suc m1 => idp
+  }
+
+\lemma letTest2 (n : Nat) : (\case n \with { | 0 => 3 | _ => 3 }) = 3
+  => mcases \with {
+    | 0 => idp
+    | n1 => idp
+  }
+
+\lemma letTestRefined (n : Nat) : (\case n \with { | 0 => 3 | _ => 3 }) = 3
+  => mcases \with {
+    | 0 => idp
+    | suc n1 => idp
+  }
+
+\lemma letTestRefined2 (n : Nat) : (\case n \with { | 0 => 3 | _ => 3 }) = 3
+  => mcases \with {
+    | 0 => idp
+    | 1 => idp
+    | suc (suc _) => idp
+  }
+
+\lemma letTest3 (n : Nat) : (\case n \with { | 0 => 3 | _ => 3 }) = 3
+  => mcases idp
+
+\lemma letTest4 (n : Nat) : (\case n \with { | 0 => 3 | _ => 3 }) = 3
+  => mcases \with {
+    | _ => idp
+  }
+
+\lemma dependentTest (n : Nat) (p : n = 0) : qux n p = 4
+  => mcases {qux} \with {
+    | 0, p1 => idp
+  }
+  \where {
+    \func qux (n : Nat) (p : n = 0) : Nat \elim n
+      | 0 => 4
+  }
+
+\lemma dependentCaseTest (n : Nat) (p : n = 0) : (\case \elim n, p \with { | 0, _ => 4 }) = 4
+  => mcases \with {
+    | 0, p1 => idp
+  }
+
+\lemma idpTest (m : Nat) (p : 2 = m) : baz 2 m p = 4
+  => mcases {baz} \with {
+    | n1, m1, idp => idp
+  }
+
+\lemma idpTest2 (n : Nat) (p : n = 2) : baz n 2 p = 4
+  => mcases {baz} \with {
+    | n1, m1, idp => idp
+  }
+
+\lemma idpCaseTest (n m : Nat) (p : n = m) : (\case \elim n, p \with { | _, idp => 4 }) = 4
+  => mcases \with {
+    | n1, idp => idp
+  }
+
+\lemma idpCaseTest2 (n m : Nat) (p : n = m) : (\case \elim n, \elim m, p \with { | _, _, idp => 4 }) = 4
+  => mcases \with {
+    | n1, m1, idp => idp
+  }
+
+\lemma idpCaseTest3 (n m : Nat) (p : n = m) : (\case \elim n, \elim m, p \with { | 0, _, idp => 4 | suc _, _, idp => 4 }) = 4
+  => mcases \with {
+    | 0, m1, idp => idp
+    | suc n1, m1, idp => idp
+  }
+
+\lemma idpCaseTest4 (n m : Nat) (p : n = m) : (\case \elim n, \elim m, p \with { | _, 0, idp => 4 | _, suc _, idp => 4 }) = 4
+  => mcases \with {
+    | n1, 0, idp => idp
+    | n1, suc m1, idp => idp
+  }
+
+\lemma idpCaseTest5 (n : Nat) (p : n = 3) : (\case \elim n, p \with { | _, idp => 4 }) = 4
+  => mcases \with {
+    | n1, idp => idp
+  }
+
+\lemma idpCaseTest6 (m : Nat) (p : 3 = m) : (\case \elim m, p \with { | _, idp => 4 }) = 4
+  => mcases \with {
+    | m1, idp => idp
+  }
+
+\lemma argumentTest (x : Bool) : not (not x) = x
+  => mcases {not,2} idp

@@ -20,4 +20,9 @@ public class TypeError extends TypecheckingError {
   public Doc getBodyDoc(PrettyPrinterConfig ppConfig) {
     return DocFactory.hang(DocFactory.text("Type:"), DocFactory.termDoc(type, ppConfig));
   }
+
+  @Override
+  public boolean hasExpressions() {
+    return true;
+  }
 }
