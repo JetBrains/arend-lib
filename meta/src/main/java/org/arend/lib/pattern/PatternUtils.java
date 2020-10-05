@@ -396,29 +396,29 @@ public class PatternUtils {
     return result;
   }
 
-  public static List<CorePattern> replaceParameters(List<? extends CorePattern> patterns, CoreParameter parameters) {
+  public static List<CorePattern> replaceParameters(List<? extends CorePattern> patterns, CoreParameter parameters, VariableRenamerFactory renamer) {
     List<CorePattern> result = new ArrayList<>(patterns.size());
     for (CorePattern pattern : patterns) {
-      parameters = replaceParameters(pattern, parameters, result);
+      parameters = replaceParameters(pattern, parameters, result, renamer);
     }
     return result;
   }
 
-  public static CoreParameter replaceParameters(CorePattern pattern, CoreParameter parameters, List<CorePattern> result) {
+  public static CoreParameter replaceParameters(CorePattern pattern, CoreParameter parameters, List<CorePattern> result, VariableRenamerFactory renamer) {
     if (pattern.isAbsurd()) {
       result.add(pattern);
       return parameters;
     }
 
     if (pattern.getBinding() != null) {
-      result.add(new ArendPattern(parameters.getBinding(), null, Collections.emptyList(), parameters));
+      result.add(new ArendPattern(parameters.getBinding(), null, Collections.emptyList(), parameters, renamer));
       return parameters.getNext();
     }
 
     List<CorePattern> subPatterns = new ArrayList<>();
-    result.add(new ArendPattern(null, pattern.getConstructor(), subPatterns, parameters));
+    result.add(new ArendPattern(null, pattern.getConstructor(), subPatterns, parameters, renamer));
     for (CorePattern subPattern : pattern.getSubPatterns()) {
-      parameters = replaceParameters(subPattern, parameters, subPatterns);
+      parameters = replaceParameters(subPattern, parameters, subPatterns, renamer);
     }
     return parameters;
   }
