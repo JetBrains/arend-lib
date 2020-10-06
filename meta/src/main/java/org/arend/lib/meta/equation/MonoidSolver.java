@@ -8,11 +8,8 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
-import org.arend.ext.core.definition.CoreClassDefinition;
-import org.arend.ext.core.expr.CoreClassCallExpression;
-import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.expr.CoreFieldCallExpression;
-import org.arend.ext.core.expr.CoreFunCallExpression;
+import org.arend.ext.core.expr.*;
+import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.reference.ArendRef;
@@ -36,7 +33,10 @@ public class MonoidSolver implements EquationSolver {
   private final ConcreteFactory factory;
   private final ConcreteReferenceExpression refExpr;
 
-  private final CoreClassDefinition classDef;
+  private final TypedExpression instance;
+  private final CoreExpression ideExpr;
+  private final TypedExpression mulTyped;
+  private final CoreExpression carrierExpr;
   private final Values<CoreExpression> values;
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
@@ -45,13 +45,24 @@ public class MonoidSolver implements EquationSolver {
   private Map<CoreBinding, List<RuleExt>> contextRules;
   private final CoreFunCallExpression equality;
 
-  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, CoreClassDefinition classDef) {
+  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall) {
     this.meta = meta;
     this.typechecker = typechecker;
     this.factory = factory;
     this.refExpr = refExpr;
     this.equality = equality;
-    this.classDef = classDef;
+    this.instance = instance;
+    ideExpr = classCall.getImplementation(meta.ide, instance);
+    CoreExpression mulExpr = classCall.getImplementation(meta.mul, instance);
+    mulTyped = mulExpr == null ? null : mulExpr.computeTyped();
+    CoreExpression cExpr = null;
+    if (mulTyped != null) {
+      CoreExpression type = mulTyped.getType().normalize(NormalizationMode.WHNF);
+      if (type instanceof CorePiExpression) {
+        cExpr = ((CorePiExpression) type).getParameters().getTypeExpr();
+      }
+    }
+    carrierExpr = cExpr;
     values = new Values<>(typechecker, refExpr);
     dataRef = factory.local("d");
     letClauses = new ArrayList<>();
@@ -438,34 +449,55 @@ public class MonoidSolver implements EquationSolver {
   }
 
   private ConcreteExpression computeTerm(CoreExpression expression, List<Integer> nf) {
-    expression = expression.normalize(NormalizationMode.WHNF);
-    if (expression instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expression).getDefinition() == meta.ide) {
+    CoreExpression expr = expression.normalize(NormalizationMode.WHNF);
+
+    if (ideExpr == null && expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == meta.ide && Utils.safeCompare(typechecker, instance.getExpression(), ((CoreFieldCallExpression) expr).getArgument(), CMP.EQ, refExpr, false, true)) {
+      return factory.ref(meta.ideTerm.getRef());
+    }
+    if (ideExpr != null && Utils.safeCompare(typechecker, ideExpr, expr, CMP.EQ, refExpr, false, true)) {
       return factory.ref(meta.ideTerm.getRef());
     }
 
     List<CoreExpression> args = new ArrayList<>(2);
-    CoreExpression function = Utils.getAppArguments(expression, 2, args);
-    if (args.size() == 2) {
-      function = function.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
-      if (function instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) function).getDefinition() == meta.mul) {
-        List<ConcreteExpression> cArgs = new ArrayList<>(2);
-        cArgs.add(computeTerm(args.get(0), nf));
-        cArgs.add(computeTerm(args.get(1), nf));
-        return factory.app(factory.ref(meta.mulTerm.getRef()), true, cArgs);
+    if (mulTyped == null) {
+      CoreExpression function = Utils.getAppArguments(expr, 2, args);
+      if (args.size() == 2) {
+        function = function.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
+        if (!(function instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) function).getDefinition() == meta.mul && Utils.safeCompare(typechecker, instance.getExpression(), ((CoreFieldCallExpression) function).getArgument(), CMP.EQ, refExpr, false, true))) {
+          args.clear();
+        }
       }
     }
 
-    int index = values.addValue(expression);
+    if (mulTyped != null && carrierExpr != null) {
+      typechecker.withCurrentState(tc -> {
+        CoreInferenceReferenceExpression varExpr1 = typechecker.generateNewInferenceVariable("var1", carrierExpr, refExpr, true);
+        CoreInferenceReferenceExpression varExpr2 = typechecker.generateNewInferenceVariable("var2", carrierExpr, refExpr, true);
+        TypedExpression result = tc.typecheck(factory.app(factory.core(mulTyped), true, Arrays.asList(factory.core(varExpr1.computeTyped()), factory.core(varExpr2.computeTyped()))), null);
+        if (result != null && tc.compare(result.getExpression(), expr, CMP.EQ, refExpr, false, true) && varExpr1.getSubstExpression() != null && varExpr2.getSubstExpression() != null) {
+          args.add(varExpr1.getSubstExpression());
+          args.add(varExpr2.getSubstExpression());
+        } else {
+          tc.loadSavedState();
+        }
+        return null;
+      });
+    }
+
+    if (args.size() == 2) {
+      List<ConcreteExpression> cArgs = new ArrayList<>(2);
+      cArgs.add(computeTerm(args.get(0), nf));
+      cArgs.add(computeTerm(args.get(1), nf));
+      return factory.app(factory.ref(meta.mulTerm.getRef()), true, cArgs);
+    }
+
+    int index = values.addValue(expr);
     nf.add(index);
     return factory.app(factory.ref(meta.varTerm.getRef()), true, singletonList(factory.number(index)));
   }
 
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
-    if (classDef == null) {
-      return typechecker.typecheck(result, null);
-    }
-
     ArendRef lamParam = factory.local("n");
     List<CoreExpression> valueList = values.getValues();
     ConcreteClause[] caseClauses = new ConcreteClause[valueList.size() + 1];

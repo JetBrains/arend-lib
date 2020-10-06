@@ -3,10 +3,10 @@ package org.arend.lib.meta.equation;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
-import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.instance.SubclassSearchParameters;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
@@ -92,10 +92,7 @@ public class EqualitySolver implements EquationSolver {
 
   @Override
   public boolean initializeSolver() {
-    CoreClassDefinition classDef = getClassDef(valuesType);
-    if (classDef != null) {
-      monoidSolver = new MonoidSolver(meta, typechecker, factory, refExpr, equality, classDef);
-    } else {
+    if (!initializeMonoidSolver(valuesType)) {
       values = new Values<>(typechecker, refExpr);
     }
     return true;
@@ -118,21 +115,34 @@ public class EqualitySolver implements EquationSolver {
     return closure.checkRelation(leftExpr.getExpression(), rightExpr.getExpression());
   }
 
-  private CoreClassDefinition getClassDef(CoreExpression type) {
+  private CoreClassCallExpression getClassCall(CoreExpression type) {
+    CoreExpression instanceType = type.normalize(NormalizationMode.WHNF);
+    return instanceType instanceof CoreClassCallExpression ? (CoreClassCallExpression) instanceType : null;
+  }
+
+  private boolean initializeMonoidSolver(CoreExpression type) {
     type = type == null ? null : type.normalize(NormalizationMode.WHNF);
     if (type instanceof CoreFieldCallExpression) {
       if (((CoreFieldCallExpression) type).getDefinition() == meta.carrier) {
-        CoreExpression instanceType = ((CoreFieldCallExpression) type).getArgument().computeType().normalize(NormalizationMode.WHNF);
-        if (instanceType instanceof CoreClassCallExpression) {
-          CoreClassDefinition classDef = ((CoreClassCallExpression) instanceType).getDefinition();
-          if (classDef.isSubClassOf(meta.Monoid)) {
-            return classDef;
-          }
+        TypedExpression instance = ((CoreFieldCallExpression) type).getArgument().computeTyped();
+        CoreClassCallExpression classCall = getClassCall(instance.getType());
+        if (classCall != null && classCall.getDefinition().isSubClassOf(meta.Monoid)) {
+          monoidSolver = new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall);
+          return true;
+        }
+      }
+    } else {
+      TypedExpression instance = typechecker.findInstance(new SubclassSearchParameters(meta.Monoid), type, null, refExpr);
+      if (instance != null) {
+        CoreClassCallExpression classCall = getClassCall(instance.getType());
+        if (classCall != null) {
+          monoidSolver = new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall);
+          return true;
         }
       }
     }
 
-    return null;
+    return false;
   }
 
   @Override
