@@ -8,6 +8,7 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
+import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -33,10 +34,8 @@ public class MonoidSolver implements EquationSolver {
   private final ConcreteFactory factory;
   private final ConcreteReferenceExpression refExpr;
 
-  private final TypedExpression instance;
+  private final BinOpMatcher binOpMatcher;
   private final CoreExpression ideExpr;
-  private final TypedExpression mulTyped;
-  private final CoreExpression carrierExpr;
   private final Values<CoreExpression> values;
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
@@ -51,22 +50,89 @@ public class MonoidSolver implements EquationSolver {
     this.factory = factory;
     this.refExpr = refExpr;
     this.equality = equality;
-    this.instance = instance;
     ideExpr = classCall.getImplementation(meta.ide, instance);
     CoreExpression mulExpr = classCall.getImplementation(meta.mul, instance);
-    mulTyped = mulExpr == null ? null : mulExpr.computeTyped();
-    CoreExpression cExpr = null;
+    TypedExpression mulTyped = mulExpr == null ? null : mulExpr.computeTyped();
+
+    BinOpMatcher matcher = null;
     if (mulTyped != null) {
-      CoreExpression type = mulTyped.getType().normalize(NormalizationMode.WHNF);
-      if (type instanceof CorePiExpression) {
-        cExpr = ((CorePiExpression) type).getParameters().getTypeExpr();
+      CoreExpression expr = mulTyped.getExpression();
+      if (expr instanceof CoreLamExpression) {
+        CoreExpression body = ((CoreLamExpression) expr).getBody();
+        CoreParameter param1 = ((CoreLamExpression) expr).getParameters();
+        CoreParameter param2 = param1.getNext();
+        if (!param2.hasNext() && body instanceof CoreLamExpression) {
+          param2 = ((CoreLamExpression) body).getParameters();
+          body = ((CoreLamExpression) body).getBody();
+        }
+        if (param2.hasNext() && !param2.getNext().hasNext() && body instanceof CoreFunCallExpression && ((CoreFunCallExpression) body).getDefinition() == meta.ext.append) {
+          List<? extends CoreExpression> args = ((CoreFunCallExpression) body).getDefCallArguments();
+          if (args.get(1) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(1)).getBinding() == param1.getBinding() && args.get(2) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(2)).getBinding() == param2.getBinding()) {
+            matcher = new ListBinOpMatcher();
+          }
+        }
+        if (matcher == null) {
+          matcher = new GeneralBinOpMatcher(mulTyped, ((CoreLamExpression) expr).getParameters().getTypeExpr());
+        }
       }
     }
-    carrierExpr = cExpr;
+    binOpMatcher = matcher;
+
     values = new Values<>(typechecker, refExpr);
     dataRef = factory.local("d");
     letClauses = new ArrayList<>();
     letClauses.add(null);
+  }
+
+  private interface BinOpMatcher {
+    void match(CoreExpression expr, List<CoreExpression> args);
+  }
+
+  private class GeneralBinOpMatcher implements BinOpMatcher {
+    private final TypedExpression mulTyped;
+    private final CoreExpression carrierExpr;
+
+    private GeneralBinOpMatcher(TypedExpression mulTyped, CoreExpression carrierExpr) {
+      this.mulTyped = mulTyped;
+      this.carrierExpr = carrierExpr;
+    }
+
+    @Override
+    public void match(CoreExpression expr, List<CoreExpression> args) {
+      typechecker.withCurrentState(tc -> {
+        CoreInferenceReferenceExpression varExpr1 = typechecker.generateNewInferenceVariable("var1", carrierExpr, refExpr, true);
+        CoreInferenceReferenceExpression varExpr2 = typechecker.generateNewInferenceVariable("var2", carrierExpr, refExpr, true);
+        TypedExpression result = tc.typecheck(factory.app(factory.core(mulTyped), true, Arrays.asList(factory.core(varExpr1.computeTyped()), factory.core(varExpr2.computeTyped()))), null);
+        if (result != null && tc.compare(result.getExpression(), expr, CMP.EQ, refExpr, false, true) && varExpr1.getSubstExpression() != null && varExpr2.getSubstExpression() != null) {
+          args.add(varExpr1.getSubstExpression());
+          args.add(varExpr2.getSubstExpression());
+        } else {
+          tc.loadSavedState();
+        }
+        return null;
+      });
+    }
+  }
+
+  private class ListBinOpMatcher implements BinOpMatcher {
+    @Override
+    public void match(CoreExpression expr, List<CoreExpression> args) {
+      if (expr instanceof CoreFunCallExpression && ((CoreFunCallExpression) expr).getDefinition() == meta.ext.append) {
+        List<? extends CoreExpression> defCallArgs = ((CoreFunCallExpression) expr).getDefCallArguments();
+        args.add(defCallArgs.get(1));
+        args.add(defCallArgs.get(2));
+      } else if (expr instanceof CoreConCallExpression && ((CoreConCallExpression) expr).getDefinition() == meta.ext.cons) {
+        List<? extends CoreExpression> defCallArgs = ((CoreConCallExpression) expr).getDefCallArguments();
+        CoreExpression tail = defCallArgs.get(1).normalize(NormalizationMode.WHNF);
+        if (!(tail instanceof CoreConCallExpression && ((CoreConCallExpression) tail).getDefinition() == meta.ext.nil)) {
+          TypedExpression result = typechecker.typecheck(factory.app(factory.ref(meta.ext.cons.getRef()), true, Arrays.asList(factory.core(defCallArgs.get(0).computeTyped()), factory.ref(meta.ext.nil.getRef()))), null);
+          if (result != null) {
+            args.add(result.getExpression());
+            args.add(tail);
+          }
+        }
+      }
+    }
   }
 
   @Override
@@ -451,7 +517,7 @@ public class MonoidSolver implements EquationSolver {
   private ConcreteExpression computeTerm(CoreExpression expression, List<Integer> nf) {
     CoreExpression expr = expression.normalize(NormalizationMode.WHNF);
 
-    if (ideExpr == null && expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == meta.ide && Utils.safeCompare(typechecker, instance.getExpression(), ((CoreFieldCallExpression) expr).getArgument(), CMP.EQ, refExpr, false, true)) {
+    if (ideExpr == null && expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == meta.ide) {
       return factory.ref(meta.ideTerm.getRef());
     }
     if (ideExpr != null && Utils.safeCompare(typechecker, ideExpr, expr, CMP.EQ, refExpr, false, true)) {
@@ -459,29 +525,16 @@ public class MonoidSolver implements EquationSolver {
     }
 
     List<CoreExpression> args = new ArrayList<>(2);
-    if (mulTyped == null) {
+    if (binOpMatcher == null) {
       CoreExpression function = Utils.getAppArguments(expr, 2, args);
       if (args.size() == 2) {
         function = function.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
-        if (!(function instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) function).getDefinition() == meta.mul && Utils.safeCompare(typechecker, instance.getExpression(), ((CoreFieldCallExpression) function).getArgument(), CMP.EQ, refExpr, false, true))) {
+        if (!(function instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) function).getDefinition() == meta.mul)) {
           args.clear();
         }
       }
-    }
-
-    if (mulTyped != null && carrierExpr != null) {
-      typechecker.withCurrentState(tc -> {
-        CoreInferenceReferenceExpression varExpr1 = typechecker.generateNewInferenceVariable("var1", carrierExpr, refExpr, true);
-        CoreInferenceReferenceExpression varExpr2 = typechecker.generateNewInferenceVariable("var2", carrierExpr, refExpr, true);
-        TypedExpression result = tc.typecheck(factory.app(factory.core(mulTyped), true, Arrays.asList(factory.core(varExpr1.computeTyped()), factory.core(varExpr2.computeTyped()))), null);
-        if (result != null && tc.compare(result.getExpression(), expr, CMP.EQ, refExpr, false, true) && varExpr1.getSubstExpression() != null && varExpr2.getSubstExpression() != null) {
-          args.add(varExpr1.getSubstExpression());
-          args.add(varExpr2.getSubstExpression());
-        } else {
-          tc.loadSavedState();
-        }
-        return null;
-      });
+    } else {
+      binOpMatcher.match(expr, args);
     }
 
     if (args.size() == 2) {

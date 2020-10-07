@@ -47,6 +47,7 @@ public class StdExtension implements ArendExtension {
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
+  @Dependency(module = "Data.List", name = "++")       public CoreFunctionDefinition append;
 
   @Dependency(module = "Logic") public CoreDataDefinition Empty;
   @Dependency(module = "Logic") public CoreDataDefinition TruncP;
