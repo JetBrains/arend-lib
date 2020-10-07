@@ -23,7 +23,10 @@ repositories {
 
 dependencies {
     implementation("org.arend:api")
+    implementation( "cc.redberry:rings:2.5.5")
 }
+
+
 
 java {
     sourceCompatibility = JavaVersion.VERSION_11
