@@ -151,7 +151,7 @@ public class StdExtension implements ArendExtension {
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
 
-    contributor.declare(algebra, new LongName("congruence"),
+    contributor.declare(algebra, new LongName("cong"),
         "Proves an equality by congruence closure of equalities in the context. E.g. derives f a = g b from f = g and a = b",
         Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this)));
 
