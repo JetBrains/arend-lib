@@ -137,8 +137,9 @@ public class RewriteMeta extends BaseMetaDefinition {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
           final int[] num = { 0 };
+          CoreExpression valueType = value.computeType();
           UncheckedExpression absExpr = typechecker.withCurrentState(tc -> normType.replaceSubexpressions(expression -> {
-            if (tc.compare(expression, value, CMP.EQ, refExpr, false, true)) {
+            if (tc.compare(expression.computeType(), valueType, CMP.EQ, refExpr, false, true) && tc.compare(expression, value, CMP.EQ, refExpr, false, true)) {
               tc.updateSavedState();
               num[0]++;
               if (occurrences == null || occurrences.contains(num[0])) {

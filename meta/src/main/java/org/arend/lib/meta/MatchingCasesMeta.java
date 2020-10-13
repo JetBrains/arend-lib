@@ -368,6 +368,9 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       Map<Pair<Integer, Integer>, ArendRef> argRefs = new HashMap<>();
       typechecker.withCurrentState(tc -> {
         expectedType.processSubexpression(expr -> {
+          CoreExpression exprType = expr.computeType();
+          if (exprType.isError()) return CoreExpression.FindAction.CONTINUE;
+
           for (int i = 0; i < dataList.size(); i++) {
             if (expr == dataList.get(i).expression) {
               indicesToAbstract.add(new Pair<>(i, -1));
@@ -379,7 +382,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             List<TypedExpression> matchedArgs = dataList.get(i).matchedArgs;
             for (int j = 0; j < matchedArgs.size(); j++) {
               TypedExpression arg = matchedArgs.get(j);
-              if (tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true)) {
+              if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true)) {
                 tc.updateSavedState();
                 var pair = new Pair<>(i, j);
                 indicesToAbstract.add(pair);
