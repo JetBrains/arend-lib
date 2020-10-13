@@ -18,6 +18,7 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.error.AlgebraSolverError;
+import org.arend.lib.util.CountingSort;
 import org.arend.lib.util.Maybe;
 import org.arend.lib.util.Utils;
 import org.arend.lib.util.Values;
@@ -43,6 +44,7 @@ public class MonoidSolver implements EquationSolver {
   private final List<ConcreteLetClause> letClauses;
   private Map<CoreBinding, List<RuleExt>> contextRules;
   private final CoreFunCallExpression equality;
+  private boolean isCommutative;
 
   public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall) {
     this.meta = meta;
@@ -53,6 +55,7 @@ public class MonoidSolver implements EquationSolver {
     ideExpr = classCall.getImplementation(meta.ide, instance);
     CoreExpression mulExpr = classCall.getImplementation(meta.mul, instance);
     TypedExpression mulTyped = mulExpr == null ? null : mulExpr.computeTyped();
+    isCommutative = classCall.getDefinition().isSubClassOf(meta.CMonoid);
 
     BinOpMatcher matcher = null;
     if (mulTyped != null) {
@@ -192,6 +195,14 @@ public class MonoidSolver implements EquationSolver {
     lastTerm = rightExpr;
     lastCompiled = term2;
 
+    boolean commutative = false;
+    if (isCommutative && !term1.nf.equals(term2.nf)) {
+      commutative = true;
+      term1.nf = CountingSort.sort(term1.nf);
+      term2.nf = CountingSort.sort(term2.nf);
+    }
+    isCommutative = commutative;
+
     ConcreteExpression lastArgument;
     if (!term1.nf.equals(term2.nf)) {
       List<RuleExt> rules = new ArrayList<>();
@@ -280,7 +291,7 @@ public class MonoidSolver implements EquationSolver {
       lastArgument = factory.ref(meta.ext.prelude.getIdp().getRef());
     }
 
-    return factory.appBuilder(factory.ref(meta.termsEq.getRef()))
+    return factory.appBuilder(factory.ref((commutative ? meta.commTermsEq : meta.termsEq).getRef()))
       .app(factory.ref(dataRef), false)
       .app(term1.concrete)
       .app(term2.concrete)
@@ -501,7 +512,7 @@ public class MonoidSolver implements EquationSolver {
 
   private static class CompiledTerm {
     private final ConcreteExpression concrete;
-    private final List<Integer> nf;
+    private List<Integer> nf;
 
     private CompiledTerm(ConcreteExpression concrete, List<Integer> nf) {
       this.concrete = concrete;
@@ -560,7 +571,7 @@ public class MonoidSolver implements EquationSolver {
     caseClauses[valueList.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(meta.ide.getRef()));
 
     letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(factory.app(
-      factory.ref(meta.Data.getRef()), true,
+      factory.ref((isCommutative ? meta.CData : meta.Data).getRef()), true,
       singletonList(factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(meta.ext.prelude.getNat().getRef()))),
         factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses)))))));
     return typechecker.typecheck(meta.ext.factory.letExpr(false, letClauses, result), null);

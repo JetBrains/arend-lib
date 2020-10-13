@@ -19,7 +19,7 @@
       | :ide => acc
       | :* t s => aux t (aux s acc)
 
-\class Data \noclassifying {V : \Type} {M : Monoid} (f : V -> M) {
+\class Data \noclassifying {V : \Set} {M : Monoid} (f : V -> M) {
   \func interpret (t : MonoidTerm V) : M \elim t
     | var x => f x
     | :ide => ide
@@ -53,11 +53,38 @@
     | :: a l1 => repeat {2} (rewrite interpretNF.cons) $ rewrite interpretAppend (inv *-assoc)
 
   \lemma replace-consistent (l : List V) (i s : Nat) (r : List V) (p : interpretNF (slice l i s) = interpretNF r)
-    : interpretNF l = interpretNF(replace l i s r) =>
-    run {
+    : interpretNF l = interpretNF (replace l i s r)
+    => run {
       rewriteI {1} (slice.appendLem l i s),
       repeat {4} (rewrite interpretAppend),
       rewriteI p,
       idp
     }
+}
+
+\class CData \extends Data {
+  | V => Nat
+  \override M : CMonoid
+
+  \lemma sort-consistent (l : List Nat) : interpretNF l = interpretNF (RedBlack.sort l)
+    => rewrite (RedBlack.sort=insert l) (perm-consistent (Insertion.sort-perm l))
+
+  \lemma perm-consistent {l l' : List Nat} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
+    | nil, nil, perm-nil => idp
+    | :: a1 l1, :: a2 l2, perm-:: idp p => repeat {2} (rewrite interpretNF.cons) (pmap (f a1 *) (perm-consistent p))
+    | :: a1 (:: a1' l1), :: a2 (:: a2' l2), perm-swap idp idp idp => repeat {2} (rewrite interpretNF.cons) (inv *-assoc *> (pmap (`* interpretNF l1) *-comm) *> *-assoc)
+    | l1, l2, perm-trans p1 p2 => perm-consistent p1 *> perm-consistent p2
+
+  \lemma normalize-consistent (t : MonoidTerm V) : interpret t = interpretNF (RedBlack.sort (normalize t))
+    => Data.normalize-consistent t *> sort-consistent (normalize t)
+
+  \lemma terms-equality (t s : MonoidTerm V) (p : interpretNF (RedBlack.sort (normalize t)) = interpretNF (RedBlack.sort (normalize s))) : interpret t = interpret s
+    => normalize-consistent t *> p *> inv (normalize-consistent s)
+
+  \lemma terms-equality-conv (t s : MonoidTerm V) (p : interpret t = interpret s) : interpretNF (RedBlack.sort (normalize t)) = interpretNF (RedBlack.sort (normalize s))
+    => inv (normalize-consistent t) *> p *> normalize-consistent s
+
+} \where {
+  \open Data
+  \open Sort
 }
