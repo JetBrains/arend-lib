@@ -3,6 +3,7 @@ package org.arend.lib.meta;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.CoreExpression;
@@ -46,25 +47,25 @@ public class UnfoldMeta extends BaseMetaDefinition {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     List<? extends ConcreteExpression> firstArgList = Utils.getArgumentList(contextData.getArguments().get(0).getExpression());
-    Set<CoreFunctionDefinition> functions = new HashSet<>();
+    Set<CoreDefinition> functions = new HashSet<>();
     for (ConcreteExpression expr : firstArgList) {
-      CoreFunctionDefinition function = null;
+      CoreDefinition function = null;
       if (expr instanceof ConcreteReferenceExpression) {
         CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) expr).getReferent());
-        if (def instanceof CoreFunctionDefinition) {
-          function = (CoreFunctionDefinition) def;
+        if (def instanceof CoreFunctionDefinition || def instanceof CoreClassField) {
+          function = def;
         }
       }
-      if (function != null && function.getBody() instanceof CoreExpression) {
+      if (function == null || function instanceof CoreFunctionDefinition && !(((CoreFunctionDefinition) function).getBody() instanceof CoreExpression) || function instanceof CoreClassField && ((CoreClassField) function).isProperty()) {
+        typechecker.getErrorReporter().report(new TypecheckingError(function == null ? "Expected either a function or a field" : "Function '" + function.getName() + "' cannot be unfolded", expr));
+      } else {
         if (!functions.add(function)) {
           typechecker.getErrorReporter().report(new IgnoredArgumentError("Repeated function", expr));
         }
-      } else {
-        typechecker.getErrorReporter().report(new TypecheckingError(function == null ? "Expected a function" : "Function '" + function.getName() + "' cannot be unfolded", expr));
       }
     }
 
-    Set<CoreFunctionDefinition> unfolded = new HashSet<>();
+    Set<CoreDefinition> unfolded = new HashSet<>();
     TypedExpression result;
     if (contextData.getExpectedType() != null) {
       result = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType().unfold(functions, unfolded));
@@ -80,9 +81,9 @@ public class UnfoldMeta extends BaseMetaDefinition {
       for (ConcreteExpression expr : firstArgList) {
         if (expr instanceof ConcreteReferenceExpression) {
           CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) expr).getReferent());
-          if (def instanceof CoreFunctionDefinition && !unfolded.contains(def)) {
+          if ((def instanceof CoreFunctionDefinition || def instanceof CoreClassField) && !unfolded.contains(def)) {
             typechecker.getErrorReporter().report(new IgnoredArgumentError("Function was not unfolded", expr));
-            unfolded.add((CoreFunctionDefinition) def);
+            unfolded.add(def);
           }
         }
       }
