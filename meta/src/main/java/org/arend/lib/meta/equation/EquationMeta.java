@@ -39,17 +39,24 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.+") public CoreClassField plus;
 
+  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")     CoreClassDefinition MSemilattice;
+  @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")        CoreClassField meet;
+  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top") CoreClassField top;
+
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.var")  CoreConstructor varTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   CoreConstructor mulTerm;
 
   @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition Data;
   @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition CData;
+  @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition LData;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.f")                    CoreClassField DataFunction;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                   CoreClassField LDataCarrier;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")       CoreFunctionDefinition termsEq;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")  CoreFunctionDefinition termsEqConv;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")   CoreFunctionDefinition replaceDef;
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality")      CoreFunctionDefinition commTermsEq;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality-conv") CoreFunctionDefinition commTermsEqConv;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.terms-equality")      CoreFunctionDefinition latticeTermsEq;
 
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative") public CoreClassField negative;
   @Dependency(module = "Algebra.Semiring")                          public CoreClassDefinition Semiring;

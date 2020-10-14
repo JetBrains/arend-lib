@@ -4,8 +4,11 @@
 \import Data.List
 \import Function.Meta
 \import Meta
+\import Order.Lattice
+\import Order.PartialOrder
 \import Paths
 \import Paths.Meta
+\import Set \hiding (#)
 
 \data MonoidTerm (V : \Type)
   | var V
@@ -19,7 +22,7 @@
       | :ide => acc
       | :* t s => aux t (aux s acc)
 
-\class Data \noclassifying {V : \Set} {M : Monoid} (f : V -> M) {
+\class Data \noclassifying {M : Monoid} {V : \Set} (f : V -> M) {
   \func interpret (t : MonoidTerm V) : M \elim t
     | var x => f x
     | :ide => ide
@@ -67,7 +70,7 @@
   \override M : CMonoid
 
   \lemma sort-consistent (l : List Nat) : interpretNF l = interpretNF (RedBlack.sort l)
-    => rewrite (RedBlack.sort=insert l) (perm-consistent (Insertion.sort-perm l))
+    => rewrite RedBlack.sort=insert (perm-consistent (Insertion.sort-perm l))
 
   \lemma perm-consistent {l l' : List Nat} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
     | nil, nil, perm-nil => idp
@@ -82,6 +85,47 @@
     => normalize-consistent t *> p *> inv (normalize-consistent s)
 
   \lemma terms-equality-conv (t s : MonoidTerm V) (p : interpret t = interpret s) : interpretNF (RedBlack.sort (normalize t)) = interpretNF (RedBlack.sort (normalize s))
+    => inv (normalize-consistent t) *> p *> normalize-consistent s
+
+} \where {
+  \open Data
+  \open Sort
+}
+
+\class LData {L : Bounded.MeetSemilattice} \extends CData {
+  | M => L
+
+  \func removeDuplicates (l : List Nat) : List Nat \elim l
+    | nil => nil
+    | :: a nil => a :: nil
+    | :: a (:: a' _ \as l) => \case decideEq a a' \with {
+      | yes _ => removeDuplicates l
+      | no _ =>  a :: removeDuplicates l
+    }
+
+  \lemma removeDuplicates-consistent (l : List Nat) : interpretNF l = interpretNF (removeDuplicates l)
+    | nil => idp
+    | :: a nil => idp
+    | :: a (:: a1 l) => mcases \with {
+      | yes p => run {
+        rewrite p,
+        rewriteI (removeDuplicates-consistent (a1 :: l)),
+        rewrite interpretNF.cons,
+        inv M.*-assoc *> pmap (`∧ interpretNF l) (<=-antisymmetric meet-left (meet-univ <=-reflexive <=-reflexive))
+      }
+      | no _ => run {
+        rewrite {2} interpretNF.cons,
+        pmap (f a ∧) (removeDuplicates-consistent (a1 :: l))
+      }
+    }
+
+  \lemma normalize-consistent (t : MonoidTerm V) : interpret t = interpretNF (removeDuplicates (RedBlack.sort (normalize t)))
+    => CData.normalize-consistent t *> removeDuplicates-consistent _
+
+  \lemma terms-equality (t s : MonoidTerm V) (p : interpretNF (removeDuplicates (RedBlack.sort (normalize t))) = interpretNF (removeDuplicates (RedBlack.sort (normalize s)))) : interpret t = interpret s
+    => normalize-consistent t *> p *> inv (normalize-consistent s)
+
+  \lemma terms-equality-conv (t s : MonoidTerm V) (p : interpret t = interpret s) : interpretNF (removeDuplicates (RedBlack.sort (normalize t))) = interpretNF (removeDuplicates (RedBlack.sort (normalize s)))
     => inv (normalize-consistent t) *> p *> normalize-consistent s
 
 } \where {

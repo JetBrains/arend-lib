@@ -157,14 +157,13 @@ public class RewriteMeta extends BaseMetaDefinition {
               ok = tc.compare(expression.computeType(), valueType, CMP.EQ, refExpr, false, true) && tc.compare(expression, value, CMP.EQ, refExpr, false, true);
             }
             if (ok) {
-              tc.updateSavedState();
               num[0]++;
               if (occurrences == null || occurrences.contains(num[0])) {
+                tc.updateSavedState();
                 return var.getExpression();
               }
-            } else {
-              tc.loadSavedState();
             }
+            tc.loadSavedState();
             return null;
           }));
           if (absExpr == null) {

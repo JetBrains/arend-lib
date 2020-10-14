@@ -3,10 +3,11 @@ package org.arend.lib.meta.equation;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
+import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.instance.SubclassSearchParameters;
+import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
@@ -126,13 +127,18 @@ public class EqualitySolver implements EquationSolver {
       if (((CoreFieldCallExpression) type).getDefinition() == meta.carrier) {
         TypedExpression instance = ((CoreFieldCallExpression) type).getArgument().computeTyped();
         CoreClassCallExpression classCall = getClassCall(instance.getType());
-        if (classCall != null && classCall.getDefinition().isSubClassOf(meta.Monoid)) {
+        if (classCall != null && (classCall.getDefinition().isSubClassOf(meta.Monoid) || classCall.getDefinition().isSubClassOf(meta.MSemilattice))) {
           monoidSolver = new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall);
           return true;
         }
       }
     } else {
-      TypedExpression instance = typechecker.findInstance(new SubclassSearchParameters(meta.Monoid), type, null, refExpr);
+      TypedExpression instance = typechecker.findInstance(new InstanceSearchParameters() {
+        @Override
+        public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
+          return classDefinition.isSubClassOf(meta.Monoid) || classDefinition.isSubClassOf(meta.MSemilattice);
+        }
+      }, type, null, refExpr);
       if (instance != null) {
         CoreClassCallExpression classCall = getClassCall(instance.getType());
         if (classCall != null) {

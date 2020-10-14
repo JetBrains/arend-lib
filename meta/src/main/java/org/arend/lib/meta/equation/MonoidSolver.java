@@ -9,6 +9,7 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -36,6 +37,7 @@ public class MonoidSolver implements EquationSolver {
   private final ConcreteReferenceExpression refExpr;
 
   private final BinOpMatcher binOpMatcher;
+  private final TypedExpression instance;
   private final CoreExpression ideExpr;
   private final Values<CoreExpression> values;
   private CompiledTerm lastCompiled;
@@ -45,6 +47,9 @@ public class MonoidSolver implements EquationSolver {
   private Map<CoreBinding, List<RuleExt>> contextRules;
   private final CoreFunCallExpression equality;
   private boolean isCommutative;
+  private boolean isSemilattice;
+  private final CoreClassField ide;
+  private final CoreClassField mul;
 
   public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall) {
     this.meta = meta;
@@ -52,10 +57,15 @@ public class MonoidSolver implements EquationSolver {
     this.factory = factory;
     this.refExpr = refExpr;
     this.equality = equality;
-    ideExpr = classCall.getImplementation(meta.ide, instance);
-    CoreExpression mulExpr = classCall.getImplementation(meta.mul, instance);
+    this.instance = instance;
+
+    isSemilattice = classCall.getDefinition().isSubClassOf(meta.MSemilattice);
+    isCommutative = isSemilattice || classCall.getDefinition().isSubClassOf(meta.CMonoid);
+    ide = isSemilattice ? meta.top : meta.ide;
+    mul = isSemilattice ? meta.meet : meta.mul;
+    ideExpr = classCall.getImplementation(ide, instance);
+    CoreExpression mulExpr = classCall.getImplementation(mul, instance);
     TypedExpression mulTyped = mulExpr == null ? null : mulExpr.computeTyped();
-    isCommutative = classCall.getDefinition().isSubClassOf(meta.CMonoid);
 
     BinOpMatcher matcher = null;
     if (mulTyped != null) {
@@ -188,6 +198,16 @@ public class MonoidSolver implements EquationSolver {
     return true;
   }
 
+  private static List<Integer> removeDuplicates(List<Integer> list) {
+    List<Integer> result = new ArrayList<>();
+    for (int i = 0; i < list.size(); i++) {
+      if (i == list.size() - 1 || !list.get(i).equals(list.get(i + 1))) {
+        result.add(list.get(i));
+      }
+    }
+    return result;
+  }
+
   @Override
   public ConcreteExpression solve(@Nullable ConcreteExpression hint, @NotNull TypedExpression leftExpr, @NotNull TypedExpression rightExpr, @NotNull ErrorReporter errorReporter) {
     CompiledTerm term1 = lastTerm == leftExpr ? lastCompiled : compileTerm(leftExpr.getExpression());
@@ -202,6 +222,14 @@ public class MonoidSolver implements EquationSolver {
       term2.nf = CountingSort.sort(term2.nf);
     }
     isCommutative = commutative;
+
+    boolean semilattice = false;
+    if (isSemilattice && commutative && !term1.nf.equals(term2.nf)) {
+      semilattice = true;
+      term1.nf = removeDuplicates(term1.nf);
+      term2.nf = removeDuplicates(term2.nf);
+    }
+    isSemilattice = semilattice;
 
     ConcreteExpression lastArgument;
     if (!term1.nf.equals(term2.nf)) {
@@ -291,7 +319,7 @@ public class MonoidSolver implements EquationSolver {
       lastArgument = factory.ref(meta.ext.prelude.getIdp().getRef());
     }
 
-    return factory.appBuilder(factory.ref((commutative ? meta.commTermsEq : meta.termsEq).getRef()))
+    return factory.appBuilder(factory.ref((semilattice ? meta.latticeTermsEq : commutative ? meta.commTermsEq : meta.termsEq).getRef()))
       .app(factory.ref(dataRef), false)
       .app(term1.concrete)
       .app(term2.concrete)
@@ -528,7 +556,7 @@ public class MonoidSolver implements EquationSolver {
   private ConcreteExpression computeTerm(CoreExpression expression, List<Integer> nf) {
     CoreExpression expr = expression.normalize(NormalizationMode.WHNF);
 
-    if (ideExpr == null && expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == meta.ide) {
+    if (ideExpr == null && expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == ide) {
       return factory.ref(meta.ideTerm.getRef());
     }
     if (ideExpr != null && Utils.safeCompare(typechecker, ideExpr, expr, CMP.EQ, refExpr, false, true)) {
@@ -540,7 +568,7 @@ public class MonoidSolver implements EquationSolver {
       CoreExpression function = Utils.getAppArguments(expr, 2, args);
       if (args.size() == 2) {
         function = function.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
-        if (!(function instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) function).getDefinition() == meta.mul)) {
+        if (!(function instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) function).getDefinition() == mul)) {
           args.clear();
         }
       }
@@ -568,12 +596,16 @@ public class MonoidSolver implements EquationSolver {
     for (int i = 0; i < valueList.size(); i++) {
       caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(null, valueList.get(i).computeTyped()));
     }
-    caseClauses[valueList.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(meta.ide.getRef()));
+    caseClauses[valueList.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(ide.getRef()));
 
-    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(factory.app(
-      factory.ref((isCommutative ? meta.CData : meta.Data).getRef()), true,
-      singletonList(factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(meta.ext.prelude.getNat().getRef()))),
-        factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses)))))));
+    ConcreteExpression instanceArg = factory.core(instance);
+    ConcreteExpression dataArg = factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(meta.ext.prelude.getNat().getRef()))),
+      factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
+    ConcreteExpression data = factory.ref((isSemilattice ? meta.LData : isCommutative ? meta.CData : meta.Data).getRef());
+
+    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(isSemilattice
+      ? factory.classExt(data, Arrays.asList(factory.implementation(meta.LDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)))
+      : factory.app(data, Arrays.asList(factory.arg(instanceArg, false), factory.arg(dataArg, true))))));
     return typechecker.typecheck(meta.ext.factory.letExpr(false, letClauses, result), null);
   }
 }
