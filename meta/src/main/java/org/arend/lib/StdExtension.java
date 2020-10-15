@@ -163,7 +163,7 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, contradictionMeta);
     contributor.declare(logic, new LongName("Exists"),
       "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
-      "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, null, new ExistsMeta(this));
+      "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, new ExistsMeta(this));
     constructorMetaRef = contributor.declare(logic, new LongName("constructor"),
       "Returns either a tuple, a \\new expression, or a single constructor of a data type depending on the expected type",
       Precedence.DEFAULT, new ConstructorMeta(this, false));
