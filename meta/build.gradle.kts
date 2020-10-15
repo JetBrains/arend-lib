@@ -4,16 +4,16 @@ plugins {
     java
 }
 
-task<JavaExec>("cliCheck") {
+tasks.register<JavaExec>("cliCheck") {
     group = "verification"
-    dependsOn(projectArend.task(":cli:jarDep"), tasks["classes"])
+    dependsOn(projectArend.task(":cli:jarDep"), tasks.named("classes"))
     main = "-jar"
     val jarDepPath = projectArend.projectDir.resolve("cli/build/libs/cli-1.5.1-full.jar").absolutePath
     args(jarDepPath, "-tcr")
     workingDir(projectDir.parent)
 }
 
-task("copyJarDep") {
+tasks.register("copyJarDep") {
     dependsOn(projectArend.task(":cli:copyJarDep"))
 }
 
@@ -30,10 +30,10 @@ java {
     targetCompatibility = JavaVersion.VERSION_11
 }
 
-tasks.withType<Wrapper> {
-    gradleVersion = "6.5"
+tasks.withType<Wrapper>().configureEach {
+    gradleVersion = "6.7"
 }
 
-tasks.withType<JavaCompile> {
+tasks.compileJava {
     options.encoding = "UTF-8"
 }
