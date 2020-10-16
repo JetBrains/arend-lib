@@ -25,7 +25,7 @@ public class RepeatMeta extends MetaInvocationMeta {
   }
 
   @Override
-  public @Nullable boolean[] argumentExplicitness() {
+  public boolean @Nullable [] argumentExplicitness() {
     return new boolean[] { false, true, true };
   }
 

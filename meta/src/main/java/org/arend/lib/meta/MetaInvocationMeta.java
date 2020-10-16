@@ -16,7 +16,7 @@ import java.util.List;
 
 public abstract class MetaInvocationMeta extends BaseMetaDefinition {
   @Override
-  public @Nullable boolean[] argumentExplicitness() {
+  public boolean @Nullable [] argumentExplicitness() {
     return new boolean[] { true };
   }
 

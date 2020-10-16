@@ -21,7 +21,7 @@ public class FailsMeta extends MetaInvocationMeta {
   }
 
   @Override
-  public @Nullable boolean[] argumentExplicitness() {
+  public boolean @Nullable [] argumentExplicitness() {
     return new boolean[] { false, true };
   }
 
