@@ -29,7 +29,7 @@ public class EquivalenceClosure<V> implements BinaryRelationClosure<V> {
     }
   }
 
-  private List<ConcreteExpression> findPath(V start, V end, Set<V> visited) {
+  protected List<ConcreteExpression> findPath(V start, V end, Set<V> visited) {
     if (!visited.add(start)) {
       return null;
     }
@@ -68,6 +68,10 @@ public class EquivalenceClosure<V> implements BinaryRelationClosure<V> {
       result = result == null ? proof : factory.app(trans, true, Arrays.asList(proof, result));
     }
     return result;
+  }
+
+  public @Nullable List<ConcreteExpression> getPath(V start, V end) {
+    return findPath(start, end, new HashSet<>());
   }
 
   @Override

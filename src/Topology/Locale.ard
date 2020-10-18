@@ -1,0 +1,37 @@
+\import Category
+\import Logic
+\import Logic.Meta
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Category
+
+\class Locale \extends DistributiveLattice, Bounded.Lattice {
+  | Join : (E -> \Prop) -> E
+  | Join-cond {P : E -> \Prop} {e : E} : P e -> e <= Join P
+  | Join-univ {P : E -> \Prop} {e : E} : (\Pi (x : E) -> P x -> x <= e) -> Join P <= e
+  | Join-distr {P : E -> \Prop} {e : E} : e ∧ Join P = Join (\lam x => ∃ (y : E) (P y) (x = e ∧ y))
+
+  | bottom => Join (\lam _ => Empty)
+  | bottom-univ {x} => Join-univ (\lam _ => absurd)
+  | join x y => Join (\lam z => (z = x) || (z = y))
+  | join-left {x} {y} => Join-cond (byLeft idp)
+  | join-right {x} {y} => Join-cond (byRight idp)
+  | join-univ x<=z y<=z => Join-univ (\lam t p => \case \elim t, p \with {
+    | _, byLeft idp => x<=z
+    | _, byRight idp => y<=z
+  })
+  | distrib>= {x} {y} {z} => rewrite Join-distr (Join-univ (\lam t p => \case \elim t, \elim p \with {
+    | _, inP (s, byLeft idp, idp) => join-left
+    | _, inP (s, byRight idp, idp) => join-right
+  }))
+}
+
+\record FrameHom \extends SetHom {
+  \override Dom : Locale
+  \override Cod : Locale
+  | func-top : func Bounded.top = Bounded.top
+  | func-meet {x y : Dom} : func (x ∧ y) = func x ∧ func y
+  | func-Join {P : Dom -> \Prop} : func (Join P) = Join (\lam x => ∃ (y : Dom) (x = func y))
+}

@@ -1,5 +1,7 @@
 \import Data.Or
 \import Logic
+\import Logic.Meta
+\import Meta
 \import Order.Lattice
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -84,7 +86,7 @@
 
   -- | A linearly ordered set with decidable inequality.
   \class Dec \extends LinearOrder, DecSet {
-    | trichotomy (x y : E) : Tri x y
+    \field trichotomy (x y : E) : Tri x y
 
     | <-comparison x y z x<z => \case trichotomy x y \with {
       | less x<y => byLeft x<y
@@ -97,32 +99,61 @@
       | greater y<x => absurd (y/<x y<x)
     }
 
-    | decideEq x y => \case trichotomy x y \with {
+    \default decideEq x y => \case trichotomy x y \with {
       | less x<y => no (\lam x=y => <-irreflexive (transport (`< y) x=y x<y))
       | equals x=y => yes x=y
       | greater y<x => no (\lam x=y => <-irreflexive (transport (y <) x=y y<x))
     }
   } \where {
     \func =>TotalOrder {L : Dec} : TotalOrder L \cowith
-      | <= x y => (x = y) || x < y
-      | <=-reflexive {x} => byLeft idp
+      | <= => <=
+      | <=-reflexive {x} => <=-equals idp
       | <=-transitive {x} {_} {z} x<=y y<=z => \case x<=y, y<=z \with {
-        | byLeft x=y, byLeft y=z => byLeft (x=y *> y=z)
-        | byLeft x=y, byRight y<z => byRight (transport (`< z) (inv x=y) y<z)
-        | byRight x<y, byLeft y=z => byRight (transport (x <) y=z x<y)
-        | byRight x<y, byRight y<z => byRight (<-transitive x<y y<z)
+        | <=-equals x=y, <=-equals y=z => <=-equals (x=y *> y=z)
+        | <=-equals x=y, <=-less y<z => <=-less (transport (`< z) (inv x=y) y<z)
+        | <=-less x<y, <=-equals y=z => <=-less (transport (x <) y=z x<y)
+        | <=-less x<y, <=-less y<z => <=-less (<-transitive x<y y<z)
       }
       | totality x y => \case trichotomy x y \with {
-        | equals x=y => byLeft (byLeft x=y)
-        | less x<y => byLeft (byRight x<y)
-        | greater y<x => byRight (byRight y<x)
+        | equals x=y => byLeft (<=-equals x=y)
+        | less x<y => byLeft (<=-less x<y)
+        | greater y<x => byRight (<=-less y<x)
       }
       | <=-antisymmetric x<=y y<=x => \case x<=y, y<=x \with {
-        | byLeft x=y, _ => x=y
-        | _, byLeft y=x => inv y=x
-        | byRight x<y, byRight y<x => absurd (<-irreflexive (<-transitive x<y y<x))
+        | <=-equals x=y, _ => x=y
+        | _, <=-equals y=x => inv y=x
+        | <=-less x<y, <=-less y<x => absurd (<-irreflexive (<-transitive x<y y<x))
       }
 
     \class Impl \extends Dec, DecSet.Impl
   }
+
+  \data \infix 4 <= {A : StrictPoset} (a a' : A)
+    | <=-equals (a = a')
+    | <=-less (a < a')
+    \where \use \level levelProp : \Prop
+
+  \lemma <=_< {A : StrictPoset} {a1 a2 a3 : A} (p : a1 <= a2) (q : a2 < a3) : a1 < a3 \elim p
+    | <=-equals idp => q
+    | <=-less p => <-transitive p q
+
+  \lemma <_<= {A : StrictPoset} {a1 a2 a3 : A} (p : a1 < a2) (q : a2 <= a3) : a1 < a3 \elim q
+    | <=-equals idp => p
+    | <=-less q => <-transitive p q
+
+  \func dec<_<= {A : Dec} (a a' : A) : (a < a') `Or` (a' <= a) => \case trichotomy a a' \with {
+    | less a<a' => inl a<a'
+    | equals a=a' => inr (<=-equals (inv a=a'))
+    | greater a>a' => inr (<=-less a>a')
+  }
+
+  \lemma dec<_reduce {A : Dec} {a a' : A} (p : a < a') : dec<_<= a a' = inl p
+    => unfold dec<_<= (mcases contradiction \with {
+      | less a<a' => pmap inl (Path.inProp a<a' p)
+    })
+
+  \lemma dec<=_reduce {A : Dec} {a a' : A} (p : a' <= a) : dec<_<= a a' = inr p
+    => unfold dec<_<= (mcases (pmap inr (Path.inProp _ _)) \with {
+      | less a<a' => contradiction
+    })
 }

@@ -7,9 +7,7 @@ import org.arend.ext.error.ArgumentExplicitnessError;
 import org.arend.ext.error.NameResolverError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
-import org.arend.ext.typechecking.ContextData;
-import org.arend.ext.typechecking.ContextDataChecker;
-import org.arend.ext.typechecking.MetaResolver;
+import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -18,7 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ExistsMeta implements MetaResolver {
+public class ExistsMeta implements MetaResolver, MetaDefinition {
   private final StdExtension ext;
 
   public ExistsMeta(StdExtension ext) {
@@ -72,7 +70,7 @@ public class ExistsMeta implements MetaResolver {
         resolver.getErrorReporter().report(new ArgumentExplicitnessError(true, arguments.get(0).getExpression()));
         return null;
       }
-      return resolver.resolve(factory.app(factory.ref(ext.TruncP.getRef()), Collections.singletonList(arguments.get(0))));
+      return factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(arguments.get(0).getExpression())));
     }
 
     List<ConcreteParameter> parameters = new ArrayList<>();
@@ -96,6 +94,12 @@ public class ExistsMeta implements MetaResolver {
         parameters.add(factory.param(refs, factory.hole()));
       }
     }
-    return resolver.resolve(factory.app(factory.ref(ext.TruncP.getRef()), true, Collections.singletonList(factory.sigma(parameters))));
+    return resolver.resolve(factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(factory.sigma(parameters)))));
+  }
+
+  @Override
+  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+    ConcreteFactory factory = ext.factory.withData(contextData.getReferenceExpression().getData());
+    return typechecker.typecheck(factory.app(factory.ref(ext.TruncP.getRef()), contextData.getArguments()), contextData.getExpectedType());
   }
 }

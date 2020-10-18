@@ -137,16 +137,33 @@ public class RewriteMeta extends BaseMetaDefinition {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
           final int[] num = { 0 };
+          CoreExpression valueType = value.computeType();
           UncheckedExpression absExpr = typechecker.withCurrentState(tc -> normType.replaceSubexpressions(expression -> {
-            if (tc.compare(expression, value, CMP.EQ, refExpr, false, true)) {
-              tc.updateSavedState();
-              num[0]++;
-              if (occurrences == null || occurrences.contains(num[0])) {
-                return var.getExpression();
+            boolean ok;
+            if (value instanceof CoreFunCallExpression && expression instanceof CoreFunCallExpression && ((CoreFunCallExpression) value).getDefinition() == ((CoreFunCallExpression) expression).getDefinition()) {
+              ok = true;
+              List<? extends CoreExpression> args1 = ((CoreFunCallExpression) value).getDefCallArguments();
+              if (args1.isEmpty()) {
+                return null;
+              }
+              List<? extends CoreExpression> args2 = ((CoreFunCallExpression) expression).getDefCallArguments();
+              for (int i = 0; i < args1.size(); i++) {
+                if (!tc.compare(args1.get(i), args2.get(i), CMP.EQ, refExpr, false, true)) {
+                  ok = false;
+                  break;
+                }
               }
             } else {
-              tc.loadSavedState();
+              ok = tc.compare(expression.computeType(), valueType, CMP.EQ, refExpr, false, true) && tc.compare(expression, value, CMP.EQ, refExpr, false, true);
             }
+            if (ok) {
+              num[0]++;
+              if (occurrences == null || occurrences.contains(num[0])) {
+                tc.updateSavedState();
+                return var.getExpression();
+              }
+            }
+            tc.loadSavedState();
             return null;
           }));
           if (absExpr == null) {

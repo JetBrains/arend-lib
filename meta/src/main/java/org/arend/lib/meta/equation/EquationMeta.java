@@ -33,19 +33,30 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
 
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition Monoid;
+  @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition CMonoid;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    CoreClassField mul;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.+") public CoreClassField plus;
 
+  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")     CoreClassDefinition MSemilattice;
+  @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")        CoreClassField meet;
+  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top") CoreClassField top;
+
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.var")  CoreConstructor varTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   CoreConstructor mulTerm;
 
-  @Dependency(module = "Algebra.Monoid.Solver")                                    CoreClassDefinition Data;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")      CoreFunctionDefinition termsEq;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv") CoreFunctionDefinition termsEqConv;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")  CoreFunctionDefinition replaceDef;
+  @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition Data;
+  @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition CData;
+  @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition LData;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.f")                    CoreClassField DataFunction;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                   CoreClassField LDataCarrier;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")       CoreFunctionDefinition termsEq;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")  CoreFunctionDefinition termsEqConv;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")   CoreFunctionDefinition replaceDef;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality")      CoreFunctionDefinition commTermsEq;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.terms-equality")      CoreFunctionDefinition latticeTermsEq;
 
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative") public CoreClassField negative;
   @Dependency(module = "Algebra.Semiring")                          public CoreClassDefinition Semiring;
@@ -97,7 +108,7 @@ public class EquationMeta extends BaseMetaDefinition {
         return null;
       }
     } else {
-      solver = new DefaultEquationSolver(this, typechecker, factory, refExpr);
+      solver = new EqualitySolver(this, typechecker, factory, refExpr);
     }
 
     for (ConcreteArgument argument : contextData.getArguments()) {
@@ -152,10 +163,10 @@ public class EquationMeta extends BaseMetaDefinition {
     }
 
     if (hasMissingProofs) {
-      if (solver instanceof DefaultEquationSolver && contextData.getExpectedType() == null) {
+      if (solver instanceof EqualitySolver && contextData.getExpectedType() == null) {
         for (Object value : values) {
           if (value instanceof TypedExpression) {
-            ((DefaultEquationSolver) solver).setValuesType(((TypedExpression) value).getType());
+            ((EqualitySolver) solver).setValuesType(((TypedExpression) value).getType());
             break;
           }
         }

@@ -20,6 +20,7 @@ import org.arend.lib.key.ReflexivityKey;
 import org.arend.lib.key.TransitivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
+import org.arend.lib.meta.closure.CongruenceMeta;
 import org.arend.lib.meta.debug.PrintMeta;
 import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
@@ -46,6 +47,7 @@ public class StdExtension implements ArendExtension {
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
+  @Dependency(module = "Data.List", name = "++")       public CoreFunctionDefinition append;
 
   @Dependency(module = "Logic") public CoreDataDefinition Empty;
   @Dependency(module = "Logic") public CoreDataDefinition TruncP;
@@ -149,6 +151,10 @@ public class StdExtension implements ArendExtension {
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
 
+    contributor.declare(algebra, new LongName("cong"),
+        "Proves an equality by congruence closure of equalities in the context. E.g. derives f a = g b from f = g and a = b",
+        Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this)));
+
     ModulePath logic = ModulePath.fromString("Logic.Meta");
     contributor.declare(logic, new LongName("contradiction"),
         "Derives a contradiction from assumptions in the context\n\n" +
@@ -157,7 +163,7 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, contradictionMeta);
     contributor.declare(logic, new LongName("Exists"),
       "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
-      "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, null, new ExistsMeta(this));
+      "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, new ExistsMeta(this));
     constructorMetaRef = contributor.declare(logic, new LongName("constructor"),
       "Returns either a tuple, a \\new expression, or a single constructor of a data type depending on the expected type",
       Precedence.DEFAULT, new ConstructorMeta(this, false));
