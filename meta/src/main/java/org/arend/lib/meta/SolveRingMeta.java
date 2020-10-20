@@ -69,6 +69,11 @@ public class SolveRingMeta extends BaseMetaDefinition {
     }
 
     private List<MultivariatePolynomial<BigInteger>> computeIdealCoefficients(String poly, List<String> gens, List<String> variables) {
+        return null;
+    }
+
+    /*
+    private List<MultivariatePolynomial<BigInteger>> computeIdealCoefficients(String poly, List<String> gens, List<String> variables) {
         List<String> extVars = new ArrayList<>(variables);
 
         extVars.add(0, "t");
@@ -116,7 +121,7 @@ public class SolveRingMeta extends BaseMetaDefinition {
         }
 
         return null;
-    }
+    } /**/
 
     public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
         CoreFunCallExpression equalityToProve = contextData.getExpectedType().toEquality();
