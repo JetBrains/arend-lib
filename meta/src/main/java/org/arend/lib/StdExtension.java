@@ -20,7 +20,7 @@ import org.arend.lib.key.ReflexivityKey;
 import org.arend.lib.key.TransitivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
-import org.arend.lib.meta.closure.CongruenceMeta;
+import org.arend.lib.meta.cong.CongruenceMeta;
 import org.arend.lib.meta.debug.PrintMeta;
 import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
