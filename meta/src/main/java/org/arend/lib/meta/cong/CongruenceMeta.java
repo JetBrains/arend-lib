@@ -14,7 +14,6 @@ import org.arend.lib.StdExtension;
 import org.arend.lib.context.Context;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.meta.closure.CongruenceClosure;
-import org.arend.lib.util.Pair;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -76,13 +75,15 @@ public class CongruenceMeta extends BaseMetaDefinition {
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     ArendRef iRef = factory.local("i");
     CongVisitor visitor = new CongVisitor(ext.prelude, factory, typechecker, contextData.getMarker(), contextData.getArguments().stream().map(ConcreteArgument::getExpression).collect(Collectors.toList()), iRef);
-    ConcreteExpression result = args.get(1).accept(visitor, new Pair<>(() -> factory.core(args.get(0).computeTyped()), args.get(2)));
+    CongVisitor.Result result = args.get(1).accept(visitor, new CongVisitor.ParamType(() -> new CongVisitor.Result(factory.core(args.get(0).computeTyped()), true), args.get(2)));
     if (result == null) {
-      typechecker.getErrorReporter().report(new MissingArgumentsError(visitor.index - contextData.getArguments().size(), contextData.getMarker()));
+      if (visitor.index > contextData.getArguments().size()) {
+        typechecker.getErrorReporter().report(new MissingArgumentsError(visitor.index - contextData.getArguments().size(), contextData.getMarker()));
+      }
       return null;
     }
 
-    return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), result))), contextData.getExpectedType());
+    return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), result.getExpression(args.get(1), factory)))), contextData.getExpectedType());
   }
 
   @Override

@@ -6,29 +6,56 @@ import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.*;
-import org.arend.ext.core.level.CoreSort;
 import org.arend.ext.core.ops.CMP;
+import org.arend.ext.core.ops.NormalizationMode;
+import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.lib.util.Pair;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 
 import java.math.BigInteger;
 import java.util.*;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
-public class CongVisitor extends BaseCoreExpressionVisitor<Pair<Supplier<ConcreteExpression>, CoreExpression>, ConcreteExpression> {
+public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType, CongVisitor.Result> {
   private final ArendPrelude prelude;
   private final ConcreteFactory factory;
   private final ExpressionTypechecker typechecker;
   private final ConcreteSourceNode marker;
   private final List<ConcreteExpression> arguments;
-  private final ArendRef iParam;
   private final ConcreteReferenceExpression iRef;
   public int index = 0;
+
+  public static class Result {
+    private ConcreteExpression expression;
+    final boolean abstracted;
+
+    public Result(ConcreteExpression expression, boolean abstracted) {
+      this.expression = expression;
+      this.abstracted = abstracted;
+    }
+
+    ConcreteExpression getExpression(CoreExpression expr, ConcreteFactory factory) {
+      if (expression == null) {
+        expression = factory.core(expr.computeTyped());
+      }
+      return expression;
+    }
+  }
+
+  public static class ParamType {
+    final Supplier<Result> expectedType;
+    final CoreExpression other;
+
+    public ParamType(Supplier<Result> expectedType, CoreExpression other) {
+      this.expectedType = expectedType;
+      this.other = other;
+    }
+  }
 
   public CongVisitor(ArendPrelude prelude, ConcreteFactory factory, ExpressionTypechecker typechecker, ConcreteSourceNode marker, List<ConcreteExpression> arguments, ArendRef iParam) {
     this.prelude = prelude;
@@ -36,41 +63,74 @@ public class CongVisitor extends BaseCoreExpressionVisitor<Pair<Supplier<Concret
     this.typechecker = typechecker;
     this.marker = marker;
     this.arguments = arguments;
-    this.iParam = iParam;
     iRef = factory.ref(iParam);
   }
 
   @Override
-  protected ConcreteExpression visit(CoreExpression expr1, Pair<Supplier<ConcreteExpression>, CoreExpression> pair) {
-    if (typechecker.compare(expr1, pair.proj2, CMP.EQ, marker, false, true)) {
-      return factory.core(expr1.computeTyped());
+  protected Result visit(CoreExpression expr1, CongVisitor.ParamType param) {
+    if (typechecker.compare(expr1, param.other, CMP.EQ, marker, false, true)) {
+      return new Result(null, false);
     } else {
       if (index++ >= arguments.size()) {
         return null;
       } else {
-        ConcreteExpression typeArg = pair.proj1.get();
-        if (typeArg == null) return null;
-        return factory.app(factory.ref(prelude.getAt().getRef()), true, Arrays.asList(factory.typed(arguments.get(index - 1), factory.app(factory.ref(prelude.getPath().getRef()), true, Arrays.asList(typeArg, factory.core(expr1.computeTyped()), factory.core(pair.proj2.computeTyped())))), iRef));
+        Result typeArg = param.expectedType.get();
+        ConcreteExpression arg = arguments.get(index - 1);
+        if (typeArg != null) {
+          arg = factory.typed(arg, typeArg.abstracted
+            ? factory.app(factory.ref(prelude.getPath().getRef()), true, Arrays.asList(typeArg.expression, factory.core(expr1.computeTyped()), factory.core(param.other.computeTyped())))
+            : factory.app(factory.ref(prelude.getEquality().getRef()), true, Arrays.asList(factory.core(expr1.computeTyped()), factory.core(param.other.computeTyped()))));
+        }
+        return new Result(factory.app(factory.ref(prelude.getAt().getRef()), true, Arrays.asList(arg, iRef)), true);
       }
     }
   }
 
-  private void visitArgs(List<? extends CoreExpression> args1, List<? extends CoreExpression> args2, CoreParameter parameter, boolean paramExplicitness, List<ConcreteArgument> resultArgs, CoreSort[] sort) {
+  private boolean findFreeVar(CoreParameter parameter, CoreBinding binding) {
+    for (; parameter.hasNext(); parameter = parameter.getNext()) {
+      if (parameter.getTypeExpr().findFreeBinding(binding)) {
+        typechecker.getErrorReporter().report(new TypecheckingError("'cong' does not support dependent functions", marker));
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean visitArgs(List<? extends CoreExpression> args1, List<? extends CoreExpression> args2, List<CoreParameter> parameters, boolean paramExplicitness, List<ConcreteArgument> resultArgs) {
+    boolean abstracted = false;
+    int currentIndex = 0;
+    CoreParameter current = null;
     for (int i = 0; i < args1.size(); i++) {
-      int finalI = i;
-      ConcreteExpression arg = args1.get(i).accept(this, new Pair<>(() -> {
-        if (finalI > resultArgs.size()) return null;
-        if (sort[0] == null) sort[0] = typechecker.generateSort(marker);
-        CoreParameter param = typechecker.substituteParameters(parameter, sort[0], resultArgs.subList(0, finalI).stream().map(ConcreteArgument::getExpression).collect(Collectors.toList()));
-        return param == null ? null : factory.lam(Collections.singletonList(factory.param(iParam)), factory.core(param.getTypedType()));
-      }, args2.get(i)));
-      if (arg != null) {
-        resultArgs.add(factory.arg(arg, paramExplicitness && parameter.isExplicit()));
+      while (current == null || !current.hasNext()) {
+        current = parameters.get(currentIndex++);
       }
+
+      Result arg = args1.get(i).accept(this, new ParamType(() -> new Result(null, false), args2.get(i)));
+      if (arg != null) {
+        boolean ok = true;
+        if (arg.abstracted) {
+          abstracted = true;
+          if (findFreeVar(current.getNext(), current.getBinding())) {
+            ok = false;
+          }
+          for (int j = currentIndex; j < parameters.size(); j++) {
+            if (findFreeVar(parameters.get(j), current.getBinding())) {
+              ok = false;
+              break;
+            }
+          }
+        }
+        if (ok) {
+          resultArgs.add(factory.arg(arg.getExpression(args1.get(i), factory), paramExplicitness && current.isExplicit()));
+        }
+      }
+
+      current = current.getNext();
     }
+    return abstracted;
   }
 
-  private ConcreteExpression visitInteger(CoreConCallExpression conCall1, CoreIntegerExpression expr2, boolean reversed) {
+  private Result visitInteger(CoreConCallExpression conCall1, CoreIntegerExpression expr2, boolean reversed) {
     int s = 0;
     CoreExpression expr1 = conCall1;
     BigInteger n = expr2.getBigInteger();
@@ -88,65 +148,106 @@ public class CongVisitor extends BaseCoreExpressionVisitor<Pair<Supplier<Concret
     } else {
       arg1 = expr1;
     }
-    ConcreteExpression arg = arg1.accept(this, new Pair<>(() -> factory.lam(Collections.singletonList(factory.param(null)), factory.ref(prelude.getNat().getRef())), arg2));
-    return factory.app(factory.ref(prelude.getPlus().getRef()), true, Arrays.asList(arg, factory.number(s)));
+    Result arg = arg1.accept(this, new ParamType(() -> new Result(null, false), arg2));
+    return arg == null ? null : arg.abstracted ? new Result(factory.app(factory.ref(prelude.getPlus().getRef()), true, Arrays.asList(arg.getExpression(arg1, factory), factory.number(s))), true) : new Result(null, false);
   }
 
   @Override
-  public ConcreteExpression visitInteger(@NotNull CoreIntegerExpression expr, Pair<Supplier<ConcreteExpression>, CoreExpression> pair) {
-    return pair.proj2 instanceof CoreConCallExpression && ((CoreConCallExpression) pair.proj2).getDefinition() == prelude.getSuc() ? visitInteger((CoreConCallExpression) pair.proj2, expr, true) : visit(expr, pair);
+  public Result visitInteger(@NotNull CoreIntegerExpression expr, ParamType param) {
+    return param.other instanceof CoreConCallExpression && ((CoreConCallExpression) param.other).getDefinition() == prelude.getSuc() ? visitInteger((CoreConCallExpression) param.other, expr, true) : visit(expr, param);
   }
 
   @Override
-  public ConcreteExpression visitConCall(@NotNull CoreConCallExpression conCall1, Pair<Supplier<ConcreteExpression>, CoreExpression> pair) {
-    if (conCall1.getDefinition() == prelude.getSuc() && pair.proj2 instanceof CoreIntegerExpression) {
-      return visitInteger(conCall1, (CoreIntegerExpression) pair.proj2, false);
+  public Result visitConCall(@NotNull CoreConCallExpression conCall1, ParamType param) {
+    if (conCall1.getDefinition() == prelude.getSuc() && param.other instanceof CoreIntegerExpression) {
+      return visitInteger(conCall1, (CoreIntegerExpression) param.other, false);
     }
 
-    if (!(pair.proj2 instanceof CoreConCallExpression)) {
-      return visit(conCall1, pair);
+    if (!(param.other instanceof CoreConCallExpression)) {
+      return visit(conCall1, param);
     }
 
-    CoreConCallExpression conCall2 = (CoreConCallExpression) pair.proj2;
+    CoreConCallExpression conCall2 = (CoreConCallExpression) param.other;
     if (conCall1.getDefinition() != conCall2.getDefinition()) {
-      return visit(conCall1, pair);
+      return visit(conCall1, param);
     }
 
     CoreParameter parameter = conCall1.getDefinition().getAllParameters();
     if (!parameter.hasNext()) {
-      return factory.core(conCall1.computeTyped());
+      return new Result(null, false);
     }
 
-    CoreSort[] sort = new CoreSort[1];
     List<ConcreteArgument> args = new ArrayList<>();
-    visitArgs(conCall1.getDataTypeArguments(), conCall2.getDataTypeArguments(), parameter, false, args, sort);
-    visitArgs(conCall1.getDefCallArguments(), conCall2.getDefCallArguments(), parameter, true, args, sort);
-    return args.size() == conCall1.getDataTypeArguments().size() + conCall1.getDefCallArguments().size() ? factory.app(factory.ref(conCall1.getDefinition().getRef()), args) : null;
+    boolean abstracted = visitArgs(conCall1.getDataTypeArguments(), conCall2.getDataTypeArguments(), Collections.singletonList(parameter), false, args);
+    abstracted = visitArgs(conCall1.getDefCallArguments(), conCall2.getDefCallArguments(), Collections.singletonList(parameter), true, args) || abstracted;
+    return args.size() == conCall1.getDataTypeArguments().size() + conCall1.getDefCallArguments().size() ? new Result(factory.app(factory.ref(conCall1.getDefinition().getRef()), args), abstracted) : null;
   }
 
-  private ConcreteExpression visitDefCall(@NotNull CoreDefCallExpression defCall1, Pair<Supplier<ConcreteExpression>, CoreExpression> pair) {
-    if (!(pair.proj2 instanceof CoreDefCallExpression)) {
-      return visit(defCall1, pair);
+  private Result visitDefCall(@NotNull CoreDefCallExpression defCall1, ParamType param) {
+    if (!(param.other instanceof CoreDefCallExpression)) {
+      return visit(defCall1, param);
     }
 
-    CoreDefCallExpression defCall2 = (CoreDefCallExpression) pair.proj2;
+    CoreDefCallExpression defCall2 = (CoreDefCallExpression) param.other;
     if (defCall1.getDefinition() != defCall2.getDefinition()) {
-      return visit(defCall1, pair);
+      return visit(defCall1, param);
     }
 
-    CoreSort[] sort = new CoreSort[1];
     List<ConcreteArgument> args = new ArrayList<>();
-    visitArgs(defCall1.getDefCallArguments(), defCall2.getDefCallArguments(), defCall1.getDefinition().getParameters(), true, args, sort);
-    return args.size() == defCall1.getDefCallArguments().size() ? factory.app(factory.ref(defCall1.getDefinition().getRef()), args) : null;
+    boolean abstracted = visitArgs(defCall1.getDefCallArguments(), defCall2.getDefCallArguments(), Collections.singletonList(defCall1.getDefinition().getParameters()), true, args);
+    return args.size() == defCall1.getDefCallArguments().size() ? new Result(factory.app(factory.ref(defCall1.getDefinition().getRef()), args), abstracted) : null;
   }
 
   @Override
-  public ConcreteExpression visitFunCall(@NotNull CoreFunCallExpression expr, Pair<Supplier<ConcreteExpression>, CoreExpression> pair) {
-    return visitDefCall(expr, pair);
+  public Result visitFunCall(@NotNull CoreFunCallExpression expr, ParamType param) {
+    return visitDefCall(expr, param);
   }
 
   @Override
-  public ConcreteExpression visitDataCall(@NotNull CoreDataCallExpression expr, Pair<Supplier<ConcreteExpression>, CoreExpression> pair) {
-    return visitDefCall(expr, pair);
+  public Result visitDataCall(@NotNull CoreDataCallExpression expr, ParamType param) {
+    return visitDefCall(expr, param);
+  }
+
+  @Override
+  public Result visitApp(@NotNull CoreAppExpression expr, ParamType parameter) {
+    if (!(parameter.other instanceof CoreAppExpression)) {
+      return visit(expr, parameter);
+    }
+
+    List<CoreExpression> args1 = new ArrayList<>();
+    List<CoreExpression> args2 = new ArrayList<>();
+    CoreExpression expr1 = expr;
+    CoreExpression expr2 = parameter.other;
+    while (expr1 instanceof CoreAppExpression && expr2 instanceof CoreAppExpression) {
+      args1.add(((CoreAppExpression) expr1).getArgument());
+      args2.add(((CoreAppExpression) expr2).getArgument());
+      expr1 = ((CoreAppExpression) expr1).getFunction();
+      expr2 = ((CoreAppExpression) expr2).getFunction();
+    }
+
+    if (!typechecker.compare(expr1, expr2, CMP.EQ, marker, false, true)) {
+      return visit(expr, parameter);
+    }
+
+    CoreExpression type = expr1.computeType().normalize(NormalizationMode.WHNF);
+    List<CoreParameter> parameters = new ArrayList<>();
+    int s = 0;
+    while (type instanceof CorePiExpression) {
+      CoreParameter params = ((CorePiExpression) type).getParameters();
+      parameters.add(params);
+      s += Utils.parametersSize(params);
+      if (s >= args1.size()) break;
+      type = ((CorePiExpression) type).getCodomain();
+    }
+
+    if (s < args1.size()) {
+      return visit(expr, parameter);
+    }
+
+    Collections.reverse(args1);
+    Collections.reverse(args2);
+    List<ConcreteArgument> args = new ArrayList<>();
+    boolean abstracted = visitArgs(args1, args2, parameters, true, args);
+    return args.size() == args1.size() ? new Result(factory.app(factory.core(expr1.computeTyped()), args), abstracted) : null;
   }
 }
