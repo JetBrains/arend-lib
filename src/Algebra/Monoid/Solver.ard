@@ -69,8 +69,8 @@
   | V => Nat
   \override M : CMonoid
 
-  \lemma sort-consistent (l : List Nat) : interpretNF l = interpretNF (RedBlack.sort l)
-    => rewrite RedBlack.sort=insert (perm-consistent (Insertion.sort-perm l))
+  \lemma sort-consistent (l : List Nat) : interpretNF l = interpretNF (sort l)
+    => rewrite sort=insert (perm-consistent (Insertion.sort-perm l))
 
   \lemma perm-consistent {l l' : List Nat} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
     | nil, nil, perm-nil => idp
@@ -78,18 +78,41 @@
     | :: a1 (:: a1' l1), :: a2 (:: a2' l2), perm-swap idp idp idp => repeat {2} (rewrite interpretNF.cons) (inv *-assoc *> (pmap (`* interpretNF l1) *-comm) *> *-assoc)
     | l1, l2, perm-trans p1 p2 => perm-consistent p1 *> perm-consistent p2
 
-  \lemma normalize-consistent (t : MonoidTerm V) : interpret t = interpretNF (RedBlack.sort (normalize t))
+  \lemma normalize-consistent (t : MonoidTerm V) : interpret t = interpretNF (sort (normalize t))
     => Data.normalize-consistent t *> sort-consistent (normalize t)
 
-  \lemma terms-equality (t s : MonoidTerm V) (p : interpretNF (RedBlack.sort (normalize t)) = interpretNF (RedBlack.sort (normalize s))) : interpret t = interpret s
+  \lemma terms-equality (t s : MonoidTerm V) (p : interpretNF (sort (normalize t)) = interpretNF (sort (normalize s))) : interpret t = interpret s
     => normalize-consistent t *> p *> inv (normalize-consistent s)
 
-  \lemma terms-equality-conv (t s : MonoidTerm V) (p : interpret t = interpret s) : interpretNF (RedBlack.sort (normalize t)) = interpretNF (RedBlack.sort (normalize s))
+  \lemma terms-equality-conv (t s : MonoidTerm V) (p : interpret t = interpret s) : interpretNF (sort (normalize t)) = interpretNF (sort (normalize s))
     => inv (normalize-consistent t) *> p *> normalize-consistent s
 
+  \lemma replace-consistent (l : List V) (is : List Nat) (r : List V) (p : interpretNF (indices is l) = interpretNF r)
+    : interpretNF l = interpretNF (r ++ removeIndices is l)
+    => replace-consistent-lem is l *> interpretNF_++ _ _ *> pmap (`* interpretNF (removeIndices is l)) p *> inv (interpretNF_++ _ _)
+
+  \lemma replace-consistent-lem (is : List Nat) (l : List V) : interpretNF l = interpretNF (indices is l ++ removeIndices is l)
+    | nil, l => idp
+    | :: 0 is, nil => idp
+    | :: (suc _) is, nil => idp
+    | :: 0 is, :: a l => repeat {2} (rewrite interpretNF.cons) (pmap (f a *) (replace-consistent-lem is l))
+    | :: (suc n) is, :: a l => replace-consistent-lem (n :: is) (a :: l)
 } \where {
   \open Data
   \open Sort
+  \open Sort.RedBlack
+
+  \func indices {A : \Type} (is : List Nat) (l : List A) : List A \elim is, l
+    | nil, _ => nil
+    | :: _ _, nil => nil
+    | :: 0 is, :: a l => a :: indices is l
+    | :: (suc n) is, :: _ _ \as l => indices (n :: is) l
+
+  \func removeIndices {A : \Type} (is : List Nat) (l : List A) : List A \elim is, l
+    | nil, l => l
+    | :: _ _, nil => nil
+    | :: 0 is, :: a l => removeIndices is l
+    | :: (suc n) is, :: _ _ \as l => removeIndices (n :: is) l
 }
 
 \class LData {L : Bounded.MeetSemilattice} \extends CData {
