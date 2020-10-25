@@ -44,6 +44,7 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Paths")              public CoreFunctionDefinition transportInv;
   @Dependency(module = "Paths", name = "*>") public CoreFunctionDefinition concat;
   @Dependency(module = "Paths")              public CoreFunctionDefinition inv;
+  @Dependency(module = "Paths")              public CoreFunctionDefinition pathInProp;
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
@@ -134,6 +135,9 @@ public class StdExtension implements ArendExtension {
     contributor.declare(paths, new LongName("rewriteF"),
         "`rewriteF (p : a = b) e` is similar to `rewrite`, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
         Precedence.DEFAULT, new RewriteMeta(this, true, false));
+    contributor.declare(paths, new LongName("ext"),
+      "`ext p` proves goals of the form `Path A a a'`. The type of `p` depends on `A`.",
+      Precedence.DEFAULT, new DeferredMetaDefinition(new ExtMeta(this), false, ExpressionTypechecker.Stage.AFTER_LEVELS));
 
     MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");

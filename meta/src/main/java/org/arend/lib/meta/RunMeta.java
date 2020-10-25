@@ -62,7 +62,7 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
         public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
           return typechecker.typecheck(RunMeta.this.getConcreteRepresentation(contextData.getArguments(), contextData.getMarker()), contextData.getExpectedType());
         }
-      }, contextData, contextData.getExpectedType());
+      }, contextData, contextData.getExpectedType(), ExpressionTypechecker.Stage.BEFORE_SOLVER);
     } else {
       return typechecker.typecheck(getConcreteRepresentation(contextData.getArguments(), contextData.getMarker()), contextData.getExpectedType());
     }
