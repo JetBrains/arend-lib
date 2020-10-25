@@ -44,7 +44,6 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Paths")              public CoreFunctionDefinition transportInv;
   @Dependency(module = "Paths", name = "*>") public CoreFunctionDefinition concat;
   @Dependency(module = "Paths")              public CoreFunctionDefinition inv;
-  @Dependency(module = "Paths")              public CoreFunctionDefinition pathInProp;
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
