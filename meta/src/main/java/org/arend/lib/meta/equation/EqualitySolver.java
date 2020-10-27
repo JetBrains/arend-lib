@@ -127,7 +127,7 @@ public class EqualitySolver implements EquationSolver {
       if (((CoreFieldCallExpression) type).getDefinition() == meta.carrier) {
         TypedExpression instance = ((CoreFieldCallExpression) type).getArgument().computeTyped();
         CoreClassCallExpression classCall = getClassCall(instance.getType());
-        if (classCall != null && (classCall.getDefinition().isSubClassOf(meta.Monoid) || classCall.getDefinition().isSubClassOf(meta.MSemilattice))) {
+        if (classCall != null && (classCall.getDefinition().isSubClassOf(meta.Monoid) || classCall.getDefinition().isSubClassOf(meta.AddMonoid) || classCall.getDefinition().isSubClassOf(meta.MSemilattice))) {
           monoidSolver = new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall);
           return true;
         }

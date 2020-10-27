@@ -1,0 +1,107 @@
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Monoid.Solver
+\import Algebra.Pointed
+\import Algebra.Pointed.Category
+\import Algebra.Ring
+\import Algebra.Ring.Category
+\import Arith.Nat
+\import Algebra.Semiring
+\import Data.List
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\data RingTerm (C V : \Type)
+  | coef C
+  | var V
+  | :zro
+  | :ide
+  | \infixl 6 :+ (t s : RingTerm C V)
+  | \infixl 7 :* (t s : RingTerm C V)
+
+\func normalize {V : \Type} {C : Monoid} (t : RingTerm C V) : List (\Sigma C (List V)) \elim t
+  | coef c => (c, nil) :: nil
+  | var v => (1, v :: nil) :: nil
+  | :zro => nil
+  | :ide => (1, nil) :: nil
+  | :+ t s => normalize t ++ normalize s
+  | :* t s => multiply' (normalize t) (normalize s)
+  \where {
+    \func multiply' {V : \Type} {C : Monoid} (l1 l2 : List (\Sigma C (List V))) : List (\Sigma C (List V)) \elim l2
+      | nil => nil
+      | l2 => multiply l1 l2 nil
+
+    \func multiply {V : \Type} {C : Monoid} (l1 l2 acc : List (\Sigma C (List V))) : List (\Sigma C (List V)) \elim l1
+      | nil => acc
+      | :: a l1 => multiply l1 l2 (map (\lam b => (a.1 * b.1, a.2 ++ b.2)) l2 ++ acc)
+  }
+
+\class RingData {C R : Semiring} (alg : SemiringHom C R) \extends CData {
+  | M => AbMonoid.toCMonoid R
+  | alg-comm (x : C) (y : R) : alg x * y = y * alg x
+  | mData : Data f
+  | mData {}
+
+  \func interpret (t : RingTerm C V) : R \elim t
+    | coef c => alg c
+    | var x => f x
+    | :zro => 0
+    | :ide => 1
+    | :+ t s => interpret t + interpret s
+    | :* t s => interpret t * interpret s
+
+  \func interpretNF (l : List (\Sigma C (List V))) : R \elim l
+    | nil => 0
+    | :: x nil => alg x.1 * Data.interpretNF {mData} x.2
+    | :: x l => alg x.1 * Data.interpretNF {mData} x.2 + interpretNF l
+    \where
+      \lemma cons (x : \Sigma C (List V)) (l : List (\Sigma C (List V))) : interpretNF (x :: l) = alg x.1 * Data.interpretNF {mData} x.2 + interpretNF l \elim l
+        | nil => inv zro-right
+        | :: a l => idp
+
+  \lemma interpretNF_++ (l1 l2 : List (\Sigma C (List V))) : interpretNF (l1 ++ l2) = interpretNF l1 + interpretNF l2 \elim l1
+    | nil => inv zro-left
+    | :: a l1 => run {
+      repeat {2} (rewrite interpretNF.cons),
+      rewrite interpretNF_++,
+      inv +-assoc
+    }
+
+  \lemma interpretNF_multiply (l1 l2 : List (\Sigma C (List V))) {acc : List (\Sigma C (List V))} : interpretNF (normalize.multiply l1 l2 acc) = interpretNF l1 * interpretNF l2 + interpretNF acc \elim l1
+    | nil => rewrite zro_*-left (inv zro-left)
+    | :: a l1 => run {
+      rewrite interpretNF_multiply,
+      rewrite interpretNF_++,
+      rewriteI +-assoc,
+      cong,
+      rewrite interpretNF.cons,
+      rewrite rdistr,
+      rewrite map_lem,
+      +-comm
+    } \where {
+      \lemma map_lem (a1 : C) (a2 : List V) (l : List (\Sigma C (List V))) : interpretNF (map (\lam b => (a1 * b.1, a2 ++ b.2)) l) = alg a1 * Data.interpretNF {mData} a2 * interpretNF l\elim l
+        | nil => inv zro_*-right
+        | :: a l => run {
+          repeat {2} (rewrite interpretNF.cons),
+          rewrite (Data.interpretNF_++ {mData} a2 a.2),
+          rewrite alg.func-*,
+          rewrite map_lem,
+          rewrite ldistr,
+          pmap2 (+) (equation {usingOnly (alg-comm a.1 (Data.interpretNF {mData} a2))}) idp
+        }
+  }
+
+  \lemma interpretNF_multiply' (l1 l2 : List (\Sigma C (List V))) : interpretNF (normalize.multiply' l1 l2) = interpretNF l1 * interpretNF l2 \elim l2
+    | nil => inv zro_*-right
+    | :: a l2 => interpretNF_multiply l1 (a :: l2) *> zro-right
+
+  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
+    | coef c => inv ide-right
+    | var v => rewrite alg.func-ide (inv ide-left)
+    | :zro => idp
+    | :ide => inv (ide-right *> alg.func-ide)
+    | :+ t s => repeat {2} (rewrite normalize-consistent) (inv (interpretNF_++ (normalize t) (normalize s)))
+    | :* t s => repeat {2} (rewrite normalize-consistent) (inv (interpretNF_multiply' (normalize t) (normalize s)))
+}

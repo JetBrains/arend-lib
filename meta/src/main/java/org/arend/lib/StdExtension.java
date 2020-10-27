@@ -20,7 +20,7 @@ import org.arend.lib.key.ReflexivityKey;
 import org.arend.lib.key.TransitivityKey;
 import org.arend.lib.level.StdLevelProver;
 import org.arend.lib.meta.*;
-import org.arend.lib.meta.closure.CongruenceMeta;
+import org.arend.lib.meta.cong.CongruenceMeta;
 import org.arend.lib.meta.debug.PrintMeta;
 import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
@@ -134,6 +134,9 @@ public class StdExtension implements ArendExtension {
     contributor.declare(paths, new LongName("rewriteF"),
         "`rewriteF (p : a = b) e` is similar to `rewrite`, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
         Precedence.DEFAULT, new RewriteMeta(this, true, false));
+    contributor.declare(paths, new LongName("ext"),
+      "`ext p` proves goals of the form `Path A a a'`. The type of `p` depends on `A`.",
+      Precedence.DEFAULT, new DeferredMetaDefinition(new ExtMeta(this), false, ExpressionTypechecker.Stage.AFTER_LEVELS));
 
     MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");

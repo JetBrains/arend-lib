@@ -60,9 +60,10 @@ public class MonoidSolver implements EquationSolver {
     this.instance = instance;
 
     isSemilattice = classCall.getDefinition().isSubClassOf(meta.MSemilattice);
-    isCommutative = isSemilattice || classCall.getDefinition().isSubClassOf(meta.CMonoid);
-    ide = isSemilattice ? meta.top : meta.ide;
-    mul = isSemilattice ? meta.meet : meta.mul;
+    boolean isMultiplicative = !isSemilattice && classCall.getDefinition().isSubClassOf(meta.Monoid);
+    isCommutative = isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid);
+    ide = isSemilattice ? meta.top : isMultiplicative ? meta.ide : meta.zro;
+    mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
     ideExpr = classCall.getImplementation(ide, instance);
     CoreExpression mulExpr = classCall.getImplementation(mul, instance);
     TypedExpression mulTyped = mulExpr == null ? null : mulExpr.computeTyped();

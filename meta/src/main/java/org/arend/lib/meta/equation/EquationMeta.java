@@ -34,6 +34,8 @@ public class EquationMeta extends BaseMetaDefinition {
 
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition Monoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition CMonoid;
+  @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition AddMonoid;
+  @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition AbMonoid;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    CoreClassField mul;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
