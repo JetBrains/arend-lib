@@ -2,10 +2,13 @@ package org.arend.lib.meta;
 
 import org.arend.ext.FreeBindingsModifier;
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.concrete.expr.ConcreteTupleExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.*;
@@ -121,6 +124,8 @@ public class ExtMeta extends BaseMetaDefinition {
         Map<CoreBinding, ConcreteExpression> sigmaRefs = new HashMap<>();
         ConcreteExpression lastSigmaParam = null;
         Set<CoreBinding> propBindings = new HashSet<>();
+        Set<CoreBinding> totalUsed = new HashSet<>();
+        List<Set<CoreBinding>> usedList = new ArrayList<>();
         int i = 0;
         for (CoreParameter param = sigma.getParameters(); param.hasNext(); param = param.getNext(), i++) {
           Set<CoreBinding> used = new HashSet<>();
@@ -128,17 +133,20 @@ public class ExtMeta extends BaseMetaDefinition {
           boolean isProp = isProp(paramBinding.getTypeExpr());
           if (isProp) {
             propBindings.add(paramBinding);
-          } else if (!bindings.isEmpty()) {
+          }
+          if (!bindings.isEmpty()) {
             if (param.getTypeExpr().processSubexpression(e -> {
               if (!(e instanceof CoreReferenceExpression)) {
                 return CoreExpression.FindAction.CONTINUE;
               }
               CoreBinding binding = ((CoreReferenceExpression) e).getBinding();
               if (bindings.contains(binding)) {
-                if (dependentBindings.contains(binding)) {
-                  return CoreExpression.FindAction.STOP;
+                if (!isProp) {
+                  if (dependentBindings.contains(binding)) {
+                    return CoreExpression.FindAction.STOP;
+                  }
+                  dependentBindings.add(paramBinding);
                 }
-                dependentBindings.add(paramBinding);
                 used.add(binding);
               }
               return CoreExpression.FindAction.CONTINUE;
@@ -148,6 +156,8 @@ public class ExtMeta extends BaseMetaDefinition {
             }
           }
           bindings.add(paramBinding);
+          totalUsed.addAll(used);
+          usedList.add(used);
 
           ArendRef sigmaRef = factory.local("p" + (i + 1));
           sigmaRefs.put(paramBinding, factory.ref(sigmaRef));
@@ -189,23 +199,38 @@ public class ExtMeta extends BaseMetaDefinition {
           concreteTuple = factory.ref(letRef);
         }
 
+        List<ConcreteLetClause> letClauses = new ArrayList<>();
+        if (letRef != null) {
+          letClauses.add(factory.letClause(letRef, Collections.emptyList(), null, factory.core(result)));
+        }
+
         List<ConcreteExpression> fields = new ArrayList<>();
         Map<CoreBinding, ConcreteExpression> fieldsMap = new HashMap<>();
         i = 0;
         for (CoreParameter param = sigma.getParameters(); param.hasNext(); param = param.getNext(), i++) {
           ConcreteExpression field;
           CoreBinding paramBinding = param.getBinding();
+          boolean useLet;
           if (propBindings.contains(paramBinding)) {
-            field = factory.app(factory.ref(ext.pathInProp.getRef()), true, Arrays.asList(makeCoeLambda(sigma, paramBinding, null, fieldsMap, factory), factory.proj(left, i), factory.proj(right, i)));
+            field = factory.app(factory.ref(ext.pathInProp.getRef()), true, Arrays.asList(makeCoeLambda(sigma, paramBinding, usedList.get(i), fieldsMap, factory), factory.hole(), factory.hole()));
+            useLet = true;
           } else {
             ConcreteExpression proj = sigmaParams.size() == 1 ? concreteTuple : factory.proj(concreteTuple, i);
-            field = dependentBindings.contains(paramBinding) ? factory.app(factory.ref(ext.pathOver.getRef()), true, Collections.singletonList(proj)) : proj;
+            boolean isDependent = dependentBindings.contains(paramBinding);
+            field = isDependent ? factory.app(factory.ref(ext.pathOver.getRef()), true, Collections.singletonList(proj)) : proj;
+            useLet = isDependent || !((sigmaParams.size() != 1 || concreteTuple instanceof ConcreteReferenceExpression) && (sigmaParams.size() == 1 || concreteTuple instanceof ConcreteReferenceExpression || concreteTuple instanceof ConcreteTupleExpression && i < ((ConcreteTupleExpression) concreteTuple).getFields().size() && ((ConcreteTupleExpression) concreteTuple).getFields().get(i) instanceof ConcreteReferenceExpression));
+          }
+          if (useLet && totalUsed.contains(paramBinding)) {
+            ArendRef argLetRef = factory.local("h" + (i + 1));
+            letClauses.add(factory.letClause(argLetRef, Collections.emptyList(), null, field));
+            field = factory.ref(argLetRef);
           }
           fields.add(applyAt(field));
           fieldsMap.put(paramBinding, field);
         }
+
         ConcreteExpression concreteResult = factory.tuple(fields);
-        return letRef == null ? concreteResult : factory.letExpr(false, Collections.singletonList(factory.letClause(letRef, Collections.emptyList(), null, factory.core(result))), concreteResult);
+        return letClauses.isEmpty() ? concreteResult : factory.letExpr(false, letClauses, concreteResult);
       }
 
       typechecker.getErrorReporter().report(new TypeError("Cannot apply extensionality", type, marker));
