@@ -65,6 +65,23 @@ public class ExtMeta extends BaseMetaDefinition {
       return typechecker.withFreeBindings(new FreeBindingsModifier().remove(typechecker.getFreeBinding(iRef)), tc -> tc.typecheck(expr, type));
     }
 
+    private ConcreteExpression makeCoeLambda(CoreSigmaExpression sigma, CoreBinding paramBinding, Set<CoreBinding> used, Map<CoreBinding, ConcreteExpression> sigmaRefs, ConcreteFactory factory) {
+      ArendRef coeRef = factory.local("i");
+      return factory.lam(Collections.singletonList(factory.param(coeRef)), factory.meta("ext_coe", new MetaDefinition() {
+        @Override
+        public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+          List<SubstitutionPair> substitution = new ArrayList<>();
+          for (CoreParameter param = sigma.getParameters(); param.getBinding() != paramBinding; param = param.getNext()) {
+            if (used == null || used.contains(param.getBinding())) {
+              substitution.add(new SubstitutionPair(param.getBinding(), factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(sigmaRefs.get(param.getBinding()), factory.ref(coeRef)))));
+            }
+          }
+          CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), null, substitution);
+          return result == null ? null : result.computeTyped();
+        }
+      }));
+    }
+
     private ConcreteExpression generate(ConcreteExpression arg, CoreExpression type, ConcreteExpression left, ConcreteExpression right) {
       if (type instanceof CorePiExpression) {
         List<CoreParameter> piParams = new ArrayList<>();
@@ -101,12 +118,17 @@ public class ExtMeta extends BaseMetaDefinition {
         Set<CoreBinding> bindings = new HashSet<>();
         Set<CoreBinding> dependentBindings = new HashSet<>();
         List<ConcreteParameter> sigmaParams = new ArrayList<>();
-        Map<CoreBinding, ArendRef> sigmaRefs = new HashMap<>();
+        Map<CoreBinding, ConcreteExpression> sigmaRefs = new HashMap<>();
+        ConcreteExpression lastSigmaParam = null;
+        Set<CoreBinding> propBindings = new HashSet<>();
         int i = 0;
         for (CoreParameter param = sigma.getParameters(); param.hasNext(); param = param.getNext(), i++) {
           Set<CoreBinding> used = new HashSet<>();
           CoreBinding paramBinding = param.getBinding();
-          if (!bindings.isEmpty()) {
+          boolean isProp = isProp(paramBinding.getTypeExpr());
+          if (isProp) {
+            propBindings.add(paramBinding);
+          } else if (!bindings.isEmpty()) {
             if (param.getTypeExpr().processSubexpression(e -> {
               if (!(e instanceof CoreReferenceExpression)) {
                 return CoreExpression.FindAction.CONTINUE;
@@ -128,40 +150,30 @@ public class ExtMeta extends BaseMetaDefinition {
           bindings.add(paramBinding);
 
           ArendRef sigmaRef = factory.local("p" + (i + 1));
-          sigmaRefs.put(paramBinding, sigmaRef);
+          sigmaRefs.put(paramBinding, factory.ref(sigmaRef));
           ConcreteExpression leftExpr = factory.proj(left, i);
-          if (dependentBindings.contains(paramBinding)) {
-            if (used.size() > 1) {
-              ArendRef coeRef = factory.local("i");
-              leftExpr = factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(coeRef)), factory.meta("ext_coe", new MetaDefinition() {
-                @Override
-                public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-                  List<SubstitutionPair> substitution = new ArrayList<>();
-                  for (CoreParameter param = sigma.getParameters(); param.getBinding() != paramBinding; param = param.getNext()) {
-                    if (used.contains(param.getBinding())) {
-                      substitution.add(new SubstitutionPair(param.getBinding(), factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(factory.ref(sigmaRefs.get(param.getBinding())), factory.ref(coeRef)))));
-                    }
+          if (!isProp) {
+            if (dependentBindings.contains(paramBinding)) {
+              if (used.size() > 1) {
+                leftExpr = factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(makeCoeLambda(sigma, paramBinding, used, sigmaRefs, factory), leftExpr, factory.ref(ext.prelude.getRight().getRef())));
+              } else {
+                CoreBinding binding = used.iterator().next();
+                ArendRef transportRef = factory.local(ext.renamerFactory.getNameFromBinding(binding, null));
+                leftExpr = factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(transportRef)), factory.meta("ext_transport", new MetaDefinition() {
+                  @Override
+                  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+                    CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), null, Collections.singletonList(new SubstitutionPair(binding, factory.ref(transportRef))));
+                    return result == null ? null : result.computeTyped();
                   }
-                  CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), null, substitution);
-                  return result == null ? null : result.computeTyped();
-                }
-              })), leftExpr, factory.ref(ext.prelude.getRight().getRef())));
-            } else {
-              CoreBinding binding = used.iterator().next();
-              ArendRef transportRef = factory.local(ext.renamerFactory.getNameFromBinding(binding, null));
-              leftExpr = factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(transportRef)), factory.meta("ext_transport", new MetaDefinition() {
-                @Override
-                public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-                  CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), null, Collections.singletonList(new SubstitutionPair(binding, factory.ref(transportRef))));
-                  return result == null ? null : result.computeTyped();
-                }
-              })), factory.ref(sigmaRefs.get(binding)), leftExpr));
+                })), sigmaRefs.get(binding), leftExpr));
+              }
             }
+            lastSigmaParam = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftExpr, factory.proj(right, i)));
+            sigmaParams.add(factory.param(true, Collections.singletonList(sigmaRef), lastSigmaParam));
           }
-          sigmaParams.add(factory.param(true, Collections.singletonList(sigmaRef), factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftExpr, factory.proj(right, i)))));
         }
 
-        TypedExpression sigmaEqType = typechecker.typecheck(factory.sigma(sigmaParams), null);
+        TypedExpression sigmaEqType = typechecker.typecheck(sigmaParams.size() == 1 ? lastSigmaParam : factory.sigma(sigmaParams), null);
         if (sigmaEqType == null) return null;
         TypedExpression result = hidingIRef(arg, sigmaEqType.getExpression());
         if (result == null) return null;
@@ -178,10 +190,19 @@ public class ExtMeta extends BaseMetaDefinition {
         }
 
         List<ConcreteExpression> fields = new ArrayList<>();
+        Map<CoreBinding, ConcreteExpression> fieldsMap = new HashMap<>();
         i = 0;
         for (CoreParameter param = sigma.getParameters(); param.hasNext(); param = param.getNext(), i++) {
-          ConcreteExpression proj = factory.proj(concreteTuple, i);
-          fields.add(applyAt(dependentBindings.contains(param.getBinding()) ? factory.app(factory.ref(ext.pathOver.getRef()), true, Collections.singletonList(proj)) : proj));
+          ConcreteExpression field;
+          CoreBinding paramBinding = param.getBinding();
+          if (propBindings.contains(paramBinding)) {
+            field = factory.app(factory.ref(ext.pathInProp.getRef()), true, Arrays.asList(makeCoeLambda(sigma, paramBinding, null, fieldsMap, factory), factory.proj(left, i), factory.proj(right, i)));
+          } else {
+            ConcreteExpression proj = sigmaParams.size() == 1 ? concreteTuple : factory.proj(concreteTuple, i);
+            field = dependentBindings.contains(paramBinding) ? factory.app(factory.ref(ext.pathOver.getRef()), true, Collections.singletonList(proj)) : proj;
+          }
+          fields.add(applyAt(field));
+          fieldsMap.put(paramBinding, field);
         }
         ConcreteExpression concreteResult = factory.tuple(fields);
         return letRef == null ? concreteResult : factory.letExpr(false, Collections.singletonList(factory.letClause(letRef, Collections.emptyList(), null, factory.core(result))), concreteResult);
@@ -190,6 +211,11 @@ public class ExtMeta extends BaseMetaDefinition {
       typechecker.getErrorReporter().report(new TypeError("Cannot apply extensionality", type, marker));
       return null;
     }
+  }
+
+  private static boolean isProp(CoreExpression type) {
+    CoreExpression typeType = type.computeType().normalize(NormalizationMode.WHNF);
+    return typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp();
   }
 
   @Override
@@ -202,8 +228,7 @@ public class ExtMeta extends BaseMetaDefinition {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     ConcreteFactory factory = ext.factory.withData(marker);
     CoreExpression type = equality.getDefCallArguments().get(0);
-    CoreExpression typeType = type.computeType().normalize(NormalizationMode.WHNF);
-    if (typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp()) {
+    if (isProp(type)) {
       if (!args.isEmpty()) {
         errorReporter.report(new IgnoredArgumentError(args.get(0).getExpression()));
       }
