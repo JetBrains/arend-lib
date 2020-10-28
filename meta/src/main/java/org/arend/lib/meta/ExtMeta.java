@@ -288,6 +288,13 @@ public class ExtMeta extends BaseMetaDefinition {
         }
         ConcreteExpression result = factory.app(factory.ref(ext.propExt.getRef()), true, Arrays.asList(factory.proj(concreteResult, 0), factory.proj(concreteResult, 1)));
         return typechecker.typecheck(letRef == null ? result : factory.letExpr(false, Collections.singletonList(factory.letClause(letRef, Collections.emptyList(), null, concreteArg)), result), contextData.getExpectedType());
+      } else {
+        TypedExpression expectedType = typechecker.typecheck(factory.app(factory.ref(ext.equationMeta.Equiv.getRef()), false, Arrays.asList(left, right)), null);
+        if (expectedType == null) return null;
+        TypedExpression typedArg = typechecker.typecheck(arg, expectedType.getExpression());
+        if (typedArg == null) return null;
+        CoreExpression actualType = typedArg.getType().normalize(NormalizationMode.WHNF);
+        return typechecker.typecheck(factory.app(factory.ref(actualType instanceof CoreClassCallExpression && ((CoreClassCallExpression) actualType).getDefinition().isSubClassOf(ext.equationMeta.QEquiv) ? ext.equationMeta.qEquivToEq.getRef() : ext.equationMeta.equivToEq.getRef()), true, Collections.singletonList(factory.core(typedArg))), contextData.getExpectedType());
       }
     }
 
