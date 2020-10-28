@@ -265,12 +265,37 @@ public class ExtMeta extends BaseMetaDefinition {
       return null;
     }
 
+    CoreExpression normType = type.normalize(NormalizationMode.WHNF);
+    ConcreteExpression arg = args.get(0).getExpression();
+    ConcreteExpression left = factory.core(equality.getDefCallArguments().get(1).computeTyped());
+    ConcreteExpression right = factory.core(equality.getDefCallArguments().get(2).computeTyped());
+    if (normType instanceof CoreUniverseExpression) {
+      if (((CoreUniverseExpression) normType).getSort().isProp()) {
+        TypedExpression expectedType = typechecker.typecheck(factory.sigma(Arrays.asList(factory.param(true, factory.arr(left, right)), factory.param(true, factory.arr(right, left)))), null);
+        if (expectedType == null) return null;
+        TypedExpression typedArg = typechecker.typecheck(arg, expectedType.getExpression());
+        if (typedArg == null) return null;
+        CoreExpression coreArg = typedArg.getExpression().getUnderlyingExpression();
+        ConcreteExpression concreteArg = factory.core(typedArg);
+        ArendRef letRef;
+        ConcreteExpression concreteResult;
+        if (coreArg instanceof CoreReferenceExpression || coreArg instanceof CoreTupleExpression) {
+          letRef = null;
+          concreteResult = concreteArg;
+        } else {
+          letRef = factory.local("h");
+          concreteResult = factory.ref(letRef);
+        }
+        ConcreteExpression result = factory.app(factory.ref(ext.propExt.getRef()), true, Arrays.asList(factory.proj(concreteResult, 0), factory.proj(concreteResult, 1)));
+        return typechecker.typecheck(letRef == null ? result : factory.letExpr(false, Collections.singletonList(factory.letClause(letRef, Collections.emptyList(), null, concreteArg)), result), contextData.getExpectedType());
+      }
+    }
+
     ArendRef iRef = factory.local("i");
     return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.meta("ext_result", new MetaDefinition() {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-        CoreExpression normType = type.normalize(NormalizationMode.WHNF);
-        ConcreteExpression result = new ExtGenerator(typechecker, factory, marker, iRef).generate(args.get(0).getExpression(), normType, factory.core(equality.getDefCallArguments().get(1).computeTyped()), factory.core(equality.getDefCallArguments().get(2).computeTyped()));
+        ConcreteExpression result = new ExtGenerator(typechecker, factory, marker, iRef).generate(arg, normType, left, right);
         return result == null ? null : typechecker.typecheck(result, normType);
       }
     })))), contextData.getExpectedType());
