@@ -5,10 +5,11 @@ import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.concrete.expr.ConcreteLamExpression;
+import org.arend.ext.concrete.expr.ConcreteTupleExpression;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
+import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
@@ -55,36 +56,42 @@ public class ExtMeta extends BaseMetaDefinition {
       this.iRef = iRef;
     }
 
+    private ConcreteExpression applyAt(ConcreteExpression arg) {
+      return factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(arg, factory.ref(iRef)));
+    }
+
     private ConcreteExpression generate(ConcreteExpression arg, CoreExpression type, ConcreteExpression left, ConcreteExpression right) {
       if (type instanceof CorePiExpression) {
         List<CoreParameter> piParams = new ArrayList<>();
-        type = type.getPiParameters(piParams);
+        type.getPiParameters(piParams);
+        List<ConcreteParameter> concretePiParams = new ArrayList<>();
+        List<ConcreteParameter> concreteLamParams = new ArrayList<>();
         List<ConcreteArgument> args = new ArrayList<>();
-        List<ConcreteParameter> lamParams = new ArrayList<>();
-        while (arg instanceof ConcreteLamExpression) {
-          List<? extends ConcreteParameter> params = ((ConcreteLamExpression) arg).getParameters();
-          for (ConcreteParameter param : params) {
-            for (ArendRef ref : param.getRefList()) {
-              if (ref == null) {
-                typechecker.getErrorReporter().report(new TypecheckingError("Expected a named parameter", arg));
-                return null;
-              }
-              args.add(factory.arg(factory.ref(ref), param.isExplicit()));
+        List<SubstitutionPair> substitution = new ArrayList<>();
+        for (int i = 0; i < piParams.size(); i++) {
+          CoreParameter piParam = piParams.get(i);
+          ArendRef ref = factory.local(ext.renamerFactory.getNameFromBinding(piParam.getBinding(), null));
+          int finalI = i;
+          concretePiParams.add(factory.param(piParam.isExplicit(), Collections.singletonList(ref), factory.meta("ext_param", new MetaDefinition() {
+            @Override
+            public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+              CoreExpression paramType = typechecker.substitute(piParam.getTypeExpr(), null, substitution.subList(0, finalI));
+              return paramType == null ? null : paramType.computeTyped();
             }
-          }
-          lamParams.addAll(params);
-          arg = ((ConcreteLamExpression) arg).getBody();
-        }
-        if (piParams.size() != args.size()) {
-          typechecker.getErrorReporter().report(new TypecheckingError("Expected a lambda expression" + (piParams.size() == 1 && args.size() == 0 ? "" : piParams.size() + " parameters"), arg));
-          return null;
+          })));
+          concreteLamParams.add(factory.param(piParam.isExplicit(), ref));
+          ConcreteExpression refExpr = factory.ref(ref);
+          args.add(factory.arg(refExpr, piParam.isExplicit()));
+          substitution.add(new SubstitutionPair(piParam.getBinding(), refExpr));
         }
 
-        ConcreteExpression result = generate(arg, type.normalize(NormalizationMode.WHNF), factory.app(left, args), factory.app(right, args));
-        return result == null ? null : factory.lam(lamParams, result);
+        TypedExpression piEqType = typechecker.typecheck(factory.pi(concretePiParams, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.app(left, args), factory.app(right, args)))), null);
+        if (piEqType == null) return null;
+        TypedExpression result = typechecker.typecheck(arg, piEqType.getExpression());
+        return result == null ? null : factory.lam(concreteLamParams, applyAt(factory.app(factory.core(result), args)));
       }
 
-      return factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(factory.typed(arg, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(left, right))), factory.ref(iRef)));
+      return applyAt(factory.typed(arg, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(left, right))));
     }
   }
 
