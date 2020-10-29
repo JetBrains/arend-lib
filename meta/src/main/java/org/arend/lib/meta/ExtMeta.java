@@ -7,8 +7,6 @@ import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
-import org.arend.ext.concrete.expr.ConcreteTupleExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.*;
@@ -218,7 +216,15 @@ public class ExtMeta extends BaseMetaDefinition {
             ConcreteExpression proj = sigmaParams.size() == 1 ? concreteTuple : factory.proj(concreteTuple, i);
             boolean isDependent = dependentBindings.contains(paramBinding);
             field = isDependent ? factory.app(factory.ref(ext.pathOver.getRef()), true, Collections.singletonList(proj)) : proj;
-            useLet = isDependent || !((sigmaParams.size() != 1 || concreteTuple instanceof ConcreteReferenceExpression) && (sigmaParams.size() == 1 || concreteTuple instanceof ConcreteReferenceExpression || concreteTuple instanceof ConcreteTupleExpression && i < ((ConcreteTupleExpression) concreteTuple).getFields().size() && ((ConcreteTupleExpression) concreteTuple).getFields().get(i) instanceof ConcreteReferenceExpression));
+            if (isDependent) {
+              useLet = true;
+            } else {
+              if (sigmaParams.size() == 1) {
+                useLet = !(resultExpr instanceof CoreReferenceExpression);
+              } else {
+                useLet = !(resultExpr instanceof CoreReferenceExpression || resultExpr instanceof CoreTupleExpression && i < ((CoreTupleExpression) resultExpr).getFields().size() && ((CoreTupleExpression) resultExpr).getFields().get(i) instanceof CoreReferenceExpression);
+              }
+            }
           }
           if (useLet && totalUsed.contains(paramBinding)) {
             ArendRef argLetRef = factory.local("h" + (i + 1));
