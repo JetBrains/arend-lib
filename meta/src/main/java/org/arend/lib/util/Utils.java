@@ -3,6 +3,7 @@ package org.arend.lib.util;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
@@ -27,6 +28,7 @@ import org.arend.lib.StdExtension;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 public class Utils {
@@ -240,6 +242,15 @@ public class Utils {
       }
       tc.loadSavedState();
       return false;
+    });
+  }
+
+  public static void findFreeVars(CoreExpression expression, Set<CoreBinding> vars) {
+    expression.processSubexpression(e -> {
+      if (e instanceof CoreReferenceExpression) {
+        vars.remove(((CoreReferenceExpression) e).getBinding());
+      }
+      return CoreExpression.FindAction.CONTINUE;
     });
   }
 }

@@ -1,11 +1,9 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.FreeBindingsModifier;
-import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcreteLetClause;
-import org.arend.ext.concrete.ConcreteParameter;
-import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.ConcreteArgument;
+import org.arend.ext.concrete.expr.ConcreteCaseArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
@@ -43,6 +41,187 @@ public class ExtMeta extends BaseMetaDefinition {
   @Override
   public boolean requireExpectedType() {
     return true;
+  }
+
+  private static class PiTree {
+    public final ConcreteExpression head;
+    public final List<Integer> indices;
+    public final List<PiTree> subtrees;
+
+    private PiTree(ConcreteExpression head, List<Integer> indices, List<PiTree> subtrees) {
+      this.head = head;
+      this.indices = indices;
+      this.subtrees = subtrees;
+    }
+  }
+
+  private class PiTreeMaker {
+    private final ConcreteFactory factory;
+    private final List<ConcreteLetClause> clauses;
+    private List<ConcreteParameter> lamParams;
+    private List<SubstitutionPair> substitution;
+    private int index = 1;
+
+    private PiTreeMaker(ConcreteFactory factory, List<ConcreteLetClause> clauses) {
+      this.factory = factory;
+      this.clauses = clauses;
+    }
+
+    private PiTree make(CoreExpression expr) {
+      List<CoreParameter> params = new ArrayList<>();
+      CoreExpression codomain = expr.getPiParameters(params);
+      Set<CoreBinding> freeVars = new HashSet<>();
+      for (SubstitutionPair pair : substitution) {
+        freeVars.add(pair.binding);
+      }
+      Utils.findFreeVars(codomain, freeVars);
+
+      ConcreteExpression concrete;
+      List<Integer> indices;
+      if (freeVars.isEmpty()) {
+        concrete = factory.core(codomain.computeTyped());
+        indices = Collections.emptyList();
+      } else {
+        indices = new ArrayList<>(freeVars.size());
+        for (int i = 0; i < substitution.size(); i++) {
+          if (freeVars.contains(substitution.get(i).binding)) {
+            indices.add(i);
+          }
+        }
+
+        List<ConcreteParameter> redLamParams;
+        List<SubstitutionPair> redSubstitution;
+        if (indices.size() == substitution.size()) {
+          redLamParams = lamParams;
+          redSubstitution = substitution;
+        } else {
+          redLamParams = new ArrayList<>(indices.size());
+          redSubstitution = new ArrayList<>(indices.size());
+          for (Integer index : indices) {
+            redLamParams.add(lamParams.get(index));
+            redSubstitution.add(substitution.get(index));
+          }
+        }
+
+        concrete = factory.lam(redLamParams, factory.meta("ext_sigma_pi_param", new MetaDefinition() {
+          @Override
+          public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+            CoreExpression result = typechecker.substitute(codomain, null, redSubstitution);
+            return result == null ? null : result.computeTyped();
+          }
+        }));
+      }
+
+      ArendRef letRef = factory.local("T" + index++);
+      clauses.add(factory.letClause(letRef, Collections.emptyList(), null, concrete));
+
+      List<PiTree> subtrees = new ArrayList<>(params.size());
+      for (CoreParameter param : params) {
+        subtrees.add(make(param.getTypeExpr()));
+      }
+      return new PiTree(factory.ref(letRef), indices, subtrees);
+    }
+
+    private PiTree make(CoreExpression expr, List<CoreParameter> parameters) {
+      lamParams = new ArrayList<>(parameters.size());
+      substitution = new ArrayList<>(parameters.size());
+      for (int i = 0; i < parameters.size(); i++) {
+        CoreParameter parameter = parameters.get(i);
+        ArendRef ref = factory.local("x" + (i + 1));
+        lamParams.add(factory.param(true, Collections.singletonList(ref), factory.core(parameter.getTypedType())));
+        substitution.add(new SubstitutionPair(parameter.getBinding(), factory.ref(ref)));
+      }
+      return make(expr);
+    }
+
+
+    private ConcreteExpression makeConcrete(PiTree tree, List<ConcreteExpression> args) {
+      return makeConcrete(tree, args, args, true);
+    }
+
+    private ConcreteExpression makeConcrete(PiTree tree, List<ConcreteExpression> evenArgs, List<ConcreteExpression> oddArgs, boolean isEven) {
+      ConcreteExpression result = tree.head;
+      if (!tree.indices.isEmpty()) {
+        List<ConcreteExpression> headArgs = new ArrayList<>(tree.indices.size());
+        for (Integer index : tree.indices) {
+          headArgs.add((isEven ? evenArgs : oddArgs).get(index));
+        }
+        result = factory.app(tree.head, true, headArgs);
+      }
+
+      for (int i = tree.subtrees.size() - 1; i >= 0; i--) {
+        result = factory.arr(makeConcrete(tree.subtrees.get(i), evenArgs, oddArgs, !isEven), result);
+      }
+      return result;
+    }
+
+    private ConcreteExpression makeCoe(PiTree tree, boolean useHead, List<ConcreteExpression> pathRefs, ConcreteExpression arg) {
+      ArendRef coeRef = factory.local("i");
+      ConcreteExpression coeLam = factory.lam(Collections.singletonList(factory.param(coeRef)), factory.meta("ext_coe", new MetaDefinition() {
+        @Override
+        public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+          List<ConcreteExpression> args = new ArrayList<>();
+          for (ConcreteExpression pathRef : pathRefs) {
+            args.add(factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(pathRef, factory.ref(coeRef))));
+          }
+          return typechecker.typecheck(useHead ? factory.app(tree.head, true, args) : makeConcrete(tree, args), null);
+        }
+      }));
+      return factory.app(factory.ref(ext.prelude.getCoerce2().getRef()), true, Arrays.asList(coeLam, arg, factory.ref(ext.prelude.getRight().getRef())));
+    }
+
+    private ConcreteExpression etaExpand(PiTree tree, ConcreteExpression fun, List<ConcreteExpression> args, boolean insertCoe, List<ConcreteExpression> pathRefs) {
+      List<ConcreteExpression> expandedArgs = new ArrayList<>(args.size());
+      for (int i = 0; i < args.size(); i++) {
+        PiTree subtree = tree.subtrees.get(i);
+        List<ConcreteParameter> lamParams = new ArrayList<>(subtree.subtrees.size());
+        List<ConcreteExpression> lamRefs = new ArrayList<>(subtree.subtrees.size());
+        for (int j = 0; j < subtree.subtrees.size(); j++) {
+          ArendRef lamRef = factory.local("x" + index++);
+          lamParams.add(factory.param(lamRef));
+          lamRefs.add(factory.ref(lamRef));
+        }
+        expandedArgs.add(factory.lam(lamParams, etaExpand(subtree, args.get(i), lamRefs, !insertCoe, pathRefs)));
+      }
+
+      ConcreteExpression result = factory.app(fun, true, expandedArgs);
+      if (!insertCoe || tree.indices.isEmpty()) {
+        return result;
+      }
+
+      if (tree.indices.size() == 1) {
+        return factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(tree.head, pathRefs.get(tree.indices.get(0)), result));
+      }
+
+      return makeCoe(tree, true, pathRefs, result);
+    }
+
+    private ConcreteExpression makeArgType(PiTree tree, List<ConcreteExpression> leftRefs, List<ConcreteExpression> rightRefs, List<ConcreteExpression> pathRefs, ConcreteExpression leftFun, ConcreteExpression rightFun) {
+      List<ConcreteExpression> piRefs = new ArrayList<>(tree.subtrees.size());
+      List<ConcreteParameter> piParams = new ArrayList<>(tree.subtrees.size());
+      for (int i = 0; i < tree.subtrees.size(); i++) {
+        ArendRef piRef = factory.local("s" + (i + 1));
+        piRefs.add(factory.ref(piRef));
+        piParams.add(factory.param(true, Collections.singletonList(piRef), makeConcrete(tree.subtrees.get(i), leftRefs, rightRefs, true)));
+      }
+
+      index = 1;
+      ConcreteExpression leftArg = etaExpand(tree, leftFun, piRefs, true, pathRefs);
+      index = 1;
+      ConcreteExpression rightArg = etaExpand(tree, rightFun, piRefs, false, pathRefs);
+      return factory.pi(piParams, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftArg, rightArg)));
+    }
+  }
+
+  private static boolean useLet(CoreExpression expr, int index) {
+    if (expr instanceof CoreReferenceExpression) {
+      return false;
+    }
+    if (!(expr instanceof CoreTupleExpression)) {
+      return true;
+    }
+    CoreTupleExpression tuple = (CoreTupleExpression) expr;
+    return !(index < tuple.getFields().size() && tuple.getFields().get(index) instanceof CoreReferenceExpression);
   }
 
   private class ExtGenerator {
@@ -83,7 +262,10 @@ public class ExtMeta extends BaseMetaDefinition {
       }));
     }
 
-    private ConcreteExpression generate(ConcreteExpression arg, CoreExpression type, ConcreteExpression left, ConcreteExpression right) {
+    private ConcreteExpression generate(ConcreteExpression arg, CoreExpression type, CoreExpression coreLeft, CoreExpression coreRight) {
+      ConcreteExpression left = factory.core(coreLeft.computeTyped());
+      ConcreteExpression right = factory.core(coreRight.computeTyped());
+
       if (type instanceof CorePiExpression) {
         List<CoreParameter> piParams = new ArrayList<>();
         type.getPiParameters(piParams);
@@ -189,11 +371,11 @@ public class ExtMeta extends BaseMetaDefinition {
         ArendRef letRef;
         ConcreteExpression concreteTuple;
         CoreExpression resultExpr = result.getExpression().getUnderlyingExpression();
-        if (resultExpr instanceof CoreTupleExpression || resultExpr instanceof CoreReferenceExpression) {
+        if (resultExpr instanceof CoreReferenceExpression) {
           letRef = null;
           concreteTuple = factory.core(result);
         } else {
-          letRef = factory.local("h");
+          letRef = factory.local("arg");
           concreteTuple = factory.ref(letRef);
         }
 
@@ -215,6 +397,59 @@ public class ExtMeta extends BaseMetaDefinition {
           } else {
             ConcreteExpression proj = sigmaParams.size() == 1 ? concreteTuple : factory.proj(concreteTuple, i);
             boolean isDependent = dependentBindings.contains(paramBinding);
+            if (isDependent) {
+              CoreExpression paramType = param.getTypeExpr().normalize(NormalizationMode.WHNF);
+              if (paramType instanceof CorePiExpression) {
+                if (!(coreLeft instanceof CoreReferenceExpression)) {
+                  ArendRef projRef = factory.local("l");
+                  letClauses.add(factory.letClause(projRef, Collections.emptyList(), null, left));
+                  left = factory.ref(projRef);
+                }
+
+                List<CoreParameter> parameters = new ArrayList<>();
+                List<ConcreteExpression> leftProjs = new ArrayList<>();
+                List<ConcreteExpression> rightRefs = new ArrayList<>();
+                List<ConcreteExpression> pathRefs = new ArrayList<>();
+                List<ConcreteCaseArgument> caseArgs = new ArrayList<>();
+                List<ConcretePattern> casePatterns = new ArrayList<>();
+                ArendRef lastCaseRef = factory.local("a");
+                int j = 0;
+                for (CoreParameter parameter = sigma.getParameters(); parameter != param; parameter = parameter.getNext(), j++) {
+                  if (!usedList.get(i).contains(parameter.getBinding())) {
+                    continue;
+                  }
+                  parameters.add(parameter);
+
+                  ConcreteExpression leftProj = factory.proj(left, j);
+                  leftProjs.add(leftProj);
+
+                  ArendRef rightRef = factory.local("r" + (j + 1));
+                  rightRefs.add(factory.ref(rightRef));
+                  caseArgs.add(factory.caseArg(factory.proj(right, j), rightRef, null));
+
+                  ArendRef pathRef = factory.local("q" + (j + 1));
+                  pathRefs.add(factory.ref(pathRef));
+                  caseArgs.add(factory.caseArg(factory.proj(concreteTuple, j), pathRef, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftProj, factory.ref(rightRef)))));
+
+                  casePatterns.add(factory.refPattern(null, null));
+                  casePatterns.add(factory.conPattern(ext.prelude.getIdp().getRef()));
+                }
+
+                PiTreeMaker piTreeMaker = new PiTreeMaker(factory, letClauses);
+                PiTree piTree = piTreeMaker.make(paramType, parameters);
+
+                ArendRef rightFunRef = factory.local("f");
+                caseArgs.add(factory.caseArg(factory.proj(right, j), rightFunRef, piTreeMaker.makeConcrete(piTree, rightRefs)));
+                caseArgs.add(factory.caseArg(factory.proj(concreteTuple, j), null, piTreeMaker.makeArgType(piTree, leftProjs, rightRefs, pathRefs, factory.proj(left, j), factory.ref(rightFunRef))));
+
+                casePatterns.add(factory.refPattern(null, null));
+                casePatterns.add(factory.refPattern(lastCaseRef, null));
+
+                ConcreteExpression caseResultType = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(piTreeMaker.makeCoe(piTree, false, pathRefs, factory.proj(left, j)), factory.ref(rightFunRef)));
+                proj = factory.caseExpr(false, caseArgs, caseResultType, null, factory.clause(casePatterns, factory.app(factory.meta("ext", ExtMeta.this), true, Collections.singletonList(factory.ref(lastCaseRef)))));
+              }
+            }
+
             field = isDependent ? factory.app(factory.ref(ext.pathOver.getRef()), true, Collections.singletonList(proj)) : proj;
             if (isDependent) {
               useLet = true;
@@ -222,7 +457,7 @@ public class ExtMeta extends BaseMetaDefinition {
               if (sigmaParams.size() == 1) {
                 useLet = !(resultExpr instanceof CoreReferenceExpression);
               } else {
-                useLet = !(resultExpr instanceof CoreReferenceExpression || resultExpr instanceof CoreTupleExpression && i < ((CoreTupleExpression) resultExpr).getFields().size() && ((CoreTupleExpression) resultExpr).getFields().get(i) instanceof CoreReferenceExpression);
+                useLet = useLet(resultExpr, i);
               }
             }
           }
@@ -273,9 +508,9 @@ public class ExtMeta extends BaseMetaDefinition {
 
     CoreExpression normType = type.normalize(NormalizationMode.WHNF);
     ConcreteExpression arg = args.get(0).getExpression();
-    ConcreteExpression left = factory.core(equality.getDefCallArguments().get(1).computeTyped());
-    ConcreteExpression right = factory.core(equality.getDefCallArguments().get(2).computeTyped());
     if (normType instanceof CoreUniverseExpression) {
+      ConcreteExpression left = factory.core(equality.getDefCallArguments().get(1).computeTyped());
+      ConcreteExpression right = factory.core(equality.getDefCallArguments().get(2).computeTyped());
       if (((CoreUniverseExpression) normType).getSort().isProp()) {
         TypedExpression expectedType = typechecker.typecheck(factory.sigma(Arrays.asList(factory.param(true, factory.arr(left, right)), factory.param(true, factory.arr(right, left)))), null);
         if (expectedType == null) return null;
@@ -308,7 +543,7 @@ public class ExtMeta extends BaseMetaDefinition {
     return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.meta("ext_result", new MetaDefinition() {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-        ConcreteExpression result = new ExtGenerator(typechecker, factory, marker, iRef).generate(arg, normType, left, right);
+        ConcreteExpression result = new ExtGenerator(typechecker, factory, marker, iRef).generate(arg, normType, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2));
         return result == null ? null : typechecker.typecheck(result, normType);
       }
     })))), contextData.getExpectedType());
