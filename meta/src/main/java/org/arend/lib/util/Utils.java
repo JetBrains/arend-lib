@@ -3,7 +3,6 @@ package org.arend.lib.util;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
-import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
@@ -240,16 +239,5 @@ public class Utils {
       tc.loadSavedState();
       return false;
     });
-  }
-
-  public static Set<CoreBinding> findFreeVars(CoreExpression expression) {
-    Set<CoreBinding> vars = new HashSet<>();
-    expression.processSubexpression(e -> {
-      if (e instanceof CoreReferenceExpression) {
-        vars.add(((CoreReferenceExpression) e).getBinding());
-      }
-      return CoreExpression.FindAction.CONTINUE;
-    });
-    return vars;
   }
 }

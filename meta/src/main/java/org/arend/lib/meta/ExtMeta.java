@@ -74,7 +74,16 @@ public class ExtMeta extends BaseMetaDefinition {
     private PiTree make(CoreExpression expr) {
       List<CoreParameter> params = new ArrayList<>();
       CoreExpression codomain = expr.getPiParameters(params);
-      Set<CoreBinding> freeVars = Utils.findFreeVars(codomain);
+      Set<? extends CoreBinding> freeVars = codomain.findFreeBindings();
+
+      for (CoreParameter param : params) {
+        if (freeVars.contains(param.getBinding())) {
+          freeVars.clear();
+          params.clear();
+          codomain = expr;
+          break;
+        }
+      }
 
       ConcreteExpression concrete;
       List<Integer> indices;
@@ -103,10 +112,11 @@ public class ExtMeta extends BaseMetaDefinition {
           }
         }
 
+        CoreExpression finalCodomain = codomain;
         TypedExpression result = typechecker.typecheck(factory.lam(redLamParams, factory.meta("ext_sigma_pi_param", new MetaDefinition() {
           @Override
           public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-            CoreExpression result = typechecker.substitute(codomain, null, redSubstitution);
+            CoreExpression result = typechecker.substitute(finalCodomain, null, redSubstitution);
             return result == null ? null : result.computeTyped();
           }
         })), null);
@@ -185,8 +195,7 @@ public class ExtMeta extends BaseMetaDefinition {
           lamParams.add(factory.param(lamRef));
           lamRefs.add(factory.ref(lamRef));
         }
-        ConcreteExpression expr = etaExpand(subtree, args.get(i), lamRefs, !insertCoe, useLet, pathRefs);
-        expandedArgs.add(lamParams.isEmpty() ? expr : factory.lam(lamParams, expr));
+        expandedArgs.add(factory.lam(lamParams, etaExpand(subtree, args.get(i), lamRefs, !insertCoe, useLet, pathRefs)));
       }
 
       ConcreteExpression result = factory.app(fun, true, expandedArgs);
@@ -384,10 +393,14 @@ public class ExtMeta extends BaseMetaDefinition {
                 PiTreeMaker piTreeMaker = new PiTreeMaker(typechecker, factory, letClauses);
                 PiTree piTree = piTreeMaker.make(paramType, sigmaParameters);
                 if (piTree == null) return null;
-                piTreeData = new PiTreeData(piTreeMaker, piTree, leftProjs);
-                lastSigmaParam = piTreeMaker.makeArgType(piTreeData.tree, false, leftProjs, rightProjs, pathRefs, factory.proj(left, j), factory.proj(right, j));
-                isPi = true;
-              } else {
+                if (!piTree.subtrees.isEmpty()) {
+                  piTreeData = new PiTreeData(piTreeMaker, piTree, leftProjs);
+                  lastSigmaParam = piTreeMaker.makeArgType(piTreeData.tree, false, leftProjs, rightProjs, pathRefs, factory.proj(left, j), factory.proj(right, j));
+                  isPi = true;
+                }
+              }
+
+              if (!isPi) {
                 if (used.size() > 1) {
                   leftExpr = factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(makeCoeLambda(sigma, paramBinding, used, sigmaRefs, factory), leftExpr, factory.ref(ext.prelude.getRight().getRef())));
                 } else {
