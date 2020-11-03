@@ -76,13 +76,15 @@ public class ExtMeta extends BaseMetaDefinition {
       CoreExpression codomain = expr.getPiParameters(params);
       Set<? extends CoreBinding> freeVars = codomain.findFreeBindings();
 
+      boolean found = false;
       for (CoreParameter param : params) {
-        if (freeVars.contains(param.getBinding())) {
-          freeVars.clear();
-          params.clear();
-          codomain = expr;
-          break;
+        if (freeVars.remove(param.getBinding())) {
+          found = true;
         }
+      }
+      if (found) {
+        params.clear();
+        codomain = expr;
       }
 
       ConcreteExpression concrete;
