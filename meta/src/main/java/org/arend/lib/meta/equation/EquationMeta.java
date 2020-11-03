@@ -64,11 +64,14 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Semiring")                          public CoreClassDefinition Semiring;
   @Dependency(module = "Algebra.Ring")                              public CoreClassDefinition Ring;
 
-  @Dependency(module = "Equiv")                 CoreClassDefinition Equiv;
-  @Dependency(module = "Equiv", name = "Map.A") CoreClassField equivLeft;
-  @Dependency(module = "Equiv", name = "Map.B") CoreClassField equivRight;
-  @Dependency(module = "Equiv")                 CoreFunctionDefinition idEquiv;
-  @Dependency(module = "Equiv")                 CoreFunctionDefinition transEquiv;
+  @Dependency(module = "Equiv")                                  public CoreClassDefinition Equiv;
+  @Dependency(module = "Equiv")                                  public CoreClassDefinition QEquiv;
+  @Dependency(module = "Equiv.Univalence", name = "Equiv-to-=")  public CoreFunctionDefinition equivToEq;
+  @Dependency(module = "Equiv.Univalence", name = "QEquiv-to-=") public CoreFunctionDefinition qEquivToEq;
+  @Dependency(module = "Equiv", name = "Map.A")                  CoreClassField equivLeft;
+  @Dependency(module = "Equiv", name = "Map.B")                  CoreClassField equivRight;
+  @Dependency(module = "Equiv")                                  CoreFunctionDefinition idEquiv;
+  @Dependency(module = "Equiv")                                  CoreFunctionDefinition transEquiv;
 
   public static class TransitivityInstanceCache {
     public final CoreFunctionDefinition instance;

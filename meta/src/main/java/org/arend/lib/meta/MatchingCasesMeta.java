@@ -422,7 +422,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         replacementRefs.add(argRefs.get(pair));
       }
 
-      resultLambda = typechecker.typecheckLambda(factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), typechecker.makeParameters(lambdaTypes, marker));
+      resultLambda = typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), typechecker.makeParameters(lambdaTypes, marker));
       if (resultLambda == null) {
         return null;
       }
@@ -555,7 +555,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
               cParams.add(factory.param(lamRef));
               bindings.put(param.getBinding(), lamRef);
             }
-            TypedExpression lamExpr = typechecker.typecheckLambda(factory.lam(cParams, factory.typed(cExpr, factory.meta("c" + (resultClauses.size() + 1) + "_type", new MetaDefinition() {
+            TypedExpression lamExpr = typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(cParams, factory.typed(cExpr, factory.meta("c" + (resultClauses.size() + 1) + "_type", new MetaDefinition() {
               @Override
               public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
                 List<ConcreteExpression> args = new ArrayList<>();

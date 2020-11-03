@@ -44,6 +44,8 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Paths")              public CoreFunctionDefinition transportInv;
   @Dependency(module = "Paths", name = "*>") public CoreFunctionDefinition concat;
   @Dependency(module = "Paths")              public CoreFunctionDefinition inv;
+  @Dependency(module = "Paths")              public CoreFunctionDefinition pathOver;
+  @Dependency(module = "Paths")              public CoreFunctionDefinition pathInProp;
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
@@ -51,6 +53,7 @@ public class StdExtension implements ArendExtension {
 
   @Dependency(module = "Logic") public CoreDataDefinition Empty;
   @Dependency(module = "Logic") public CoreDataDefinition TruncP;
+  @Dependency(module = "Logic") public CoreFunctionDefinition propExt;
 
   public EquationMeta equationMeta = new EquationMeta(this);
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
@@ -135,7 +138,7 @@ public class StdExtension implements ArendExtension {
         "`rewriteF (p : a = b) e` is similar to `rewrite`, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
         Precedence.DEFAULT, new RewriteMeta(this, true, false));
     contributor.declare(paths, new LongName("ext"),
-      "`ext p` proves goals of the form `Path A a a'`. The type of `p` depends on `A`.",
+      "`ext p` proves goals of the form `a = {A} a'`. The type of `p` depends on `A`, which can be either a \\Pi-type, a \\Sigma-type, a universe, or a record. Also, `A` can be a proposition, in which case `p` should be omitted.",
       Precedence.DEFAULT, new DeferredMetaDefinition(new ExtMeta(this), false, ExpressionTypechecker.Stage.AFTER_LEVELS));
 
     MetaDefinition apply = new ApplyMeta(this);
