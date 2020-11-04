@@ -479,45 +479,50 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
 
         TypedExpression sigmaEqType = typechecker.typecheck(sigmaParams.size() == 1 ? lastSigmaParam : factory.sigma(sigmaParams), null);
         if (sigmaEqType == null) return null;
-        if (!(type instanceof CoreSigmaExpression) && arg instanceof ConcreteClassExtExpression) {
+        if (!(type instanceof CoreSigmaExpression)) {
           CoreClassCallExpression classCall = (CoreClassCallExpression) type;
-          ConcreteClassExtExpression classExt = (ConcreteClassExtExpression) arg;
-          CoreDefinition def = ext.definitionProvider.getCoreDefinition(classExt.getBaseClassExpression() instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) classExt.getBaseClassExpression()).getReferent() : null);
-          if (!(def instanceof CoreClassDefinition && ((CoreClassDefinition) def).isSubClassOf(classCall.getDefinition()))) {
-            typechecker.getErrorReporter().report(new SubclassError(classCall.getDefinition().getRef(), classExt.getBaseClassExpression()));
+          ConcreteExpression baseExpr = arg instanceof ConcreteClassExtExpression ? ((ConcreteClassExtExpression) arg).getBaseClassExpression() : arg;
+          CoreDefinition def = ext.definitionProvider.getCoreDefinition(baseExpr instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) baseExpr).getReferent() : null);
+          boolean isSubclass = def instanceof CoreClassDefinition && ((CoreClassDefinition) def).isSubClassOf(classCall.getDefinition());
+          if (arg instanceof ConcreteClassExtExpression && !isSubclass) {
+            typechecker.getErrorReporter().report(new SubclassError(classCall.getDefinition().getRef(), baseExpr));
             return null;
           }
 
-          Map<ArendRef, ConcreteCoclause> implMap = new HashMap<>();
-          for (ConcreteCoclause coclause : classExt.getCoclauses().getCoclauseList()) {
-            if (implMap.putIfAbsent(coclause.getImplementedRef(), coclause) != null) {
-              typechecker.getErrorReporter().report(new RedundantCoclauseError(coclause));
-            }
-          }
-
-          List<ConcreteExpression> tupleFields = new ArrayList<>(classFields.size());
-          List<ArendRef> notImplemented = new ArrayList<>();
-          for (CoreClassField field : classFields) {
-            if (!propFields.contains(field)) {
-              ConcreteCoclause coclause = implMap.remove(field.getRef());
-              if (coclause != null) {
-                tupleFields.add(coclause.getImplementation());
-              } else {
-                notImplemented.add(field.getRef());
+          if (isSubclass) {
+            Map<ArendRef, ConcreteCoclause> implMap = new HashMap<>();
+            if (arg instanceof ConcreteClassExtExpression) {
+              for (ConcreteCoclause coclause : ((ConcreteClassExtExpression) arg).getCoclauses().getCoclauseList()) {
+                if (implMap.putIfAbsent(coclause.getImplementedRef(), coclause) != null) {
+                  typechecker.getErrorReporter().report(new RedundantCoclauseError(coclause));
+                }
               }
             }
-          }
 
-          for (ConcreteCoclause coclause : implMap.values()) {
-            typechecker.getErrorReporter().report(new RedundantCoclauseError(coclause));
-          }
+            List<ConcreteExpression> tupleFields = new ArrayList<>(classFields.size());
+            List<ArendRef> notImplemented = new ArrayList<>();
+            for (CoreClassField field : classFields) {
+              if (!propFields.contains(field)) {
+                ConcreteCoclause coclause = implMap.remove(field.getRef());
+                if (coclause != null) {
+                  tupleFields.add(coclause.getImplementation());
+                } else {
+                  notImplemented.add(field.getRef());
+                }
+              }
+            }
 
-          if (!notImplemented.isEmpty()) {
-            typechecker.getErrorReporter().report(new FieldsImplementationError(false, classCall.getDefinition().getRef(), notImplemented, classExt.getCoclauses()));
-            return null;
-          }
+            for (ConcreteCoclause coclause : implMap.values()) {
+              typechecker.getErrorReporter().report(new RedundantCoclauseError(coclause));
+            }
 
-          arg = tupleFields.size() == 1 ? tupleFields.get(0) : factory.withData(arg.getData()).tuple(tupleFields);
+            if (!notImplemented.isEmpty()) {
+              typechecker.getErrorReporter().report(new FieldsImplementationError(false, classCall.getDefinition().getRef(), notImplemented, arg instanceof ConcreteClassExtExpression ? ((ConcreteClassExtExpression) arg).getCoclauses() : marker));
+              return null;
+            }
+
+            arg = tupleFields.size() == 1 ? tupleFields.get(0) : factory.withData(arg.getData()).tuple(tupleFields);
+          }
         }
         TypedExpression result = hidingIRef(arg, sigmaEqType.getExpression());
         if (result == null) return null;
