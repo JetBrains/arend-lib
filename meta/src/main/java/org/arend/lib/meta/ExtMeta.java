@@ -2,19 +2,21 @@ package org.arend.lib.meta;
 
 import org.arend.ext.FreeBindingsModifier;
 import org.arend.ext.concrete.*;
-import org.arend.ext.concrete.expr.ConcreteArgument;
-import org.arend.ext.concrete.expr.ConcreteCaseArgument;
-import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
+import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
+import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.error.SubclassError;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -22,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class ExtMeta extends BaseMetaDefinition {
+public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
   private final StdExtension ext;
 
   public ExtMeta(StdExtension ext) {
@@ -42,6 +44,32 @@ public class ExtMeta extends BaseMetaDefinition {
   @Override
   public boolean requireExpectedType() {
     return true;
+  }
+
+  @Override
+  public boolean allowCoclauses() {
+    return true;
+  }
+
+  @Override
+  public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
+    if (!checkArguments(contextData.getArguments(), resolver.getErrorReporter(), contextData.getMarker(), argumentExplicitness())) {
+      return null;
+    }
+
+    ConcreteCoclauses coclauses = contextData.getCoclauses();
+    if (coclauses != null && contextData.getArguments().isEmpty()) {
+      resolver.getErrorReporter().report(new NameResolverError("Expected a class name", coclauses));
+      return null;
+    }
+
+    if (contextData.getArguments().isEmpty()) {
+      return contextData.getReferenceExpression();
+    }
+
+    ConcreteFactory factory = ext.factory.withData(contextData.getReferenceExpression().getData());
+    ConcreteExpression arg = contextData.getArguments().get(0).getExpression();
+    return factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(coclauses == null ? arg : factory.classExt(arg, coclauses.getCoclauseList()))));
   }
 
   private static class PiTree {
@@ -350,6 +378,7 @@ public class ExtMeta extends BaseMetaDefinition {
         Map<CoreBinding, ConcreteExpression> sigmaRefs = new HashMap<>();
         ConcreteExpression lastSigmaParam = null;
         Set<CoreBinding> propBindings = new HashSet<>();
+        Set<CoreClassField> propFields = new HashSet<>();
         Set<CoreBinding> totalUsed = new HashSet<>();
         List<Set<CoreBinding>> usedList = new ArrayList<>();
         List<ConcreteLetClause> letClauses = new ArrayList<>();
@@ -361,6 +390,9 @@ public class ExtMeta extends BaseMetaDefinition {
           boolean isProp = isProp(paramBinding.getTypeExpr());
           if (isProp) {
             propBindings.add(paramBinding);
+            if (classFields != null) {
+              propFields.add(classFields.get(i));
+            }
           }
           if (!bindings.isEmpty()) {
             if (param.getTypeExpr().processSubexpression(e -> {
@@ -447,6 +479,46 @@ public class ExtMeta extends BaseMetaDefinition {
 
         TypedExpression sigmaEqType = typechecker.typecheck(sigmaParams.size() == 1 ? lastSigmaParam : factory.sigma(sigmaParams), null);
         if (sigmaEqType == null) return null;
+        if (!(type instanceof CoreSigmaExpression) && arg instanceof ConcreteClassExtExpression) {
+          CoreClassCallExpression classCall = (CoreClassCallExpression) type;
+          ConcreteClassExtExpression classExt = (ConcreteClassExtExpression) arg;
+          CoreDefinition def = ext.definitionProvider.getCoreDefinition(classExt.getBaseClassExpression() instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) classExt.getBaseClassExpression()).getReferent() : null);
+          if (!(def instanceof CoreClassDefinition && ((CoreClassDefinition) def).isSubClassOf(classCall.getDefinition()))) {
+            typechecker.getErrorReporter().report(new SubclassError(classCall.getDefinition().getRef(), classExt.getBaseClassExpression()));
+            return null;
+          }
+
+          Map<ArendRef, ConcreteCoclause> implMap = new HashMap<>();
+          for (ConcreteCoclause coclause : classExt.getCoclauses().getCoclauseList()) {
+            if (implMap.putIfAbsent(coclause.getImplementedRef(), coclause) != null) {
+              typechecker.getErrorReporter().report(new RedundantCoclauseError(coclause));
+            }
+          }
+
+          List<ConcreteExpression> tupleFields = new ArrayList<>(classFields.size());
+          List<ArendRef> notImplemented = new ArrayList<>();
+          for (CoreClassField field : classFields) {
+            if (!propFields.contains(field)) {
+              ConcreteCoclause coclause = implMap.remove(field.getRef());
+              if (coclause != null) {
+                tupleFields.add(coclause.getImplementation());
+              } else {
+                notImplemented.add(field.getRef());
+              }
+            }
+          }
+
+          for (ConcreteCoclause coclause : implMap.values()) {
+            typechecker.getErrorReporter().report(new RedundantCoclauseError(coclause));
+          }
+
+          if (!notImplemented.isEmpty()) {
+            typechecker.getErrorReporter().report(new FieldsImplementationError(false, classCall.getDefinition().getRef(), notImplemented, classExt.getCoclauses()));
+            return null;
+          }
+
+          arg = tupleFields.size() == 1 ? tupleFields.get(0) : factory.withData(arg.getData()).tuple(tupleFields);
+        }
         TypedExpression result = hidingIRef(arg, sigmaEqType.getExpression());
         if (result == null) return null;
 
