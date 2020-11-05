@@ -598,7 +598,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
             }
 
             boolean isDependent = dependentBindings.contains(paramBinding);
-            field = isDependent ? factory.app(factory.ref(ext.pathOver.getRef()), true, Collections.singletonList(proj)) : proj;
+            field = isDependent ? factory.appBuilder(factory.ref(ext.pathOver.getRef())).app(makeCoeLambda(typeParams, paramBinding, usedList.get(i), fieldsMap, factory), false).app(proj).build() : proj;
             if (isDependent) {
               useLet = true;
             } else {
