@@ -387,7 +387,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
         for (CoreParameter param = typeParams; param.hasNext(); param = param.getNext(), i++) {
           Set<CoreBinding> used = new HashSet<>();
           CoreBinding paramBinding = param.getBinding();
-          boolean isProp = isProp(paramBinding.getTypeExpr());
+          boolean isProp = classFields != null && classFields.get(i).isProperty() || isProp(paramBinding.getTypeExpr());
           if (isProp) {
             propBindings.add(paramBinding);
             if (classFields != null) {
@@ -411,7 +411,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
               }
               return CoreExpression.FindAction.CONTINUE;
             })) {
-              typechecker.getErrorReporter().report(new TypecheckingError("\\Sigma types with more than two level of dependencies are not supported", marker));
+              typechecker.getErrorReporter().report(new TypecheckingError((type instanceof CoreSigmaExpression ? "\\Sigma types" : "Classes") + " with more than two levels of dependencies are not supported", marker));
               return null;
             }
           }
@@ -550,7 +550,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
           CoreBinding paramBinding = param.getBinding();
           boolean useLet;
           if (propBindings.contains(paramBinding)) {
-            field = factory.app(factory.ref(ext.pathInProp.getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, usedList.get(i), fieldsMap, factory), factory.hole(), factory.hole()));
+            field = factory.app(factory.ref(ext.pathInProp.getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, usedList.get(i), fieldsMap, factory), makeProj(factory, left, i, classFields), makeProj(factory, right, i, classFields)));
             useLet = true;
           } else {
             ConcreteExpression proj = sigmaParams.size() == 1 ? concreteTuple : factory.proj(concreteTuple, i);
