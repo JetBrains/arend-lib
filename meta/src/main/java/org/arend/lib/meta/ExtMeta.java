@@ -603,7 +603,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
               useLet = true;
             } else {
               if (sigmaParams.size() == 1) {
-                useLet = !(resultExpr instanceof CoreReferenceExpression);
+                useLet = false;
               } else {
                 useLet = useLet(resultExpr, i);
               }
