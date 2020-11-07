@@ -633,27 +633,29 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
                 List<ConcreteCaseArgument> caseArgs = new ArrayList<>();
                 List<ConcretePattern> casePatterns = new ArrayList<>();
                 ArendRef lastCaseRef = factory.local("a");
-                int j = 0;
+                int j = 0, k = 0;
                 for (CoreParameter parameter = typeParams; parameter != param; parameter = parameter.getNext(), j++) {
-                  if (!usedList.get(i).contains(parameter.getBinding())) {
-                    continue;
+                  if (usedList.get(i).contains(parameter.getBinding())) {
+                    ArendRef rightRef = factory.local("r" + (j + 1));
+                    rightRefs.add(factory.ref(rightRef));
+                    caseArgs.add(factory.caseArg(makeProj(factory, right, j, classFields), rightRef, null));
+
+                    ArendRef pathRef = factory.local("q" + (k + 1));
+                    pathRefs.add(factory.ref(pathRef));
+                    caseArgs.add(factory.caseArg(factory.proj(concreteTuple, k), pathRef, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(makeProj(factory, left, j, classFields), factory.ref(rightRef)))));
+
+                    casePatterns.add(factory.refPattern(null, null));
+                    casePatterns.add(factory.conPattern(ext.prelude.getIdp().getRef()));
                   }
 
-                  ArendRef rightRef = factory.local("r" + (j + 1));
-                  rightRefs.add(factory.ref(rightRef));
-                  caseArgs.add(factory.caseArg(makeProj(factory, right, j, classFields), rightRef, null));
-
-                  ArendRef pathRef = factory.local("q" + (j + 1));
-                  pathRefs.add(factory.ref(pathRef));
-                  caseArgs.add(factory.caseArg(factory.proj(concreteTuple, j), pathRef, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(makeProj(factory, left, j, classFields), factory.ref(rightRef)))));
-
-                  casePatterns.add(factory.refPattern(null, null));
-                  casePatterns.add(factory.conPattern(ext.prelude.getIdp().getRef()));
+                  if (!propBindings.contains(parameter.getBinding())) {
+                    k++;
+                  }
                 }
 
                 ArendRef rightFunRef = factory.local("f");
                 caseArgs.add(factory.caseArg(makeProj(factory, right, j, classFields), rightFunRef, piTreeMaker.makeConcrete(piTree, true, rightRefs)));
-                caseArgs.add(factory.caseArg(factory.proj(concreteTuple, j), null, piTreeMaker.makeArgType(piTree, true, piTreeDataList.get(i).leftProjs, rightRefs, pathRefs, makeProj(factory, left, j, classFields), factory.ref(rightFunRef))));
+                caseArgs.add(factory.caseArg(factory.proj(concreteTuple, k), null, piTreeMaker.makeArgType(piTree, true, piTreeDataList.get(i).leftProjs, rightRefs, pathRefs, makeProj(factory, left, j, classFields), factory.ref(rightFunRef))));
 
                 casePatterns.add(factory.refPattern(null, null));
                 casePatterns.add(factory.refPattern(lastCaseRef, null));
