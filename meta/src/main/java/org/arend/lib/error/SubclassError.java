@@ -9,15 +9,17 @@ import org.arend.ext.reference.ArendRef;
 import org.jetbrains.annotations.Nullable;
 
 public class SubclassError extends TypecheckingError {
+  public final boolean isSubclass;
   public final ArendRef classRef;
 
-  public SubclassError(ArendRef classRef, @Nullable ConcreteSourceNode cause) {
+  public SubclassError(boolean isSubclass, ArendRef classRef, @Nullable ConcreteSourceNode cause) {
     super("", cause);
+    this.isSubclass = isSubclass;
     this.classRef = classRef;
   }
 
   @Override
   public LineDoc getShortHeaderDoc(PrettyPrinterConfig ppConfig) {
-    return DocFactory.hList(DocFactory.text("Expected a subclass of "), DocFactory.refDoc(classRef));
+    return DocFactory.hList(DocFactory.text("Expected a " + (isSubclass ? "subclass" : "superclass") + " of "), DocFactory.refDoc(classRef));
   }
 }
