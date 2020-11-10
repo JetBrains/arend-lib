@@ -58,6 +58,9 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")  CoreFunctionDefinition termsEqConv;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")   CoreFunctionDefinition replaceDef;
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality")      CoreFunctionDefinition commTermsEq;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality-conv") CoreFunctionDefinition commTermsEqConv;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.replace-consistent")  CoreFunctionDefinition commReplaceDef;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.sort-consistent")     CoreFunctionDefinition sortDef;
   @Dependency(module = "Algebra.Monoid.Solver", name = "LData.terms-equality")      CoreFunctionDefinition latticeTermsEq;
 
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative") public CoreClassField negative;

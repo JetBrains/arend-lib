@@ -30,6 +30,8 @@ public class Buchberger implements GroebnerBasisAlgorithm {
             var coeffs = new ArrayList<MultivariatePolynomial<BigInteger>>();
             for (int j = 0; j < generators.size(); ++j) {
                 if (j == i) {
+                    coeffs.add(MultivariatePolynomial.one(nVars, ring, ordering));
+                } else {
                     coeffs.add(MultivariatePolynomial.zero(nVars, ring, ordering));
                 }
             }

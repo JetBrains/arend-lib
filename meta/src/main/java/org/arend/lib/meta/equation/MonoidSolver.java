@@ -19,10 +19,10 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.error.AlgebraSolverError;
-import org.arend.lib.util.CountingSort;
-import org.arend.lib.util.Maybe;
-import org.arend.lib.util.Utils;
-import org.arend.lib.util.Values;
+import org.arend.lib.util.*;
+import org.arend.lib.util.algorithms.ComMonoidWP;
+import org.arend.lib.util.algorithms.groebner.Buchberger;
+import org.arend.lib.util.algorithms.idealmem.GroebnerIM;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -250,6 +250,15 @@ public class MonoidSolver implements EquationSolver {
         typeToRule(null, binding, true, rules);
       }
 
+      if (isCommutative) {
+        ComMonoidWPSolver solver = new ComMonoidWPSolver();
+        var equalities = new ArrayList<Equality>();
+        for (RuleExt rule : rules) {
+          equalities.add(new Equality(rule.binding, rule.lhsTerm, rule.rhsTerm, rule.lhs, rule.rhs));
+        }
+        return solver.solve(term1, term2, equalities);
+      }
+
       List<Step> trace1 = new ArrayList<>();
       List<Step> trace2 = new ArrayList<>();
       List<Integer> newNf1 = applyRules(term1.nf, rules, trace1);
@@ -327,6 +336,151 @@ public class MonoidSolver implements EquationSolver {
       .app(lastArgument)
       .build();
   }
+
+  private static class Equality {
+    // public final TypedExpression expression;
+    public final CoreBinding binding;
+    public List<Integer> lhsNF;
+    public List<Integer> rhsNF;
+    public ConcreteExpression lhsTerm;
+    public ConcreteExpression rhsTerm;
+
+    private Equality(CoreBinding binding, ConcreteExpression lhsTerm, ConcreteExpression rhsTerm, List<Integer> lhsNF, List<Integer> rhsNF) {
+      // this.expression = expression;
+      this.binding = binding;
+      this.lhsTerm = lhsTerm;
+      this.rhsTerm = rhsTerm;
+      this.lhsNF = lhsNF;
+      this.rhsNF = rhsNF;
+    }
+  }
+
+  private class ComMonoidWPSolver {
+
+    public ConcreteExpression solve(CompiledTerm term1, CompiledTerm term2, List<Equality> axioms) {
+      int alphabetSize = Collections.max(term1.nf) + 1;
+      alphabetSize = Integer.max(alphabetSize, Collections.max(term2.nf) + 1);
+      for (Equality axiom : axioms) {
+        if (!axiom.lhsNF.isEmpty()) {
+          alphabetSize = Integer.max(alphabetSize, Collections.max(axiom.lhsNF) + 1);
+        }
+        if (!axiom.rhsNF.isEmpty()) {
+          alphabetSize = Integer.max(alphabetSize, Collections.max(axiom.rhsNF) + 1);
+        }
+      }
+
+      var word1Pow = elemsSeqToPowersSeq(term1.nf, alphabetSize);
+      var word2Pow = elemsSeqToPowersSeq(term2.nf, alphabetSize);
+      List<Pair<List<Integer>, List<Integer>>> axiomsPow = new ArrayList<>();
+
+      for (Equality axiom : axioms) {
+        axiomsPow.add(new Pair<>(elemsSeqToPowersSeq(axiom.lhsNF, alphabetSize), elemsSeqToPowersSeq(axiom.rhsNF, alphabetSize)));
+      }
+
+      var wpAlgorithm = new ComMonoidWP(new GroebnerIM(new Buchberger()));
+      var axiomsToApply = wpAlgorithm.solve(word1Pow, word2Pow, axiomsPow);
+
+      List<Integer> curWord = new ArrayList<>(term1.nf);
+
+      if (axiomsToApply == null) return null;
+
+      ConcreteExpression proofTerm = null;
+
+      for (Pair<Integer, Boolean> axiom : axiomsToApply) {
+        var equalityToApply = axioms.get(axiom.proj1);
+        var isDirect = axiom.proj2;
+        var powsToRemove = isDirect ? axiomsPow.get(axiom.proj1).proj1 : axiomsPow.get(axiom.proj1).proj2;
+        var lhsNF = isDirect ? equalityToApply.lhsNF : equalityToApply.rhsNF;
+        var rhsNF = isDirect ? equalityToApply.rhsNF : equalityToApply.lhsNF;
+        ConcreteExpression lhsTermNF = computeNFTerm(lhsNF, factory);
+        ConcreteExpression rhsTermNF = computeNFTerm(rhsNF, factory);
+        ConcreteExpression nfProofTerm = factory.ref(equalityToApply.binding);
+
+        if (!isDirect) {
+          nfProofTerm = factory.app(factory.ref(meta.ext.inv.getRef()), true, singletonList(nfProofTerm));
+        }
+
+        if (!isNF(equalityToApply.lhsTerm) || !isNF(equalityToApply.rhsTerm)) {
+          nfProofTerm = factory.appBuilder(factory.ref(meta.commTermsEqConv.getRef()))
+                  .app(factory.ref(dataRef), false)
+                  .app(equalityToApply.lhsTerm)
+                  .app(equalityToApply.rhsTerm)
+                  .app(nfProofTerm)
+                  .build();
+        }
+
+        var indexesToReplace = findIndexesToRemove(curWord, powsToRemove);
+        var newWord = new ArrayList<>(curWord);
+
+        for (int i = indexesToReplace.size() - 1; i >= 0; --i) {
+          newWord.remove(indexesToReplace.get(i).intValue());
+        }
+
+        for (int i = rhsNF.size() - 1; i >= 0; --i) {
+          newWord.add(0, rhsNF.get(i));
+        }
+
+        ConcreteExpression stepProofTerm = factory.appBuilder(factory.ref(meta.commReplaceDef.getRef()))
+                .app(factory.ref(dataRef), false)
+                .app(computeNFTerm(curWord, factory))
+                .app(computeNFTerm(indexesToReplace, factory))
+                .app(rhsTermNF)
+                .app(nfProofTerm)
+                .build();
+        if (proofTerm == null) {
+          proofTerm = stepProofTerm;
+        } else {
+          proofTerm = factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(proofTerm, stepProofTerm));
+        }
+
+        curWord = newWord;
+      }
+
+      if (proofTerm == null) {
+        proofTerm = factory.ref(meta.ext.prelude.getIdp().getRef());
+      } else {
+        ConcreteExpression sortProof = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(computeNFTerm(curWord, factory)).build();
+        proofTerm = factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(proofTerm, sortProof));
+      }
+
+      return factory.appBuilder(factory.ref(meta.commTermsEq.getRef()))
+              .app(factory.ref(dataRef), false)
+              .app(term1.concrete)
+              .app(term2.concrete)
+              .app(proofTerm)
+              .build();
+    }
+
+    private List<Integer> findIndexesToRemove(List<Integer> word, List<Integer> powersToErase) {
+      var powersCopy = new ArrayList<>(powersToErase);
+      var indexesToRemove = new ArrayList<Integer>();
+
+      for (int i = 0; i < word.size(); ++i) {
+        int pow = powersCopy.get(word.get(i));
+        if (pow > 0) {
+          powersCopy.set(word.get(i), pow - 1);
+          indexesToRemove.add(i);
+        }
+      }
+
+      return indexesToRemove;
+    }
+
+    private List<Integer> elemsSeqToPowersSeq(List<Integer> word, int alphabetSize) {
+      var powersSeq = new ArrayList<Integer>();
+      for (int i = 0; i < alphabetSize; ++i) {
+        powersSeq.add(0);
+      }
+
+      for (int i = 0; i < word.size(); ++i) {
+        int a = word.get(i);
+        powersSeq.set(a, powersSeq.get(a) + 1);
+      }
+
+      return powersSeq;
+    }
+  }
+
 
   private boolean typeToRule(TypedExpression typed, CoreBinding binding, boolean alwaysForward, List<RuleExt> rules) {
     if (binding == null && typed == null) {
