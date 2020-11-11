@@ -29,7 +29,7 @@
   | id-right f => C.id-left f
   | o-assoc f g h => pinv (C.o-assoc h g f)
 
-\record Map {C : Precat} {dom cod : C} (f : Hom dom cod)
+\record Map {C : Precat} {dom cod : C} (\coerce f : Hom dom cod)
 
 \record Mono \extends Map
   | isMono {x : C} (g h : Hom x dom) : g >> f = h >> f -> g = h
@@ -61,18 +61,17 @@
   | f_inv => id-right (id x)
 
 \class Cat \extends Precat {
-  | univalence : \Pi {x y : Ob} (f : Hom x y) (g : Hom y x) (p : g ∘ f = id x) (q : f ∘ g = id y) -> \Sigma (p : x = y) (transport (Hom x) p (id x) = f)
+  | univalence : \Pi (f : Iso) -> \Sigma (p : f.dom = f.cod) (transport (Hom f.dom) p (id f.dom) = f)
     \level uni-isProp {\this}
 
-  \func iso-to-= (e : Iso {(\this : Cat)}) : e.dom = e.cod
-    => (univalence e.f e.inv e.f_inv e.inv_f).1
+  \func iso-to-= (e : Iso {\this}) : e.dom = e.cod
+    => (univalence e).1
 
   \lemma transport-Hom (e : Iso {(\this : Cat)}) {z : Ob} (g : Hom z e.dom) : transport (Hom z) (iso-to-= e) g = g >> e.f
     => Jl (\lam _ q => transport (Hom z) q g = g >> transport (Hom e.dom) q (id e.dom)) (pinv (id-left g)) (iso-to-= e)
-       *> pmap (g >>) (univalence e.f e.inv e.f_inv e.inv_f).2
+       *> pmap (g >>) (univalence e).2
 } \where
-    \func uni-isProp {C : Precat} (F G : \Pi {x y : C} (f : Hom x y) (g : Hom y x) (p : g ∘ f = id x) (q : f ∘ g = id y) -> \Sigma (p : x = y) (transport (Hom x) p (id x) = f))
-      : (\lam {x} {y} => F {x} {y}) = (\lam {x} {y} => G {x} {y})
+    \func uni-isProp {C : Precat} (F G : \Pi (f : Iso {C}) -> \Sigma (p : f.dom = f.cod) (transport (Hom f.dom) p (id f.dom) = f)) : F = G
       => \let | T {x y : C} (p : x = y) => transport (Iso {C} {x} {__}) p idIso
               | Emb {x : C} => \new Embedding (\lam (e : Iso {C} {x} {x}) => e.f) (\lam (e e' : Iso {C} {x} {x}) => \new Retraction {
                 | sec => Iso.equals e e'
@@ -82,21 +81,19 @@
                   => Jl (\lam y' p' => \Pi (e' : Iso {C} {x} {y'}) -> Equiv {transport (Iso {C} {x} {__}) p' idIso = {Iso {C} {x} {y'}} e'} {transport (Hom x) p' (id x) = e'.f})
                         (\lam e' => Embedding.pmap-isEquiv {Emb {x}} {idIso} {e'})
                         p e
-              | t (e : Iso) => F e.f e.inv e.f_inv e.inv_f
               | T-equiv {x y : C} : Equiv (T {x} {y}) => pathEquiv (Iso {C} {__} {__}) (\lam {x} {y} => \new Retraction {
                 | f => T {x} {y}
-                | sec (e : Iso) => (t e).1
-                | f_sec (e : Iso) => Equiv.ret {Eq e (t e).1} (t e).2
+                | sec (e : Iso) => (F e).1
+                | f_sec (e : Iso) => Equiv.ret {Eq e (F e).1} (F e).2
               }) {x} {y}
               | Fib-equiv {x y : C} (e : Iso {C} {x} {y}) => transport isProp (Equiv-to-= (sigma-right (\lam p => transport (Iso {C} {x} {__}) p idIso = {Iso {C} {x} {y}} e) (\lam p => transport (Hom x) p (id x) = e.f) (Eq e))) (isContr=>isProp (Equiv=>contrFibers (T-equiv {x} {y}) e))
-         \in path (\lam i {x} {y} f g p q => Fib-equiv (\new Iso { | f => f | inv => g | f_inv => p | inv_f => q }) (F f g p q) (G f g p q) @ i)
+         \in path (\lam i f => Fib-equiv f (F f) (G f) @ i)
 
 \func op (C : Cat) : Cat => \new Cat {
   | Precat => opP C
-  | univalence {x} {y} f g p q =>
-    \case C.univalence g f p q \with {
-      | (s,t) => \case \elim y, \elim f, \elim s, \elim g, \elim t, \elim p \with {
-        | y, f, idp, g, idp, p => (idp, pinv p *> id-right f)
-      }
+  | univalence (f : Iso) =>
+    \case f.cod \as cod, f.f \as ff : Hom cod f.dom, f.inv \as inv : Hom f.dom cod, f.f_inv \as f_inv : inv >> ff = id f.dom, f.inv_f \as inv_f : ff >> inv = id cod,
+          C.univalence (\new Iso inv ff f_inv inv_f) \return \Sigma (p : f.dom = cod) (transport (Hom {opP C} f.dom) p (id f.dom) = ff) \with {
+      | cod, ff, inv, f_inv, inv_f, (idp,idp) => (idp, pinv f_inv *> id-right ff)
     }
 }
