@@ -28,7 +28,7 @@ public class GroebnerIM implements IdealMembership {
         for (int i = 0; i < generators.size(); ++i) {
             var coeff = MultivariatePolynomial.zero(poly.nVariables, poly.ring, poly.ordering);
             for (int j = 0; j < divResult.length - 1; ++j) {
-               coeff = coeff.add(groebnerBasisCoeffs.get(groebnerBasis.get(j)).get(i).multiply((MultivariatePolynomial<BigInteger>) divResult[j]));
+               coeff = coeff.clone().add(groebnerBasisCoeffs.get(groebnerBasis.get(j)).get(i).clone().multiply((MultivariatePolynomial<BigInteger>) divResult[j]));
             }
             decompositionCoeffs.add(coeff);
         }

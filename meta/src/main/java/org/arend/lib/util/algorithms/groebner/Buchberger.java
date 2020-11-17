@@ -40,8 +40,8 @@ public class Buchberger implements GroebnerBasisAlgorithm {
 
         while (!pairsToProcess.isEmpty()) {
             var pair = pairsToProcess.poll();
-            var f1 = groebnerBasis.get(pair.getFirst());
-            var f2 = groebnerBasis.get(pair.getSecond());
+            var f1 = groebnerBasis.get(pair.getFirst()).clone();
+            var f2 = groebnerBasis.get(pair.getSecond()).clone();
             Monomial<BigInteger> lt1 = f1.lt(), lt2 = f2.lt(), lcm = lcm(lt1, lt2);
             var s12 = f1.multiply(lcm.divideOrNull(lt1)).subtract(f2.multiply(lcm.divideOrNull(lt2)));
             var divResult = MultivariateDivision.divideAndRemainder(s12, groebnerBasis.toArray(new MultivariatePolynomial[0]));
@@ -52,8 +52,8 @@ public class Buchberger implements GroebnerBasisAlgorithm {
                 for (int i = 0; i < coeffs.length; ++i) {
                     coeffs[i] = MultivariatePolynomial.zero(nVars, ring, ordering).subtract(coeffs[i]);
                 }
-                coeffs[pair.getFirst()] = (MultivariatePolynomial<BigInteger>) coeffs[pair.getFirst()].add(lcm.divideOrNull(lt1));
-                coeffs[pair.getSecond()] = (MultivariatePolynomial<BigInteger>) coeffs[pair.getSecond()].subtract(lcm.divideOrNull(lt1));
+                coeffs[pair.getFirst()] = (MultivariatePolynomial<BigInteger>) coeffs[pair.getFirst()].clone().add(lcm.divideOrNull(lt1));
+                coeffs[pair.getSecond()] = (MultivariatePolynomial<BigInteger>) coeffs[pair.getSecond()].clone().subtract(lcm.divideOrNull(lt2));
                 gbCoefficients.put(s12, Arrays.asList(coeffs));
                 for (int i = 0; i < groebnerBasis.size(); ++i) {
                     pairsToProcess.add(new Pair<>(i, groebnerBasis.size()));
