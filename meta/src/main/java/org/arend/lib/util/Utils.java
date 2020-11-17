@@ -240,4 +240,9 @@ public class Utils {
       return false;
     });
   }
+
+  public static boolean isProp(CoreExpression type) {
+    CoreExpression typeType = type.computeType().normalize(NormalizationMode.WHNF);
+    return typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp();
+  }
 }

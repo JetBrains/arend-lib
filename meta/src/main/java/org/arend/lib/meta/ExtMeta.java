@@ -432,7 +432,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
         Set<CoreBinding> propBindings = new HashSet<>();
         int i = 0;
         for (CoreParameter param = typeParams; param.hasNext(); param = param.getNext(), i++) {
-          boolean isProp = classFields != null && classFields.get(i).isProperty() || isProp(param.getTypeExpr());
+          boolean isProp = classFields != null && classFields.get(i).isProperty() || Utils.isProp(param.getTypeExpr());
           if (isProp) {
             propBindings.add(param.getBinding());
             if (classFields != null) {
@@ -788,11 +788,6 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
     }
   }
 
-  private static boolean isProp(CoreExpression type) {
-    CoreExpression typeType = type.computeType().normalize(NormalizationMode.WHNF);
-    return typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp();
-  }
-
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ConcreteSourceNode marker = contextData.getMarker();
@@ -803,7 +798,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     ConcreteFactory factory = ext.factory.withData(marker);
     CoreExpression type = equality.getDefCallArguments().get(0);
-    if (isProp(type)) {
+    if (Utils.isProp(type)) {
       if (!args.isEmpty()) {
         errorReporter.report(new IgnoredArgumentError(args.get(0).getExpression()));
       }

@@ -2,9 +2,7 @@ package org.arend.lib;
 
 import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.core.definition.CoreConstructor;
-import org.arend.ext.core.definition.CoreDataDefinition;
-import org.arend.ext.core.definition.CoreFunctionDefinition;
+import org.arend.ext.core.definition.*;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
@@ -40,10 +38,14 @@ public class StdExtension implements ArendExtension {
   public final TransitivityKey transitivityKey = new TransitivityKey("transitivity", this);
   public final ReflexivityKey reflexivityKey = new ReflexivityKey("reflexivity", this);
 
+  @Dependency(module = "Set")                     public CoreClassDefinition BaseSet;
+  @Dependency(module = "Set", name = "BaseSet.E") public CoreClassField carrier;
+
   @Dependency(module = "Paths")              public CoreFunctionDefinition transport;
   @Dependency(module = "Paths")              public CoreFunctionDefinition transportInv;
   @Dependency(module = "Paths", name = "*>") public CoreFunctionDefinition concat;
   @Dependency(module = "Paths")              public CoreFunctionDefinition inv;
+  @Dependency(module = "Paths")              public CoreFunctionDefinition Jl;
   @Dependency(module = "Paths")              public CoreFunctionDefinition pathOver;
   @Dependency(module = "Paths")              public CoreFunctionDefinition pathInProp;
 
@@ -57,6 +59,8 @@ public class StdExtension implements ArendExtension {
 
   public EquationMeta equationMeta = new EquationMeta(this);
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
+  public ExtMeta extMeta = new ExtMeta(this);
+  public SIPMeta sipMeta = new SIPMeta(this);
   public MetaRef constructorMetaRef;
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
@@ -93,6 +97,7 @@ public class StdExtension implements ArendExtension {
   @Override
   public void load(@NotNull ArendDependencyProvider provider) {
     provider.load(this);
+    provider.load(sipMeta);
     provider.load(equationMeta);
   }
 
@@ -139,7 +144,7 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new RewriteMeta(this, true, false));
     contributor.declare(paths, new LongName("ext"),
       "`ext p` proves goals of the form `a = {A} a'`. The type of `p` depends on `A`, which can be either a \\Pi-type, a \\Sigma-type, a universe, or a record. Also, `A` can be a proposition, in which case `p` should be omitted.",
-      Precedence.DEFAULT, new DeferredMetaDefinition(new ExtMeta(this), false, ExpressionTypechecker.Stage.AFTER_LEVELS));
+      Precedence.DEFAULT, new DeferredMetaDefinition(extMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS));
 
     MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");
@@ -156,7 +161,6 @@ public class StdExtension implements ArendExtension {
         "A proof of a_i = a_{i+1} can be specified as implicit arguments between them\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
-
     contributor.declare(algebra, new LongName("cong"),
         "Proves an equality by congruence closure of equalities in the context. E.g. derives f a = g b from f = g and a = b",
         Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this)));
@@ -182,6 +186,11 @@ public class StdExtension implements ArendExtension {
       "`random n` returns a random number between 0 and `n`.\n" +
       "`random (l,u)` returns a random number between `l` and `u`.",
       Precedence.DEFAULT, new RandomMeta(this));
+
+    ModulePath category = ModulePath.fromString("Category.Meta");
+    contributor.declare(category, new LongName("sip"),
+      "Proves univalence for categories. The type of objects must extend `BaseSet` and the Hom-set must extend `SetHom` with properties only.",
+      Precedence.DEFAULT, sipMeta);
   }
 
   @Override
