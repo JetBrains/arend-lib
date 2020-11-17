@@ -780,7 +780,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
         } else {
           concreteResult = factory.tuple(fields);
         }
-        return letClauses.isEmpty() ? concreteResult : factory.letExpr(false, letClauses, concreteResult);
+        return letClauses.isEmpty() ? concreteResult : factory.letExpr(false, false, letClauses, concreteResult);
       }
 
       typechecker.getErrorReporter().report(new TypeError("Cannot apply extensionality", type, marker));
@@ -832,7 +832,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
           concreteResult = factory.ref(letRef);
         }
         ConcreteExpression result = factory.app(factory.ref(ext.propExt.getRef()), true, Arrays.asList(factory.proj(concreteResult, 0), factory.proj(concreteResult, 1)));
-        return typechecker.typecheck(letRef == null ? result : factory.letExpr(false, Collections.singletonList(factory.letClause(letRef, Collections.emptyList(), null, concreteArg)), result), contextData.getExpectedType());
+        return typechecker.typecheck(letRef == null ? result : factory.letExpr(true, false, Collections.singletonList(factory.letClause(letRef, Collections.emptyList(), null, concreteArg)), result), contextData.getExpectedType());
       } else {
         TypedExpression expectedType = typechecker.typecheck(factory.app(factory.ref(ext.equationMeta.Equiv.getRef()), false, Arrays.asList(left, right)), null);
         if (expectedType == null) return null;

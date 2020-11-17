@@ -156,16 +156,15 @@ public class SIPMeta extends BaseMetaDefinition {
       }
     });
 
-    List<ConcreteLetClause> letClauses = new ArrayList<>(2);
-    letClauses.add(factory.letClause(sipRef, Collections.emptyList(), null, factory.app(factory.ref(SIP_Set.getRef()), true, Arrays.asList(
+    ConcreteLetClause haveClause = factory.letClause(sipRef, Collections.emptyList(), null, factory.app(factory.ref(SIP_Set.getRef()), true, Arrays.asList(
       factory.lam(Collections.singletonList(factory.param(sipRef1)), factory.classExt(factory.core(obTyped), Collections.singletonList(factory.implementation(ext.carrier.getRef(), factory.ref(sipRef1))))),
       factory.lam(Arrays.asList(factory.param(sipRef1), factory.param(sipRef2), factory.param(sipRef3)), factory.classExt(factory.app(factory.core(homTyped), true, Arrays.asList(factory.ref(sipRef1), factory.ref(sipRef2))), Collections.singletonList(factory.implementation(homFunc.getRef(), factory.ref(sipRef3))))),
       argument,
       factory.newExpr(factory.app(factory.ref(Iso.getRef()), true, Arrays.asList(eFunc, eInv, eFuncInvPath, eInvFuncPath))),
-      eDom, eCod, eFunc, eInv))));
-    letClauses.add(factory.letClause(pathRef, Collections.emptyList(), null, factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.newExpr(factory.classExt(factory.core(obTyped), obFields)))))));
+      eDom, eCod, eFunc, eInv)));
+    ConcreteLetClause letClause = factory.letClause(pathRef, Collections.emptyList(), null, factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.newExpr(factory.classExt(factory.core(obTyped), obFields))))));
 
-    return typechecker.typecheck(factory.lam(Collections.singletonList(factory.param(isoRef)), factory.letExpr(false, letClauses, factory.tuple(factory.ref(pathRef), factory.app(factory.meta("ext", ext.extMeta), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(extRef)),
+    return typechecker.typecheck(factory.lam(Collections.singletonList(factory.param(isoRef)), factory.letExpr(true, false, Collections.singletonList(haveClause), factory.letExpr(false, false, Collections.singletonList(letClause), factory.tuple(factory.ref(pathRef), factory.app(factory.meta("ext", ext.extMeta), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(extRef)),
       factory.app(factory.ref(ext.concat.getRef()), true, Arrays.asList(
         factory.appBuilder(factory.ref(ext.Jl.getRef()))
           .app(factory.core(obTyped), false)
@@ -178,6 +177,6 @@ public class SIPMeta extends BaseMetaDefinition {
           .app(factory.ref(ext.prelude.getIdp().getRef()))
           .app(factory.ref(pathRef))
           .build(),
-        factory.app(factory.proj(factory.ref(sipRef), 2), true, Collections.singletonList(factory.ref(extRef))))))))))), contextData.getExpectedType());
+        factory.app(factory.proj(factory.ref(sipRef), 2), true, Collections.singletonList(factory.ref(extRef)))))))))))), contextData.getExpectedType());
   }
 }

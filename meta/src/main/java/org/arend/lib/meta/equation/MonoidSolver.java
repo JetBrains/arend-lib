@@ -607,6 +607,6 @@ public class MonoidSolver implements EquationSolver {
     letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(isSemilattice
       ? factory.classExt(data, Arrays.asList(factory.implementation(meta.LDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)))
       : factory.app(data, Arrays.asList(factory.arg(instanceArg, false), factory.arg(dataArg, true))))));
-    return typechecker.typecheck(meta.ext.factory.letExpr(false, letClauses, result), null);
+    return typechecker.typecheck(meta.ext.factory.letExpr(true, false, letClauses, result), null);
   }
 }
