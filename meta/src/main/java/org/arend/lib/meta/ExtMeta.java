@@ -536,6 +536,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
         ConcreteExpression lastSigmaParam = null;
         Set<CoreBinding> totalUsed = new HashSet<>();
         List<Set<CoreBinding>> usedList = new ArrayList<>();
+        List<ConcreteLetClause> haveClauses = new ArrayList<>(1);
         List<ConcreteLetClause> letClauses = new ArrayList<>();
         List<PiTreeData> piTreeDataList = new ArrayList<>();
         i = 0;
@@ -665,7 +666,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
         }
 
         if (letRef != null) {
-          letClauses.add(factory.letClause(letRef, Collections.emptyList(), null, factory.core(result)));
+          haveClauses.add(factory.letClause(letRef, Collections.emptyList(), null, factory.core(result)));
         }
 
         List<ConcreteExpression> fields = new ArrayList<>();
@@ -780,7 +781,8 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
         } else {
           concreteResult = factory.tuple(fields);
         }
-        return letClauses.isEmpty() ? concreteResult : factory.letExpr(false, false, letClauses, concreteResult);
+        ConcreteExpression let = letClauses.isEmpty() ? concreteResult : factory.letExpr(false, false, letClauses, concreteResult);
+        return haveClauses.isEmpty() ? let : factory.letExpr(true, false, haveClauses, let);
       }
 
       typechecker.getErrorReporter().report(new TypeError("Cannot apply extensionality", type, marker));
