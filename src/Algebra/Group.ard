@@ -38,31 +38,24 @@
 
   \open Monoid(Inv)
 
+  \lemma inverse-equality {X : \Set} (G H : Group X) (z : G.ide = H.ide) (m : \Pi (x y : G) -> x G.* y = x H.* y) (e : G) : G.inverse e = H.inverse e
+    => pmap (\lam (x : Inv) => x.inv) (Inv.levelProp
+        (\new Inv e (G.inverse e) (G.inverse-left e) (G.inverse-right e))
+        (\new Inv e (H.inverse e) (m _ _ *> H.inverse-left e *> inv z) (m _ _ *> H.inverse-right e *> inv z)))
+
   \func equals (G H : Group) (p : G = {Monoid} H) : G = H
-    => \let t => inverse-equality G H p
-       \in path (\lam i =>
-          \new Group {
-            | Monoid => p @ i
-            | inverse => t @ i
-            | inverse-left => pathInProp (\lam j => \Pi (x : p @ j) -> (t @ j) x * x = ide) G.inverse-left H.inverse-left @ i
-            | inverse-right => pathInProp (\lam j => \Pi (x : p @ j) -> x * (t @ j) x = ide) G.inverse-right H.inverse-right @ i
-          })
+    => ext Group {
+         | Monoid => p
+         | inverse => inverse-equality G H p
+       }
     \where {
-      \lemma inverse-equality (G H : Group) (p : G = {Monoid} H) : Path (\lam i => p @ i -> p @ i) G.inverse H.inverse
-        => \let | q => pmap (Monoid.E {__}) p
-                | f x => coe (p @ __) x right
-                | g y => coe (inv q @) y right
-                | h' {H' : Monoid} (q : G = {Monoid} H') => transport (\lam (H' : Monoid) => MonoidHom G H') q (MonoidCategory.id G)
+      \lemma inverse-equality (G H : Group) (p : G = {Monoid} H) (e : G) : coe (p @ __) (inverse e) right = inverse (coe (p @ __) e right)
+        => \let | h' {H' : Monoid} (q : G = {Monoid} H') => transport (\lam (H' : Monoid) => MonoidHom G H') q (MonoidCategory.id G)
                 | h => transport (MonoidHom G H __) (Jl (\lam (H' : Monoid) q => func {h' q} = (\lam x => coe (q @ __) x right)) idp p) (h' p)
-                | h-inv (y : H) => MonoidHom.presInvElem h
-                                      (\new Inv { | val => g y | inv => G.inverse (g y) | inv-left => G.inverse-left (g y) | inv-right => G.inverse-right (g y) })
-                                      (\new Inv { | inv => H.inverse (f (g y)) | inv-left => H.inverse-left (f (g y)) | inv-right => H.inverse-right (f (g y)) })
-                | t (y : H) =>
-                    coe (\lam i => q @ i -> q @ i) G.inverse right y ==< transport_pi (\lam Z => Z) (\lam Z => Z) q G.inverse y >==
-                    f (G.inverse (g y))                              ==< h-inv y >==
-                    H.inverse (f (g y))                              ==< pmap H.inverse (transport_id_inv (\lam Z => Z) q y) >==
-                    H.inverse y                                      `qed
-           \in pathOver (path (\lam i y => t y @ i))
+                | e' => coe (p @ __) e right
+           \in MonoidHom.presInvElem h
+                (\new Inv { | val => e | inv => inverse e | inv-left => inverse-left e | inv-right => inverse-right e })
+                (\new Inv { | inv => inverse e' | inv-left => inverse-left e' | inv-right => inverse-right e' })
     }
 }
 
@@ -111,8 +104,8 @@
     \use \coerce fromGroup (G : Group) => \new AddGroup G.E G.ide (G.*) G.ide-left G.ide-right G.*-assoc G.inverse G.inverse-left G.inverse-right
     \use \coerce toGroup (G : AddGroup) => \new Group G.E G.zro (G.+) G.zro-left G.zro-right G.+-assoc G.negative G.negative-left G.negative-right
 
-    \func equals (A B : AddGroup) (p : A = {\Set} B) (q : \let f x => coe (p @) x right \in \Pi (x y : A) -> f (x + y) = f x + f y) : A = B
-      => pmap {Group} {AddGroup} AddGroup.fromGroup (Group.equals A B (Monoid.equals {AddGroup.toGroup A} {AddGroup.toGroup B} p q))
+    \lemma negative-equality {X : \Set} (A B : AddGroup X) (z : A.zro = B.zro) (m : \Pi (x y : A) -> x A.+ y = x B.+ y) (e : A) : A.negative e = B.negative e
+      => Group.inverse-equality A B z m e
 
   -- | An additive group with a tight apartness relation.
   \class With# \extends AddGroup, Set# {
@@ -126,8 +119,8 @@
     | #-irreflexive x-x#0 => #0-zro (transport #0 (negative-right _) x-x#0)
     | #-symmetric x-y#0 => transport #0 (negative_+ _ (negative _) *> pmap (`+ negative _) (negative-isInv _)) (#0-negative x-y#0)
     | #-comparison x y z x-z#0 =>
-        \let s : (x - y) + (y - z) = x - z
-               => +-assoc *> pmap (x +) (inv +-assoc *> pmap (`- z) (negative-left y) *> zro-left)
+        \have s : (x - y) + (y - z) = x - z
+                => +-assoc *> pmap (x +) (inv +-assoc *> pmap (`- z) (negative-left y) *> zro-left)
         \in #0-+ (x - y) (y - z) (transport #0 (inv s) x-z#0)
     | tightness {x} {y} x-y/#0 => fromZero x y (#0-tight x-y/#0)
   }

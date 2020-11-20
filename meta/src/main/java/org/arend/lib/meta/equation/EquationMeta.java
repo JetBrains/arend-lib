@@ -24,9 +24,6 @@ import java.util.*;
 public class EquationMeta extends BaseMetaDefinition {
   final StdExtension ext;
 
-  @Dependency(module = "Set")                     public CoreClassDefinition BaseSet;
-  @Dependency(module = "Set", name = "BaseSet.E") public CoreClassField carrier;
-
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
   @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;

@@ -671,7 +671,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
     // Typecheck the result
     ConcreteExpression result = factory.caseExpr(isSCase[0], caseArgs, factory.app(factory.core(resultLambda), true, caseRefExprs), null, resultClauses);
-    return typechecker.typecheck(letClauses.isEmpty() ? result : factory.letExpr(false, letClauses, result), contextData.getExpectedType());
+    return typechecker.typecheck(letClauses.isEmpty() ? result : factory.letExpr(true, false, letClauses, result), contextData.getExpectedType());
   }
 
   private static class ReplaceSubexpressionsMeta implements MetaDefinition {

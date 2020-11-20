@@ -39,7 +39,7 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
       ConcreteExpression arg = args.get(i);
       if (arg instanceof ConcreteLetExpression && ((ConcreteLetExpression) arg).getExpression() instanceof ConcreteIncompleteExpression) {
         ConcreteLetExpression let = (ConcreteLetExpression) arg;
-        result = factory.letExpr(let.isStrict(), let.getClauses(), result);
+        result = factory.letExpr(let.isHave(), let.isStrict(), let.getClauses(), result);
       } else if (arg instanceof ConcreteLamExpression && ((ConcreteLamExpression) arg).getBody() instanceof ConcreteIncompleteExpression) {
         result = factory.lam(((ConcreteLamExpression) arg).getParameters(), result);
       } else {

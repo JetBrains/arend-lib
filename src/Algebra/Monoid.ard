@@ -1,6 +1,7 @@
 \import Algebra.Pointed
 \import HLevel
 \import Paths
+\import Paths.Meta
 
 \class Monoid \extends Pointed {
   | \infixl 7 * : E -> E -> E
@@ -9,38 +10,19 @@
   | *-assoc {x y z : E} : (x * y) * z = x * (y * z)
 } \where {
   \func equals {M N : Monoid} (p : M = {\Set} N) (q : \let f x => coe (p @) x right \in \Pi (x y : M) -> f (x * y) = f x * f y) : M = N
-    => \let mp i => prop-equality p q @ i
-       \in path (\lam i => \new Monoid (p @ i) (ide-equality p q @ i) (*-equality p q @ i) (ide-left {mp i}) (ide-right {mp i}) (*-assoc {mp i}))
+    => ext (p, ide-equality p q, q)
     \where {
       \lemma ide-equality {M N : Monoid} (p : M = {\Set} N) (q : \let f x => coe (p @) x right \in \Pi (x y : M) -> f (x * y) = f x * f y)
-        : Path (p @) M.ide N.ide
+        : coe (p @) ide right = ide
         => \let | f x => coe (p @) x right
                 | g y => coe (inv p @) y right
                 | fg y : f (g y) = y => transport_id_inv (\lam Z => Z) p y
-                | r => f ide             ==< inv ide-left >==
-                       ide * f ide       ==< pmap (`* f ide) (inv (fg ide)) >==
-                       f (g ide) * f ide ==< inv (q (g ide) ide) >==
-                       f (g ide * ide)   ==< pmap f ide-right >==
-                       f (g ide)         ==< fg ide >==
-                       ide               `qed
-           \in pathOver {p @} r
-
-      \lemma *-equality {M N : Monoid} (p : M = {\Set} N) (q : \let f x => coe (p @) x right \in \Pi (x y : M) -> f (x * y) = f x * f y)
-        : Path (\lam j => p @ j -> p @ j -> p @ j) (M.*) (N.*)
-        => \let | f x => coe (p @) x right
-                | g y => coe (inv p @) y right
-                | fg y : f (g y) = y => transport_id_inv (\lam Z => Z) p y
-                | q' (x y : N) =>
-                    coe (\lam i => p @ i -> p @ i -> p @ i) (*) right x y ==< pmap (__ y) (transport_pi (\lam Z => Z) (\lam Z => Z -> Z) p (*) x) >==
-                    coe (\lam i => p @ i -> p @ i) (* (g x)) right y      ==< transport_pi (\lam Z => Z) (\lam Z => Z) p (* (g x)) y >==
-                    f (g x * g y)                                         ==< q (g x) (g y) >==
-                    f (g x) * f (g y)                                     ==< pmap2 (*) (fg x) (fg y) >==
-                    x * y                                                 `qed
-           \in pathOver {\lam j => p @ j -> p @ j -> p @ j} (path (\lam j => q' __ __ @ j))
-
-      \lemma prop-equality {M N : Monoid} (p : M = {\Set} N) (q : \let f x => coe (p @) x right \in \Pi (x y : M) -> f (x * y) = f x * f y)
-        : Path (\lam j => Monoid (p @ j) (ide-equality p q @ j) (*-equality p q @ j)) M N
-        => pathInProp (\lam i => Monoid (p @ i) (ide-equality p q @ i) (*-equality p q @ i)) M N
+           \in f ide             ==< inv ide-left >==
+               ide * f ide       ==< pmap (`* f ide) (inv (fg ide)) >==
+               f (g ide) * f ide ==< inv (q (g ide) ide) >==
+               f (g ide * ide)   ==< pmap f ide-right >==
+               f (g ide)         ==< fg ide >==
+               ide               `qed
     }
 
   \func op (M : Monoid) : Monoid \cowith
@@ -93,7 +75,7 @@
 
       \lemma cancelProp {M : Monoid} (x : M) (q : \Pi (a b : M) -> x * a = x * b -> a = b) (y : M) : isProp (LDiv x y) =>
         \lam (d1 d2 : LDiv x y) =>
-            \let p => q d1.inv d2.inv (d1.inv-right *> Paths.inv d2.inv-right)
+            \have p => q d1.inv d2.inv (d1.inv-right *> Paths.inv d2.inv-right)
             \in path (\lam i => \new LDiv x y (p @ i) (pathInProp (x * (p @ __) = y) d1.inv-right d2.inv-right @ i))
 
       \use \level levelProp {M : CancelMonoid} (x y : M) : isProp (LDiv x y) => cancelProp x (\lam _ _ => M.cancel-left x) y
@@ -124,7 +106,7 @@
 
       \lemma levelProp {M : CancelMonoid} (x y : M) : isProp (RDiv x y) =>
         \lam (d1 d2 : RDiv x y) =>
-            \let p => M.cancel-right x (d1.inv-left *> Paths.inv d2.inv-left)
+            \have p => M.cancel-right x (d1.inv-left *> Paths.inv d2.inv-left)
             \in path (\lam i => \new RDiv x y (p @ i) (pathInProp ((p @ __) * x = y) d1.inv-left d2.inv-left @ i))
     }
 
@@ -162,7 +144,7 @@
   \record Inv \extends LInv, RInv
     \where {
       \use \level levelProp {M : Monoid} {x : M} (j j' : Inv x) : j = j' =>
-        \let p =>
+        \have p =>
           j.inv                ==< Paths.inv ide-left >==
           ide * j.inv          ==< pmap (`* j.inv) (Paths.inv j'.inv-left) >==
           (j'.inv * x) * j.inv ==< *-assoc >==
@@ -204,7 +186,7 @@
           ide                             `qed
 
       \lemma factor-left {M : Monoid} (x y : M) (i : RInv y) (j : Inv (x * y)) : Inv x =>
-        \let t : Inv {op M} x => factor-right {op M} y x (\new LInv y i.inv i.inv-right) (\new Inv (x * y) j.inv j.inv-right j.inv-left)
+        \have t : Inv {op M} x => factor-right {op M} y x (\new LInv y i.inv i.inv-right) (\new Inv (x * y) j.inv j.inv-right j.inv-left)
         \in \new Inv t.val t.inv t.inv-right t.inv-left
 
       \lemma lmake {M : CMonoid} {x : M} (y : M) (p : y * x = ide) : Inv x y \cowith

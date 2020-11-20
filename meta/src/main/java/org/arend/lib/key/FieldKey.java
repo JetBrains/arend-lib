@@ -88,7 +88,7 @@ public abstract class FieldKey extends SerializableKey<FieldKey.Data> implements
     }
 
     CoreFieldCallExpression fieldCall = (CoreFieldCallExpression) type;
-    return fieldCall.getDefinition() == ext.equationMeta.carrier && fieldCall.getArgument() instanceof CoreReferenceExpression && ((CoreReferenceExpression) fieldCall.getArgument()).getBinding() == field.getThisParameter();
+    return fieldCall.getDefinition() == ext.carrier && fieldCall.getArgument() instanceof CoreReferenceExpression && ((CoreReferenceExpression) fieldCall.getArgument()).getBinding() == field.getThisParameter();
   }
 
   protected CoreClassField getFieldApplied(CoreExpression type, CoreBinding var1, CoreBinding var2, CoreClassField field) {
@@ -121,7 +121,7 @@ public abstract class FieldKey extends SerializableKey<FieldKey.Data> implements
     }
 
     CoreClassDefinition classDef = (CoreClassDefinition) definition;
-    if (!classDef.isSubClassOf(ext.equationMeta.BaseSet)) {
+    if (!classDef.isSubClassOf(ext.BaseSet)) {
       return;
     }
 

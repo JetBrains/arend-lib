@@ -35,7 +35,7 @@ public class StdNumberTypechecker implements LiteralTypechecker {
     CoreExpression expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().normalize(NormalizationMode.WHNF);
     if (expectedType != null && !(expectedType instanceof CoreDataCallExpression && (((CoreDataCallExpression) expectedType).getDefinition() == ext.prelude.getNat() || ((CoreDataCallExpression) expectedType).getDefinition() == ext.prelude.getInt()))) {
       CoreClassDefinition classDef = number.equals(BigInteger.ZERO) ? ext.equationMeta.AddPointed : number.equals(BigInteger.ONE) ? ext.equationMeta.Pointed : number.compareTo(BigInteger.ZERO) < 0 ? ext.equationMeta.Ring : ext.equationMeta.Semiring;
-      TypedExpression instance = Utils.findInstance(new SubclassSearchParameters(classDef), ext.equationMeta.carrier, expectedType, typechecker, contextData.getMarker());
+      TypedExpression instance = Utils.findInstance(new SubclassSearchParameters(classDef), ext.carrier, expectedType, typechecker, contextData.getMarker());
       if (instance != null) {
         ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
         ConcreteExpression cExpr;

@@ -94,7 +94,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
         parameters.add(factory.param(refs, factory.hole()));
       }
     }
-    return resolver.resolve(factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(factory.sigma(parameters)))));
+    return factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(factory.sigma(parameters))));
   }
 
   @Override

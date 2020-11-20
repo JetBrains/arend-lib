@@ -182,12 +182,12 @@ public class TransitivitySolver implements EquationSolver {
       valuesType = new Lazy<>(() -> {
         TypedExpression instance = fieldCall.getArgument().computeTyped();
         if (instance.getType() instanceof CoreClassCallExpression) {
-          CoreExpression result = ((CoreClassCallExpression) instance.getType()).getImplementation(meta.carrier, instance);
+          CoreExpression result = ((CoreClassCallExpression) instance.getType()).getImplementation(meta.ext.carrier, instance);
           if (result != null) {
             return result;
           }
         }
-        return Objects.requireNonNull(typechecker.typecheck(factory.app(factory.ref(meta.carrier.getRef()), false, Collections.singletonList(factory.core(instance))), null)).getExpression();
+        return Objects.requireNonNull(typechecker.typecheck(factory.app(factory.ref(meta.ext.carrier.getRef()), false, Collections.singletonList(factory.core(instance))), null)).getExpression();
       });
       leftValue = relationData.leftExpr;
       rightValue = relationData.rightExpr;
@@ -237,7 +237,7 @@ public class TransitivitySolver implements EquationSolver {
       transFieldData = relationField.getUserData(meta.ext.transitivityKey);
       reflFieldData = relationField.getUserData(meta.ext.reflexivityKey);
       relation = new Lazy<>(() -> factory.core(Objects.requireNonNull(((CoreClassCallExpression) instance.getType()).getImplementation(relationField, instance)).computeTyped()));
-      valuesType = new Lazy<>(() -> ((CoreClassCallExpression) instance.getType()).getImplementation(meta.carrier, instance));
+      valuesType = new Lazy<>(() -> ((CoreClassCallExpression) instance.getType()).getImplementation(meta.ext.carrier, instance));
       instanceDefinition = defCall.getDefinition();
     }
 
