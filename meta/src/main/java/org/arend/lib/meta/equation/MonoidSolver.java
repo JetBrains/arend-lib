@@ -254,7 +254,11 @@ public class MonoidSolver implements EquationSolver {
         ComMonoidWPSolver solver = new ComMonoidWPSolver();
         var equalities = new ArrayList<Equality>();
         for (RuleExt rule : rules) {
-          equalities.add(new Equality(rule.binding, rule.lhsTerm, rule.rhsTerm, rule.lhs, rule.rhs));
+          if (rule.direction == Direction.FORWARD || rule.direction == Direction.UNKNOWN) {
+            equalities.add(new Equality(rule.binding, rule.lhsTerm, rule.rhsTerm, rule.lhs, rule.rhs));
+          } else {
+            equalities.add(new Equality(rule.binding, rule.rhsTerm, rule.lhsTerm, rule.rhs, rule.lhs));
+          }
         }
         return solver.solve(term1, term2, equalities);
       }
@@ -392,6 +396,8 @@ public class MonoidSolver implements EquationSolver {
         var powsToRemove = isDirect ? axiomsPow.get(axiom.proj1).proj1 : axiomsPow.get(axiom.proj1).proj2;
         var lhsNF = isDirect ? equalityToApply.lhsNF : equalityToApply.rhsNF;
         var rhsNF = isDirect ? equalityToApply.rhsNF : equalityToApply.lhsNF;
+        var lhsTerm = isDirect ? equalityToApply.lhsTerm : equalityToApply.rhsTerm;
+        var rhsTerm = isDirect ? equalityToApply.rhsTerm : equalityToApply.lhsTerm;
         ConcreteExpression lhsTermNF = computeNFTerm(lhsNF, factory);
         ConcreteExpression rhsTermNF = computeNFTerm(rhsNF, factory);
         ConcreteExpression nfProofTerm = factory.ref(equalityToApply.binding);
@@ -400,25 +406,35 @@ public class MonoidSolver implements EquationSolver {
           nfProofTerm = factory.app(factory.ref(meta.ext.inv.getRef()), true, singletonList(nfProofTerm));
         }
 
-        if (!isNF(equalityToApply.lhsTerm) || !isNF(equalityToApply.rhsTerm)) {
+        //if (!isNF(equalityToApply.lhsTerm) || !isNF(equalityToApply.rhsTerm)) {
           nfProofTerm = factory.appBuilder(factory.ref(meta.commTermsEqConv.getRef()))
                   .app(factory.ref(dataRef), false)
-                  .app(equalityToApply.lhsTerm)
-                  .app(equalityToApply.rhsTerm)
+                  .app(lhsTerm)
+                  .app(rhsTerm)
                   .app(nfProofTerm)
                   .build();
-        }
+        //}
 
         var indexesToReplace = findIndexesToRemove(curWord, powsToRemove);
+        var subwordToReplace = new ArrayList<Integer>();
         var newWord = new ArrayList<>(curWord);
 
-        for (int i = indexesToReplace.size() - 1; i >= 0; --i) {
-          newWord.remove(indexesToReplace.get(i).intValue());
+        for (Integer integer : indexesToReplace) {
+          subwordToReplace.add(newWord.get(integer));
+          newWord.remove(integer.intValue());
         }
 
         for (int i = rhsNF.size() - 1; i >= 0; --i) {
           newWord.add(0, rhsNF.get(i));
         }
+
+        if (subwordToReplace.size() > 1) {
+          ConcreteExpression sortProofLeft = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(computeNFTerm(subwordToReplace, factory)).build();
+          nfProofTerm = factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(sortProofLeft, nfProofTerm));
+        }
+        ConcreteExpression sortProofRight = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(rhsTermNF).build();
+        sortProofRight = factory.app(factory.ref(meta.ext.inv.getRef()), true, singletonList(sortProofRight));
+        nfProofTerm = factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(nfProofTerm, sortProofRight));
 
         ConcreteExpression stepProofTerm = factory.appBuilder(factory.ref(meta.commReplaceDef.getRef()))
                 .app(factory.ref(dataRef), false)
@@ -459,7 +475,7 @@ public class MonoidSolver implements EquationSolver {
         int pow = powersCopy.get(word.get(i));
         if (pow > 0) {
           powersCopy.set(word.get(i), pow - 1);
-          indexesToRemove.add(i);
+          indexesToRemove.add(i - indexesToRemove.size());
         }
       }
 
