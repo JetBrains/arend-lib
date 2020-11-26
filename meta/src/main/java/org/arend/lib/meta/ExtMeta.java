@@ -117,7 +117,10 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
     private PiTree make(CoreParameter parameter, CoreExpression expr) {
       List<CoreParameter> params = new ArrayList<>();
       CoreExpression codomain = expr.getPiParameters(params);
-      Set<? extends CoreBinding> freeVars = codomain.findFreeBindings();
+      Set<CoreBinding> freeVars = new HashSet<>(codomain.findFreeBindings());
+      for (CoreParameter param : params) {
+        freeVars.addAll(param.getTypeExpr().findFreeBindings());
+      }
 
       boolean found = false;
       for (CoreParameter param : params) {
