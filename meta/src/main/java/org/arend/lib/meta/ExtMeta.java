@@ -628,6 +628,22 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
             }
 
             if (!isPi) {
+              if (paramType instanceof CorePiExpression && !((CorePiExpression) paramType).getParameters().isExplicit()) {
+                List<ConcreteParameter> lamParams = new ArrayList<>();
+                List<ConcreteArgument> lamArgs = new ArrayList<>();
+                loop:
+                for (CoreExpression cur = paramType; cur instanceof CorePiExpression; cur = ((CorePiExpression) cur).getCodomain().normalize(NormalizationMode.WHNF)) {
+                  for (CoreParameter parameter = ((CorePiExpression) cur).getParameters(); parameter.hasNext(); parameter = parameter.getNext()) {
+                    if (parameter.isExplicit()) {
+                      break loop;
+                    }
+                    ArendRef lamRef = factory.local(ext.renamerFactory.getNameFromBinding(parameter.getBinding(), null));
+                    lamParams.add(factory.param(false, lamRef));
+                    lamArgs.add(factory.arg(factory.ref(lamRef), false));
+                  }
+                }
+                leftExpr = factory.lam(lamParams, factory.app(leftExpr, lamArgs));
+              }
               lastSigmaParam = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftExpr, makeProj(factory, right, i, classFields)));
             }
             sigmaParams.add(factory.param(true, Collections.singletonList(sigmaRef), lastSigmaParam));
