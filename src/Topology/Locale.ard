@@ -1,37 +1,70 @@
 \import Category
+\import Category.Meta
+\import Data.Bool
 \import Logic
 \import Logic.Meta
-\import Order.Lattice
+\import Order.Lattice \hiding (Lattice)
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
+\import Set
 \import Set.Category
+\open Bounded(Lattice,top)
 
-\class Locale \extends DistributiveLattice, Bounded.Lattice {
-  | Join : (E -> \Prop) -> E
-  | Join-cond {P : E -> \Prop} {e : E} : P e -> e <= Join P
-  | Join-univ {P : E -> \Prop} {e : E} : (\Pi (x : E) -> P x -> x <= e) -> Join P <= e
-  | Join-distr {P : E -> \Prop} {e : E} : e ∧ Join P = Join (\lam x => ∃ (y : E) (P y) (x = e ∧ y))
+\class Locale \extends DistributiveLattice, Lattice {
+  | Join {J : \Set} : (J -> E) -> E
+  | Join-cond {J : \Set} (j : J) {f : J -> E} : f j <= Join f
+  | Join-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> f j <= e) -> Join f <= e
+  | Join-distr {J : \Set} {f : J -> E} {e : E} : e ∧ Join f = Join (\lam (j : J) => e ∧ f j)
 
-  | bottom => Join (\lam _ => Empty)
-  | bottom-univ {x} => Join-univ (\lam _ => absurd)
-  | join x y => Join (\lam z => (z = x) || (z = y))
-  | join-left {x} {y} => Join-cond (byLeft idp)
-  | join-right {x} {y} => Join-cond (byRight idp)
-  | join-univ x<=z y<=z => Join-univ (\lam t p => \case \elim t, p \with {
-    | _, byLeft idp => x<=z
-    | _, byRight idp => y<=z
+  | bottom => Join absurd
+  | bottom-univ {x} => Join-univ (\case __ \with {})
+  | join x y => Join (if __ x y)
+  | join-left {x} {y} => Join-cond true
+  | join-right {x} {y} => Join-cond false
+  | join-univ x<=z y<=z => Join-univ (\case \elim __ \with {
+    | true => x<=z
+    | false => y<=z
   })
-  | distrib>= {x} {y} {z} => rewrite Join-distr (Join-univ (\lam t p => \case \elim t, \elim p \with {
-    | _, inP (s, byLeft idp, idp) => join-left
-    | _, inP (s, byRight idp, idp) => join-right
+  | distrib>= {x} {y} {z} => rewrite Join-distr (Join-univ (\case \elim __ \with {
+    | true => join-left
+    | false => join-right
   }))
 }
 
 \record FrameHom \extends SetHom {
   \override Dom : Locale
   \override Cod : Locale
-  | func-top : func Bounded.top = Bounded.top
+  | func-top : func top = top
   | func-meet {x y : Dom} : func (x ∧ y) = func x ∧ func y
-  | func-Join {P : Dom -> \Prop} : func (Join P) = Join (\lam x => ∃ (y : Dom) (x = func y))
+  | func-Join {J : \Set} {f : J -> Dom} : func (Join f) = Join (\lam j => func (f j))
+
+  | func-<= {x y : Dom} : x <= y -> func x <= func y
+  | func-<= x<=y => rewrite (inv (pmap func (MeetSemilattice.meet_<= x<=y)) *> func-meet) meet-right
 }
+
+\func FrameCat : Cat Locale \cowith
+  | Hom => FrameHom
+  | id L => \new FrameHom {
+    | func x => x
+    | func-top => idp
+    | func-meet {_} {_} => idp
+    | func-Join {_} {_} => idp
+  }
+  | o g f => \new FrameHom {
+    | func x => g (f x)
+    | func-top => pmap g func-top *> func-top
+    | func-meet {x} {y} => pmap g func-meet *> func-meet
+    | func-Join {J} {h} => pmap g func-Join *> func-Join
+  }
+  | id-left f => idp
+  | id-right f => idp
+  | o-assoc f g h => idp
+  | univalence => sip (\lam {X} {S1} {S2} (h1 : FrameHom) (h2 : FrameHom) => ext Locale {
+    | <= x y => ext (h1.func-<=, h2.func-<=)
+    | meet x y => h1.func-meet
+    | top => h1.func-top
+    | Join => ext (\lam f => h1.func-Join)
+  })
+
+\instance LocaleCat => op FrameCat
