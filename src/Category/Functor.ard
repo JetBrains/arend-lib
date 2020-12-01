@@ -1,0 +1,44 @@
+\import Category
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\class Functor (C D : Precat) (\classifying F : C -> D)
+  | Func {X Y : C} : Hom X Y -> Hom (F X) (F Y)
+  | Func-id {X : C} : Func (id X) = id (F X)
+  | Func-o {X Y Z : C} {g : Hom Y Z} {f : Hom X Y} : Func (g ∘ f) = Func g ∘ Func f
+
+\record NatTrans {C D : Precat} (F G : Functor C D)
+  | \coerce trans (X : C) : Hom (F X) (G X)
+  | natural {X Y : C} (f : Hom X Y) : trans Y ∘ F.Func f = G.Func f ∘ trans X
+
+\instance FunctorPrecat {C D : Precat} : Precat (Functor C D)
+  | Hom => NatTrans
+  | id F => \new NatTrans {
+    | trans X => id (F X)
+    | natural f => id-left (Func f) *> inv (id-right (Func f))
+  }
+  | o b a => \new NatTrans {
+    | trans X => b X ∘ a X
+    | natural f => run {
+      rewrite o-assoc,
+      rewrite (natural {a} f),
+      rewriteI o-assoc,
+      rewrite (natural {b} f),
+      o-assoc _ _ _
+    }
+  }
+  | id-left a => ext (ext (\lam X => id-left _))
+  | id-right a => ext (ext (\lam X => id-right _))
+  | o-assoc c b a => ext (ext (\lam X => o-assoc _ _ _))
+
+\instance FunctorCat {C : Precat} {D : Cat} : Cat (Functor C D)
+  | Precat => FunctorPrecat
+  | univalence (e : Iso) => (ext (\lam X => (D.univalence (\new Iso {
+    | dom => e.dom X
+    | cod => e.cod X
+    | f => e.f X
+    | inv => e.inv X
+    | inv_f => path (\lam i => trans {e.inv_f @ i} X)
+    | f_inv => path (\lam i => trans {e.f_inv @ i} X)
+  })).1, ext (\lam {X} {Y} h => {?})), {?})
