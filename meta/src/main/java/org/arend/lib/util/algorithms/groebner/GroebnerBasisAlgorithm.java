@@ -1,11 +1,11 @@
 package org.arend.lib.util.algorithms.groebner;
 
-import cc.redberry.rings.bigint.BigInteger;
-import cc.redberry.rings.poly.multivar.MultivariatePolynomial;
+import org.arend.lib.util.algorithms.polynomials.Poly;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 
 public interface GroebnerBasisAlgorithm {
-    Map<MultivariatePolynomial<BigInteger>, List<MultivariatePolynomial<BigInteger>>> computeGBwCoefficients(List<MultivariatePolynomial<BigInteger>> generators);
+    Map<Poly<BigInteger>, List<Poly<BigInteger>>> computeGBwCoefficients(List<Poly<BigInteger>> generators);
 }

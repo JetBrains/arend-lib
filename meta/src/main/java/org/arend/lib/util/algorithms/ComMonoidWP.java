@@ -1,15 +1,13 @@
 package org.arend.lib.util.algorithms;
 
-import cc.redberry.rings.Rings;
-import cc.redberry.rings.bigint.BigInteger;
-import cc.redberry.rings.poly.multivar.Monomial;
-import cc.redberry.rings.poly.multivar.MonomialOrder;
-import cc.redberry.rings.poly.multivar.MultivariatePolynomial;
 import org.arend.lib.util.Pair;
 import org.arend.lib.util.algorithms.idealmem.IdealMembership;
+import org.arend.lib.util.algorithms.polynomials.Monomial;
+import org.arend.lib.util.algorithms.polynomials.Poly;
+import org.arend.lib.util.algorithms.polynomials.Ring;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -21,26 +19,17 @@ public class ComMonoidWP {
     }
 
     private static Monomial<BigInteger> wordToMonomial(List<Integer> word) {
-        int[] degrees = new int[word.size()];
-        for (int i = 0; i < word.size(); ++i) {
-            degrees[i] = word.get(i);
-        }
-        return new Monomial<>(degrees, BigInteger.ONE);
+        return new Monomial<>(BigInteger.ONE, word, Ring.Z);
     }
 
     private static List<Integer> monomialToWord(Monomial<BigInteger> monomial) {
-        var word = new ArrayList<Integer>();
-        for (int i = 0; i < monomial.exponents.length; ++i) {
-            word.add(monomial.exponents[i]);
-        }
-        return word;
+        return monomial.degreeVector;
     }
 
-    @SuppressWarnings("unchecked")
-    private static MultivariatePolynomial<BigInteger> twoMonomialsToBinomial(Monomial<BigInteger> t1, Monomial<BigInteger> t2) {
-        var binomial = MultivariatePolynomial.create(t1.exponents.length, Rings.Z, MonomialOrder.GREVLEX, t2);
+    private static Poly<BigInteger> twoMonomialsToBinomial(Monomial<BigInteger> t1, Monomial<BigInteger> t2) {
+        var binomial = new Poly<>(Collections.singletonList(t2)); // MultivariatePolynomial.create(t1.exponents.length, Rings.Z, MonomialOrder.GREVLEX, t2);
 
-        binomial.subtract(t1);
+        binomial.subtr(new Poly<>(Collections.singletonList(t1)));
         return binomial;
     }
 
@@ -50,22 +39,22 @@ public class ComMonoidWP {
         public boolean isDirectApp = true;
     }
 
-    private static ReductionStep applyReduction(Monomial<BigInteger> t, List<MultivariatePolynomial<BigInteger>> coeffs,
+    private static ReductionStep applyReduction(Monomial<BigInteger> t, List<Poly<BigInteger>> coeffs,
                                                                       List<Pair<List<Integer>, List<Integer>>> axioms) {
         var reductionStep = new ReductionStep();
         for (int i = 0; i < coeffs.size(); ++i) {
-            for (Monomial<BigInteger> tQ : coeffs.get(i)) {
+            for (Monomial<BigInteger> tQ : coeffs.get(i).monomials) {
                 var f1 = wordToMonomial(axioms.get(i).proj1);
                 var f2 = wordToMonomial(axioms.get(i).proj2);
                 if (tQ.coefficient.compareTo(BigInteger.ZERO) >= 0) {
-                    if (f1.multiply(tQ.exponents).dv().dvEquals(t.dv())) {
-                        reductionStep.redex = f2.multiply(tQ.exponents);
+                    if (f1.mul(tQ.degreeVector).degreeVector.equals(t.degreeVector)) {
+                        reductionStep.redex = f2.mul(tQ.degreeVector);
                         reductionStep.axiomInd = i;
-                        coeffs.set(i, coeffs.get(i).subtract(wordToMonomial(monomialToWord(tQ))));
+                        coeffs.set(i, coeffs.get(i).subtr(wordToMonomial(monomialToWord(tQ))));
                         return reductionStep;
                     }
-                } else if (f2.multiply(tQ.exponents).dv().dvEquals(t.dv())) {
-                    reductionStep.redex = f1.multiply(tQ.exponents);
+                } else if (f2.mul(tQ.degreeVector).degreeVector.equals(t.degreeVector)) {
+                    reductionStep.redex = f1.mul(tQ.degreeVector);
                     reductionStep.axiomInd = i;
                     reductionStep.isDirectApp = false;
                     coeffs.set(i, coeffs.get(i).add(wordToMonomial(monomialToWord(tQ))));
@@ -80,7 +69,7 @@ public class ComMonoidWP {
         var t1 = wordToMonomial(word1);
         var t2 = wordToMonomial(word2);
         var wpPoly = twoMonomialsToBinomial(t1, t2);
-        List<MultivariatePolynomial<BigInteger>> axiomPolys = new ArrayList<>();
+        List<Poly<BigInteger>> axiomPolys = new ArrayList<>();
 
         for (Pair<List<Integer>, List<Integer>> axiom : axioms) {
             axiomPolys.add(twoMonomialsToBinomial(wordToMonomial(axiom.proj1), wordToMonomial(axiom.proj2)));
@@ -100,7 +89,7 @@ public class ComMonoidWP {
             if (reductionStep == null) return null;
 
             reductionSteps.add(new Pair<>(reductionStep.axiomInd, reductionStep.isDirectApp));
-            if (reductionStep.redex.dv().dvEquals(t2.dv())) {
+            if (reductionStep.redex.degreeVector.equals(t2.degreeVector)) {
                 break;
             }
             curRedex = reductionStep.redex;

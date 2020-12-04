@@ -1,10 +1,10 @@
 package org.arend.lib.util.algorithms.idealmem;
 
-import cc.redberry.rings.bigint.BigInteger;
-import cc.redberry.rings.poly.multivar.MultivariatePolynomial;
+import org.arend.lib.util.algorithms.polynomials.Poly;
 
+import java.math.BigInteger;
 import java.util.List;
 
 public interface IdealMembership {
-    List<MultivariatePolynomial<BigInteger>> computeGenDecomposition(MultivariatePolynomial<BigInteger> poly, List<MultivariatePolynomial<BigInteger>> generators);
+    List<Poly<BigInteger>> computeGenDecomposition(Poly<BigInteger> poly, List<Poly<BigInteger>> generators);
 }

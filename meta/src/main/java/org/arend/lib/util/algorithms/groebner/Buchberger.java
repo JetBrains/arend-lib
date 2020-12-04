@@ -1,38 +1,38 @@
 package org.arend.lib.util.algorithms.groebner;
 
-import cc.redberry.rings.Ring;
-import cc.redberry.rings.bigint.BigInteger;
-import cc.redberry.rings.poly.multivar.*;
+import cc.redberry.rings.poly.multivar.DegreeVector;
 import org.apache.commons.math3.util.Pair;
+import org.arend.lib.util.algorithms.polynomials.Monomial;
+import org.arend.lib.util.algorithms.polynomials.Poly;
+import org.arend.lib.util.algorithms.polynomials.Ring;
 
+import java.math.BigInteger;
 import java.util.*;
 
 public class Buchberger implements GroebnerBasisAlgorithm {
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Map<MultivariatePolynomial<BigInteger>, List<MultivariatePolynomial<BigInteger>>> computeGBwCoefficients(List<MultivariatePolynomial<BigInteger>> generators) {
+    public Map<Poly<BigInteger>, List<Poly<BigInteger>>> computeGBwCoefficients(List<Poly<BigInteger>> generators) {
         if (generators.isEmpty()) {
-            return new HashMap<MultivariatePolynomial<BigInteger>, List<MultivariatePolynomial<BigInteger>>>(Collections.EMPTY_MAP);
+            return new HashMap<Poly<BigInteger>, List<Poly<BigInteger>>>(Collections.EMPTY_MAP);
         }
 
-        List<MultivariatePolynomial<BigInteger>> groebnerBasis = new ArrayList<>(generators);
+        List<Poly<BigInteger>> groebnerBasis = new ArrayList<>(generators);
         Queue<Pair<Integer, Integer>> pairsToProcess = new LinkedList<>();
-        Map<MultivariatePolynomial<BigInteger>, List<MultivariatePolynomial<BigInteger>>> gbCoefficients = new HashMap<>();
-        int nVars = generators.get(0).nVariables;
-        Ring<BigInteger> ring = generators.get(0).ring;
-        Comparator<DegreeVector> ordering = generators.get(0).ordering;
+        Map<Poly<BigInteger>, List<Poly<BigInteger>>> gbCoefficients = new HashMap<>();
+        int nVars = generators.get(0).numVars();
+        Ring<BigInteger> ring = generators.get(0).ring();
 
         for (int i = 0; i < generators.size(); ++i) {
             for (int j = i + 1; j < generators.size(); ++j) {
                 pairsToProcess.add(new Pair<>(i, j));
             }
-            var coeffs = new ArrayList<MultivariatePolynomial<BigInteger>>();
+            var coeffs = new ArrayList<Poly<BigInteger>>();
             for (int j = 0; j < generators.size(); ++j) {
                 if (j == i) {
-                    coeffs.add(MultivariatePolynomial.one(nVars, ring, ordering));
+                    coeffs.add(Poly.constant(BigInteger.ONE, nVars, ring));
                 } else {
-                    coeffs.add(MultivariatePolynomial.zero(nVars, ring, ordering));
+                    coeffs.add(Poly.constant(BigInteger.ZERO, nVars, ring));
                 }
             }
             gbCoefficients.put(generators.get(i), coeffs);
@@ -40,21 +40,25 @@ public class Buchberger implements GroebnerBasisAlgorithm {
 
         while (!pairsToProcess.isEmpty()) {
             var pair = pairsToProcess.poll();
-            var f1 = groebnerBasis.get(pair.getFirst()).clone();
-            var f2 = groebnerBasis.get(pair.getSecond()).clone();
-            Monomial<BigInteger> lt1 = f1.lt(), lt2 = f2.lt(), lcm = lcm(lt1, lt2);
-            var s12 = f1.multiply(lcm.divideOrNull(lt1)).subtract(f2.multiply(lcm.divideOrNull(lt2)));
-            var divResult = MultivariateDivision.divideAndRemainder(s12, groebnerBasis.toArray(new MultivariatePolynomial[0]));
+            var f1 = groebnerBasis.get(pair.getFirst());
+            var f2 = groebnerBasis.get(pair.getSecond());
+            Monomial<BigInteger> lt1 = f1.leadingTerm(), lt2 = f2.leadingTerm(), lcm = lt1.lcm(lt2);
+            var s12 = f1.mul(lcm.divideBy(lt1)).subtr(f2.mul(lcm.divideBy(lt2)));
+            var divResult = s12.divideWRemainder(groebnerBasis);
 
-            s12 = divResult[groebnerBasis.size()];
-            if (!s12.equals(MultivariatePolynomial.zero(nVars, ring, ordering))) {
-                var coeffs = Arrays.copyOf(divResult, divResult.length - 1);
-                for (int i = 0; i < coeffs.length; ++i) {
-                    coeffs[i] = MultivariatePolynomial.zero(nVars, ring, ordering).subtract(coeffs[i]);
+            s12 = divResult.get(groebnerBasis.size());
+            if (!s12.isZero()) {
+                var coeffs = divResult.subList(0, divResult.size() - 1);
+                for (int i = 0; i < coeffs.size(); ++i) {
+                    var coeff = coeffs.get(i).mul(Poly.constant(Ring.negUnit(ring), nVars, ring));
+                    //coeffs[i] = MultivariatePolynomial.zero(nVars, ring, ordering).subtract(coeffs[i]);
+                    coeffs.set(i, coeff);
                 }
-                coeffs[pair.getFirst()] = (MultivariatePolynomial<BigInteger>) coeffs[pair.getFirst()].clone().add(lcm.divideOrNull(lt1));
-                coeffs[pair.getSecond()] = (MultivariatePolynomial<BigInteger>) coeffs[pair.getSecond()].clone().subtract(lcm.divideOrNull(lt2));
-                gbCoefficients.put(s12, Arrays.asList(coeffs));
+                var c1 = coeffs.get(pair.getFirst()).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt1))));
+                coeffs.set(pair.getFirst(), c1);
+                var c2 = coeffs.get(pair.getSecond()).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt2))));
+                coeffs.set(pair.getSecond(), c2);
+                gbCoefficients.put(s12, coeffs);
                 for (int i = 0; i < groebnerBasis.size(); ++i) {
                     pairsToProcess.add(new Pair<>(i, groebnerBasis.size()));
                 }
@@ -63,14 +67,5 @@ public class Buchberger implements GroebnerBasisAlgorithm {
         }
 
         return gbCoefficients;
-    }
-
-    private static Monomial<BigInteger> lcm(Monomial<BigInteger> t1, Monomial<BigInteger> t2) {
-        int N = t1.exponents.length;
-        int[] dv1 = Arrays.copyOf(t1.exponents, N), dv2 = t2.dv().exponents;
-        for (int i = 0; i < dv1.length; ++i) {
-            dv1[i] = Math.max(dv1[i], dv2[i]);
-        }
-        return new Monomial<>(dv1, BigInteger.ONE);
     }
 }

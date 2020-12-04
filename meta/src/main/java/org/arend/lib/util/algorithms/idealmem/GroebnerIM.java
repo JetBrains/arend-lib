@@ -1,10 +1,9 @@
 package org.arend.lib.util.algorithms.idealmem;
 
-import cc.redberry.rings.bigint.BigInteger;
-import cc.redberry.rings.poly.multivar.MultivariateDivision;
-import cc.redberry.rings.poly.multivar.MultivariatePolynomial;
 import org.arend.lib.util.algorithms.groebner.GroebnerBasisAlgorithm;
+import org.arend.lib.util.algorithms.polynomials.Poly;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,19 +15,18 @@ public class GroebnerIM implements IdealMembership {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public List<MultivariatePolynomial<BigInteger>> computeGenDecomposition(MultivariatePolynomial<BigInteger> poly, List<MultivariatePolynomial<BigInteger>> generators) {
+    public List<Poly<BigInteger>> computeGenDecomposition(Poly<BigInteger> poly, List<Poly<BigInteger>> generators) {
         var groebnerBasisCoeffs = gbAlg.computeGBwCoefficients(generators);
         var groebnerBasis = new ArrayList<>(groebnerBasisCoeffs.keySet());
-        var divResult = MultivariateDivision.divideAndRemainder(poly, groebnerBasis.toArray(new MultivariatePolynomial[0]));
-        if (!divResult[divResult.length - 1].isZero()) {
+        var divResult = poly.divideWRemainder(groebnerBasis);
+        if (!divResult.get(divResult.size() - 1).isZero()) {
             return null;
         }
-        var decompositionCoeffs = new ArrayList<MultivariatePolynomial<BigInteger>>();
+        var decompositionCoeffs = new ArrayList<Poly<BigInteger>>();
         for (int i = 0; i < generators.size(); ++i) {
-            var coeff = MultivariatePolynomial.zero(poly.nVariables, poly.ring, poly.ordering);
-            for (int j = 0; j < divResult.length - 1; ++j) {
-               coeff = coeff.clone().add(groebnerBasisCoeffs.get(groebnerBasis.get(j)).get(i).clone().multiply((MultivariatePolynomial<BigInteger>) divResult[j]));
+            var coeff = Poly.constant(poly.ring().zero(), poly.numVars(), poly.ring());
+            for (int j = 0; j < divResult.size() - 1; ++j) {
+               coeff = coeff.add(groebnerBasisCoeffs.get(groebnerBasis.get(j)).get(i).mul((Poly<BigInteger>) divResult.get(j)));
             }
             decompositionCoeffs.add(coeff);
         }
