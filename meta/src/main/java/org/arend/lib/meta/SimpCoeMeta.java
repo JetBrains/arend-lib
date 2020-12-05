@@ -18,9 +18,7 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.TypeError;
-import org.arend.lib.meta.pi_tree.PathExpression;
-import org.arend.lib.meta.pi_tree.PiTreeMaker;
-import org.arend.lib.meta.pi_tree.PiTreeRoot;
+import org.arend.lib.meta.pi_tree.*;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -78,20 +76,17 @@ public class SimpCoeMeta extends BaseMetaDefinition {
 
   private class PiSpec implements Spec {
     final PiTreeMaker piTreeMaker;
-    final PiTreeRoot piTree;
-    final List<ConcreteLetClause> letClauses = new ArrayList<>();
+    final BasePiTree piTree;
+    final List<ConcreteLetClause> letClauses;
 
-    PiSpec(CoreParameter parameter, CoreExpression type, ExpressionTypechecker typechecker, ConcreteFactory factory) {
-      piTreeMaker = new PiTreeMaker(ext, typechecker, factory, letClauses);
-      piTree = piTreeMaker.make(type, Collections.singletonList(parameter));
+    PiSpec(PiTreeMaker piTreeMaker, PiTreeRoot piTree, List<ConcreteLetClause> letClauses) {
+      this.piTreeMaker = piTreeMaker;
+      this.piTree = piTree;
+      this.letClauses = letClauses;
     }
 
     @Override
     public ConcreteExpression make(ConcreteFactory factory, ConcreteExpression transportLeftArg, ConcreteExpression transportRightArg, ConcreteExpression transportPathArg, ConcreteExpression transportValueArg, CoreExpression eqRight, ConcreteExpression argument) {
-      if (piTree.isNonDependent) {
-        return argument;
-      }
-
       List<ConcreteCaseArgument> caseArgs = new ArrayList<>(4);
       List<ConcretePattern> casePatterns = new ArrayList<>(4);
       ArendRef rightRef = factory.local("r");
@@ -138,7 +133,12 @@ public class SimpCoeMeta extends BaseMetaDefinition {
     body = body.normalize(NormalizationMode.WHNF);
 
     if (body instanceof CorePiExpression) {
-      return new PiSpec(lam.getParameters(), body, typechecker, factory);
+      List<ConcreteLetClause> letClauses = new ArrayList<>();
+      PiTreeMaker piTreeMaker = new PiTreeMaker(ext, typechecker, factory, letClauses);
+      PiTreeRoot piTree = piTreeMaker.make(body, Collections.singletonList(lam.getParameters()));
+      if (!piTree.isNonDependent()) {
+        return new PiSpec(piTreeMaker, piTree, letClauses);
+      }
     }
 
     CoreFunCallExpression equality = body.toEquality();

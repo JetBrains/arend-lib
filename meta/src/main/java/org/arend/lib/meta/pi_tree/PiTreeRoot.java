@@ -4,28 +4,20 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 
 import java.util.List;
 
-public class PiTreeRoot {
-  public final ConcreteExpression head;
-  public final ConcreteExpression altHead;
-  public final List<Integer> indices;
-  public final List<PiTree> subtrees;
-  public final boolean isNonDependent;
+public class PiTreeRoot extends BasePiTree {
+  public PiTreeRoot(ConcreteExpression head, ConcreteExpression altHead, List<Integer> indices, List<PiTreeNode> subtrees) {
+    super(head, altHead, indices, subtrees);
+  }
 
-  public PiTreeRoot(ConcreteExpression head, ConcreteExpression altHead, List<Integer> indices, List<PiTree> subtrees) {
-    this.head = head;
-    this.altHead = altHead;
-    this.indices = indices;
-    this.subtrees = subtrees;
-
-    boolean nonDependent = indices.isEmpty();
-    if (nonDependent) {
-      for (PiTreeRoot subtree : subtrees) {
-        if (!subtree.isNonDependent) {
-          nonDependent = false;
-          break;
-        }
+  public boolean isNonDependent() {
+    if (!indices.isEmpty()) {
+      return false;
+    }
+    for (PiTreeNode tree : subtrees) {
+      if (!(tree.subtrees.isEmpty() && tree.indices.isEmpty())) {
+        return false;
       }
     }
-    isNonDependent = nonDependent;
+    return true;
   }
 }

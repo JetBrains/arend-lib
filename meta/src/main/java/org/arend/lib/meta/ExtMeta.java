@@ -18,10 +18,7 @@ import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.SubclassError;
 import org.arend.lib.error.TypeError;
-import org.arend.lib.meta.pi_tree.PathExpression;
-import org.arend.lib.meta.pi_tree.PiTree;
-import org.arend.lib.meta.pi_tree.PiTreeMaker;
-import org.arend.lib.meta.pi_tree.PiTreeRoot;
+import org.arend.lib.meta.pi_tree.*;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -443,13 +440,13 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
           }
 
           ConcreteExpression sigmaRefExpr = factory.ref(sigmaRef);
-          if (piTreeData != null && piTreeData.tree.isNonDependent) {
-            PiTreeRoot piTree = piTreeData.tree;
+          if (piTreeData != null && piTreeData.tree.isNonDependent()) {
+            BasePiTree piTree = piTreeData.tree;
             List<ConcreteParameter> lamParams = new ArrayList<>(piTree.subtrees.size() + 1);
             List<ConcreteArgument> args = new ArrayList<>(piTree.subtrees.size());
             ArendRef iRef = factory.local("i");
             lamParams.add(factory.param(iRef));
-            for (PiTree subtree : piTree.subtrees) {
+            for (PiTreeNode subtree : piTree.subtrees) {
               ArendRef ref = factory.local(ext.renamerFactory.getNameFromBinding(subtree.parameter.getBinding(), null));
               lamParams.add(factory.param(subtree.parameter.isExplicit(), ref));
               args.add(factory.arg(factory.ref(ref), subtree.parameter.isExplicit()));
@@ -516,13 +513,13 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
             if (piTreeDataList.get(i) != null) {
               PiTreeMaker piTreeMaker = piTreeDataList.get(i).maker;
               PiTreeRoot piTree = piTreeDataList.get(i).tree;
-              if (piTree.isNonDependent) {
+              if (piTree.isNonDependent()) {
                 useLet = true;
                 List<ConcreteParameter> lamParams = new ArrayList<>(piTree.subtrees.size() + 1);
                 List<ConcreteArgument> args = new ArrayList<>(piTree.subtrees.size());
                 ArendRef iRef = factory.local("i");
                 lamParams.add(factory.param(iRef));
-                for (PiTree subtree : piTree.subtrees) {
+                for (PiTreeNode subtree : piTree.subtrees) {
                   ArendRef ref = factory.local(ext.renamerFactory.getNameFromBinding(subtree.parameter.getBinding(), null));
                   lamParams.add(factory.param(subtree.parameter.isExplicit(), ref));
                   args.add(factory.arg(factory.ref(ref), subtree.parameter.isExplicit()));

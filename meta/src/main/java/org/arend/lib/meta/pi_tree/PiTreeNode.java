@@ -5,10 +5,10 @@ import org.arend.ext.core.context.CoreParameter;
 
 import java.util.List;
 
-public class PiTree extends PiTreeRoot {
+public class PiTreeNode extends BasePiTree {
   public final CoreParameter parameter;
 
-  public PiTree(CoreParameter parameter, ConcreteExpression head, ConcreteExpression altHead, List<Integer> indices, List<PiTree> subtrees) {
+  public PiTreeNode(CoreParameter parameter, ConcreteExpression head, ConcreteExpression altHead, List<Integer> indices, List<PiTreeNode> subtrees) {
     super(head, altHead, indices, subtrees);
     this.parameter = parameter;
   }
