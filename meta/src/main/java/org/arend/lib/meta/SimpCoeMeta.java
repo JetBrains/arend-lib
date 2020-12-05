@@ -1,0 +1,185 @@
+package org.arend.lib.meta;
+
+import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteLetClause;
+import org.arend.ext.concrete.ConcretePattern;
+import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.expr.ConcreteCaseArgument;
+import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreFunctionDefinition;
+import org.arend.ext.core.expr.*;
+import org.arend.ext.core.ops.NormalizationMode;
+import org.arend.ext.dependency.Dependency;
+import org.arend.ext.reference.ArendRef;
+import org.arend.ext.typechecking.BaseMetaDefinition;
+import org.arend.ext.typechecking.ContextData;
+import org.arend.ext.typechecking.ExpressionTypechecker;
+import org.arend.ext.typechecking.TypedExpression;
+import org.arend.lib.StdExtension;
+import org.arend.lib.error.TypeError;
+import org.arend.lib.meta.pi_tree.PathExpression;
+import org.arend.lib.meta.pi_tree.PiTreeMaker;
+import org.arend.lib.meta.pi_tree.PiTreeRoot;
+import org.arend.lib.util.Utils;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+public class SimpCoeMeta extends BaseMetaDefinition {
+  private final StdExtension ext;
+
+  @Dependency(module = "Paths")                                     public CoreFunctionDefinition transport_path_pmap;
+  @Dependency(module = "Paths", name = "transport_path_pmap-right") public CoreFunctionDefinition transport_path_pmap_right;
+
+  public SimpCoeMeta(StdExtension ext) {
+    this.ext = ext;
+  }
+
+  @Override
+  public boolean @Nullable [] argumentExplicitness() {
+    return new boolean[] { true };
+  }
+
+  @Override
+  public boolean requireExpectedType() {
+    return true;
+  }
+
+  private interface Spec {
+    ConcreteExpression make(ConcreteFactory factory, ConcreteExpression transportLeftArg, ConcreteExpression transportRightArg, ConcreteExpression transportPathArg, ConcreteExpression transportValueArg, CoreExpression eqRight, ConcreteExpression argument);
+  }
+
+  private class EqualitySpec implements Spec {
+    final CoreExpression leftFunc;
+    final CoreExpression rightFunc;
+    final boolean isLeftConst;
+
+    private EqualitySpec(CoreParameter lamParam, CoreFunCallExpression equality, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
+      if (equality.getDefCallArguments().get(1).findFreeBinding(lamParam.getBinding())) {
+        leftFunc = typechecker.makeLambda(Collections.singletonList(lamParam), equality.getDefCallArguments().get(1), marker);
+        isLeftConst = false;
+      } else {
+        leftFunc = equality.getDefCallArguments().get(1);
+        isLeftConst = true;
+      }
+      rightFunc = typechecker.makeLambda(Collections.singletonList(lamParam), equality.getDefCallArguments().get(2), marker);
+    }
+
+    @Override
+    public ConcreteExpression make(ConcreteFactory factory, ConcreteExpression transportLeftArg, ConcreteExpression transportRightArg, ConcreteExpression transportPathArg, ConcreteExpression transportValueArg, CoreExpression eqRight, ConcreteExpression argument) {
+      return factory.app(factory.ref((isLeftConst ? transport_path_pmap_right : transport_path_pmap).getRef()), true, Arrays.asList(factory.core(leftFunc.computeTyped()), factory.core(rightFunc.computeTyped()), transportPathArg, transportValueArg, factory.core(eqRight.computeTyped()), argument));
+    }
+  }
+
+  private class PiSpec implements Spec {
+    final PiTreeMaker piTreeMaker;
+    final PiTreeRoot piTree;
+    final List<ConcreteLetClause> letClauses = new ArrayList<>();
+
+    PiSpec(CoreParameter parameter, CoreExpression type, ExpressionTypechecker typechecker, ConcreteFactory factory) {
+      piTreeMaker = new PiTreeMaker(ext, typechecker, factory, letClauses);
+      piTree = piTreeMaker.make(type, Collections.singletonList(parameter));
+    }
+
+    @Override
+    public ConcreteExpression make(ConcreteFactory factory, ConcreteExpression transportLeftArg, ConcreteExpression transportRightArg, ConcreteExpression transportPathArg, ConcreteExpression transportValueArg, CoreExpression eqRight, ConcreteExpression argument) {
+      if (piTree.isNonDependent) {
+        return argument;
+      }
+
+      List<ConcreteCaseArgument> caseArgs = new ArrayList<>(4);
+      List<ConcretePattern> casePatterns = new ArrayList<>(4);
+      ArendRef rightRef = factory.local("r");
+      List<ConcreteExpression> rightRefs = Collections.singletonList(factory.ref(rightRef));
+      caseArgs.add(factory.caseArg(transportRightArg, rightRef, null));
+
+      ArendRef pathRef = factory.local("q");
+      List<PathExpression> pathRefs = Collections.singletonList(new PathExpression(factory.ref(pathRef)));
+      caseArgs.add(factory.caseArg(transportPathArg, pathRef, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(transportLeftArg, factory.ref(rightRef)))));
+
+      casePatterns.add(factory.refPattern(null, null));
+      casePatterns.add(factory.conPattern(ext.prelude.getIdp().getRef()));
+
+      ArendRef rightFunRef = factory.local("g");
+      caseArgs.add(factory.caseArg(factory.core(eqRight.computeTyped()), rightFunRef, piTreeMaker.makeConcrete(piTree, true, rightRefs)));
+      caseArgs.add(factory.caseArg(argument, null, piTreeMaker.makeArgType(piTree, true, Collections.singletonList(transportLeftArg), rightRefs, pathRefs, transportValueArg, factory.ref(rightFunRef))));
+
+      ArendRef lastCaseRef = factory.local("a");
+      casePatterns.add(factory.refPattern(null, null));
+      casePatterns.add(factory.refPattern(lastCaseRef, null));
+
+      ConcreteExpression caseResultType = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(piTreeMaker.makeCoe(piTree, false, true, pathRefs, transportValueArg), factory.ref(rightFunRef)));
+      ConcreteExpression result = factory.caseExpr(false, caseArgs, caseResultType, null, factory.clause(casePatterns, factory.app(factory.meta("ext", ext.extsMeta), true, Collections.singletonList(factory.ref(lastCaseRef)))));
+      return letClauses.isEmpty() ? result : factory.letExpr(false, false, letClauses, result);
+    }
+  }
+
+  private Spec getSpec(CoreExpression arg, ExpressionTypechecker typechecker, ConcreteSourceNode marker, ConcreteFactory factory) {
+    arg = arg.normalize(NormalizationMode.WHNF);
+    if (!(arg instanceof CoreLamExpression)) {
+      return null;
+    }
+
+    CoreLamExpression lam = (CoreLamExpression) arg;
+    if (lam.getParameters().getNext().hasNext()) {
+      return null;
+    }
+
+    CoreExpression body = lam.getBody().getUnderlyingExpression();
+    if (body instanceof CoreFunCallExpression && ((CoreFunCallExpression) body).getDefinition() == ext.prelude.getEquality()) {
+      return new EqualitySpec(lam.getParameters(), (CoreFunCallExpression) body, typechecker, marker);
+    }
+
+    body = body.normalize(NormalizationMode.WHNF);
+
+    if (body instanceof CorePiExpression) {
+      return new PiSpec(lam.getParameters(), body, typechecker, factory);
+    }
+
+    CoreFunCallExpression equality = body.toEquality();
+    if (equality != null ) {
+      return new EqualitySpec(lam.getParameters(), equality, typechecker, marker);
+    }
+
+    return null;
+  }
+
+  @Override
+  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+    CoreFunCallExpression equality = Utils.toEquality(contextData.getExpectedType(), typechecker.getErrorReporter(), contextData.getMarker());
+    if (equality == null) return null;
+    ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
+
+    CoreExpression leftExpr = equality.getDefCallArguments().get(1).getUnderlyingExpression();
+    if (leftExpr instanceof CoreFunCallExpression && ((CoreFunCallExpression) leftExpr).getDefinition() == ext.transport) {
+      var transportArgs = ((CoreFunCallExpression) leftExpr).getDefCallArguments();
+      Spec spec = getSpec(transportArgs.get(1), typechecker, contextData.getMarker(), factory);
+      if (spec != null) {
+        return typechecker.typecheck(spec.make(factory, factory.core(transportArgs.get(2).computeTyped()), factory.core(transportArgs.get(3).computeTyped()), factory.core(transportArgs.get(4).computeTyped()), factory.core(transportArgs.get(5).computeTyped()), equality.getDefCallArguments().get(2), contextData.getArguments().get(0).getExpression()), contextData.getExpectedType());
+      }
+    } else {
+      if (!(leftExpr instanceof CoreFunCallExpression && ((CoreFunCallExpression) leftExpr).getDefinition() == ext.prelude.getCoerce())) {
+        leftExpr = leftExpr.normalize(NormalizationMode.WHNF);
+      }
+      if (leftExpr instanceof CoreFunCallExpression && ((CoreFunCallExpression) leftExpr).getDefinition() == ext.prelude.getCoerce()) {
+        var coeArgs = ((CoreFunCallExpression) leftExpr).getDefCallArguments();
+        CoreExpression lastArg = coeArgs.get(2).normalize(NormalizationMode.WHNF);
+        if (lastArg instanceof CoreConCallExpression && ((CoreConCallExpression) lastArg).getDefinition() == ext.prelude.getRight()) {
+          Spec spec = getSpec(coeArgs.get(0), typechecker, contextData.getMarker(), factory);
+          if (spec != null) {
+            ArendRef iRef = factory.local("i");
+            return typechecker.typecheck(spec.make(factory, factory.ref(ext.prelude.getLeft().getRef()), factory.ref(ext.prelude.getRight().getRef()), factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.ref(iRef)))), factory.core(coeArgs.get(1).computeTyped()), equality.getDefCallArguments().get(2), contextData.getArguments().get(0).getExpression()), contextData.getExpectedType());
+          }
+        }
+      }
+    }
+
+    typechecker.getErrorReporter().report(new TypeError("Type is not supported", contextData.getExpectedType(), contextData.getMarker()));
+    return null;
+  }
+}
