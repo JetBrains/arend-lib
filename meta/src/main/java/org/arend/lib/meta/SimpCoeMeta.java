@@ -76,7 +76,7 @@ public class SimpCoeMeta extends BaseMetaDefinition {
 
   private class PiSpec implements Spec {
     final PiTreeMaker piTreeMaker;
-    final BasePiTree piTree;
+    final PiTreeRoot piTree;
     final List<ConcreteLetClause> letClauses;
 
     PiSpec(PiTreeMaker piTreeMaker, PiTreeRoot piTree, List<ConcreteLetClause> letClauses) {
@@ -108,7 +108,7 @@ public class SimpCoeMeta extends BaseMetaDefinition {
       casePatterns.add(factory.refPattern(null, null));
       casePatterns.add(factory.refPattern(lastCaseRef, null));
 
-      ConcreteExpression caseResultType = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(piTreeMaker.makeCoe(piTree, false, true, pathRefs, transportValueArg), factory.ref(rightFunRef)));
+      ConcreteExpression caseResultType = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(piTreeMaker.makeCoe(piTree, true, pathRefs, transportValueArg), factory.ref(rightFunRef)));
       ConcreteExpression result = factory.caseExpr(false, caseArgs, caseResultType, null, factory.clause(casePatterns, factory.app(factory.meta("ext", ext.extsMeta), true, Collections.singletonList(factory.ref(lastCaseRef)))));
       return letClauses.isEmpty() ? result : factory.letExpr(false, false, letClauses, result);
     }
