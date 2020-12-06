@@ -34,7 +34,7 @@ public class Monomial<E> {
              int deg = Math.max(dv.get(i), m.degreeVector.get(i));
              dv.set(i, deg);
          }
-         return new Monomial<E>(ring.unit(), dv, ring);
+         return new Monomial<E>(ring.lcm(coefficient, m.coefficient), dv, ring);
      }
 
      public boolean isDivisible(Monomial<E> m) {
@@ -43,8 +43,13 @@ public class Monomial<E> {
                  return false;
              }
          }
-         return true;
+         return ring.div(this.coefficient, m.coefficient) != null;
      }
+
+    public boolean degVecEquals(Monomial<E> m) {
+         if (m == null) return false;
+        return Objects.equals(degreeVector, m.degreeVector);
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -60,12 +65,29 @@ public class Monomial<E> {
         return Objects.hash(coefficient, degreeVector, ring);
     }
 
+    @Override
+    public String toString() {
+        if (degree() == 0) {
+            return coefficient.toString();
+        }
+        StringBuilder str = new StringBuilder(!coefficient.equals(ring.unit()) ? coefficient.toString() + " * " : "");
+        for (int i = 0; i < numVars(); ++i) {
+            if (degreeVector.get(i) == 1) {
+                str.append("x").append(i + 1);
+            } else if (degreeVector.get(i) > 1) {
+                str.append("x").append(i + 1).append("^").append(degreeVector.get(i));
+            }
+        }
+        return str.toString();
+    }
+
     public Monomial<E> divideBy(Monomial<E> m) {
          var quot = new Monomial<>(this);
         for (int i = 0; i < degreeVector.size(); ++i) {
             var deg = quot.degreeVector.get(i);
             quot.degreeVector.set(i, deg - m.degreeVector.get(i));
         }
+        quot.coefficient = ring.div(coefficient, m.coefficient);
         return quot;
     }
 

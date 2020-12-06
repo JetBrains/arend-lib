@@ -56,7 +56,7 @@ public class Buchberger implements GroebnerBasisAlgorithm {
                 }
                 var c1 = coeffs.get(pair.getFirst()).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt1))));
                 coeffs.set(pair.getFirst(), c1);
-                var c2 = coeffs.get(pair.getSecond()).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt2))));
+                var c2 = coeffs.get(pair.getSecond()).subtr(new Poly<>(Collections.singletonList(lcm.divideBy(lt2))));
                 coeffs.set(pair.getSecond(), c2);
                 gbCoefficients.put(s12, coeffs);
                 for (int i = 0; i < groebnerBasis.size(); ++i) {

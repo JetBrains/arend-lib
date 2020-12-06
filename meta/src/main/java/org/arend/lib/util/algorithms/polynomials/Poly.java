@@ -23,7 +23,7 @@ public class Poly<E> {
         Monomial<E> lastMon = null;
         Monomial<E> lastAdded = null;
         for (Monomial<E> mon : monCpy) {
-            if (!mon.equals(lastMon)) {
+            if (!mon.degVecEquals(lastMon)) {
                 lastAdded = new Monomial<>(mon);
                 this.monomials.add(lastAdded);
             } else {
@@ -32,7 +32,7 @@ public class Poly<E> {
             lastMon = mon;
         }
 
-        monomials.removeIf(mon -> mon.coefficient.equals(ring.zero()) && mon.degree() != 0);
+        this.monomials.removeIf(mon -> mon.coefficient.equals(ring.zero()) && mon.degree() != 0);
     }
 
     public static <E> Poly<E> constant(E c, int varNum, Ring<E> ring) {
@@ -55,6 +55,23 @@ public class Poly<E> {
     @Override
     public int hashCode() {
         return Objects.hash(monomials);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder polyStr;
+        int startInd = 0;
+        if (monomials.get(0).degree() == 0 && monomials.get(0).coefficient.equals(ring().zero()) && monomials.size() > 1) {
+            startInd = 1;
+        }
+        polyStr = new StringBuilder(monomials.get(startInd).toString());
+        for (int i = startInd + 1; i < monomials.size(); ++i) {
+            if (ring().cmp(monomials.get(i).coefficient, ring().zero()) > 0) {
+                polyStr.append("+");
+            }
+            polyStr.append(monomials.get(i));
+        }
+        return polyStr.toString();
     }
 
     public Ring<E> ring() {
@@ -98,7 +115,7 @@ public class Poly<E> {
     public Poly<E> mul(Poly<E> poly) {
         Poly<E> result = constant(ring().zero(), numVars(), ring());
         for (Monomial<E> mon : monomials) {
-            result.add(poly.mul(mon));
+            result = result.add(poly.mul(mon));
         }
         return result;
     }
@@ -106,10 +123,10 @@ public class Poly<E> {
     public Pair<Poly<E>, Poly<E>> divideWRemainder(Poly<E> poly) {
         var rem = new Poly<>(monomials);
         var quot = constant(ring().zero(), numVars(), ring());
-        while (rem.leadingTerm().isDivisible(poly.leadingTerm())) {
+        while (!rem.isZero() && rem.leadingTerm().isDivisible(poly.leadingTerm())) {
             var quot_term = rem.leadingTerm().divideBy(poly.leadingTerm());
             rem = rem.subtr(poly.mul(quot_term));
-            quot.add(new Poly<>(Collections.singletonList(quot_term)));
+            quot = quot.add(new Poly<>(Collections.singletonList(quot_term)));
         }
         return new Pair<>(quot, rem);
     }

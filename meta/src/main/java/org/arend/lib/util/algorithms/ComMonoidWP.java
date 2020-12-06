@@ -29,8 +29,7 @@ public class ComMonoidWP {
     private static Poly<BigInteger> twoMonomialsToBinomial(Monomial<BigInteger> t1, Monomial<BigInteger> t2) {
         var binomial = new Poly<>(Collections.singletonList(t2)); // MultivariatePolynomial.create(t1.exponents.length, Rings.Z, MonomialOrder.GREVLEX, t2);
 
-        binomial.subtr(new Poly<>(Collections.singletonList(t1)));
-        return binomial;
+        return binomial.subtr(new Poly<>(Collections.singletonList(t1)));
     }
 
     private static class ReductionStep {

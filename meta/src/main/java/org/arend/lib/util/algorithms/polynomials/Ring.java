@@ -8,6 +8,9 @@ public interface Ring<E> {
     E mul(E a, E b);
     E unit();
     E zero();
+    int cmp(E a, E b);
+    E div(E a, E b);
+    E lcm(E a, E b);
 
     static <E> E negUnit(Ring<E> ring) { return ring.subtr(ring.zero(), ring.unit()); }
 
@@ -35,6 +38,22 @@ public interface Ring<E> {
         @Override
         public BigInteger zero() {
             return BigInteger.ZERO;
+        }
+
+        @Override
+        public int cmp(BigInteger a, BigInteger b) {
+            return a.compareTo(b);
+        }
+
+        @Override
+        public BigInteger div(BigInteger a, BigInteger b) {
+            if (!a.abs().mod(b.abs()).equals(BigInteger.ZERO)) return null;
+            return a.divide(b);
+        }
+
+        @Override
+        public BigInteger lcm(BigInteger a, BigInteger b) {
+            return a.multiply(b).divide(a.gcd(b));
         }
     };
 }
