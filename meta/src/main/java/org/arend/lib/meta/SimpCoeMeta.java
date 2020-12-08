@@ -1,9 +1,6 @@
 package org.arend.lib.meta;
 
-import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcreteLetClause;
-import org.arend.ext.concrete.ConcretePattern;
-import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteCaseArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
@@ -158,18 +155,48 @@ public class SimpCoeMeta extends BaseMetaDefinition {
         substitution.add(new SubstitutionPair(parameters.get(i).getBinding(), cArg));
       }
 
-      ConcreteExpression rightTransportLam = factory.lam(Collections.singletonList(factory.param(transportRef)), factory.meta("transport_arg", new MetaDefinition() {
-        @Override
-        public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-          CoreExpression result = typechecker.substitute(codomain, null, substitution);
-          return result == null ? null : result.computeTyped();
-        }
-      }));
+      ConcreteExpression rightTransportLam = factory.lam(Collections.singletonList(factory.param(transportRef)), factory.meta("transport_arg", new SubstitutionMeta(codomain, substitution)));
       ConcreteExpression jTypeLeft = factory.app(factory.ref(ext.transport.getRef()), true, jTypeLeftArgs);
       ConcreteExpression jTypeRight = factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(rightTransportLam, factory.ref(jRef), factory.app(concreteValueArg, lastArgs)));
       ConcreteExpression jLam = factory.lam(Arrays.asList(factory.param(null), factory.param(jRef)), factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(jTypeLeft, jTypeRight)));
       ConcreteExpression jExpr = factory.app(factory.ref(ext.Jl.getRef()), true, Arrays.asList(jLam, factory.ref(ext.prelude.getIdp().getRef()), transportPathArg));
       ConcreteExpression result = factory.app(factory.ref(ext.concat.getRef()), true, Arrays.asList(jExpr, argument));
+      return letClauses.isEmpty() ? result : factory.letExpr(false, false, letClauses, result);
+    }
+  }
+
+  private class SigmaSpec extends Spec {
+    final CoreLamExpression transportLam;
+    final List<CoreExpression> sigmaParamTypes;
+    final List<Integer> indices;
+
+    SigmaSpec(CoreLamExpression transportLam, List<CoreExpression> sigmaParamTypes, List<Integer> indices) {
+      super(new ArrayList<>());
+      this.transportLam = transportLam;
+      this.sigmaParamTypes = sigmaParamTypes;
+      this.indices = indices;
+    }
+
+    @Override
+    ConcreteExpression make(ConcreteFactory factory, ConcreteExpression transportLeftArg, ConcreteExpression transportRightArg, ConcreteExpression transportPathArg, CoreExpression transportValueArg, CoreExpression eqRight, ConcreteExpression argument) {
+      ArendRef jLamRef1 = factory.local("a''");
+      ArendRef jLamRef2 = factory.local("q");
+      ArendRef jPiRef = factory.local("s'");
+      ConcreteExpression leftExpr = makeConcreteValueArg(transportValueArg, factory);
+      ConcreteExpression concreteTransportLam = factory.core(transportLam.computeTyped());
+      ConcreteExpression jDom1 = factory.app(concreteTransportLam, true, Collections.singletonList(factory.ref(jLamRef1)));
+      List<ConcreteParameter> sigmaParams = new ArrayList<>();
+      for (int i = 0; i < sigmaParamTypes.size(); i++) {
+        sigmaParams.add(factory.param(true, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(SubstitutionMeta.makeLambda(sigmaParamTypes.get(i), transportLam.getParameters().getBinding(), factory), factory.ref(jLamRef2), factory.proj(leftExpr, i))), factory.proj(factory.ref(jPiRef), i)))));
+      }
+      ConcreteExpression jDom2 = factory.sigma(sigmaParams);
+      ConcreteExpression jCod = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(concreteTransportLam, factory.ref(jLamRef2), leftExpr)), factory.ref(jPiRef)));
+      ConcreteExpression jLam = factory.lam(Arrays.asList(factory.param(jLamRef1), factory.param(jLamRef2)), factory.pi(Collections.singletonList(factory.param(true, Collections.singletonList(jPiRef), jDom1)), factory.arr(jDom2, jCod)));
+
+      ArendRef jArgRef = factory.local("h");
+      ConcreteExpression jArg = factory.lam(Arrays.asList(factory.param(null), factory.param(jArgRef)), factory.app(factory.meta("ext", ext.extMeta), true, Collections.singletonList(factory.ref(jArgRef))));
+
+      ConcreteExpression result = factory.app(factory.ref(ext.Jl.getRef()), true, Arrays.asList(jLam, jArg, transportPathArg, factory.core(eqRight.computeTyped()), argument));
       return letClauses.isEmpty() ? result : factory.letExpr(false, false, letClauses, result);
     }
   }
@@ -193,16 +220,7 @@ public class SimpCoeMeta extends BaseMetaDefinition {
       ConcreteExpression jTypeLeft = factory.proj(factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(factory.core(transportLam.computeTyped()), factory.ref(jRef), concreteValueArg)), proj);
       ConcreteExpression jTypeRight = factory.proj(concreteValueArg, proj);
       if (parameterType.findFreeBinding(transportLam.getParameters().getBinding())) {
-        ArendRef transportRef = factory.local("z");
-        List<SubstitutionPair> substitution = new ArrayList<>();
-        substitution.add(new SubstitutionPair(transportLam.getParameters().getBinding(), factory.ref(transportRef)));
-        ConcreteExpression rightTransportLam = factory.lam(Collections.singletonList(factory.param(transportRef)), factory.meta("transport_arg", new MetaDefinition() {
-          @Override
-          public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-            CoreExpression result = typechecker.substitute(parameterType, null, substitution);
-            return result == null ? null : result.computeTyped();
-          }
-        }));
+        ConcreteExpression rightTransportLam = SubstitutionMeta.makeLambda(parameterType, transportLam.getParameters().getBinding(), factory);
         jTypeRight = factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(rightTransportLam, factory.ref(jRef), jTypeRight));
       }
       ConcreteExpression jLam = factory.lam(Arrays.asList(factory.param(null), factory.param(jRef)), factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(jTypeLeft, jTypeRight)));
@@ -266,8 +284,22 @@ public class SimpCoeMeta extends BaseMetaDefinition {
 
     if (body instanceof CoreSigmaExpression) {
       if (proj == -1) {
-        // TODO
-        return null;
+        List<CoreExpression> sigmaParamTypes = new ArrayList<>();
+        List<Integer> indices = new ArrayList<>();
+        Set<CoreBinding> bindings = new HashSet<>();
+        int i = 0;
+        for (CoreParameter param = ((CoreSigmaExpression) body).getParameters(); param.hasNext(); param = param.getNext(), i++) {
+          CoreExpression paramType = param.getTypeExpr();
+          if (!Utils.isProp(paramType)) {
+            if (paramType.findFreeBindings(bindings) != null) {
+              return null;
+            }
+            sigmaParamTypes.add(paramType);
+            indices.add(i);
+          }
+          bindings.add(param.getBinding());
+        }
+        return new SigmaSpec(lam, sigmaParamTypes, indices);
       } else {
         int i = 0;
         Set<CoreBinding> bindings = new HashSet<>();

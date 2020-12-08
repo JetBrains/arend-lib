@@ -186,14 +186,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
         for (int i = 0; i < piParams.size(); i++) {
           CoreParameter piParam = piParams.get(i);
           ArendRef ref = factory.local(ext.renamerFactory.getNameFromBinding(piParam.getBinding(), null));
-          int finalI = i;
-          concretePiParams.add(factory.param(piParam.isExplicit(), Collections.singletonList(ref), factory.meta("ext_param", new MetaDefinition() {
-            @Override
-            public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-              CoreExpression paramType = typechecker.substitute(piParam.getTypeExpr(), null, substitution.subList(0, finalI));
-              return paramType == null ? null : paramType.computeTyped();
-            }
-          })));
+          concretePiParams.add(factory.param(piParam.isExplicit(), Collections.singletonList(ref), factory.meta("ext_param", new SubstitutionMeta(piParam.getTypeExpr(), substitution.subList(0, i)))));
           concreteLamParams.add(factory.param(piParam.isExplicit(), ref));
           ConcreteExpression refExpr = factory.ref(ref);
           args.add(factory.arg(refExpr, piParam.isExplicit()));
@@ -406,14 +399,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
               if (pathExpr == null || !pathExpr.getClass().equals(PathExpression.class)) {
                 leftExpr = factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, used, sigmaRefs, factory), leftExpr, factory.ref(ext.prelude.getRight().getRef())));
               } else {
-                ArendRef transportRef = factory.local(ext.renamerFactory.getNameFromBinding(binding, null));
-                leftExpr = factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(transportRef)), factory.meta("ext_transport", new MetaDefinition() {
-                  @Override
-                  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-                    CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), null, Collections.singletonList(new SubstitutionPair(binding, factory.ref(transportRef))));
-                    return result == null ? null : result.computeTyped();
-                  }
-                })), pathExpr.pathExpression, leftExpr));
+                leftExpr = factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(SubstitutionMeta.makeLambda(paramBinding.getTypeExpr(), binding, factory), pathExpr.pathExpression, leftExpr));
               }
             }
 

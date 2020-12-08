@@ -18,6 +18,7 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
+import org.arend.lib.meta.SubstitutionMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -103,14 +104,7 @@ public class PiTreeMaker {
         }
       }
 
-      CoreExpression finalCodomain = codomain;
-      TypedExpression result = typechecker.typecheck(factory.lam(redLamParams, factory.meta("ext_sigma_pi_param", new MetaDefinition() {
-        @Override
-        public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-          CoreExpression result = typechecker.substitute(finalCodomain, null, redSubstitution);
-          return result == null ? null : result.computeTyped();
-        }
-      })), null);
+      TypedExpression result = typechecker.typecheck(factory.lam(redLamParams, factory.meta("ext_sigma_pi_param", new SubstitutionMeta(codomain, redSubstitution))), null);
       if (result == null) return null;
       concrete = factory.core(result);
       useLet = !(result.getExpression() instanceof CoreReferenceExpression);
