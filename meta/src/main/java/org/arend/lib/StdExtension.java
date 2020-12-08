@@ -156,7 +156,7 @@ public class StdExtension implements ArendExtension {
       "* If the type under `coe` is a record, then `simp_coe` works similarly to the case of \\Sigma types. The copattern matching syntax as in {ext} is also supported.\n" +
       "* All of the above cases also work for goals with {transport} instead of {coe} since the former evaluates to the latter.\n" +
       "* If the goal is `transport (\\lam x => f x = g x) p q = s`, then the subgoal is `q *> pmap g p = pmap f p *> s`. If `f` does not depend on `x`, then the right hand side of the subgoal is simply `s`.",
-      Precedence.DEFAULT, simpCoeMeta);
+      Precedence.DEFAULT, null, null, simpCoeMeta, new ClassExtResolver(this));
     contributor.declare(paths, new LongName("ext"),
       "Proves goals of the form `a = {A} a'`. It expects (at most) one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
       "* If the goal is `f = {\\Pi (x_1 : A_1) ... (x_n : A_n) -> B} g`, then the subgoal is `\\Pi (x_1 : A_1) ... (x_n : A_n) -> f x_1 ... x_n = g x_1 ... x_n`\n" +
@@ -167,10 +167,10 @@ public class StdExtension implements ArendExtension {
       "* If the goal is `A = {\\Prop} B`, then the subgoal is `\\Sigma (A -> B) (B -> A)`\n" +
       "* If the goal is `A = {\\Type} B`, then the subgoal is `Equiv {A} {B}`\n" +
       "* If the goal is `x = {P} y`, where `P : \\Prop`, then the argument for {ext} should be omitted.",
-      Precedence.DEFAULT, new DeferredMetaDefinition(extMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS));
+      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
     contributor.declare(paths, new LongName("exts"),
       "Similar to {ext}, but also applies `simp_coe` when a field of a \\Sigma-type or a record has an appropriate type.",
-      Precedence.DEFAULT, new DeferredMetaDefinition(extsMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS));
+      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extsMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
 
     MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");

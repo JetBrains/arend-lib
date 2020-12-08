@@ -13,7 +13,6 @@ import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
-import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.SubclassError;
@@ -25,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
+public class ExtMeta extends BaseMetaDefinition {
   private final StdExtension ext;
   private final boolean isExtra;
 
@@ -52,27 +51,6 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
   @Override
   public boolean allowCoclauses() {
     return true;
-  }
-
-  @Override
-  public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
-    if (!checkArguments(contextData.getArguments(), resolver.getErrorReporter(), contextData.getMarker(), argumentExplicitness())) {
-      return null;
-    }
-
-    ConcreteCoclauses coclauses = contextData.getCoclauses();
-    if (coclauses != null && contextData.getArguments().isEmpty()) {
-      resolver.getErrorReporter().report(new NameResolverError("Expected a class name", coclauses));
-      return null;
-    }
-
-    if (contextData.getArguments().isEmpty()) {
-      return contextData.getReferenceExpression();
-    }
-
-    ConcreteFactory factory = ext.factory.withData(contextData.getReferenceExpression().getData());
-    ConcreteExpression arg = contextData.getArguments().get(0).getExpression();
-    return factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(coclauses == null ? arg : factory.classExt(arg, coclauses.getCoclauseList()))));
   }
 
   private static class PiTreeData {
