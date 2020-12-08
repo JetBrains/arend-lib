@@ -44,16 +44,31 @@ public class Buchberger implements GroebnerBasisAlgorithm {
             var f2 = groebnerBasis.get(pair.getSecond());
             Monomial<BigInteger> lt1 = f1.leadingTerm(), lt2 = f2.leadingTerm(), lcm = lt1.lcm(lt2);
             var s12 = f1.mul(lcm.divideBy(lt1)).subtr(f2.mul(lcm.divideBy(lt2)));
-            var divResult = s12.divideWRemainder(groebnerBasis);
+            Poly<BigInteger> lastRedS12 = Poly.constant(ring.zero(), nVars, ring);
+            var coeffs = new ArrayList<Poly<BigInteger>>();
 
-            s12 = divResult.get(groebnerBasis.size());
-            if (!s12.isZero()) {
-                var coeffs = divResult.subList(0, divResult.size() - 1);
-                for (int i = 0; i < coeffs.size(); ++i) {
-                    var coeff = coeffs.get(i).mul(Poly.constant(Ring.negUnit(ring), nVars, ring));
-                    //coeffs[i] = MultivariatePolynomial.zero(nVars, ring, ordering).subtract(coeffs[i]);
-                    coeffs.set(i, coeff);
+            for (int i = 0; i < generators.size(); ++i) {
+                coeffs.add(Poly.constant(ring.zero(), nVars, ring));
+            }
+
+            while (!s12.equals(lastRedS12)) {
+                var divResult = s12.divideWRemainder(groebnerBasis);
+
+                s12 = divResult.get(groebnerBasis.size());
+                if (!s12.isZero()) {
+                    var newCoeffs = divResult.subList(0, divResult.size() - 1);
+                    for (int i = 0; i < newCoeffs.size(); ++i) {
+                        var coeff = newCoeffs.get(i).mul(Poly.constant(Ring.negUnit(ring), nVars, ring));
+                        //coeffs[i] = MultivariatePolynomial.zero(nVars, ring, ordering).subtract(coeffs[i]);
+                        coeffs.set(i, coeff.add(coeffs.get(i)));
+                    }
+                    lastRedS12 = s12;
+                } else {
+                    break;
                 }
+            }
+
+            if (!s12.isZero()) {
                 var c1 = coeffs.get(pair.getFirst()).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt1))));
                 coeffs.set(pair.getFirst(), c1);
                 var c2 = coeffs.get(pair.getSecond()).subtr(new Poly<>(Collections.singletonList(lcm.divideBy(lt2))));
