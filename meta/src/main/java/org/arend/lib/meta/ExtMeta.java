@@ -26,11 +26,11 @@ import java.util.*;
 
 public class ExtMeta extends BaseMetaDefinition {
   private final StdExtension ext;
-  private final boolean isExtra;
+  private final boolean withSimpCoe;
 
-  public ExtMeta(StdExtension ext, boolean isExtra) {
+  public ExtMeta(StdExtension ext, boolean withSimpCoe) {
     this.ext = ext;
-    this.isExtra = isExtra;
+    this.withSimpCoe = withSimpCoe;
   }
 
   @Override
@@ -334,7 +334,7 @@ public class ExtMeta extends BaseMetaDefinition {
             boolean isPi = false;
             ConcreteExpression leftExpr = makeProj(factory, left, i, classFields);
             CoreExpression paramType = param.getTypeExpr().normalize(NormalizationMode.WHNF);
-            if (paramType instanceof CorePiExpression) {
+            if (paramType instanceof CorePiExpression && withSimpCoe) {
               List<CoreParameter> sigmaParameters = new ArrayList<>();
               List<ConcreteExpression> leftProjs = new ArrayList<>();
               List<ConcreteExpression> rightProjs = new ArrayList<>();
