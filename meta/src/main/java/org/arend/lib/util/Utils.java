@@ -245,4 +245,14 @@ public class Utils {
     CoreExpression typeType = type.computeType().normalize(NormalizationMode.WHNF);
     return typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp();
   }
+
+  public static List<CoreClassField> getNotImplementedField(CoreClassCallExpression classCall) {
+    List<CoreClassField> classFields = new ArrayList<>();
+    for (CoreClassField field : classCall.getDefinition().getFields()) {
+      if (!classCall.isImplemented(field)) {
+        classFields.add(field);
+      }
+    }
+    return classFields;
+  }
 }

@@ -201,19 +201,7 @@ public class ExtMeta extends BaseMetaDefinition implements MetaResolver {
 
       if (type instanceof CoreSigmaExpression || type instanceof CoreClassCallExpression) {
         CoreParameter typeParams = type instanceof CoreSigmaExpression ? ((CoreSigmaExpression) type).getParameters() : ((CoreClassCallExpression) type).getClassFieldParameters();
-        List<CoreClassField> classFields;
-        if (type instanceof CoreClassCallExpression) {
-          classFields = new ArrayList<>();
-          CoreClassCallExpression classCall = (CoreClassCallExpression) type;
-          for (CoreClassField field : classCall.getDefinition().getFields()) {
-            if (!classCall.isImplemented(field)) {
-              classFields.add(field);
-            }
-          }
-        } else {
-          classFields = null;
-        }
-
+        List<CoreClassField> classFields = type instanceof CoreClassCallExpression ? Utils.getNotImplementedField((CoreClassCallExpression) type) : null;
         Set<CoreClassField> propFields = new HashSet<>();
         Set<CoreBinding> propBindings = new HashSet<>();
         int i = 0;

@@ -153,7 +153,7 @@ public class StdExtension implements ArendExtension {
       "* If the type under `coe` is a higher-order non-dependent function type, `simp_coe` simplifies it recursively.\n" +
       "* If the goal is `(coe (\\lam i => \\Sigma (x_1 : A_1 i) ... (x_n : A_n i) ...) t right).n = b'`, then the subgoal is `coe A_n t.n right = b`.\n" +
       "* If the goal is `coe (\\lam i => \\Sigma (x_1 : A_1) ... (x_n : A_n) (B_{n+1} i) ... (B_k i)) t right = s'`, then the subgoal is a \\Sigma type consisting of equalities as specified above ignoring fields in \\Prop.\n" +
-      "* If the type under `coe` is a record, then `simp_coe` works similarly to the case of \\Sigma types.\n" +
+      "* If the type under `coe` is a record, then `simp_coe` works similarly to the case of \\Sigma types. The copattern matching syntax as in {ext} is also supported.\n" +
       "* All of the above cases also work for goals with {transport} instead of {coe} since the former evaluates to the latter.\n" +
       "* If the goal is `transport (\\lam x => f x = g x) p q = s`, then the subgoal is `q *> pmap g p = pmap f p *> s`. If `f` does not depend on `x`, then the right hand side of the subgoal is simply `s`.",
       Precedence.DEFAULT, simpCoeMeta);
