@@ -130,7 +130,7 @@ public class StdExtension implements ArendExtension {
     contributor.declare(meta, new LongName("unfold"),
       "`unfold (f_1, ... f_n) e` unfolds functions f_1, ... f_n in the expected type before type-checking of `e` and returns `e` itself.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
-      Precedence.DEFAULT, new UnfoldMeta(this));
+      Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), false, ExpressionTypechecker.Stage.AFTER_LEVELS));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
