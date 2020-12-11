@@ -296,7 +296,7 @@ public class SimpCoeMeta extends BaseMetaDefinition {
         List<ConcreteLetClause> letClauses = new ArrayList<>();
         PiTreeMaker piTreeMaker = new PiTreeMaker(ext, typechecker, factory, letClauses);
         PiTreeRoot piTree = piTreeMaker.make(body, Collections.singletonList(lam.getParameters()));
-        return piTree.isNonDependent() ? null : new PiSpec(piTreeMaker, piTree, letClauses, concreteArg);
+        return piTree.subtrees.isEmpty() ? null : new PiSpec(piTreeMaker, piTree, letClauses, concreteArg);
       } else {
         int s = 0;
         List<CoreParameter> parameters = new ArrayList<>();

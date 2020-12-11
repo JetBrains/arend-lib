@@ -14,6 +14,7 @@ import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
+import org.arend.ext.ui.ArendUI;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.SubclassError;
 import org.arend.lib.error.TypeError;
@@ -23,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 public class ExtMeta extends BaseMetaDefinition {
   private final StdExtension ext;
@@ -281,6 +283,7 @@ public class ExtMeta extends BaseMetaDefinition {
           }
         }
 
+        Map<Integer, Boolean> simpCoeIndices = new HashMap<>(); // true == simp_coe, false == ext
         Set<CoreBinding> bindings = new HashSet<>();
         Set<CoreBinding> dependentBindings = new HashSet<>();
         List<ConcreteParameter> sigmaParams = new ArrayList<>();
@@ -357,6 +360,34 @@ public class ExtMeta extends BaseMetaDefinition {
                 lastSigmaParam = piTreeMaker.makeArgType(piTreeData.tree, false, leftProjs, rightProjs, pathRefs, makeProj(factory, left, j, classFields), makeProj(factory, right, j, classFields));
                 isPi = true;
               }
+            } else if (withSimpCoe) {
+              Boolean ok = null;
+              if (paramType instanceof CoreFunCallExpression && ((CoreFunCallExpression) paramType).getDefinition() == ext.prelude.getEquality()) {
+                if (!used.isEmpty()) ok = true;
+              } else if (paramType instanceof CoreSigmaExpression || paramType instanceof CoreClassCallExpression) {
+                boolean isSimpCoe = !used.isEmpty();
+                Set<CoreBinding> depBindings = isSimpCoe ? null : new HashSet<>();
+                ok = isSimpCoe;
+                CoreParameter parameters = paramType instanceof CoreSigmaExpression ? ((CoreSigmaExpression) paramType).getParameters() : ((CoreClassCallExpression) paramType).getClassFieldParameters();
+                List<CoreClassField> fields = paramType instanceof CoreClassCallExpression ? Utils.getNotImplementedField((CoreClassCallExpression) paramType) : null;
+                Set<CoreBinding> bindings1 = new HashSet<>();
+                for (CoreParameter parameter = parameters; parameter.hasNext(); parameter = parameter.getNext()) {
+                  CoreExpression parameterType = parameter.getTypeExpr();
+                  if (!(fields != null && fields.get(i).isProperty() || Utils.isProp(parameterType))) {
+                    if (parameterType.findFreeBindings(isSimpCoe ? bindings1 : depBindings) != null) {
+                      ok = null;
+                      break;
+                    }
+                    if (!isSimpCoe && parameterType.findFreeBindings(bindings1) != null) {
+                      depBindings.add(parameter.getBinding());
+                    }
+                  }
+                  bindings1.add(parameter.getBinding());
+                }
+              } else if (paramType.toEquality() != null) {
+                if (!used.isEmpty()) ok = true;
+              }
+              if (ok != null) simpCoeIndices.put(sigmaParams.size(), ok);
             }
 
             if (!isPi && dependentBindings.contains(paramBinding)) {
@@ -408,6 +439,48 @@ public class ExtMeta extends BaseMetaDefinition {
 
           sigmaRefs.put(paramBinding, new PathExpression(sigmaRefExpr));
           piTreeDataList.add(piTreeData);
+        }
+
+        if (!simpCoeIndices.isEmpty()) {
+          ConcreteFactory argFactory = factory.withData(arg.getData());
+          if (arg instanceof ConcreteGoalExpression) {
+            return argFactory.goal(null, null, new GoalSolver() {
+              @Override
+              public @NotNull Collection<? extends InteractiveGoalSolver> getAdditionalSolvers() {
+                return Collections.singletonList(new InteractiveGoalSolver() {
+                  @Override
+                  public @NotNull String getShortDescription() {
+                    return "Replace with tuple";
+                  }
+
+                  @Override
+                  public boolean isApplicable(@NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType) {
+                    return true;
+                  }
+
+                  @Override
+                  public void solve(@NotNull ExpressionTypechecker typechecker, @NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType, @NotNull ArendUI ui, @NotNull Consumer<ConcreteExpression> callback) {
+                    List<ConcreteExpression> goals = new ArrayList<>();
+                    for (ConcreteParameter ignored : sigmaParams) {
+                      goals.add(argFactory.goal());
+                    }
+                    callback.accept(argFactory.tuple(goals));
+                  }
+                });
+              }
+            });
+          } else if (arg instanceof ConcreteTupleExpression && ((ConcreteTupleExpression) arg).getFields().size() == sigmaParams.size()) {
+            List<? extends ConcreteExpression> oldFields = ((ConcreteTupleExpression) arg).getFields();
+            List<ConcreteExpression> newFields = new ArrayList<>(oldFields.size());
+            for (int j = 0; j < oldFields.size(); j++) {
+              Boolean simpCoe = simpCoeIndices.get(j);
+              newFields.add(simpCoe == null ? oldFields.get(j) : argFactory.app(simpCoe ? argFactory.meta("simp_coe", new DeferredMetaDefinition(ext.simpCoeMeta, false, ExpressionTypechecker.Stage.BEFORE_LEVELS)) : argFactory.meta("ext", new DeferredMetaDefinition(ext.extMeta, false, ExpressionTypechecker.Stage.BEFORE_LEVELS)), true, Collections.singletonList(oldFields.get(j))));
+            }
+            arg = argFactory.tuple(newFields);
+          } else {
+            typechecker.getErrorReporter().report(new TypecheckingError("Expected a tuple with " + sigmaParams.size() + " arguments", arg));
+            return null;
+          }
         }
 
         TypedExpression sigmaEqType = typechecker.typecheck(sigmaParams.size() == 1 ? lastSigmaParam : factory.sigma(sigmaParams), null);
@@ -612,7 +685,7 @@ public class ExtMeta extends BaseMetaDefinition {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
         ConcreteExpression result = new ExtGenerator(typechecker, factory, marker, iRef).generate(arg, normType, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2));
-        return result == null ? null : typechecker.typecheck(result, normType);
+        return result == null ? null : typechecker.typecheck(result, result instanceof ConcreteGoalExpression ? null : normType);
       }
     })))), contextData.getExpectedType());
   }

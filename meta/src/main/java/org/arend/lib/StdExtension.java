@@ -169,7 +169,7 @@ public class StdExtension implements ArendExtension {
       "* If the goal is `x = {P} y`, where `P : \\Prop`, then the argument for {ext} should be omitted.",
       Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
     contributor.declare(paths, new LongName("exts"),
-      "Similar to {ext}, but also applies `simp_coe` when a field of a \\Sigma-type or a record has an appropriate type.",
+      "Similar to {ext}, but also applies either {simp_coe} or {ext} when a field of a \\Sigma-type or a record has an appropriate type.",
       Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extsMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
 
     MetaDefinition apply = new ApplyMeta(this);
