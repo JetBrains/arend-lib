@@ -255,9 +255,9 @@ public class MonoidSolver implements EquationSolver {
         var equalities = new ArrayList<Equality>();
         for (RuleExt rule : rules) {
           if (rule.direction == Direction.FORWARD || rule.direction == Direction.UNKNOWN) {
-            equalities.add(new Equality(rule.binding, rule.lhsTerm, rule.rhsTerm, rule.lhs, rule.rhs));
+            equalities.add(new Equality(rule.binding != null ? factory.ref(rule.binding) : factory.core(rule.expression), rule.lhsTerm, rule.rhsTerm, rule.lhs, rule.rhs));
           } else {
-            equalities.add(new Equality(rule.binding, rule.rhsTerm, rule.lhsTerm, rule.rhs, rule.lhs));
+            equalities.add(new Equality(rule.binding != null ? factory.ref(rule.binding) : factory.core(rule.expression), rule.rhsTerm, rule.lhsTerm, rule.rhs, rule.lhs));
           }
         }
         return solver.solve(term1, term2, equalities);
@@ -343,13 +343,13 @@ public class MonoidSolver implements EquationSolver {
 
   private static class Equality {
     // public final TypedExpression expression;
-    public final CoreBinding binding;
+    public final ConcreteExpression binding;
     public List<Integer> lhsNF;
     public List<Integer> rhsNF;
     public ConcreteExpression lhsTerm;
     public ConcreteExpression rhsTerm;
 
-    private Equality(CoreBinding binding, ConcreteExpression lhsTerm, ConcreteExpression rhsTerm, List<Integer> lhsNF, List<Integer> rhsNF) {
+    private Equality(ConcreteExpression binding, ConcreteExpression lhsTerm, ConcreteExpression rhsTerm, List<Integer> lhsNF, List<Integer> rhsNF) {
       // this.expression = expression;
       this.binding = binding;
       this.lhsTerm = lhsTerm;
@@ -400,7 +400,7 @@ public class MonoidSolver implements EquationSolver {
         var rhsTerm = isDirect ? equalityToApply.rhsTerm : equalityToApply.lhsTerm;
         ConcreteExpression lhsTermNF = computeNFTerm(lhsNF, factory);
         ConcreteExpression rhsTermNF = computeNFTerm(rhsNF, factory);
-        ConcreteExpression nfProofTerm = factory.ref(equalityToApply.binding);
+        ConcreteExpression nfProofTerm = equalityToApply.binding; // factory.ref(equalityToApply.binding);
 
         if (!isDirect) {
           nfProofTerm = factory.app(factory.ref(meta.ext.inv.getRef()), true, singletonList(nfProofTerm));

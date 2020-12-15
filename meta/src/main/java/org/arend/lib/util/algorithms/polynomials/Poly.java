@@ -136,9 +136,16 @@ public class Poly<E> {
         var rem = new Poly<>(monomials);
         var quotRem = new ArrayList<Poly<E>>();
         for (Poly<E> poly : polys) {
-            var divres = rem.divideWRemainder(poly);
-            quotRem.add(divres.proj1);
-            rem = divres.proj2;
+            quotRem.add(Poly.constant(ring().zero(), numVars(), ring()));
+        }
+        var lastRem = Poly.constant(ring().zero(), numVars(), ring());
+        while (!rem.equals(lastRem)) {
+            lastRem = rem;
+            for (int i = 0; i < polys.size(); ++i) {
+                var divres = rem.divideWRemainder(polys.get(i));
+                quotRem.set(i, quotRem.get(i).add(divres.proj1));
+                rem = divres.proj2;
+            }
         }
         quotRem.add(rem);
         return quotRem;

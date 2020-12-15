@@ -53,10 +53,10 @@ public class Buchberger implements GroebnerBasisAlgorithm {
                 coeffs.add(c1.subtr(c2));
             }
 
-            while (!s12.equals(lastRedS12)) {
+//            while (!s12.equals(lastRedS12)) {
                 var divResult = s12.divideWRemainder(groebnerBasis);
 
-                lastRedS12 = s12;
+  //              lastRedS12 = s12;
                 s12 = divResult.get(groebnerBasis.size());
                 if (!s12.isZero()) {
                     var groebnerCoeffs = divResult.subList(0, divResult.size() - 1);
@@ -68,10 +68,12 @@ public class Buchberger implements GroebnerBasisAlgorithm {
                             coeffs.set(i, coeff.add(coeffs.get(i)));
                         }
                     }
-                } else {
-                    break;
                 }
-            }
+
+                //else {
+               //     break;
+              //  }
+           // }
 
             if (!s12.isZero()) {
                 //var c1 = coeffs.get(pair.proj1).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt1))));
