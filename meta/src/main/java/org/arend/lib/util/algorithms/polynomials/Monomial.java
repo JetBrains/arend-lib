@@ -1,6 +1,5 @@
 package org.arend.lib.util.algorithms.polynomials;
 
-import java.math.BigInteger;
 import java.util.*;
 
 public class Monomial<E> {
@@ -34,7 +33,7 @@ public class Monomial<E> {
              int deg = Math.max(dv.get(i), m.degreeVector.get(i));
              dv.set(i, deg);
          }
-         return new Monomial<E>(ring.lcm(coefficient, m.coefficient), dv, ring);
+         return new Monomial<>(ring.lcm(coefficient, m.coefficient), dv, ring);
      }
 
      public boolean isDivisible(Monomial<E> m) {
@@ -92,7 +91,7 @@ public class Monomial<E> {
     }
 
      public Monomial<E> mul(Monomial<E> m) {
-         var result = new Monomial<E>(ring.mul(coefficient, m.coefficient), new ArrayList<>(), ring);
+         var result = new Monomial<>(ring.mul(coefficient, m.coefficient), new ArrayList<>(), ring);
          for (int i = 0; i < Math.max(degreeVector.size(), m.degreeVector.size()); ++i) {
              int deg = i < degreeVector.size() ? degreeVector.get(i) : 0;
              if (i < m.degreeVector.size()) {
@@ -104,7 +103,7 @@ public class Monomial<E> {
      }
 
     public Monomial<E> mul(List<Integer> degreeVector) {
-         return mul(new Monomial<E>(ring.unit(), degreeVector, ring));
+         return mul(new Monomial<>(ring.unit(), degreeVector, ring));
     }
 
      public int numVars() { return degreeVector.size(); }

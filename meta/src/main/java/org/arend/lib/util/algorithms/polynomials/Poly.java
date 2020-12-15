@@ -1,6 +1,6 @@
 package org.arend.lib.util.algorithms.polynomials;
 
-import org.apache.commons.math3.util.Pair;
+import org.arend.lib.util.Pair;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +17,7 @@ public class Poly<E> {
         monCpy.sort(new DegLexMonomialOrder<>());
 
         if (monCpy.get(0).degree() != 0) {
-            monCpy.add(0, new Monomial<E>(ring.zero(), numVars, ring));
+            monCpy.add(0, new Monomial<>(ring.zero(), numVars, ring));
         }
 
         Monomial<E> lastMon = null;
@@ -27,6 +27,7 @@ public class Poly<E> {
                 lastAdded = new Monomial<>(mon);
                 this.monomials.add(lastAdded);
             } else {
+                assert lastAdded != null;
                 lastAdded.coefficient = mon.ring.add(lastAdded.coefficient, mon.coefficient);
             }
             lastMon = mon;
@@ -136,8 +137,8 @@ public class Poly<E> {
         var quotRem = new ArrayList<Poly<E>>();
         for (Poly<E> poly : polys) {
             var divres = rem.divideWRemainder(poly);
-            quotRem.add(divres.getFirst());
-            rem = divres.getSecond();
+            quotRem.add(divres.proj1);
+            rem = divres.proj2;
         }
         quotRem.add(rem);
         return quotRem;

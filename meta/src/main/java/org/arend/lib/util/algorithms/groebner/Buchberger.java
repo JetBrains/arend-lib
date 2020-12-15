@@ -1,7 +1,6 @@
 package org.arend.lib.util.algorithms.groebner;
 
-import cc.redberry.rings.poly.multivar.DegreeVector;
-import org.apache.commons.math3.util.Pair;
+import org.arend.lib.util.Pair;
 import org.arend.lib.util.algorithms.polynomials.Monomial;
 import org.arend.lib.util.algorithms.polynomials.Poly;
 import org.arend.lib.util.algorithms.polynomials.Ring;
@@ -14,7 +13,7 @@ public class Buchberger implements GroebnerBasisAlgorithm {
     @Override
     public Map<Poly<BigInteger>, List<Poly<BigInteger>>> computeGBwCoefficients(List<Poly<BigInteger>> generators) {
         if (generators.isEmpty()) {
-            return new HashMap<Poly<BigInteger>, List<Poly<BigInteger>>>(Collections.EMPTY_MAP);
+            return new HashMap<>();
         }
 
         List<Poly<BigInteger>> groebnerBasis = new ArrayList<>(generators);
@@ -40,8 +39,8 @@ public class Buchberger implements GroebnerBasisAlgorithm {
 
         while (!pairsToProcess.isEmpty()) {
             var pair = pairsToProcess.poll();
-            var f1 = groebnerBasis.get(pair.getFirst());
-            var f2 = groebnerBasis.get(pair.getSecond());
+            var f1 = groebnerBasis.get(pair.proj1);
+            var f2 = groebnerBasis.get(pair.proj2);
             Monomial<BigInteger> lt1 = f1.leadingTerm(), lt2 = f2.leadingTerm(), lcm = lt1.lcm(lt2);
             var s12 = f1.mul(lcm.divideBy(lt1)).subtr(f2.mul(lcm.divideBy(lt2)));
             Poly<BigInteger> lastRedS12 = Poly.constant(ring.zero(), nVars, ring);
@@ -69,10 +68,10 @@ public class Buchberger implements GroebnerBasisAlgorithm {
             }
 
             if (!s12.isZero()) {
-                var c1 = coeffs.get(pair.getFirst()).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt1))));
-                coeffs.set(pair.getFirst(), c1);
-                var c2 = coeffs.get(pair.getSecond()).subtr(new Poly<>(Collections.singletonList(lcm.divideBy(lt2))));
-                coeffs.set(pair.getSecond(), c2);
+                var c1 = coeffs.get(pair.proj1).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt1))));
+                coeffs.set(pair.proj1, c1);
+                var c2 = coeffs.get(pair.proj2).subtr(new Poly<>(Collections.singletonList(lcm.divideBy(lt2))));
+                coeffs.set(pair.proj2, c2);
                 gbCoefficients.put(s12, coeffs);
                 for (int i = 0; i < groebnerBasis.size(); ++i) {
                     pairsToProcess.add(new Pair<>(i, groebnerBasis.size()));
