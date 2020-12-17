@@ -394,11 +394,9 @@ public class MonoidSolver implements EquationSolver {
         var equalityToApply = axioms.get(axiom.proj1);
         var isDirect = axiom.proj2;
         var powsToRemove = isDirect ? axiomsPow.get(axiom.proj1).proj1 : axiomsPow.get(axiom.proj1).proj2;
-        var lhsNF = isDirect ? equalityToApply.lhsNF : equalityToApply.rhsNF;
         var rhsNF = isDirect ? equalityToApply.rhsNF : equalityToApply.lhsNF;
         var lhsTerm = isDirect ? equalityToApply.lhsTerm : equalityToApply.rhsTerm;
         var rhsTerm = isDirect ? equalityToApply.rhsTerm : equalityToApply.lhsTerm;
-        ConcreteExpression lhsTermNF = computeNFTerm(lhsNF, factory);
         ConcreteExpression rhsTermNF = computeNFTerm(rhsNF, factory);
         ConcreteExpression nfProofTerm = equalityToApply.binding; // factory.ref(equalityToApply.binding);
 
@@ -422,6 +420,13 @@ public class MonoidSolver implements EquationSolver {
         for (Integer integer : indexesToReplace) {
           subwordToReplace.add(newWord.get(integer));
           newWord.remove(integer.intValue());
+        }
+
+        int prefix = 0;
+        for (int i = 0; i < indexesToReplace.size(); ++i) {
+          int ind = indexesToReplace.get(i);
+          indexesToReplace.set(i, ind + i - prefix);
+          prefix = ind + i + 1;
         }
 
         for (int i = rhsNF.size() - 1; i >= 0; --i) {

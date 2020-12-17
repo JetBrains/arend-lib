@@ -53,33 +53,18 @@ public class Buchberger implements GroebnerBasisAlgorithm {
                 coeffs.add(c1.subtr(c2));
             }
 
-//            while (!s12.equals(lastRedS12)) {
-                var divResult = s12.divideWRemainder(groebnerBasis);
+            var divResult = s12.divideWRemainder(groebnerBasis);
 
-  //              lastRedS12 = s12;
-                s12 = divResult.get(groebnerBasis.size());
-                if (!s12.isZero()) {
-                    var groebnerCoeffs = divResult.subList(0, divResult.size() - 1);
-                    for (int i = 0; i < generators.size(); ++i) {
-                        for (int j = 0; j < groebnerBasis.size(); ++j) {
-                            var coeff = groebnerCoeffs.get(j).mul(Poly.constant(Ring.negUnit(ring), nVars, ring)).
-                                    mul(gbCoefficients.get(groebnerBasis.get(j)).get(i));
-                            //coeffs[i] = MultivariatePolynomial.zero(nVars, ring, ordering).subtract(coeffs[i]);
-                            coeffs.set(i, coeff.add(coeffs.get(i)));
-                        }
+            s12 = divResult.get(groebnerBasis.size());
+            if (!s12.isZero()) {
+                var groebnerCoeffs = divResult.subList(0, divResult.size() - 1);
+                for (int i = 0; i < generators.size(); ++i) {
+                    for (int j = 0; j < groebnerBasis.size(); ++j) {
+                        var coeff = groebnerCoeffs.get(j).mul(Poly.constant(Ring.negUnit(ring), nVars, ring)).
+                                mul(gbCoefficients.get(groebnerBasis.get(j)).get(i));
+                        coeffs.set(i, coeff.add(coeffs.get(i)));
                     }
                 }
-
-                //else {
-               //     break;
-              //  }
-           // }
-
-            if (!s12.isZero()) {
-                //var c1 = coeffs.get(pair.proj1).add(new Poly<>(Collections.singletonList(lcm.divideBy(lt1))));
-                //coeffs.set(pair.proj1, c1);
-                //var c2 = coeffs.get(pair.proj2).subtr(new Poly<>(Collections.singletonList(lcm.divideBy(lt2))));
-                //coeffs.set(pair.proj2, c2);
                 gbCoefficients.put(s12, coeffs);
                 for (int i = 0; i < groebnerBasis.size(); ++i) {
                     pairsToProcess.add(new Pair<>(i, groebnerBasis.size()));
