@@ -59,7 +59,9 @@ public class StdExtension implements ArendExtension {
 
   public EquationMeta equationMeta = new EquationMeta(this);
   public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
-  public ExtMeta extMeta = new ExtMeta(this);
+  public ExtMeta extMeta = new ExtMeta(this, false);
+  public ExtMeta extsMeta = new ExtMeta(this, true);
+  public SimpCoeMeta simpCoeMeta = new SimpCoeMeta(this);
   public SIPMeta sipMeta = new SIPMeta(this);
   public MetaRef constructorMetaRef;
 
@@ -97,6 +99,7 @@ public class StdExtension implements ArendExtension {
   @Override
   public void load(@NotNull ArendDependencyProvider provider) {
     provider.load(this);
+    provider.load(simpCoeMeta);
     provider.load(sipMeta);
     provider.load(equationMeta);
   }
@@ -127,7 +130,7 @@ public class StdExtension implements ArendExtension {
     contributor.declare(meta, new LongName("unfold"),
       "`unfold (f_1, ... f_n) e` unfolds functions f_1, ... f_n in the expected type before type-checking of `e` and returns `e` itself.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
-      Precedence.DEFAULT, new UnfoldMeta(this));
+      Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), false, ExpressionTypechecker.Stage.AFTER_LEVELS));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
@@ -140,11 +143,34 @@ public class StdExtension implements ArendExtension {
         "`rewriteI p` is equivalent to `rewrite (inv p)`",
         Precedence.DEFAULT, new RewriteMeta(this, false, false));
     contributor.declare(paths, new LongName("rewriteF"),
-        "`rewriteF (p : a = b) e` is similar to `rewrite`, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
+        "`rewriteF (p : a = b) e` is similar to {rewrite}, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
         Precedence.DEFAULT, new RewriteMeta(this, true, false));
+    contributor.declare(paths, new LongName("simp_coe"),
+      "Simplifies certain equalities. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
+      "* If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right a = b'`, then the subgoal is `coe (B a) (f a) right = b`.\n" +
+      "* If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right = g'`, then the subgoal is `\\Pi (a : A) -> coe (B a) (f a) right = g a`.\n" +
+      "* If the goal is `coe (\\lam i => A i -> B i) f right = g'`, then the subgoal is `\\Pi (a : A left) -> coe B (f a) right = g (coe A a right)`.\n" +
+      "* If the type under `coe` is a higher-order non-dependent function type, `simp_coe` simplifies it recursively.\n" +
+      "* If the goal is `(coe (\\lam i => \\Sigma (x_1 : A_1 i) ... (x_n : A_n i) ...) t right).n = b'`, then the subgoal is `coe A_n t.n right = b`.\n" +
+      "* If the goal is `coe (\\lam i => \\Sigma (x_1 : A_1) ... (x_n : A_n) (B_{n+1} i) ... (B_k i)) t right = s'`, then the subgoal is a \\Sigma type consisting of equalities as specified above ignoring fields in \\Prop.\n" +
+      "* If the type under `coe` is a record, then `simp_coe` works similarly to the case of \\Sigma types. The copattern matching syntax as in {ext} is also supported.\n" +
+      "* All of the above cases also work for goals with {transport} instead of {coe} since the former evaluates to the latter.\n" +
+      "* If the goal is `transport (\\lam x => f x = g x) p q = s`, then the subgoal is `q *> pmap g p = pmap f p *> s`. If `f` does not depend on `x`, then the right hand side of the subgoal is simply `s`.",
+      Precedence.DEFAULT, null, null, simpCoeMeta, new ClassExtResolver(this));
     contributor.declare(paths, new LongName("ext"),
-      "`ext p` proves goals of the form `a = {A} a'`. The type of `p` depends on `A`, which can be either a \\Pi-type, a \\Sigma-type, a universe, or a record. Also, `A` can be a proposition, in which case `p` should be omitted.",
-      Precedence.DEFAULT, new DeferredMetaDefinition(extMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS));
+      "Proves goals of the form `a = {A} a'`. It expects (at most) one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
+      "* If the goal is `f = {\\Pi (x_1 : A_1) ... (x_n : A_n) -> B} g`, then the subgoal is `\\Pi (x_1 : A_1) ... (x_n : A_n) -> f x_1 ... x_n = g x_1 ... x_n`\n" +
+      "* If the goal is `t = {\\Sigma (x_1 : A_1) ... (x_n : A_n) (y_1 : B_1 x_1 ... x_n) ... (y_k : B_k x_1 ... x_n) (z_1 : C_1) ... (z_m : C_m)} s`, where `C_i : \\Prop` and they can depend on on `x_j` and `y_l` for all `i`, `j`, and `l`," +
+        " then the subgoal is `\\Sigma (p_1 : t.1 = s.1) ... (p_n : t.n = s.n) D_1 ... D_k`, where `D_j` is equal to `coe (\\lam i => B (p_1 @ i) ... (p_n @ i)) t.{k + j - 1} right = s.{k + j - 1}`.\n" +
+      "* If the goal is `t = {R} s`, where `R` is a record, then the subgoal is defined in the same way as for \\Sigma-types." +
+        " It is also possible to use the following syntax in this case: `ext R { | f_1 => e_1 ... | f_l => e_l }`, which is equivalent to `ext (e_1, ... e_l)`\n" +
+      "* If the goal is `A = {\\Prop} B`, then the subgoal is `\\Sigma (A -> B) (B -> A)`\n" +
+      "* If the goal is `A = {\\Type} B`, then the subgoal is `Equiv {A} {B}`\n" +
+      "* If the goal is `x = {P} y`, where `P : \\Prop`, then the argument for {ext} should be omitted.",
+      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
+    contributor.declare(paths, new LongName("exts"),
+      "Similar to {ext}, but also applies either {simp_coe} or {ext} when a field of a \\Sigma-type or a record has an appropriate type.",
+      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extsMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
 
     MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");

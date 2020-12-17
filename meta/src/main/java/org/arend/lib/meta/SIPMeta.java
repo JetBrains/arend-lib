@@ -160,11 +160,11 @@ public class SIPMeta extends BaseMetaDefinition {
       factory.lam(Collections.singletonList(factory.param(sipRef1)), factory.classExt(factory.core(obTyped), Collections.singletonList(factory.implementation(ext.carrier.getRef(), factory.ref(sipRef1))))),
       factory.lam(Arrays.asList(factory.param(sipRef1), factory.param(sipRef2), factory.param(sipRef3)), factory.classExt(factory.app(factory.core(homTyped), true, Arrays.asList(factory.ref(sipRef1), factory.ref(sipRef2))), Collections.singletonList(factory.implementation(homFunc.getRef(), factory.ref(sipRef3))))),
       argument,
-      factory.newExpr(factory.app(factory.ref(Iso.getRef()), true, Arrays.asList(eFunc, eInv, eFuncInvPath, eInvFuncPath))),
+      factory.newExpr(factory.app(factory.ref(Iso.getRef()), true, Arrays.asList(eFunc, eInv, eInvFuncPath, eFuncInvPath))),
       eDom, eCod, eFunc, eInv)));
     ConcreteLetClause letClause = factory.letClause(pathRef, Collections.emptyList(), null, factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.newExpr(factory.classExt(factory.core(obTyped), obFields))))));
 
-    return typechecker.typecheck(factory.lam(Collections.singletonList(factory.param(isoRef)), factory.letExpr(true, false, Collections.singletonList(haveClause), factory.letExpr(false, false, Collections.singletonList(letClause), factory.tuple(factory.ref(pathRef), factory.app(factory.meta("ext", ext.extMeta), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(extRef)),
+    return typechecker.typecheck(factory.lam(Collections.singletonList(factory.param(isoRef)), factory.letExpr(true, false, Collections.singletonList(haveClause), factory.letExpr(false, false, Collections.singletonList(letClause), factory.tuple(factory.ref(pathRef), factory.app(factory.meta("exts", ext.extsMeta), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(extRef)),
       factory.app(factory.ref(ext.concat.getRef()), true, Arrays.asList(
         factory.appBuilder(factory.ref(ext.Jl.getRef()))
           .app(factory.core(obTyped), false)

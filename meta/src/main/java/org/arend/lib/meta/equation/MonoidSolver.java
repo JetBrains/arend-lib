@@ -30,12 +30,7 @@ import java.util.*;
 
 import static java.util.Collections.singletonList;
 
-public class MonoidSolver implements EquationSolver {
-  private final EquationMeta meta;
-  private final ExpressionTypechecker typechecker;
-  private final ConcreteFactory factory;
-  private final ConcreteReferenceExpression refExpr;
-
+public class MonoidSolver extends BaseEqualitySolver {
   private final BinOpMatcher binOpMatcher;
   private final TypedExpression instance;
   private final CoreExpression ideExpr;
@@ -45,17 +40,13 @@ public class MonoidSolver implements EquationSolver {
   private final ArendRef dataRef;
   private final List<ConcreteLetClause> letClauses;
   private Map<CoreBinding, List<RuleExt>> contextRules;
-  private final CoreFunCallExpression equality;
   private boolean isCommutative;
   private boolean isSemilattice;
   private final CoreClassField ide;
   private final CoreClassField mul;
 
   public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall) {
-    this.meta = meta;
-    this.typechecker = typechecker;
-    this.factory = factory;
-    this.refExpr = refExpr;
+    super(meta, typechecker, factory, refExpr);
     this.equality = equality;
     this.instance = instance;
 
@@ -147,56 +138,6 @@ public class MonoidSolver implements EquationSolver {
         }
       }
     }
-  }
-
-  @Override
-  public boolean isApplicable(CoreExpression type) {
-    return true;
-  }
-
-  @Override
-  public CoreExpression getValuesType() {
-    return equality.getDefCallArguments().get(0);
-  }
-
-  @Override
-  public CoreExpression getLeftValue() {
-    return equality.getDefCallArguments().get(1);
-  }
-
-  @Override
-  public CoreExpression getRightValue() {
-    return equality.getDefCallArguments().get(2);
-  }
-
-  @Override
-  public @Nullable Maybe<CoreExpression> getEqType(@Nullable TypedExpression leftExpr, @Nullable TypedExpression rightExpr) {
-    if (leftExpr != null && rightExpr != null) {
-      TypedExpression result = typechecker.typecheck(factory.app(factory.ref(meta.ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.core(null, leftExpr), factory.core(null, rightExpr))), null);
-      return result == null ? null : new Maybe<>(result.getExpression());
-    } else {
-      return new Maybe<>(null);
-    }
-  }
-
-  @Override
-  public TypedExpression getTrivialResult(TypedExpression expression) {
-    return typechecker.typecheck(factory.app(factory.ref(meta.ext.prelude.getIdp().getRef()), false, Arrays.asList(factory.hole(), factory.core(null, expression))), null);
-  }
-
-  @Override
-  public ConcreteExpression combineResults(ConcreteExpression expr1, ConcreteExpression expr2) {
-    return factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(expr1, expr2));
-  }
-
-  @Override
-  public boolean isHint(ConcreteExpression expression) {
-    return ContextHelper.getMeta(expression) != null;
-  }
-
-  @Override
-  public boolean initializeSolver() {
-    return true;
   }
 
   private static List<Integer> removeDuplicates(List<Integer> list) {
@@ -493,8 +434,7 @@ public class MonoidSolver implements EquationSolver {
         powersSeq.add(0);
       }
 
-      for (int i = 0; i < word.size(); ++i) {
-        int a = word.get(i);
+      for (int a : word) {
         powersSeq.set(a, powersSeq.get(a) + 1);
       }
 
