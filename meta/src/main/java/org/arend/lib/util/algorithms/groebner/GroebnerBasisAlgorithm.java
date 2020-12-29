@@ -7,5 +7,5 @@ import java.util.List;
 import java.util.Map;
 
 public interface GroebnerBasisAlgorithm {
-    Map<Poly<BigInteger>, List<Poly<BigInteger>>> computeGBwCoefficients(List<Poly<BigInteger>> generators);
+  Map<Poly<BigInteger>, List<Poly<BigInteger>>> computeGBwCoefficients(List<Poly<BigInteger>> generators);
 }
