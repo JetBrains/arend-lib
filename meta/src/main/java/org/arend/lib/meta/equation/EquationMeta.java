@@ -42,28 +42,42 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")        CoreClassField meet;
   @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top") CoreClassField top;
 
-  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.var")  CoreConstructor varTerm;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideTerm;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   CoreConstructor mulTerm;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.var")  CoreConstructor varMTerm;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideMTerm;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   CoreConstructor mulMTerm;
 
-  @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition Data;
-  @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition CData;
-  @Dependency(module = "Algebra.Monoid.Solver")                                     CoreClassDefinition LData;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.f")                    CoreClassField DataFunction;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                   CoreClassField LDataCarrier;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")       CoreFunctionDefinition termsEq;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")  CoreFunctionDefinition termsEqConv;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")   CoreFunctionDefinition replaceDef;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality")      CoreFunctionDefinition commTermsEq;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality-conv") CoreFunctionDefinition commTermsEqConv;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.replace-consistent")  CoreFunctionDefinition commReplaceDef;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.sort-consistent")     CoreFunctionDefinition sortDef;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.normalize-consistent")     CoreFunctionDefinition normDef;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.terms-equality")      CoreFunctionDefinition latticeTermsEq;
+  @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition Data;
+  @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition CData;
+  @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition LData;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.f")                      CoreClassField DataFunction;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                     CoreClassField LDataCarrier;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")         CoreFunctionDefinition termsEq;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")    CoreFunctionDefinition termsEqConv;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")     CoreFunctionDefinition replaceDef;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality")        CoreFunctionDefinition commTermsEq;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality-conv")   CoreFunctionDefinition commTermsEqConv;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.replace-consistent")    CoreFunctionDefinition commReplaceDef;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.sort-consistent")       CoreFunctionDefinition sortDef;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.normalize-consistent")  CoreFunctionDefinition normDef;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.terms-equality")        CoreFunctionDefinition latticeTermsEq;
 
-  @Dependency(module = "Algebra.Group", name = "AddGroup.negative") public CoreClassField negative;
-  @Dependency(module = "Algebra.Semiring")                          public CoreClassDefinition Semiring;
-  @Dependency(module = "Algebra.Ring")                              public CoreClassDefinition Ring;
+  @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition SemiringData;
+  @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition RingData;
+  @Dependency(module = "Algebra.Ring.Solver", name = "SemiringData.R")                CoreClassField RDataCarrier;
+
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.var")            CoreConstructor varTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.coef")           CoreConstructor coefTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:ide")           CoreConstructor ideTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:zro")           CoreConstructor zroTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:*")             CoreConstructor mulTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:+")             CoreConstructor addTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.terms-equality")  CoreFunctionDefinition ringTermsEq;
+
+  @Dependency(module = "Algebra.Group", name = "AddGroup.negative")   public CoreClassField negative;
+  @Dependency(module = "Algebra.Semiring")                            public CoreClassDefinition Semiring;
+  @Dependency(module = "Algebra.Ring")                                public CoreClassDefinition Ring;
+  @Dependency(module = "Algebra.Semiring", name = "Semiring.natCoef") public CoreClassField natCoef;
+  @Dependency(module = "Algebra.Ring", name = "Ring.intCoef")         public CoreFunctionDefinition intCoef;
 
   @Dependency(module = "Equiv")                                  public CoreClassDefinition Equiv;
   @Dependency(module = "Equiv")                                  public CoreClassDefinition QEquiv;

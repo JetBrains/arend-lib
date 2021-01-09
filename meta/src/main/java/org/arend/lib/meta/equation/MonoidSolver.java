@@ -1,17 +1,13 @@
 package org.arend.lib.meta.equation;
 
-import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
-import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.expr.*;
-import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.reference.ArendRef;
@@ -19,6 +15,7 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.error.AlgebraSolverError;
+import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.util.*;
 import org.arend.lib.util.algorithms.ComMonoidWP;
 import org.arend.lib.util.algorithms.groebner.Buchberger;
@@ -31,113 +28,26 @@ import java.util.*;
 import static java.util.Collections.singletonList;
 
 public class MonoidSolver extends BaseEqualitySolver {
-  private final BinOpMatcher binOpMatcher;
-  private final TypedExpression instance;
-  private final CoreExpression ideExpr;
-  private final Values<CoreExpression> values;
+  private final FunctionMatcher mulMatcher;
+  private final FunctionMatcher ideMatcher;
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
-  private final ArendRef dataRef;
-  private final List<ConcreteLetClause> letClauses;
   private Map<CoreBinding, List<RuleExt>> contextRules;
   private boolean isCommutative;
   private boolean isSemilattice;
   private final CoreClassField ide;
-  private final CoreClassField mul;
 
   public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall) {
-    super(meta, typechecker, factory, refExpr);
+    super(meta, typechecker, factory, refExpr, instance);
     this.equality = equality;
-    this.instance = instance;
 
     isSemilattice = classCall.getDefinition().isSubClassOf(meta.MSemilattice);
     boolean isMultiplicative = !isSemilattice && classCall.getDefinition().isSubClassOf(meta.Monoid);
     isCommutative = isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid);
     ide = isSemilattice ? meta.top : isMultiplicative ? meta.ide : meta.zro;
-    mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
-    ideExpr = classCall.getImplementation(ide, instance);
-    CoreExpression mulExpr = classCall.getImplementation(mul, instance);
-    TypedExpression mulTyped = mulExpr == null ? null : mulExpr.computeTyped();
-
-    BinOpMatcher matcher = null;
-    if (mulTyped != null) {
-      CoreExpression expr = mulTyped.getExpression();
-      if (expr instanceof CoreLamExpression) {
-        CoreExpression body = ((CoreLamExpression) expr).getBody();
-        CoreParameter param1 = ((CoreLamExpression) expr).getParameters();
-        CoreParameter param2 = param1.getNext();
-        if (!param2.hasNext() && body instanceof CoreLamExpression) {
-          param2 = ((CoreLamExpression) body).getParameters();
-          body = ((CoreLamExpression) body).getBody();
-        }
-        if (param2.hasNext() && !param2.getNext().hasNext() && body instanceof CoreFunCallExpression && ((CoreFunCallExpression) body).getDefinition() == meta.ext.append) {
-          List<? extends CoreExpression> args = ((CoreFunCallExpression) body).getDefCallArguments();
-          if (args.get(1) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(1)).getBinding() == param1.getBinding() && args.get(2) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(2)).getBinding() == param2.getBinding()) {
-            matcher = new ListBinOpMatcher();
-          }
-        }
-        if (matcher == null) {
-          matcher = new GeneralBinOpMatcher(mulTyped, ((CoreLamExpression) expr).getParameters().getTypeExpr());
-        }
-      }
-    }
-    binOpMatcher = matcher;
-
-    values = new Values<>(typechecker, refExpr);
-    dataRef = factory.local("d");
-    letClauses = new ArrayList<>();
-    letClauses.add(null);
-  }
-
-  private interface BinOpMatcher {
-    void match(CoreExpression expr, List<CoreExpression> args);
-  }
-
-  private class GeneralBinOpMatcher implements BinOpMatcher {
-    private final TypedExpression mulTyped;
-    private final CoreExpression carrierExpr;
-
-    private GeneralBinOpMatcher(TypedExpression mulTyped, CoreExpression carrierExpr) {
-      this.mulTyped = mulTyped;
-      this.carrierExpr = carrierExpr;
-    }
-
-    @Override
-    public void match(CoreExpression expr, List<CoreExpression> args) {
-      typechecker.withCurrentState(tc -> {
-        CoreInferenceReferenceExpression varExpr1 = typechecker.generateNewInferenceVariable("var1", carrierExpr, refExpr, true);
-        CoreInferenceReferenceExpression varExpr2 = typechecker.generateNewInferenceVariable("var2", carrierExpr, refExpr, true);
-        TypedExpression result = tc.typecheck(factory.app(factory.core(mulTyped), true, Arrays.asList(factory.core(varExpr1.computeTyped()), factory.core(varExpr2.computeTyped()))), null);
-        if (result != null && tc.compare(result.getExpression(), expr, CMP.EQ, refExpr, false, true) && varExpr1.getSubstExpression() != null && varExpr2.getSubstExpression() != null) {
-          args.add(varExpr1.getSubstExpression());
-          args.add(varExpr2.getSubstExpression());
-        } else {
-          tc.loadSavedState();
-        }
-        return null;
-      });
-    }
-  }
-
-  private class ListBinOpMatcher implements BinOpMatcher {
-    @Override
-    public void match(CoreExpression expr, List<CoreExpression> args) {
-      if (expr instanceof CoreFunCallExpression && ((CoreFunCallExpression) expr).getDefinition() == meta.ext.append) {
-        List<? extends CoreExpression> defCallArgs = ((CoreFunCallExpression) expr).getDefCallArguments();
-        args.add(defCallArgs.get(1));
-        args.add(defCallArgs.get(2));
-      } else if (expr instanceof CoreConCallExpression && ((CoreConCallExpression) expr).getDefinition() == meta.ext.cons) {
-        List<? extends CoreExpression> defCallArgs = ((CoreConCallExpression) expr).getDefCallArguments();
-        CoreExpression tail = defCallArgs.get(1).normalize(NormalizationMode.WHNF);
-        if (!(tail instanceof CoreConCallExpression && ((CoreConCallExpression) tail).getDefinition() == meta.ext.nil)) {
-          TypedExpression result = typechecker.typecheck(factory.app(factory.ref(meta.ext.cons.getRef()), true, Arrays.asList(factory.core(defCallArgs.get(0).computeTyped()), factory.ref(meta.ext.nil.getRef()))), null);
-          if (result != null) {
-            args.add(result.getExpression());
-            args.add(tail);
-          }
-        }
-      }
-    }
+    CoreClassField mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
+    mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, mul, typechecker, factory, refExpr, meta.ext, 2);
+    ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ide, typechecker, factory, refExpr, meta.ext, 0);
   }
 
   private static List<Integer> removeDuplicates(List<Integer> list) {
@@ -672,56 +582,33 @@ public class MonoidSolver extends BaseEqualitySolver {
   private ConcreteExpression computeTerm(CoreExpression expression, List<Integer> nf) {
     CoreExpression expr = expression.normalize(NormalizationMode.WHNF);
 
-    if (ideExpr == null && expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == ide) {
-      return factory.ref(meta.ideTerm.getRef());
-    }
-    if (ideExpr != null && Utils.safeCompare(typechecker, ideExpr, expr, CMP.EQ, refExpr, false, true)) {
-      return factory.ref(meta.ideTerm.getRef());
+    if (ideMatcher.match(expr) != null) {
+      return factory.ref(meta.ideMTerm.getRef());
     }
 
-    List<CoreExpression> args = new ArrayList<>(2);
-    if (binOpMatcher == null) {
-      CoreExpression function = Utils.getAppArguments(expr, 2, args);
-      if (args.size() == 2) {
-        function = function.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
-        if (!(function instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) function).getDefinition() == mul)) {
-          args.clear();
-        }
-      }
-    } else {
-      binOpMatcher.match(expr, args);
-    }
-
-    if (args.size() == 2) {
+    List<CoreExpression> args = mulMatcher.match(expr);
+    if (args != null) {
       List<ConcreteExpression> cArgs = new ArrayList<>(2);
       cArgs.add(computeTerm(args.get(0), nf));
       cArgs.add(computeTerm(args.get(1), nf));
-      return factory.app(factory.ref(meta.mulTerm.getRef()), true, cArgs);
+      return factory.app(factory.ref(meta.mulMTerm.getRef()), true, cArgs);
     }
 
     int index = values.addValue(expr);
     nf.add(index);
-    return factory.app(factory.ref(meta.varTerm.getRef()), true, singletonList(factory.number(index)));
+    return factory.app(factory.ref(meta.varMTerm.getRef()), true, singletonList(factory.number(index)));
   }
 
   @Override
-  public TypedExpression finalize(ConcreteExpression result) {
-    ArendRef lamParam = factory.local("n");
-    List<CoreExpression> valueList = values.getValues();
-    ConcreteClause[] caseClauses = new ConcreteClause[valueList.size() + 1];
-    for (int i = 0; i < valueList.size(); i++) {
-      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(null, valueList.get(i).computeTyped()));
-    }
-    caseClauses[valueList.size()] = factory.clause(singletonList(factory.refPattern(null, null)), factory.ref(ide.getRef()));
+  protected ConcreteExpression getDefaultValue() {
+    return factory.ref(ide.getRef());
+  }
 
-    ConcreteExpression instanceArg = factory.core(instance);
-    ConcreteExpression dataArg = factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(meta.ext.prelude.getNat().getRef()))),
-      factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
+  @Override
+  protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
     ConcreteExpression data = factory.ref((isSemilattice ? meta.LData : isCommutative ? meta.CData : meta.Data).getRef());
-
-    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(isSemilattice
+    return isSemilattice
       ? factory.classExt(data, Arrays.asList(factory.implementation(meta.LDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)))
-      : factory.app(data, Arrays.asList(factory.arg(instanceArg, false), factory.arg(dataArg, true))))));
-    return typechecker.typecheck(meta.ext.factory.letExpr(false, false, letClauses, result), null);
+      : factory.app(data, Arrays.asList(factory.arg(instanceArg, false), factory.arg(dataArg, true)));
   }
 }

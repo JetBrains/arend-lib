@@ -19,11 +19,11 @@ import org.jetbrains.annotations.Nullable;
 
 public class EqualitySolver extends BaseEqualitySolver {
   private CoreExpression valuesType;
-  private MonoidSolver monoidSolver;
+  private EquationSolver algebraSolver;
   private Values<UncheckedExpression> values;
 
   public EqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr) {
-    super(meta, typechecker, factory, refExpr);
+    super(meta, typechecker, factory, refExpr, null);
   }
 
   @Override
@@ -47,7 +47,7 @@ public class EqualitySolver extends BaseEqualitySolver {
 
   @Override
   public boolean initializeSolver() {
-    if (!initializeMonoidSolver(valuesType)) {
+    if (!initializeAlgebraSolver(valuesType)) {
       values = new Values<>(typechecker, refExpr);
     }
     return true;
@@ -55,8 +55,8 @@ public class EqualitySolver extends BaseEqualitySolver {
 
   @Override
   public ConcreteExpression solve(@Nullable ConcreteExpression hint, @NotNull TypedExpression leftExpr, @NotNull TypedExpression rightExpr, @NotNull ErrorReporter errorReporter) {
-    if (monoidSolver != null) {
-      return monoidSolver.solve(hint, leftExpr, rightExpr, errorReporter);
+    if (algebraSolver != null) {
+      return algebraSolver.solve(hint, leftExpr, rightExpr, errorReporter);
     }
 
     ValuesRelationClosure closure = new ValuesRelationClosure(values, new EquivalenceClosure<>(factory.ref(meta.ext.prelude.getIdp().getRef()), factory.ref(meta.ext.inv.getRef()), factory.ref(meta.ext.concat.getRef()), factory));
@@ -75,14 +75,18 @@ public class EqualitySolver extends BaseEqualitySolver {
     return instanceType instanceof CoreClassCallExpression ? (CoreClassCallExpression) instanceType : null;
   }
 
-  private boolean initializeMonoidSolver(CoreExpression type) {
+  private void initializeAlgebraSolver(TypedExpression instance, CoreClassCallExpression classCall) {
+    algebraSolver = classCall.getDefinition().isSubClassOf(meta.Semiring) ? new RingSolver(meta, typechecker, factory, refExpr, equality, instance, classCall) : new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall);
+  }
+
+  private boolean initializeAlgebraSolver(CoreExpression type) {
     type = type == null ? null : type.normalize(NormalizationMode.WHNF);
     if (type instanceof CoreFieldCallExpression) {
       if (((CoreFieldCallExpression) type).getDefinition() == meta.ext.carrier) {
         TypedExpression instance = ((CoreFieldCallExpression) type).getArgument().computeTyped();
         CoreClassCallExpression classCall = getClassCall(instance.getType());
         if (classCall != null && (classCall.getDefinition().isSubClassOf(meta.Monoid) || classCall.getDefinition().isSubClassOf(meta.AddMonoid) || classCall.getDefinition().isSubClassOf(meta.MSemilattice))) {
-          monoidSolver = new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall);
+          initializeAlgebraSolver(instance, classCall);
           return true;
         }
       }
@@ -96,7 +100,7 @@ public class EqualitySolver extends BaseEqualitySolver {
       if (instance != null) {
         CoreClassCallExpression classCall = getClassCall(instance.getType());
         if (classCall != null) {
-          monoidSolver = new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall);
+          initializeAlgebraSolver(instance, classCall);
           return true;
         }
       }
@@ -107,6 +111,6 @@ public class EqualitySolver extends BaseEqualitySolver {
 
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
-    return monoidSolver != null ? monoidSolver.finalize(result) : typechecker.typecheck(result, null);
+    return algebraSolver != null ? algebraSolver.finalize(result) : typechecker.typecheck(result, null);
   }
 }

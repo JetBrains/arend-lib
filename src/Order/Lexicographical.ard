@@ -1,0 +1,65 @@
+\import Data.List
+\import Logic
+\import Order.LinearOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\open LinearOrder
+
+\instance LexicographicalProduct (A B : Dec) : Dec.Impl (\Sigma A B)
+  | < a b => a.1 < b.1 || (\Sigma (a.1 = b.1) (a.2 < b.2))
+  | <-irreflexive {t} => \case __ \with {
+    | byLeft c => <-irreflexive c
+    | byRight (_,c) => <-irreflexive c
+  }
+  | <-transitive => \case __, __ \with {
+    | byLeft x<y, byLeft y<z => byLeft (<-transitive x<y y<z)
+    | byLeft x<y, byRight (y=z,_) => byLeft (rewriteI y=z x<y)
+    | byRight (x=y,_), byLeft y<z => byLeft (rewrite x=y y<z)
+    | byRight (x1=y1,x2<y2), byRight (y1=z1,y2<z2) => byRight (x1=y1 *> y1=z1, <-transitive x2<y2 y2<z2)
+  }
+  | trichotomy t s => \case trichotomy t.1 s.1 \with {
+    | less t1<s1 => less (byLeft t1<s1)
+    | greater t1>s1 => greater (byLeft t1>s1)
+    | equals t1=s1 => \case trichotomy t.2 s.2 \with {
+      | less t2<s2 => less (byRight (t1=s1, t2<s2))
+      | equals t2=s2 => equals (pmap2 (__,__) t1=s1 t2=s2)
+      | greater t2>s2 => greater (byRight (inv t1=s1, t2>s2))
+    }
+  }
+
+\instance LexicographicalList (A : Dec) : Dec.Impl (List A)
+  | < => <L
+  | <-irreflexive {l : List A} (p : l <L l) : Empty \elim l, p {
+    | :: b bs, <head b<b => StrictPoset.<-irreflexive b<b
+    | :: b bs, <tail _ bs<bs => <-irreflexive bs<bs
+  }
+  | <-transitive {as bs cs : List A} (as<bs : as <L bs) (bs<cs : bs <L cs) : as <L cs \elim as, bs, cs, as<bs, bs<cs {
+    | nil, _, :: b bs, _, _ => nil<::
+    | :: a as, :: b bs, :: c cs, <head a<b, <head b<c => <head (StrictPoset.<-transitive a<b b<c)
+    | :: a as, :: b bs, :: c cs, <head a<b, <tail idp _ => <head a<b
+    | :: a as, :: b bs, :: c cs, <tail idp _, <head b<c => <head b<c
+    | :: a as, :: b bs, :: c cs, <tail a=b as<bs, <tail b=c bs<cs => <tail (a=b *> b=c) (<-transitive as<bs bs<cs)
+  }
+  | trichotomy (as bs : List A) : Tri {\new StrictPoset (List A) (<L) <-irreflexive <-transitive} as bs \with {
+    | nil, nil => equals idp
+    | nil, :: b bs => less nil<::
+    | :: a as, nil => greater nil<::
+    | :: a as, :: b bs => \case Dec.trichotomy a b \with {
+      | less a<b => less (<head a<b)
+      | equals a=b => \case trichotomy as bs \with {
+        | less as<bs => less (<tail a=b as<bs)
+        | equals as=bs => equals (pmap2 (::) a=b as=bs)
+        | greater as>bs => greater (<tail (inv a=b) as>bs)
+      }
+      | greater a>b => greater (<head a>b)
+    }
+  }
+  \where {
+    \truncated \data \infix 4 <L {A : Dec} (l1 l2 : List A) : \Prop \elim l1, l2
+      | nil, :: _ _ => nil<::
+      | :: a as, :: b bs => {
+        | <head (a < b)
+        | <tail (a = b) (as <L bs)
+      }
+  }

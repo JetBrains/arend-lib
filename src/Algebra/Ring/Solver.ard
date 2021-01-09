@@ -1,17 +1,22 @@
+\import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Solver
+\import Algebra.Ordered
 \import Algebra.Pointed
 \import Algebra.Pointed.Category
 \import Algebra.Ring
 \import Algebra.Ring.Category
+\import Arith.Int
 \import Arith.Nat
 \import Algebra.Semiring
 \import Data.List
 \import Function.Meta
+\import Order.Lexicographical
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Set \hiding (#)
 
 \data RingTerm (C V : \Type)
   | coef C
@@ -21,24 +26,24 @@
   | \infixl 6 :+ (t s : RingTerm C V)
   | \infixl 7 :* (t s : RingTerm C V)
 
-\func normalize {V : \Type} {C : Monoid} (t : RingTerm C V) : List (\Sigma C (List V)) \elim t
-  | coef c => (c, nil) :: nil
-  | var v => (1, v :: nil) :: nil
+\func normalize' {V : \Type} {C : Monoid} (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
+  | coef c => (nil, c) :: nil
+  | var v => (v :: nil, 1) :: nil
   | :zro => nil
-  | :ide => (1, nil) :: nil
-  | :+ t s => normalize t ++ normalize s
-  | :* t s => multiply' (normalize t) (normalize s)
+  | :ide => (nil, 1) :: nil
+  | :+ t s => normalize' t ++ normalize' s
+  | :* t s => multiply' (normalize' t) (normalize' s)
   \where {
-    \func multiply' {V : \Type} {C : Monoid} (l1 l2 : List (\Sigma C (List V))) : List (\Sigma C (List V)) \elim l2
+    \func multiply' {V : \Type} {C : Monoid} (l1 l2 : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l2
       | nil => nil
       | l2 => multiply l1 l2 nil
 
-    \func multiply {V : \Type} {C : Monoid} (l1 l2 acc : List (\Sigma C (List V))) : List (\Sigma C (List V)) \elim l1
+    \func multiply {V : \Type} {C : Monoid} (l1 l2 acc : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l1
       | nil => acc
-      | :: a l1 => multiply l1 l2 (map (\lam b => (a.1 * b.1, a.2 ++ b.2)) l2 ++ acc)
+      | :: a l1 => multiply l1 l2 (map (\lam b => (a.1 ++ b.1, a.2 * b.2)) l2 ++ acc)
   }
 
-\class RingData {C R : Semiring} (alg : SemiringHom C R) \extends CData {
+\class AlgData {C : LinearlyOrderedSemiring.Dec} {R : Semiring} (alg : SemiringHom C R) \extends CData {
   | M => AbMonoid.toCMonoid R
   | alg-comm (x : C) (y : R) : alg x * y = y * alg x
   | mData : Data f
@@ -52,16 +57,16 @@
     | :+ t s => interpret t + interpret s
     | :* t s => interpret t * interpret s
 
-  \func interpretNF (l : List (\Sigma C (List V))) : R \elim l
+  \func interpretNF (l : List (\Sigma (List V) C)) : R \elim l
     | nil => 0
-    | :: x nil => alg x.1 * Data.interpretNF {mData} x.2
-    | :: x l => alg x.1 * Data.interpretNF {mData} x.2 + interpretNF l
+    | :: x nil => alg x.2 * Data.interpretNF {mData} x.1
+    | :: x l => alg x.2 * Data.interpretNF {mData} x.1 + interpretNF l
     \where
-      \lemma cons (x : \Sigma C (List V)) (l : List (\Sigma C (List V))) : interpretNF (x :: l) = alg x.1 * Data.interpretNF {mData} x.2 + interpretNF l \elim l
+      \lemma cons (x : \Sigma (List V) C) (l : List (\Sigma (List V) C)) : interpretNF (x :: l) = alg x.2 * Data.interpretNF {mData} x.1 + interpretNF l \elim l
         | nil => inv zro-right
         | :: a l => idp
 
-  \lemma interpretNF_++ (l1 l2 : List (\Sigma C (List V))) : interpretNF (l1 ++ l2) = interpretNF l1 + interpretNF l2 \elim l1
+  \lemma interpretNF_++ (l1 l2 : List (\Sigma (List V) C)) : interpretNF (l1 ++ l2) = interpretNF l1 + interpretNF l2 \elim l1
     | nil => inv zro-left
     | :: a l1 => run {
       repeat {2} (rewrite interpretNF.cons),
@@ -69,7 +74,7 @@
       inv +-assoc
     }
 
-  \lemma interpretNF_multiply (l1 l2 : List (\Sigma C (List V))) {acc : List (\Sigma C (List V))} : interpretNF (normalize.multiply l1 l2 acc) = interpretNF l1 * interpretNF l2 + interpretNF acc \elim l1
+  \lemma interpretNF_multiply (l1 l2 : List (\Sigma (List V) C)) {acc : List (\Sigma (List V) C)} : interpretNF (normalize'.multiply l1 l2 acc) = interpretNF l1 * interpretNF l2 + interpretNF acc \elim l1
     | nil => rewrite zro_*-left (inv zro-left)
     | :: a l1 => run {
       rewrite interpretNF_multiply,
@@ -81,27 +86,148 @@
       rewrite map_lem,
       +-comm
     } \where {
-      \lemma map_lem (a1 : C) (a2 : List V) (l : List (\Sigma C (List V))) : interpretNF (map (\lam b => (a1 * b.1, a2 ++ b.2)) l) = alg a1 * Data.interpretNF {mData} a2 * interpretNF l\elim l
+      \lemma map_lem (a1 : C) (a2 : List V) (l : List (\Sigma (List V) C)) : interpretNF (map (\lam b => (a2 ++ b.1, a1 * b.2)) l) = alg a1 * Data.interpretNF {mData} a2 * interpretNF l\elim l
         | nil => inv zro_*-right
         | :: a l => run {
           repeat {2} (rewrite interpretNF.cons),
-          rewrite (Data.interpretNF_++ {mData} a2 a.2),
+          rewrite (Data.interpretNF_++ {mData} a2 a.1),
           rewrite alg.func-*,
           rewrite map_lem,
           rewrite ldistr,
-          pmap2 (+) (equation {usingOnly (alg-comm a.1 (Data.interpretNF {mData} a2))}) idp
+          pmap2 (+) (equation {usingOnly (alg-comm a.2 (Data.interpretNF {mData} a2))}) idp
         }
   }
 
-  \lemma interpretNF_multiply' (l1 l2 : List (\Sigma C (List V))) : interpretNF (normalize.multiply' l1 l2) = interpretNF l1 * interpretNF l2 \elim l2
+  \lemma interpretNF_multiply' (l1 l2 : List (\Sigma (List V) C)) : interpretNF (normalize'.multiply' l1 l2) = interpretNF l1 * interpretNF l2 \elim l2
     | nil => inv zro_*-right
     | :: a l2 => interpretNF_multiply l1 (a :: l2) *> zro-right
 
-  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
+  \lemma normalize-consistent' (t : RingTerm C V) : interpret t = interpretNF (normalize' t)
     | coef c => inv ide-right
     | var v => rewrite alg.func-ide (inv ide-left)
     | :zro => idp
     | :ide => inv (ide-right *> alg.func-ide)
-    | :+ t s => repeat {2} (rewrite normalize-consistent) (inv (interpretNF_++ (normalize t) (normalize s)))
-    | :* t s => repeat {2} (rewrite normalize-consistent) (inv (interpretNF_multiply' (normalize t) (normalize s)))
+    | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_++ (normalize' t) (normalize' s)))
+    | :* t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_multiply' (normalize' t) (normalize' s)))
+
+  \lemma perm-consistent {l l' : List (\Sigma (List V) C)} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
+    | nil, nil, perm-nil => idp
+    | :: a1 l1, :: a2 l2, perm-:: idp p => repeat {2} (rewrite interpretNF.cons) (pmap (_ +) (perm-consistent p))
+    | :: a1 (:: a1' l1), :: a2 (:: a2' l2), perm-swap idp idp idp => repeat {2} (rewrite interpretNF.cons) (inv +-assoc *> pmap (`+ interpretNF l1) +-comm *> +-assoc)
+    | l1, l2, perm-trans p1 p2 => perm-consistent p1 *> perm-consistent p2
+
+  \lemma sort-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (sort l)
+    => rewrite sort=insert (perm-consistent (Insertion.sort-perm l))
+
+  \func collapse1 (m : List V) (c : C) (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l
+    | nil => (m,c) :: nil
+    | :: a' l => \case decideEq m a'.1 \with {
+      | yes _ => collapse1 a'.1 (c + a'.2) l
+      | no _ => (m,c) :: collapse1 a'.1 a'.2 l
+    }
+
+  \func collapse (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C)
+    | nil => nil
+    | :: a l => collapse1 a.1 a.2 l
+
+  \lemma collapse1-consistent (m : List V) (c : C) (l : List (\Sigma (List V) C)) : alg c * Data.interpretNF {mData} m + interpretNF l = interpretNF (collapse1 m c l) \elim l
+    | nil => zro-right
+    | :: a l => mcases \with {
+      | yes p => rewrite interpretNF.cons $
+          inv +-assoc *>
+          pmap (`+ interpretNF l) (pmap (alg c * (Data.interpretNF {mData} __) + _) p *> inv (pmap (`* _) (alg.func-+ c a.2) *> rdistr)) *>
+          collapse1-consistent a.1 (c + a.2) l
+      | no _ => repeat {2} (rewrite interpretNF.cons) (pmap (_ +) (collapse1-consistent a.1 a.2 l))
+    }
+
+  \lemma collapse-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (collapse l)
+    | nil => idp
+    | :: a l => rewrite interpretNF.cons (collapse1-consistent a.1 a.2 l)
+
+  \func remove0 (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C)
+    | nil => nil
+    | :: a l => \case decideEq a.2 zro \with {
+      | yes e => remove0 l
+      | no n => a :: remove0 l
+    }
+
+  \lemma remove0-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (remove0 l)
+    | nil => idp
+    | :: a l => rewrite interpretNF.cons $ mcases \with {
+      | yes e => rewrite e $ pmap (__ * _ + _) alg.func-zro *> pmap (`+ _) zro_*-left *> zro-left *> (remove0-consistent l)
+      | no n => rewrite interpretNF.cons $ pmap (_ +) (remove0-consistent l)
+    }
+
+  \func normalize (t : RingTerm C V) => remove0 (collapse (sort (normalize' t)))
+
+  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
+    => normalize-consistent' t *> sort-consistent _ *> collapse-consistent _ *> remove0-consistent _
+
+  \lemma terms-equality (t s : RingTerm C V) (p : interpretNF (normalize t) = interpretNF (normalize s)) : interpret t = interpret s
+    => normalize-consistent t *> p *> inv (normalize-consistent s)
+} \where {
+  \open Sort
+  \open Sort.RedBlack
+}
+
+\class SemiringData \extends AlgData
+  | C => NatSemiring
+  | alg => natMap
+  | alg-comm => natComm
+  \where {
+    \func natMap {R : Semiring} : SemiringHom NatSemiring R \cowith
+      | func => natCoef
+      | func-+ (n m : Nat) : R.natCoef (n + m) = natCoef n + natCoef m \elim m {
+        | 0 => inv (pmap (natCoef n +) natCoefZero *> zro-right)
+        | suc m => natCoefSuc (n + m) *> pmap (`+ ide) (func-+ n m) *> +-assoc *> pmap (natCoef n +) (inv (natCoefSuc m))
+      }
+      | func-zro => natCoefZero
+      | func-ide => natCoefSuc 0 *> pmap (`+ ide) natCoefZero *> zro-left
+      | func-* (n m : Nat) : R.natCoef (n * m) = natCoef n * natCoef m \elim m {
+        | 0 => natCoefZero *> inv (pmap (natCoef n *) natCoefZero *> zro_*-right)
+        | suc m => func-+ _ _ *> pmap (`+ natCoef n) (func-* n m) *> inv (pmap (natCoef n *) (natCoefSuc m) *> ldistr *> pmap (natCoef n * natCoef m +) ide-right)
+      }
+
+    \lemma natComm {R : Semiring} (n : Nat) (x : R) : natMap n * x = x * natMap n \elim n
+      | 0 => pmap (`* x) natCoefZero *> zro_*-left *> inv (pmap (x *) natCoefZero *> zro_*-right)
+      | suc n => pmap (`* x) (natCoefSuc n) *> rdistr *> pmap (natCoef n * x +) ide-left *> pmap (`+ x) (natComm n x) *> inv (pmap (x *) (natCoefSuc n) *> ldistr *> pmap (x * natCoef n +) ide-right)
+  }
+
+\class RingData \extends AlgData {
+  | C => IntRing
+  \override R : Ring
+  | alg => intMap
+  | alg-comm => intComm
+} \where {
+  \open AddGroup(negative_+, negative_zro)
+  \open Ring
+  \open SemiringData(natMap)
+
+  \func intMap {R : Ring} : RingHom IntRing R \cowith
+    | func => intCoef
+    | func-+ (x y : Int) : intCoef {R} (x + y) = intCoef x + intCoef y \with {
+      | pos n, pos m => natMap.func-+ n m
+      | pos n, neg (suc _ \as m) => intCoef_diff n m
+      | neg (suc _ \as n), pos m => intCoef_diff m n *> +-comm
+      | neg (suc _ \as n), neg (suc _ \as m) => pmap negative (natMap.func-+ n m) *> negative_+ _ _ *> +-comm
+    }
+    | func-ide => natMap.func-ide
+    | func-* (x y : Int) : intCoef {R} (x * y) = intCoef x * intCoef y \with {
+      | pos n, pos m => natMap.func-* n m
+      | pos n, neg (suc _ \as m) => intCoef_neg _ *> pmap negative (natMap.func-* _ _) *> inv (negative_*-right _ _)
+      | neg (suc _ \as n), pos m => intCoef_neg _ *> pmap negative (natMap.func-* _ _) *> inv (negative_*-left _ _)
+      | neg (suc _ \as n), neg m => natMap.func-* n m *> inv (pmap (negative (natCoef n) *) (intCoef_neg m) *> negative_* _ _)
+    }
+
+  \lemma intCoef_diff {R : Ring} (n m : Nat) : intCoef {R} (n Nat.- m) = intCoef n - intCoef m \elim n, m
+    | 0, 0 => inv (pmap (natCoef 0 + negative __) natCoefZero *> pmap (natCoef 0 +) negative_zro *> zro-right)
+    | 0, suc _ \as m => inv (pmap (__ - natCoef m) natCoefZero *> zro-left)
+    | suc _ \as n, 0 => inv (pmap (natCoef n + negative __) natCoefZero *> pmap (natCoef n +) negative_zro *> zro-right)
+    | suc n, suc m => intCoef_diff n m *>
+                      pmap (natCoef n +) (inv (pmap (ide +) (negative_+ _ _) *> inv +-assoc *> pmap (`- natCoef m) (negative-right ide) *> zro-left)) *>
+                      inv (pmap2 (__ + negative __) (natCoefSuc n) (natCoefSuc m) *> +-assoc)
+
+  \lemma intComm {R : Ring} (n : Int) (x : R) : intMap n * x = x * intMap n \elim n
+    | pos n => SemiringData.natComm n x
+    | neg n => rewrite intCoef_neg (negative_*-left _ _ *> pmap negative (SemiringData.natComm n x) *> inv (negative_*-right _ _))
 }
