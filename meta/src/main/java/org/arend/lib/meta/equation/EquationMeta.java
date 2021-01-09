@@ -69,9 +69,11 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.coef")           CoreConstructor coefTerm;
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:ide")           CoreConstructor ideTerm;
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:zro")           CoreConstructor zroTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:negative")      CoreConstructor negativeTerm;
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:*")             CoreConstructor mulTerm;
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:+")             CoreConstructor addTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.terms-equality")  CoreFunctionDefinition ringTermsEq;
+  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.terms-equality")  CoreFunctionDefinition semiringTermsEq;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingData.terms-equality") CoreFunctionDefinition ringTermsEq;
 
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative")   public CoreClassField negative;
   @Dependency(module = "Algebra.Semiring")                            public CoreClassDefinition Semiring;

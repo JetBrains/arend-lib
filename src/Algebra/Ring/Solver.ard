@@ -1,4 +1,5 @@
 \import Algebra.Group
+\import Algebra.Group.Category
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Solver
@@ -23,25 +24,9 @@
   | var V
   | :zro
   | :ide
+  | :negative (RingTerm C V)
   | \infixl 6 :+ (t s : RingTerm C V)
   | \infixl 7 :* (t s : RingTerm C V)
-
-\func normalize' {V : \Type} {C : Monoid} (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
-  | coef c => (nil, c) :: nil
-  | var v => (v :: nil, 1) :: nil
-  | :zro => nil
-  | :ide => (nil, 1) :: nil
-  | :+ t s => normalize' t ++ normalize' s
-  | :* t s => multiply' (normalize' t) (normalize' s)
-  \where {
-    \func multiply' {V : \Type} {C : Monoid} (l1 l2 : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l2
-      | nil => nil
-      | l2 => multiply l1 l2 nil
-
-    \func multiply {V : \Type} {C : Monoid} (l1 l2 acc : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l1
-      | nil => acc
-      | :: a l1 => multiply l1 l2 (map (\lam b => (a.1 ++ b.1, a.2 * b.2)) l2 ++ acc)
-  }
 
 \class AlgData {C : LinearlyOrderedSemiring.Dec} {R : Semiring} (alg : SemiringHom C R) \extends CData {
   | M => AbMonoid.toCMonoid R
@@ -54,6 +39,7 @@
     | var x => f x
     | :zro => 0
     | :ide => 1
+    | :negative t => interpret t
     | :+ t s => interpret t + interpret s
     | :* t s => interpret t * interpret s
 
@@ -74,7 +60,7 @@
       inv +-assoc
     }
 
-  \lemma interpretNF_multiply (l1 l2 : List (\Sigma (List V) C)) {acc : List (\Sigma (List V) C)} : interpretNF (normalize'.multiply l1 l2 acc) = interpretNF l1 * interpretNF l2 + interpretNF acc \elim l1
+  \lemma interpretNF_multiply (l1 l2 : List (\Sigma (List V) C)) {acc : List (\Sigma (List V) C)} : interpretNF (multiply l1 l2 acc) = interpretNF l1 * interpretNF l2 + interpretNF acc \elim l1
     | nil => rewrite zro_*-left (inv zro-left)
     | :: a l1 => run {
       rewrite interpretNF_multiply,
@@ -98,7 +84,7 @@
         }
   }
 
-  \lemma interpretNF_multiply' (l1 l2 : List (\Sigma (List V) C)) : interpretNF (normalize'.multiply' l1 l2) = interpretNF l1 * interpretNF l2 \elim l2
+  \lemma interpretNF_multiply' (l1 l2 : List (\Sigma (List V) C)) : interpretNF (multiply' l1 l2) = interpretNF l1 * interpretNF l2 \elim l2
     | nil => inv zro_*-right
     | :: a l2 => interpretNF_multiply l1 (a :: l2) *> zro-right
 
@@ -107,6 +93,7 @@
     | var v => rewrite alg.func-ide (inv ide-left)
     | :zro => idp
     | :ide => inv (ide-right *> alg.func-ide)
+    | :negative t => normalize-consistent' t
     | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_++ (normalize' t) (normalize' s)))
     | :* t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_multiply' (normalize' t) (normalize' s)))
 
@@ -168,6 +155,23 @@
 } \where {
   \open Sort
   \open Sort.RedBlack
+
+  \func normalize' {V : \Type} {C : Monoid} (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
+    | coef c => (nil, c) :: nil
+    | var v => (v :: nil, 1) :: nil
+    | :zro => nil
+    | :ide => (nil, 1) :: nil
+    | :negative t => normalize' t
+    | :+ t s => normalize' t ++ normalize' s
+    | :* t s => multiply' (normalize' t) (normalize' s)
+
+  \func multiply' {V : \Type} {C : Monoid} (l1 l2 : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l2
+    | nil => nil
+    | l2 => multiply l1 l2 nil
+
+  \func multiply {V : \Type} {C : Monoid} (l1 l2 acc : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l1
+    | nil => acc
+    | :: a l1 => multiply l1 l2 (map (\lam b => (a.1 ++ b.1, a.2 * b.2)) l2 ++ acc)
 }
 
 \class SemiringData \extends AlgData
@@ -198,6 +202,36 @@
   \override R : Ring
   | alg => intMap
   | alg-comm => intComm
+
+  \func interpret (t : RingTerm C V) : R \elim t
+    | coef c => alg c
+    | var x => f x
+    | :zro => 0
+    | :ide => 1
+    | :negative t => negative (interpret t)
+    | :+ t s => interpret t + interpret s
+    | :* t s => interpret t * interpret s
+
+  \lemma interpretNF_negate (l : List (\Sigma (List V) C)) : negative (AlgData.interpretNF l) = AlgData.interpretNF (negate l) \elim l
+    | nil => negative_zro
+    | :: a l => repeat {2} (rewrite AlgData.interpretNF.cons) (negative_+ _ _ *> +-comm *> pmap2 (+) (inv (pmap (`* _) (AddGroupHom.func-negative {intMap} a.2) *> negative_*-left _ _)) (interpretNF_negate l))
+
+  \lemma normalize-consistent' (t : RingTerm C V) : interpret t = AlgData.interpretNF (normalize' t)
+    | coef c => inv ide-right
+    | var v => rewrite alg.func-ide (inv ide-left)
+    | :zro => idp
+    | :ide => inv (ide-right *> alg.func-ide)
+    | :negative t => rewrite normalize-consistent' (interpretNF_negate (normalize' t))
+    | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (AlgData.interpretNF_++ (normalize' t) (normalize' s)))
+    | :* t s => repeat {2} (rewrite normalize-consistent') (inv (AlgData.interpretNF_multiply' (normalize' t) (normalize' s)))
+
+  \func normalize (t : RingTerm C V) => AlgData.remove0 (AlgData.collapse (Sort.RedBlack.sort (normalize' t)))
+
+  \lemma normalize-consistent (t : RingTerm C V) : interpret t = AlgData.interpretNF (normalize t)
+    => normalize-consistent' t *> AlgData.sort-consistent _ *> AlgData.collapse-consistent _ *> AlgData.remove0-consistent _
+
+  \lemma terms-equality (t s : RingTerm C V) (p : AlgData.interpretNF (normalize t) = AlgData.interpretNF (normalize s)) : interpret t = interpret s
+    => normalize-consistent t *> p *> inv (normalize-consistent s)
 } \where {
   \open AddGroup(negative_+, negative_zro)
   \open Ring
@@ -230,4 +264,17 @@
   \lemma intComm {R : Ring} (n : Int) (x : R) : intMap n * x = x * intMap n \elim n
     | pos n => SemiringData.natComm n x
     | neg n => rewrite intCoef_neg (negative_*-left _ _ *> pmap negative (SemiringData.natComm n x) *> inv (negative_*-right _ _))
+
+  \func negate {V : \Type} {C : Ring} (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l
+    | nil => nil
+    | :: (m,c) l => (m, negative c) :: negate l
+
+  \func normalize' {V : \Type} {C : Ring} (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
+    | coef c => (nil, c) :: nil
+    | var v => (v :: nil, 1) :: nil
+    | :zro => nil
+    | :ide => (nil, 1) :: nil
+    | :negative t => negate (normalize' t)
+    | :+ t s => normalize' t ++ normalize' s
+    | :* t s => AlgData.multiply' (normalize' t) (normalize' s)
 }

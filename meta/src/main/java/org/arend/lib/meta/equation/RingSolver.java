@@ -106,11 +106,9 @@ public class RingSolver extends BaseEqualitySolver {
       List<CoreExpression> negativeArgs = negativeMatcher.match(expr);
       if (negativeArgs != null) {
         List<Monomial> nf1 = new ArrayList<>();
-        List<ConcreteExpression> cArgs = new ArrayList<>(2);
-        cArgs.add(factory.app(factory.ref(meta.coefTerm.getRef()), true, Collections.singletonList(factory.number(BigInteger.ONE.negate()))));
-        cArgs.add(computeTerm(negativeArgs.get(0), nf1));
+        List<ConcreteExpression> cArgs = Collections.singletonList(computeTerm(negativeArgs.get(0), nf1));
         Monomial.negate(nf1, nf);
-        return factory.app(factory.ref(meta.mulTerm.getRef()), true, cArgs);
+        return factory.app(factory.ref(meta.negativeTerm.getRef()), true, cArgs);
       }
     }
 
@@ -145,7 +143,7 @@ public class RingSolver extends BaseEqualitySolver {
       return null;
     }
 
-    return factory.appBuilder(factory.ref(meta.ringTermsEq.getRef()))
+    return factory.appBuilder(factory.ref((isRing ? meta.ringTermsEq : meta.semiringTermsEq).getRef()))
       .app(factory.ref(dataRef), false)
       .app(term1.concrete)
       .app(term2.concrete)
