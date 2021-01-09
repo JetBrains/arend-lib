@@ -88,15 +88,6 @@
     | nil => inv zro_*-right
     | :: a l2 => interpretNF_multiply l1 (a :: l2) *> zro-right
 
-  \lemma normalize-consistent' (t : RingTerm C V) : interpret t = interpretNF (normalize' t)
-    | coef c => inv ide-right
-    | var v => rewrite alg.func-ide (inv ide-left)
-    | :zro => idp
-    | :ide => inv (ide-right *> alg.func-ide)
-    | :negative t => normalize-consistent' t
-    | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_++ (normalize' t) (normalize' s)))
-    | :* t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_multiply' (normalize' t) (normalize' s)))
-
   \lemma perm-consistent {l l' : List (\Sigma (List V) C)} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
     | nil, nil, perm-nil => idp
     | :: a1 l1, :: a2 l2, perm-:: idp p => repeat {2} (rewrite interpretNF.cons) (pmap (_ +) (perm-consistent p))
@@ -145,6 +136,24 @@
       | no n => rewrite interpretNF.cons $ pmap (_ +) (remove0-consistent l)
     }
 
+  \func normalize' (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
+    | coef c => (nil, c) :: nil
+    | var v => (v :: nil, 1) :: nil
+    | :zro => nil
+    | :ide => (nil, 1) :: nil
+    | :negative t => normalize' t
+    | :+ t s => normalize' t ++ normalize' s
+    | :* t s => remove0 (collapse (multiply' (normalize' t) (normalize' s)))
+
+  \lemma normalize-consistent' (t : RingTerm C V) : interpret t = interpretNF (normalize' t)
+    | coef c => inv ide-right
+    | var v => rewrite alg.func-ide (inv ide-left)
+    | :zro => idp
+    | :ide => inv (ide-right *> alg.func-ide)
+    | :negative t => normalize-consistent' t
+    | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_++ (normalize' t) (normalize' s)))
+    | :* t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_multiply' (normalize' t) (normalize' s)) *> collapse-consistent _ *> remove0-consistent _)
+
   \func normalize (t : RingTerm C V) => remove0 (collapse (sort (normalize' t)))
 
   \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
@@ -155,15 +164,6 @@
 } \where {
   \open Sort
   \open Sort.RedBlack
-
-  \func normalize' {V : \Type} {C : Monoid} (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
-    | coef c => (nil, c) :: nil
-    | var v => (v :: nil, 1) :: nil
-    | :zro => nil
-    | :ide => (nil, 1) :: nil
-    | :negative t => normalize' t
-    | :+ t s => normalize' t ++ normalize' s
-    | :* t s => multiply' (normalize' t) (normalize' s)
 
   \func multiply' {V : \Type} {C : Monoid} (l1 l2 : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l2
     | nil => nil
@@ -216,6 +216,15 @@
     | nil => negative_zro
     | :: a l => repeat {2} (rewrite AlgData.interpretNF.cons) (negative_+ _ _ *> +-comm *> pmap2 (+) (inv (pmap (`* _) (AddGroupHom.func-negative {intMap} a.2) *> negative_*-left _ _)) (interpretNF_negate l))
 
+  \func normalize' (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
+    | coef c => (nil, c) :: nil
+    | var v => (v :: nil, 1) :: nil
+    | :zro => nil
+    | :ide => (nil, 1) :: nil
+    | :negative t => negate (normalize' t)
+    | :+ t s => normalize' t ++ normalize' s
+    | :* t s => AlgData.remove0 (AlgData.collapse (AlgData.multiply' (normalize' t) (normalize' s)))
+
   \lemma normalize-consistent' (t : RingTerm C V) : interpret t = AlgData.interpretNF (normalize' t)
     | coef c => inv ide-right
     | var v => rewrite alg.func-ide (inv ide-left)
@@ -223,7 +232,7 @@
     | :ide => inv (ide-right *> alg.func-ide)
     | :negative t => rewrite normalize-consistent' (interpretNF_negate (normalize' t))
     | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (AlgData.interpretNF_++ (normalize' t) (normalize' s)))
-    | :* t s => repeat {2} (rewrite normalize-consistent') (inv (AlgData.interpretNF_multiply' (normalize' t) (normalize' s)))
+    | :* t s => repeat {2} (rewrite normalize-consistent') (inv (AlgData.interpretNF_multiply' (normalize' t) (normalize' s)) *> AlgData.collapse-consistent _ *> AlgData.remove0-consistent _)
 
   \func normalize (t : RingTerm C V) => AlgData.remove0 (AlgData.collapse (Sort.RedBlack.sort (normalize' t)))
 
@@ -268,13 +277,4 @@
   \func negate {V : \Type} {C : Ring} (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l
     | nil => nil
     | :: (m,c) l => (m, negative c) :: negate l
-
-  \func normalize' {V : \Type} {C : Ring} (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
-    | coef c => (nil, c) :: nil
-    | var v => (v :: nil, 1) :: nil
-    | :zro => nil
-    | :ide => (nil, 1) :: nil
-    | :negative t => negate (normalize' t)
-    | :+ t s => normalize' t ++ normalize' s
-    | :* t s => AlgData.multiply' (normalize' t) (normalize' s)
 }

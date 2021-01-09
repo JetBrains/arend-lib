@@ -98,7 +98,10 @@ public class RingSolver extends BaseEqualitySolver {
       List<Monomial> nf2 = new ArrayList<>();
       cArgs.add(computeTerm(mulArgs.get(0), nf1));
       cArgs.add(computeTerm(mulArgs.get(1), nf2));
-      Monomial.multiply(nf1, nf2, nf);
+      List<Monomial> newNF = new ArrayList<>();
+      Monomial.multiply(nf1, nf2, newNF);
+      Collections.sort(newNF);
+      nf.addAll(Monomial.collapse(newNF));
       return factory.app(factory.ref(meta.mulTerm.getRef()), true, cArgs);
     }
 
