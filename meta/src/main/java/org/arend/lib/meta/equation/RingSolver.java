@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.ring.Monomial;
+import org.arend.lib.util.CountingSort;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,6 +25,7 @@ import static java.util.Collections.singletonList;
 
 public class RingSolver extends BaseEqualitySolver {
   private final boolean isRing;
+  private final boolean isCommutative;
   private final FunctionMatcher zroMatcher;
   private final FunctionMatcher ideMatcher;
   private final FunctionMatcher mulMatcher;
@@ -38,6 +40,7 @@ public class RingSolver extends BaseEqualitySolver {
     super(meta, typechecker, factory, refExpr, instance);
     this.equality = equality;
     isRing = classCall.getDefinition().isSubClassOf(meta.Ring);
+    isCommutative = classCall.getDefinition().isSubClassOf(meta.CMonoid);
     zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.zro, typechecker, factory, refExpr, meta.ext, 0);
     ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.ide, typechecker, factory, refExpr, meta.ext, 0);
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.mul, typechecker, factory, refExpr, meta.ext, 2);
@@ -54,7 +57,7 @@ public class RingSolver extends BaseEqualitySolver {
 
   @Override
   protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
-    ConcreteExpression data = factory.ref((isRing ? meta.RingData : meta.SemiringData).getRef());
+    ConcreteExpression data = factory.ref((isRing ? (isCommutative ? meta.CRingData : meta.RingData) : (isCommutative ? meta.CSemiringData : meta.SemiringData)).getRef());
     return factory.classExt(data, Arrays.asList(factory.implementation(meta.RDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)));
   }
 
@@ -140,13 +143,21 @@ public class RingSolver extends BaseEqualitySolver {
     lastTerm = rightExpr;
     lastCompiled = term2;
 
+    if (isCommutative) {
+      for (int i = 0; i < term1.nf.size(); i++) {
+        term1.nf.set(i, new Monomial(term1.nf.get(i).coefficient, CountingSort.sort(term1.nf.get(i).elements)));
+      }
+      for (int i = 0; i < term2.nf.size(); i++) {
+        term2.nf.set(i, new Monomial(term2.nf.get(i).coefficient, CountingSort.sort(term2.nf.get(i).elements)));
+      }
+    }
     Collections.sort(term1.nf);
     Collections.sort(term2.nf);
     if (!Monomial.collapse(term1.nf).equals(Monomial.collapse(term2.nf))) {
       return null;
     }
 
-    return factory.appBuilder(factory.ref((isRing ? meta.ringTermsEq : meta.semiringTermsEq).getRef()))
+    return factory.appBuilder(factory.ref((isRing ? (isCommutative ? meta.commRingTermsEq : meta.ringTermsEq) : (isCommutative ? meta.commSemiringTermsEq : meta.semiringTermsEq)).getRef()))
       .app(factory.ref(dataRef), false)
       .app(term1.concrete)
       .app(term2.concrete)

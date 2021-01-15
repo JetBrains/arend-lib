@@ -174,6 +174,26 @@
     | :: a l1 => multiply l1 l2 (map (\lam b => (a.1 ++ b.1, a.2 * b.2)) l2 ++ acc)
 }
 
+\class CAlgData \extends AlgData {
+  \override R : CSemiring
+  \override mData : CData f
+
+  \func normalize (t : RingTerm C V) => remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (normalize' t))))
+
+  \lemma map_sort-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (map (\lam p => (sort p.1, p.2)) l)
+    | nil => idp
+    | :: a l => repeat {2} (rewrite interpretNF.cons) $ pmap2 (_ * __ + __) (CData.sort-consistent {mData} a.1) (map_sort-consistent l)
+
+  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
+    => normalize-consistent' t *> map_sort-consistent _ *> sort-consistent _ *> collapse-consistent _ *> remove0-consistent _
+
+  \lemma terms-equality (t s : RingTerm C V) (p : interpretNF (normalize t) = interpretNF (normalize s)) : interpret t = interpret s
+    => normalize-consistent t *> p *> inv (normalize-consistent s)
+} \where {
+  \open Sort.RedBlack
+  \open AlgData
+}
+
 \class SemiringData \extends AlgData
   | C => NatSemiring
   | alg => natMap
@@ -197,6 +217,8 @@
       | suc n => pmap (`* x) (natCoefSuc n) *> rdistr *> pmap (natCoef n * x +) ide-left *> pmap (`+ x) (natComm n x) *> inv (pmap (x *) (natCoefSuc n) *> ldistr *> pmap (x * natCoef n +) ide-right)
   }
 
+\class CSemiringData \extends CAlgData, SemiringData
+
 \class RingData \extends AlgData {
   | C => IntRing
   \override R : Ring
@@ -212,9 +234,9 @@
     | :+ t s => interpret t + interpret s
     | :* t s => interpret t * interpret s
 
-  \lemma interpretNF_negate (l : List (\Sigma (List V) C)) : negative (AlgData.interpretNF l) = AlgData.interpretNF (negate l) \elim l
+  \lemma interpretNF_negate (l : List (\Sigma (List V) C)) : negative (interpretNF l) = interpretNF (negate l) \elim l
     | nil => negative_zro
-    | :: a l => repeat {2} (rewrite AlgData.interpretNF.cons) (negative_+ _ _ *> +-comm *> pmap2 (+) (inv (pmap (`* _) (AddGroupHom.func-negative {intMap} a.2) *> negative_*-left _ _)) (interpretNF_negate l))
+    | :: a l => repeat {2} (rewrite interpretNF.cons) (negative_+ _ _ *> +-comm *> pmap2 (+) (inv (pmap (`* _) (AddGroupHom.func-negative {intMap} a.2) *> negative_*-left _ _)) (interpretNF_negate l))
 
   \func normalize' (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
     | coef c => (nil, c) :: nil
@@ -223,28 +245,30 @@
     | :ide => (nil, 1) :: nil
     | :negative t => negate (normalize' t)
     | :+ t s => normalize' t ++ normalize' s
-    | :* t s => AlgData.remove0 (AlgData.collapse (AlgData.multiply' (normalize' t) (normalize' s)))
+    | :* t s => remove0 (collapse (multiply' (normalize' t) (normalize' s)))
 
-  \lemma normalize-consistent' (t : RingTerm C V) : interpret t = AlgData.interpretNF (normalize' t)
+  \lemma normalize-consistent' (t : RingTerm C V) : interpret t = interpretNF (normalize' t)
     | coef c => inv ide-right
     | var v => rewrite alg.func-ide (inv ide-left)
     | :zro => idp
     | :ide => inv (ide-right *> alg.func-ide)
     | :negative t => rewrite normalize-consistent' (interpretNF_negate (normalize' t))
-    | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (AlgData.interpretNF_++ (normalize' t) (normalize' s)))
-    | :* t s => repeat {2} (rewrite normalize-consistent') (inv (AlgData.interpretNF_multiply' (normalize' t) (normalize' s)) *> AlgData.collapse-consistent _ *> AlgData.remove0-consistent _)
+    | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_++ (normalize' t) (normalize' s)))
+    | :* t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_multiply' (normalize' t) (normalize' s)) *> collapse-consistent _ *> remove0-consistent _)
 
-  \func normalize (t : RingTerm C V) => AlgData.remove0 (AlgData.collapse (Sort.RedBlack.sort (normalize' t)))
+  \func normalize (t : RingTerm C V) => remove0 (collapse (sort (normalize' t)))
 
-  \lemma normalize-consistent (t : RingTerm C V) : interpret t = AlgData.interpretNF (normalize t)
-    => normalize-consistent' t *> AlgData.sort-consistent _ *> AlgData.collapse-consistent _ *> AlgData.remove0-consistent _
+  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
+    => normalize-consistent' t *> sort-consistent _ *> collapse-consistent _ *> remove0-consistent _
 
-  \lemma terms-equality (t s : RingTerm C V) (p : AlgData.interpretNF (normalize t) = AlgData.interpretNF (normalize s)) : interpret t = interpret s
+  \lemma terms-equality (t s : RingTerm C V) (p : interpretNF (normalize t) = interpretNF (normalize s)) : interpret t = interpret s
     => normalize-consistent t *> p *> inv (normalize-consistent s)
 } \where {
   \open AddGroup(negative_+, negative_zro)
   \open Ring
   \open SemiringData(natMap)
+  \open Sort.RedBlack
+  \open AlgData
 
   \func intMap {R : Ring} : RingHom IntRing R \cowith
     | func => intCoef
@@ -277,4 +301,19 @@
   \func negate {V : \Type} {C : Ring} (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l
     | nil => nil
     | :: (m,c) l => (m, negative c) :: negate l
+}
+
+\class CRingData \extends CAlgData, RingData {
+  \override R : CRing
+
+  \func normalize (t : RingTerm C V) => remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (RingData.normalize' t))))
+
+  \lemma normalize-consistent (t : RingTerm C V) : RingData.interpret t = interpretNF (normalize t)
+    => RingData.normalize-consistent' t *> CAlgData.map_sort-consistent _ *> sort-consistent _ *> collapse-consistent _ *> remove0-consistent _
+
+  \lemma terms-equality (t s : RingTerm C V) (p : interpretNF (normalize t) = interpretNF (normalize s)) : RingData.interpret t = RingData.interpret s
+    => normalize-consistent t *> p *> inv (normalize-consistent s)
+} \where {
+  \open AlgData
+  \open Sort.RedBlack
 }
