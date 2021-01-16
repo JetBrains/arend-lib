@@ -21,9 +21,25 @@ public class EqualitySolver extends BaseEqualitySolver {
   private CoreExpression valuesType;
   private EquationSolver algebraSolver;
   private Values<UncheckedExpression> values;
+  private final CoreClassDefinition forcedClass;
+  private final boolean useSolver;
+
+  private EqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreClassDefinition forcedClass, boolean useSolver) {
+    super(meta, typechecker, factory, refExpr, null);
+    this.forcedClass = forcedClass;
+    this.useSolver = useSolver;
+  }
+
+  public EqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreClassDefinition forcedClass) {
+    this(meta, typechecker, factory, refExpr, forcedClass, true);
+  }
+
+  public EqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, boolean useSolver) {
+    this(meta, typechecker, factory, refExpr, null, useSolver);
+  }
 
   public EqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr) {
-    super(meta, typechecker, factory, refExpr, null);
+    this(meta, typechecker, factory, refExpr, null, true);
   }
 
   @Override
@@ -76,16 +92,20 @@ public class EqualitySolver extends BaseEqualitySolver {
   }
 
   private void initializeAlgebraSolver(TypedExpression instance, CoreClassCallExpression classCall) {
-    algebraSolver = classCall.getDefinition().isSubClassOf(meta.Semiring) ? new RingSolver(meta, typechecker, factory, refExpr, equality, instance, classCall) : new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall);
+    algebraSolver = classCall.getDefinition().isSubClassOf(meta.Semiring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Semiring)) ? new RingSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass) : new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass);
   }
 
   private boolean initializeAlgebraSolver(CoreExpression type) {
+    if (!useSolver) {
+      return false;
+    }
+
     type = type == null ? null : type.normalize(NormalizationMode.WHNF);
     if (type instanceof CoreFieldCallExpression) {
       if (((CoreFieldCallExpression) type).getDefinition() == meta.ext.carrier) {
         TypedExpression instance = ((CoreFieldCallExpression) type).getArgument().computeTyped();
         CoreClassCallExpression classCall = getClassCall(instance.getType());
-        if (classCall != null && (classCall.getDefinition().isSubClassOf(meta.Monoid) || classCall.getDefinition().isSubClassOf(meta.AddMonoid) || classCall.getDefinition().isSubClassOf(meta.MSemilattice))) {
+        if (classCall != null && (classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid)) || classCall.getDefinition().isSubClassOf(meta.AddMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AddMonoid)) || classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice)))) {
           initializeAlgebraSolver(instance, classCall);
           return true;
         }
@@ -94,7 +114,7 @@ public class EqualitySolver extends BaseEqualitySolver {
       TypedExpression instance = typechecker.findInstance(new InstanceSearchParameters() {
         @Override
         public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
-          return classDefinition.isSubClassOf(meta.Monoid) || classDefinition.isSubClassOf(meta.MSemilattice);
+          return classDefinition.isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid)) || classDefinition.isSubClassOf(meta.AddMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AddMonoid)) || classDefinition.isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
         }
       }, type, null, refExpr);
       if (instance != null) {

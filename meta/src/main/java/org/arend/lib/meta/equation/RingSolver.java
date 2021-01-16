@@ -3,6 +3,7 @@ package org.arend.lib.meta.equation;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
@@ -36,11 +37,11 @@ public class RingSolver extends BaseEqualitySolver {
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
 
-  protected RingSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall) {
+  protected RingSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass) {
     super(meta, typechecker, factory, refExpr, instance);
     this.equality = equality;
-    isRing = classCall.getDefinition().isSubClassOf(meta.Ring);
-    isCommutative = classCall.getDefinition().isSubClassOf(meta.CMonoid);
+    isRing = classCall.getDefinition().isSubClassOf(meta.Ring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Ring));
+    isCommutative = classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid));
     zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.zro, typechecker, factory, refExpr, meta.ext, 0);
     ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.ide, typechecker, factory, refExpr, meta.ext, 0);
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.mul, typechecker, factory, refExpr, meta.ext, 2);

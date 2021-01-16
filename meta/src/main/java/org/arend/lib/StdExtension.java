@@ -185,7 +185,10 @@ public class StdExtension implements ArendExtension {
     contributor.declare(algebra, new LongName("equation"),
         "`equation a_1 ... a_n` proves an equation a_0 = a_{n+1} using a_1, ... a_n as intermediate steps\n\n" +
         "A proof of a_i = a_{i+1} can be specified as implicit arguments between them\n" +
-        "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
+        "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context.\n" +
+        "The first implicit argument can be either a universe or a subclass of either {Algebra.Monoid.Monoid}, {Algebra.Monoid.AddMonoid}, or {Order.Lattice.Bounded.MeetSemilattice}.\n" +
+        "In the former case, the meta will prove an equality in a type without using any additional structure on it.\n" +
+        "In the latter case, the meta will prove an equality using only structure available in the specified class.",
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
     contributor.declare(algebra, new LongName("cong"),
         "Proves an equality by congruence closure of equalities in the context. E.g. derives f a = g b from f = g and a = b",

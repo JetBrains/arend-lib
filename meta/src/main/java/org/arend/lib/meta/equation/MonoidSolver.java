@@ -6,6 +6,7 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
+import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -37,13 +38,13 @@ public class MonoidSolver extends BaseEqualitySolver {
   private boolean isSemilattice;
   private final CoreClassField ide;
 
-  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall) {
+  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass) {
     super(meta, typechecker, factory, refExpr, instance);
     this.equality = equality;
 
-    isSemilattice = classCall.getDefinition().isSubClassOf(meta.MSemilattice);
-    boolean isMultiplicative = !isSemilattice && classCall.getDefinition().isSubClassOf(meta.Monoid);
-    isCommutative = isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid);
+    isSemilattice = classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
+    boolean isMultiplicative = !isSemilattice && classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid));
+    isCommutative = isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid)) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AbMonoid));
     ide = isSemilattice ? meta.top : isMultiplicative ? meta.ide : meta.zro;
     CoreClassField mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, mul, typechecker, factory, refExpr, meta.ext, 2);

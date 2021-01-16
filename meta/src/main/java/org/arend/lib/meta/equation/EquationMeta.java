@@ -58,7 +58,6 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality-conv")   CoreFunctionDefinition commTermsEqConv;
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.replace-consistent")    CoreFunctionDefinition commReplaceDef;
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.sort-consistent")       CoreFunctionDefinition sortDef;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "CData.normalize-consistent")  CoreFunctionDefinition normDef;
   @Dependency(module = "Algebra.Monoid.Solver", name = "LData.terms-equality")        CoreFunctionDefinition latticeTermsEq;
 
   @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition SemiringData;
@@ -120,9 +119,29 @@ public class EquationMeta extends BaseMetaDefinition {
     List<Object> values = new ArrayList<>();
 
     EquationSolver solver = null;
+    int argIndex = 0;
+    List<? extends ConcreteArgument> arguments = contextData.getArguments();
+    if (!arguments.isEmpty() && !arguments.get(0).isExplicit()) {
+      ConcreteExpression arg = arguments.get(0).getExpression();
+      if (arg instanceof ConcreteUniverseExpression) {
+        argIndex = 1;
+        solver = new EqualitySolver(this, typechecker, factory, refExpr, false);
+      } else if (arg instanceof ConcreteReferenceExpression) {
+        CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) arg).getReferent());
+        if (def instanceof CoreClassDefinition) {
+          CoreClassDefinition classDef = (CoreClassDefinition) def;
+          if ((classDef.isSubClassOf(Monoid) || classDef.isSubClassOf(AddMonoid) || classDef.isSubClassOf(MSemilattice))) {
+            argIndex = 1;
+            solver = new EqualitySolver(this, typechecker, factory, refExpr, classDef);
+          }
+        }
+      }
+    }
+
     if (contextData.getExpectedType() != null) {
       CoreExpression type = contextData.getExpectedType().normalize(NormalizationMode.WHNF);
-      final List<EquationSolver> solvers = Arrays.asList(new EqualitySolver(this, typechecker, factory, refExpr), new EquivSolver(this, typechecker, factory), new TransitivitySolver(this, typechecker, factory, refExpr));
+      final List<EquationSolver> solvers = solver != null ? Collections.singletonList(solver) : Arrays.asList(new EqualitySolver(this, typechecker, factory, refExpr), new EquivSolver(this, typechecker, factory), new TransitivitySolver(this, typechecker, factory, refExpr));
+      solver = null;
       for (EquationSolver eqSolver : solvers) {
         if (eqSolver.isApplicable(type)) {
           solver = eqSolver;
@@ -133,11 +152,12 @@ public class EquationMeta extends BaseMetaDefinition {
         errorReporter.report(new TypeError("Unrecognized type", type, refExpr));
         return null;
       }
-    } else {
+    } else if (solver == null) {
       solver = new EqualitySolver(this, typechecker, factory, refExpr);
     }
 
-    for (ConcreteArgument argument : contextData.getArguments()) {
+    for (; argIndex < arguments.size(); argIndex++) {
+      ConcreteArgument argument = arguments.get(argIndex);
       if (argument.isExplicit()) {
         TypedExpression value = typechecker.typecheck(argument.getExpression(), solver.getValuesType());
         if (value == null) {
