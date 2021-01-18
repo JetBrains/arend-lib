@@ -770,28 +770,26 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
   private static List<List<CorePattern>> mergeColumns(List<List<CorePattern>> rows, List<SubexpressionData> dataList) {
     int j = 0;
     for (SubexpressionData data : dataList) {
-      if (data.argsReindexing.isEmpty()) {
-        j += data.removedArgs.size();
-        continue;
-      }
-
-      for (int k = 0; k < data.removedArgs.size(); k++, j++) {
+      for (int k = 0; k < data.removedArgs.size(); k++) {
+        if (data.removedArgs.get(k) != null) continue;
         Integer i = data.argsReindexing.get(k);
-        if (i == null) continue;
-        List<List<CorePattern>> newRows = new ArrayList<>();
-        for (List<CorePattern> row : rows) {
-          Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
-          Map<CoreBinding, CorePattern> subst2 = new HashMap<>();
-          if (PatternUtils.unify(row.get(i), row.get(j), subst1, subst2)) {
-            List<CorePattern> newRow = new ArrayList<>(row.size() - 1);
-            newRow.addAll(row.subList(0, i));
-            newRow.add(row.get(i).subst(subst1));
-            newRow.addAll(row.subList(i + 1, j));
-            newRow.addAll(row.subList(j + 1, row.size()));
-            newRows.add(newRow);
+        if (i != null) {
+          List<List<CorePattern>> newRows = new ArrayList<>();
+          for (List<CorePattern> row : rows) {
+            Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
+            Map<CoreBinding, CorePattern> subst2 = new HashMap<>();
+            if (PatternUtils.unify(row.get(i), row.get(j), subst1, subst2)) {
+              List<CorePattern> newRow = new ArrayList<>(row.size() - 1);
+              newRow.addAll(row.subList(0, i));
+              newRow.add(row.get(i).subst(subst1));
+              newRow.addAll(row.subList(i + 1, j));
+              newRow.addAll(row.subList(j + 1, row.size()));
+              newRows.add(newRow);
+            }
           }
+          rows = newRows;
         }
-        rows = newRows;
+        j++;
       }
     }
     return rows;
