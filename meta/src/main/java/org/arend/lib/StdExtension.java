@@ -57,12 +57,13 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Logic") public CoreDataDefinition TruncP;
   @Dependency(module = "Logic") public CoreFunctionDefinition propExt;
 
-  public EquationMeta equationMeta = new EquationMeta(this);
-  public ContradictionMeta contradictionMeta = new ContradictionMeta(this);
-  public ExtMeta extMeta = new ExtMeta(this, false);
-  public ExtMeta extsMeta = new ExtMeta(this, true);
-  public SimpCoeMeta simpCoeMeta = new SimpCoeMeta(this);
-  public SIPMeta sipMeta = new SIPMeta(this);
+  public final EquationMeta equationMeta = new EquationMeta(this);
+  public final ContradictionMeta contradictionMeta = new ContradictionMeta(this);
+  public final ExtMeta extMeta = new ExtMeta(this, false);
+  public final ExtMeta extsMeta = new ExtMeta(this, true);
+  public final SimpCoeMeta simpCoeMeta = new SimpCoeMeta(this);
+  public final SIPMeta sipMeta = new SIPMeta(this);
+  public CasesMeta casesMeta;
   public MetaRef constructorMetaRef;
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
@@ -124,9 +125,24 @@ public class StdExtension implements ArendExtension {
     contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
     contributor.declare(meta, new LongName("at"), "`(f at x) r` replaces variable `x` with `f x` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
     contributor.declare(meta, new LongName("mcases"),
-      "`mcases def \\with { ... }` matches all expressions that are matched in \\case expressions in the expected type.\n\n" +
-      "`def` is an optional argument which is used as a default result for missing clauses.",
+      "`mcases {def} args default \\with { ... }` finds all invocations of definition `def` in the expected type and generate a \\case expression that matches arguments of those invocations.\n\n" +
+      "It matches only those arguments which are matched in `def`.\n" +
+      "If the explicit argument is omitted, then `mcases` searches for \\case expressions instead of definition invocations.\n" +
+      "`default` is an optional argument which is used as a default result for missing clauses.\n" +
+      "The list of clauses after \\with can be omitted if the default expression is specified.\n" +
+      "`args` is a comma-separated list of expressions (which can be omitted) that will be additionally matched in the resulting \\case expressions.\n" +
+      "`mcases` also searches for occurrences of `def` in the types of these additional expressions.\n" +
+      "`mcases {def_1, ... def_n}` searches for occurrences of definitions `def_1`, ... `def_n`\n" +
+      "`mcases {def, i_1, ... i_n}` matches arguments only of `i_1`-th, ... `i_n`-th occurrences of `def`\n" +
+      "For example\n" +
+      "* `mcases {(def1,4),def2,(def3,1,2)}` looks for the 4th occurrence of `def1`, all occurrences of `def2`, and the first and the second occurrence of `def3`\n" +
+      "* `mcases {(1,2),(def,1)}` looks for the first and the second occurrence of a \\case expression and the first occurrence of `def`\n" +
+      "* `mcases {(def1,2),(),def2}` looks for the second occurrence of `def1`, all occurrences of \\case expressions, and all occurrences of `def2`",
       Precedence.DEFAULT, new MatchingCasesMeta(this));
+    casesMeta = new CasesMeta(this);
+    contributor.declare(meta, new LongName("cases"),
+      "`cases args default` works just like `mcases args default`, but does not search for \\case expressions or definition invocations.",
+      Precedence.DEFAULT, casesMeta);
     contributor.declare(meta, new LongName("unfold"),
       "`unfold (f_1, ... f_n) e` unfolds functions f_1, ... f_n in the expected type before type-checking of `e` and returns `e` itself.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
