@@ -3,6 +3,7 @@ package org.arend.lib.meta;
 import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.NameResolverError;
 import org.arend.ext.error.TypecheckingError;
@@ -12,6 +13,7 @@ import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.util.NamedParameter;
+import org.arend.lib.util.Pair;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -157,26 +159,51 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     List<? extends ConcreteExpression> caseArgExprs = Utils.getArgumentList(args.get(0).getExpression());
     List<ConcreteCaseArgument> caseArgs = new ArrayList<>(caseArgExprs.size());
+    List<Pair<CoreExpression,ArendRef>> searchPairs = new ArrayList<>();
     for (ConcreteExpression caseArgExpr : caseArgExprs) {
       if (caseArgExpr instanceof ConcreteAppExpression && ((ConcreteAppExpression) caseArgExpr).getFunction() instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) ((ConcreteAppExpression) caseArgExpr).getFunction()).getReferent() == argRef) {
         List<? extends ConcreteArgument> parameters = ((ConcreteAppExpression) caseArgExpr).getArguments();
         Map<ArendRef, ConcreteExpression> params = new HashMap<>();
         Set<ArendRef> flags = new HashSet<>();
         parameter.getAllValues(parameters.get(1).getExpression(), params, flags, null, typechecker.getErrorReporter());
-        boolean addPath = flags.contains(addPathRef);
         ConcreteExpression nameExpr = params.get(nameRef);
-        ArendRef caseArgRef = nameExpr instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) nameExpr).getReferent() : addPath ? factory.local("x") : null;
+        boolean addPath = flags.contains(addPathRef);
+        //noinspection SimplifiableConditionalExpression
+        boolean search = nameExpr instanceof ConcreteReferenceExpression && !addPath ? false : flags.contains(searchRef);
+        ArendRef caseArgRef = nameExpr instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) nameExpr).getReferent() : addPath || search ? factory.local("x") : null;
         ConcreteExpression argExpr = parameters.get(0).getExpression();
         ConcreteExpression argType = parameters.size() > 2 ? parameters.get(2).getExpression() : null;
+        if (search || argType == null && !searchPairs.isEmpty()) {
+          TypedExpression typed = typechecker.typecheck(argExpr, null);
+          if (typed == null) return null;
+          if (!(argExpr instanceof ConcreteReferenceExpression)) {
+            argExpr = factory.core(typed);
+          }
+          if (argType == null && !searchPairs.isEmpty()) {
+            argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType(), searchPairs));
+          }
+          if (search) {
+            searchPairs.add(new Pair<>(typed.getExpression(), caseArgRef));
+          }
+        }
         caseArgs.add(argExpr instanceof ConcreteReferenceExpression && caseArgRef == null ? factory.caseArg((ConcreteReferenceExpression) argExpr, argType) : factory.caseArg(argExpr, caseArgRef, argType));
         if (addPath) {
           caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.hole(), factory.ref(caseArgRef)))));
         }
       } else {
-        caseArgs.add(caseArgExpr instanceof ConcreteReferenceExpression ? factory.caseArg((ConcreteReferenceExpression) caseArgExpr, null) : factory.caseArg(caseArgExpr, null, null));
+        ConcreteExpression argType = null;
+        if (!searchPairs.isEmpty()) {
+          TypedExpression typed = typechecker.typecheck(caseArgExpr, null);
+          if (typed == null) return null;
+          if (!(caseArgExpr instanceof ConcreteReferenceExpression)) {
+            caseArgExpr = factory.core(typed);
+          }
+          argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType(), searchPairs));
+        }
+        caseArgs.add(caseArgExpr instanceof ConcreteReferenceExpression ? factory.caseArg((ConcreteReferenceExpression) caseArgExpr, argType) : factory.caseArg(caseArgExpr, null, argType));
       }
     }
 
-    return typechecker.typecheck(factory.caseExpr(false, caseArgs, null, null, ((ConcreteCaseExpression) args.get(1).getExpression()).getClauses()), contextData.getExpectedType());
+    return typechecker.typecheck(factory.caseExpr(false, caseArgs, searchPairs.isEmpty() ? null : factory.meta("return_expr", new ReplaceSubexpressionsMeta(contextData.getExpectedType(), searchPairs)), null, ((ConcreteCaseExpression) args.get(1).getExpression()).getClauses()), searchPairs.isEmpty() ? contextData.getExpectedType() : null);
   }
 }
