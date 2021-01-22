@@ -339,7 +339,7 @@ public class PatternUtils {
   }
 
   /**
-   * @return indices of rows from {@code actualRows} that cover {@code row}, or false if {@code actualRows} do not cover {@code row}
+   * @return indices of rows from {@code actualRows} that cover {@code row}, or {@code null} if {@code actualRows} do not cover {@code row}
    */
   public static List<Integer> computeCovering(List<? extends List<? extends CorePattern>> actualRows, List<? extends CorePattern> row) {
     for (CorePattern pattern : row) {

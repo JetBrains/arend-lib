@@ -1,9 +1,15 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.concrete.ConcreteAppBuilder;
+import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.core.body.CorePattern;
+import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.expr.CoreDataCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.NameResolverError;
 import org.arend.ext.error.TypecheckingError;
@@ -12,6 +18,8 @@ import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.pattern.ArendPattern;
+import org.arend.lib.pattern.PatternUtils;
 import org.arend.lib.util.NamedParameter;
 import org.arend.lib.util.Pair;
 import org.arend.lib.util.Utils;
@@ -152,15 +160,25 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     List<? extends ConcreteArgument> args = contextData.getArguments();
-    if (args.size() > 2) {
-      typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", args.get(2).getExpression()));
+    List<? extends ConcreteExpression> caseArgExprs = Utils.getArgumentList(args.get(0).getExpression());
+    ConcreteExpression defaultExpr = args.size() > 2 ? args.get(2).getExpression() : null;
+    List<TypedExpression> typedArgs;
+    if (defaultExpr != null) {
+      typedArgs = new ArrayList<>();
+      for (ConcreteExpression caseArgExpr : caseArgExprs) {
+        TypedExpression typed = typechecker.typecheck(caseArgExpr, null);
+        if (typed == null) return null;
+        typedArgs.add(typed);
+      }
+    } else {
+      typedArgs = null;
     }
 
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
-    List<? extends ConcreteExpression> caseArgExprs = Utils.getArgumentList(args.get(0).getExpression());
     List<ConcreteCaseArgument> caseArgs = new ArrayList<>(caseArgExprs.size());
     List<Pair<CoreExpression,ArendRef>> searchPairs = new ArrayList<>();
-    for (ConcreteExpression caseArgExpr : caseArgExprs) {
+    for (int i = 0; i < caseArgExprs.size(); i++) {
+      ConcreteExpression caseArgExpr = caseArgExprs.get(i);
       if (caseArgExpr instanceof ConcreteAppExpression && ((ConcreteAppExpression) caseArgExpr).getFunction() instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) ((ConcreteAppExpression) caseArgExpr).getFunction()).getReferent() == argRef) {
         List<? extends ConcreteArgument> parameters = ((ConcreteAppExpression) caseArgExpr).getArguments();
         Map<ArendRef, ConcreteExpression> params = new HashMap<>();
@@ -174,7 +192,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         ConcreteExpression argExpr = parameters.get(0).getExpression();
         ConcreteExpression argType = parameters.size() > 2 ? parameters.get(2).getExpression() : null;
         if (search || argType == null && !searchPairs.isEmpty()) {
-          TypedExpression typed = typechecker.typecheck(argExpr, null);
+          TypedExpression typed = typedArgs != null ? typedArgs.get(i) : typechecker.typecheck(argExpr, null);
           if (typed == null) return null;
           if (!(argExpr instanceof ConcreteReferenceExpression)) {
             argExpr = factory.core(typed);
@@ -193,7 +211,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       } else {
         ConcreteExpression argType = null;
         if (!searchPairs.isEmpty()) {
-          TypedExpression typed = typechecker.typecheck(caseArgExpr, null);
+          TypedExpression typed = typedArgs != null ? typedArgs.get(i) : typechecker.typecheck(caseArgExpr, null);
           if (typed == null) return null;
           if (!(caseArgExpr instanceof ConcreteReferenceExpression)) {
             caseArgExpr = factory.core(typed);
@@ -204,6 +222,73 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       }
     }
 
-    return typechecker.typecheck(factory.caseExpr(false, caseArgs, searchPairs.isEmpty() ? null : factory.meta("return_expr", new ReplaceSubexpressionsMeta(contextData.getExpectedType(), searchPairs)), null, ((ConcreteCaseExpression) args.get(1).getExpression()).getClauses()), searchPairs.isEmpty() ? contextData.getExpectedType() : null);
+    List<? extends ConcreteClause> clauses = ((ConcreteCaseExpression) args.get(1).getExpression()).getClauses();
+    if (defaultExpr != null) {
+      List<ConcreteClause> newClauses = new ArrayList<>(clauses);
+      List<List<ArendPattern>> patternLists = new ArrayList<>();
+      patternLists.add(Collections.emptyList());
+
+      List<CoreExpression> types = new ArrayList<>(typedArgs.size());
+      for (TypedExpression typedArg : typedArgs) {
+        types.add(typedArg.getType());
+      }
+      CoreParameter parameters = typechecker.makeParameters(types, contextData.getMarker());
+
+      CoreParameter parameter = parameters;
+      for (TypedExpression typedArg : typedArgs) {
+        CoreExpression type = typedArg.getType().normalize(NormalizationMode.WHNF);
+        List<CoreConstructor> constructors = type instanceof CoreDataCallExpression ? ((CoreDataCallExpression) type).computeMatchedConstructors() : null;
+        List<ArendPattern> patterns;
+        if (constructors != null) {
+          patterns = new ArrayList<>(constructors.size());
+          for (CoreConstructor constructor : constructors) {
+            List<ArendPattern> subpatterns = new ArrayList<>();
+            for (CoreParameter param = constructor.getParameters(); param.hasNext(); param = param.getNext()) {
+              subpatterns.add(new ArendPattern(param.getBinding(), null, Collections.emptyList(), param, ext.renamerFactory));
+            }
+            patterns.add(new ArendPattern(null, constructor, subpatterns, null, ext.renamerFactory));
+          }
+        } else {
+          patterns = Collections.singletonList(new ArendPattern(parameter.getBinding(), null, Collections.emptyList(), parameter, ext.renamerFactory));
+        }
+
+        List<List<ArendPattern>> newPatternLists = new ArrayList<>();
+        for (List<ArendPattern> patternList : patternLists) {
+          for (ArendPattern pattern : patterns) {
+            List<ArendPattern> newPatternList = new ArrayList<>(patternList.size() + 1);
+            newPatternList.addAll(patternList);
+            newPatternList.add(pattern);
+            newPatternLists.add(newPatternList);
+          }
+        }
+        patternLists = newPatternLists;
+
+        parameter = parameter.getNext();
+      }
+
+      if (patternLists.isEmpty()) {
+        typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", defaultExpr));
+      } else {
+        List<List<CorePattern>> actualRows = new ArrayList<>();
+        for (ConcreteClause clause : clauses) {
+          if (clause.getPatterns().size() == typedArgs.size()) {
+            List<CorePattern> row = typechecker.typecheckPatterns(clause.getPatterns(), parameters, clause);
+            if (row != null) {
+              actualRows.add(row);
+            }
+          }
+        }
+
+        for (List<ArendPattern> patternList : patternLists) {
+          if (PatternUtils.computeCovering(actualRows, patternList) == null) {
+            newClauses.add(factory.clause(PatternUtils.toConcrete(patternList, ext.renamerFactory, factory, null), defaultExpr));
+          }
+        }
+      }
+
+      clauses = newClauses;
+    }
+
+    return typechecker.typecheck(factory.caseExpr(false, caseArgs, searchPairs.isEmpty() ? null : factory.meta("return_expr", new ReplaceSubexpressionsMeta(contextData.getExpectedType(), searchPairs)), null, clauses), searchPairs.isEmpty() ? contextData.getExpectedType() : null);
   }
 }
