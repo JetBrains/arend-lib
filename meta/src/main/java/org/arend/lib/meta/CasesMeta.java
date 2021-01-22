@@ -4,12 +4,14 @@ import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
-import org.arend.ext.core.body.CorePattern;
+import org.arend.ext.core.body.CoreExpressionPattern;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.CoreDataCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.expr.CoreReferenceExpression;
 import org.arend.ext.core.ops.NormalizationMode;
+import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.NameResolverError;
 import org.arend.ext.error.TypecheckingError;
@@ -237,24 +239,35 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       CoreParameter parameter = parameters;
       for (TypedExpression typedArg : typedArgs) {
         CoreExpression type = typedArg.getType().normalize(NormalizationMode.WHNF);
-        List<CoreConstructor> constructors = type instanceof CoreDataCallExpression ? ((CoreDataCallExpression) type).computeMatchedConstructors() : null;
-        List<ArendPattern> patterns;
-        if (constructors != null) {
-          patterns = new ArrayList<>(constructors.size());
-          for (CoreConstructor constructor : constructors) {
-            List<ArendPattern> subpatterns = new ArrayList<>();
-            for (CoreParameter param = constructor.getParameters(); param.hasNext(); param = param.getNext()) {
-              subpatterns.add(new ArendPattern(param.getBinding(), null, Collections.emptyList(), param, ext.renamerFactory));
-            }
-            patterns.add(new ArendPattern(null, constructor, subpatterns, null, ext.renamerFactory));
-          }
-        } else {
-          patterns = Collections.singletonList(new ArendPattern(parameter.getBinding(), null, Collections.emptyList(), parameter, ext.renamerFactory));
+        List<ArendPattern> patterns = getPatterns(type, parameter);
+        if (patterns != null && patterns.isEmpty()) {
+          patternLists = Collections.emptyList();
+          break;
         }
 
         List<List<ArendPattern>> newPatternLists = new ArrayList<>();
         for (List<ArendPattern> patternList : patternLists) {
-          for (ArendPattern pattern : patterns) {
+          List<ArendPattern> patterns1 = patterns;
+          CoreExpression type1 = type;
+          if (patterns1 == null) {
+            List<SubstitutionPair> substitution = new ArrayList<>(patternList.size());
+            for (int i = 0; i < patternList.size(); i++) {
+              CoreExpression expr = typedArgs.get(i).getExpression();
+              if (expr instanceof CoreReferenceExpression) {
+                substitution.add(new SubstitutionPair(((CoreReferenceExpression) expr).getBinding(), PatternUtils.toExpression(patternList.get(i), ext, factory, null)));
+              }
+            }
+            if (!substitution.isEmpty()) {
+              type1 = typechecker.substitute(type1, null, substitution);
+              if (type1 != null) {
+                patterns1 = getPatterns(type1.normalize(NormalizationMode.WHNF), parameter);
+              }
+            }
+            if (patterns1 == null) {
+              patterns1 = Collections.singletonList(new ArendPattern(parameter.getBinding(), null, Collections.emptyList(), parameter, ext.renamerFactory));
+            }
+          }
+          for (ArendPattern pattern : patterns1) {
             List<ArendPattern> newPatternList = new ArrayList<>(patternList.size() + 1);
             newPatternList.addAll(patternList);
             newPatternList.add(pattern);
@@ -269,10 +282,10 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       if (patternLists.isEmpty()) {
         typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", defaultExpr));
       } else {
-        List<List<CorePattern>> actualRows = new ArrayList<>();
+        List<List<CoreExpressionPattern>> actualRows = new ArrayList<>();
         for (ConcreteClause clause : clauses) {
           if (clause.getPatterns().size() == typedArgs.size()) {
-            List<CorePattern> row = typechecker.typecheckPatterns(clause.getPatterns(), parameters, clause);
+            List<CoreExpressionPattern> row = typechecker.typecheckPatterns(clause.getPatterns(), parameters, clause);
             if (row != null) {
               actualRows.add(row);
             }
@@ -290,5 +303,23 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     }
 
     return typechecker.typecheck(factory.caseExpr(false, caseArgs, searchPairs.isEmpty() ? null : factory.meta("return_expr", new ReplaceSubexpressionsMeta(contextData.getExpectedType(), searchPairs)), null, clauses), searchPairs.isEmpty() ? contextData.getExpectedType() : null);
+  }
+
+  private List<ArendPattern> getPatterns(CoreExpression type, CoreParameter parameter) {
+    if (type instanceof CoreDataCallExpression && ((CoreDataCallExpression) type).getDefinition() == ext.prelude.getPath()) {
+      return Collections.singletonList(new ArendPattern(parameter.getBinding(), null, Collections.emptyList(), parameter, ext.renamerFactory));
+    }
+    List<CoreConstructor> constructors = type instanceof CoreDataCallExpression ? ((CoreDataCallExpression) type).computeMatchedConstructors() : null;
+    if (constructors == null) return null;
+
+    List<ArendPattern> patterns = new ArrayList<>(constructors.size());
+    for (CoreConstructor constructor : constructors) {
+      List<ArendPattern> subpatterns = new ArrayList<>();
+      for (CoreParameter param = constructor.getParameters(); param.hasNext(); param = param.getNext()) {
+        subpatterns.add(new ArendPattern(param.getBinding(), null, Collections.emptyList(), param, ext.renamerFactory));
+      }
+      patterns.add(new ArendPattern(null, constructor, subpatterns, null, ext.renamerFactory));
+    }
+    return patterns;
   }
 }

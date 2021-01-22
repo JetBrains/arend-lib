@@ -2,10 +2,7 @@ package org.arend.lib.meta;
 
 import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
-import org.arend.ext.core.body.CoreBody;
-import org.arend.ext.core.body.CoreElimBody;
-import org.arend.ext.core.body.CoreElimClause;
-import org.arend.ext.core.body.CorePattern;
+import org.arend.ext.core.body.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreDefinition;
@@ -347,12 +344,12 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           ok = false;
           continue;
         }
-        List<CorePattern> row = typechecker.typecheckPatterns(clause.getPatterns(), caseParams, clause);
+        List<CoreExpressionPattern> row = typechecker.typecheckPatterns(clause.getPatterns(), caseParams, clause);
         if (row == null) {
           ok = false;
           continue;
         }
-        actualRows.add(row);
+        actualRows.add(new ArrayList<>(row));
       }
       if (!ok) {
         return null;
