@@ -8,13 +8,18 @@
 \import Algebra.Pointed.Category
 \import Algebra.Ring
 \import Algebra.Ring.Category
+\import Arith.Bool
 \import Arith.Int
 \import Arith.Nat
 \import Algebra.Semiring
+\import Data.Bool
 \import Data.List
 \import Function.Meta
+\import Order.Lattice
 \import Order.Lexicographical
 \import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
 \import Paths
 \import Paths.Meta
 \import Set \hiding (#)
@@ -28,7 +33,7 @@
   | \infixl 6 :+ (t s : RingTerm C V)
   | \infixl 7 :* (t s : RingTerm C V)
 
-\class AlgData {C : LinearlyOrderedSemiring.Dec} {R : Semiring} (alg : SemiringHom C R) \extends CData {
+\class AlgData {C : Semiring} {S : LinearOrder.Dec C} {R : Semiring} (alg : SemiringHom C R) \extends CData {
   | M => AbMonoid.toCMonoid R
   | alg-comm (x : C) (y : R) : alg x * y = y * alg x
   | mData : Data f
@@ -98,7 +103,7 @@
     | l1, l2, perm-trans p1 p2 => perm-consistent p1 *> perm-consistent p2
 
   \lemma sort-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (sort l)
-    => rewrite sort=insert (perm-consistent (Insertion.sort-perm l))
+    => rewrite (sort=insert l) (perm-consistent (Insertion.sort-perm l))
 
   \func collapse1 (m : List V) (c : C) (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l
     | nil => (m,c) :: nil
@@ -200,6 +205,7 @@
   \override R : CSemiring
   \override mData : CData f
   | mData => \new CData
+  | alg-comm x y => *-comm
 
   \func normalize (t : RingTerm C V) => remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (normalize' t))))
 
@@ -236,6 +242,7 @@
 
 \class SemiringData \extends AlgData
   | C => NatSemiring
+  | S => NatSemiring
   | alg => natMap
   | alg-comm => natComm
   | mData {}
@@ -260,8 +267,35 @@
 
 \class CSemiringData \extends CAlgData, SemiringData
 
+\class LatticeData (L : DistributiveLattice) \extends CAlgData {
+  | R => L
+  | C => DistributiveLattice.toSemiring BoolLattice
+  | S => BoolPoset
+  | alg {
+    | func => \case __ \with {
+      | false => bottom
+      | true => top
+    }
+    | func-+ x y => inv (\case \elim x, \elim y \with {
+      | true, true => <=-antisymmetric top-univ join-left
+      | true, false => R.zro-right
+      | false, true => R.zro-left
+      | false, false => R.zro-left
+    })
+    | func-zro => idp
+    | func-ide => idp
+    | func-* x y => inv (\case \elim x, \elim y \with {
+      | true, true => R.ide-left
+      | true, false => R.ide-left
+      | false, true => R.ide-right
+      | false, false => R.zro_*-left
+    })
+  }
+} \where \open Bounded
+
 \class RingData \extends AlgData {
   | C => IntRing
+  | S => IntRing
   \override R : Ring
   | alg => intMap
   | alg-comm => intComm
