@@ -58,6 +58,25 @@ public class Monomial implements Comparable<Monomial> {
     return result;
   }
 
+  public enum ComparisonResult { LESS, GREATER, EQUALS, UNCOMPARABLE }
+
+  public ComparisonResult compare(Monomial m) {
+    if (elements.size() == m.elements.size()) {
+      return elements.equals(m.elements) ? ComparisonResult.EQUALS : ComparisonResult.UNCOMPARABLE;
+    }
+    return elements.size() < m.elements.size() ? (isLess(m) ? ComparisonResult.LESS : ComparisonResult.UNCOMPARABLE) : (m.isLess(this) ? ComparisonResult.GREATER : ComparisonResult.UNCOMPARABLE);
+  }
+
+  private boolean isLess(Monomial m) {
+    for (int i = 0, j = 0; i < elements.size(); j++) {
+      if (j == m.elements.size()) return false;
+      int cmp = elements.get(i).compareTo(m.elements.get(j));
+      if (cmp > 0) return false;
+      if (cmp == 0) i++;
+    }
+    return true;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;

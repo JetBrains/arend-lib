@@ -51,7 +51,7 @@ public class MonoidSolver extends BaseEqualitySolver {
     ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ide, typechecker, factory, refExpr, meta.ext, 0);
   }
 
-  private static List<Integer> removeDuplicates(List<Integer> list) {
+  public static List<Integer> removeDuplicates(List<Integer> list) {
     List<Integer> result = new ArrayList<>();
     for (int i = 0; i < list.size(); i++) {
       if (i == list.size() - 1 || !list.get(i).equals(list.get(i + 1))) {
@@ -185,7 +185,7 @@ public class MonoidSolver extends BaseEqualitySolver {
       lastArgument = factory.ref(meta.ext.prelude.getIdp().getRef());
     }
 
-    return factory.appBuilder(factory.ref((semilattice ? meta.latticeTermsEq : commutative ? meta.commTermsEq : meta.termsEq).getRef()))
+    return factory.appBuilder(factory.ref((semilattice ? meta.semilatticeTermsEq : commutative ? meta.commTermsEq : meta.termsEq).getRef()))
       .app(factory.ref(dataRef), false)
       .app(term1.concrete)
       .app(term2.concrete)
@@ -609,7 +609,7 @@ public class MonoidSolver extends BaseEqualitySolver {
   protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
     ConcreteExpression data = factory.ref((isSemilattice ? meta.LData : isCommutative ? meta.CData : meta.Data).getRef());
     return isSemilattice
-      ? factory.classExt(data, Arrays.asList(factory.implementation(meta.LDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)))
+      ? factory.classExt(data, Arrays.asList(factory.implementation(meta.SemilatticeDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)))
       : factory.app(data, Arrays.asList(factory.arg(instanceArg, false), factory.arg(dataArg, true)));
   }
 }
