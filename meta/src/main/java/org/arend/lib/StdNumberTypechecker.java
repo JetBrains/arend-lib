@@ -1,11 +1,13 @@
 package org.arend.lib;
 
 import org.arend.ext.LiteralTypechecker;
+import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.CoreDataCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.expr.CoreFieldCallExpression;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.instance.SubclassSearchParameters;
 import org.arend.ext.typechecking.ContextData;
@@ -34,16 +36,31 @@ public class StdNumberTypechecker implements LiteralTypechecker {
   public @Nullable TypedExpression typecheckNumber(@NotNull BigInteger number, @NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     CoreExpression expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().normalize(NormalizationMode.WHNF);
     if (expectedType != null && !(expectedType instanceof CoreDataCallExpression && (((CoreDataCallExpression) expectedType).getDefinition() == ext.prelude.getNat() || ((CoreDataCallExpression) expectedType).getDefinition() == ext.prelude.getInt()))) {
-      CoreClassDefinition classDef = number.equals(BigInteger.ZERO) ? ext.equationMeta.AddPointed : number.equals(BigInteger.ONE) ? ext.equationMeta.Pointed : number.signum() == -1 ? ext.equationMeta.Ring : ext.equationMeta.Semiring;
-      TypedExpression instance = Utils.findInstance(new SubclassSearchParameters(classDef), ext.carrier, expectedType, typechecker, contextData.getMarker());
-      if (instance != null) {
+      boolean generate;
+      TypedExpression instance;
+      if (expectedType instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expectedType).getDefinition() == ext.carrier) {
+        instance = null;
+        generate = true;
+      } else {
+        CoreClassDefinition classDef = number.equals(BigInteger.ZERO) ? ext.equationMeta.AddPointed : number.equals(BigInteger.ONE) ? ext.equationMeta.Pointed : number.signum() == -1 ? ext.equationMeta.Ring : ext.equationMeta.Semiring;
+        instance = Utils.findInstance(new SubclassSearchParameters(classDef), ext.carrier, expectedType, typechecker, contextData.getMarker());
+        generate = instance != null;
+      }
+      if (generate) {
         ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
         ConcreteExpression cExpr;
-        ConcreteExpression cInstance = factory.core(null, instance);
+        ConcreteExpression cInstance = instance == null ? null : factory.core(null, instance);
         if (number.equals(BigInteger.ZERO) || number.equals(BigInteger.ONE)) {
-          cExpr = factory.app(factory.ref((number.equals(BigInteger.ZERO) ? ext.equationMeta.zro : ext.equationMeta.ide).getRef()), false, Collections.singletonList(cInstance));
+          cExpr = factory.ref((number.equals(BigInteger.ZERO) ? ext.equationMeta.zro : ext.equationMeta.ide).getRef());
+          if (cInstance != null) {
+            cExpr = factory.app(cExpr, false, Collections.singletonList(cInstance));
+          }
         } else {
-          cExpr = factory.appBuilder(factory.ref((number.signum() == -1 ? ext.equationMeta.intCoef : ext.equationMeta.natCoef).getRef())).app(cInstance, false).app(factory.number(number)).build();
+          ConcreteAppBuilder builder = factory.appBuilder(factory.ref((number.signum() == -1 ? ext.equationMeta.intCoef : ext.equationMeta.natCoef).getRef()));
+          if (cInstance != null) {
+            builder.app(cInstance, false);
+          }
+          cExpr = builder.app(factory.number(number)).build();
         }
         return typechecker.typecheck(cExpr, expectedType);
       }
