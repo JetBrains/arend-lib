@@ -619,6 +619,8 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<ConcreteCaseArgument> caseArgs = new ArrayList<>();
     List<ConcreteExpression> caseRefExprs = new ArrayList<>(dataList.size());
     List<List<ArendRef>> refLists = new ArrayList<>();
+    List<List<CoreExpression>> substExprLists = new ArrayList<>();
+    List<List<ArendRef>> substRefLists = new ArrayList<>();
     for (int i = 0; i < dataList.size(); i++) {
       SubexpressionData data = dataList.get(i);
       List<ArendRef> refs = new ArrayList<>();
@@ -663,7 +665,46 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       }
 
       refLists.add(refList);
-      caseRefExprs.add(factory.meta(name, new ReplaceSubexpressionsMeta(data.expression, exprs, refs)));
+      substExprLists.add(exprs);
+      substRefLists.add(refs);
+    }
+
+    for (int i = 0; i < dataList.size(); i++) {
+      SubexpressionData data = dataList.get(i);
+      List<ArendRef> refs = new ArrayList<>();
+      List<CoreExpression> exprs = new ArrayList<>();
+      for (int j = 0, k = 0; j < data.removedArgs.size(); j++) {
+        TypedExpression removedArg = data.removedArgs.get(j);
+        if (removedArg == null) {
+          refs.add(substRefLists.get(i).get(k));
+          exprs.add(substExprLists.get(i).get(k));
+          k++;
+          continue;
+        }
+        typechecker.withCurrentState(tc -> {
+          removedArg.getExpression().processSubexpression(expr -> {
+            CoreExpression exprType = expr.computeType();
+            if (exprType.isError()) return CoreExpression.FindAction.CONTINUE;
+
+            for (int i1 = 0; i1 < dataList.size(); i1++) {
+              List<TypedExpression> matchedArgs = dataList.get(i1).matchedArgs;
+              for (int j1 = 0; j1 < matchedArgs.size(); j1++) {
+                TypedExpression arg = matchedArgs.get(j1);
+                if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true)) {
+                  tc.updateSavedState();
+                  refs.add(refLists.get(i1).get(j1));
+                  exprs.add(expr);
+                } else {
+                  tc.loadSavedState();
+                }
+              }
+            }
+            return CoreExpression.FindAction.CONTINUE;
+          });
+          return null;
+        });
+      }
+      caseRefExprs.add(factory.meta("case_return_arg_" + (i + 1), new ReplaceSubexpressionsMeta(data.expression, exprs, refs)));
     }
 
     // Typecheck the result
