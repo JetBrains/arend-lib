@@ -35,7 +35,6 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
   final NamedParameter parameter;
   final ArendRef argRef;
   final ArendRef nameRef;
-  final ArendRef searchRef;
   final ArendRef addPathRef;
 
   public CasesMeta(StdExtension ext) {
@@ -55,7 +54,6 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       }
     });
 
-    searchRef = parameter.addFlag("search");
     addPathRef = parameter.addFlag("addPath");
   }
 
@@ -181,46 +179,44 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     List<Pair<CoreExpression,ArendRef>> searchPairs = new ArrayList<>();
     for (int i = 0; i < caseArgExprs.size(); i++) {
       ConcreteExpression caseArgExpr = caseArgExprs.get(i);
+      ConcreteExpression nameExpr;
+      boolean addPath;
+      ConcreteExpression argExpr;
+      ConcreteExpression argType;
       if (caseArgExpr instanceof ConcreteAppExpression && ((ConcreteAppExpression) caseArgExpr).getFunction() instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) ((ConcreteAppExpression) caseArgExpr).getFunction()).getReferent() == argRef) {
         List<? extends ConcreteArgument> parameters = ((ConcreteAppExpression) caseArgExpr).getArguments();
         Map<ArendRef, ConcreteExpression> params = new HashMap<>();
         Set<ArendRef> flags = new HashSet<>();
         parameter.getAllValues(parameters.get(1).getExpression(), params, flags, null, typechecker.getErrorReporter());
-        ConcreteExpression nameExpr = params.get(nameRef);
-        boolean addPath = flags.contains(addPathRef);
-        //noinspection SimplifiableConditionalExpression
-        boolean search = nameExpr instanceof ConcreteReferenceExpression && !addPath ? false : flags.contains(searchRef);
-        ArendRef caseArgRef = nameExpr instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) nameExpr).getReferent() : addPath || search ? factory.local("x") : null;
-        ConcreteExpression argExpr = parameters.get(0).getExpression();
-        ConcreteExpression argType = parameters.size() > 2 ? parameters.get(2).getExpression() : null;
-        if (search || argType == null && !searchPairs.isEmpty()) {
-          TypedExpression typed = typedArgs != null ? typedArgs.get(i) : typechecker.typecheck(argExpr, null);
-          if (typed == null) return null;
-          if (!(argExpr instanceof ConcreteReferenceExpression)) {
-            argExpr = factory.core(typed);
-          }
-          if (argType == null && !searchPairs.isEmpty()) {
-            argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType(), searchPairs));
-          }
-          if (search) {
-            searchPairs.add(new Pair<>(typed.getExpression(), caseArgRef));
-          }
-        }
-        caseArgs.add(argExpr instanceof ConcreteReferenceExpression && caseArgRef == null ? factory.caseArg((ConcreteReferenceExpression) argExpr, argType) : factory.caseArg(argExpr, caseArgRef, argType));
-        if (addPath) {
-          caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.hole(), factory.ref(caseArgRef)))));
-        }
+        nameExpr = params.get(nameRef);
+        addPath = flags.contains(addPathRef);
+        argExpr = parameters.get(0).getExpression();
+        argType = parameters.size() > 2 ? parameters.get(2).getExpression() : null;
       } else {
-        ConcreteExpression argType = null;
-        if (!searchPairs.isEmpty()) {
-          TypedExpression typed = typedArgs != null ? typedArgs.get(i) : typechecker.typecheck(caseArgExpr, null);
-          if (typed == null) return null;
-          if (!(caseArgExpr instanceof ConcreteReferenceExpression)) {
-            caseArgExpr = factory.core(typed);
-          }
+        nameExpr = null;
+        addPath = false;
+        argExpr = caseArgExpr;
+        argType = null;
+      }
+
+      boolean isElim = !addPath && !(nameExpr instanceof ConcreteReferenceExpression) && argExpr instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) argExpr).getReferent().isLocalRef();
+      ArendRef caseArgRef = nameExpr instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) nameExpr).getReferent() : !isElim ? factory.local("x") : null;
+      if (!isElim || argType == null && !searchPairs.isEmpty()) {
+        TypedExpression typed = typedArgs != null ? typedArgs.get(i) : typechecker.typecheck(argExpr, null);
+        if (typed == null) return null;
+        if (!(argExpr instanceof ConcreteReferenceExpression)) {
+          argExpr = factory.core(typed);
+        }
+        if (argType == null && !searchPairs.isEmpty()) {
           argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType(), searchPairs));
         }
-        caseArgs.add(caseArgExpr instanceof ConcreteReferenceExpression ? factory.caseArg((ConcreteReferenceExpression) caseArgExpr, argType) : factory.caseArg(caseArgExpr, null, argType));
+        if (!isElim) {
+          searchPairs.add(new Pair<>(typed.getExpression(), caseArgRef));
+        }
+      }
+      caseArgs.add(isElim ? factory.caseArg((ConcreteReferenceExpression) argExpr, argType) : factory.caseArg(argExpr, caseArgRef, argType));
+      if (addPath) {
+        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.hole(), factory.ref(caseArgRef)))));
       }
     }
 
