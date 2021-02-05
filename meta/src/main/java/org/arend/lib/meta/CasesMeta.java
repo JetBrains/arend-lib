@@ -77,7 +77,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     return expression instanceof ConcreteReferenceExpression ? resolver.useRefs(Collections.singletonList(argRef), true).resolve(expression) : null;
   }
 
-  private ConcreteExpression resolveArgument(ExpressionResolver resolver, ConcreteExpression argument) {
+  public ConcreteExpression resolveArgument(ExpressionResolver resolver, ConcreteExpression argument) {
     if (argument instanceof ConcreteTupleExpression) {
       List<ConcreteExpression> newFields = new ArrayList<>();
       for (ConcreteExpression field : ((ConcreteTupleExpression) argument).getFields()) {

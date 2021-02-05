@@ -124,6 +124,17 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new HidingMeta());
     contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
     contributor.declare(meta, new LongName("at"), "`(f at x) r` replaces variable `x` with `f x` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
+    casesMeta = new CasesMeta(this);
+    contributor.declare(meta, new LongName("cases"),
+      "`cases args default` works just like `mcases args default`, but does not search for \\case expressions or definition invocations.\n" +
+      "Each argument has a set of parameters that can be configured.\n" +
+      "Parameters are specified after keyword 'arg' which is written after the argument.\n" +
+      "Available parameters are 'addPath' and 'name'.\n" +
+      "The latter can be used to specify the name of the argument which can be used in types of subsequent arguments.\n" +
+      "The type of an argument is specified as either `e : E` or `e arg parameters : E`.\n" +
+      "The flag 'addPath' indicates that argument `idp` with type `e = x` should be added after the current one, where `e` is the current argument and `x` is its name.\n" +
+      "That is, `cases (e arg addPath)` is equivalent to `cases (e arg (name = x), idp : e = x)`",
+      Precedence.DEFAULT, casesMeta);
     contributor.declare(meta, new LongName("mcases"),
       "`mcases {def} args default \\with { ... }` finds all invocations of definition `def` in the expected type and generate a \\case expression that matches arguments of those invocations.\n\n" +
       "It matches only those arguments which are matched in `def`.\n" +
@@ -131,18 +142,19 @@ public class StdExtension implements ArendExtension {
       "`default` is an optional argument which is used as a default result for missing clauses.\n" +
       "The list of clauses after \\with can be omitted if the default expression is specified.\n" +
       "`args` is a comma-separated list of expressions (which can be omitted) that will be additionally matched in the resulting \\case expressions.\n" +
+      "These arguments are written in the same syntax as arguments in `cases`.\n" +
       "`mcases` also searches for occurrences of `def` in the types of these additional expressions.\n" +
+      "Parameters of found arguments can be specified in the second implicit argument.\n" +
+      "The syntax is similar to the syntax for arguments in `cases`, but the expression should be omitted.\n" +
+      "If the first implicit argument is `_`, it will be skipped.\n" +
       "`mcases {def_1, ... def_n}` searches for occurrences of definitions `def_1`, ... `def_n`\n" +
       "`mcases {def, i_1, ... i_n}` matches arguments only of `i_1`-th, ... `i_n`-th occurrences of `def`\n" +
       "For example\n" +
       "* `mcases {(def1,4),def2,(def3,1,2)}` looks for the 4th occurrence of `def1`, all occurrences of `def2`, and the first and the second occurrence of `def3`\n" +
       "* `mcases {(1,2),(def,1)}` looks for the first and the second occurrence of a \\case expression and the first occurrence of `def`\n" +
-      "* `mcases {(def1,2),(),def2}` looks for the second occurrence of `def1`, all occurrences of \\case expressions, and all occurrences of `def2`",
+      "* `mcases {(def1,2),(),def2}` looks for the second occurrence of `def1`, all occurrences of \\case expressions, and all occurrences of `def2`\n" +
+      "* `mcases {_} {arg addPath, arg (), arg addPath}` looks for case expressions and adds a path argument after the first and the third matched expression",
       Precedence.DEFAULT, new MatchingCasesMeta(this));
-    casesMeta = new CasesMeta(this);
-    contributor.declare(meta, new LongName("cases"),
-      "`cases args default` works just like `mcases args default`, but does not search for \\case expressions or definition invocations.",
-      Precedence.DEFAULT, casesMeta);
     contributor.declare(meta, new LongName("unfold"),
       "`unfold (f_1, ... f_n) e` unfolds functions f_1, ... f_n in the expected type before type-checking of `e` and returns `e` itself.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
