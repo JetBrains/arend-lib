@@ -37,6 +37,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.+") public CoreClassField plus;
+  @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-right") public CoreClassField addMonZroRight;
 
   @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")     CoreClassDefinition MSemilattice;
   @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")        CoreClassField meet;
@@ -77,12 +78,17 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver", name = "RingData.terms-equality")   CoreFunctionDefinition ringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "CAlgData.terms-equality")   CoreFunctionDefinition commSemiringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "CRingData.terms-equality")  CoreFunctionDefinition commRingTermsEq;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingData.interpret")        CoreFunctionDefinition ringInterpret;
+  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.interpretNF")       CoreFunctionDefinition algInterpretNF;
 
-  @Dependency(module = "Algebra.Group", name = "AddGroup.negative")   public CoreClassField negative;
-  @Dependency(module = "Algebra.Semiring")                            public CoreClassDefinition Semiring;
-  @Dependency(module = "Algebra.Ring")                                public CoreClassDefinition Ring;
-  @Dependency(module = "Algebra.Semiring", name = "Semiring.natCoef") public CoreClassField natCoef;
-  @Dependency(module = "Algebra.Ring", name = "Ring.intCoef")         public CoreFunctionDefinition intCoef;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.negative")       public CoreClassField negative;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.fromZero")       public CoreFunctionDefinition fromZero;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.toZero")         public CoreFunctionDefinition toZero;
+  @Dependency(module = "Algebra.Semiring")                                public CoreClassDefinition Semiring;
+  @Dependency(module = "Algebra.Ring")                                    public CoreClassDefinition Ring;
+  @Dependency(module = "Algebra.Semiring", name = "Semiring.natCoef")     public CoreClassField natCoef;
+  @Dependency(module = "Algebra.Semiring", name = "Semiring.zro_*-right") public CoreClassField zeroMulRight;
+  @Dependency(module = "Algebra.Ring", name = "Ring.intCoef")             public CoreFunctionDefinition intCoef;
 
   @Dependency(module = "Equiv")                                  public CoreClassDefinition Equiv;
   @Dependency(module = "Equiv")                                  public CoreClassDefinition QEquiv;

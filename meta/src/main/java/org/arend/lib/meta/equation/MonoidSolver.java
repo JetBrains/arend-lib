@@ -8,6 +8,7 @@ import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
+import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
@@ -25,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 
@@ -142,7 +144,7 @@ public class MonoidSolver extends BaseEqualitySolver {
       for (RuleExt rule : rules) {
         if (rule.count > 0) {
           if (rule.rnfTerm == null) {
-            rule.rnfTerm = computeNFTerm(rule.rhs, factory);
+            rule.rnfTerm = computeNFTerm(rule.rhs);
           }
           if (rule.cExpr != null) {
             continue;
@@ -194,7 +196,6 @@ public class MonoidSolver extends BaseEqualitySolver {
   }
 
   private static class Equality {
-    // public final TypedExpression expression;
     public final ConcreteExpression binding;
     public List<Integer> lhsNF;
     public List<Integer> rhsNF;
@@ -202,7 +203,6 @@ public class MonoidSolver extends BaseEqualitySolver {
     public ConcreteExpression rhsTerm;
 
     private Equality(ConcreteExpression binding, ConcreteExpression lhsTerm, ConcreteExpression rhsTerm, List<Integer> lhsNF, List<Integer> rhsNF) {
-      // this.expression = expression;
       this.binding = binding;
       this.lhsTerm = lhsTerm;
       this.rhsTerm = rhsTerm;
@@ -225,12 +225,12 @@ public class MonoidSolver extends BaseEqualitySolver {
         }
       }
 
-      var word1Pow = elemsSeqToPowersSeq(term1.nf, alphabetSize);
-      var word2Pow = elemsSeqToPowersSeq(term2.nf, alphabetSize);
+      var word1Pow = ComMonoidWP.elemsSeqToPowersSeq(term1.nf, alphabetSize);
+      var word2Pow = ComMonoidWP.elemsSeqToPowersSeq(term2.nf, alphabetSize);
       List<Pair<List<Integer>, List<Integer>>> axiomsPow = new ArrayList<>();
 
       for (Equality axiom : axioms) {
-        axiomsPow.add(new Pair<>(elemsSeqToPowersSeq(axiom.lhsNF, alphabetSize), elemsSeqToPowersSeq(axiom.rhsNF, alphabetSize)));
+        axiomsPow.add(new Pair<>(ComMonoidWP.elemsSeqToPowersSeq(axiom.lhsNF, alphabetSize), ComMonoidWP.elemsSeqToPowersSeq(axiom.rhsNF, alphabetSize)));
       }
 
       var wpAlgorithm = new ComMonoidWP(new GroebnerIM(new Buchberger()));
@@ -249,7 +249,7 @@ public class MonoidSolver extends BaseEqualitySolver {
         var rhsNF = isDirect ? equalityToApply.rhsNF : equalityToApply.lhsNF;
         var lhsTerm = isDirect ? equalityToApply.lhsTerm : equalityToApply.rhsTerm;
         var rhsTerm = isDirect ? equalityToApply.rhsTerm : equalityToApply.lhsTerm;
-        ConcreteExpression rhsTermNF = computeNFTerm(rhsNF, factory);
+        ConcreteExpression rhsTermNF = computeNFTerm(rhsNF);
         ConcreteExpression nfProofTerm = equalityToApply.binding; // factory.ref(equalityToApply.binding);
 
         if (!isDirect) {
@@ -265,7 +265,7 @@ public class MonoidSolver extends BaseEqualitySolver {
                   .build();
         //}
 
-        var indexesToReplace = findIndexesToRemove(curWord, powsToRemove);
+        var indexesToReplace = ComMonoidWP.findIndexesToRemove(curWord, powsToRemove);
         var subwordToReplace = new ArrayList<Integer>();
         var newWord = new ArrayList<>(curWord);
 
@@ -286,7 +286,7 @@ public class MonoidSolver extends BaseEqualitySolver {
         }
 
         if (subwordToReplace.size() > 1) {
-          ConcreteExpression sortProofLeft = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(computeNFTerm(subwordToReplace, factory)).build();
+          ConcreteExpression sortProofLeft = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(computeNFTerm(subwordToReplace)).build();
           nfProofTerm = factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(sortProofLeft, nfProofTerm));
         }
         ConcreteExpression sortProofRight = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(rhsTermNF).build();
@@ -295,8 +295,8 @@ public class MonoidSolver extends BaseEqualitySolver {
 
         ConcreteExpression stepProofTerm = factory.appBuilder(factory.ref(meta.commReplaceDef.getRef()))
                 .app(factory.ref(dataRef), false)
-                .app(computeNFTerm(curWord, factory))
-                .app(computeNFTerm(indexesToReplace, factory))
+                .app(computeNFTerm(curWord))
+                .app(computeNFTerm(indexesToReplace))
                 .app(rhsTermNF)
                 .app(nfProofTerm)
                 .build();
@@ -312,7 +312,7 @@ public class MonoidSolver extends BaseEqualitySolver {
       if (proofTerm == null) {
         proofTerm = factory.ref(meta.ext.prelude.getIdp().getRef());
       } else {
-        ConcreteExpression sortProof = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(computeNFTerm(curWord, factory)).build();
+        ConcreteExpression sortProof = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(computeNFTerm(curWord)).build();
         proofTerm = factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(proofTerm, sortProof));
       }
 
@@ -322,34 +322,6 @@ public class MonoidSolver extends BaseEqualitySolver {
               .app(term2.concrete)
               .app(proofTerm)
               .build();
-    }
-
-    private List<Integer> findIndexesToRemove(List<Integer> word, List<Integer> powersToErase) {
-      var powersCopy = new ArrayList<>(powersToErase);
-      var indexesToRemove = new ArrayList<Integer>();
-
-      for (int i = 0; i < word.size(); ++i) {
-        int pow = powersCopy.get(word.get(i));
-        if (pow > 0) {
-          powersCopy.set(word.get(i), pow - 1);
-          indexesToRemove.add(i - indexesToRemove.size());
-        }
-      }
-
-      return indexesToRemove;
-    }
-
-    private List<Integer> elemsSeqToPowersSeq(List<Integer> word, int alphabetSize) {
-      var powersSeq = new ArrayList<Integer>();
-      for (int i = 0; i < alphabetSize; ++i) {
-        powersSeq.add(0);
-      }
-
-      for (int a : word) {
-        powersSeq.set(a, powersSeq.get(a) + 1);
-      }
-
-      return powersSeq;
     }
   }
 
@@ -442,7 +414,7 @@ public class MonoidSolver extends BaseEqualitySolver {
     for (Step step : trace) {
       ConcreteExpression expr = factory.appBuilder(factory.ref(meta.replaceDef.getRef()))
         .app(factory.ref(dataRef), false)
-        .app(computeNFTerm(nf, factory))
+        .app(computeNFTerm(nf))
         .app(factory.number(step.position))
         .app(factory.number(step.rule.lhs.size()))
         .app(step.rule.rnfTerm)
@@ -470,10 +442,15 @@ public class MonoidSolver extends BaseEqualitySolver {
     return args.size() == 1 || args.size() == 2 && args.get(0).getExpression() instanceof ConcreteAppExpression && ((ConcreteAppExpression) args.get(0).getExpression()).getArguments().size() == 1 && isNF(args.get(1).getExpression());
   }
 
-  private ConcreteExpression computeNFTerm(List<Integer> nf, ConcreteFactory factory) {
-    ConcreteExpression result = factory.ref(meta.ext.nil.getRef());
+  private ConcreteExpression computeNFTerm(List<Integer> nf) {
+    return formList(nf.stream().map(factory::number).collect(Collectors.toList()), factory, meta.ext.nil, meta.ext.cons);
+  }
+
+  // TODO: create a proper util method somewhere else instead of this
+  public static ConcreteExpression formList(List<ConcreteExpression> nf, ConcreteFactory factory, CoreConstructor nil, CoreConstructor cons) {
+    ConcreteExpression result = factory.ref(nil.getRef());
     for (int i = nf.size() - 1; i >= 0; i--) {
-      result = factory.appBuilder(factory.ref(meta.ext.cons.getRef())).app(factory.number(nf.get(i))).app(result).build();
+      result = factory.appBuilder(factory.ref(cons.getRef())).app(nf.get(i)).app(result).build();
     }
     return result;
   }

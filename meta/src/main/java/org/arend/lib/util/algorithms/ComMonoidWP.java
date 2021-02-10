@@ -22,6 +22,44 @@ public class ComMonoidWP {
     return new Monomial<>(BigInteger.ONE, word, Ring.Z);
   }
 
+  public static List<Integer> findIndexesToRemove(List<Integer> word, List<Integer> powersToErase) {
+    var powersCopy = new ArrayList<>(powersToErase);
+    var indexesToRemove = new ArrayList<Integer>();
+
+    for (int i = 0; i < word.size(); ++i) {
+      int pow = powersCopy.get(word.get(i));
+      if (pow > 0) {
+        powersCopy.set(word.get(i), pow - 1);
+        indexesToRemove.add(i - indexesToRemove.size());
+      }
+    }
+
+    return indexesToRemove;
+  }
+
+  public static List<Integer> elemsSeqToPowersSeq(List<Integer> word, int alphabetSize) {
+    var powersSeq = new ArrayList<Integer>();
+    for (int i = 0; i < alphabetSize; ++i) {
+      powersSeq.add(0);
+    }
+
+    for (int a : word) {
+      powersSeq.set(a, powersSeq.get(a) + 1);
+    }
+
+    return powersSeq;
+  }
+
+  public static List<Integer> powersSeqToElemsSeq(List<Integer> powers) {
+    var word = new ArrayList<Integer>();
+    for (int i = 0; i < powers.size(); ++i) {
+      for (int j = 0; j < powers.get(i); ++j) {
+        word.add(i);
+      }
+    }
+    return word;
+  }
+
   private static List<Integer> monomialToWord(Monomial<BigInteger> monomial) {
     return monomial.degreeVector;
   }

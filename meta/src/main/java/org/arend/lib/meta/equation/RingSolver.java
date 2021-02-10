@@ -3,6 +3,7 @@ package org.arend.lib.meta.equation;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
@@ -12,15 +13,25 @@ import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
+import org.arend.lib.context.ContextHelper;
+import org.arend.lib.meta.closure.CongruenceClosure;
+import org.arend.lib.meta.cong.CongruenceMeta;
 import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.ring.Monomial;
 import org.arend.lib.util.CountingSort;
+import org.arend.lib.util.Utils;
+import org.arend.lib.util.algorithms.ComMonoidWP;
+import org.arend.lib.util.algorithms.groebner.Buchberger;
+import org.arend.lib.util.algorithms.idealmem.GroebnerIM;
+import org.arend.lib.util.algorithms.polynomials.Poly;
+import org.arend.lib.util.algorithms.polynomials.Ring;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 
@@ -63,18 +74,20 @@ public class RingSolver extends BaseEqualitySolver {
   }
 
   private static class CompiledTerm {
+    final ConcreteExpression originalExpr;
     final ConcreteExpression concrete;
     final List<Monomial> nf;
 
-    private CompiledTerm(ConcreteExpression concrete, List<Monomial> nf) {
+    private CompiledTerm(ConcreteExpression concrete, List<Monomial> nf, ConcreteExpression originalExpr) {
       this.concrete = concrete;
       this.nf = nf;
+      this.originalExpr = originalExpr;
     }
   }
 
   private CompiledTerm compileTerm(CoreExpression expression) {
     List<Monomial> nf = new ArrayList<>();
-    return new CompiledTerm(computeTerm(expression, nf), nf);
+    return new CompiledTerm(computeTerm(expression, nf), nf, factory.core(expression.computeTyped()));
   }
 
   private ConcreteExpression computeTerm(CoreExpression expression, List<Monomial> nf) {
@@ -137,6 +150,56 @@ public class RingSolver extends BaseEqualitySolver {
     return factory.app(factory.ref(meta.varTerm.getRef()), true, singletonList(factory.number(index)));
   }
 
+  private void typeToRule(CoreBinding binding, List<Equality> rules) {
+    if (binding == null) return;
+    CoreFunCallExpression eq = Utils.toEquality(binding.getTypeExpr(), null, null);
+    if (eq == null) return;
+    CompiledTerm lhsTerm = compileTerm(eq.getDefCallArguments().get(1));
+    CompiledTerm rhsTerm = compileTerm(eq.getDefCallArguments().get(2));
+    if (isCommutative) {
+      toCommutativeNF(lhsTerm.nf);
+      toCommutativeNF(rhsTerm.nf);
+    }
+    rules.add(new Equality(factory.ref(binding), lhsTerm, rhsTerm));
+  }
+
+  private void toCommutativeNF(List<Monomial> nf) {
+    for (int i = 0; i < nf.size(); i++) {
+      nf.set(i, new Monomial(nf.get(i).coefficient, CountingSort.sort(nf.get(i).elements)));
+    }
+  }
+
+  private ConcreteExpression interpretNF(List<Monomial> nf) {
+    var monomialsNF = nf.stream().map(m -> factory.tuple(MonoidSolver.formList(m.elements.stream().map(factory::number).collect(Collectors.toList()), factory, meta.ext.nil, meta.ext.cons), factory.number(m.coefficient))).collect(Collectors.toList());
+    return factory.appBuilder(factory.ref(meta.algInterpretNF.getRef()))
+            .app(factory.ref(dataRef), false)
+            .app(MonoidSolver.formList(monomialsNF, factory, meta.ext.nil, meta.ext.cons))
+            .build();
+  }
+
+  private ConcreteExpression nfToRingTerm(List<Monomial> nf) {
+    if (nf.isEmpty()) return factory.ref(meta.zroTerm.getRef());
+    var monomialTerms = new ArrayList<ConcreteExpression>();
+    for (Monomial m : nf) {
+      var isNegative = m.coefficient.signum() == -1;
+      var mTerm = factory.app(factory.ref(meta.coefTerm.getRef()), true, Collections.singletonList(factory.number(m.coefficient.abs())));
+      if(isNegative) {
+        mTerm = factory.app(factory.ref(meta.negativeTerm.getRef()), true, Collections.singletonList(mTerm));
+      }
+
+      for (Integer v : m.elements) {
+        var varTerm = factory.app(factory.ref(meta.varTerm.getRef()), true, singletonList(factory.number(v)));
+        mTerm = factory.app(factory.ref(meta.mulTerm.getRef()), true, Arrays.asList(mTerm, varTerm));
+      }
+      monomialTerms.add(mTerm);
+    }
+    var resTerm = monomialTerms.get(0);
+    for (int i = 1; i < nf.size(); ++i) {
+      resTerm = factory.app(factory.ref(meta.addTerm.getRef()), true, Arrays.asList(resTerm, monomialTerms.get(i)));
+    }
+    return resTerm;
+  }
+
   @Override
   public ConcreteExpression solve(@Nullable ConcreteExpression hint, @NotNull TypedExpression leftExpr, @NotNull TypedExpression rightExpr, @NotNull ErrorReporter errorReporter) {
     CompiledTerm term1 = lastTerm == leftExpr ? lastCompiled : compileTerm(leftExpr.getExpression());
@@ -145,15 +208,27 @@ public class RingSolver extends BaseEqualitySolver {
     lastCompiled = term2;
 
     if (isCommutative) {
-      for (int i = 0; i < term1.nf.size(); i++) {
-        term1.nf.set(i, new Monomial(term1.nf.get(i).coefficient, CountingSort.sort(term1.nf.get(i).elements)));
-      }
-      for (int i = 0; i < term2.nf.size(); i++) {
-        term2.nf.set(i, new Monomial(term2.nf.get(i).coefficient, CountingSort.sort(term2.nf.get(i).elements)));
-      }
+      toCommutativeNF(term1.nf);
+      toCommutativeNF(term2.nf);
     }
     Collections.sort(term1.nf);
     Collections.sort(term2.nf);
+
+    if (isCommutative) {
+      var rules = new ArrayList<Equality>();
+      ContextHelper helper = new ContextHelper(hint);
+      for (CoreBinding binding : helper.getContextBindings(typechecker)) {
+        typeToRule(binding, rules);
+      }
+      for (CoreBinding binding : helper.getAdditionalBindings(typechecker)) {
+        typeToRule(binding, rules);
+      }
+
+      if(!rules.isEmpty()) {
+        ComRingSolver comSolver = new ComRingSolver();
+        return comSolver.solve(term1, term2, rules);
+      }
+    }
     if (!Monomial.collapse(term1.nf).equals(Monomial.collapse(term2.nf))) {
       return null;
     }
@@ -164,5 +239,161 @@ public class RingSolver extends BaseEqualitySolver {
       .app(term2.concrete)
       .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
       .build();
+  }
+
+  private static class Equality {
+    public final ConcreteExpression binding;
+    public CompiledTerm lhsTerm;
+    public CompiledTerm rhsTerm;
+
+    private Equality(ConcreteExpression binding, CompiledTerm lhsTerm, CompiledTerm rhsTerm) {
+      this.binding = binding;
+      this.lhsTerm = lhsTerm;
+      this.rhsTerm = rhsTerm;
+    }
+  }
+
+  private class ComRingSolver {
+
+    private Poly<BigInteger> termToPoly(CompiledTerm term, int numVars) {
+      var poly = Poly.constant(BigInteger.ZERO, numVars, Ring.Z);
+
+      for (Monomial m : term.nf) {
+        poly = poly.add(new org.arend.lib.util.algorithms.polynomials.Monomial<>(m.coefficient, ComMonoidWP.elemsSeqToPowersSeq(m.elements, numVars), Ring.Z));
+      }
+      return poly;
+    }
+
+    //private ConcreteExpression polyToTerm(Poly<BigInteger> poly) {
+    //  return interpretNF(poly.monomials.stream().map(m -> new Monomial(m.coefficient, ComMonoidWP.powersSeqToElemsSeq(m.degreeVector))).collect(Collectors.toList()));
+   // }
+
+    private List<Monomial> polyToNF(Poly<BigInteger> poly) {
+      return poly.monomials.stream().map(m -> new Monomial(m.coefficient, ComMonoidWP.powersSeqToElemsSeq(m.degreeVector))).collect(Collectors.toList());
+    }
+
+    private ConcreteExpression idealGenDecompRingTerm(List<Poly<BigInteger>> coeffs, List<ConcreteExpression> axiomsRT) {
+      var summands = new ArrayList<ConcreteExpression>();
+      for (int i = 0; i < coeffs.size(); ++i) {
+        var coeffTerm = nfToRingTerm(polyToNF(coeffs.get(i)));
+        coeffTerm = factory.app(factory.ref(meta.mulTerm.getRef()), true, Arrays.asList(coeffTerm, axiomsRT.get(i)));
+        summands.add(coeffTerm);
+      }
+      var resTerm = summands.get(0);
+      for (int i = 1; i < summands.size(); ++i) {
+        resTerm = factory.app(factory.ref(meta.addTerm.getRef()), true, Arrays.asList(resTerm, summands.get(i)));
+      }
+      return resTerm;
+    }
+
+    private ConcreteExpression argIsZeroToProdIsZero(ConcreteExpression a, ConcreteExpression bEqZeroPrf) {
+      var prodCongProof = CongruenceMeta.applyCongruence(typechecker,
+              Arrays.asList(new CongruenceClosure.EqProofOrElement(factory.ref(meta.mul.getRef()), true),
+                            new CongruenceClosure.EqProofOrElement(a, true),
+                            new CongruenceClosure.EqProofOrElement(bEqZeroPrf,  false)), factory, meta.ext.prelude);
+      var aMulZeroIsZeroProof = factory.appBuilder(factory.ref(meta.zeroMulRight.getRef()))
+              .app(factory.core(instance), false)
+              .app(a, false)
+              .build();
+      return factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(prodCongProof, aMulZeroIsZeroProof));
+    }
+
+    private ConcreteExpression argsAreZeroToSumIsZero(ConcreteExpression aEqZeroPrf, ConcreteExpression bEqZeroPrf) {
+      var sumCongProof = CongruenceMeta.applyCongruence(typechecker,
+              Arrays.asList(new CongruenceClosure.EqProofOrElement(factory.ref(meta.plus.getRef()), true),
+                      new CongruenceClosure.EqProofOrElement(aEqZeroPrf, false),
+                      new CongruenceClosure.EqProofOrElement(bEqZeroPrf,  false)), factory, meta.ext.prelude);
+
+      var zeroPlusZeroIsZeroProof = factory.appBuilder(factory.ref(meta.addMonZroRight.getRef()))
+              .app(factory.core(instance), false)
+              .app(factory.ref(meta.zro.getRef()), false)
+              .build();
+
+      return factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(sumCongProof, zeroPlusZeroIsZeroProof));
+    }
+
+    // todo: implement as lemma in Arend
+    private ConcreteExpression idealGenDecompEqZero(List<Poly<BigInteger>> coeffs, List<ConcreteExpression> axEqZeroProofs) {
+      var summandProofs = new ArrayList<ConcreteExpression>();
+      for (int i = 0; i < coeffs.size(); ++i) {
+        var coeffTerm = nfToRingTerm(polyToNF(coeffs.get(i)));
+        coeffTerm = factory.appBuilder(factory.ref(meta.ringInterpret.getRef()))
+                           .app(factory.ref(dataRef), false)
+                           .app(coeffTerm).build();
+        summandProofs.add(argIsZeroToProdIsZero(coeffTerm, axEqZeroProofs.get(i)));
+      }
+      var resProof = summandProofs.get(0);
+      for (int i = 1; i < summandProofs.size(); ++i) {
+        resProof = argsAreZeroToSumIsZero(resProof, summandProofs.get(i));
+      }
+      return resProof;
+    }
+
+    private int numVarsInNF(List<Monomial> nf) {
+      if (nf.isEmpty()) return 0;
+      return Collections.max(nf.stream().map(m -> m.elements.isEmpty() ? 0 : Collections.max(m.elements)).collect(Collectors.toList())) + 1;
+    }
+
+    private ConcreteExpression minusRingTerm(ConcreteExpression a, ConcreteExpression b) {
+      return factory.appBuilder(factory.ref(meta.addTerm.getRef()))
+              .app(a, true)
+              .app(factory.app(factory.ref(meta.negativeTerm.getRef()), true, Collections.singletonList(b)), true)
+              .build();
+    }
+
+    public ConcreteExpression solve(CompiledTerm term1, CompiledTerm term2, List<Equality> axioms) {
+      int numVariables = Integer.max(numVarsInNF(term1.nf), numVarsInNF(term2.nf));
+      for (Equality axiom : axioms) {
+        numVariables = Integer.max(numVarsInNF(axiom.lhsTerm.nf), numVariables);
+        numVariables = Integer.max(numVarsInNF(axiom.rhsTerm.nf), numVariables);
+      }
+
+      var p = termToPoly(term1, numVariables).subtr(termToPoly(term2, numVariables));
+      var idealGen = new ArrayList<Poly<BigInteger>>();
+
+      for (Equality axiom : axioms) {
+        idealGen.add(termToPoly(axiom.lhsTerm, numVariables).subtr(termToPoly(axiom.rhsTerm, numVariables)));
+      }
+
+      var idealCoeffs = new GroebnerIM(new Buchberger()).computeGenDecomposition(p, idealGen);
+
+      if (idealCoeffs == null) {
+        return null;
+      }
+
+      var axiomDiffs = new ArrayList<ConcreteExpression>();
+      var axDiffIsZeroPrf = new ArrayList<ConcreteExpression>();
+
+      for (Equality axiom : axioms) {
+        axiomDiffs.add(minusRingTerm(axiom.lhsTerm.concrete, axiom.rhsTerm.concrete));
+        axDiffIsZeroPrf.add(factory.appBuilder(factory.ref(meta.toZero.getRef()))
+                .app(factory.core(instance), false)
+                .app(axiom.lhsTerm.originalExpr)
+                .app(axiom.rhsTerm.originalExpr)
+                .app(axiom.binding)
+                .build());
+      }
+
+      // term1 - term2 = sum_i idealCoeffs(i) * (axiom(i).L - axiom(i).R)
+      var decompositionProof = factory.appBuilder(factory.ref(meta.commRingTermsEq.getRef()))
+              .app(factory.ref(dataRef), false)
+              .app(minusRingTerm(term1.concrete, term2.concrete))
+              .app(idealGenDecompRingTerm(idealCoeffs, axiomDiffs))
+              .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
+              .build();
+
+      // term1 - term2 = 0
+      var isZeroProof = factory.appBuilder(factory.ref(meta.ext.concat.getRef()))
+              .app(decompositionProof)
+              .app(idealGenDecompEqZero(idealCoeffs, axDiffIsZeroPrf))
+              .build();
+
+      return factory.appBuilder(factory.ref(meta.fromZero.getRef()))
+              .app(factory.core(instance), false)
+              .app(term1.originalExpr)
+              .app(term2.originalExpr)
+              .app(isZeroProof)
+              .build();
+    }
   }
 }

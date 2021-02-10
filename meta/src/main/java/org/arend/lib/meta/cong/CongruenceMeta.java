@@ -1,5 +1,6 @@
 package org.arend.lib.meta.cong;
 
+import org.arend.ext.ArendPrelude;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
@@ -36,7 +37,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
     return true;
   }
 
-  private ConcreteExpression appAt(ExpressionTypechecker typechecker, CongruenceClosure.EqProofOrElement path, ArendRef param, ConcreteFactory factory) {
+  public static ConcreteExpression appAt(ExpressionTypechecker typechecker, CongruenceClosure.EqProofOrElement path, ArendRef param, ConcreteFactory factory, ArendPrelude prelude) {
     if (path.isElement) {
       return path.eqProofOrElement;
     }
@@ -45,24 +46,24 @@ public class CongruenceMeta extends BaseMetaDefinition {
     if (equality != null) {
       ArendRef iParam = factory.local("i");
       ConcreteExpression funcLam = factory.lam(Collections.singletonList(factory.param(iParam)), factory.core(equality.getDefCallArguments().get(0).computeTyped()));
-      return factory.app(factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(factory.arg(funcLam, false), factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
+      return factory.app(factory.ref(prelude.getAt().getRef()), Arrays.asList(factory.arg(funcLam, false), factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
     }
-    return factory.app(factory.ref(ext.prelude.getAt().getRef()), Arrays.asList(factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
+    return factory.app(factory.ref(prelude.getAt().getRef()), Arrays.asList(factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
   }
 
-  private ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<CongruenceClosure.EqProofOrElement> eqProofs, ConcreteFactory factory) {
+  public static ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<CongruenceClosure.EqProofOrElement> eqProofs, ConcreteFactory factory, ArendPrelude prelude) {
     if (eqProofs.isEmpty()) return null;
 
     ArendRef jParam = factory.local("j");
     List<ConcreteArgument> eqProofsAtJ = new ArrayList<>();
 
     for (int i = 1; i < eqProofs.size(); ++i) {
-      eqProofsAtJ.add(factory.arg(appAt(typechecker, eqProofs.get(i), jParam, factory), true));
+      eqProofsAtJ.add(factory.arg(appAt(typechecker, eqProofs.get(i), jParam, factory, prelude), true));
     }
 
-    ConcreteExpression congrLambda = factory.lam(Collections.singleton(factory.param(jParam)), factory.app(appAt(typechecker, eqProofs.get(0), jParam, factory), eqProofsAtJ));
+    ConcreteExpression congrLambda = factory.lam(Collections.singleton(factory.param(jParam)), factory.app(appAt(typechecker, eqProofs.get(0), jParam, factory, prelude), eqProofsAtJ));
 
-    return factory.appBuilder(factory.ref(ext.prelude.getPathCon().getRef())).app(congrLambda).build();
+    return factory.appBuilder(factory.ref(prelude.getPathCon().getRef())).app(congrLambda).build();
   }
 
   private TypedExpression mapMode(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
@@ -120,7 +121,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
     }
 
     ConcreteFactory factory = ext.factory.withData(refExpr);
-    CongruenceClosure<CoreExpression> congruenceClosure = new CongruenceClosure<>(typechecker, refExpr, eqProofs -> applyCongruence(typechecker, eqProofs, factory),
+    CongruenceClosure<CoreExpression> congruenceClosure = new CongruenceClosure<>(typechecker, refExpr, eqProofs -> applyCongruence(typechecker, eqProofs, factory, ext.prelude),
         new CongruenceClosure.EqualityIsEquivProof(factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef())), factory);
     for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
       CoreFunCallExpression equality = binding.getTypeExpr().toEquality();
