@@ -91,7 +91,7 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
       if (constructors.isEmpty()) {
         result = null;
       } else if (constructors.size() == 1) {
-        result = factory.ref(constructors.get(0).getRef());
+        result = Utils.addArguments(factory.ref(constructors.get(0).getRef()), factory, Utils.numberOfExplicitParameters(constructors.get(0)), true);
       } else {
         ArendSession session = ui.newSession();
         session.setDescription("Goal");
