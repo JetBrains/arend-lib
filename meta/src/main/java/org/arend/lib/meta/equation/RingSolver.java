@@ -269,7 +269,11 @@ public class RingSolver extends BaseEqualitySolver {
    // }
 
     private List<Monomial> polyToNF(Poly<BigInteger> poly) {
-      return poly.monomials.stream().map(m -> new Monomial(m.coefficient, ComMonoidWP.powersSeqToElemsSeq(m.degreeVector))).collect(Collectors.toList());
+      var nf =  poly.monomials.stream().map(m -> new Monomial(m.coefficient, ComMonoidWP.powersSeqToElemsSeq(m.degreeVector))).collect(Collectors.toList());
+      if (nf.size() > 1 && nf.get(0).elements.isEmpty() && nf.get(0).coefficient.equals(BigInteger.ZERO)) {
+        nf.remove(0);
+      }
+      return nf;
     }
 
     private ConcreteExpression idealGenDecompRingTerm(List<Poly<BigInteger>> coeffs, List<ConcreteExpression> axiomsRT) {
@@ -279,9 +283,10 @@ public class RingSolver extends BaseEqualitySolver {
         coeffTerm = factory.app(factory.ref(meta.mulTerm.getRef()), true, Arrays.asList(coeffTerm, axiomsRT.get(i)));
         summands.add(coeffTerm);
       }
-      var resTerm = summands.get(0);
-      for (int i = 1; i < summands.size(); ++i) {
-        resTerm = factory.app(factory.ref(meta.addTerm.getRef()), true, Arrays.asList(resTerm, summands.get(i)));
+
+      ConcreteExpression resTerm = factory.ref(meta.zroTerm.getRef());
+      for (int i = summands.size() - 1; i >= 0; --i) {
+        resTerm = factory.app(factory.ref(meta.addTerm.getRef()), true, Arrays.asList(summands.get(i), resTerm));
       }
       return resTerm;
     }
@@ -341,6 +346,13 @@ public class RingSolver extends BaseEqualitySolver {
               .build();
     }
 
+    private ConcreteExpression minusRingElement(ConcreteExpression a, ConcreteExpression b) {
+      return factory.appBuilder(factory.ref(meta.plus.getRef()))
+              .app(a, true)
+              .app(factory.app(factory.ref(meta.negative.getRef()), true, Collections.singletonList(b)), true)
+              .build();
+    }
+
     public ConcreteExpression solve(CompiledTerm term1, CompiledTerm term2, List<Equality> axioms) {
       int numVariables = Integer.max(numVarsInNF(term1.nf), numVarsInNF(term2.nf));
       for (Equality axiom : axioms) {
@@ -361,7 +373,28 @@ public class RingSolver extends BaseEqualitySolver {
         return null;
       }
 
+      var genCoeffs = new ArrayList<ConcreteExpression>();
       var axiomDiffs = new ArrayList<ConcreteExpression>();
+
+      for (int i = 0;i < axioms.size(); ++i) {
+        var axiom = axioms.get(i);
+        var axiomDiff = minusRingElement(axiom.lhsTerm.originalExpr, axiom.rhsTerm.originalExpr);
+        var axDiffIsZero = factory.appBuilder(factory.ref(meta.toZero.getRef()))
+                .app(factory.core(instance), false)
+                .app(axiom.lhsTerm.originalExpr)
+                .app(axiom.rhsTerm.originalExpr)
+                .app(axiom.binding)
+                .build();
+        var coeffTerm = nfToRingTerm(polyToNF(idealCoeffs.get(i)));
+
+        coeffTerm = factory.appBuilder(factory.ref(meta.ringInterpret.getRef()))
+                .app(factory.ref(dataRef), false)
+                .app(coeffTerm).build();
+        axiomDiffs.add(minusRingTerm(axiom.lhsTerm.concrete, axiom.rhsTerm.concrete));
+        genCoeffs.add(factory.tuple(coeffTerm, axiomDiff, axDiffIsZero));
+      }
+
+      /*
       var axDiffIsZeroPrf = new ArrayList<ConcreteExpression>();
 
       for (Equality axiom : axioms) {
@@ -374,6 +407,8 @@ public class RingSolver extends BaseEqualitySolver {
                 .build());
       }
 
+       */
+
       // term1 - term2 = sum_i idealCoeffs(i) * (axiom(i).L - axiom(i).R)
       var decompositionProof = factory.appBuilder(factory.ref(meta.commRingTermsEq.getRef()))
               .app(factory.ref(dataRef), false)
@@ -382,10 +417,24 @@ public class RingSolver extends BaseEqualitySolver {
               .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
               .build();
 
+      /*
       // term1 - term2 = 0
       var isZeroProof = factory.appBuilder(factory.ref(meta.ext.concat.getRef()))
               .app(decompositionProof)
               .app(idealGenDecompEqZero(idealCoeffs, axDiffIsZeroPrf))
+              .build();
+
+       */
+
+      // sum_i idealCoeffs(i) * (axiom(i).L - axiom(i).R) = 0
+      var idealGenDecompEqZero = factory.appBuilder(factory.ref(meta.gensZeroToIdealZero.getRef()))
+              .app(MonoidSolver.formList(genCoeffs, factory, meta.ext.nil, meta.ext.cons))
+              .build();
+
+      // term1 - term2 = 0
+      var isZeroProof = factory.appBuilder(factory.ref(meta.ext.concat.getRef()))
+              .app(decompositionProof)
+              .app(idealGenDecompEqZero)
               .build();
 
       return factory.appBuilder(factory.ref(meta.fromZero.getRef()))
