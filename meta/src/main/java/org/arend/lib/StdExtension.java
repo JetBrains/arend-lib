@@ -3,6 +3,7 @@ package org.arend.lib;
 import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.core.definition.*;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
@@ -243,6 +244,9 @@ public class StdExtension implements ArendExtension {
       "`random n` returns a random number between 0 and `n`.\n" +
       "`random (l,u)` returns a random number between `l` and `u`.",
       Precedence.DEFAULT, new RandomMeta(this));
+    contributor.declare(debug, new LongName("nf"), "Normalizes the argument", Precedence.DEFAULT, new NormalizationMeta(NormalizationMode.ENF));
+    contributor.declare(debug, LongName.fromString("nf.whnf"), "", Precedence.DEFAULT, new NormalizationMeta(NormalizationMode.WHNF));
+    contributor.declare(debug, LongName.fromString("nf.rnf"), "", Precedence.DEFAULT, new NormalizationMeta(NormalizationMode.RNF));
 
     ModulePath category = ModulePath.fromString("Category.Meta");
     contributor.declare(category, new LongName("sip"),
