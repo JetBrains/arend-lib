@@ -169,14 +169,6 @@ public class RingSolver extends BaseEqualitySolver {
     }
   }
 
-  private ConcreteExpression interpretNF(List<Monomial> nf) {
-    var monomialsNF = nf.stream().map(m -> factory.tuple(MonoidSolver.formList(m.elements.stream().map(factory::number).collect(Collectors.toList()), factory, meta.ext.nil, meta.ext.cons), factory.number(m.coefficient))).collect(Collectors.toList());
-    return factory.appBuilder(factory.ref(meta.algInterpretNF.getRef()))
-            .app(factory.ref(dataRef), false)
-            .app(MonoidSolver.formList(monomialsNF, factory, meta.ext.nil, meta.ext.cons))
-            .build();
-  }
-
   private ConcreteExpression nfToRingTerm(List<Monomial> nf) {
     if (nf.isEmpty()) return factory.ref(meta.zroTerm.getRef());
     var monomialTerms = new ArrayList<ConcreteExpression>();
@@ -263,10 +255,6 @@ public class RingSolver extends BaseEqualitySolver {
       }
       return poly;
     }
-
-    //private ConcreteExpression polyToTerm(Poly<BigInteger> poly) {
-    //  return interpretNF(poly.monomials.stream().map(m -> new Monomial(m.coefficient, ComMonoidWP.powersSeqToElemsSeq(m.degreeVector))).collect(Collectors.toList()));
-   // }
 
     private List<Monomial> polyToNF(Poly<BigInteger> poly) {
       var nf =  poly.monomials.stream().map(m -> new Monomial(m.coefficient, ComMonoidWP.powersSeqToElemsSeq(m.degreeVector))).collect(Collectors.toList());
