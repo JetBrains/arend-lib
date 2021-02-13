@@ -1,0 +1,86 @@
+\import Algebra.Monoid
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Int
+\import Arith.Nat
+\import Meta
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set
+\open Nat(div,mod,divModProp)
+
+\lemma finToNat-inj {n : Nat} {x y : Fin n} (p : x = {Nat} y) : x = y \elim n, x, y, p
+  | suc n, zero, zero, _ => idp
+  | suc n, suc x, suc y, p => pmap (\lam z => suc z) (finToNat-inj (pmap pred p))
+
+\lemma mod_id {n x : Nat} (x<=n : x < suc n) : x `mod` suc n = {Nat} x
+  => \have div_x=0 => n*_+_<n (rewriteF (inv (divModProp x (suc n))) x<=n)
+     \in inv (pmap (_ + _ * __) div_x=0) *> +-comm *> divModProp x (suc n)
+
+\lemma fin_mod_id {n : Nat} (x : Fin (suc n)) : x `mod` suc n = x
+  => finToNat-inj (mod_id (fin_<= x))
+
+\lemma mod-unique {n q r q' r' : Nat} (r<n : r < n) (r'<n : r' < n) (p : n * q + r = n * q' + r') : r = r' \elim q, q'
+  | 0, 0 => p
+  | 0, suc q' => \case n*_+_<n {n} {suc q'} (transport (`< n) p r<n) \with {}
+  | suc q, 0 => \case n*_+_<n {n} {suc q} (transport (`< n) (inv p) r'<n) \with {}
+  | suc q, suc q' =>
+    \have | t1 => +-assoc *> pmap (_ +) +-comm *> inv +-assoc *> p *> +-assoc *> pmap (_ +) +-comm *> inv +-assoc
+          | t2 => IntRing.cancel-right n {n * q + r} {n * q' + r'} (pmap pos t1)
+    \in mod-unique r<n r'<n (pmap iabs t2)
+
+\lemma n*_+_mod_n {n q r : Nat} (r<=n : r < suc n) : (suc n * q + r) `mod` suc n = {Nat} r
+  => mod-unique (fin_<= _) r<=n (divModProp (suc n * q + r) (suc n))
+
+\lemma n*_+_mod_n=mod {n q r : Nat} : (suc n * q + r) `mod` suc n = r `mod` suc n
+  => run {
+    rewriteI (divModProp r (suc n)),
+    rewriteI NatSemiring.+-assoc,
+    rewriteI NatSemiring.ldistr,
+    \have p => fin_<= (r `mod` suc n),
+    finToNat-inj (n*_+_mod_n p *> inv (n*_+_mod_n p))
+  }
+
+\lemma mod_+-left {n a b : Nat} : (a `mod` suc n + b) `mod` suc n = (a + b) `mod` suc n
+  => run {
+    rewriteI {2} (divModProp a (suc n)),
+    rewrite NatSemiring.+-assoc,
+    inv (n*_+_mod_n=mod {n} {div a (suc n)})
+  }
+
+\lemma mod_+-right {n a b : Nat} : (a + b `mod` suc n) `mod` suc n = (a + b) `mod` suc n
+  => finToNat-inj (pmap (mod __ _) +-comm *> mod_+-left *> pmap (mod __ _) +-comm)
+
+\lemma mod_*-left {n a b : Nat} : (a `mod` suc n * b) `mod` suc n = (a * b) `mod` suc n
+  => run {
+    rewriteI {2} (divModProp a (suc n)),
+    rewrite NatSemiring.rdistr,
+    rewrite NatSemiring.*-assoc,
+    inv (n*_+_mod_n=mod {n} {div a (suc n)})
+  }
+
+\lemma mod_*-right {n a b : Nat} : (a * b `mod` suc n) `mod` suc n = (a * b) `mod` suc n
+  => finToNat-inj (pmap (mod __ _) *-comm *> mod_*-left *> pmap (mod __ _) *-comm)
+
+\instance FinRing {n : Nat} : CRing.Dec (Fin (suc n))
+  | zro => 0
+  | + x y => (x + y : Nat)
+  | zro-left {x} => pmap Fin.fromNat zro-left *> fin_mod_id x
+  | +-assoc {_} {_} {_} => mod_+-left *> pmap Fin.fromNat +-assoc *> inv mod_+-right
+  | +-comm {_} {_} => pmap Fin.fromNat +-comm
+  | ide => Fin.fromNat 1
+  | * x y => (x * y : Nat)
+  | ide-left {x} => mod_*-left *> pmap Fin.fromNat ide-left *> fin_mod_id x
+  | *-assoc {_} {_} {_} => mod_*-left *> pmap Fin.fromNat *-assoc *> inv mod_*-right
+  | ldistr {x} {y} {z} => mod_*-right *> pmap Fin.fromNat ldistr *> inv (mod_+-left *> mod_+-right)
+  | negative x => iabs (suc n Nat.- x)
+  | negative-left x =>
+    \let t => pmap (`+ pos x) (pos_iabs (<=-transitive <=-suc (fin_<= x))) *> IntRing.+-assoc {pos (suc n)} {neg x} *> pmap (_ +) (IntRing.negative-left (pos x))
+    \in mod_+-left *> transport (mod __ (suc n) = 0) (inv (pmap iabs t)) (finToNat-inj (n*_+_mod_n {n} {1} (Nat.suc<=suc Nat.zero<=_)))
+  | decideEq x y => \case NatSemiring.decideEq x y \with {
+    | yes x=y => yes (finToNat-inj x=y)
+    | no x/=y => no (\lam p => x/=y p)
+  }
+  | *-comm {_} {_} => pmap Fin.fromNat *-comm
