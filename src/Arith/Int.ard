@@ -86,9 +86,9 @@
   | zro => pos 0
   | + (x y : Int) : Int \with {
     | pos n, pos m => pos (n Nat.+ m)
-    | pos n, neg (suc m) => n - suc m
-    | neg (suc n), pos m => m - suc n
-    | neg (suc n), neg (suc m) => neg (suc n Nat.+ suc m)
+    | pos n, neg m => n - m
+    | neg n, pos m => m - n
+    | neg n, neg m => neg (n Nat.+ m)
   }
   | zro-left {x : Int} : 0 + x = x \elim x {
     | pos n => pmap pos AddMonoid.zro-left
@@ -96,19 +96,19 @@
   }
   | +-assoc {x y z : Int} : (x + y) + z = x + (y + z) \elim x, y, z {
     | pos n, pos m, pos k => pmap pos AddMonoid.+-assoc
-    | pos n, pos m, neg (suc k) => lldistr n m (suc k)
-    | pos n, neg (suc m), pos k => minus+pos n (suc m) k
-    | pos n, neg (suc m), neg (suc k) => inv (rrdistr n (suc m) (suc k))
-    | neg (suc n), pos m, pos k => inv (lrdistr m k (suc n))
-    | neg (suc n), pos m, neg (suc k) => minus+neg m (suc n) (suc k)
-    | neg (suc n), neg (suc m), pos k => rldistr k (suc n) (suc m)
-    | neg (suc n), neg (suc m), neg (suc k) => pmap neg (AddMonoid.+-assoc {_} {suc n} {suc m} {suc k})
+    | pos n, pos m, neg k => lldistr n m k
+    | pos n, neg m, pos k => minus+pos n m k
+    | pos n, neg m, neg k => inv (rrdistr n m k)
+    | neg n, pos m, pos k => inv (lrdistr m k n)
+    | neg n, pos m, neg k => minus+neg m n k
+    | neg n, neg m, pos k => rldistr k n m
+    | neg n, neg m, neg k => pmap neg AddMonoid.+-assoc
   }
   | +-comm {x y : Int} : x + y = y + x \elim x, y {
     | pos n, pos m => pmap pos AbMonoid.+-comm
-    | pos n, neg (suc m) => idp
-    | neg (suc n), pos m => idp
-    | neg (suc n), neg (suc m) => pmap neg (AbMonoid.+-comm {_} {suc n} {suc m})
+    | pos n, neg m => idp
+    | neg n, pos m => idp
+    | neg n, neg m => pmap neg AbMonoid.+-comm
   }
   | ide => pos 1
   | * (x y : Int) : Int \with {
@@ -133,14 +133,13 @@
   }
   | ldistr {x y z : Int} : x * (y + z) = x * y + x * z \elim x, y, z {
     | pos n, pos m, pos k => pmap pos NatSemiring.ldistr
-    | pos n, pos m, neg (suc k) => pos_minus-ldistr
-    | pos n, neg (suc m), pos k => pos_minus-ldistr {n} {k} {suc m} *> +-comm
-    | pos 0, neg (suc m), neg (suc k) => pmap neg zro_*-left *> inv (pmap2 (neg __ + neg __) zro_*-left zro_*-left)
-    | pos (suc n), neg (suc m), neg (suc k) => pmap (\lam t => neg (suc t)) (pmap (Nat.`+ n) NatSemiring.ldistr *> AddMonoid.+-assoc)
-    | neg (suc n), pos m, pos k => pmap neg NatSemiring.ldistr *> inv (neg+neg {suc n Nat.* m} {suc n Nat.* k})
-    | neg (suc n), pos m, neg (suc k) => neg_minus-ldistr
-    | neg (suc n), neg (suc m), pos k => neg_minus-ldistr {suc n} {k} {suc m} *> +-comm
-    | neg (suc n), neg m, neg k => pmap (neg (suc n) *) (neg+neg {m} {k}) *> pmap pos NatSemiring.ldistr
+    | pos n, pos m, neg k => pos_minus-ldistr
+    | pos n, neg m, pos k => pos_minus-ldistr
+    | pos n, neg m, neg k => pmap neg NatSemiring.ldistr
+    | neg (suc n), pos m, pos k => pmap neg NatSemiring.ldistr
+    | neg (suc n), pos m, neg k => neg_minus-ldistr
+    | neg (suc n), neg m, pos k => neg_minus-ldistr
+    | neg (suc n), neg m, neg k => pmap pos NatSemiring.ldistr
   }
   | negative (x : Int) : Int \with {
     | pos n => neg n
@@ -183,12 +182,6 @@
 
     -- ## +
 
-    \lemma neg+neg {n m : Nat} : neg n + neg m = neg (n Nat.+ m) \elim n, m
-      | 0, 0 => idp
-      | 0, suc m => pmap (\lam t => neg (suc t)) (inv AddMonoid.zro-left)
-      | suc n, 0 => idp
-      | suc n, suc m => idp
-
     \lemma lldistr (n m k : Nat) : (n Nat.+ m) - k = pos n + (m - k)
       | 0, 0, 0 => idp
       | suc n, 0, 0 => idp
@@ -203,7 +196,7 @@
       (n - k) + pos m `qed
 
     \lemma rldistr (n m k : Nat) : n - (m Nat.+ k) = neg m + (n - k)
-      | 0, m, k => inv neg+neg
+      | 0, m, k => idp
       | suc n, 0, 0 => pmap (\lam t => pos (suc t)) (inv AddMonoid.zro-left)
       | suc n, suc m, 0 => idp
       | suc n, m, suc k => rldistr n m k
@@ -244,7 +237,7 @@
       | suc n => minus__
 
     \lemma suc-left {x : Int} {n : Nat} : pos (suc n) + x = isuc (pos n + x) \elim x, n
-      | pos m, n => pmap pos (AbMonoid.+-comm *> pmap suc AbMonoid.+-comm)
+      | pos _, _ => idp
       | neg 1, 0 => idp
       | neg 1, 1 => idp
       | neg 1, suc (suc n) => idp
@@ -257,14 +250,14 @@
     \lemma pred-left {x : Int} {n : Nat} : neg (suc n) + x = ipred (neg n + x) \elim x, n
       | pos 0, 0 => idp
       | pos 1, 0 => idp
-      | pos (suc (suc m)), 0 => pmap (\lam t => pos (suc t)) AbMonoid.+-comm
+      | pos (suc (suc m)), 0 => idp
       | pos 0, suc n => idp
       | pos 1, 1 => idp
       | pos 2, 1 => idp
       | pos (suc (suc (suc m))), 1 => idp
       | pos (suc m), suc (suc n) => pred-left {pos m} {suc n}
-      | neg (suc m), 0 => pmap (\lam t => neg (suc t)) AbMonoid.+-comm
-      | neg (suc m), suc n => pmap (\lam t => neg (suc t)) (AbMonoid.+-comm *> inv (pmap suc AbMonoid.+-comm))
+      | neg (suc m), 0 => idp
+      | neg (suc m), suc n => idp
 
     \lemma pred-right {x : Int} {n : Nat} : x + neg (suc n) = ipred (x + neg n) =>
       +-comm *> pred-left {x} {n} *> pmap ipred +-comm
@@ -298,8 +291,8 @@
 
     \lemma neg_minus-ldistr {n m k : Nat} : neg n * (m - k) = neg (n Nat.* m) + pos (n Nat.* k) \elim m, k
       | 0, k => neg*neg *> pmap pos (inv AddMonoid.zro-left)
-      | suc m, 0 => neg*pos *> inv zro-left *> +-comm
-      | suc m, suc k => neg_minus-ldistr {n} {m} {k} *> +-comm *> inv (pos_neg_+ {n Nat.* k} {n Nat.* m} {n}) *> +-comm
+      | suc m, 0 => neg*pos *> inv zro-left
+      | suc m, suc k => neg_minus-ldistr {n} {m} {k} *> inv (pos_neg_+ {n Nat.* k} {n Nat.* m} {n})
 
     -- ## <
 
