@@ -30,7 +30,7 @@ public class UnfoldMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable boolean[] argumentExplicitness() {
+  public boolean[] argumentExplicitness() {
     return new boolean[] { true, true };
   }
 
@@ -68,13 +68,13 @@ public class UnfoldMeta extends BaseMetaDefinition {
     Set<CoreDefinition> unfolded = new HashSet<>();
     TypedExpression result;
     if (contextData.getExpectedType() != null) {
-      result = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType().unfold(functions, unfolded));
+      result = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType().unfold(functions, unfolded, false));
     } else {
       TypedExpression arg = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), null);
       if (arg == null) {
         return null;
       }
-      result = arg.replaceType(arg.getType().unfold(functions, unfolded));
+      result = arg.replaceType(arg.getType().unfold(functions, unfolded, false));
     }
 
     if (unfolded.size() != functions.size()) {
