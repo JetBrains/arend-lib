@@ -987,30 +987,49 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
   private static List<List<CorePattern>> mergeColumns(List<List<CorePattern>> rows, List<SubexpressionData> dataList) {
     int j = 0;
+    Map<Integer, Set<Integer>> removedSets = new HashMap<>();
+    Set<Integer> removedRows = new HashSet<>();
     for (SubexpressionData data : dataList) {
       for (int k = 0; k < data.removedArgs.size(); k++) {
         if (data.removedArgs.get(k) != null) continue;
         Integer i = data.argsReindexing.get(k);
         if (i != null) {
-          List<List<CorePattern>> newRows = new ArrayList<>();
-          for (List<CorePattern> row : rows) {
-            Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
-            Map<CoreBinding, CorePattern> subst2 = new HashMap<>();
-            if (PatternUtils.unify(row.get(i), row.get(j), subst1, subst2)) {
-              List<CorePattern> newRow = new ArrayList<>(row.size() - 1);
-              newRow.addAll(row.subList(0, i));
-              newRow.add(row.get(i).subst(subst1));
-              newRow.addAll(row.subList(i + 1, j));
-              newRow.addAll(row.subList(j + 1, row.size()));
-              newRows.add(newRow);
+          for (int l = 0; l < rows.size(); l++) {
+            if (removedRows.contains(l)) continue;
+            List<CorePattern> row = rows.get(l);
+            Map<CoreBinding, CorePattern> subst = new HashMap<>();
+            if (PatternUtils.unify(row.get(i), row.get(j), subst, null)) {
+              removedSets.computeIfAbsent(l, l1 -> new HashSet<>()).add(j);
+              row.set(i, row.get(i).subst(subst));
+            } else {
+              removedRows.add(l);
             }
           }
-          rows = newRows;
         }
         j++;
       }
     }
-    return rows;
+    if (removedSets.isEmpty() && removedRows.isEmpty()) {
+      return rows;
+    }
+
+    List<List<CorePattern>> newRows = new ArrayList<>(rows.size());
+    for (int i = 0; i < rows.size(); i++) {
+      if (removedRows.contains(i)) continue;
+      Set<Integer> removedIndices = removedSets.get(i);
+      List<CorePattern> row = rows.get(i);
+      if (removedIndices == null) {
+        newRows.add(row);
+        continue;
+      }
+      List<CorePattern> newRow = new ArrayList<>();
+      for (int k = 0; k < row.size(); k++) {
+        CorePattern pattern = row.get(k);
+        if (!removedIndices.contains(k)) newRow.add(pattern);
+      }
+      newRows.add(newRow);
+    }
+    return newRows;
   }
 
   private static List<List<CorePattern>> removeRedundantRows(List<List<CorePattern>> rows) {
