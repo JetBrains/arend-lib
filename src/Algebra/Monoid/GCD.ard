@@ -22,8 +22,8 @@
 \class GCDMonoid \extends CancelCMonoid
   | isGCD (x y : E) : TruncP (GCD x y)
 
--- | GCD monoids with a unique unit. This is useful because the GCD relation on them is functional.
-\class UnitlessGCDMonoid \extends GCDMonoid {
+-- | Monoids with a unique unit. This is useful because the GCD relation on them is functional.
+\class UnitlessMonoid \extends CancelCMonoid {
   | uniqueUnit (j : Inv) : j.val = ide
 
   \lemma div-eq {x y : E} (d1 : LDiv x y) (d2 : LDiv y x) : x = y =>
@@ -32,22 +32,28 @@
 
   \lemma GCD-isProp (x y : E) : isProp (GCD x y) =>
     \lam (g1 g2 : GCD x y) =>
-      \have p => div-eq (g2.gcd-univ g1.gcd g1.gcd|val1 g1.gcd|val2)
-                        (g1.gcd-univ g2.gcd g2.gcd|val1 g2.gcd|val2)
-      \in path (\lam i => \new GCD x y {
-        | gcd => p @ i
-        | gcd|val1 => pathOver (LDiv.levelProp g2.gcd x (coe (\lam j => LDiv (p @ j) x) g1.gcd|val1 right) g2.gcd|val1) @ i
-        | gcd|val2 => pathOver (LDiv.levelProp g2.gcd y (coe (\lam j => LDiv (p @ j) y) g1.gcd|val2 right) g2.gcd|val2) @ i
-        | gcd-univ g g|x g|y => pathOver (LDiv.levelProp g g2.gcd (coe (\lam j => LDiv g (p @ j)) (g1.gcd-univ g g|x g|y) right) (g2.gcd-univ g g|x g|y)) @ i
-      })
+        \have p => div-eq (g2.gcd-univ g1.gcd g1.gcd|val1 g1.gcd|val2)
+            (g1.gcd-univ g2.gcd g2.gcd|val1 g2.gcd|val2)
+        \in path (\lam i => \new GCD x y {
+          | gcd => p @ i
+          | gcd|val1 => pathOver (LDiv.levelProp g2.gcd x (coe (\lam j => LDiv (p @ j) x) g1.gcd|val1 right) g2.gcd|val1) @ i
+          | gcd|val2 => pathOver (LDiv.levelProp g2.gcd y (coe (\lam j => LDiv (p @ j) y) g1.gcd|val2 right) g2.gcd|val2) @ i
+          | gcd-univ g g|x g|y => pathOver (LDiv.levelProp g g2.gcd (coe (\lam j => LDiv g (p @ j)) (g1.gcd-univ g g|x g|y) right) (g2.gcd-univ g g|x g|y)) @ i
+        })
 
+  \lemma gcd-isUnique {x y : E} (g g' : GCD x y) : g.gcd = g'.gcd
+    => pmap (\lam (g : GCD x y) => g.gcd) (GCD-isProp x y g g')
+}
+
+-- | GCD monoids with a unique unit. This is useful because the GCD relation on them is functional.
+\class UnitlessGCDMonoid \extends UnitlessMonoid, GCDMonoid {
   \lemma gcdC (x y : E) : GCD x y \level GCD-isProp x y
     => TruncP.remove (GCD-isProp x y) (isGCD x y)
 
   \func gcd (x y : E) => GCD.gcd {gcdC x y}
 
   \lemma gcd_~ {x y : E} (g : GCD x y) : g.gcd = gcd x y
-    => pmap (\lam (g : GCD x y) => g.gcd) (GCD-isProp x y g (gcdC x y))
+    => gcd-isUnique g (gcdC x y)
 
   \lemma gcd_*-left (c a b : E) : c * gcd a b = gcd (c * a) (c * b) =>
     \let | d : GCD a b => gcdC a b
@@ -90,7 +96,10 @@
   \lemma gcd_*_div (a b c : E) (a|bc : LDiv a (b * c)) : LDiv a (gcd a b * c)
     => rewriteI {1} (inv (gcd_*-comm a b c) *> DivLattice.join-comm *> DivLattice.join_<= a|bc)
                     (GCD.gcd|val2 {gcdC a (gcd a b * c)})
-} \where \open JoinSemilattice
+} \where {
+  \open JoinSemilattice
+  \open UnitlessMonoid
+}
 
 -- | The quotient of a monoid by the equivalence relation ``x ~ y`` iff ``x | y`` and ``y | x``.
 \func DivQuotient (M : CMonoid) => PreorderC {DivPreoder M}
@@ -111,6 +120,15 @@
 
     \lemma make~ {M : CMonoid} (x y : M) (p : inD x = inD y) : x ~ y =>
       Quotient.equalityEquiv (Preorder.EquivRel {DivPreoder M}) p
+
+    \lemma equivalent-areAssociates {M : CancelCMonoid} (x y : M) (p : x ~ y) : areAssociates x y
+      => \case p.1, p.2 \with {
+           | inP (y|x : LDiv y x), inP (x|y : LDiv x y) =>
+             (\new Inv y|x.inv x|y.inv {
+               | inv-left => cancel-left x (inv *-assoc *> pmap (`* _) x|y.inv-right *> y|x.inv-right *> inv ide-right)
+               | inv-right => cancel-left y (inv *-assoc *> pmap (`* _) y|x.inv-right *> x|y.inv-right *> inv ide-right)
+             }, inv y|x.inv-right *> *-comm)
+         }
 
     -- | The quotient monoid is indeed a monoid.
     \instance DivQuotientMonoid (M : CMonoid) : CMonoid (DivQuotient M)
@@ -137,7 +155,7 @@
     }
 
     -- | If the original monoid is cancellative, then so is the quotient monoid.
-    \instance DivQuotientCancelMonoid (M : CancelCMonoid) : CancelCMonoid
+    \instance DivQuotientCancelMonoid (M : CancelCMonoid) : UnitlessMonoid
       | CMonoid => DivQuotientMonoid M
       | cancel-left [x] {[y]} {[z]} [x*y=x*z] => \case \elim [x], \elim [y], \elim [z], [x*y=x*z] \with {
         | inD x, inD y, inD z, x*y=x*z => path (~-equiv y z (
@@ -145,6 +163,9 @@
             | (inP x*z|x*y, inP x*y|x*z) => (inP (LDiv.cancel-left y x*z|x*y), inP (LDiv.cancel-left z x*y|x*z))
           }
         ))
+      }
+      | uniqueUnit (j : Inv) => \case j.val \as [x], j.inv \as [y], j.inv-right : [x] * [y] = inD ide \return [x] = inD ide \with {
+        | inD x, inD y, p => path (~-equiv x ide (inv~ide (\have d : LDiv x ide => div-from~ (\new LDiv { | inv => inD y | inv-right => p }) \in Inv.rmake d.inv d.inv-right)))
       }
 
     \lemma inv~ide {M : CMonoid} (i : Inv {M}) : i.val ~ ide =>
@@ -163,7 +184,7 @@
 
     -- | If the original monoid is a GCD-monoid, then the quotient monoid is a unit-less GCD-monoid.
     \instance DivQuotientGCDMonoid (M : GCDMonoid) : UnitlessGCDMonoid
-      | CancelCMonoid => DivQuotientCancelMonoid M
+      | UnitlessMonoid => DivQuotientCancelMonoid M
       | isGCD [x] [y] => \case \elim [x], \elim [y] \with {
         | inD x, inD y => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD (inD x) (inD y) (inD g.gcd) {
           | gcd|val1 => div-to~ g.gcd|val1
@@ -175,9 +196,6 @@
                                          (div-from~ (\new LDiv { | inv => inD y' | inv-right => ~y'*g'=y })))
             }
         })
-      }
-      | uniqueUnit (j : Inv) => \case j.val \as [x], j.inv \as [y], j.inv-right : [x] * [y] = inD ide \return [x] = inD ide \with {
-        | inD x, inD y, p => path (~-equiv x ide (inv~ide (\have d : LDiv x ide => div-from~ (\new LDiv { | inv => inD y | inv-right => p }) \in Inv.rmake d.inv d.inv-right)))
       }
 
     \func gcd-to~ {M : CancelCMonoid} {x y z : M} (g : GCD x y z) : GCD (inD x) (inD y) (inD z) \cowith
@@ -197,7 +215,7 @@
     \open DivQuotient
   }
 
-\func gcd_reduced=1 {M : GCDMonoid} (gcd : GCD {M}) : GCD gcd.gcd|val1.inv gcd.gcd|val2.inv 1 \cowith
+\func gcd_reduced=1 {M : CancelCMonoid} (gcd : GCD {M}) : GCD gcd.gcd|val1.inv gcd.gcd|val2.inv 1 \cowith
   | gcd|val1 => \new LDiv {
     | inv => gcd.gcd|val1.inv
     | inv-right => ide-left
@@ -215,3 +233,10 @@
         | inv => g|inv2.inv
         | inv-right => *-assoc *> pmap (_ *) g|inv2.inv-right *> gcd.gcd|val2.inv-right
       }))
+
+\lemma gcd-isUnique {M : CancelCMonoid} {a b : M} (g1 g2 : GCD a b) : areAssociates g1.gcd g2.gcd
+  => equivalent-areAssociates g1.gcd g2.gcd (make~ g1.gcd g2.gcd (gcd-isUnique (gcd-to~ g1) (gcd-to~ g2)))
+  \where {
+    \open DivQuotient
+    \open UnitlessMonoid
+  }

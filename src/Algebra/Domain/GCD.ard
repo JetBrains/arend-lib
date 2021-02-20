@@ -3,17 +3,19 @@
 \import Algebra.Group
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
+\import Algebra.Ring
+\import Algebra.Semiring
 \import Logic
 \import Paths
 \import Paths.Meta
 \open Monoid(LDiv,Inv)
 
 \class GCDDomain \extends IntegralDomain {
-  | isGCD (x y : E) : x `#0 -> y `#0 -> TruncP (GCD x y)
+  | isGCDDomain (x y : E) : x `#0 -> y `#0 -> TruncP (GCD x y)
 
   \func nonZeroMonoid : GCDMonoid \cowith
     | CancelCMonoid => IntegralDomain.nonZeroMonoid
-    | isGCD x y => \case isGCD x.1 y.1 x.2 y.2 \with {
+    | isGCD x y => \case isGCDDomain x.1 y.1 x.2 y.2 \with {
       | inP (g : GCD x.1 y.1) =>
         \have | g*x#0 => transport #0 (inv g.gcd|val1.inv-right) x.2
               | g#0 => #0-*-left g*x#0
@@ -39,7 +41,7 @@
 } \where {
   \func fromField (K : Field) : GCDDomain \cowith
     | IntegralDomain => K
-    | isGCD x y (x#0 : Inv x) _ => inP (\new GCD {
+    | isGCDDomain x y (x#0 : Inv x) _ => inP (\new GCD {
       | gcd => ide
       | gcd|val1 => \new LDiv { | inv => x | inv-right => ide-left }
       | gcd|val2 => \new LDiv { | inv => y | inv-right => ide-left }
@@ -53,3 +55,14 @@
       }
     })
 }
+
+\func gcd_sum {D : GCDDomain} (d : D) (g : GCD {D}) : GCD (g.val1 + g.val2 * d) g.val2 g.gcd \cowith
+  | gcd|val1 => \new LDiv {
+    | inv => g.gcd|val1.inv + g.gcd|val2.inv * d
+    | inv-right => ldistr *> pmap2 (+) g.gcd|val1.inv-right (inv *-assoc *> pmap (`* d) g.gcd|val2.inv-right)
+  }
+  | gcd|val2 => g.gcd|val2
+  | gcd-univ g' (g'|a+bd : LDiv) (g'|b : LDiv) => g.gcd-univ g' (\new LDiv {
+    | inv => g'|a+bd.inv - g'|b.inv * d
+    | inv-right => ldistr *> pmap2 (+) g'|a+bd.inv-right (Ring.negative_*-right g' _ *> pmap negative (inv *-assoc *> pmap (`* d) g'|b.inv-right)) *> +-assoc *> pmap (_ +) (negative-right _) *> zro-right
+  }) g'|b

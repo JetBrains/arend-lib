@@ -1,5 +1,6 @@
 \import Algebra.Domain
 \import Algebra.Domain.Bezout
+\import Algebra.Domain.GCD
 \import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
@@ -9,13 +10,14 @@
 \import Arith.Int
 \import Arith.Nat
 \import Data.Or
+\import Function.Meta
 \import Logic
 \import Meta
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
-\import Set
+\import Set \hiding (#)
 \open Monoid(LDiv)
 
 \class EuclideanSemiringData \extends CSemiring, DecSet {
@@ -152,7 +154,7 @@
        rewrite d.bezoutIdentity (GCD.gcd|val1 {d.gcd-isGCD a b}),
        rewrite d.bezoutIdentity (GCD.gcd|val2 {d.gcd-isGCD a b})))
 
-\instance NatEuclideanDomainData : EuclideanSemiringData
+\instance NatEuclidean : EuclideanSemiringData
   | CSemiring => NatSemiring
   | euclideanMap n => n
   | divMod => divMod
@@ -161,7 +163,7 @@
     | 0, c => absurd (c idp)
     | suc m, _ => \case NatSemiring.decideEq (n mod suc m) 0 \with {
       | yes mod=0 => inl mod=0
-      | no mod/=0 => inr (mod/=0, fin_<= (n mod suc m))
+      | no mod/=0 => inr (mod/=0, fin_< (n mod suc m))
     }
   }
   | decideEq => NatSemiring.decideEq
@@ -169,12 +171,12 @@
     | 0 => absurd (d/=0 idp)
     | suc _ \as d => \new Monoid.LDiv {
       | inv => div y d
-      | inv-right => pmap (d * y div d +) (mod-unique {d} {z} {0} {x + y div d} {y mod d} (suc<=suc zero<=_) (fin_<= (y mod d)) (inv (pmap (`+ _) ldistr *> +-assoc *> pmap (_ +) (divModProp y d) *> dx+y=dz))) *> divModProp y d
+      | inv-right => pmap (d * y div d +) (mod-unique {d} {z} {0} {x + y div d} {y mod d} (suc<=suc zero<=_) (fin_< (y mod d)) (inv (pmap (`+ _) ldistr *> +-assoc *> pmap (_ +) (divModProp y d) *> dx+y=dz))) *> divModProp y d
     }
   }
   \where \open Nat
 
-\instance EuclideanData : EuclideanRingData
+\instance IntEuclidean : EuclideanRingData
   | CRing => IntRing
   | decideEq => IntRing.decideEq
   | euclideanMap => iabs
@@ -217,4 +219,52 @@
     | neg (suc n), neg (suc m) => \case __ \with {}
   }
   | decideEq => IntRing.decideEq
-  | isEuclidean => inP EuclideanData
+  | isEuclidean => inP IntEuclidean
+
+\lemma div_nat_int (d : LDiv {NatSemiring}) : LDiv (pos d.val) (pos d.elem) (pos d.inv) \cowith
+  | inv-right => pmap pos d.inv-right
+
+\lemma div_int_nat (d : LDiv {IntRing}) : LDiv (iabs d.val) (iabs d.elem) (iabs d.inv) \cowith
+  | inv-right => inv iabs.*-comm *> pmap iabs d.inv-right
+
+\func gcd_nat_int (g : GCD {NatSemiring}) : GCD (pos g.val1) (pos g.val2) (pos g.gcd) \cowith
+  | gcd|val1 => div_nat_int g.gcd|val1
+  | gcd|val2 => div_nat_int g.gcd|val2
+  | gcd-univ g' g'|a g'|b =>
+    \have abs_g'|g : LDiv (iabs g') g.gcd => g.gcd-univ (iabs g') (div_int_nat g'|a) (div_int_nat g'|b)
+    \in \new LDiv {
+      | inv => signum g' * abs_g'|g.inv
+      | inv-right => inv *-assoc *> pmap (`* _) (inv iabs.signum_*) *> pmap pos abs_g'|g.inv-right
+    }
+
+\func gcd_int_nat (g : GCD {IntRing}) : GCD (iabs g.val1) (iabs g.val2) (iabs g.gcd) \cowith
+  | gcd|val1 => div_int_nat g.gcd|val1
+  | gcd|val2 => div_int_nat g.gcd|val2
+  | gcd-univ g' (g'|a : LDiv) (g'|b : LDiv) =>
+    \have pos_g'|g : LDiv (pos g') g.gcd => g.gcd-univ (pos g')
+        (\new LDiv {
+          | inv => pos g'|a.inv * signum g.val1
+          | inv-right => inv *-assoc *> pmap (pos __ * _) g'|a.inv-right *> iabs.*_signum
+        })
+        (\new LDiv {
+          | inv => pos g'|b.inv * signum g.val2
+          | inv-right => inv *-assoc *> pmap (pos __ * _) g'|b.inv-right *> iabs.*_signum
+        })
+    \in \new LDiv {
+      | inv => iabs pos_g'|g.inv
+      | inv-right => inv iabs.*-comm *> pmap iabs pos_g'|g.inv-right
+    }
+
+\lemma nat_gcd-isUnique {n m : Nat} (g g' : GCD n m) : g.gcd = g'.gcd
+  => natAssociates-areEqual (g'.gcd-univ g.gcd g.gcd|val1 g.gcd|val2) (g.gcd-univ g'.gcd g'.gcd|val1 g'.gcd|val2)
+
+\lemma int_gcd-isUnique {x y : Int} (g g' : GCD x y) : iabs g.gcd = iabs g'.gcd
+  => nat_gcd-isUnique (gcd_int_nat g) (gcd_int_nat g')
+
+\func nat_gcd_sum (a b d : Nat) : gcd (a + b * d) b = gcd a b
+  => \let a' => a + b * d
+     \in equation                     #
+         gcd a' b                     # {nat_gcd-isUnique (gcd-isGCD a' b) (gcd_int_nat (gcd-isGCD (pos a') (pos b)))}
+         iabs (gcd (pos a') (pos b))  # {int_gcd-isUnique (gcd-isGCD (pos a') (pos b)) (gcd_sum (pos d) (gcd-isGCD (pos a) (pos b)))}
+         iabs (gcd (pos a) (pos b))   # {inv (nat_gcd-isUnique (gcd-isGCD a b) (gcd_int_nat (gcd-isGCD (pos a) (pos b))))}
+         gcd a b

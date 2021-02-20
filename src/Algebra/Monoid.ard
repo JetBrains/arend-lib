@@ -144,16 +144,24 @@
   \record Inv \extends LInv, RInv
     \where {
       \use \level levelProp {M : Monoid} {x : M} (j j' : Inv x) : j = j' =>
-        \have p =>
-          j.inv                ==< Paths.inv ide-left >==
-          ide * j.inv          ==< pmap (`* j.inv) (Paths.inv j'.inv-left) >==
-          (j'.inv * x) * j.inv ==< *-assoc >==
-          j'.inv * (x * j.inv) ==< pmap (j'.inv *) j.inv-right >==
-          j'.inv * ide         ==< ide-right >==
-          j'.inv               `qed
+        \have p => inv-isUnique j j' idp
         \in path (\lam i => \new Inv x (p @ i)
                                      (pathInProp ((p @ __) * x = ide) j.inv-left j'.inv-left @ i)
                                      (pathInProp (x * (p @ __) = ide) j.inv-right j'.inv-right @ i))
+
+      \lemma inv-isUnique {M : Monoid} (j j' : Inv {M}) (p : j.val = j'.val) : j.inv = j'.inv =>
+        j.inv                     ==< Paths.inv ide-left >==
+        ide * j.inv               ==< pmap (`* j.inv) (Paths.inv j'.inv-left) >==
+        (j'.inv * j'.val) * j.inv ==< pmap ((_ * __) * _) (Paths.inv p) >==
+        (j'.inv * j.val) * j.inv  ==< *-assoc >==
+        j'.inv * (j.val * j.inv)  ==< pmap (j'.inv *) j.inv-right >==
+        j'.inv * ide              ==< ide-right >==
+        j'.inv                    `qed
+
+      \lemma ide-isInv {M : Monoid} : Inv {M} ide \cowith
+        | inv => ide
+        | inv-left => ide-left
+        | inv-right => ide-left
 
       \lemma product {M : Monoid} (i j : Inv {M}) : Inv (i.val * j.val) => func i j
         \where {
@@ -212,6 +220,13 @@
         cfactor-right y x (transport (Inv __) *-comm i)
     }
 }
+
+\func areAssociates {M : Monoid} (x y : M) => \Sigma (u : Monoid.Inv {M}) (x = u.val * y)
+  \where {
+    \use \level levelProp {M : CancelMonoid} (x y : M) (t t' : areAssociates x y) : t = t'
+      => \have eq => cancel-right y (inv t.2 *> t'.2)
+         \in ext (ext (eq, Monoid.Inv.inv-isUnique t.1 t'.1 eq))
+  }
 
 \class AddMonoid \extends AddPointed
   | \infixl 6 + : E -> E -> E

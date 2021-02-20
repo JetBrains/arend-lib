@@ -1,42 +1,25 @@
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
 \import Algebra.Pointed
+\import Arith.Nat
 \import Data.Or
 \import Logic
 \import Paths
 \open Monoid(Inv,LDiv)
 
-\record Prime {M : CMonoid} (e : M) (notInv : Not (Inv e))
-  | isPrime (x y : M) : LDiv e (x * y) -> LDiv e x || LDiv e y
-
-\record Irr {M : CMonoid} (e : M) (notInv : Not (Inv e)) {
-  | isIrr (x y : M) : e = x * y -> Inv x || Inv y
+\class Irr {M : CMonoid} (e : M) (notInv : Not (Inv e)) {
+  | isCancelable-left {x y : M} : e * x = e * y -> x = y
+  | isIrr {x y : M} : e = x * y -> Inv x || Inv y
 
   \func decide (x y : M) (e=x*y : e = x * y) : Inv x `Or` Inv y =>
-    ||.rec (Or.levelProp (\lam (i : Inv x) (j : Inv y) => notInv (transport (Inv __) (inv e=x*y) (Inv.product i j)))) inl inr (isIrr x y e=x*y)
+    ||.rec (Or.levelProp (\lam (i : Inv x) (j : Inv y) => notInv (transport (Inv __) (inv e=x*y) (Inv.product i j)))) inl inr (isIrr e=x*y)
 }
 
-\lemma Prime-isIrr {M : CancelCMonoid} (p : Prime {M}) : Irr p.e p.notInv \cowith
-  | isIrr x y p=x*y => \case p.isPrime x y (\new LDiv p.e (x * y) ide (ide-right *> p=x*y)) \with {
-    | byLeft (p|x : LDiv p.e x) =>
-      \let j => p|x.inv
-      \in byRight (Inv.rmake j (M.cancel-left x (
-        x * (y * j) ==< inv *-assoc >==
-        (x * y) * j ==< pmap (`* j) (inv p=x*y) >==
-        p.e * j     ==< p|x.inv-right >==
-        x           ==< inv ide-right >==
-        x * ide     `qed
-      )))
-    | byRight (p|y : LDiv p.e y) =>
-      \let j => p|y.inv
-      \in byLeft (Inv.lmake j (M.cancel-right y (
-        (j * x) * y ==< *-assoc >==
-        j * (x * y) ==< pmap (j *) (inv p=x*y) >==
-        j * p.e     ==< *-comm >==
-        p.e * j     ==< p|y.inv-right >==
-        y           ==< inv ide-left >==
-        ide * y     `qed
-      )))
+\class Prime \extends Irr
+  | isPrime {x y : M} : LDiv e (x * y) -> LDiv e x || LDiv e y
+  | isIrr {x} {y} e=x*y => \case isPrime (\new LDiv e (x * y) ide (ide-right *> e=x*y)) \with {
+    | byLeft (e|x : LDiv e x) => byRight (Inv.lmake e|x.inv (isCancelable-left (inv (ide-right *> e=x*y *> pmap (`* y) (inv e|x.inv-right) *> *-assoc))))
+    | byRight (e|y : LDiv e y) => byLeft (Inv.lmake e|y.inv (isCancelable-left (inv (ide-right *> e=x*y *> *-comm *> pmap (`* x) (inv e|y.inv-right) *> *-assoc))))
   }
 
 \func Coprime {M : CMonoid} (x y : M) => \Pi (z : M) -> LDiv z x -> LDiv z y -> Inv z
@@ -54,7 +37,8 @@
   }
 
 \lemma irr-isPrime {M : GCDMonoid} (p : Irr {M}) : Prime p.e p.notInv \cowith
-  | isPrime x y p|x*y => \case irr-cmp p x \with {
+  | isCancelable-left => p.isCancelable-left
+  | isPrime {x} {y} p|x*y => \case irr-cmp p x \with {
     | byLeft p|x => byLeft p|x
     | byRight p_x => byRight (gcd_*_div p.e x y p|x*y (Coprime.=>gcd p.e x p_x))
   }
@@ -65,7 +49,7 @@
              | g|p : LDiv g p.e => gc.gcd|val1
              | g|a : LDiv g a => gc.gcd|val2
              | x => g|p.inv
-        \in \case p.isIrr g x (inv g|p.inv-right) \with {
+        \in \case p.isIrr (inv g|p.inv-right) \with {
           | byLeft (gi : Inv g) => byRight (\lam z z|p z|a =>
             \have z|g : LDiv z g => gc.gcd-univ z z|p z|a
             \in Inv.rmake (gi.inv * z|g.inv) (
@@ -86,3 +70,9 @@
           ))
         }
     }
+
+\lemma nat_irr {n : Nat} (p : Irr {NatSemiring}) (n|p : LDiv n p.e) : (n = 1) || (n = p.e)
+  => \case p.isIrr (inv n|p.inv-right) \with {
+       | byLeft (j : Inv n) => byLeft (natUnit j.inv-left)
+       | byRight (j : Inv n|p.inv) => byRight (pmap (n *) (inv (natUnit j.inv-left)) *> n|p.inv-right)
+     }
