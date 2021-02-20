@@ -2,6 +2,7 @@ package org.arend.lib.meta;
 
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -31,7 +32,7 @@ public class UnfoldLetMeta extends BaseMetaDefinition {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     if (contextData.getExpectedType() != null) {
-      return typechecker.typecheck(contextData.getArguments().get(0).getExpression(), contextData.getExpectedType().unfold(Collections.emptySet(), null, true));
+      return typechecker.typecheck(contextData.getArguments().get(0).getExpression(), contextData.getExpectedType().normalize(NormalizationMode.RNF).unfold(Collections.emptySet(), null, true));
     } else {
       TypedExpression arg = typechecker.typecheck(contextData.getArguments().get(0).getExpression(), null);
       if (arg == null) {

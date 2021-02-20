@@ -7,6 +7,7 @@ import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.IgnoredArgumentError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.typechecking.BaseMetaDefinition;
@@ -78,7 +79,7 @@ public class UnfoldMeta extends BaseMetaDefinition {
     Set<CoreDefinition> unfolded = new HashSet<>();
     TypedExpression result;
     if (contextData.getExpectedType() != null) {
-      result = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType().unfold(functions, unfolded, false));
+      result = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType().normalize(NormalizationMode.RNF).unfold(functions, unfolded, false));
     } else {
       TypedExpression arg = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), null);
       if (arg == null) {
