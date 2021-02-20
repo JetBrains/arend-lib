@@ -114,6 +114,18 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     return builder.build();
   }
 
+  @Override
+  public int @Nullable [] desugarArguments(@NotNull List<? extends ConcreteArgument> arguments) {
+    if (arguments.isEmpty() || arguments.get(0).isExplicit()) return null;
+    if (arguments.size() == 1) return new int[0];
+    int first = arguments.get(1).isExplicit() ? 1 : 2;
+    int[] result = new int[arguments.size() - first];
+    for (int i = 0; i < result.length; i++) {
+      result[i] = i + first;
+    }
+    return result;
+  }
+
   private static class SubexpressionData {
     final CoreElimBody body;
     final CoreSort sort; // the sort argument of the defCall

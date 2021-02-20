@@ -40,6 +40,16 @@ public class UnfoldMeta extends BaseMetaDefinition {
   }
 
   @Override
+  public int @Nullable [] desugarArguments(@NotNull List<? extends ConcreteArgument> arguments) {
+    if (arguments.isEmpty()) return null;
+    int[] result = new int[arguments.size() - 1];
+    for (int i = 0; i < result.length; i++) {
+      result[i] = i + 1;
+    }
+    return result;
+  }
+
+  @Override
   public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
     return arguments.get(1).getExpression();
   }
