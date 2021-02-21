@@ -32,13 +32,13 @@ public class UnfoldLetMeta extends BaseMetaDefinition {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     if (contextData.getExpectedType() != null) {
-      return typechecker.typecheck(contextData.getArguments().get(0).getExpression(), contextData.getExpectedType().normalize(NormalizationMode.RNF).unfold(Collections.emptySet(), null, true));
+      return typechecker.typecheck(contextData.getArguments().get(0).getExpression(), contextData.getExpectedType().normalize(NormalizationMode.RNF).unfold(Collections.emptySet(), null, true, false));
     } else {
       TypedExpression arg = typechecker.typecheck(contextData.getArguments().get(0).getExpression(), null);
       if (arg == null) {
         return null;
       }
-      return arg.replaceType(arg.getType().unfold(Collections.emptySet(), null, true));
+      return arg.replaceType(arg.getType().unfold(Collections.emptySet(), null, true, false));
     }
   }
 }
