@@ -554,14 +554,14 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             lambdaTypes.add(data.matchedArgs.get(j).getType());
           }
         }
+      }
 
-        if (i + resultDataList.size() >= dataList.size()) {
-          CoreExpression type = data.expression.computeType();
-          ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(type, null));
-          lambdaParams.add(factory.param(ref));
-          lambdaTypes.add(type);
-          argRefs.put(new Pair<>(i, -1), ref);
-        }
+      for (int i = 0; i < resultDataList.size(); i++) {
+        CoreExpression type = resultDataList.get(i).expression.computeType();
+        ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(type, null));
+        lambdaParams.add(factory.param(ref));
+        lambdaTypes.add(type);
+        argRefs.put(new Pair<>(i + dataList.size() - resultDataList.size(), -1), ref);
       }
 
       List<ArendRef> replacementRefs = new ArrayList<>(indicesToAbstract.size());
