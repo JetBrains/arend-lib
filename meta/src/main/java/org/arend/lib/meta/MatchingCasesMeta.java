@@ -253,7 +253,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     // Find subexpressions
     List<CoreExpression> expressionsToProcess = new ArrayList<>(additionalArgs.size() + 1);
     for (TypedExpression additionalArg : additionalArgs) {
-      expressionsToProcess.add(additionalArg.getExpression());
+      expressionsToProcess.add(additionalArg.getType());
     }
     expressionsToProcess.add(expectedType);
     int[] caseCount = { 0 };
@@ -518,13 +518,13 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
           for (int i = 0; i < resultDataList.size(); i++) {
             if (expr == resultDataList.get(i).expression) {
-              indicesToAbstract.add(new Pair<>(i, -1));
+              indicesToAbstract.add(new Pair<>(i + dataList.size() - resultDataList.size(), -1));
               expressionsToAbstract.add(expr);
               return CoreExpression.FindAction.SKIP;
             }
           }
-          for (int i = 0; i < resultDataList.size(); i++) {
-            List<TypedExpression> matchedArgs = resultDataList.get(i).matchedArgs;
+          for (int i = 0; i < dataList.size(); i++) {
+            List<TypedExpression> matchedArgs = dataList.get(i).matchedArgs;
             for (int j = 0; j < matchedArgs.size(); j++) {
               TypedExpression arg = matchedArgs.get(j);
               if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true)) {
@@ -545,8 +545,8 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
       List<CoreExpression> lambdaTypes = new ArrayList<>();
       List<ConcreteParameter> lambdaParams = new ArrayList<>();
-      for (int i = 0; i < resultDataList.size(); i++) {
-        SubexpressionData data = resultDataList.get(i);
+      for (int i = 0; i < dataList.size(); i++) {
+        SubexpressionData data = dataList.get(i);
         for (int j = 0; j < data.matchedArgs.size(); j++) {
           ArendRef ref = argRefs.get(new Pair<>(i, j));
           if (ref != null) {
@@ -555,11 +555,13 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           }
         }
 
-        CoreExpression type = data.expression.computeType();
-        ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(type, null));
-        lambdaParams.add(factory.param(ref));
-        lambdaTypes.add(type);
-        argRefs.put(new Pair<>(i, -1), ref);
+        if (i + resultDataList.size() >= dataList.size()) {
+          CoreExpression type = data.expression.computeType();
+          ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(type, null));
+          lambdaParams.add(factory.param(ref));
+          lambdaTypes.add(type);
+          argRefs.put(new Pair<>(i, -1), ref);
+        }
       }
 
       List<ArendRef> replacementRefs = new ArrayList<>(indicesToAbstract.size());
@@ -567,7 +569,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         replacementRefs.add(argRefs.get(pair));
       }
 
-      resultLambda = typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceExactSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), typechecker.makeParameters(lambdaTypes, marker));
+      resultLambda = lambdaParams.isEmpty() ? expectedType.computeTyped() : typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceExactSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), typechecker.makeParameters(lambdaTypes, marker));
       if (resultLambda == null) {
         return null;
       }
@@ -757,7 +759,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                   }
                   args.add(factory.core(arg.computeTyped()));
                 }
-                return typechecker.typecheck(factory.app(factory.core(resultLambda), true, args), null);
+                return args.isEmpty() ? resultLambda : typechecker.typecheck(factory.app(factory.core(resultLambda), true, args), null);
               }
             }))), lamParams);
             if (lamExpr == null) {
@@ -896,7 +898,9 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           return null;
         });
       }
-      caseRefExprs.add(factory.meta("case_return_arg_" + (i + 1), new ReplaceExactSubexpressionsMeta(data.expression, exprs, refs)));
+      if (i + resultDataList.size() >= dataList.size()) {
+        caseRefExprs.add(factory.meta("case_return_arg_" + (i + 1), new ReplaceExactSubexpressionsMeta(data.expression, exprs, refs)));
+      }
     }
 
     // Typecheck the result
