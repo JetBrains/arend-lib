@@ -39,12 +39,24 @@
 
 \lemma n*_+_mod_n=mod {n q r : Nat} : (suc n * q + r) mod suc n = r mod suc n
   => run {
-    rewriteI (divModProp r (suc n)),
+    rewriteI {1} (divModProp r (suc n)),
     rewriteI NatSemiring.+-assoc,
     rewriteI NatSemiring.ldistr,
-    \have p => fin_< (r mod suc n),
-    finToNat-inj (n*_+_mod_n p *> inv (n*_+_mod_n p))
+    finToNat-inj (n*_+_mod_n (fin_< (r mod suc n)))
   }
+
+\lemma int_n*_+_mod_n {n r : Nat} {q : Int} (r<=n : r < suc n) : (pos (suc n) * q + r) mod suc n = r
+  => mod-unique {(pos (suc n) * q + r) div suc n} (natMod<right _ _) r<=n (natDivModProp (pos (suc n) * q + r) (suc n))
+  \where \open IntEuclidean
+
+\lemma int_n*_+_mod_n=mod {n : Nat} {q r : Int} : (pos (suc n) * q + r) mod suc n = r mod suc n
+  => run {
+    rewriteI {1} (natDivModProp r n),
+    rewriteI (IntRing.+-assoc {pos (suc n) * q} {pos (suc n) * r div suc n} {pos (r mod suc n)}),
+    rewriteI (IntRing.ldistr {suc n} {q} {r div suc n}),
+    int_n*_+_mod_n (natMod<right r n)
+  }
+  \where \open IntEuclidean
 
 \lemma mod_+-left {n a b : Nat} : (a mod suc n + b) mod suc n = (a + b) mod suc n
   => run {
@@ -66,6 +78,18 @@
 
 \lemma mod_*-right {n a b : Nat} : (a * b mod suc n) mod suc n = (a * b) mod suc n
   => finToNat-inj (pmap (`mod _) *-comm *> mod_*-left *> pmap (`mod _) *-comm)
+
+\lemma int_mod_*-left {n : Nat} {a b : Int} : (pos (a mod suc n) * b) mod suc n = (a * b) mod suc n
+  => run {
+    rewriteI {2} (natDivModProp a n),
+    rewrite IntRing.rdistr,
+    rewrite IntRing.*-assoc,
+    inv int_n*_+_mod_n=mod
+  } \where \open IntEuclidean
+
+\lemma int_mod_*-right {n : Nat} {a b : Int} : (a * b mod suc n) mod suc n = (a * b) mod suc n
+  => pmap (`mod _) *-comm *> int_mod_*-left *> pmap (`mod _) *-comm
+  \where \open IntEuclidean
 
 \instance FinRing {n : Nat} : CRing.Dec (Fin (suc n))
   | zro => 0
@@ -111,16 +135,13 @@
   | eitherZeroOrInv x => \case decideEq x 0 \with {
     | yes x=0 => byLeft x=0
     | no x/=0 => byRight (
-      \let! (u,v) => bezout (negative x) x
-      \in Inv.lmake (v - u) (equation       #
-          (v - u) * x                       # {rdistr *> +-comm *> pmap (`+ _) (Ring.negative_*-left u x *> inv (Ring.negative_*-right u x))}
-          u * negative x + v * x            # {bezoutIdentity (negative x) x}
-          gcd (negative x) x                # {gcd_nat (negative x) x}
-          NatEuclidean.gcd (negative x) x   # {pmap (`mod suc n) (equation # {pmap (NatEuclidean.gcd __ x) (mod_< (diff_< (<-implies-<= (fin_< x)) (finToNat-ineq x/=0)))}
-          gcd (iabs (suc n Nat.- x)) x      # {inv (nat_gcd_sum (iabs (suc n Nat.- x)) x 1)}
-          gcd (iabs (suc n Nat.- x) + x) x  # {pmap (\lam t => NatEuclidean.gcd (iabs t) x) (pmap (`+ pos x) (pos_iabs (<-implies-<= (fin_< x))) *> IntRing.+-assoc {pos (suc n)} {neg x} *> pmap (pos (suc n) +) (negative-right (pos x)))}
-          gcd (suc n) x                     # {gcd=1 p (finToNat-ineq x/=0) (fin_< x)})}
-          1))
+      \let! (u,v) => bezout (pos (suc n)) (pos x)
+      \in Inv.lmake ((IntEuclidean.natDivMod v (suc n)).2 mod suc n) (
+        \let | (q,r) => IntEuclidean.natDivMod v (suc n)
+             | int_gcd=1 : gcd (pos (suc n)) (pos x) = 1 => int_gcd_pos *> pmap pos (gcd=1 p (finToNat-ineq x/=0) (fin_< x))
+        \in pmap ((__ * x) mod suc n) (inv (int_n*_+_mod_n=mod *> IntEuclidean.natMod=mod r (suc n)) *> pmap (__ IntEuclidean.mod suc n) (IntEuclidean.natDivModProp v n)) *>
+            finToNat-inj (inv (IntEuclidean.natMod=mod _ _) *> int_mod_*-left *> inv int_n*_+_mod_n=mod *> pmap (__ IntEuclidean.mod suc n) (pmap (__ + v * pos x) *-comm *> bezoutIdentity (pos (suc n)) (pos x) *> int_gcd=1) *> IntEuclidean.natMod=mod 1 (suc n))
+    ))
   }
   \where {
     \open EuclideanSemiringData
@@ -133,22 +154,5 @@
            | byRight gcd=p =>
              \have p<=x => transport (`<= x) gcd=p (ldiv_<= x/=0 (GCD.gcd|val2 {gcd-isGCD p.e x}))
              \in absurd (NatSemiring.<-irreflexive (<=-transitive x<p p<=x))
-         }
-
-    \lemma gcd_nat-fueled {n : Nat} (s : Nat) (x y : Fin (suc n)) : gcd-fueled s x y = NatEuclidean.gcd-fueled s x y \elim s
-      | 0 => inv (fin_mod_id x)
-      | suc s => mcases \with {
-        | yes _, yes _ => inv (fin_mod_id x)
-        | yes y=0, no y/=0 => absurd (y/=0 y=0)
-        | no y/=0, yes y=0 => absurd (y/=0 (finToNat-inj y=0))
-        | no _, no _ => gcd_nat-fueled s y (divMod x y).2 *> pmap (NatEuclidean.gcd-fueled s y __ mod suc n) (mod_< (<=-transitive (Nat.suc<=suc mod<=left) (fin_< x)))
-      }
-
-    \lemma gcd_nat {n : Nat} (x y : Fin (suc n)) : gcd x y = NatEuclidean.gcd x y
-      => gcd_nat-fueled (suc y) x y
-
-    \lemma diff_< {n x : Nat} (x<=n : x <= n) (x/=0 : Not (x = 0)) : iabs (n Nat.- x) < n
-      => \case transportInv (isuc __ <= n) (pos_iabs x<=n) (IntRing.<_minus-right (nonZero>0 x/=0)) \with {
-           | IntLE.pos<=pos p => p
          }
   }

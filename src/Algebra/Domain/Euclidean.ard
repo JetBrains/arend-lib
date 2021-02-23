@@ -5,6 +5,7 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
+\import Algebra.Ordered
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Arith.Int
@@ -218,6 +219,77 @@
         \have t : iabs (pos (iabs x Nat.mod iabs y) * signum x) = iabs x Nat.mod iabs y => iabs.*-comm *> pmap (_ *) (iabs.signum_/=0 (\lam x=0 => x/=0 (pmap signum x=0)))
         \in inr (IntDomain.apartZeroProduct (\lam imod=0 => mod/=0 (pmap iabs imod=0)) x/=0, transport (`< iabs y) (inv t) q)
     })
+  \where {
+    \func modToNat (m : Int) (p : \Sigma Int Int) : \Sigma Int Nat \elim p
+      | (q, pos n) => (q, n)
+      | (q, neg (suc n)) => (q - signum m, iabs (iabs m Nat.- suc n))
+
+    \func natDivMod (x y : Int) : \Sigma Int Nat
+      => modToNat y (IntEuclidean.divMod x y)
+
+    \func \infixl 8 div (x y : Int) : Int
+      => (natDivMod x y).1
+
+    \func \infixl 8 mod (x y : Int) : Nat
+      => (natDivMod x y).2
+
+    \lemma intMod<right (x : Int) (n : Nat) : iabs (IntEuclidean.divMod x (suc n)).2 < suc n
+      => \case IntEuclidean.isEuclideanMap x (suc n) (\case __ \with {}) \with {
+        | inl mod=0 => rewrite mod=0 (Nat.suc<=suc Nat.zero<=_)
+        | inr (_,r) => r
+      }
+
+    \lemma natMod<right (x : Int) (n : Nat) : x mod suc n < suc n
+      => \let (q,r) => IntEuclidean.divMod x (suc n)
+         \in \case r \as r, idp : r = (IntEuclidean.divMod x (suc n)).2 \return (modToNat (suc n) (q,r)).2 < suc n \with {
+               | pos m, p => transportInv (`< suc n) (pmap iabs p) (intMod<right x n)
+               | neg (suc m), p =>
+                 \case transportInv (`<= pos n) (pos_iabs (<-implies-<= (transportInv (`< suc n) (pmap iabs p) (intMod<right x n)))) IntLE.minus<= \with {
+                   | IntLE.pos<=pos r => Nat.suc<=suc r
+                 }
+             }
+
+    \lemma divModProp (x y : Int) (y/=0 : Not (y = 0)) : y * x div y + x mod y = x
+      => \let (q,r) => IntEuclidean.divMod x y
+         \in \case r \as r, idp : r = (IntEuclidean.divMod x y).2 \return y * (modToNat y (q,r)).1 + (modToNat y (q,r)).2 = x \with {
+               | pos n, p => pmap (y * q + __) p *> IntEuclidean.isDivMod x y
+               | neg (suc n), p =>
+                 \have t : iabs (pos (iabs x Nat.mod iabs y) * signum x) = iabs x Nat.mod iabs y =>
+                     \case decideEq x 0 \with {
+                       | yes x=0 => rewrite x=0 idp
+                       | no x/=0 => iabs.*-comm *> pmap (_ *) (iabs.signum_/=0 x/=0)
+                     }
+                 \in pmap (_ +) (pos_iabs (transportInv (`<= iabs y) (pmap iabs p) (transportInv (`<= iabs y) t (<-implies-<= (mod<right (\lam |y|=0 => y/=0 (iabs.equals0 |y|=0))))))) *>
+                     pmap (`+ _) ldistr *>
+                     pmap ((_ + __) + _) (Ring.negative_*-right _ _ *>
+                     pmap negative (inv iabs.signum_*)) *>
+                     +-assoc *>
+                     pmap (_ +) (inv (+-assoc {_} {_} {pos (iabs y)} {neg (suc n)}) *>
+                     pmap (`+ _) (negative-right (pos (iabs y)))) *>
+                     pmap (_ +) p *>
+                     IntEuclidean.isDivMod x y
+             }
+
+    \lemma natDivModProp (x : Int) (n : Nat) : pos (suc n) * x div suc n + x mod suc n = x
+      => divModProp x (suc n) (\case __ \with {})
+
+    \lemma mod-unique {q q' : Int} {n r r' : Nat} (r<n : r < n) (r'<n : r' < n) (p : pos n * q + r = pos n * q' + r') : r = r' \elim q, q'
+      | pos q, pos q' => Arith.Nat.mod-unique r<n r'<n (pmap iabs p)
+      | pos q, neg q' => Arith.Nat.mod-unique {n} {q' + q} {r} {0} r<n r'<n (pmap iabs (pmap (`+ pos r) (IntRing.ldistr {n} {q'} {q}) *> aux (pos (n * q)) r (pos (n * q')) r' p))
+      | neg q, pos q' => inv (Arith.Nat.mod-unique {n} {q + q'} {r'} {0} r'<n r<n (pmap iabs (pmap (`+ pos r') (IntRing.ldistr {n} {q} {q'}) *> aux (pos (n * q')) r' (pos (n * q)) r (inv p))))
+      | neg q, neg q' => inv (Arith.Nat.mod-unique r'<n r<n (pmap iabs (aux 0 r' (n * q) (n * q' + r) (inv (aux (neg (n * q)) r (n * q') r' p) *> IntRing.+-assoc {neg (n * q)} {n * q'} {r}) )))
+      \where
+        \lemma aux (x y x' y' : Int) (p : x + y = negative x' + y') : (x' + x) + y = y'
+          => +-assoc *> pmap (x' +) p *> inv +-assoc *> pmap (`+ y') (negative-right x') *> zro-left
+
+    \lemma natMod=mod' (x n : Nat) : (IntEuclidean.divMod x n).2 = x Nat.mod n \elim x
+      | 0 => idp
+      | suc x => idp
+
+    \lemma natMod=mod (x n : Nat) : x mod n = x Nat.mod n \elim x
+      | 0 => idp
+      | suc x => idp
+  }
 
 \instance IntDomain : EuclideanDomain
   | CRing => IntRing
@@ -273,6 +345,17 @@
 
 \lemma int_gcd-isUnique {x y : Int} (g g' : GCD x y) : iabs g.gcd = iabs g'.gcd
   => nat_gcd-isUnique (gcd_int_nat g) (gcd_int_nat g')
+
+\lemma int_gcd_pos {n m : Nat} : gcd (pos n) (pos m) = pos (gcd n m)
+  => aux (suc m) *> pmap pos (int_gcd-isUnique (gcd-isGCD (pos n) (pos m)) (gcd_nat_int (gcd-isGCD n m)))
+  \where {
+    \lemma aux (s : Nat) {n m : Nat} : gcd-fueled s (pos n) (pos m) = iabs (gcd-fueled s (pos n) (pos m)) \elim s
+      | 0 => idp
+      | suc s => mcases \with {
+        | yes _ => idp
+        | no _ => rewrite IntEuclidean.natMod=mod' (aux s)
+      }
+  }
 
 \func nat_gcd_sum (a b d : Nat) : gcd (a + b * d) b = gcd a b
   => \let a' => a + b * d
