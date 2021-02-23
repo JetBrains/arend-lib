@@ -6,8 +6,10 @@
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Logic
+\import Meta
 \import Paths
 \import Paths.Meta
+\import Set
 \open Monoid(LDiv,Inv)
 
 \class GCDDomain \extends IntegralDomain {
@@ -38,6 +40,28 @@
                      }
                  })
     }
+
+  \func gcd_0 (x : E) : GCD x 0 x \cowith
+    | gcd|val1 => \new LDiv {
+      | inv => 1
+      | inv-right => ide-right
+    }
+    | gcd|val2 => \new LDiv {
+      | inv => 0
+      | inv-right => zro_*-right
+    }
+    | gcd-univ g g|a _ => g|a
+
+  \func gcd_sum (d : E) (g : GCD {\this}) : GCD (g.val1 + g.val2 * d) g.val2 g.gcd \cowith
+    | gcd|val1 => \new LDiv {
+      | inv => g.gcd|val1.inv + g.gcd|val2.inv * d
+      | inv-right => ldistr *> pmap2 (+) g.gcd|val1.inv-right (inv *-assoc *> pmap (`* d) g.gcd|val2.inv-right)
+    }
+    | gcd|val2 => g.gcd|val2
+    | gcd-univ g' (g'|a+bd : LDiv) (g'|b : LDiv) => g.gcd-univ g' (\new LDiv {
+      | inv => g'|a+bd.inv - g'|b.inv * d
+      | inv-right => ldistr *> pmap2 (+) g'|a+bd.inv-right (Ring.negative_*-right g' _ *> pmap negative (inv *-assoc *> pmap (`* d) g'|b.inv-right)) *> +-assoc *> pmap (_ +) (negative-right _) *> zro-right
+    }) g'|b
 } \where {
   \func fromField (K : Field) : GCDDomain \cowith
     | IntegralDomain => K
@@ -54,15 +78,26 @@
             ide                     `qed
       }
     })
-}
 
-\func gcd_sum {D : GCDDomain} (d : D) (g : GCD {D}) : GCD (g.val1 + g.val2 * d) g.val2 g.gcd \cowith
-  | gcd|val1 => \new LDiv {
-    | inv => g.gcd|val1.inv + g.gcd|val2.inv * d
-    | inv-right => ldistr *> pmap2 (+) g.gcd|val1.inv-right (inv *-assoc *> pmap (`* d) g.gcd|val2.inv-right)
+  \class Dec \extends IntegralDomain.Dec, GCDDomain {
+    \func gcd_*_div {a b c : E} (a|bc : LDiv a (b * c)) (a_b : GCD a b 1) : LDiv a c
+      => \case decideEq a 0, decideEq b 0, decideEq c 0 \with {
+           | yes a=0, no b/=0, _ =>
+             \have t : c = 0 => Domain.nonZero-left b/=0 (inv a|bc.inv-right *> pmap (`* _) a=0 *> zro_*-left)
+             \in transportInv (LDiv a __) t Semiring.zero-div
+           | _, yes b=0, _ => LDiv.trans (a_b.gcd-univ a LDiv.id-div (transportInv (LDiv a __) b=0 Semiring.zero-div)) LDiv.ide-div
+           | _, _, yes c=0 => \new LDiv {
+             | inv => 0
+             | inv-right => zro_*-right *> inv c=0
+           }
+           | no a/=0, no b/=0, no c/=0 => Domain.nonZero_ldiv _ _ (Algebra.Monoid.GCD.gcd_*_div {nonZeroMonoid} (a, nonEqualApart a/=0) (b, nonEqualApart b/=0) (c, nonEqualApart c/=0) (Domain.ldiv_nonZero _ _ a|bc) (IntegralDomain.gcd_nonZero _ _ a_b))
+      }
+
+    \lemma gcd (a b : E) : TruncP (GCD a b)
+      => \case decideEq a 0, decideEq b 0 \with {
+           | yes a=0, _ => inP (GCD.swap (transportInv (GCD b __) a=0 (gcd_0 b)))
+           | _, yes b=0 => inP (transportInv (GCD a __) b=0 (gcd_0 a))
+           | no a/=0, no b/=0 => isGCDDomain a b (nonEqualApart a/=0) (nonEqualApart b/=0)
+         }
   }
-  | gcd|val2 => g.gcd|val2
-  | gcd-univ g' (g'|a+bd : LDiv) (g'|b : LDiv) => g.gcd-univ g' (\new LDiv {
-    | inv => g'|a+bd.inv - g'|b.inv * d
-    | inv-right => ldistr *> pmap2 (+) g'|a+bd.inv-right (Ring.negative_*-right g' _ *> pmap negative (inv *-assoc *> pmap (`* d) g'|b.inv-right)) *> +-assoc *> pmap (_ +) (negative-right _) *> zro-right
-  }) g'|b
+}

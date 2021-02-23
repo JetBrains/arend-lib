@@ -112,6 +112,13 @@
       | inv-right => *-comm *> reduce*gcd-right a b
     }
     | gcd-univ g g|a g|b => gcd-isGCD-fueled (suc (euclideanMap b)) g|a g|b
+
+  \lemma gcd_0 {s : Nat} {x : E} : gcd-fueled s x 0 = x \elim s
+    | 0 => idp
+    | suc s => mcases \with {
+      | yes _ => idp
+      | no n => absurd (n idp)
+    }
 }
 
 \open EuclideanSemiringData
@@ -147,7 +154,7 @@
     => bezoutIdentity-fueled (suc (euclideanMap b)) a b
 }
 
-\class EuclideanDomain \extends IntegralDomain.Dec, BezoutDomain
+\class EuclideanDomain \extends GCDDomain.Dec, BezoutDomain
   | isEuclidean : TruncP (EuclideanRingData { | CRing => \this | decideEq => decideEq })
   | isBezout a b => TruncP.map isEuclidean (\lam (d : EuclideanRingData { | CRing => \this }) =>
       ((d.bezout a b).1, (d.bezout a b).2,
@@ -174,7 +181,13 @@
       | inv-right => pmap (d * y div d +) (mod-unique {d} {z} {0} {x + y div d} {y mod d} (suc<=suc zero<=_) (fin_< (y mod d)) (inv (pmap (`+ _) ldistr *> +-assoc *> pmap (_ +) (divModProp y d) *> dx+y=dz))) *> divModProp y d
     }
   }
-  \where \open Nat
+  \where {
+    \open Nat
+
+    \lemma gcd0_ {x : Nat} : NatEuclidean.gcd 0 x = x \elim x
+      | 0 => idp
+      | suc x => idp
+  }
 
 \instance IntEuclidean : EuclideanRingData
   | CRing => IntRing
@@ -202,7 +215,7 @@
       | _, yes x=0 => inl (rewrite x=0 idp)
       | inl mod=0, no x/=0 => inl (pmap (pos __ * _) mod=0 *> zro_*-left)
       | inr (mod/=0, q), no x/=0 =>
-        \have t : iabs (pos (iabs x Nat.mod iabs y) * signum x) = iabs x Nat.mod iabs y => iabs.*-comm *> pmap (_ *) (iabs.signum_/=0 x/=0)
+        \have t : iabs (pos (iabs x Nat.mod iabs y) * signum x) = iabs x Nat.mod iabs y => iabs.*-comm *> pmap (_ *) (iabs.signum_/=0 (\lam x=0 => x/=0 (pmap signum x=0)))
         \in inr (IntDomain.apartZeroProduct (\lam imod=0 => mod/=0 (pmap iabs imod=0)) x/=0, transport (`< iabs y) (inv t) q)
     })
 
@@ -265,6 +278,12 @@
   => \let a' => a + b * d
      \in equation                     #
          gcd a' b                     # {nat_gcd-isUnique (gcd-isGCD a' b) (gcd_int_nat (gcd-isGCD (pos a') (pos b)))}
-         iabs (gcd (pos a') (pos b))  # {int_gcd-isUnique (gcd-isGCD (pos a') (pos b)) (gcd_sum (pos d) (gcd-isGCD (pos a) (pos b)))}
+         iabs (gcd (pos a') (pos b))  # {int_gcd-isUnique (gcd-isGCD (pos a') (pos b)) (GCDDomain.gcd_sum (pos d) (gcd-isGCD (pos a) (pos b)))}
          iabs (gcd (pos a) (pos b))   # {inv (nat_gcd-isUnique (gcd-isGCD a b) (gcd_int_nat (gcd-isGCD (pos a) (pos b))))}
          gcd a b
+
+\func nat_gcd_*_div {a b c : Nat} (a|bc : LDiv a (b * c)) (a_b : gcd a b = 1) : LDiv a c
+  => div_int_nat (IntDomain.gcd_*_div {pos a} {pos b} {pos c} (div_nat_int a|bc) (gcd_nat_int (transport (GCD a b __) a_b (gcd-isGCD a b))))
+
+\lemma nat_gcd-comm (a b : Nat) : gcd a b = gcd b a
+  => nat_gcd-isUnique (gcd-isGCD a b) (GCD.swap (gcd-isGCD b a))
