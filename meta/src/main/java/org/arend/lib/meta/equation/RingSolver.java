@@ -38,6 +38,7 @@ import static java.util.Collections.singletonList;
 public class RingSolver extends BaseEqualitySolver {
   private final boolean isRing;
   private final boolean isCommutative;
+  private final boolean isLattice;
   private final FunctionMatcher zroMatcher;
   private final FunctionMatcher ideMatcher;
   private final FunctionMatcher mulMatcher;
@@ -51,26 +52,27 @@ public class RingSolver extends BaseEqualitySolver {
   protected RingSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass) {
     super(meta, typechecker, factory, refExpr, instance);
     this.equality = equality;
-    isRing = classCall.getDefinition().isSubClassOf(meta.Ring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Ring));
-    isCommutative = classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid));
-    zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.zro, typechecker, factory, refExpr, meta.ext, 0);
-    ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.ide, typechecker, factory, refExpr, meta.ext, 0);
-    mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.mul, typechecker, factory, refExpr, meta.ext, 2);
-    addMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.plus, typechecker, factory, refExpr, meta.ext, 2);
-    natCoefMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.natCoef, typechecker, factory, refExpr, meta.ext, 1);
+    isLattice = classCall.getDefinition().isSubClassOf(meta.BoundedDistributiveLattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.BoundedDistributiveLattice));
+    isRing = !isLattice && classCall.getDefinition().isSubClassOf(meta.Ring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Ring));
+    isCommutative = isLattice || classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid));
+    zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.bottom : meta.zro, typechecker, factory, refExpr, meta.ext, 0);
+    ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.top : meta.ide, typechecker, factory, refExpr, meta.ext, 0);
+    mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.meet : meta.mul, typechecker, factory, refExpr, meta.ext, 2);
+    addMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.join : meta.plus, typechecker, factory, refExpr, meta.ext, 2);
+    natCoefMatcher = isLattice ? null : FunctionMatcher.makeFieldMatcher(classCall, instance, meta.natCoef, typechecker, factory, refExpr, meta.ext, 1);
     intCoefMatcher = isRing ? new DefinitionFunctionMatcher(meta.intCoef, 1) : null;
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, refExpr, meta.ext, 1) : null;
   }
 
   @Override
   protected ConcreteExpression getDefaultValue() {
-    return factory.ref(meta.ide.getRef());
+    return factory.ref((isLattice ? meta.top : meta.ide).getRef());
   }
 
   @Override
   protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
-    ConcreteExpression data = factory.ref((isRing ? (isCommutative ? meta.CRingData : meta.RingData) : (isCommutative ? meta.CSemiringData : meta.SemiringData)).getRef());
-    return factory.classExt(data, Arrays.asList(factory.implementation(meta.RDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)));
+    ConcreteExpression data = factory.ref((isLattice ? meta.LatticeData : (isRing ? (isCommutative ? meta.CRingData : meta.RingData) : (isCommutative ? meta.CSemiringData : meta.SemiringData))).getRef());
+    return factory.classExt(data, Arrays.asList(factory.implementation((isLattice ? meta.LatticeDataCarrier : meta.RingDataCarrier).getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)));
   }
 
   private static class CompiledTerm {
@@ -132,9 +134,9 @@ public class RingSolver extends BaseEqualitySolver {
       }
     }
 
-    List<CoreExpression> coefArgs = isRing ? intCoefMatcher.match(expr) : null;
+    List<CoreExpression> coefArgs = intCoefMatcher == null ? null : intCoefMatcher.match(expr);
     if (coefArgs == null) {
-      coefArgs = natCoefMatcher.match(expr);
+      coefArgs = natCoefMatcher == null ? null : natCoefMatcher.match(expr);
     }
     if (coefArgs != null) {
       CoreExpression arg = coefArgs.get(0).normalize(NormalizationMode.WHNF);
@@ -203,8 +205,17 @@ public class RingSolver extends BaseEqualitySolver {
       toCommutativeNF(term1.nf);
       toCommutativeNF(term2.nf);
     }
-    Collections.sort(term1.nf);
-    Collections.sort(term2.nf);
+
+    List<Monomial> nf1 = term1.nf;
+    List<Monomial> nf2 = term2.nf;
+    if (isLattice) {
+      removeDuplicates(nf1);
+      removeDuplicates(nf2);
+      nf1 = latticeCollapse(nf1);
+      nf2 = latticeCollapse(nf2);
+    }
+    Collections.sort(nf1);
+    Collections.sort(nf2);
 
     if (isCommutative) {
       var rules = new ArrayList<Equality>();
@@ -221,16 +232,47 @@ public class RingSolver extends BaseEqualitySolver {
         return comSolver.solve(term1, term2, rules);
       }
     }
-    if (!Monomial.collapse(term1.nf).equals(Monomial.collapse(term2.nf))) {
+    if (!isLattice) {
+      nf1 = Monomial.collapse(nf1);
+      nf2 = Monomial.collapse(nf2);
+    }
+    if (!nf1.equals(nf2)) {
       return null;
     }
 
-    return factory.appBuilder(factory.ref((isRing ? (isCommutative ? meta.commRingTermsEq : meta.ringTermsEq) : (isCommutative ? meta.commSemiringTermsEq : meta.semiringTermsEq)).getRef()))
+    return factory.appBuilder(factory.ref((isLattice ? meta.latticeTermsEq : (isRing ? (isCommutative ? meta.commRingTermsEq : meta.ringTermsEq) : (isCommutative ? meta.commSemiringTermsEq : meta.semiringTermsEq))).getRef()))
       .app(factory.ref(dataRef), false)
       .app(term1.concrete)
       .app(term2.concrete)
       .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
       .build();
+  }
+
+  private static void removeDuplicates(List<Monomial> list) {
+    for (int i = 0; i < list.size(); i++) {
+      list.set(i, new Monomial(list.get(i).coefficient, MonoidSolver.removeDuplicates(list.get(i).elements)));
+    }
+  }
+
+  private static List<Monomial> latticeCollapse(List<Monomial> list) {
+    List<Monomial> result = new ArrayList<>(list.size());
+    for (Monomial m : list) {
+      insert(m, result);
+    }
+    return result;
+  }
+
+  private static void insert(Monomial m, List<Monomial> list) {
+    for (int i = 0; i < list.size(); i++) {
+      Monomial.ComparisonResult result = m.compare(list.get(i));
+      if (result != Monomial.ComparisonResult.UNCOMPARABLE) {
+        if (result == Monomial.ComparisonResult.LESS) {
+          list.set(i, m);
+        }
+        return;
+      }
+    }
+    list.add(m);
   }
 
   private static class Equality {
@@ -281,26 +323,26 @@ public class RingSolver extends BaseEqualitySolver {
 
     private ConcreteExpression argIsZeroToProdIsZero(ConcreteExpression a, ConcreteExpression bEqZeroPrf) {
       var prodCongProof = CongruenceMeta.applyCongruence(typechecker,
-              Arrays.asList(new CongruenceClosure.EqProofOrElement(factory.ref(meta.mul.getRef()), true),
-                            new CongruenceClosure.EqProofOrElement(a, true),
-                            new CongruenceClosure.EqProofOrElement(bEqZeroPrf,  false)), factory, meta.ext.prelude);
+        Arrays.asList(new CongruenceClosure.EqProofOrElement(factory.ref(meta.mul.getRef()), true),
+          new CongruenceClosure.EqProofOrElement(a, true),
+          new CongruenceClosure.EqProofOrElement(bEqZeroPrf,  false)), factory, meta.ext.prelude);
       var aMulZeroIsZeroProof = factory.appBuilder(factory.ref(meta.zeroMulRight.getRef()))
-              .app(factory.core(instance), false)
-              .app(a, false)
-              .build();
+        .app(factory.core(instance), false)
+        .app(a, false)
+        .build();
       return factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(prodCongProof, aMulZeroIsZeroProof));
     }
 
     private ConcreteExpression argsAreZeroToSumIsZero(ConcreteExpression aEqZeroPrf, ConcreteExpression bEqZeroPrf) {
       var sumCongProof = CongruenceMeta.applyCongruence(typechecker,
-              Arrays.asList(new CongruenceClosure.EqProofOrElement(factory.ref(meta.plus.getRef()), true),
-                      new CongruenceClosure.EqProofOrElement(aEqZeroPrf, false),
-                      new CongruenceClosure.EqProofOrElement(bEqZeroPrf,  false)), factory, meta.ext.prelude);
+        Arrays.asList(new CongruenceClosure.EqProofOrElement(factory.ref(meta.plus.getRef()), true),
+          new CongruenceClosure.EqProofOrElement(aEqZeroPrf, false),
+          new CongruenceClosure.EqProofOrElement(bEqZeroPrf,  false)), factory, meta.ext.prelude);
 
       var zeroPlusZeroIsZeroProof = factory.appBuilder(factory.ref(meta.addMonZroRight.getRef()))
-              .app(factory.core(instance), false)
-              .app(factory.ref(meta.zro.getRef()), false)
-              .build();
+        .app(factory.core(instance), false)
+        .app(factory.ref(meta.zro.getRef()), false)
+        .build();
 
       return factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(sumCongProof, zeroPlusZeroIsZeroProof));
     }
@@ -311,8 +353,8 @@ public class RingSolver extends BaseEqualitySolver {
       for (int i = 0; i < coeffs.size(); ++i) {
         var coeffTerm = nfToRingTerm(polyToNF(coeffs.get(i)));
         coeffTerm = factory.appBuilder(factory.ref(meta.ringInterpret.getRef()))
-                           .app(factory.ref(dataRef), false)
-                           .app(coeffTerm).build();
+          .app(factory.ref(dataRef), false)
+          .app(coeffTerm).build();
         summandProofs.add(argIsZeroToProdIsZero(coeffTerm, axEqZeroProofs.get(i)));
       }
       var resProof = summandProofs.get(0);
@@ -329,16 +371,16 @@ public class RingSolver extends BaseEqualitySolver {
 
     private ConcreteExpression minusRingTerm(ConcreteExpression a, ConcreteExpression b) {
       return factory.appBuilder(factory.ref(meta.addTerm.getRef()))
-              .app(a, true)
-              .app(factory.app(factory.ref(meta.negativeTerm.getRef()), true, Collections.singletonList(b)), true)
-              .build();
+        .app(a, true)
+        .app(factory.app(factory.ref(meta.negativeTerm.getRef()), true, Collections.singletonList(b)), true)
+        .build();
     }
 
     private ConcreteExpression minusRingElement(ConcreteExpression a, ConcreteExpression b) {
       return factory.appBuilder(factory.ref(meta.plus.getRef()))
-              .app(a, true)
-              .app(factory.app(factory.ref(meta.negative.getRef()), true, Collections.singletonList(b)), true)
-              .build();
+        .app(a, true)
+        .app(factory.app(factory.ref(meta.negative.getRef()), true, Collections.singletonList(b)), true)
+        .build();
     }
 
     public ConcreteExpression solve(CompiledTerm term1, CompiledTerm term2, List<Equality> axioms) {
@@ -368,16 +410,16 @@ public class RingSolver extends BaseEqualitySolver {
         var axiom = axioms.get(i);
         var axiomDiff = minusRingElement(axiom.lhsTerm.originalExpr, axiom.rhsTerm.originalExpr);
         var axDiffIsZero = factory.appBuilder(factory.ref(meta.toZero.getRef()))
-                .app(factory.core(instance), false)
-                .app(axiom.lhsTerm.originalExpr)
-                .app(axiom.rhsTerm.originalExpr)
-                .app(axiom.binding)
-                .build();
+          .app(factory.core(instance), false)
+          .app(axiom.lhsTerm.originalExpr)
+          .app(axiom.rhsTerm.originalExpr)
+          .app(axiom.binding)
+          .build();
         var coeffTerm = nfToRingTerm(polyToNF(idealCoeffs.get(i)));
 
         coeffTerm = factory.appBuilder(factory.ref(meta.ringInterpret.getRef()))
-                .app(factory.ref(dataRef), false)
-                .app(coeffTerm).build();
+          .app(factory.ref(dataRef), false)
+          .app(coeffTerm).build();
         axiomDiffs.add(minusRingTerm(axiom.lhsTerm.concrete, axiom.rhsTerm.concrete));
         genCoeffs.add(factory.tuple(coeffTerm, axiomDiff, axDiffIsZero));
       }
@@ -399,11 +441,11 @@ public class RingSolver extends BaseEqualitySolver {
 
       // term1 - term2 = sum_i idealCoeffs(i) * (axiom(i).L - axiom(i).R)
       var decompositionProof = factory.appBuilder(factory.ref(meta.commRingTermsEq.getRef()))
-              .app(factory.ref(dataRef), false)
-              .app(minusRingTerm(term1.concrete, term2.concrete))
-              .app(idealGenDecompRingTerm(idealCoeffs, axiomDiffs))
-              .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
-              .build();
+        .app(factory.ref(dataRef), false)
+        .app(minusRingTerm(term1.concrete, term2.concrete))
+        .app(idealGenDecompRingTerm(idealCoeffs, axiomDiffs))
+        .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
+        .build();
 
       /*
       // term1 - term2 = 0
@@ -416,21 +458,21 @@ public class RingSolver extends BaseEqualitySolver {
 
       // sum_i idealCoeffs(i) * (axiom(i).L - axiom(i).R) = 0
       var idealGenDecompEqZero = factory.appBuilder(factory.ref(meta.gensZeroToIdealZero.getRef()))
-              .app(MonoidSolver.formList(genCoeffs, factory, meta.ext.nil, meta.ext.cons))
-              .build();
+        .app(MonoidSolver.formList(genCoeffs, factory, meta.ext.nil, meta.ext.cons))
+        .build();
 
       // term1 - term2 = 0
       var isZeroProof = factory.appBuilder(factory.ref(meta.ext.concat.getRef()))
-              .app(decompositionProof)
-              .app(idealGenDecompEqZero)
-              .build();
+        .app(decompositionProof)
+        .app(idealGenDecompEqZero)
+        .build();
 
       return factory.appBuilder(factory.ref(meta.fromZero.getRef()))
-              .app(factory.core(instance), false)
-              .app(term1.originalExpr)
-              .app(term2.originalExpr)
-              .app(isZeroProof)
-              .build();
+        .app(factory.core(instance), false)
+        .app(term1.originalExpr)
+        .app(term2.originalExpr)
+        .app(isZeroProof)
+        .build();
     }
   }
 }

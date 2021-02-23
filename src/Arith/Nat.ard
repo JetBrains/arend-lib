@@ -1,4 +1,5 @@
-\import Algebra.Ordered
+\import Algebra.Monoid(Monoid)
+\import Algebra.Ordered(LinearlyOrderedCSemiring)
 \import Data.Or
 \import Logic
 \import Order.Lattice
@@ -23,8 +24,7 @@
   | 0 => idp
   | suc n => -'id n
 
-\func suc/=0 {n : Nat} (p : suc n = 0) {A : \Type} : A =>
-  coe (\case p @ __ \with { suc _ => Nat | 0 => A }) 0 right
+\func suc/=0 {n : Nat} (p : suc n = 0) {A : \Type} : A
 
 -- # Properties of <= and <
 
@@ -70,9 +70,8 @@
 
 \lemma <=-+ {n m : Nat} (p : n <= m) : n + (m -' n) = m \elim n, m, p
   | 0, 0, _ => idp
-  | 0, suc m, _ => pmap suc +-comm
-  | suc n, suc m, suc<=suc p => +-comm *> pmap suc (+-comm *> <=-+ p)
-  \where \open NatSemiring (+-comm)
+  | 0, suc m, _ => idp
+  | suc n, suc m, suc<=suc p => pmap suc (<=-+ p)
 
 \lemma <=_+ {n m k l : Nat} (n<=m : n <= m) (k<=l : k <= l) : n + k <= m + l \elim k, l, k<=l
   | 0, l, _ => <=-transitive n<=m (<=_0_+-right l)
@@ -93,19 +92,18 @@
   }
   | <-transitive p q => <=-transitive p (<=-transitive <=-suc q)
 
-\instance NatSemiring : LinearlyOrderedCSemiring.Dec.Impl Nat
+\instance NatSemiring : LinearlyOrderedCSemiring.Dec Nat
   | zro => 0
   | + => +
-  | zro-left => +-comm
+  | zro-left => idp
   | +-assoc {n m k : Nat} : (n + m) + k = n + (m + k) \elim k {
     | 0 => idp
     | suc k => pmap suc +-assoc
   }
   | +-comm {n m : Nat} : n + m = m + n \elim n, m {
-    | 0, 0 => idp
-    | suc n, 0 => pmap suc +-comm
-    | 0, suc m => pmap suc +-comm
-    | suc n, suc m => pmap suc (+-comm *> pmap suc (inv +-comm) *> +-comm)
+    | 0, m => idp
+    | n, 0 => idp
+    | suc n, suc m => pmap (\lam x => suc (suc x)) +-comm
   }
   | ide => 1
   | * => *
@@ -149,7 +147,7 @@
   }
   | zro<ide => suc<=suc zero<=_
   | <_*_positive-left {n m k : Nat} (p : suc n <= m) (q : 1 <= k) : suc (n * k) <= m * k \elim k, q {
-    | 1, _ => transport2 (suc __ <= __) (inv +-comm) (inv +-comm) p
+    | 1, _ => p
     | suc (suc k), q => <=_+ (<=-transitive <=-suc (<_*_positive-left p (suc<=suc zero<=_))) p
   }
   | <_*_negative-left x<y z<0 => \case z<0 \with {}
@@ -170,4 +168,72 @@
     \lemma triLess {n m d : Nat} (p : n - m = neg (suc d)) : suc n <= m \elim n, m, p
       | 0, suc m, p => suc<=suc zero<=_
       | suc n, suc m, p => suc<=suc (triLess p)
+
+    \lemma cancel-right {n m : Nat} (k : Nat) (p : n + k = m + k) : n = m \elim k
+      | 0 => p
+      | suc k => cancel-right k (pmap pred p)
+
+    \lemma cancel-left (n : Nat) {m k : Nat} (p : n + m = n + k) : m = k
+      => cancel-right n (+-comm *> p *> +-comm)
+
+    \lemma cancel_*-left {k : Nat} (k/=0 : Not (k = 0)) {n m : Nat} (p : k * n = k * m) : n = m \elim k, n, m, p
+      | 0, _, _, _ => absurd (k/=0 idp)
+      | _, 0, 0, _ => idp
+      | k, suc n, suc m, p => pmap suc (cancel_*-left k/=0 (cancel-right k p))
+
+    \lemma cancel_*-right {n m k : Nat} (k/=0 : Not (k = 0)) (p : n * k = m * k) : n = m
+      => cancel_*-left k/=0 (*-comm *> p *> *-comm)
+  }
+
+\lemma n*_+_<n {n q r : Nat} (p : n * q + r < n) : q = 0 \elim q
+  | 0 => idp
+  | suc q => absurd (<-irreflexive {_} {n} (<=-transitive (suc<=suc (<=-transitive (<=_0_+-left (n * q)) (<=_0_+-right r))) p))
+
+\lemma fin_< {n : Nat} (x : Fin n) : x < n \elim n, x
+  | suc n, zero => suc<=suc zero<=_
+  | suc n, suc x => suc<=suc (fin_< x)
+
+\open NatSemiring
+
+\lemma mod-unique {n q r q' r' : Nat} (r<n : r < n) (r'<n : r' < n) (p : n * q + r = n * q' + r') : r = r' \elim q, q'
+  | 0, 0 => p
+  | 0, suc q' => \case n*_+_<n {n} {suc q'} (transport (`< n) p r<n) \with {}
+  | suc q, 0 => \case n*_+_<n {n} {suc q} (transport (`< n) (inv p) r'<n) \with {}
+  | suc q, suc q' =>
+    \have t => +-assoc *> pmap (_ +) +-comm *> inv +-assoc *> p *> +-assoc *> pmap (_ +) +-comm *> inv +-assoc
+    \in mod-unique r<n r'<n (cancel-right n t)
+
+\lemma mod<=left {n m : Nat} : n mod m <= n
+  => transport (_ <=) (divModProp n m) (<=_0_+-left (m * n div m))
+
+\lemma mod<right {n m : Nat} (m/=0 : Not (m = 0)) : n mod m < m \elim m
+  | 0 => absurd (m/=0 idp)
+  | suc m => fin_< (n mod suc m)
+
+\lemma div_< {n m : Nat} (n<m : n < m) : n div m = 0
+  => n*_+_<n (transportInv (`< m) (divModProp n m) n<m)
+
+\lemma mod_< {n m : Nat} (n<m : n < m) : n mod m = n
+  => inv (pmap (m * __ + _) (div_< n<m)) *> divModProp n m
+
+\lemma nonZero>0 {n : Nat} (n/=0 : Not (n = 0)) : 0 < n \elim n
+  | 0 => absurd (n/=0 idp)
+  | suc n => suc<=suc zero<=_
+
+\lemma natUnit {n m : Nat} (p : n * m = 1) : m = 1 \elim n, m, p
+  | _, 1, _ => idp
+  | 0, suc (suc n), p => \case inv NatSemiring.zro_*-left *> p \with {}
+
+\open Monoid(LDiv)
+
+\lemma natAssociates-areEqual {n m : Nat} (n|m : LDiv n m) (m|n : LDiv m n) : n = m \elim n
+  | 0 => inv NatSemiring.zro_*-left *> n|m.inv-right
+  | suc _ \as n =>
+    \have t : m|n.inv = 1 => natUnit (cancel_*-left {n} (\case __ \with {}) (inv *-assoc *> pmap (`* _) n|m.inv-right *> m|n.inv-right))
+    \in inv m|n.inv-right *> pmap (m *) t
+
+\lemma ldiv_<= {n m : Nat} (m/=0 : Not (m = 0)) (n|m : LDiv n m) : n <= m
+  => \case n|m.inv \as k, n|m.inv-right : n * k = m \with {
+    | 0, p => absurd (m/=0 (inv p))
+    | suc k, p => transport (n <=) p (<=_0_+-left (n * k))
   }

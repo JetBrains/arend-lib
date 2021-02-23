@@ -7,6 +7,7 @@ import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.IgnoredArgumentError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.typechecking.BaseMetaDefinition;
@@ -30,13 +31,28 @@ public class UnfoldMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable boolean[] argumentExplicitness() {
+  public boolean[] argumentExplicitness() {
     return new boolean[] { true, true };
+  }
+
+  @Override
+  public int numberOfOptionalExplicitArguments() {
+    return 1;
   }
 
   @Override
   public boolean allowExcessiveArguments() {
     return false;
+  }
+
+  @Override
+  public int @Nullable [] desugarArguments(@NotNull List<? extends ConcreteArgument> arguments) {
+    if (arguments.size() <= 1) return null;
+    int[] result = new int[arguments.size() - 1];
+    for (int i = 0; i < result.length; i++) {
+      result[i] = i + 1;
+    }
+    return result;
   }
 
   @Override
@@ -46,38 +62,44 @@ public class UnfoldMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    List<? extends ConcreteExpression> firstArgList = Utils.getArgumentList(contextData.getArguments().get(0).getExpression());
     Set<CoreDefinition> functions = new HashSet<>();
-    for (ConcreteExpression expr : firstArgList) {
-      CoreDefinition function = null;
-      if (expr instanceof ConcreteReferenceExpression) {
-        CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) expr).getReferent());
-        if (def instanceof CoreFunctionDefinition || def instanceof CoreClassField) {
-          function = def;
+    List<? extends ConcreteExpression> firstArgList;
+    boolean unfoldFields = contextData.getArguments().size() == 1;
+    if (contextData.getArguments().size() == 2) {
+      firstArgList = Utils.getArgumentList(contextData.getArguments().get(0).getExpression());
+      for (ConcreteExpression expr : firstArgList) {
+        CoreDefinition function = null;
+        if (expr instanceof ConcreteReferenceExpression) {
+          CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) expr).getReferent());
+          if (def instanceof CoreFunctionDefinition || def instanceof CoreClassField) {
+            function = def;
+          }
+        }
+        if (function == null || function instanceof CoreFunctionDefinition && !(((CoreFunctionDefinition) function).getBody() instanceof CoreExpression) || function instanceof CoreClassField && ((CoreClassField) function).isProperty()) {
+          typechecker.getErrorReporter().report(new TypecheckingError(function == null ? "Expected either a function or a field" : "Function '" + function.getName() + "' cannot be unfolded", expr));
+        } else {
+          if (!functions.add(function)) {
+            typechecker.getErrorReporter().report(new IgnoredArgumentError("Repeated function", expr));
+          }
         }
       }
-      if (function == null || function instanceof CoreFunctionDefinition && !(((CoreFunctionDefinition) function).getBody() instanceof CoreExpression) || function instanceof CoreClassField && ((CoreClassField) function).isProperty()) {
-        typechecker.getErrorReporter().report(new TypecheckingError(function == null ? "Expected either a function or a field" : "Function '" + function.getName() + "' cannot be unfolded", expr));
-      } else {
-        if (!functions.add(function)) {
-          typechecker.getErrorReporter().report(new IgnoredArgumentError("Repeated function", expr));
-        }
-      }
+    } else {
+      firstArgList = null;
     }
 
     Set<CoreDefinition> unfolded = new HashSet<>();
     TypedExpression result;
     if (contextData.getExpectedType() != null) {
-      result = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), contextData.getExpectedType().unfold(functions, unfolded));
+      result = typechecker.typecheck(contextData.getArguments().get(contextData.getArguments().size() - 1).getExpression(), contextData.getExpectedType().normalize(NormalizationMode.RNF).unfold(functions, unfolded, false, unfoldFields));
     } else {
-      TypedExpression arg = typechecker.typecheck(contextData.getArguments().get(1).getExpression(), null);
+      TypedExpression arg = typechecker.typecheck(contextData.getArguments().get(contextData.getArguments().size() - 1).getExpression(), null);
       if (arg == null) {
         return null;
       }
-      result = arg.replaceType(arg.getType().unfold(functions, unfolded));
+      result = arg.replaceType(arg.getType().unfold(functions, unfolded, false, unfoldFields));
     }
 
-    if (unfolded.size() != functions.size()) {
+    if (firstArgList != null && unfolded.size() != functions.size()) {
       for (ConcreteExpression expr : firstArgList) {
         if (expr instanceof ConcreteReferenceExpression) {
           CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) expr).getReferent());

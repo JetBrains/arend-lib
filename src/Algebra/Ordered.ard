@@ -105,10 +105,7 @@
       | greater x>y, less z<0 => byRight (z<0, x>y)
       | greater x>y, greater z>0 => absurd (<-irreflexive (<-transitive x*z<y*z (<_*_positive-left x>y z>0)))
     }
-  } \where {
-    \class Impl \extends Dec, LinearOrder.Dec.Impl
-    \open LinearOrder
-  }
+  } \where \open LinearOrder
 }
 
 \class OrderedCSemiring \extends OrderedSemiring, CSemiring, OrderedAbMonoid
@@ -118,11 +115,8 @@
 \class LinearlyOrderedCSemiring \extends LinearlyOrderedSemiring, OrderedCSemiring, OrderedAbMonoid
   | <_+-cancel-right x y z x+z<y+z => <_+-cancel-left z x y (transport2 (<) +-comm +-comm x+z<y+z)
   | <_*-cancel-right x y z x*z<y*z => <_*-cancel-left z x y (transport2 (<) *-comm *-comm x*z<y*z)
-  \where {
+  \where
     \class Dec \extends OrderedCSemiring, LinearlyOrderedSemiring.Dec
-      \where
-        \class Impl \extends Dec, LinearlyOrderedSemiring.Dec.Impl
-  }
 
 {- | An ordered ring is a linearly ordered domain such that the product of positive elements is positive
  -   and an element is apart from {zro} if and only if it is either positive or negative.
@@ -231,12 +225,17 @@
       }
   }
   | zro#ide => positive=>#0 ide>zro
-  | apartZeroProduct x y x#0 y#0 => \case #0=>eitherPosOrNeg x#0, #0=>eitherPosOrNeg y#0 \with {
+  | apartZeroProduct x#0 y#0 => \case #0=>eitherPosOrNeg x#0, #0=>eitherPosOrNeg y#0 \with {
     | byLeft x>0, byLeft y>0 => positive=>#0 (positive_* x>0 y>0)
     | byLeft x>0, byRight y<0 => negative=>#0 (positive_negative_* x>0 y<0)
     | byRight x<0, byLeft y>0 => negative=>#0 (negative_positive_* x<0 y>0)
     | byRight x<0, byRight y<0 => positive=>#0 (negative_* x<0 y<0)
   }
+
+  \default #0 x : \Prop => isPos x || isNeg x
+  \default positive=>#0 \as positive=>#0Impl {x} : isPos x -> #0 x => byLeft
+  \default negative=>#0 \as negative=>#0Impl {x} : isNeg x -> #0 x => byRight
+  \default #0=>eitherPosOrNeg \as #0=>eitherPosOrNegImpl {x} (x#0 : #0 x) => x#0
 
   \lemma positive_*-cancel-left {x y : E} (x*y>0 : isPos (x * y)) (y>0 : isPos y) : isPos x
     => \case positive_*-cancel x*y>0 \with {
@@ -246,19 +245,13 @@
 } \where {
   \open OrderedAddGroup(isNeg,toNeg,fromNeg,negative_positive)
 
-  \class Impl \extends OrderedRing
-    | #0 x => isPos x || isNeg x
-    | positive=>#0 {_} => byLeft
-    | negative=>#0 {_} => byRight
-    | #0=>eitherPosOrNeg x#0 => x#0
-
   -- TODO: \use \level instead of \truncated
   \truncated \data Tri {A : OrderedAddGroup} (x : A) : \Prop
     | triZro (x = 0)
     | triPos (isPos x)
     | triNeg (isNeg x)
 
-  \class Dec \extends OrderedRing, LinearlyOrderedSemiring.Dec, Domain.Dec {
+  \class Dec \extends Domain.Dec, OrderedRing, LinearlyOrderedSemiring.Dec {
     \field +_trichotomy (x : E) : Tri x
 
     | trichotomy x y => \case +_trichotomy (x - y) \with {
@@ -284,30 +277,25 @@
       | triNeg x<0, triPos y>0 => absurd (zro/>0 (transport isPos (negative-right _) (positive_+ x*y>0 (negative_positive_* x<0 y>0))))
       | triNeg x<0, triNeg y<0 => byRight (x<0, y<0)
     }
-    | nonEqualApart x x/=0 => \case +_trichotomy x \with {
+    | nonEqualApart {x} x/=0 => \case +_trichotomy x \with {
       | triZro x=0 => absurd (x/=0 x=0)
       | triPos x>0 => positive=>#0 x>0
       | triNeg x<0 => negative=>#0 x<0
     }
-  } \where
-      \class Impl \extends Dec, Domain.Dec.Impl
-        | positive=>#0 x>0 x=0 => zro/>0 (transport isPos x=0 x>0)
-        | negative=>#0 x<0 x=0 => zro/>0 (transport isPos (pmap negative x=0 *> negative_zro) x<0)
-        | #0=>eitherPosOrNeg {x} x/=0 => \case +_trichotomy x \with {
-          | triZro x=0 => absurd (x/=0 x=0)
-          | triPos x>0 => byLeft x>0
-          | triNeg x<0 => byRight x<0
-        }
+
+    \default positive=>#0 {x} (x>0 : isPos x) : AddGroup.Dec.#0 x => \lam x=0 => zro/>0 (transport isPos x=0 x>0)
+    \default negative=>#0 {x} (x<0 : isNeg x) : AddGroup.Dec.#0 x => \lam x=0 => zro/>0 (transport isPos (pmap negative x=0 *> negative_zro) x<0)
+    \default #0=>eitherPosOrNeg {x} (x#0 : AddGroup.Dec.#0 x) : isPos x || isNeg x => \case +_trichotomy x \with {
+      | triZro x=0 => absurd (transport AddGroup.Dec.#0 x=0 x#0 idp)
+      | triPos x>0 => byLeft x>0
+      | triNeg x<0 => byRight x<0
+    }
+  }
 }
 
 \class OrderedCRing \extends OrderedRing, IntegralDomain, OrderedCSemiring
-  \where {
-    \class Impl \extends OrderedCRing, OrderedRing.Impl
-
-    \class Dec \extends OrderedCRing, OrderedRing.Dec, LinearlyOrderedCSemiring.Dec, IntegralDomain.Dec
-      \where
-        \class Impl \extends Dec, OrderedRing.Dec.Impl, IntegralDomain.Dec.Impl
-  }
+  \where
+    \class Dec \extends OrderedRing.Dec, OrderedCRing, LinearlyOrderedCSemiring.Dec, IntegralDomain.Dec
 
 \class OrderedField \extends OrderedCRing, Field {
   | zro/=ide _0=1 => <-irreflexive (transport (`< ide) _0=1 zro<ide)
@@ -325,7 +313,7 @@
   | negative=>#0 x<0 => transport #0 (negative-isInv _) (Ring.negative_inv (positive=>#0 x<0))
 }
 
-\class DiscreteOrderedField \extends OrderedField, DiscreteField, OrderedCRing.Dec {
+\class DiscreteOrderedField \extends OrderedCRing.Dec, OrderedField, DiscreteField {
   | positive=>#0 {x} x>0 => \case eitherZeroOrInv x \with {
     | byLeft x=0 => absurd (zro/>0 (transport isPos x=0 x>0))
     | byRight x-isInv => x-isInv

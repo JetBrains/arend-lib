@@ -1,0 +1,158 @@
+\import Algebra.Domain.Euclidean
+\import Algebra.Field
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Monoid.GCD
+\import Algebra.Monoid.Prime
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Int
+\import Arith.Nat
+\import Data.Or
+\import Function.Meta
+\import Logic
+\import Meta
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set \hiding (#)
+\open Nat(div,mod,divModProp)
+
+\lemma finToNat-inj {n : Nat} {x y : Fin n} (p : x = {Nat} y) : x = y \elim n, x, y, p
+  | suc n, zero, zero, _ => idp
+  | suc n, suc x, suc y, p => pmap (\lam z => suc z) (finToNat-inj (pmap pred p))
+
+\lemma finToNat-ineq {n : Nat} {x y : Fin n} (p : Not (x = y)) : Not (x = {Nat} y)
+  => \lam q => p (finToNat-inj q)
+
+\lemma mod_id {n x : Nat} (x<=n : x < suc n) : x mod suc n = {Nat} x
+  => \have div_x=0 => n*_+_<n (rewriteF (inv (divModProp x (suc n))) x<=n)
+     \in inv (pmap (_ + _ * __) div_x=0) *> +-comm *> divModProp x (suc n)
+
+\lemma fin_mod_id {n : Nat} (x : Fin (suc n)) : x mod suc n = x
+  => finToNat-inj (mod_id (fin_< x))
+
+\lemma n*_+_mod_n {n q r : Nat} (r<=n : r < suc n) : (suc n * q + r) mod suc n = {Nat} r
+  => mod-unique (fin_< _) r<=n (divModProp (suc n * q + r) (suc n))
+
+\lemma n*_+_mod_n=mod {n q r : Nat} : (suc n * q + r) mod suc n = r mod suc n
+  => run {
+    rewriteI {1} (divModProp r (suc n)),
+    rewriteI NatSemiring.+-assoc,
+    rewriteI NatSemiring.ldistr,
+    finToNat-inj (n*_+_mod_n (fin_< (r mod suc n)))
+  }
+
+\lemma int_n*_+_mod_n {n r : Nat} {q : Int} (r<=n : r < suc n) : (pos (suc n) * q + r) mod suc n = r
+  => mod-unique {(pos (suc n) * q + r) div suc n} (natMod<right _ _) r<=n (natDivModProp (pos (suc n) * q + r) (suc n))
+  \where \open IntEuclidean
+
+\lemma int_n*_+_mod_n=mod {n : Nat} {q r : Int} : (pos (suc n) * q + r) mod suc n = r mod suc n
+  => run {
+    rewriteI {1} (natDivModProp r n),
+    rewriteI (IntRing.+-assoc {pos (suc n) * q} {pos (suc n) * r div suc n} {pos (r mod suc n)}),
+    rewriteI (IntRing.ldistr {suc n} {q} {r div suc n}),
+    int_n*_+_mod_n (natMod<right r n)
+  }
+  \where \open IntEuclidean
+
+\lemma mod_+-left {n a b : Nat} : (a mod suc n + b) mod suc n = (a + b) mod suc n
+  => run {
+    rewriteI {2} (divModProp a (suc n)),
+    rewrite NatSemiring.+-assoc,
+    inv n*_+_mod_n=mod
+  }
+
+\lemma mod_+-right {n a b : Nat} : (a + b mod suc n) mod suc n = (a + b) mod suc n
+  => finToNat-inj (pmap (`mod _) +-comm *> mod_+-left *> pmap (`mod _) +-comm)
+
+\lemma mod_*-left {n a b : Nat} : (a mod suc n * b) mod suc n = (a * b) mod suc n
+  => run {
+    rewriteI {2} (divModProp a (suc n)),
+    rewrite NatSemiring.rdistr,
+    rewrite NatSemiring.*-assoc,
+    inv n*_+_mod_n=mod
+  }
+
+\lemma mod_*-right {n a b : Nat} : (a * b mod suc n) mod suc n = (a * b) mod suc n
+  => finToNat-inj (pmap (`mod _) *-comm *> mod_*-left *> pmap (`mod _) *-comm)
+
+\lemma int_mod_*-left {n : Nat} {a b : Int} : (pos (a mod suc n) * b) mod suc n = (a * b) mod suc n
+  => run {
+    rewriteI {2} (natDivModProp a n),
+    rewrite IntRing.rdistr,
+    rewrite IntRing.*-assoc,
+    inv int_n*_+_mod_n=mod
+  } \where \open IntEuclidean
+
+\lemma int_mod_*-right {n : Nat} {a b : Int} : (a * b mod suc n) mod suc n = (a * b) mod suc n
+  => pmap (`mod _) *-comm *> int_mod_*-left *> pmap (`mod _) *-comm
+  \where \open IntEuclidean
+
+\instance FinRing {n : Nat} : CRing.Dec (Fin (suc n))
+  | zro => 0
+  | + x y => (x + y : Nat)
+  | zro-left {x} => pmap Fin.fromNat zro-left *> fin_mod_id x
+  | +-assoc {_} {_} {_} => mod_+-left *> pmap Fin.fromNat +-assoc *> inv mod_+-right
+  | +-comm {_} {_} => pmap Fin.fromNat +-comm
+  | ide => Fin.fromNat 1
+  | * x y => (x * y : Nat)
+  | ide-left {x} => mod_*-left *> pmap Fin.fromNat ide-left *> fin_mod_id x
+  | *-assoc {_} {_} {_} => mod_*-left *> pmap Fin.fromNat *-assoc *> inv mod_*-right
+  | ldistr {x} {y} {z} => mod_*-right *> pmap Fin.fromNat ldistr *> inv (mod_+-left *> mod_+-right)
+  | negative x => iabs (suc n Nat.- x)
+  | negative-left x =>
+    \let t => pmap (`+ pos x) (pos_iabs (<=-transitive <=-suc (fin_< x))) *> IntRing.+-assoc {pos (suc n)} {neg x} *> pmap (_ +) (IntRing.negative-left (pos x))
+    \in mod_+-left *> transport (__ mod suc n = 0) (inv (pmap iabs t)) (finToNat-inj (n*_+_mod_n {n} {1} (Nat.suc<=suc Nat.zero<=_)))
+  | decideEq x y => \case NatSemiring.decideEq x y \with {
+    | yes x=y => yes (finToNat-inj x=y)
+    | no x/=y => no (\lam p => x/=y p)
+  }
+  | *-comm {_} {_} => pmap Fin.fromNat *-comm
+
+\instance FinEuclidean {n : Nat} : EuclideanRingData (Fin (suc n))
+  | CRing => FinRing {n}
+  | decideEq => decideEq
+  | euclideanMap x => x
+  | divMod x y =>
+    \let! (d,m) => Nat.divMod x y
+    \in (d `mod` suc n, m `mod` suc n)
+  | isDivMod x y => run {
+    unfold_let,
+    rewrite mod_*-right,
+    mod_+-left *> mod_+-right *> pmap Fin.fromNat (Nat.divModProp x y) *> fin_mod_id x
+  }
+  | isEuclideanMap x y y/=0 => \case decideEq (x mod y mod suc n) 0 \with {
+    | yes x=0 => inl x=0
+    | no x/=0 => inr (x/=0, unfold_let (<=-transitive (Nat.suc<=suc mod<=left) (mod<right (finToNat-ineq y/=0))))
+  }
+
+\instance FinField {n : Nat} {p : Prime (suc n)} : DiscreteField (Fin (suc n))
+  | CRing => FinRing {n}
+  | zro/=ide => \lam zero=1 => \case zero=1 *> {Nat} mod_< (Nat.suc<=suc (nonZero>0 (\lam n=0 => p.notInv (transportInv (\lam x => Inv (suc x)) n=0 Inv.ide-isInv)))) \with {}
+  | eitherZeroOrInv x => \case decideEq x 0 \with {
+    | yes x=0 => byLeft x=0
+    | no x/=0 => byRight (
+      \let! (u,v) => bezout (pos (suc n)) (pos x)
+      \in Inv.lmake ((IntEuclidean.natDivMod v (suc n)).2 mod suc n) (
+        \let | (q,r) => IntEuclidean.natDivMod v (suc n)
+             | int_gcd=1 : gcd (pos (suc n)) (pos x) = 1 => int_gcd_pos *> pmap pos (gcd=1 p (finToNat-ineq x/=0) (fin_< x))
+        \in pmap ((__ * x) mod suc n) (inv (int_n*_+_mod_n=mod *> IntEuclidean.natMod=mod r (suc n)) *> pmap (__ IntEuclidean.mod suc n) (IntEuclidean.natDivModProp v n)) *>
+            finToNat-inj (inv (IntEuclidean.natMod=mod _ _) *> int_mod_*-left *> inv int_n*_+_mod_n=mod *> pmap (__ IntEuclidean.mod suc n) (pmap (__ + v * pos x) *-comm *> bezoutIdentity (pos (suc n)) (pos x) *> int_gcd=1) *> IntEuclidean.natMod=mod 1 (suc n))
+    ))
+  }
+  \where {
+    \open EuclideanSemiringData
+    \open EuclideanRingData
+    \open Monoid(Inv)
+
+    \lemma gcd=1 (p : Prime {NatSemiring}) {x : Nat} (x/=0 : Not (x = 0)) (x<p : x < p.e) : gcd p.e x = 1
+      => \case nat_irr p (GCD.gcd|val1 {gcd-isGCD p.e x}) \with {
+           | byLeft gcd=1 => gcd=1
+           | byRight gcd=p =>
+             \have p<=x => transport (`<= x) gcd=p (ldiv_<= x/=0 (GCD.gcd|val2 {gcd-isGCD p.e x}))
+             \in absurd (NatSemiring.<-irreflexive (<=-transitive x<p p<=x))
+         }
+  }

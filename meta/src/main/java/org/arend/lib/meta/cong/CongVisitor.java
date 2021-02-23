@@ -77,9 +77,11 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
         Result typeArg = param.expectedType.get();
         ConcreteExpression arg = arguments.get(index - 1);
         if (typeArg != null) {
+          ConcreteExpression arg1 = expr1 instanceof CoreIntegerExpression ? factory.number(((CoreIntegerExpression) expr1).getBigInteger()) : factory.core(expr1.computeTyped());
+          ConcreteExpression arg2 = param.other instanceof CoreIntegerExpression ? factory.number(((CoreIntegerExpression) param.other).getBigInteger()) : factory.core(param.other.computeTyped());
           arg = factory.typed(arg, typeArg.abstracted
-            ? factory.app(factory.ref(prelude.getPath().getRef()), true, Arrays.asList(typeArg.expression, factory.core(expr1.computeTyped()), factory.core(param.other.computeTyped())))
-            : factory.app(factory.ref(prelude.getEquality().getRef()), true, Arrays.asList(factory.core(expr1.computeTyped()), factory.core(param.other.computeTyped()))));
+            ? factory.app(factory.ref(prelude.getPath().getRef()), true, Arrays.asList(typeArg.expression, arg1, arg2))
+            : factory.app(factory.ref(prelude.getEquality().getRef()), true, Arrays.asList(arg1, arg2)));
         }
         return new Result(factory.app(factory.ref(prelude.getAt().getRef()), true, Arrays.asList(arg, iRef)), true);
       }
