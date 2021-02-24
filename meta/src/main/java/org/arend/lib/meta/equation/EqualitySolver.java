@@ -5,6 +5,7 @@ import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.*;
+import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.instance.InstanceSearchParameters;
@@ -79,7 +80,7 @@ public class EqualitySolver extends BaseEqualitySolver {
     ContextHelper helper = new ContextHelper(hint);
     for (CoreBinding binding : helper.getAllBindings(typechecker)) {
       CoreFunCallExpression equality = binding.getTypeExpr().normalize(NormalizationMode.WHNF).toEquality();
-      if (equality != null) {
+      if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true)) {
         closure.addRelation(equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2), factory.ref(binding));
       }
     }

@@ -97,7 +97,7 @@ public class TransitivitySolver implements EquationSolver {
 
     CoreAppExpression app1 = (CoreAppExpression) fun2;
     CoreExpression fun1 = app1.getFunction().normalize(NormalizationMode.WHNF);
-    if (!(fun1 instanceof CoreFieldCallExpression)) {
+    if (!(fun1 instanceof CoreFieldCallExpression) || instanceDefinition != null && ((CoreFieldCallExpression) fun1).getDefinition() != instanceDefinition) {
       return null;
     }
 
@@ -191,6 +191,7 @@ public class TransitivitySolver implements EquationSolver {
       });
       leftValue = relationData.leftExpr;
       rightValue = relationData.rightExpr;
+      instanceDefinition = fieldCall.getDefinition();
     } else {
       CoreDefCallExpression defCall = relationData.defCall;
       if (defCall instanceof CoreClassCallExpression) {

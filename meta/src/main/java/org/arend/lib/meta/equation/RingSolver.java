@@ -9,6 +9,7 @@ import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.core.expr.CoreIntegerExpression;
+import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -155,7 +156,7 @@ public class RingSolver extends BaseEqualitySolver {
   private void typeToRule(CoreBinding binding, List<Equality> rules) {
     if (binding == null) return;
     CoreFunCallExpression eq = Utils.toEquality(binding.getTypeExpr(), null, null);
-    if (eq == null) return;
+    if (eq == null || !typechecker.compare(eq.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true)) return;
     CompiledTerm lhsTerm = compileTerm(eq.getDefCallArguments().get(1));
     CompiledTerm rhsTerm = compileTerm(eq.getDefCallArguments().get(2));
     if (isCommutative) {
@@ -220,10 +221,7 @@ public class RingSolver extends BaseEqualitySolver {
     if (isCommutative) {
       var rules = new ArrayList<Equality>();
       ContextHelper helper = new ContextHelper(hint);
-      for (CoreBinding binding : helper.getContextBindings(typechecker)) {
-        typeToRule(binding, rules);
-      }
-      for (CoreBinding binding : helper.getAdditionalBindings(typechecker)) {
+      for (CoreBinding binding : helper.getAllBindings(typechecker)) {
         typeToRule(binding, rules);
       }
 
