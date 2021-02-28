@@ -8,7 +8,7 @@ tasks.register<JavaExec>("cliCheck") {
     group = "verification"
     dependsOn(projectArend.task(":cli:jarDep"), tasks.named("classes"))
     main = "-jar"
-    val jarDepPath = projectArend.projectDir.resolve("cli/build/libs/cli-1.6.0-full.jar").absolutePath
+    val jarDepPath = projectArend.projectDir.resolve("cli/build/libs/cli-1.6.1-full.jar").absolutePath
     args(jarDepPath, "-tcr")
     workingDir(projectDir.parent)
 }
