@@ -134,7 +134,7 @@ public class StdExtension implements ArendExtension {
       "The latter can be used to specify the name of the argument which can be used in types of subsequent arguments.\n" +
       "The type of an argument is specified as either `e : E` or `e arg parameters : E`.\n" +
       "The flag 'addPath' indicates that argument `idp` with type `e = x` should be added after the current one, where `e` is the current argument and `x` is its name.\n" +
-      "That is, `cases (e arg addPath)` is equivalent to `cases (e arg (name = x), idp : e = x)`",
+      "That is, `cases (e arg addPath)` is equivalent to `cases (e arg (name = x), idp : e = x)`.",
       Precedence.DEFAULT, casesMeta);
     contributor.declare(meta, new LongName("mcases"),
       "`mcases {def} args default \\with { ... }` finds all invocations of definition `def` in the expected type and generate a \\case expression that matches arguments of those invocations.\n\n" +
@@ -148,16 +148,16 @@ public class StdExtension implements ArendExtension {
       "Parameters of found arguments can be specified in the second implicit argument.\n" +
       "The syntax is similar to the syntax for arguments in `cases`, but the expression should be omitted.\n" +
       "If the first implicit argument is `_`, it will be skipped.\n" +
-      "`mcases {def_1, ... def_n}` searches for occurrences of definitions `def_1`, ... `def_n`\n" +
-      "`mcases {def, i_1, ... i_n}` matches arguments only of `i_1`-th, ... `i_n`-th occurrences of `def`\n" +
-      "For example\n" +
-      "* `mcases {(def1,4),def2,(def3,1,2)}` looks for the 4th occurrence of `def1`, all occurrences of `def2`, and the first and the second occurrence of `def3`\n" +
-      "* `mcases {(1,2),(def,1)}` looks for the first and the second occurrence of a \\case expression and the first occurrence of `def`\n" +
-      "* `mcases {(def1,2),(),def2}` looks for the second occurrence of `def1`, all occurrences of \\case expressions, and all occurrences of `def2`\n" +
-      "* `mcases {_} {arg addPath, arg (), arg addPath}` looks for case expressions and adds a path argument after the first and the third matched expression",
+      "`mcases {def_1, ... def_n}` searches for occurrences of definitions `def_1`, ... `def_n`.\n" +
+      "`mcases {def, i_1, ... i_n}` matches arguments only of `i_1`-th, ... `i_n`-th occurrences of `def`.\n" +
+      "For example,\n" +
+      "* `mcases {(def1,4),def2,(def3,1,2)}` looks for the 4th occurrence of `def1`, all occurrences of `def2`, and the first and the second occurrence of `def3`.\n" +
+      "* `mcases {(1,2),(def,1)}` looks for the first and the second occurrence of a \\case expression and the first occurrence of `def`.\n" +
+      "* `mcases {(def1,2),(),def2}` looks for the second occurrence of `def1`, all occurrences of \\case expressions, and all occurrences of `def2`.\n" +
+      "* `mcases {_} {arg addPath, arg (), arg addPath}` looks for case expressions and adds a path argument after the first and the third matched expression.",
       Precedence.DEFAULT, new MatchingCasesMeta(this));
     contributor.declare(meta, new LongName("unfold"),
-      "`unfold (f_1, ... f_n) e` unfolds functions f_1, ... f_n in the expected type before type-checking of `e` and returns `e` itself.\n" +
+      "`unfold (f_1, ... f_n) e` unfolds functions `f_1`, ... `f_n` in the expected type before type-checking of `e` and returns `e` itself.\n" +
       "If the first argument is omitted, it unfold all fields.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
       Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), true, ExpressionTypechecker.Stage.AFTER_LEVELS));
@@ -189,15 +189,15 @@ public class StdExtension implements ArendExtension {
       "* If the goal is `transport (\\lam x => f x = g x) p q = s`, then the subgoal is `q *> pmap g p = pmap f p *> s`. If `f` does not depend on `x`, then the right hand side of the subgoal is simply `s`.",
       Precedence.DEFAULT, null, null, simpCoeMeta, new ClassExtResolver(this));
     contributor.declare(paths, new LongName("ext"),
-      "Proves goals of the form `a = {A} a'`. It expects (at most) one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
+      "Proves goals of the form `a = {A} a'`. It expects (at most) one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'\n" +
       "* If the goal is `f = {\\Pi (x_1 : A_1) ... (x_n : A_n) -> B} g`, then the subgoal is `\\Pi (x_1 : A_1) ... (x_n : A_n) -> f x_1 ... x_n = g x_1 ... x_n`\n" +
-      "* If the goal is `t = {\\Sigma (x_1 : A_1) ... (x_n : A_n) (y_1 : B_1 x_1 ... x_n) ... (y_k : B_k x_1 ... x_n) (z_1 : C_1) ... (z_m : C_m)} s`, where `C_i : \\Prop` and they can depend on on `x_j` and `y_l` for all `i`, `j`, and `l`," +
-        " then the subgoal is `\\Sigma (p_1 : t.1 = s.1) ... (p_n : t.n = s.n) D_1 ... D_k`, where `D_j` is equal to `coe (\\lam i => B (p_1 @ i) ... (p_n @ i)) t.{k + j - 1} right = s.{k + j - 1}`.\n" +
-      "* If the goal is `t = {R} s`, where `R` is a record, then the subgoal is defined in the same way as for \\Sigma-types." +
+      "* If the goal is `t = {\\Sigma (x_1 : A_1) ... (x_n : A_n) (y_1 : B_1 x_1 ... x_n) ... (y_k : B_k x_1 ... x_n) (z_1 : C_1) ... (z_m : C_m)} s`, where `C_i : \\Prop` and they can depend on `x_j` and `y_l` for all `i`, `j`, and `l`," +
+        " then the subgoal is `\\Sigma (p_1 : t.1 = s.1) ... (p_n : t.n = s.n) D_1 ... D_k`, where `D_j` is equal to `coe (\\lam i => B (p_1 @ i) ... (p_n @ i)) t.{k + j - 1} right = s.{k + j - 1}`\n" +
+      "* If the goal is `t = {R} s`, where `R` is a record, then the subgoal is defined in the same way as for \\Sigma-types" +
         " It is also possible to use the following syntax in this case: `ext R { | f_1 => e_1 ... | f_l => e_l }`, which is equivalent to `ext (e_1, ... e_l)`\n" +
       "* If the goal is `A = {\\Prop} B`, then the subgoal is `\\Sigma (A -> B) (B -> A)`\n" +
       "* If the goal is `A = {\\Type} B`, then the subgoal is `Equiv {A} {B}`\n" +
-      "* If the goal is `x = {P} y`, where `P : \\Prop`, then the argument for {ext} should be omitted.",
+      "* If the goal is `x = {P} y`, where `P : \\Prop`, then the argument for {ext} should be omitted",
       Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
     contributor.declare(paths, new LongName("exts"),
       "Similar to {ext}, but also applies either {simp_coe} or {ext} when a field of a \\Sigma-type or a record has an appropriate type.",
@@ -215,7 +215,7 @@ public class StdExtension implements ArendExtension {
     ModulePath algebra = ModulePath.fromString("Algebra.Meta");
     contributor.declare(algebra, new LongName("equation"),
         "`equation a_1 ... a_n` proves an equation a_0 = a_{n+1} using a_1, ... a_n as intermediate steps\n\n" +
-        "A proof of a_i = a_{i+1} can be specified as implicit arguments between them\n" +
+        "A proof of a_i = a_{i+1} can be specified as implicit arguments between them.\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context.\n" +
         "The first implicit argument can be either a universe or a subclass of either {Algebra.Monoid.Monoid}, {Algebra.Monoid.AddMonoid}, or {Order.Lattice.Bounded.MeetSemilattice}.\n" +
         "In the former case, the meta will prove an equality in a type without using any additional structure on it.\n" +
