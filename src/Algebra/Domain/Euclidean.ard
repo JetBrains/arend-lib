@@ -19,7 +19,7 @@
 \import Paths
 \import Paths.Meta
 \import Set \hiding (#)
-\open Monoid(LDiv)
+\open Monoid(LDiv,Inv)
 
 \class EuclideanSemiringData \extends CSemiring, DecSet {
   | euclideanMap : E -> Nat
@@ -312,25 +312,36 @@
   | decideEq => IntRing.decideEq
   | isEuclidean => inP IntEuclidean
 
-\lemma div_nat_int (d : LDiv {NatSemiring}) : LDiv (pos d.val) (pos d.elem) (pos d.inv) \cowith
+\lemma ldiv_nat_int (d : LDiv {NatSemiring}) : LDiv (pos d.val) (pos d.elem) (pos d.inv) \cowith
   | inv-right => pmap pos d.inv-right
 
-\lemma div_int_nat (d : LDiv {IntRing}) : LDiv (iabs d.val) (iabs d.elem) (iabs d.inv) \cowith
+\lemma ldiv_int_nat (d : LDiv {IntRing}) : LDiv (iabs d.val) (iabs d.elem) (iabs d.inv) \cowith
   | inv-right => inv iabs.*-comm *> pmap iabs d.inv-right
 
+\lemma inv_nat_int (d : Inv {NatSemiring}) : Inv (pos d.val) (pos d.inv) \cowith
+  | inv-left => pmap pos d.inv-left
+  | inv-right => pmap pos d.inv-right
+
+\lemma inv_int_nat (d : Inv {IntRing}) : Inv (iabs d.val) (iabs d.inv) \cowith
+  | inv-left => inv iabs.*-comm *> pmap iabs d.inv-left
+  | inv-right => inv iabs.*-comm *> pmap iabs d.inv-right
+
+\lemma inv_abs {x : Int} (d : Inv (iabs x)) : Inv x
+  => Inv.lmake (pos d.inv * signum x) (*-assoc *> pmap (_ *) (*-comm *> inv iabs.signum_*) *> pmap pos d.inv-left)
+
 \func gcd_nat_int (g : GCD {NatSemiring}) : GCD (pos g.val1) (pos g.val2) (pos g.gcd) \cowith
-  | gcd|val1 => div_nat_int g.gcd|val1
-  | gcd|val2 => div_nat_int g.gcd|val2
+  | gcd|val1 => ldiv_nat_int g.gcd|val1
+  | gcd|val2 => ldiv_nat_int g.gcd|val2
   | gcd-univ g' g'|a g'|b =>
-    \have abs_g'|g : LDiv (iabs g') g.gcd => g.gcd-univ (iabs g') (div_int_nat g'|a) (div_int_nat g'|b)
+    \have abs_g'|g : LDiv (iabs g') g.gcd => g.gcd-univ (iabs g') (ldiv_int_nat g'|a) (ldiv_int_nat g'|b)
     \in \new LDiv {
       | inv => signum g' * abs_g'|g.inv
       | inv-right => inv *-assoc *> pmap (`* _) (inv iabs.signum_*) *> pmap pos abs_g'|g.inv-right
     }
 
 \func gcd_int_nat (g : GCD {IntRing}) : GCD (iabs g.val1) (iabs g.val2) (iabs g.gcd) \cowith
-  | gcd|val1 => div_int_nat g.gcd|val1
-  | gcd|val2 => div_int_nat g.gcd|val2
+  | gcd|val1 => ldiv_int_nat g.gcd|val1
+  | gcd|val2 => ldiv_int_nat g.gcd|val2
   | gcd-univ g' (g'|a : LDiv) (g'|b : LDiv) =>
     \have pos_g'|g : LDiv (pos g') g.gcd => g.gcd-univ (pos g')
         (\new LDiv {
@@ -372,7 +383,7 @@
          gcd a b
 
 \func nat_gcd_*_div {a b c : Nat} (a|bc : LDiv a (b * c)) (a_b : gcd a b = 1) : LDiv a c
-  => div_int_nat (IntDomain.gcd_*_div {pos a} {pos b} {pos c} (div_nat_int a|bc) (gcd_nat_int (transport (GCD a b __) a_b (gcd-isGCD a b))))
+  => ldiv_int_nat (IntDomain.gcd_*_div {pos a} {pos b} {pos c} (ldiv_nat_int a|bc) (gcd_nat_int (transport (GCD a b __) a_b (gcd-isGCD a b))))
 
 \lemma nat_gcd-comm (a b : Nat) : gcd a b = gcd b a
   => nat_gcd-isUnique (gcd-isGCD a b) (GCD.swap (gcd-isGCD b a))

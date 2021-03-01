@@ -1,0 +1,76 @@
+\import Algebra.Domain
+\import Algebra.Domain.Euclidean
+\import Algebra.Domain.GCD
+\import Algebra.Monoid
+\import Algebra.Monoid.Prime
+\import Arith.Int
+\import Arith.Nat
+\import Data.Bool
+\import Logic
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set
+\open Nat(mod,-)
+\open Monoid
+
+-- A few characterizations of primality for natural numbers
+
+\lemma nat_irr-isPrime (p : Irr {NatSemiring}) : Prime p p.notInv \cowith
+  | isCancelable-left => p.isCancelable-left
+  | isPrime {x} {y} p|x*y =>
+    \let irr => \new Irr (pos p) (\lam p-inv => p.notInv (inv_int_nat p-inv)) (\lam {x} {y} p=x*y => \case p.isIrr {iabs x} {iabs y} (pmap iabs p=x*y *> iabs.*-comm) \with {
+      | byLeft x-inv => byLeft (inv_abs x-inv)
+      | byRight y-inv => byRight (inv_abs y-inv)
+    }) (\lam {_} {_} => Domain.nonZero-cancel-left (\lam p=0 => p.notIdemp (transportInv (\lam e => e = e * e) (pmap iabs p=0) idp)))
+    \in \case Prime.isPrime {IntDomain.irr-isPrime irr} {x} {y} (ldiv_nat_int p|x*y) \with {
+          | byLeft p|x => byLeft (ldiv_int_nat p|x)
+          | byRight p|y => byRight (ldiv_int_nat p|y)
+        }
+
+\lemma prime-div {n : Nat} : Prime n = (\Sigma (n /= 1) (\Pi {k : Nat} -> LDiv k n -> (k = n) || (k = 1)))
+  => propExt (\lam (p : Prime n) => ((\lam n=1 => p.notInv (rewrite n=1 Inv.ide-isInv)), dir p)) (\lam t => conv t.1 t.2)
+  \where {
+    \lemma dir {n : Nat} (p : Irr n) {k : Nat} (k|n : LDiv k n) : (k = n) || (k = 1)
+      => \case p.isIrr (inv k|n.inv-right) \with {
+        | byLeft (s : Inv k) => byRight (natUnit s.inv-left)
+        | byRight (s : Inv k|n.inv) => byLeft (inv (pmap (k *) (natUnit s.inv-left)) *> k|n.inv-right)
+      }
+
+    \lemma conv {n : Nat} (n/=1 : n /= 1) (f : \Pi {k : Nat} -> LDiv k n -> (k = n) || (k = 1)) : Prime n
+      => \have n/=0 : n /= 0 => \lam n=0 => \case f {2} (\new LDiv { | inv => 0 | inv-right => inv n=0 }) \with {
+           | byLeft n=2 => \case n=2 *> n=0
+           | byRight ()
+         }
+         \in nat_irr-isPrime (\new Irr n {
+           | notInv (n-inv : Inv) => n/=1 (natUnit n-inv.inv-left)
+           | isIrr {x} {y} n=x*y => \case f {x} (\new LDiv { | inv => y | inv-right => inv n=x*y }) \with {
+             | byLeft x=n => byRight (rewriteI (NatSemiring.cancel_*-left n/=0 (n=x*y *> pmap (`* _) x=n)) Inv.ide-isInv)
+             | byRight x=1 => byLeft (rewrite x=1 Inv.ide-isInv)
+           }
+           | isCancelable-left => NatSemiring.cancel_*-left n/=0
+         })
+  }
+
+\lemma prime-less {n : Nat} : Prime n = (\Sigma (n > 1) (\Pi {k : Nat} -> k < n -> LDiv k n -> k = 1))
+  => propExt (\lam p => (\case \elim n, p \with {
+    | 0, p : Prime 0 => \case p.isCancelable-left {0} {1} idp
+    | 1, p : Prime 1 => absurd (p.notInv Inv.ide-isInv)
+    | suc (suc n), _ => Nat.suc<=suc (Nat.suc<=suc Nat.zero<=_)
+  }, dir p)) (\lam t => conv t.1 t.2)
+  \where {
+    \lemma dir {n : Nat} (p : Irr n) {k : Nat} (k<n : k < n) (k|n : LDiv k n) : k = 1
+      => \case prime-div.dir p k|n \with {
+           | byLeft k=n => absurd (<-irreflexive {_} {k} (transportInv (k <) k=n k<n))
+           | byRight k=1 => k=1
+         }
+
+    \lemma conv {n : Nat} (n>1 : n > 1) (f : \Pi {k : Nat} -> k < n -> LDiv k n -> k = 1) : Prime n
+      => prime-div.conv (\lam n=1 => <-irreflexive {_} {n} (transportInv (`< n) n=1 n>1)) (\lam {k} k|n => \case LinearOrder.trichotomy k n \with {
+        | LinearOrder.less k<n => byRight (f k<n k|n)
+        | LinearOrder.equals k=n => byLeft k=n
+        | LinearOrder.greater k>n => absurd (<-irreflexive {_} {n} (<=-transitive k>n (ldiv_<= (\lam n=0 => \case transport (1 <) n=0 n>1) k|n)))
+      })
+  }
