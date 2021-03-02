@@ -1,19 +1,21 @@
 \import Algebra.Domain
 \import Algebra.Domain.Euclidean
 \import Algebra.Domain.GCD
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Prime
 \import Arith.Int
 \import Arith.Nat
 \import Data.Bool
 \import Logic
+\import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Set
-\open Nat(mod,-)
+\open Nat(mod,-,suc<=suc,zero<=_)
 \open Monoid
 
 -- A few characterizations of primality for natural numbers
@@ -58,7 +60,7 @@
   => propExt (\lam p => (\case \elim n, p \with {
     | 0, p : Prime 0 => \case p.isCancelable-left {0} {1} idp
     | 1, p : Prime 1 => absurd (p.notInv Inv.ide-isInv)
-    | suc (suc n), _ => Nat.suc<=suc (Nat.suc<=suc Nat.zero<=_)
+    | suc (suc n), _ => suc<=suc (suc<=suc zero<=_)
   }, dir p)) (\lam t => conv t.1 t.2)
   \where {
     \lemma dir {n : Nat} (p : Irr n) {k : Nat} (k<n : k < n) (k|n : LDiv k n) : k = 1
@@ -74,3 +76,137 @@
         | LinearOrder.greater k>n => absurd (<-irreflexive {_} {n} (<=-transitive k>n (ldiv_<= (\lam n=0 => \case transport (1 <) n=0 n>1) k|n)))
       })
   }
+
+-- A primality test
+
+\func isPrime (n : Nat) : Bool
+  | 0 => false
+  | 1 => false
+  | 2 => true
+  | n => isPositive (n mod 2) and rec n n 3
+  \where {
+    \func isPositive (n : Nat) : Bool
+      | 0 => false
+      | _ => true
+
+    \func \infix 4 < (n m : Nat) : Bool => \case n - m \with {
+      | pos _ => false
+      | neg (suc _) => true
+    }
+
+    \func rec (n c j : Nat) : Bool \elim c
+      | 0 => true
+      | suc c => n < j * j or isPositive (n mod j) and rec n c (suc (suc j))
+  }
+
+\open isPrime \hiding (<)
+
+\lemma isPrime=>prime {n : Nat} (p : isPrime n = true) : Prime n \elim n, p
+  | 2, _ => prime-less.conv (suc<=suc (suc<=suc zero<=_)) (\lam {k} k<2 k|2 => \case \elim k, k<2, k|2 \with {
+    | 0, _, q : LDiv => \case *-comm *> q.inv-right
+    | 1, _, _ => idp
+    | suc (suc _), suc<=suc (suc<=suc ()), _
+  })
+  | suc (suc (suc _)) \as n, p => prime-lem (suc<=suc (suc<=suc zero<=_)) (mod_div-lem (and.toSigma p).1) (rec-lem {n} {n} (and.toSigma p).2 () (<=_0_+-right 2))
+  \where {
+    \lemma mod_div-lem {k n : Nat} (p : isPositive (n mod k) = true) : Not (LDiv k n)
+      => \lam k|n => \case rewriteF (div_mod k|n) p
+
+    \func isOdd (n : Nat) : \Prop \elim n
+      | 0 => Empty
+      | 1 => \Sigma
+      | suc (suc n) => isOdd n
+
+    \lemma square_<=-lem {k : Nat} : k <= k * k \elim k
+      | 0 => zero<=_
+      | suc k => <=_* <=-reflexive (suc<=suc zero<=_)
+
+    \lemma odd_suc-lem {j : Nat} (j-odd : isOdd j) (sj-odd : isOdd (suc j)) : Empty \elim j
+      | 0 => j-odd
+      | 1 => sj-odd
+      | suc (suc j) => odd_suc-lem j-odd sj-odd
+
+    \lemma odd-lem {j k : Nat} (j-odd : isOdd j) (k-odd : isOdd k) (j<=k : j <= k) (j/=k : j /= k) : suc (suc j) <= k
+      => \case k -' j \as t, <=-+ j<=k : j + t = k \with {
+           | 0, j=k => absurd (j/=k j=k)
+           | 1, p => absurd (odd_suc-lem j-odd (transportInv isOdd p k-odd))
+           | suc (suc t), p => transport (suc (suc j) <=) p (suc<=suc (suc<=suc (<=_0_+-right t)))
+         }
+
+    \lemma rec-lem {n c j : Nat} (p : rec n c j = true) (j-odd : isOdd j) (s : n < c + j) {k : Nat} (k-odd : isOdd k) (j<=k : j <= k) (k*k<=n : k * k <= n) (k|n : LDiv k n) : Empty \elim c
+      | 0 => <-irreflexive {_} {n} (equation {using (square_<=-lem {k})})
+      | suc c => \case or.toOr p \with {
+        | byLeft t => mcases {_} {arg addPath} t _ \with {
+          | pos _, _, t' => \case t'
+          | neg (suc n1), q, _ => <-irreflexive {_} {n} (equation {NatSemiring.triLess q} {<=_* j<=k j<=k} {k*k<=n})
+        }
+        | byRight t => \case decideEq j k \with {
+          | yes j=k => mod_div-lem (and.toSigma t).1 (transportInv (LDiv __ n) j=k k|n)
+          | no j/=k => rec-lem (and.toSigma t).2 j-odd (<=-transitive s (suc<=suc <=-suc)) k-odd (odd-lem j-odd k-odd j<=k j/=k) k*k<=n k|n
+        }
+      }
+
+    \lemma oddOrEven (n : Nat) : isOdd n || LDiv 2 n
+      | 0 => byRight (\new LDiv { | inv => 0 | inv-right => idp })
+      | 1 => byLeft ()
+      | suc (suc n) => \case oddOrEven n \with {
+        | byLeft r => byLeft r
+        | byRight (d : LDiv 2 n) => byRight (\new LDiv {
+          | inv => suc d.inv
+          | inv-right => pmap (\lam t => suc (suc t)) d.inv-right
+        })
+      }
+
+    \lemma prime-lem {n : Nat} (n>1 : n > 1) (div2 : Not (LDiv 2 n)) (divOdd : \Pi {k : Nat} -> isOdd k -> 3 <= k -> k * k <= n -> Not (LDiv k n)) : Prime n
+      => prime-lem2 n>1 (\lam {k} => \case \elim k, oddOrEven k \with {
+        | 0, byLeft ()
+        | 1, byLeft odd => \lam _ _ => idp
+        | 2, byLeft ()
+        | suc (suc (suc _)) \as k, byLeft odd => \lam p k|n => absurd (divOdd {k} odd (suc<=suc (suc<=suc (suc<=suc zero<=_))) p k|n)
+        | k, byRight even => \lam _ k|n => absurd (div2 (LDiv.trans even k|n))
+      })
+
+    \lemma prime-lem2 {n : Nat} (n>1 : n > 1) (f : \Pi {j : Nat} -> j * j <= n -> LDiv j n -> j = 1) : Prime n
+      => prime-less.conv n>1 (\lam {k} k<n (k|n : LDiv k n) => \case totality k k|n.inv \with {
+        | byLeft k<=i => f (transport (k * k <=) k|n.inv-right (<=_* <=-reflexive k<=i)) k|n
+        | byRight i<=k =>
+          \have i=1 => f (transport (k|n.inv * k|n.inv <=) k|n.inv-right (<=_* i<=k <=-reflexive)) (\new LDiv k|n.inv n k (*-comm *> k|n.inv-right))
+          \in absurd (<-irreflexive {_} {n} (transport (`< n) (pmap (_ *) (inv i=1) *> k|n.inv-right) k<n))
+      })
+  }
+
+\lemma prime=>isPrime {n : Nat} (p : Prime n) : isPrime n = true \elim n
+  | 0 => \case p.isCancelable-left {0} {1} idp
+  | 1 => absurd (p.notInv Inv.ide-isInv)
+  | 2 => idp
+  | suc (suc (suc _)) \as n => and.fromSigma (mod-lem p (suc<=suc (suc<=suc (suc<=suc zero<=_))) (\case __), rec-lem {n} {n} p (suc<=suc (suc<=suc zero<=_)))
+  \where {
+    \lemma mod-lem {k n : Nat} (p : Prime n) (k<n : k < n) (k/=1 : k /= 1) : isPositive (n mod k) = true
+      => mcases {isPositive} {arg addPath} \with {
+        | 0, q => absurd (k/=1 (prime-less.dir p k<n (mod_div q)))
+        | suc _, _ => idp
+      }
+
+    \lemma <-lem {n m : Nat} (n<m : n < m) : n isPrime.< m = true => unfold (isPrime.<) (mcases {_} {arg addPath} \with {
+      | 0, p => absurd (<-irreflexive {_} {n} (transportInv (n <) (NatSemiring.triEquals p) n<m))
+      | pos (suc k), p => absurd (<-irreflexive {_} {n} (<-transitive {_} {n} n<m (NatSemiring.triGreater p)))
+      | neg (suc k), _ => idp
+    })
+
+    \lemma square_<-lem {j : Nat} (j>1 : j > 1) : suc j < j * j \elim j, j>1
+      | 1, suc<=suc ()
+      | suc (suc j), _ => suc<=suc (suc<=suc (suc<=suc (suc<=suc (<=_0_+-left _))))
+
+    \lemma rec-lem {n c j : Nat} (p : Prime n) (j>1 : j > 1) : rec n c j = true \elim c
+      | 0 => idp
+      | suc c => or.fromOr (\case totality (suc j) n \with {
+        | byLeft j<n => byRight (and.fromSigma (mod-lem p j<n (\case rewriteF __ j>1 \with { | suc<=suc () }), rec-lem p (<=-transitive j>1 (<=-transitive <=-suc <=-suc))))
+        | byRight n<=j+1 => byLeft (<-lem (<=-transitive (suc<=suc n<=j+1) (square_<-lem j>1)))
+      })
+  }
+
+\func prime-isDec {n : Nat} : Dec (Prime n)
+  => \case isPrime n \as b, idp : isPrime n = b \with {
+       | true, p => yes (isPrime=>prime p)
+       | false, p => no (\lam c => \case inv (prime=>isPrime c) *> p)
+     }
