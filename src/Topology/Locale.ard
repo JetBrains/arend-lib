@@ -3,10 +3,12 @@
 \import Data.Bool
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Order.Lattice \hiding (DistributiveLattice)
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
 \import Set
 \import Set.Category
 \open Bounded(DistributiveLattice,top)
@@ -15,7 +17,7 @@
   | Join {J : \Set} : (J -> E) -> E
   | Join-cond {J : \Set} (j : J) {f : J -> E} : f j <= Join f
   | Join-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> f j <= e) -> Join f <= e
-  | Join-distr {J : \Set} {f : J -> E} {e : E} : e ∧ Join f = Join (\lam (j : J) => e ∧ f j)
+  | Join-ldistr>= {J : \Set} {f : J -> E} {e : E} : e ∧ Join f <= Join (\lam (j : J) => e ∧ f j)
 
   | bottom => Join absurd
   | bottom-univ {x} => Join-univ (\case __)
@@ -26,10 +28,13 @@
     | true => x<=z
     | false => y<=z
   })
-  | distrib>= {x} {y} {z} => rewrite Join-distr (Join-univ (\case \elim __ \with {
-    | true => join-left
-    | false => join-right
-  }))
+  | ldistr>= {x} {y} {z} =>
+    \have t : (\lam b => if b (x ∧ y) (x ∧ z)) = (\lam b => x ∧ if b y z)
+            => ext (\lam b => cases b idp)
+    \in unfold (rewrite t Join-ldistr>=)
+
+  \lemma Join-ldistr {J : \Set} {f : J -> E} {e : E} : e ∧ Join f = Join (\lam (j : J) => e ∧ f j)
+    => <=-antisymmetric Join-ldistr>= (Join-univ (\lam j => meet-univ meet-left (<=-transitive meet-right (Join-cond j))))
 }
 
 \record FrameHom \extends SetHom {
@@ -68,3 +73,56 @@
   })
 
 \instance LocaleCat => op FrameCat
+
+{- | Presentation of frames.
+ -   {conj} represents meets and {BasicCover} represents relation `__ <= Join __`.
+ -}
+\class FramePres \extends BaseSet
+  | conj : E -> E -> E
+  | BasicCover {J : \Set} : E -> (J -> E) -> \Prop
+
+\truncated \data Cover {P : FramePres} (x : P) (U : P -> \Prop) : \Prop
+  | cover-basic {J : \Set} {f : J -> P} (BasicCover x f) (\Pi (j : J) -> U (f j))
+  | cover-inj (U x)
+  | cover-trans {V : P -> \Prop} (xV : Cover x V) (\Pi (y : P) -> V y -> Cover y U)
+  | cover-proj1 {a b : P} (x = conj a b) (U a)
+  | cover-proj2 {a b : P} (x = conj a b) (U b)
+  | cover-idemp (U (conj x x))
+  | cover-distr {a b : P} (x = conj a b) {V : P -> \Prop} (Cover b V) (\Pi (y : P) -> V y -> U (conj a y))
+
+{- | We can define the underlying set of {PresentedFrame} as the quotient of the set `P -> \Prop`
+ -   under the relation `\Sigma (U <= V) (V <= U)`, where `U <= V` iff `\Pi (x : P) -> U x -> Cover x V`.
+ -   Alternatively, we can define this set as a maximal element of an equivalence class.
+ -   A subset is maximal if every element covered by it actually belongs to it.
+ -   We use the second option.
+ -}
+\instance PresentedFrame {P : FramePres} : Locale
+  | E => \Sigma (U : P -> \Prop) (\Pi (x : P) -> Cover x U -> U x)
+  | <= U V => \Pi {x : P} -> U.1 x -> V.1 x
+  | <=-reflexive u => u
+  | <=-transitive U<=V V<=W xU => V<=W (U<=V xU)
+  | <=-antisymmetric U<=V V<=U => exts (\lam x => ext (U<=V, V<=U))
+  | meet U V => closure (\lam x => ∃ (a b : P) (x = conj a b) (U.1 a) (V.1 b))
+  | meet-left {U} {V} => \lam {x} c => U.2 x (cover-trans c (\lam y t => \case \elim t \with {
+    | inP (a,b,y=ab,aU,_) => cover-proj1 y=ab aU
+  }))
+  | meet-right {U} {V} => \lam {x} c => V.2 x (cover-trans c (\lam y t => \case \elim t \with {
+    | inP (a,b,y=ab,_,bV) => cover-proj2 y=ab bV
+  }))
+  | meet-univ {U} {V} {W} W<=U W<=V => \lam {x} xW => cover-trans (cover-idemp {P} {x} {__ = conj x x} idp) (\lam y y=xx => cover-inj (inP (x, x, y=xx, W<=U xW, W<=V xW)))
+  | top => (\lam _ => \Sigma, \lam _ _ => ())
+  | top-univ => \lam _ => ()
+  | Join {J} f => closure (\lam x => ∃ (j : J) ((f j).1 x))
+  | Join-cond j => \lam c => cover-inj (inP (j,c))
+  | Join-univ {J} {f} {U} d {x} c => U.2 x (cover-trans c (\lam y t => \case \elim t \with {
+    | inP (j,u) => cover-inj (d j u)
+  }))
+  | Join-ldistr>= => \lam c => cover-trans c (\lam y t => \case \elim t \with {
+    | inP (a,b,y=ab,aU,bF) => cover-distr y=ab bF (\lam z t => \case \elim t \with {
+      | inP (j,zFj) => inP (j, cover-inj (inP (a,z,idp,aU,zFj)))
+    })
+  })
+  \where {
+    \func closure {P : FramePres} (U : P -> \Prop) : \Sigma (U : P -> \Prop) (\Pi (x : P) -> Cover x U -> U x)
+      => (Cover __ U, \lam x c => cover-trans c (\lam y yU => yU))
+  }
