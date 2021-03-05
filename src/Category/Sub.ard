@@ -1,6 +1,11 @@
 \import Category
-\import Equiv (Embedding, Retraction)
+\import Category.Functor
+\import Category.Limit
+\import Equiv \hiding (Map)
+\import Function.Meta
+\import Meta
 \import Paths
+\import Paths.Meta
 
 \func subPrecat {C : Precat} {X : \Type} (f : X -> C) : Precat X \cowith
   | Hom x y => Hom (f x) (f y)
@@ -15,3 +20,22 @@
   | univalence (j : Iso) =>
     \have (t,r) => univalence (\new Iso j.f j.inv j.inv_f j.f_inv)
     \in (Retraction.sec {e.isEmb j.dom j.cod} t, pmap (transport (Hom (e.f j.dom)) __ (id (e.f j.dom))) (Retraction.f_sec {e.isEmb j.dom j.cod} t) *> r)
+
+\class ReflectiveSubPrecat \extends FullyFaithfulFunctor
+  | reflector : D -> C
+  | reflectorMap (X : D) : Hom X (F (reflector X))
+  | reflector-univ {X : D} {Y : C} : Equiv {Hom (reflector X) Y} {Hom X (F Y)} (Func __ ∘ reflectorMap X)
+
+\func reflectiveSubPrecatColimit {J : SmallPrecat} (I : ReflectiveSubPrecat) (F : Functor J (opP I.C)) (c : Limit (Comp I.op F)) : Limit F \cowith
+  | apex => I.reflector c.apex
+  | coneMap j => I.inverse (reflectorMap _ ∘ c.coneMap j)
+  | coneCoh h => I.isFaithful $ run {
+    rewrite I.Func-o,
+    repeat {2} (rewrite I.inverse-right),
+    rewrite o-assoc,
+    pmap (_ ∘) (c.coneCoh h)
+  }
+  | isLimit z => TwoOutOfThree.rightFactorPath
+      (Cone.mapEquiv I.op {J} {F} z)
+      (transEquiv I.reflector-univ (c.isLimit (I z)))
+      (ext (\lam h => exts (\lam j => I.Func-o _ _ *> pmap (_ ∘) (I.inverse-right _) *> inv (o-assoc _ _ _))))

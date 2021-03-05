@@ -1,12 +1,27 @@
 \import Category
+\import Equiv \hiding (Map)
+\import Logic
+\import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
 
-\class Functor (C D : Precat) (\classifying F : C -> D)
+\class Functor (C D : Precat) (\classifying F : C -> D) {
   | Func {X Y : C} : Hom X Y -> Hom (F X) (F Y)
   | Func-id {X : C} : Func (id X) = id (F X)
-  | Func-o {X Y Z : C} {g : Hom Y Z} {f : Hom X Y} : Func (g ∘ f) = Func g ∘ Func f
+  | Func-o {X Y Z : C} (g : Hom Y Z) (f : Hom X Y) : Func (g ∘ f) = Func g ∘ Func f
+
+  \func op : Functor (opP C) (opP D) F \cowith
+    | Func f => Func f
+    | Func-id => Func-id
+    | Func-o g f => Func-o f g
+}
+
+\func Comp {C D E : Precat} (G : Functor D E) (F : Functor C D) : Functor C E \cowith
+  | F X => G (F X)
+  | Func f => G.Func (F.Func f)
+  | Func-id {_} => pmap G.Func F.Func-id *> G.Func-id
+  | Func-o g f => pmap G.Func (F.Func-o g f) *> G.Func-o (F.Func g) (F.Func f)
 
 \record NatTrans {C D : Precat} (F G : Functor C D)
   | \coerce trans (X : C) : Hom (F X) (G X)
@@ -46,3 +61,38 @@
       | inv_f => path (\lam i => trans {e.inv_f @ i} X)
       | f_inv => path (\lam i => trans {e.f_inv @ i} X)
   }
+
+\class FaithfulFunctor \extends Functor {
+  | isFaithful {X Y : C} {f g : Hom X Y} : Func f = Func g -> f = g
+
+  \func op : FaithfulFunctor \cowith
+    | Functor => Functor.op
+    | isFaithful p => isFaithful p
+}
+
+\class FullFunctor \extends Functor {
+  | isFull {X Y : C} (f : Hom (F X) (F Y)) : ∃ (g : Hom X Y) (Func g = f)
+
+  \func op : FullFunctor \cowith
+    | Functor => Functor.op
+    | isFull f => isFull f
+}
+
+\class FullyFaithfulFunctor \extends FullFunctor, FaithfulFunctor {
+  | isFullyFaithful {X Y : C} : Equiv (Func {_} {X} {Y})
+  | isFull f => Surjection.isSurj {ESEquiv.fromEquiv isFullyFaithful} f
+  | isFaithful p => Embedding.isInjection {ESEquiv.fromEquiv isFullyFaithful} p
+
+  \func op : FullyFaithfulFunctor \cowith
+    | Functor => Functor.op
+    | isFullyFaithful {_} {_} => isFullyFaithful
+
+  \func inverse {X Y : C} (f : Hom (F X) (F Y)) : Hom X Y
+    => isFullyFaithful.sec f
+
+  \lemma inverse-left {X Y : C} (f : Hom X Y) : inverse (Func f) = f
+    => inv (isFullyFaithful.ret_f _) *> pmap isFullyFaithful.ret (isFullyFaithful.f_sec _) *> isFullyFaithful.ret_f _
+
+  \lemma inverse-right {X Y : C} (f : Hom (F X) (F Y)) : Func (inverse f) = f
+    => isFullyFaithful.f_sec f
+}
