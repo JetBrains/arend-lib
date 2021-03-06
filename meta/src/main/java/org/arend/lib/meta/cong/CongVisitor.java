@@ -68,7 +68,8 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
 
   @Override
   protected Result visit(CoreExpression expr1, CongVisitor.ParamType param) {
-    if (typechecker.compare(expr1, param.other, CMP.EQ, marker, false, true)) {
+    CoreExpression other = param.other.getUnderlyingExpression();
+    if (typechecker.compare(expr1, other, CMP.EQ, marker, false, true)) {
       return new Result(null, false);
     } else {
       if (index++ >= arguments.size()) {
@@ -78,7 +79,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
         ConcreteExpression arg = arguments.get(index - 1);
         if (typeArg != null) {
           ConcreteExpression arg1 = expr1 instanceof CoreIntegerExpression ? factory.number(((CoreIntegerExpression) expr1).getBigInteger()) : factory.core(expr1.computeTyped());
-          ConcreteExpression arg2 = param.other instanceof CoreIntegerExpression ? factory.number(((CoreIntegerExpression) param.other).getBigInteger()) : factory.core(param.other.computeTyped());
+          ConcreteExpression arg2 = other instanceof CoreIntegerExpression ? factory.number(((CoreIntegerExpression) other).getBigInteger()) : factory.core(other.computeTyped());
           arg = factory.typed(arg, typeArg.abstracted
             ? factory.app(factory.ref(prelude.getPath().getRef()), true, Arrays.asList(typeArg.expression, arg1, arg2))
             : factory.app(factory.ref(prelude.getEquality().getRef()), true, Arrays.asList(arg1, arg2)));
@@ -156,20 +157,22 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
 
   @Override
   public Result visitInteger(@NotNull CoreIntegerExpression expr, ParamType param) {
-    return param.other instanceof CoreConCallExpression && ((CoreConCallExpression) param.other).getDefinition() == prelude.getSuc() ? visitInteger((CoreConCallExpression) param.other, expr, true) : visit(expr, param);
+    CoreExpression other = param.other.getUnderlyingExpression();
+    return other instanceof CoreConCallExpression && ((CoreConCallExpression) other).getDefinition() == prelude.getSuc() ? visitInteger((CoreConCallExpression) other, expr, true) : visit(expr, param);
   }
 
   @Override
   public Result visitConCall(@NotNull CoreConCallExpression conCall1, ParamType param) {
-    if (conCall1.getDefinition() == prelude.getSuc() && param.other instanceof CoreIntegerExpression) {
-      return visitInteger(conCall1, (CoreIntegerExpression) param.other, false);
+    CoreExpression other = param.other.getUnderlyingExpression();
+    if (conCall1.getDefinition() == prelude.getSuc() && other instanceof CoreIntegerExpression) {
+      return visitInteger(conCall1, (CoreIntegerExpression) other, false);
     }
 
-    if (!(param.other instanceof CoreConCallExpression)) {
+    if (!(other instanceof CoreConCallExpression)) {
       return visit(conCall1, param);
     }
 
-    CoreConCallExpression conCall2 = (CoreConCallExpression) param.other;
+    CoreConCallExpression conCall2 = (CoreConCallExpression) other;
     if (conCall1.getDefinition() != conCall2.getDefinition()) {
       return visit(conCall1, param);
     }
@@ -186,11 +189,12 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   }
 
   private Result visitDefCall(@NotNull CoreDefCallExpression defCall1, ParamType param) {
-    if (!(param.other instanceof CoreDefCallExpression)) {
+    CoreExpression other = param.other.getUnderlyingExpression();
+    if (!(other instanceof CoreDefCallExpression)) {
       return visit(defCall1, param);
     }
 
-    CoreDefCallExpression defCall2 = (CoreDefCallExpression) param.other;
+    CoreDefCallExpression defCall2 = (CoreDefCallExpression) other;
     if (defCall1.getDefinition() != defCall2.getDefinition()) {
       return visit(defCall1, param);
     }
@@ -212,14 +216,15 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
 
   @Override
   public Result visitApp(@NotNull CoreAppExpression expr, ParamType parameter) {
-    if (!(parameter.other instanceof CoreAppExpression)) {
+    CoreExpression other = parameter.other.getUnderlyingExpression();
+    if (!(other instanceof CoreAppExpression)) {
       return visit(expr, parameter);
     }
 
     List<CoreExpression> args1 = new ArrayList<>();
     List<CoreExpression> args2 = new ArrayList<>();
     CoreExpression expr1 = expr;
-    CoreExpression expr2 = parameter.other;
+    CoreExpression expr2 = other;
     while (expr1 instanceof CoreAppExpression && expr2 instanceof CoreAppExpression) {
       args1.add(((CoreAppExpression) expr1).getArgument());
       args2.add(((CoreAppExpression) expr2).getArgument());

@@ -57,7 +57,7 @@ public class UnfoldMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
-    return arguments.get(1).getExpression();
+    return arguments.size() > 1 ? arguments.get(1).getExpression() : arguments.get(0).getExpression();
   }
 
   @Override
