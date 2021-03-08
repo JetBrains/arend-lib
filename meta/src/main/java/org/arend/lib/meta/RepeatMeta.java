@@ -34,6 +34,11 @@ public class RepeatMeta extends MetaInvocationMeta {
     return true;
   }
 
+  @Override
+  protected boolean allowNonMeta() {
+    return false;
+  }
+
   private ConcreteExpression computeConcrete(int steps, List<? extends ConcreteArgument> args, ConcreteFactory factory) {
     ConcreteExpression result = args.get(1).getExpression();
     for (int i = 0; i < steps; i++) {

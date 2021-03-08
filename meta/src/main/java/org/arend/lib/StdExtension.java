@@ -157,7 +157,7 @@ public class StdExtension implements ArendExtension {
       "* `mcases {_} {arg addPath, arg (), arg addPath}` looks for case expressions and adds a path argument after the first and the third matched expression.",
       Precedence.DEFAULT, new MatchingCasesMeta(this));
     contributor.declare(meta, new LongName("unfold"),
-      "`unfold (f_1, ... f_n) e` unfolds functions `f_1`, ... `f_n` in the expected type before type-checking of `e` and returns `e` itself.\n" +
+      "`unfold (f_1, ... f_n) e` unfolds functions/fields/variables `f_1`, ... `f_n` in the expected type before type-checking of `e` and returns `e` itself.\n" +
       "If the first argument is omitted, it unfold all fields.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
       Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), true, ExpressionTypechecker.Stage.AFTER_LEVELS));

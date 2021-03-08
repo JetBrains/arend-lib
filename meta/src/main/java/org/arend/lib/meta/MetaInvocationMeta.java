@@ -29,6 +29,10 @@ public abstract class MetaInvocationMeta extends BaseMetaDefinition {
     return false;
   }
 
+  protected boolean allowNonMeta() {
+    return true;
+  }
+
   private List<? extends ConcreteArgument> mergeArgs(List<? extends ConcreteArgument> args1, List<? extends ConcreteArgument> args2, int currentArg) {
     if (keepMetaArgument()) {
       return args2.subList(currentArg, args2.size());
@@ -106,8 +110,17 @@ public abstract class MetaInvocationMeta extends BaseMetaDefinition {
       }
     }
     if (meta == null) {
-      typechecker.getErrorReporter().report(new TypecheckingError("Expected a meta definition", arg));
-      return null;
+      if (allowNonMeta()) {
+        return invokeMeta(new MetaDefinition() {
+          @Override
+          public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+            return typechecker.typecheck(args.get(currentArg).getExpression(), contextData.getExpectedType());
+          }
+        }, implicitArgs, typechecker, contextData);
+      } else {
+        typechecker.getErrorReporter().report(new TypecheckingError("Expected a meta definition", arg));
+        return null;
+      }
     }
 
     contextData.setArguments(mergeArgs(metaArgs, args, currentArg));

@@ -1,6 +1,8 @@
 \import Category
 \import Category.Meta
+\import Category.Sub
 \import Data.Bool
+\import Equiv (ESEquiv, Embedding, Equiv, QEquiv)
 \import Logic
 \import Logic.Meta
 \import Meta
@@ -11,7 +13,8 @@
 \import Relation.Equivalence
 \import Set
 \import Set.Category
-\open Bounded(DistributiveLattice,top)
+\open Bounded(DistributiveLattice,top,top-univ)
+\open MeetSemilattice(meet-comm,meet-idemp)
 
 \class Locale \extends DistributiveLattice {
   | Join {J : \Set} : (J -> E) -> E
@@ -35,6 +38,15 @@
 
   \lemma Join-ldistr {J : \Set} {f : J -> E} {e : E} : e ∧ Join f = Join (\lam (j : J) => e ∧ f j)
     => <=-antisymmetric Join-ldistr>= (Join-univ (\lam j => meet-univ meet-left (<=-transitive meet-right (Join-cond j))))
+
+  \lemma Join-rdistr {J : \Set} {f : J -> E} {e : E} : Join f ∧ e = Join (\lam (j : J) => f j ∧ e)
+    => meet-comm *> Join-ldistr *> pmap Join (ext (\lam j => meet-comm))
+
+  \lemma Join-double {I J : \Set} {f : I -> J -> E} : Join (\lam i => Join (\lam j => f i j)) = Join (\lam (p : \Sigma I J) => f p.1 p.2)
+    => <=-antisymmetric (Join-univ (\lam i => Join-univ (\lam j => Join-cond (i,j)))) (Join-univ (\lam p => <=-transitive (Join-cond p.2) (Join-cond p.1)))
+
+  \lemma Join-distr {I J : \Set} {f : I -> E} {g : J -> E} : Join f ∧ Join g = Join (\lam (p : \Sigma I J) => f p.1 ∧ g p.2)
+    => Join-rdistr *> path (\lam i => Join (\lam i' => Join-ldistr {_} {J} {g} {f i'} @ i)) *> Join-double {_} {I} {J} {\lam i j => f i ∧ g j}
 }
 
 \record FrameHom \extends SetHom {
@@ -43,9 +55,13 @@
   | func-top : func top = top
   | func-meet {x y : Dom} : func (x ∧ y) = func x ∧ func y
   | func-Join {J : \Set} {f : J -> Dom} : func (Join f) = Join (\lam j => func (f j))
+  | func-Join>= {J : \Set} {f : J -> Dom} : func (Join f) <= Join (\lam j => func (f j))
 
-  | func-<= {x y : Dom} : x <= y -> func x <= func y
-  | func-<= x<=y => rewrite (inv (pmap func (MeetSemilattice.meet_<= x<=y)) *> func-meet) meet-right
+  \default func-Join>= {J} {f} => transport (_ <=) func-Join <=-reflexive
+  \default func-Join \as func-Join-impl {J} {f} => <=-antisymmetric func-Join>= (Join-univ (\lam j => func-<= (Join-cond j)))
+
+  \lemma func-<= {x y : Dom} (x<=y : x <= y) : func x <= func y
+    => rewrite (inv (pmap func (MeetSemilattice.meet_<= x<=y)) *> func-meet) meet-right
 }
 
 \func FrameCat : Cat Locale \cowith
@@ -78,17 +94,81 @@
  -   {conj} represents meets and {BasicCover} represents relation `__ <= Join __`.
  -}
 \class FramePres \extends BaseSet
+  | unit : E
   | conj : E -> E -> E
   | BasicCover {J : \Set} : E -> (J -> E) -> \Prop
+
+\record FramePresHom \extends SetHom {
+  \override Dom : FramePres
+  \override Cod : FramePres
+  | func-unit : func unit = unit
+  | func-conj {x y : Dom} : func (conj x y) = conj (func x) (func y)
+  | func-cover {J : \Set} {x : Dom} {f : J -> Dom} : BasicCover x f -> BasicCover (func x) (\lam j => func (f j))
+}
+
+\instance FramePresCat : Cat FramePres
+  | Hom => FramePresHom
+  | id X => \new FramePresHom {
+    | func x => x
+    | func-unit => idp
+    | func-conj {_} {_} => idp
+    | func-cover c => c
+  }
+  | o g f => \new FramePresHom {
+    | func x => g (f x)
+    | func-unit => pmap g func-unit *> func-unit
+    | func-conj {_} {_} => pmap g func-conj *> func-conj
+    | func-cover c => func-cover (func-cover c)
+  }
+  | id-left f => idp
+  | id-right f => idp
+  | o-assoc h g f => idp
+  | univalence => sip (\lam {X} {S1} {S2} (h1 : FramePresHom) (h2 : FramePresHom) => exts FramePres {
+    | unit => h1.func-unit
+    | conj x y => h1.func-conj
+    | BasicCover x f => ext (h1.func-cover, h2.func-cover)
+  })
 
 \truncated \data Cover {P : FramePres} (x : P) (U : P -> \Prop) : \Prop
   | cover-basic {J : \Set} {f : J -> P} (BasicCover x f) (\Pi (j : J) -> U (f j))
   | cover-inj (U x)
-  | cover-trans {V : P -> \Prop} (xV : Cover x V) (\Pi (y : P) -> V y -> Cover y U)
+  | cover-trans {V : P -> \Prop} (Cover x V) (\Pi (y : P) -> V y -> Cover y U)
   | cover-proj1 {a b : P} (x = conj a b) (U a)
   | cover-proj2 {a b : P} (x = conj a b) (U b)
   | cover-idemp (U (conj x x))
-  | cover-distr {a b : P} (x = conj a b) {V : P -> \Prop} (Cover b V) (\Pi (y : P) -> V y -> U (conj a y))
+  | cover-comm {a b : P} (x = conj a b) (U (conj b a))
+  | cover-unit (U unit)
+  | cover-ldistr {a b : P} (x = conj a b) {V : P -> \Prop} (Cover b V) (\Pi (y : P) -> V y -> U (conj a y))
+  \where {
+    \lemma cover-rdistr {P : FramePres} {x : P} {U : P -> \Prop} {a b : P} (x=ab : x = conj a b) {V : P -> \Prop} (aV : Cover a V) (f : \Pi (y : P) -> V y -> U (conj y b)) : Cover x U
+      => \have t => cover-trans {P} {_} {\lam z => ∃ (c : P) (V c) (z = conj b c)} (cover-comm {P} {x} {`= conj b a} x=ab idp) (\lam y y=ba => cover-ldistr y=ba aV (\lam z zV => inP (z,zV,idp)))
+         \in cover-trans t (\lam y => \case __ \with {
+           | inP (c,cV,y=bc) => cover-comm y=bc (f c cV)
+         })
+
+    \lemma cover-conj {P : FramePres} {x : P} {U : P -> \Prop} {a b : P} (x=ab : x = conj a b) {V W : P -> \Prop} (aV : Cover a V) (bW : Cover b W) (f : \Pi {y z : P} -> V y -> W z -> U (conj y z)) : Cover x U
+      => cover-trans {P} {x} {U} {\lam t => ∃ (z : P) (W z) (t = conj a z)} (cover-ldistr x=ab bW (\lam y yW => inP (y,yW,idp))) (\lam y => \case __ \with {
+        | inP (z,zW,y=az) => cover-rdistr y=az aV (\lam y yV => f yV zW)
+      })
+
+    \lemma map {F : FramePresHom} {x : F.Dom} {U : F.Dom -> \Prop} (c : Cover x U) : Cover (F x) (\lam y => ∃ (x' : F.Dom) (U x') (F x' = y)) \elim c
+      | cover-basic {J} {f} b g => cover-basic (func-cover b) (\lam j => inP (f j, g j, idp))
+      | cover-inj xU => cover-inj (inP (x, xU, idp))
+      | cover-trans xV g => cover-trans (map xV) (\lam y => \case __ \with {
+        | inP (x',x'V,Fx'=y) => rewriteI Fx'=y (map (g x' x'V))
+      })
+      | cover-proj1 {a} {b} x=ab aU => cover-proj1 (pmap F x=ab *> func-conj) (inP (a,aU,idp))
+      | cover-proj2 {a} {b} x=ab bU => cover-proj2 (pmap F x=ab *> func-conj) (inP (b,bU,idp))
+      | cover-idemp xxU => cover-idemp (inP (conj x x, xxU, func-conj))
+      | cover-comm {a} {b} x=ab baU => cover-comm (pmap F x=ab *> func-conj) (inP (conj b a, baU, func-conj))
+      | cover-unit u => cover-unit (inP (unit,u,func-unit))
+      | cover-ldistr {a} {b} x=ab {V} bV g => cover-ldistr (pmap F x=ab *> func-conj) (map bV) (\lam y t => TruncP.map t (\lam p => (conj a p.1, g p.1 p.2, func-conj *> pmap (conj _) p.3)))
+
+    \lemma map' {F : FramePresHom} {x : F.Dom} {U : F.Dom -> \Prop} (c : Cover x U) {V : F.Cod -> \Prop} (g : \Pi (x' : F.Dom) -> U x' -> V (F x')) : Cover (F x) V
+      => cover-trans (map c) (\lam y => \case __ \with {
+        | inP (x',x'U,Fx'=y) => rewriteI Fx'=y (cover-inj (g x' x'U))
+      })
+  }
 
 {- | We can define the underlying set of {PresentedFrame} as the quotient of the set `P -> \Prop`
  -   under the relation `\Sigma (U <= V) (V <= U)`, where `U <= V` iff `\Pi (x : P) -> U x -> Cover x V`.
@@ -96,7 +176,7 @@
  -   A subset is maximal if every element covered by it actually belongs to it.
  -   We use the second option.
  -}
-\instance PresentedFrame {P : FramePres} : Locale
+\instance PresentedFrame (P : FramePres) : Locale
   | E => \Sigma (U : P -> \Prop) (\Pi (x : P) -> Cover x U -> U x)
   | <= U V => \Pi {x : P} -> U.1 x -> V.1 x
   | <=-reflexive u => u
@@ -118,11 +198,89 @@
     | inP (j,u) => cover-inj (d j u)
   }))
   | Join-ldistr>= => \lam c => cover-trans c (\lam y t => \case \elim t \with {
-    | inP (a,b,y=ab,aU,bF) => cover-distr y=ab bF (\lam z t => \case \elim t \with {
+    | inP (a,b,y=ab,aU,bF) => cover-ldistr y=ab bF (\lam z t => \case \elim t \with {
       | inP (j,zFj) => inP (j, cover-inj (inP (a,z,idp,aU,zFj)))
     })
   })
   \where {
     \func closure {P : FramePres} (U : P -> \Prop) : \Sigma (U : P -> \Prop) (\Pi (x : P) -> Cover x U -> U x)
       => (Cover __ U, \lam x c => cover-trans c (\lam y yU => yU))
+  }
+
+\func FrameSubcat : ReflectiveSubPrecat FrameCat FramePresCat \cowith
+  | F (L : Locale) : FramePres \cowith {
+    | E => L
+    | unit => top
+    | conj => meet
+    | BasicCover x f => x <= Join f
+  }
+  | Func {X Y : Locale} (h : FrameHom X Y) : FramePresHom (F X) (F Y) \cowith {
+    | func => h
+    | func-unit => func-top
+    | func-conj => func-meet
+    | func-cover c => transport (_ <=) func-Join (FrameHom.func-<= c)
+  }
+  | Func-id {X} => idp
+  | Func-o g f => idp
+  | isFullyFaithful {X} {Y} => \new QEquiv {
+    | ret h => \new FrameHom {
+      | func => h
+      | func-top => func-unit
+      | func-meet => func-conj
+      | func-Join>= {J} {f} => func-cover {h} <=-reflexive
+    }
+    | ret_f h => idp
+    | f_sec h => idp
+  }
+  | reflector => PresentedFrame
+  | reflectorMap (X : FramePres) : FramePresHom X (F (PresentedFrame X)) \cowith {
+    | func x => closure (`= x)
+    | func-conj {x} {y} => <=-antisymmetric
+        (unfold (\lam c => cover-trans c (\lam z z=xy => rewrite z=xy (cover-inj (inP (x, y, idp, cover-inj idp, cover-inj idp))))))
+        (unfold (\lam c => cover-trans c (\lam z => \case __ \with {
+          | inP (a,b,z=ab,aX,bY) => Cover.cover-conj z=ab {`= x} {`= y} aX bY (\lam p q => pmap2 conj p q)
+        })))
+    | func-cover b c => cover-trans c (\lam y p => rewrite p (cover-basic b (\lam j => inP (j, cover-inj idp))))
+    | func-unit => <=-antisymmetric (unfold (\lam c => ())) (unfold (\lam _ => cover-unit idp))
+  }
+  | reflector-univ {X : FramePres} {Y : Locale} => ESEquiv.toEquiv (\new ESEquiv {
+    | Embedding => Embedding.fromInjection (\lam {h} {h'} p => exts (\lam e =>
+        \let | g (q : \Sigma (x : X) (e.1 x)) => reflectorMap X q.1
+             | t : e = Join {PresentedFrame X} g => exts (\lam x => unfold (unfold closure (ext (\lam u => cover-inj (inP ((x,u), cover-inj idp)), \lam c => e.2 x (cover-trans c (\lam y => \case __ \with {
+               | inP ((z,u),d) => cover-trans d (\lam w w=z => rewrite w=z (cover-inj u))
+             }))))))
+        \in rewrite t (func-Join {h} {_} {g} *> path (\lam i => Join (\lam (j : \Sigma (x : X) (e.1 x)) => (p @ i) j.1)) *> inv (func-Join {h'} {_} {g}))))
+    | isSurj f => inP (adjointMap f, exts (\lam x => <=-antisymmetric
+        (Join-univ (\lam (j : \Sigma (x' : X) (Cover x' (`= x))) => Y.<=-transitive (locale_cover (Cover.map' j.2 {`= f x} (\lam _ => pmap f))) (Join-univ (\lam (k : \Sigma (y : Y) (y = f x)) => transportInv (`<= _) k.2 <=-reflexive))))
+        (Y.Join-cond {\Sigma (x' : X) (Cover x' (`= x))} (x, cover-inj idp))))
+  })
+  \where {
+    \open PresentedFrame
+
+    \lemma subJoin {L : Locale} (U : L -> \Prop) {x : L} (u : U x) : x <= L.Join {\Sigma (y : L) (U y)} __.1
+      => L.Join-cond (later (x,u))
+
+    \lemma locale_cover {L : Locale} {x : L} {U : L -> \Prop} (c : Cover {F L} x U) : x <= L.Join {\Sigma (y : L) (U y)} __.1 \elim c
+      | cover-basic {J} {f} b g => <=-transitive b (Join-univ (\lam j => subJoin U (g j)))
+      | cover-inj u => subJoin U u
+      | cover-trans {V} c g => <=-transitive (locale_cover c) (Join-univ (later (\lam j => locale_cover (g j.1 j.2))))
+      | cover-proj1 p u => rewrite p (<=-transitive meet-left (subJoin U u))
+      | cover-proj2 p u => rewrite p (<=-transitive meet-right (subJoin U u))
+      | cover-idemp u => transport (`<= _) meet-idemp (subJoin U u)
+      | cover-comm p u => transportInv (`<= _) (p *> meet-comm) (subJoin U u)
+      | cover-unit u => <=-transitive top-univ (subJoin U u)
+      | cover-ldistr p {V} c g => rewrite p (<=-transitive (meet-univ meet-left (<=-transitive meet-right (locale_cover c))) (<=-transitive Join-ldistr>= (Join-univ (later (\lam j => subJoin U (g j.1 j.2))))))
+
+    \func adjointMap {X : FramePres} {Y : Locale} (f : FramePresHom X (F Y)) : FrameHom (PresentedFrame X) Y \cowith
+      | func U => Y.Join {\Sigma (x : X) (U.1 x)} (\lam j => f j.1)
+      | func-top => <=-antisymmetric top-univ (transport (`<= _) f.func-unit (Join-cond (unit,())))
+      | func-meet {U} {V} => <=-antisymmetric
+          (Join-univ (later (\lam p => <=-transitive (locale_cover (Cover.map' p.2 {\lam y => ∃ (a b : X) (y = f a ∧ f b) (U.1 a) (V.1 b)} (\lam x' t => TruncP.map t (\lam q => (q.1, q.2, pmap f q.3 *> func-conj, q.4, q.5)))))
+              (Join-univ (later (\lam q => \case q.2 \with {
+                | inP (a,b,r,aU,bV) => transportInv (`<= _) r (Join-cond (later ((a,aU),(b,bV))))
+              }))))))
+          (Join-univ (\lam p => transport (`<= _) f.func-conj (Y.Join-cond (later (conj p.1.1 p.2.1, cover-inj {X} {conj p.1.1 p.2.1} (inP (later (p.1.1, p.2.1, idp, p.1.2, p.2.2)))))))) *> inv (Locale.Join-distr)
+      | func-Join>= {J} {g} => Join-univ (later (\lam p => <=-transitive (locale_cover (Cover.map p.2)) (Join-univ (later (\lam q => \case q.2 \with {
+        | inP (x', inP (j,d), p) => transport (`<= _) p (<=-transitive (Join-cond (later (x',d))) (Join-cond j))
+      })))))
   }
