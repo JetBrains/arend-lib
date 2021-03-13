@@ -801,6 +801,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<List<CoreExpression>> substExprLists = new ArrayList<>();
     List<List<ArendRef>> substRefLists = new ArrayList<>();
     List<Pair<CoreExpression,ArendRef>> substPairs = new ArrayList<>();
+    int totalArgs = 0;
     for (int i = 0; i < dataList.size(); i++) {
       SubexpressionData data = dataList.get(i);
       List<ArendRef> refs = new ArrayList<>();
@@ -834,7 +835,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
               }
             })
           ));
-          if (caseArgs.size() - 1 < addPathList.size() && addPathList.get(caseArgs.size() - 1)) {
+          if (totalArgs < addPathList.size() && addPathList.get(totalArgs)) {
             ConcreteAppBuilder builder = factory.appBuilder(factory.ref(ext.prelude.getEquality().getRef()));
             CoreExpression type = typed.getType().normalize(NormalizationMode.WHNF);
             if (type instanceof CoreDataCallExpression && ((CoreDataCallExpression) type).getDefinition() == ext.prelude.getFin()) {
@@ -842,6 +843,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             }
             caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, builder.app(factory.core(typed)).app(factory.ref(ref)).build()));
           }
+          totalArgs++;
           exprs.add(typed.getExpression());
           refs.add(ref);
           substPairs.add(new Pair<>(typed.getExpression(), ref));
@@ -862,9 +864,10 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     for (int i = 0; i < additionalArgs.size(); i++) {
       ArendRef ref = argParamsList.get(i).name != null ? argParamsList.get(i).name : factory.local("arg" + (i + 1));
       caseArgs.add(factory.caseArg(factory.core(additionalArgs.get(i)), ref, factory.meta("case_additional_arg_" + (i + 1), new ReplaceSubexpressionsMeta(additionalArgs.get(i).getType(), substPairs))));
-      if (caseArgs.size() - 1 < addPathList.size() && addPathList.get(caseArgs.size() - 1)) {
+      if (totalArgs - 1 < addPathList.size() && addPathList.get(totalArgs)) {
         caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, factory.core(additionalArgs.get(i)), factory.ref(ref))));
       }
+      totalArgs++;
       substPairs.add(new Pair<>(additionalArgs.get(i).getExpression(), ref));
     }
 
