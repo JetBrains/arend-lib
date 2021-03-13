@@ -835,7 +835,12 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             })
           ));
           if (caseArgs.size() - 1 < addPathList.size() && addPathList.get(caseArgs.size() - 1)) {
-            caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, factory.core(typed), factory.ref(ref))));
+            ConcreteAppBuilder builder = factory.appBuilder(factory.ref(ext.prelude.getEquality().getRef()));
+            CoreExpression type = typed.getType().normalize(NormalizationMode.WHNF);
+            if (type instanceof CoreDataCallExpression && ((CoreDataCallExpression) type).getDefinition() == ext.prelude.getFin()) {
+              builder.app(factory.ref(ext.prelude.getNat().getRef()), false);
+            }
+            caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, builder.app(factory.core(typed)).app(factory.ref(ref)).build()));
           }
           exprs.add(typed.getExpression());
           refs.add(ref);
