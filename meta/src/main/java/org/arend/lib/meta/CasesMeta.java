@@ -121,7 +121,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
 
       if (opArg != null) {
         sequence.set(sequence.size() - 2, ext.factory.arg(opArg, true));
-        return addType(resolver.resolve(argument.getData(), sequence), type, opArg);
+        return addType(resolver.resolve(argument.getData(), sequence), type, null);
       }
     }
 
