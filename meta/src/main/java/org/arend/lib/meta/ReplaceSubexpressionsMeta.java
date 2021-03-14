@@ -2,6 +2,7 @@ package org.arend.lib.meta;
 
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.expr.CoreReferenceExpression;
 import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.error.TypecheckingError;
@@ -29,12 +30,23 @@ class ReplaceSubexpressionsMeta implements MetaDefinition {
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     UncheckedExpression result = typechecker.withCurrentState(tc -> expression.replaceSubexpressions(expr -> {
       for (Pair<CoreExpression, ArendRef> pair : substPairs) {
-        if (tc.compare(expr, pair.proj1, CMP.EQ, contextData.getMarker(), false, true)) {
-          tc.updateSavedState();
+        boolean ok = false;
+        if (pair.proj1 instanceof CoreReferenceExpression) {
+          if (expr instanceof CoreReferenceExpression && ((CoreReferenceExpression) pair.proj1).getBinding() == ((CoreReferenceExpression) expr).getBinding()) {
+            ok = true;
+          }
+        } else {
+          if (tc.compare(expr, pair.proj1, CMP.EQ, contextData.getMarker(), false, true)) {
+            tc.updateSavedState();
+            ok = true;
+          } else {
+            tc.loadSavedState();
+          }
+        }
+        if (ok) {
           CoreBinding binding = tc.getFreeBinding(pair.proj2);
           return binding == null ? null : binding.makeReference();
         }
-        tc.loadSavedState();
       }
       return null;
     }));

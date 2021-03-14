@@ -3,6 +3,7 @@ package org.arend.lib.meta;
 import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreExpressionPattern;
 import org.arend.ext.core.context.CoreParameter;
@@ -197,11 +198,17 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     List<? extends ConcreteExpression> caseArgExprs = Utils.getArgumentList(args.get(0).getExpression());
     ConcreteExpression defaultExpr = args.size() > 2 ? args.get(2).getExpression() : null;
+
+    List<ArgParameters> argParametersList = new ArrayList<>(args.size());
+    for (ConcreteExpression caseArgExpr : caseArgExprs) {
+      argParametersList.add(new ArgParameters(caseArgExpr, typechecker.getErrorReporter(), true));
+    }
+
     List<TypedExpression> typedArgs;
     if (defaultExpr != null) {
       typedArgs = new ArrayList<>();
-      for (ConcreteExpression caseArgExpr : caseArgExprs) {
-        TypedExpression typed = typechecker.typecheck(caseArgExpr, null);
+      for (ArgParameters argParameters : argParametersList) {
+        TypedExpression typed = typechecker.typecheck(argParameters.expression, null);
         if (typed == null) return null;
         typedArgs.add(typed);
       }
@@ -210,12 +217,13 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     }
 
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
-    List<ConcreteCaseArgument> caseArgs = new ArrayList<>(caseArgExprs.size());
+    List<ConcreteCaseArgument> caseArgs = new ArrayList<>();
     List<Pair<CoreExpression,ArendRef>> searchPairs = new ArrayList<>();
-    for (int i = 0; i < caseArgExprs.size(); i++) {
-      ArgParameters argParams = new ArgParameters(caseArgExprs.get(i), typechecker.getErrorReporter(), true);
+    List<ConcreteParameter> concreteParameters = defaultExpr == null ? null : new ArrayList<>();
+    for (int i = 0; i < argParametersList.size(); i++) {
+      ArgParameters argParams = argParametersList.get(i);
       boolean isLocalRef = argParams.expression instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) argParams.expression).getReferent().isLocalRef();
-      boolean isElim = isLocalRef && !argParams.addPath && argParams.name == null;
+      boolean isElim = isLocalRef && !argParams.addPath && argParams.name == null && defaultExpr == null;
       ConcreteExpression argExpr = argParams.expression;
       ConcreteExpression argType = argParams.type;
       ArendRef caseArgRef = argParams.name != null ? argParams.name : !isElim ? factory.local("x") : null;
@@ -233,22 +241,28 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         }
       }
       caseArgs.add(isElim ? factory.caseArg((ConcreteReferenceExpression) argExpr, argType) : factory.caseArg(argExpr, caseArgRef, argType));
+      if (concreteParameters != null) {
+        concreteParameters.add(factory.param(Collections.singletonList(caseArgRef), argType != null ? argType : factory.core(typedArgs.get(i).getType().computeTyped())));
+      }
       if (argParams.addPath) {
-        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.hole(), factory.ref(caseArgRef)))));
+        ConcreteExpression type = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.hole(), factory.ref(caseArgRef)));
+        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, type));
+        if (concreteParameters != null) {
+          concreteParameters.add(factory.param(Collections.singletonList(caseArgRef), type));
+        }
       }
     }
 
     List<? extends ConcreteClause> clauses = ((ConcreteCaseExpression) args.get(1).getExpression()).getClauses();
-    if (defaultExpr != null) {
+    if (concreteParameters != null) {
       List<ConcreteClause> newClauses = new ArrayList<>(clauses);
       List<List<ArendPattern>> patternLists = new ArrayList<>();
       patternLists.add(Collections.emptyList());
 
-      List<CoreExpression> types = new ArrayList<>(typedArgs.size());
-      for (TypedExpression typedArg : typedArgs) {
-        types.add(typedArg.getType());
+      CoreParameter parameters = typechecker.typecheckParameters(concreteParameters);
+      if (parameters == null) {
+        return null;
       }
-      CoreParameter parameters = typechecker.makeParameters(types, contextData.getMarker());
 
       CoreParameter parameter = parameters;
       for (TypedExpression typedArg : typedArgs) {
