@@ -107,6 +107,17 @@ public class ExtMeta extends BaseMetaDefinition {
     }
   }
 
+  private static ConcreteExpression addImplicitLambda(ConcreteExpression expr, CoreExpression type, ConcreteFactory factory) {
+    type = type.normalize(NormalizationMode.WHNF);
+    if (type instanceof CorePiExpression && !((CorePiExpression) type).getParameters().isExplicit()) {
+      String name = ((CorePiExpression) type).getParameters().getBinding().getName();
+      ArendRef ref = factory.local(name != null ? name : "x");
+      return factory.lam(Collections.singletonList(factory.param(false, ref)), factory.app(expr, false, factory.ref(ref)));
+    } else {
+      return expr;
+    }
+  }
+
   public class ExtGenerator {
     private final ExpressionTypechecker typechecker;
     private final ConcreteFactory factory;
@@ -602,7 +613,7 @@ public class ExtMeta extends BaseMetaDefinition {
             letClauses.add(factory.letClause(argLetRef, Collections.emptyList(), null, field));
             field = factory.ref(argLetRef);
           }
-          fields.add(fieldWithAt == null ? applyAt(field) : fieldWithAt);
+          fields.add(addImplicitLambda(fieldWithAt == null ? applyAt(field) : fieldWithAt, paramBinding.getTypeExpr(), factory));
           fieldsMap.put(paramBinding, pathExpr != null ? pathExpr : new PathExpression(field));
           fieldsList.add(field);
         }
