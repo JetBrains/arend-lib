@@ -1,8 +1,9 @@
 package org.arend.lib.pattern;
 
 import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcretePattern;
+import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.concrete.pattern.ConcreteReferencePattern;
 import org.arend.ext.core.body.CoreElimBody;
 import org.arend.ext.core.body.CoreElimClause;
 import org.arend.ext.core.body.CorePattern;
@@ -76,6 +77,14 @@ public class PatternUtils {
     return result;
   }
 
+  public static void getReferences(Collection<? extends ConcretePattern> patterns, List<ArendRef> result) {
+    for (ConcretePattern pattern : patterns) {
+      if (pattern instanceof ConcreteReferencePattern) {
+        result.add(((ConcreteReferencePattern) pattern).getRef());
+      }
+      getReferences(pattern.getPatterns(), result);
+    }
+  }
 
   public static CoreParameter getAllBindings(Collection<? extends CorePattern> patterns) {
     for (CorePattern pattern : patterns) {

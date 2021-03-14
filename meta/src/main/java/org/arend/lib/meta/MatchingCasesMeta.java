@@ -2,6 +2,7 @@ package org.arend.lib.meta;
 
 import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.core.body.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
@@ -695,6 +696,24 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       }
     }
 
+    // Remove addPath arguments from actualRows
+    List<List<CorePattern>> actualRowsWithoutAddPath;
+    if (addPathList.isEmpty()) {
+      actualRowsWithoutAddPath = actualRows;
+    } else {
+      actualRowsWithoutAddPath = new ArrayList<>(actualRows.size());
+      for (List<CorePattern> row : actualRows) {
+        List<CorePattern> newRow = new ArrayList<>();
+        for (int j = 0; j < row.size(); j++) {
+          newRow.add(row.get(j));
+          if (j < addPathList.size() && addPathList.get(j)) {
+            j++;
+          }
+        }
+        actualRowsWithoutAddPath.add(newRow);
+      }
+    }
+
     // For every refined row, add a concrete clause to the resulting list of clauses
     List<ConcreteLetClause> letClauses = new ArrayList<>();
     List<ConcreteClause> resultClauses = new ArrayList<>();
@@ -725,12 +744,27 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           }
           if (lamParams != null) {
             List<ConcreteParameter> cParams = new ArrayList<>();
-            Map<CoreBinding, ArendRef> bindings = new HashMap<>();
-            for (CoreParameter param = lamParams; param.hasNext(); param = param.getNext()) {
-              ArendRef lamRef = factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null));
-              cParams.add(factory.param(lamRef));
-              bindings.put(param.getBinding(), lamRef);
+            if (pair.proj1 < actualClauses.size()) {
+              List<ArendRef> refs = new ArrayList<>();
+              PatternUtils.getReferences(actualClauses.get(pair.proj1).getPatterns(), refs);
+              CoreParameter param = lamParams;
+              for (ArendRef ref : refs) {
+                cParams.add(factory.param(ref != null ? ref : factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null))));
+                param = param.getNext();
+              }
+            } else {
+              for (CoreParameter param = lamParams; param.hasNext(); param = param.getNext()) {
+                cParams.add(factory.param(factory.local(ext.renamerFactory.getNameFromBinding(param.getBinding(), null))));
+              }
             }
+
+            Map<CoreBinding, ArendRef> bindings = new HashMap<>();
+            int k = 0;
+            for (CoreParameter param = lamParams; param.hasNext() && k < cParams.size(); param = param.getNext()) {
+              bindings.put(param.getBinding(), cParams.get(k++).getRefList().get(0));
+            }
+
+            List<CorePattern> actualRowWithoutAddPath = actualRowsWithoutAddPath.get(pair.proj1);
             TypedExpression lamExpr = typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(cParams, factory.typed(cExpr, factory.meta("c" + (resultClauses.size() + 1) + "_type", new MetaDefinition() {
               @Override
               public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
@@ -740,7 +774,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                   SubexpressionData data = dataList.get(j);
                   for (int k = 0; k < data.matchedArgs.size(); k++) {
                     if (abstractedArgs.contains(new Pair<>(j, k))) {
-                      args.add(PatternUtils.toExpression(actualRow.get(l + k), ext, factory, bindings));
+                      args.add(PatternUtils.toExpression(actualRowWithoutAddPath.get(l + k), ext, factory, bindings));
                     }
                   }
 
@@ -748,7 +782,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                   for (int k = 0; k < data.removedArgs.size(); k++) {
                     if (data.removedArgs.get(k) == null) {
                       Integer index = data.argsReindexing.get(k);
-                      patternArgs.add(actualRow.get(index == null ? l++ : index));
+                      patternArgs.add(actualRowWithoutAddPath.get(index == null ? l++ : index));
                     } else {
                       patternArgs.add(null);
                     }
@@ -778,7 +812,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
         Map<CoreBinding, ArendRef> bindings = new HashMap<>();
         List<ConcretePattern> cPatterns = PatternUtils.toConcrete(refinedRows.get(i), ext.renamerFactory, factory, bindings);
-        CoreParameter param = PatternUtils.getAllBindings(actualRow);
+        CoreParameter param = lamParams;
         ConcreteExpression rhs = makeLet ? factory.ref(letRef) : cExpr;
         if (param != null) {
           List<ConcreteExpression> rhsArgs = new ArrayList<>();
@@ -864,7 +898,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     for (int i = 0; i < additionalArgs.size(); i++) {
       ArendRef ref = argParamsList.get(i).name != null ? argParamsList.get(i).name : factory.local("arg" + (i + 1));
       caseArgs.add(factory.caseArg(factory.core(additionalArgs.get(i)), ref, factory.meta("case_additional_arg_" + (i + 1), new ReplaceSubexpressionsMeta(additionalArgs.get(i).getType(), substPairs))));
-      if (totalArgs - 1 < addPathList.size() && addPathList.get(totalArgs)) {
+      if (totalArgs < addPathList.size() && addPathList.get(totalArgs)) {
         caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, factory.core(additionalArgs.get(i)), factory.ref(ref))));
       }
       totalArgs++;

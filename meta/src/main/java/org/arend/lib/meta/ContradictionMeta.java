@@ -5,6 +5,7 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteCaseExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteLamExpression;
+import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
@@ -40,7 +41,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable boolean[] argumentExplicitness() {
+  public boolean @Nullable [] argumentExplicitness() {
     return new boolean[] { false };
   }
 

@@ -3,6 +3,7 @@ package org.arend.lib.meta;
 import org.arend.ext.FreeBindingsModifier;
 import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassDefinition;

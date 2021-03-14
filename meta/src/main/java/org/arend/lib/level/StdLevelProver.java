@@ -2,7 +2,7 @@ package org.arend.lib.level;
 
 import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcretePattern;
+import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
