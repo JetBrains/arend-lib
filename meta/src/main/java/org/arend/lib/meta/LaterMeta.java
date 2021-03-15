@@ -13,6 +13,6 @@ public class LaterMeta extends MetaInvocationMeta {
 
   @Override
   public TypedExpression invokeMeta(MetaDefinition meta, List<ConcreteExpression> implicitArgs, ExpressionTypechecker typechecker, ContextData contextData) {
-    return typechecker.defer(meta, contextData, contextData.getExpectedType(), ExpressionTypechecker.Stage.BEFORE_SOLVER);
+    return typechecker.defer(meta, contextData, contextData.getExpectedType(), false);
   }
 }

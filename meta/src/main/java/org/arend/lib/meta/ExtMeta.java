@@ -484,9 +484,11 @@ public class ExtMeta extends BaseMetaDefinition {
           } else if (arg instanceof ConcreteTupleExpression && ((ConcreteTupleExpression) arg).getFields().size() == sigmaParams.size()) {
             List<? extends ConcreteExpression> oldFields = ((ConcreteTupleExpression) arg).getFields();
             List<ConcreteExpression> newFields = new ArrayList<>(oldFields.size());
+            boolean hasDeferred = false;
             for (int j = 0; j < oldFields.size(); j++) {
               Boolean simpCoe = simpCoeIndices.get(j);
-              newFields.add(simpCoe == null ? oldFields.get(j) : argFactory.app(simpCoe ? argFactory.meta("simp_coe", new DeferredMetaDefinition(ext.simpCoeMeta, false, ExpressionTypechecker.Stage.BEFORE_LEVELS)) : argFactory.meta("ext", new DeferredMetaDefinition(ext.extMeta, false, ExpressionTypechecker.Stage.BEFORE_LEVELS)), true, Collections.singletonList(oldFields.get(j))));
+              newFields.add(simpCoe == null && !hasDeferred ? oldFields.get(j) : argFactory.app(hasDeferred ? argFactory.meta("later", ext.laterMeta) : simpCoe ? argFactory.meta("simp_coe", ext.simpCoeMeta) : argFactory.meta("ext", new DeferredMetaDefinition(ext.extMeta, false)), true, Collections.singletonList(oldFields.get(j))));
+              if (simpCoe != null) hasDeferred = true;
             }
             arg = argFactory.tuple(newFields);
           } else {

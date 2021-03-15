@@ -62,6 +62,7 @@ public class StdExtension implements ArendExtension {
   public final ContradictionMeta contradictionMeta = new ContradictionMeta(this);
   public final ExtMeta extMeta = new ExtMeta(this, false);
   public final ExtMeta extsMeta = new ExtMeta(this, true);
+  public final LaterMeta laterMeta = new LaterMeta();
   public final SimpCoeMeta simpCoeMeta = new SimpCoeMeta(this);
   public final SIPMeta sipMeta = new SIPMeta(this);
   public CasesMeta casesMeta;
@@ -109,7 +110,7 @@ public class StdExtension implements ArendExtension {
   @Override
   public void declareDefinitions(@NotNull DefinitionContributor contributor) {
     ModulePath meta = new ModulePath("Meta");
-    contributor.declare(meta, new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, new LaterMeta());
+    contributor.declare(meta, new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, laterMeta);
     contributor.declare(meta, new LongName("fails"),
         "`fails meta args` succeeds if and only if `meta args` fails\n\n" +
         "`fails {T} meta args` succeeds if and only if `meta args : T` fails",
@@ -160,8 +161,8 @@ public class StdExtension implements ArendExtension {
       "`unfold (f_1, ... f_n) e` unfolds functions/fields/variables `f_1`, ... `f_n` in the expected type before type-checking of `e` and returns `e` itself.\n" +
       "If the first argument is omitted, it unfold all fields.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
-      Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), true, ExpressionTypechecker.Stage.AFTER_LEVELS));
-    contributor.declare(meta, new LongName("unfold_let"), "unfolds \\let expressions", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldLetMeta(), true, ExpressionTypechecker.Stage.AFTER_LEVELS));
+      Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), true, false));
+    contributor.declare(meta, new LongName("unfold_let"), "unfolds \\let expressions", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldLetMeta(), true, false));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
@@ -198,10 +199,10 @@ public class StdExtension implements ArendExtension {
       "* If the goal is `A = {\\Prop} B`, then the subgoal is `\\Sigma (A -> B) (B -> A)`\n" +
       "* If the goal is `A = {\\Type} B`, then the subgoal is `Equiv {A} {B}`\n" +
       "* If the goal is `x = {P} y`, where `P : \\Prop`, then the argument for {ext} should be omitted",
-      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
+      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extMeta, false, true), new ClassExtResolver(this));
     contributor.declare(paths, new LongName("exts"),
       "Similar to {ext}, but also applies either {simp_coe} or {ext} when a field of a \\Sigma-type or a record has an appropriate type.",
-      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extsMeta, false, ExpressionTypechecker.Stage.AFTER_LEVELS), new ClassExtResolver(this));
+      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extsMeta, false, true), new ClassExtResolver(this));
 
     MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");
