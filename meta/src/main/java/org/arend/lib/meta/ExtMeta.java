@@ -123,6 +123,7 @@ public class ExtMeta extends BaseMetaDefinition {
     private final ConcreteFactory factory;
     private final ConcreteSourceNode marker;
     private final ArendRef iRef;
+    private CoreErrorExpression goalExpr;
 
     private ExtGenerator(ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteSourceNode marker, ArendRef iRef) {
       this.typechecker = typechecker;
@@ -143,8 +144,20 @@ public class ExtMeta extends BaseMetaDefinition {
       return factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), expr)));
     }
 
+    private TypedExpression checkGoals(TypedExpression typed) {
+      if (typed == null || goalExpr != null) return typed;
+      typed.getExpression().processSubexpression(expr -> {
+        if (expr instanceof CoreErrorExpression && ((CoreErrorExpression) expr).isGoal() && goalExpr == null) {
+          goalExpr = (CoreErrorExpression) expr;
+          return CoreExpression.FindAction.STOP;
+        }
+        return CoreExpression.FindAction.CONTINUE;
+      });
+      return typed;
+    }
+
     private TypedExpression hidingIRef(ConcreteExpression expr, CoreExpression type) {
-      return typechecker.withFreeBindings(new FreeBindingsModifier().remove(typechecker.getFreeBinding(iRef)), tc -> tc.typecheck(expr, type));
+      return checkGoals(typechecker.withFreeBindings(new FreeBindingsModifier().remove(typechecker.getFreeBinding(iRef)), tc -> tc.typecheck(expr, type)));
     }
 
     private ConcreteExpression makeCoeLambda(CoreParameter typeParams, CoreBinding paramBinding, Set<CoreBinding> used, Map<CoreBinding, PathExpression> sigmaRefs, ConcreteFactory factory) {
@@ -240,7 +253,7 @@ public class ExtMeta extends BaseMetaDefinition {
                     return null;
                   }
 
-                  TypedExpression coclauseResult = typechecker.typecheck(coclause.getImplementation(), superEquality.getExpression());
+                  TypedExpression coclauseResult = checkGoals(typechecker.typecheck(coclause.getImplementation(), superEquality.getExpression()));
                   if (coclauseResult == null) {
                     return null;
                   }
@@ -698,8 +711,9 @@ public class ExtMeta extends BaseMetaDefinition {
     return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.meta("ext_result", new MetaDefinition() {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-        ConcreteExpression result = new ExtGenerator(typechecker, factory, marker, iRef).generate(arg, normType, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2));
-        return result == null ? null : typechecker.typecheck(result, result instanceof ConcreteGoalExpression ? null : normType);
+        ExtGenerator generator = new ExtGenerator(typechecker, factory, marker, iRef);
+        ConcreteExpression result = generator.generate(arg, normType, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2));
+        return result == null ? null : generator.goalExpr != null ? generator.goalExpr.computeTyped() : typechecker.typecheck(result, result instanceof ConcreteGoalExpression ? null : normType);
       }
     })))), contextData.getExpectedType());
   }
