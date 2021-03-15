@@ -1,4 +1,5 @@
 \import Category
+\import Category.Adjoint
 \import Category.Functor
 \import Category.Limit
 \import Equiv \hiding (Map)
@@ -21,10 +22,38 @@
     \have (t,r) => univalence (\new Iso j.f j.inv j.inv_f j.f_inv)
     \in (Retraction.sec {e.isEmb j.dom j.cod} t, pmap (transport (Hom (e.f j.dom)) __ (id (e.f j.dom))) (Retraction.f_sec {e.isEmb j.dom j.cod} t) *> r)
 
-\class ReflectiveSubPrecat \extends FullyFaithfulFunctor
+\class ReflectiveSubPrecat \extends FullyFaithfulFunctor, RightAdjoint
   | reflector : D -> C
   | reflectorMap (X : D) : Hom X (F (reflector X))
-  | reflector-univ {X : D} {Y : C} : Equiv {Hom (reflector X) Y} {Hom X (F Y)} (Func __ ∘ reflectorMap X)
+  | isReflective {X : D} {Y : C} : Equiv {Hom (reflector X) Y} {Hom X (F Y)} (Func __ ∘ reflectorMap X)
+  | leftAdjoint {
+      | F => reflector
+      | Func {X} {Y} h => isReflective.ret (reflectorMap Y ∘ h)
+      | Func-id => rewrite id-right (unfold (rewrite Func-id $ rewrite id-left idp) *> isReflective.ret_f (id _))
+      | Func-o g f => run {
+          isReflective.isInj,
+          unfold,
+          rewrite isReflective.f_ret,
+          rewrite Func-o,
+          rewrite o-assoc,
+          rewrite isReflective.f_ret,
+          rewriteI {2} o-assoc,
+          rewrite isReflective.f_ret,
+          inv o-assoc
+        }
+    }
+  | eta {
+    | trans => reflectorMap
+    | natural h => inv (isReflective.f_ret _)
+  }
+  | isAdjoint => isReflective
+  \where {
+    \func fromRightAdjoint (F : RightAdjoint) {ff : FullyFaithfulFunctor { | Functor => F }} : ReflectiveSubPrecat \cowith
+      | FullyFaithfulFunctor => ff
+      | reflector => F.leftAdjoint
+      | reflectorMap => F.eta
+      | isReflective => isAdjoint
+  }
 
 \func reflectiveSubPrecatColimit {J : SmallPrecat} (I : ReflectiveSubPrecat) (F : Functor J (opP I.C)) (c : Limit (Comp I.op F)) : Limit F \cowith
   | apex => I.reflector c.apex
@@ -37,5 +66,5 @@
   }
   | isLimit z => TwoOutOfThree.rightFactorPath
       (Cone.mapEquiv I.op {J} {F} z)
-      (transEquiv I.reflector-univ (c.isLimit (I z)))
+      (transEquiv I.isReflective (c.isLimit (I z)))
       (ext (\lam h => exts (\lam j => I.Func-o _ _ *> pmap (_ ∘) (I.inverse-right _) *> inv o-assoc)))
