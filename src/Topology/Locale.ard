@@ -1,4 +1,5 @@
 \import Category
+\import Category.Functor
 \import Category.Meta
 \import Category.Sub
 \import Data.Bool
@@ -94,40 +95,8 @@
  -   {conj} represents meets and {BasicCover} represents relation `__ <= Join __`.
  -}
 \class FramePres \extends BaseSet
-  | unit : E
   | conj : E -> E -> E
   | BasicCover {J : \Set} : E -> (J -> E) -> \Prop
-
-\record FramePresHom \extends SetHom {
-  \override Dom : FramePres
-  \override Cod : FramePres
-  | func-unit : func unit = unit
-  | func-conj {x y : Dom} : func (conj x y) = conj (func x) (func y)
-  | func-cover {J : \Set} {x : Dom} {f : J -> Dom} : BasicCover x f -> BasicCover (func x) (\lam j => func (f j))
-}
-
-\instance FramePresCat : Cat FramePres
-  | Hom => FramePresHom
-  | id X => \new FramePresHom {
-    | func x => x
-    | func-unit => idp
-    | func-conj => idp
-    | func-cover c => c
-  }
-  | o g f => \new FramePresHom {
-    | func x => g (f x)
-    | func-unit => pmap g func-unit *> func-unit
-    | func-conj => pmap g func-conj *> func-conj
-    | func-cover c => func-cover (func-cover c)
-  }
-  | id-left => idp
-  | id-right => idp
-  | o-assoc => idp
-  | univalence => sip (\lam {X} {S1} {S2} (h1 : FramePresHom) (h2 : FramePresHom) => exts FramePres {
-    | unit => h1.func-unit
-    | conj x y => h1.func-conj
-    | BasicCover x f => ext (h1.func-cover, h2.func-cover)
-  })
 
 \truncated \data Cover {P : FramePres} (x : P) (U : P -> \Prop) : \Prop
   | cover-basic {J : \Set} {f : J -> P} (BasicCover x f) (\Pi (j : J) -> U (f j))
@@ -137,14 +106,13 @@
   | cover-proj2 {a b : P} (x = conj a b) (U b)
   | cover-idemp (U (conj x x))
   | cover-comm {a b : P} (x = conj a b) (U (conj b a))
-  | cover-unit (U unit)
   | cover-ldistr {a b : P} (x = conj a b) {V : P -> \Prop} (Cover b V) (\Pi (y : P) -> V y -> U (conj a y))
   \where {
     \lemma cover-rdistr {P : FramePres} {x : P} {U : P -> \Prop} {a b : P} (x=ab : x = conj a b) {V : P -> \Prop} (aV : Cover a V) (f : \Pi (y : P) -> V y -> U (conj y b)) : Cover x U
       => \have t => cover-trans {P} {_} {\lam z => ∃ (c : P) (V c) (z = conj b c)} (cover-comm {P} {x} {`= conj b a} x=ab idp) (\lam y y=ba => cover-ldistr y=ba aV (\lam z zV => inP (z,zV,idp)))
          \in cover-trans t (\lam y => \case __ \with {
-           | inP (c,cV,y=bc) => cover-comm y=bc (f c cV)
-         })
+          | inP (c,cV,y=bc) => cover-comm y=bc (f c cV)
+        })
 
     \lemma cover-conj {P : FramePres} {x : P} {U : P -> \Prop} {a b : P} (x=ab : x = conj a b) {V W : P -> \Prop} (aV : Cover a V) (bW : Cover b W) (f : \Pi {y z : P} -> V y -> W z -> U (conj y z)) : Cover x U
       => cover-trans {P} {x} {U} {\lam t => ∃ (z : P) (W z) (t = conj a z)} (cover-ldistr x=ab bW (\lam y yW => inP (y,yW,idp))) (\lam y => \case __ \with {
@@ -161,7 +129,6 @@
       | cover-proj2 {a} {b} x=ab bU => cover-proj2 (pmap F x=ab *> func-conj) (inP (b,bU,idp))
       | cover-idemp xxU => cover-idemp (inP (conj x x, xxU, func-conj))
       | cover-comm {a} {b} x=ab baU => cover-comm (pmap F x=ab *> func-conj) (inP (conj b a, baU, func-conj))
-      | cover-unit u => cover-unit (inP (unit,u,func-unit))
       | cover-ldistr {a} {b} x=ab {V} bV g => cover-ldistr (pmap F x=ab *> func-conj) (map bV) (\lam y t => TruncP.map t (\lam p => (conj a p.1, g p.1 p.2, func-conj *> pmap (conj _) p.3)))
 
     \lemma map' {F : FramePresHom} {x : F.Dom} {U : F.Dom -> \Prop} (c : Cover x U) {V : F.Cod -> \Prop} (g : \Pi (x' : F.Dom) -> U x' -> V (F x')) : Cover (F x) V
@@ -169,6 +136,40 @@
         | inP (x',x'U,Fx'=y) => rewriteI Fx'=y (cover-inj (g x' x'U))
       })
   }
+
+\record FramePresHom \extends SetHom {
+  \override Dom : FramePres
+  \override Cod : FramePres
+  | func-conj {x y : Dom} : func (conj x y) = conj (func x) (func y)
+  | func-cover {J : \Set} {x : Dom} {f : J -> Dom} : BasicCover x f -> BasicCover (func x) (\lam j => func (f j))
+  | func-image {y : Cod} : Cover y (\lam y' => ∃ (x : Dom) (func x = y'))
+}
+
+\instance FramePresCat : Cat FramePres
+  | Hom => FramePresHom
+  | id X => \new FramePresHom {
+    | func x => x
+    | func-conj => idp
+    | func-cover c => c
+    | func-image {x} => cover-inj (inP (x,idp))
+  }
+  | o g f => \new FramePresHom {
+    | func x => g (f x)
+    | func-conj => pmap g func-conj *> func-conj
+    | func-cover c => func-cover (func-cover c)
+    | func-image {z} => cover-trans func-image (\lam z' => \case __ \with {
+      | inP (y,gy=z') => rewriteI gy=z' (Cover.map' func-image (\lam y' => \case __ \with {
+        | inP (x,fx=y') => inP (x, pmap g fx=y')
+      }))
+    })
+  }
+  | id-left => idp
+  | id-right => idp
+  | o-assoc => idp
+  | univalence => sip (\lam {X} {S1} {S2} (h1 : FramePresHom) (h2 : FramePresHom) => exts FramePres {
+    | conj x y => h1.func-conj
+    | BasicCover x f => ext (h1.func-cover, h2.func-cover)
+  })
 
 {- | We can define the underlying set of {PresentedFrame} as the quotient of the set `P -> \Prop`
  -   under the relation `\Sigma (U <= V) (V <= U)`, where `U <= V` iff `\Pi (x : P) -> U x -> Cover x V`.
@@ -207,31 +208,72 @@
       => (Cover __ U, \lam x c => cover-trans c (\lam y yU => yU))
   }
 
-\func FrameSubcat : ReflectiveSubPrecat FrameCat FramePresCat \cowith
-  | F (L : Locale) : FramePres \cowith {
+{- | Unital presentation of frames.
+ -   {unit} represents the top element.
+ -}
+\class FrameUnitalPres \extends FramePres
+  | unit : E
+  | isUnit {x : E} : Cover x (`= unit)
+
+\record FrameUnitalPresHom \extends FramePresHom {
+  \override Dom : FrameUnitalPres
+  \override Cod : FrameUnitalPres
+  | func-unit : func unit = unit
+  | func-image => cover-trans isUnit (\lam y' p => rewrite p (rewriteI func-unit (cover-inj (inP (unit,idp)))))
+}
+
+\instance FrameUnitalPresCat : Cat FrameUnitalPres
+  | Hom => FrameUnitalPresHom
+  | id X => \new FrameUnitalPresHom {
+    | FramePresHom => FramePresCat.id X
+    | func-unit => idp
+  }
+  | o g f => \new FrameUnitalPresHom {
+    | FramePresHom => FramePresCat.o g f
+    | func-unit => pmap g func-unit *> func-unit
+  }
+  | id-left => idp
+  | id-right => idp
+  | o-assoc => idp
+  | univalence => sip (\lam {X} {S1} {S2} (h1 : FrameUnitalPresHom) (h2 : FrameUnitalPresHom) => exts FrameUnitalPres {
+    | conj x y => h1.func-conj
+    | BasicCover x f => ext (h1.func-cover, h2.func-cover)
+    | unit => h1.func-unit
+  })
+
+\func FrameUnitalSubcat : FullyFaithfulFunctor FrameCat FrameUnitalPresCat \cowith
+  | F (L : Locale) : FrameUnitalPres \cowith {
     | E => L
-    | unit => top
     | conj => meet
     | BasicCover x f => x <= Join f
+    | unit => top
+    | isUnit => cover-basic {_} {_} {_} {\Sigma} {\lam _ => top} (<=-transitive top-univ (Join-cond ())) (\lam _ => idp)
   }
-  | Func {X Y : Locale} (h : FrameHom X Y) : FramePresHom (F X) (F Y) \cowith {
+  | Func {X Y : Locale} (h : FrameHom X Y) : FrameUnitalPresHom (F X) (F Y) \cowith {
     | func => h
-    | func-unit => func-top
     | func-conj => func-meet
     | func-cover c => transport (_ <=) func-Join (FrameHom.func-<= c)
+    | func-unit => func-top
   }
-  | Func-id {X} => idp
+  | Func-id => idp
   | Func-o g f => idp
-  | isFullyFaithful {X} {Y} => \new QEquiv {
+  | isFullyFaithful => \new QEquiv {
     | ret h => \new FrameHom {
       | func => h
       | func-top => func-unit
       | func-meet => func-conj
-      | func-Join>= {J} {f} => func-cover {h} <=-reflexive
+      | func-Join>= => func-cover {h} <=-reflexive
     }
     | ret_f h => idp
     | f_sec h => idp
   }
+
+\func FrameReflectiveSubcat : ReflectiveSubPrecat FrameCat FramePresCat \cowith
+  | F => F
+  | Func => Func
+  | Func-id => idp
+  | Func-o g f => idp
+  | isFullyFaithful => FrameUnitalSubcat.isFullyFaithful
   | reflector => PresentedFrame
   | reflectorMap (X : FramePres) : FramePresHom X (F (PresentedFrame X)) \cowith {
     | func x => closure (`= x)
@@ -241,7 +283,7 @@
           | inP (a,b,z=ab,aX,bY) => Cover.cover-conj z=ab {`= x} {`= y} aX bY (\lam p q => pmap2 conj p q)
         })))
     | func-cover b c => cover-trans c (\lam y p => rewrite p (cover-basic b (\lam j => inP (j, cover-inj idp))))
-    | func-unit => <=-antisymmetric (unfold (\lam c => ())) (unfold (\lam _ => cover-unit idp))
+    | func-image {U} => cover-basic {_} {_} {_} {\Sigma (x : X) (U.1 x)} {\lam j => closure (`= j.1)} (unfold (\lam {x} xU => cover-inj (inP ((x, xU), cover-inj idp)))) (\lam j => inP (later (j.1,idp)))
   }
   | isReflective {X : FramePres} {Y : Locale} => ESEquiv.toEquiv (\new ESEquiv {
     | Embedding => Embedding.fromInjection (\lam {h} {h'} p => exts (\lam e =>
@@ -250,12 +292,13 @@
                | inP ((z,u),d) => cover-trans d (\lam w w=z => rewrite w=z (cover-inj u))
              }))))
         \in rewrite t (func-Join {h} {_} {g} *> path (\lam i => Join (\lam (j : \Sigma (x : X) (e.1 x)) => (p @ i) j.1)) *> inv (func-Join {h'} {_} {g}))))
-    | isSurj f => inP (adjointMap f, exts (\lam x => <=-antisymmetric
+    | isSurj f => inP (adjointMap f, exts (\lam x => unfold (<=-antisymmetric
         (Join-univ (\lam j => Y.<=-transitive (locale_cover (Cover.map' {_} {_} {`= x} j.2 {`= f x} (\lam _ => pmap f))) (Join-univ (\lam k => transportInv (`<= _) k.2 <=-reflexive))))
-        (Y.Join-cond {\Sigma (x' : X) (Cover x' (`= x))} (x, cover-inj idp))))
+        (Join-cond (later (x, cover-inj idp))))))
   })
   \where {
     \open PresentedFrame
+    \open FrameUnitalSubcat
 
     \lemma subJoin {L : Locale} (U : L -> \Prop) {x : L} (u : U x) : x <= L.Join {\Sigma (y : L) (U y)} __.1
       => L.Join-cond (later (x,u))
@@ -268,12 +311,13 @@
       | cover-proj2 p u => rewrite p (<=-transitive meet-right (subJoin U u))
       | cover-idemp u => transport (`<= _) meet-idemp (subJoin U u)
       | cover-comm p u => transportInv (`<= _) (p *> meet-comm) (subJoin U u)
-      | cover-unit u => <=-transitive top-univ (subJoin U u)
       | cover-ldistr p {V} c g => rewrite p (<=-transitive (meet-univ meet-left (<=-transitive meet-right (locale_cover c))) (<=-transitive Join-ldistr>= (Join-univ (\lam j => subJoin U (g j.1 j.2)))))
 
     \func adjointMap {X : FramePres} {Y : Locale} (f : FramePresHom X (F Y)) : FrameHom (PresentedFrame X) Y \cowith
       | func U => Y.Join {\Sigma (x : X) (U.1 x)} (\lam j => f j.1)
-      | func-top => <=-antisymmetric top-univ (transport (`<= _) f.func-unit (Join-cond (unit,())))
+      | func-top => <=-antisymmetric top-univ (<=-transitive (locale_cover f.func-image) (Join-univ (later (\case __.2 \with {
+        | inP (x,p) => rewriteI p (Join-cond (x,()))
+      }))))
       | func-meet {U} {V} => <=-antisymmetric
           (Join-univ (\lam p => <=-transitive (locale_cover (Cover.map' p.2 {\lam y => ∃ (a b : X) (y = f a ∧ f b) (U.1 a) (V.1 b)} (\lam x' t => TruncP.map t (\lam q => (q.1, q.2, pmap f q.3 *> func-conj, q.4, q.5)))))
               (Join-univ (later (\case __.2 \with {
@@ -283,4 +327,17 @@
       | func-Join>= {J} {g} => Join-univ (\lam p => <=-transitive (locale_cover (Cover.map p.2)) (Join-univ (later (\case __.2 \with {
         | inP (x', inP (j,d), p) => transport (`<= _) p (<=-transitive (Join-cond (later (x',d))) (Join-cond j))
       }))))
+  }
+
+\func FrameUnitalReflectiveSubcat : ReflectiveSubPrecat FrameCat FrameUnitalPresCat \cowith
+  | FullyFaithfulFunctor => FrameUnitalSubcat
+  | reflector X => FrameReflectiveSubcat.reflector X
+  | reflectorMap X => \new FrameUnitalPresHom {
+    | FramePresHom => FrameReflectiveSubcat.reflectorMap X
+    | func-unit => exts (\lam e => ext (\lam _ => (), \lam _ => isUnit))
+  }
+  | isReflective {X} {Y} => \new QEquiv {
+    | ret h => FrameReflectiveSubcat.isReflective.ret h
+    | ret_f h => FrameReflectiveSubcat.isReflective.ret_f h
+    | f_sec h => ext (pmap {FramePresHom X (FrameUnitalSubcat.F Y)} (func {__}) (FrameReflectiveSubcat.isReflective.f_ret h))
   }
