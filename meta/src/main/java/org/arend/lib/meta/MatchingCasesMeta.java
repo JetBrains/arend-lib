@@ -12,11 +12,14 @@ import org.arend.ext.core.expr.*;
 import org.arend.ext.core.level.CoreSort;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
+import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.meta.util.ReplaceSubexpressionsMeta;
+import org.arend.lib.meta.util.SubstitutionMeta;
 import org.arend.lib.pattern.ArendPattern;
 import org.arend.lib.util.Pair;
 import org.arend.lib.pattern.PatternUtils;
@@ -131,19 +134,27 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     final CoreElimBody body;
     final CoreSort sort; // the sort argument of the defCall
     final CoreExpression expression; // an occurrence of \case expressions or defCalls
-    final List<? extends CoreExpression> originalArgs; // arguments of @expression
     final List<TypedExpression> matchedArgs; // arguments of @expression which will be actually matched
     final List<TypedExpression> removedArgs; // arguments of @expression with arguments that belong to matchedArgs replaced with null
     final Map<Integer, Integer> argsReindexing; // if argsReindexing.get(i) != null, then it is the index (in the list of all arguments of all \case expressions and defCalls) of an argument equivalent to the i-th argument of @expression
 
-    private SubexpressionData(CoreElimBody body, CoreSort sort, CoreExpression expression, List<? extends CoreExpression> originalArgs, List<TypedExpression> matchedArgs, List<TypedExpression> removedArgs, Map<Integer, Integer> argsReindexing) {
+    private SubexpressionData(CoreElimBody body, CoreSort sort, CoreExpression expression, List<TypedExpression> matchedArgs, List<TypedExpression> removedArgs, Map<Integer, Integer> argsReindexing) {
       this.body = body;
       this.sort = sort;
       this.expression = expression;
-      this.originalArgs = originalArgs;
       this.matchedArgs = matchedArgs;
       this.removedArgs = removedArgs;
       this.argsReindexing = argsReindexing;
+    }
+
+    List<? extends CoreExpression> getOriginalArgs() {
+      if (expression instanceof CoreFunCallExpression) {
+        return ((CoreFunCallExpression) expression).getDefCallArguments();
+      } else if (expression instanceof CoreCaseExpression) {
+        return ((CoreCaseExpression) expression).getArguments();
+      } else {
+        throw new IllegalStateException();
+      }
     }
   }
 
@@ -380,7 +391,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             return CoreExpression.FindAction.CONTINUE;
           }
 
-          dataList.add(new SubexpressionData(body, sort, expr, matchArgs, matchedArgs, removedArgs, argsReindexing));
+          dataList.add(new SubexpressionData(body, sort, expr, matchedArgs, removedArgs, argsReindexing));
           bodyParameters.add(reducedParameters);
 
           List<List<CorePattern>> block = new ArrayList<>();
@@ -544,7 +555,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         return null;
       });
 
-      List<CoreExpression> lambdaTypes = new ArrayList<>();
+      List<ConcreteParameter> lambdaTypesParams = new ArrayList<>();
       List<ConcreteParameter> lambdaParams = new ArrayList<>();
       for (int i = 0; i < dataList.size(); i++) {
         SubexpressionData data = dataList.get(i);
@@ -552,16 +563,55 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           ArendRef ref = argRefs.get(new Pair<>(i, j));
           if (ref != null) {
             lambdaParams.add(factory.param(ref));
-            lambdaTypes.add(data.matchedArgs.get(j).getType());
+            lambdaTypesParams.add(factory.param(Collections.singletonList(ref), factory.core(data.matchedArgs.get(j).getType().computeTyped())));
           }
         }
       }
 
       for (int i = 0; i < resultDataList.size(); i++) {
-        CoreExpression type = resultDataList.get(i).expression.computeType();
-        ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(type, null));
+        SubexpressionData data = resultDataList.get(i);
+        CoreExpression expr = data.expression;
+        CoreExpression resultType;
+        CoreParameter parameter;
+        CoreSort sort;
+        if (expr instanceof CoreFunCallExpression) {
+          parameter = ((CoreFunCallExpression) expr).getDefinition().getParameters();
+          resultType = ((CoreFunCallExpression) expr).getDefinition().getResultType();
+          sort = ((CoreFunCallExpression) expr).getSortArgument();
+        } else if (expr instanceof CoreCaseExpression) {
+          parameter = ((CoreCaseExpression) expr).getParameters();
+          resultType = ((CoreCaseExpression) expr).getResultType();
+          sort = null;
+        } else {
+          throw new IllegalStateException();
+        }
+
+        boolean needSubst = false;
+        List<SubstitutionPair> substitution = new ArrayList<>();
+        int k = 0;
+        List<TypedExpression> removedArgs = data.removedArgs;
+        for (int j = 0; j < removedArgs.size(); j++) {
+          ConcreteExpression subst;
+          if (removedArgs.get(j) != null) {
+            subst = factory.core(removedArgs.get(j));
+          } else {
+            Integer index = data.argsReindexing.get(j);
+            Pair<Integer, Integer> pair = index == null ? new Pair<>(i, k++) : findArgument(dataList, index);
+            ArendRef ref = argRefs.get(new Pair<>(pair.proj1 + dataList.size() - resultDataList.size(), pair.proj2));
+            if (ref != null) {
+              subst = factory.ref(ref);
+              needSubst = true;
+            } else {
+              subst = factory.core(dataList.get(pair.proj1).matchedArgs.get(pair.proj2));
+            }
+          }
+          substitution.add(new SubstitutionPair(parameter.getBinding(), subst));
+          parameter = parameter.getNext();
+        }
+
+        ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(resultType, null));
         lambdaParams.add(factory.param(ref));
-        lambdaTypes.add(type);
+        lambdaTypesParams.add(factory.param(Collections.singletonList(ref), needSubst ? factory.meta("subst_meta", new SubstitutionMeta(resultType, sort, substitution)) : factory.core(data.expression.computeType().computeTyped())));
         argRefs.put(new Pair<>(i + dataList.size() - resultDataList.size(), -1), ref);
       }
 
@@ -570,7 +620,15 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         replacementRefs.add(argRefs.get(pair));
       }
 
-      resultLambda = lambdaParams.isEmpty() ? expectedType.computeTyped() : typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceExactSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), typechecker.makeParameters(lambdaTypes, marker));
+      if (lambdaParams.isEmpty()) {
+        resultLambda = expectedType.computeTyped();
+      } else {
+        CoreParameter lambdaTypes = typechecker.typecheckParameters(lambdaTypesParams);
+        if (lambdaTypes == null) {
+          return null;
+        }
+        resultLambda = typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceExactSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), lambdaTypes);
+      }
       if (resultLambda == null) {
         return null;
       }
@@ -884,9 +942,10 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           refList.add(ref);
           refExprs.add(refExpr);
         } else {
-          exprs.add(data.originalArgs.get(j));
+          List<? extends CoreExpression> originalArgs = data.getOriginalArgs();
+          exprs.add(originalArgs.get(j));
           refs.add(refLists.get(pair.proj1).get(pair.proj2));
-          substPairs.add(new Pair<>(data.originalArgs.get(j), refLists.get(pair.proj1).get(pair.proj2)));
+          substPairs.add(new Pair<>(originalArgs.get(j), refLists.get(pair.proj1).get(pair.proj2)));
         }
       }
 

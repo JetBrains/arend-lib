@@ -7,6 +7,7 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.MetaDidNotFailError;
+import org.arend.lib.meta.util.MetaInvocationMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

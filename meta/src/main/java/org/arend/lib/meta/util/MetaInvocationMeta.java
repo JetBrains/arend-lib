@@ -1,4 +1,4 @@
-package org.arend.lib.meta;
+package org.arend.lib.meta.util;
 
 import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteArgument;

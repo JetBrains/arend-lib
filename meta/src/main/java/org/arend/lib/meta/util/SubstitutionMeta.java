@@ -1,9 +1,10 @@
-package org.arend.lib.meta;
+package org.arend.lib.meta.util;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.level.CoreSort;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ContextData;
@@ -19,16 +20,21 @@ import java.util.List;
 
 public class SubstitutionMeta implements MetaDefinition {
   private final CoreExpression expression;
+  private final CoreSort sort;
   private final List<SubstitutionPair> substitution;
 
-  public SubstitutionMeta(CoreExpression expression, List<SubstitutionPair> substitution) {
+  public SubstitutionMeta(CoreExpression expression, CoreSort sort, List<SubstitutionPair> substitution) {
     this.expression = expression;
+    this.sort = sort;
     this.substitution = new ArrayList<>(substitution);
   }
 
+  public SubstitutionMeta(CoreExpression expression, List<SubstitutionPair> substitution) {
+    this(expression, null, substitution);
+  }
+
   public SubstitutionMeta(CoreExpression expression, CoreBinding binding, ConcreteExpression expr) {
-    this.expression = expression;
-    this.substitution = Collections.singletonList(new SubstitutionPair(binding, expr));
+    this(expression, Collections.singletonList(new SubstitutionPair(binding, expr)));
   }
 
   public static ConcreteExpression makeLambda(CoreExpression expr, CoreBinding binding, ConcreteFactory factory) {
@@ -38,7 +44,7 @@ public class SubstitutionMeta implements MetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    CoreExpression result = typechecker.substitute(expression, null, substitution);
+    CoreExpression result = typechecker.substitute(expression, sort, substitution);
     return result == null ? null : result.computeTyped();
   }
 }

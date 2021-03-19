@@ -22,6 +22,7 @@ import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.meta.util.ReplaceSubexpressionsMeta;
 import org.arend.lib.pattern.ArendPattern;
 import org.arend.lib.pattern.PatternUtils;
 import org.arend.lib.util.NamedParameter;

@@ -1,4 +1,4 @@
-package org.arend.lib.meta;
+package org.arend.lib.meta.util;
 
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.expr.CoreExpression;
@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-class ReplaceSubexpressionsMeta implements MetaDefinition {
+public class ReplaceSubexpressionsMeta implements MetaDefinition {
   private final CoreExpression expression;
   private final List<Pair<CoreExpression,ArendRef>> substPairs;
 

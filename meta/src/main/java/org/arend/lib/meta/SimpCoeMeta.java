@@ -22,6 +22,7 @@ import org.arend.lib.StdExtension;
 import org.arend.lib.error.SubclassError;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.meta.pi_tree.*;
+import org.arend.lib.meta.util.SubstitutionMeta;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
