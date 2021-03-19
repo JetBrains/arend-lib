@@ -10,6 +10,7 @@ import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.*;
+import org.arend.ext.core.level.CoreLevel;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
@@ -653,6 +654,48 @@ public class ExtMeta extends BaseMetaDefinition {
     }
   }
 
+  private enum Kind { PROP, NOT_PROP }
+
+  private static boolean atLeastSet(CoreExpression type) {
+    type = type.normalize(NormalizationMode.WHNF);
+    CoreLevel level = type instanceof CoreUniverseExpression ? ((CoreUniverseExpression) type).getSort().getHLevel() : null;
+    return level != null && (level.isClosed() && level.getConstant() >= 0 || level.getMaxConstant() >= 0 || level.getConstant() >= 1);
+  }
+
+  private static DefermentChecker.Result checkStuckExpression(CoreExpression expr) {
+    CoreExpression stuck = expr.getStuckExpression();
+    return stuck instanceof CoreInferenceReferenceExpression && ((CoreInferenceReferenceExpression) stuck).getVariable() != null ? DefermentChecker.Result.AFTER_LEVELS : null;
+  }
+
+  public static final DefermentChecker defermentChecker = (typechecker, data) -> {
+    if (data.getUserData() == DefermentChecker.Result.AFTER_LEVELS) return DefermentChecker.Result.DO_NOT_DEFER;
+
+    CoreExpression expectedType = data.getExpectedType().normalize(NormalizationMode.WHNF);
+    DefermentChecker.Result result = checkStuckExpression(expectedType);
+    if (result != null) {
+      data.setExpectedType(expectedType);
+      return result;
+    }
+
+    CoreFunCallExpression equality = Utils.toEquality(expectedType, typechecker.getErrorReporter(), data.getMarker());
+    if (equality == null) return null;
+    data.setExpectedType(equality);
+    CoreExpression type = equality.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF);
+    result = checkStuckExpression(type);
+    if (result != null) return result;
+
+    if (type instanceof CoreUniverseExpression) {
+      CoreLevel level = ((CoreUniverseExpression) type).getSort().getHLevel();
+      if (level != null && level.isClosed()) return DefermentChecker.Result.DO_NOT_DEFER;
+      if (atLeastSet(equality.getDefCallArguments().get(1).computeType()) || atLeastSet(equality.getDefCallArguments().get(2).computeType())) {
+        data.setUserData(Kind.NOT_PROP);
+        return DefermentChecker.Result.DO_NOT_DEFER;
+      }
+    }
+
+    return type instanceof CoreSigmaExpression || type instanceof CoreClassCallExpression ? DefermentChecker.Result.AFTER_LEVELS : DefermentChecker.Result.DO_NOT_DEFER;
+  };
+
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ConcreteSourceNode marker = contextData.getMarker();
@@ -663,7 +706,7 @@ public class ExtMeta extends BaseMetaDefinition {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     ConcreteFactory factory = ext.factory.withData(marker);
     CoreExpression type = equality.getDefCallArguments().get(0);
-    if (Utils.isProp(type)) {
+    if (contextData.getUserData() != Kind.NOT_PROP && Utils.isProp(type)) {
       if (!args.isEmpty()) {
         errorReporter.report(new IgnoredArgumentError(args.get(0).getExpression()));
       }

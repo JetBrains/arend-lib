@@ -199,10 +199,10 @@ public class StdExtension implements ArendExtension {
       "* If the goal is `A = {\\Prop} B`, then the subgoal is `\\Sigma (A -> B) (B -> A)`\n" +
       "* If the goal is `A = {\\Type} B`, then the subgoal is `Equiv {A} {B}`\n" +
       "* If the goal is `x = {P} y`, where `P : \\Prop`, then the argument for {ext} should be omitted",
-      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extMeta, false, true), new ClassExtResolver(this));
+      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extMeta, false, ExtMeta.defermentChecker), new ClassExtResolver(this));
     contributor.declare(paths, new LongName("exts"),
       "Similar to {ext}, but also applies either {simp_coe} or {ext} when a field of a \\Sigma-type or a record has an appropriate type.",
-      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extsMeta, false, true), new ClassExtResolver(this));
+      Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extsMeta, false, ExtMeta.defermentChecker), new ClassExtResolver(this));
 
     MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");
