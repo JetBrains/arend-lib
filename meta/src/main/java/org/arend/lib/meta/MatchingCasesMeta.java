@@ -18,6 +18,7 @@ import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.error.TypeError;
 import org.arend.lib.meta.util.ReplaceSubexpressionsMeta;
 import org.arend.lib.meta.util.SubstitutionMeta;
 import org.arend.lib.pattern.ArendPattern;
@@ -255,7 +256,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<CasesMeta.ArgParameters> argParamsList = new ArrayList<>();
     List<TypedExpression> additionalArgs = new ArrayList<>();
     for (ConcreteExpression additionalArg : Utils.getArgumentList(args.get(additionalArgsIndex).getExpression())) {
-      CasesMeta.ArgParameters argParams = ext.casesMeta.new ArgParameters(additionalArg, typechecker.getErrorReporter(), false);
+      CasesMeta.ArgParameters argParams = ext.casesMeta.new ArgParameters(additionalArg, errorReporter, false);
       TypedExpression typed = typechecker.typecheck(argParams.expression, null);
       if (typed == null) return null;
       additionalArgs.add(typed);
@@ -627,10 +628,11 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         if (lambdaTypes == null) {
           return null;
         }
-        resultLambda = typechecker.typecheckLambda((ConcreteLamExpression) factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceExactSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), lambdaTypes);
-      }
-      if (resultLambda == null) {
-        return null;
+        resultLambda = Utils.tryTypecheck(typechecker, tc -> tc.typecheckLambda((ConcreteLamExpression) factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceExactSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), lambdaTypes));
+        if (resultLambda == null) {
+          errorReporter.report(new TypeError("Cannot perform substitution in the expected type", expectedType, marker));
+          return null;
+        }
       }
       abstractedArgs = argRefs.keySet();
     }
