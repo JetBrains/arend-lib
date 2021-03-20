@@ -51,9 +51,17 @@
 }
 
 -- | A linearly ordered set.
-\class LinearOrder \extends StrictPoset {
-  | <-comparison (x y z : E) : x < z -> x < y || y < z
+\class LinearOrder \extends StrictPoset, Poset {
+  | <-comparison (y : E) {x z : E} : x < z -> x < y || y < z
   | <-connectedness {x y : E} : Not (x < y) -> Not (y < x) -> x = y
+
+  | <= => <=
+  | <=-reflexive => notGreater <-irreflexive
+  | <=-transitive {x} {y} {z} x<=y y<=z => notGreater (\case <-comparison y __ \with {
+    | byLeft z<y => notLess y<=z z<y
+    | byRight y<x => notLess x<=y y<x
+  })
+  | <=-antisymmetric x<=y y<=x => <-connectedness (notLess y<=x) (notLess x<=y)
 } \where {
   \class With# \extends LinearOrder, Set#
     | # x y => x < y || y < x
@@ -66,29 +74,28 @@
       | byRight y<x => byLeft y<x
     }
     | #-comparison x y z x#z => \case x#z \with {
-      | byLeft x<z => \case <-comparison x y z x<z \with {
+      | byLeft x<z => \case <-comparison y x<z \with {
         | byLeft x<y => byLeft (byLeft x<y)
         | byRight y<z => byRight (byLeft y<z)
       }
-      | byRight z<x => \case <-comparison z y x z<x \with {
+      | byRight z<x => \case <-comparison y z<x \with {
         | byLeft z<y => byRight (byRight z<y)
         | byRight y<x => byLeft (byRight y<x)
       }
     }
     | tightness x/#y => <-connectedness (\lam x<y => x/#y (byLeft x<y)) (\lam y<x => x/#y (byRight y<x))
 
-  \data Tri {A : StrictPoset} (a a' : A)
-    | less (a < a')
-    | equals (a = a')
-    | greater (a > a')
-    \where
-      \use \level levelProp : \Prop
+  \data \infix 4 <= {A : StrictPoset} (a a' : A)
+    | notGreater (Not (a' < a))
+
+  \lemma notLess {A : StrictPoset} {a a' : A} (p : a <= a') (q : a' < a) : Empty \elim p
+    | notGreater p => p q
 
   -- | A linearly ordered set with decidable inequality.
-  \class Dec \extends LinearOrder, DecSet {
+  \class Dec \extends LinearOrder, DecSet, TotalOrder {
     \field trichotomy (x y : E) : Tri x y
 
-    | <-comparison x y z x<z => \case trichotomy x y \with {
+    | <-comparison y {x} {z} x<z => \case trichotomy x y \with {
       | less x<y => byLeft x<y
       | equals x=y => byRight (transport (`< z) x=y x<z)
       | greater y<x => byRight (<-transitive y<x x<z)
@@ -98,51 +105,29 @@
       | equals x=y => x=y
       | greater y<x => absurd (y/<x y<x)
     }
+    | totality x y => \case trichotomy x y \with {
+      | less x<y => byLeft (<=-less x<y)
+      | equals x=y => byLeft (rewrite x=y (notGreater <-irreflexive))
+      | greater y<x => byRight (<=-less y<x)
+    }
 
     \default decideEq x y => \case trichotomy x y \with {
       | less x<y => no (\lam x=y => <-irreflexive (transport (`< y) x=y x<y))
       | equals x=y => yes x=y
       | greater y<x => no (\lam x=y => <-irreflexive (transport (y <) x=y y<x))
     }
-  } \where {
-    \func =>TotalOrder {L : Dec} : TotalOrder L \cowith
-      | <= => <=
-      | <=-reflexive {x} => <=-equals idp
-      | <=-transitive {x} {_} {z} x<=y y<=z => \case x<=y, y<=z \with {
-        | <=-equals x=y, <=-equals y=z => <=-equals (x=y *> y=z)
-        | <=-equals x=y, <=-less y<z => <=-less (transport (`< z) (inv x=y) y<z)
-        | <=-less x<y, <=-equals y=z => <=-less (transport (x <) y=z x<y)
-        | <=-less x<y, <=-less y<z => <=-less (<-transitive x<y y<z)
-      }
-      | totality x y => \case trichotomy x y \with {
-        | equals x=y => byLeft (<=-equals x=y)
-        | less x<y => byLeft (<=-less x<y)
-        | greater y<x => byRight (<=-less y<x)
-      }
-      | <=-antisymmetric x<=y y<=x => \case x<=y, y<=x \with {
-        | <=-equals x=y, _ => x=y
-        | _, <=-equals y=x => inv y=x
-        | <=-less x<y, <=-less y<x => absurd (<-irreflexive (<-transitive x<y y<x))
-      }
   }
 
-  \data \infix 4 <= {A : StrictPoset} (a a' : A)
-    | <=-equals (a = a')
-    | <=-less (a < a')
-    \where \use \level levelProp : \Prop
-
-  \lemma <=_< {A : StrictPoset} {a1 a2 a3 : A} (p : a1 <= a2) (q : a2 < a3) : a1 < a3 \elim p
-    | <=-equals idp => q
-    | <=-less p => <-transitive p q
-
-  \lemma <_<= {A : StrictPoset} {a1 a2 a3 : A} (p : a1 < a2) (q : a2 <= a3) : a1 < a3 \elim q
-    | <=-equals idp => p
-    | <=-less q => <-transitive p q
+  \func <=-dec {A : Dec} {a a' : A} (p : a <= a') : (a < a') `Or` (a = a') => \case trichotomy a a' \with {
+    | less a<a' => inl a<a'
+    | equals a=a' => inr a=a'
+    | greater a'<a => absurd (notLess p a'<a)
+  }
 
   \func dec<_<= {A : Dec} (a a' : A) : (a < a') `Or` (a' <= a) => \case trichotomy a a' \with {
     | less a<a' => inl a<a'
-    | equals a=a' => inr (<=-equals (inv a=a'))
-    | greater a>a' => inr (<=-less a>a')
+    | equals a=a' => inr (notGreater (rewrite a=a' <-irreflexive))
+    | greater a'<a => inr (<=-less a'<a)
   }
 
   \lemma dec<_reduce {A : Dec} {a a' : A} (p : a < a') : dec<_<= a a' = inl p
@@ -155,3 +140,27 @@
       | less a<a' => contradiction
     })
 }
+
+\open LinearOrder(notGreater)
+
+\data Tri {A : StrictPoset} (a a' : A)
+  | less (a < a')
+  | equals (a = a')
+  | greater (a > a')
+  \where
+    \use \level levelProp : \Prop
+
+\lemma \fixr 4 <-transitive-right {A : LinearOrder} {a1 a2 a3 : A} (p : a1 LinearOrder.<= a2) (q : a2 < a3) : a1 < a3 \elim p
+  | notGreater a2/<a1 => \case <-comparison a1 q \with {
+    | byLeft a2<a1 => absurd (a2/<a1 a2<a1)
+    | byRight a1<a3 => a1<a3
+  }
+
+\lemma \fixl 4 <-transitive-left {A : LinearOrder} {a1 a2 a3 : A} (p : a1 < a2) (q : a2 LinearOrder.<= a3) : a1 < a3 \elim q
+  | notGreater a3/<a2 => \case <-comparison a3 p \with {
+    | byLeft a1<a3 => a1<a3
+    | byRight a3<a2 => absurd (a3/<a2 a3<a2)
+  }
+
+\lemma <=-less {A : StrictPoset} {a1 a2 : A} (p : a1 < a2) : a1 LinearOrder.<= a2
+  => notGreater (\lam q => <-irreflexive (<-transitive p q))

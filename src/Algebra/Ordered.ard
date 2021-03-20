@@ -73,18 +73,48 @@
   | <_*_negative-right {x y z : E} : x < zro -> y < z -> x * y > x * z
 
 \class LinearlyOrderedSemiring \extends OrderedSemiring, LinearOrder {
-  | <_+-cancel-left (x y z : E) : x + y < x + z -> y < z
-  | <_+-cancel-right (x y z : E) : x + z < y + z -> x < y
+  | <_+-cancel-left (x : E) {y z : E} : x + y < x + z -> y < z
+  | <_+-cancel-right (z : E) {x y : E} : x + z < y + z -> x < y
   | <_*-cancel-left (x y z : E) : x * y < x * z -> (\Sigma (x > zro) (y < z)) || (\Sigma (x < zro) (y > z))
   | <_*-cancel-right (x y z : E) : x * z < y * z -> (\Sigma (z > zro) (x < y)) || (\Sigma (z < zro) (x > y))
 
+  \lemma <=_+ {a b c d : E} (a<=b : a <= b) (c<=d : c <= d) : a + c <= b + d
+    => notGreater (\case <-comparison (b + c) __ \with {
+      | byLeft b+d<b+c => notLess c<=d (<_+-cancel-left b b+d<b+c)
+      | byRight b+c<a+c => notLess a<=b (<_+-cancel-right c b+c<a+c)
+    })
+
+  \lemma <=_*_positive-left {x y z : E} (x<=y : x <= y) (z>=0 : 0 <= z) : x * z <= y * z
+    => notGreater (\case <_*-cancel-right _ _ _ __ \with {
+      | byLeft (_,y<x) => notLess x<=y y<x
+      | byRight (z<0,_) => notLess z>=0 z<0
+    })
+
+  \lemma <=_*_positive-right {x y z : E} (x>=0 : 0 <= x) (y<=z : y <= z) : x * y <= x * z
+    => notGreater (\case <_*-cancel-left _ _ _ __ \with {
+      | byLeft (_,z<y) => notLess y<=z z<y
+      | byRight (x<0,_) => notLess x>=0 x<0
+    })
+
+  \lemma <=_*_negative-left {x y z : E} (x<=y : x <= y) (z<=0 : z <= 0) : y * z <= x * z
+    => notGreater (\case <_*-cancel-right _ _ _ __ \with {
+      | byLeft (z>0,_) => notLess z<=0 z>0
+      | byRight (_,x>y) => notLess x<=y x>y
+    })
+
+  \lemma <=_*_negative-right {x y z : E} (x<=0 : x <= 0) (y<=z : y <= z) : x * z <= x * y
+    => notGreater (\case <_*-cancel-left _ _ _ __ \with {
+      | byLeft (x>0,_) => notLess x<=0 x>0
+      | byRight (_,z<y) => notLess y<=z z<y
+    })
+
   \class Dec \extends LinearlyOrderedSemiring, LinearOrder.Dec {
-    | <_+-cancel-left x y z x+y<x+z => \case trichotomy y z \with {
+    | <_+-cancel-left x {y} {z} x+y<x+z => \case trichotomy y z \with {
       | equals y=z => absurd (<-irreflexive (rewriteF y=z x+y<x+z))
       | less y<z => y<z
       | greater y>z => absurd (<-irreflexive (<-transitive (<_+-right x y>z) x+y<x+z))
     }
-    | <_+-cancel-right x y z x+z<y+z => \case trichotomy x y \with {
+    | <_+-cancel-right z {x} {y} x+z<y+z => \case trichotomy x y \with {
       | equals x=y => absurd (<-irreflexive (rewriteF x=y x+z<y+z))
       | less x<y => x<y
       | greater x>y => absurd (<-irreflexive (<-transitive (<_+-left z x>y) x+z<y+z))
@@ -105,15 +135,15 @@
       | greater x>y, less z<0 => byRight (z<0, x>y)
       | greater x>y, greater z>0 => absurd (<-irreflexive (<-transitive x*z<y*z (<_*_positive-left x>y z>0)))
     }
-  } \where \open LinearOrder
-}
+  }
+} \where \open LinearOrder
 
 \class OrderedCSemiring \extends OrderedSemiring, CSemiring, OrderedAbMonoid
   | <_*_positive-right x>0 y<z => transport2 (<) *-comm *-comm (<_*_positive-left y<z x>0)
   | <_*_negative-right x<0 y<z => transport2 (>) *-comm *-comm (<_*_negative-left y<z x<0)
 
 \class LinearlyOrderedCSemiring \extends LinearlyOrderedSemiring, OrderedCSemiring, OrderedAbMonoid
-  | <_+-cancel-right x y z x+z<y+z => <_+-cancel-left z x y (transport2 (<) +-comm +-comm x+z<y+z)
+  | <_+-cancel-right z x+z<y+z => <_+-cancel-left z (transport2 (<) +-comm +-comm x+z<y+z)
   | <_*-cancel-right x y z x*z<y*z => <_*-cancel-left z x y (transport2 (<) *-comm *-comm x*z<y*z)
   \where
     \class Dec \extends OrderedCSemiring, LinearlyOrderedSemiring.Dec
@@ -147,7 +177,7 @@
 
   | zro<ide => transport isPos (inv (minus_zro ide)) ide>zro
 
-  | <-comparison x y z x<z => \case <_+-comparison (z - y) (y - x) (transport isPos (inv OrderedAddGroup.diff_+) x<z) \with {
+  | <-comparison y {x} {z} x<z => \case <_+-comparison (z - y) (y - x) (transport isPos (inv OrderedAddGroup.diff_+) x<z) \with {
     | byLeft p => byRight p
     | byRight p => byLeft p
   }
@@ -165,12 +195,12 @@
   | <_*_negative-right {x} {y} {z} x<0 y<z =>
     transport isPos (ldistr *> pmap (x * y +) (Ring.negative_*-right x z))
               (negative_* (transport isPos zro-left x<0) (toNeg y<z))
-  | <_+-cancel-left x y z x+y<x+z =>
+  | <_+-cancel-left x {y} {z} x+y<x+z =>
     transport2 (<)
                (inv +-assoc *> pmap (`+ y) negative-left *> zro-left)
                (inv +-assoc *> pmap (`+ z) negative-left *> zro-left)
                (<_+-right (negative x) x+y<x+z)
-  | <_+-cancel-right x y z x+z<y+z =>
+  | <_+-cancel-right z {x} {y} x+z<y+z =>
     transport2 (<)
                (+-assoc *> pmap (x +) negative-right *> zro-right)
                (+-assoc *> pmap (y +) negative-right *> zro-right)
@@ -255,9 +285,9 @@
     \field +_trichotomy (x : E) : Tri x
 
     | trichotomy x y => \case +_trichotomy (x - y) \with {
-      | triZro x-y=0 => LinearOrder.equals (fromZero x y x-y=0)
-      | triPos x-y>0 => LinearOrder.greater x-y>0
-      | triNeg x-y<0 => LinearOrder.less (fromNeg x-y<0)
+      | triZro x-y=0 => equals (fromZero x y x-y=0)
+      | triPos x-y>0 => greater x-y>0
+      | triNeg x-y<0 => less (fromNeg x-y<0)
     }
     | <_+-comparison x y x+y>0 => \case +_trichotomy x \with {
       | triZro x=0 => byRight (transport isPos (pmap (`+ y) x=0 *> zro-left) x+y>0)

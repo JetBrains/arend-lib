@@ -78,10 +78,10 @@ public class TransitivitySolver implements EquationSolver {
         var it = impls.iterator();
         return new RelationData(defCall, it.next().getValue(), it.next().getValue());
       } else {
-        if (defCall.getDefCallArguments().size() != 2) {
+        if (defCall.getDefCallArguments().size() < 2) {
           return null;
         }
-        return new RelationData(defCall, defCall.getDefCallArguments().get(0), defCall.getDefCallArguments().get(1));
+        return new RelationData(defCall, defCall.getDefCallArguments().get(defCall.getDefCallArguments().size() - 2), defCall.getDefCallArguments().get(defCall.getDefCallArguments().size() - 1));
       }
     }
 
@@ -106,6 +106,7 @@ public class TransitivitySolver implements EquationSolver {
 
   private class MyInstanceSearchParameters implements InstanceSearchParameters {
     private final CoreDefinition definition;
+    private final List<CoreClassField> relationFields = new ArrayList<>();
     private CoreClassField relationField;
 
     private MyInstanceSearchParameters(CoreDefinition definition) {
@@ -119,14 +120,14 @@ public class TransitivitySolver implements EquationSolver {
 
     @Override
     public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
+      relationFields.clear();
       for (CoreClassField field : classDefinition.getFields()) {
         transFieldData = field.getUserData(meta.ext.transitivityKey);
         if (transFieldData != null) {
-          relationField = field;
-          return true;
+          relationFields.add(field);
         }
       }
-      return false;
+      return !relationFields.isEmpty();
     }
 
     @Override
@@ -135,31 +136,42 @@ public class TransitivitySolver implements EquationSolver {
         return false;
       }
 
-      CoreExpression impl = ((CoreClassCallExpression) instance.getResultType()).getAbsImplementationHere(relationField);
-      if (!(impl instanceof CoreLamExpression)) {
-        return false;
-      }
-
-      CoreParameter param1 = ((CoreLamExpression) impl).getParameters();
-      CoreParameter param2 = param1.getNext();
-      CoreExpression body = ((CoreLamExpression) impl).getBody();
-      if (!param2.hasNext()) {
-        if (!(body instanceof CoreLamExpression)) {
-          return false;
+      for (CoreClassField relationField : relationFields) {
+        CoreAbsExpression absImpl = ((CoreClassCallExpression) instance.getResultType()).getAbsImplementation(relationField);
+        if (absImpl == null) {
+          continue;
         }
-        param2 = ((CoreLamExpression) body).getParameters();
-        body = ((CoreLamExpression) body).getBody();
-      }
-      if (param2.getNext().hasNext()) {
-        return false;
+        CoreExpression impl = absImpl.getExpression();
+        if (!(impl instanceof CoreLamExpression)) {
+          continue;
+        }
+
+        CoreParameter param1 = ((CoreLamExpression) impl).getParameters();
+        CoreParameter param2 = param1.getNext();
+        CoreExpression body = ((CoreLamExpression) impl).getBody();
+        if (!param2.hasNext()) {
+          if (!(body instanceof CoreLamExpression)) {
+            continue;
+          }
+          param2 = ((CoreLamExpression) body).getParameters();
+          body = ((CoreLamExpression) body).getBody();
+        }
+        if (param2.getNext().hasNext()) {
+          continue;
+        }
+
+        if (!(body instanceof CoreDefCallExpression)) {
+          continue;
+        }
+        CoreDefCallExpression defCall = (CoreDefCallExpression) body;
+        var args = defCall.getDefCallArguments();
+        if (defCall.getDefinition() == definition && args.size() >= 2 && args.get(args.size() - 2) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(args.size() - 2)).getBinding() == param1.getBinding() && args.get(args.size() - 1) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(args.size() - 1)).getBinding() == param2.getBinding()) {
+          this.relationField = relationField;
+          return true;
+        }
       }
 
-      if (!(body instanceof CoreDefCallExpression)) {
-        return false;
-      }
-      CoreDefCallExpression defCall = (CoreDefCallExpression) body;
-      var args = defCall.getDefCallArguments();
-      return defCall.getDefinition() == definition && args.size() == 2 && args.get(0) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(0)).getBinding() == param1.getBinding() && args.get(1) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(1)).getBinding() == param2.getBinding();
+      return false;
     }
   }
 
@@ -170,6 +182,8 @@ public class TransitivitySolver implements EquationSolver {
       return false;
     }
 
+    leftValue = relationData.leftExpr;
+    rightValue = relationData.rightExpr;
     if (relationData.defCall instanceof CoreFieldCallExpression) {
       CoreFieldCallExpression fieldCall = (CoreFieldCallExpression) relationData.defCall;
       transFieldData = fieldCall.getDefinition().getUserData(meta.ext.transitivityKey);
@@ -189,27 +203,9 @@ public class TransitivitySolver implements EquationSolver {
         }
         return Objects.requireNonNull(typechecker.typecheck(factory.app(factory.ref(meta.ext.carrier.getRef()), false, Collections.singletonList(factory.core(instance))), null)).getExpression();
       });
-      leftValue = relationData.leftExpr;
-      rightValue = relationData.rightExpr;
       instanceDefinition = fieldCall.getDefinition();
     } else {
       CoreDefCallExpression defCall = relationData.defCall;
-      if (defCall instanceof CoreClassCallExpression) {
-        var impls = ((CoreClassCallExpression) defCall).getImplementations();
-        if (impls.size() != 2) {
-          return false;
-        }
-        var it = impls.iterator();
-        leftValue = it.next().getValue();
-        rightValue = it.next().getValue();
-      } else {
-        if (defCall.getDefCallArguments().size() != 2) {
-          return false;
-        }
-        leftValue = defCall.getDefCallArguments().get(0);
-        rightValue = defCall.getDefCallArguments().get(1);
-      }
-
       EquationMeta.TransitivityInstanceCache cache = meta.transitivityInstanceCache.get(defCall.getDefinition());
       CoreClassField relationField;
       TypedExpression instance;

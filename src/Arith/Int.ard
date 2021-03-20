@@ -1,4 +1,6 @@
 \import Algebra.Domain
+\import Algebra.Group
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Ordered
 \import Algebra.Semiring
@@ -10,8 +12,8 @@
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
+\import Paths.Meta
 \open LinearOrder (trichotomy)
-\open NatLE(zero<=_,suc<=suc)
 
 \func isuc (x : Int) : Int
   | pos n => pos (suc n)
@@ -30,62 +32,6 @@
   | pos 0 => idp
   | pos (suc n) => idp
   | neg n => idp
-
--- # Properties of <= and <
-
-\instance IntLE : TotalOrder Int
-  | <= => <=
-  | <=-reflexive {x : Int} : x <= x \elim x {
-    | pos n => pos<=pos Preorder.<=-reflexive
-    | neg (suc n) => neg<=neg Preorder.<=-reflexive
-  }
-  | <=-transitive {x y z : Int} (p : x <= y) (q : y <= z) : x <= z \elim x, y, z, p, q {
-    | pos n, pos m, pos k, pos<=pos p, pos<=pos q => pos<=pos (Preorder.<=-transitive p q)
-    | neg (suc n), _, pos k, _, _ => neg<=pos
-    | neg (suc n), neg (suc m), neg (suc k), neg<=neg p, neg<=neg q => neg<=neg (Preorder.<=-transitive q p)
-  }
-  | <=-antisymmetric {x y : Int} (p : x <= y) (q : y <= x) : x = y \elim x, y, p, q {
-    | pos n, pos m, pos<=pos p, pos<=pos q => pmap pos (Poset.<=-antisymmetric p q)
-    | neg (suc n), neg (suc m), neg<=neg p, neg<=neg q => pmap neg (Poset.<=-antisymmetric (suc<=suc q) (suc<=suc p))
-  }
-  | totality (x y : Int) : x <= y || y <= x \with {
-    | pos n, pos m => \case TotalOrder.totality n m \with {
-      | byLeft n<=m => byLeft (pos<=pos n<=m)
-      | byRight m<=n => byRight (pos<=pos m<=n)
-    }
-    | neg (suc n), pos m => byLeft neg<=pos
-    | pos n, neg (suc m) => byRight neg<=pos
-    | neg (suc n), neg (suc m) => \case TotalOrder.totality n m \with {
-      | byLeft n<=m => byRight (neg<=neg n<=m)
-      | byRight m<=n => byLeft (neg<=neg m<=n)
-    }
-  }
-  \where {
-    \data \infix 4 <= (x y : Int) \with
-      | pos n, pos m => pos<=pos (n Poset.<= m)
-      | neg (suc _), pos _ => neg<=pos
-      | neg (suc n), neg (suc m) => neg<=neg (m Poset.<= n)
-
-    \lemma neg<=pos' {n m : Nat} : neg n <= pos m \elim n
-      | 0 => pos<=pos zero<=_
-      | suc n => neg<=pos
-
-    \lemma neg<=neg' {n m : Nat} (p : m Poset.<= n) : neg n <= neg m \elim n, m, p
-      | 0, 0, _ => pos<=pos zero<=_
-      | suc n, 0, _ => neg<=pos
-      | suc n, suc m, suc<=suc p => neg<=neg p
-
-    \lemma minus<= {n m : Nat} : n Nat.- m <= n \elim n, m
-      | _, 0 => IntLE.<=-reflexive
-      | 0, suc m => neg<=pos
-      | suc n, suc m => IntLE.<=-transitive minus<= <=-isuc
-  }
-
-\open IntLE(pos<=pos, neg<=pos', neg<=neg, neg<=neg')
-
-\lemma <=-isuc {x : Int} : x <= isuc x \elim x
-  | pos n => pos<=pos <=-suc
-  | neg (suc n) => neg<=neg' <=-suc
 
 -- # Properties of +, *, and <
 
@@ -297,26 +243,6 @@
       | 0, k => neg*neg *> pmap pos (inv AddMonoid.zro-left)
       | suc m, 0 => neg*pos *> inv zro-left
       | suc m, suc k => neg_minus-ldistr {n} {m} {k} *> inv (pos_neg_+ {n Nat.* k} {n Nat.* m} {n})
-
-    -- ## <
-
-    \lemma <_minus-left {n m k : Nat} (p : suc n Poset.<= m) : isuc (n - k) <= m - k \elim n, m, k, p
-      | 0, suc m, 0, _ => pos<=pos (suc<=suc zero<=_)
-      | 0, 1, 1, _ => <=-reflexive
-      | 0, 1, suc (suc k), _ => neg<=neg <=-reflexive
-      | 0, suc (suc m), 1, _ => pos<=pos zero<=_
-      | 0, suc (suc m), suc (suc k), _ => <=-transitive (neg<=neg' <=-suc) (<_minus-left {0} {suc m} {suc k} (suc<=suc zero<=_))
-      | suc n, suc m, 0, p => pos<=pos p
-      | suc n, suc m, suc k, suc<=suc n<m => <_minus-left n<m
-
-    \lemma <_minus-right {n m k : Nat} (p : suc k Poset.<= m) : isuc (n - m) <= n - k \elim n, m, k, p
-      | 0, suc m, 0, _ => neg<=pos'
-      | 0, suc m, suc k, suc<=suc k<m => neg<=neg' k<m
-      | 1, 1, 0, _ => <=-reflexive
-      | suc (suc n), 1, 0, _ => <=-reflexive
-      | 1, suc (suc m), 0, _ => neg<=pos'
-      | suc (suc n), suc (suc m), 0, _ => <=-transitive (<_minus-right {suc n} {suc m} {0} (suc<=suc zero<=_)) (pos<=pos (suc<=suc <=-suc))
-      | suc n, suc m, suc k, suc<=suc k<m => <_minus-right k<m
   }
 
 \func signum (x : Int) : Int
@@ -337,6 +263,9 @@
     \lemma signum_neg {n : Nat} (n/=0 : Not (n = 0)) : signum (neg n) = -1 \elim n
       | 0 => absurd (n/=0 idp)
       | suc _ => idp
+
+    \lemma signum_neg/=1 {n : Nat} (p : signum (neg n) = 1) : Empty \elim n, p
+      | 0, ()
   }
 
 \func iabs (x : Int) : Nat
@@ -377,15 +306,28 @@
 \lemma pos_iabs {x y : Nat} (y<=x : y <= x) : pos (iabs (x Nat.- y)) = x Nat.- y
   => cases ((x Nat.- y) arg addPath) \with {
     | pos n, p => idp
-    | neg (suc n), p => absurd (<-irreflexive {_} {x} (<=-transitive (NatSemiring.triLess p) y<=x))
+    | neg (suc n), p => absurd (LinearOrder.notLess y<=x (NatSemiring.triLess p))
   }
 
 \lemma neg_iabs {x y : Nat} (x<=y : x <= y) : neg (iabs (x Nat.- y)) = x Nat.- y
   => cases ((x Nat.- y) arg addPath) \with {
-    | pos (suc n), p => absurd (<-irreflexive {_} {y} (<=-transitive (NatSemiring.triGreater p) x<=y))
+    | pos (suc n), p => absurd (LinearOrder.notLess x<=y (NatSemiring.triGreater p))
     | pos 0, p => idp
     | neg (suc n), p => idp
   }
+
+\lemma pos<pos {n m : Nat} (p : n < m) : pos n < pos m
+  => \case trichotomy (pos n) (pos m) \with {
+    | less n<m => n<m
+    | equals n=m => absurd (<-irreflexive (rewriteF (pmap iabs n=m) p))
+    | greater m<n => absurd (signum.signum_neg/=1 (rewrite (neg_iabs (<=-less p)) m<n))
+  }
+
+\lemma pos<=pos {n m : Nat} (p : n <= m) : pos n <= pos m
+  => LinearOrder.notGreater (\lam q => signum.signum_neg/=1 (rewrite (neg_iabs p) q))
+  \where
+    \lemma conv {n m : Nat} (p : pos n <= pos m) : n <= m \elim p
+      | LinearOrder.notGreater p => LinearOrder.notGreater (\lam m<n => p (pos<pos m<n))
 
 \lemma signum_iabs_eq {x y : Int} (p : signum x = signum y) (q : iabs x = iabs y) : x = y \elim x, y, p, q
   | 0, 0, _, _ => idp

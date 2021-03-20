@@ -14,6 +14,7 @@
 \import Function.Meta
 \import Logic
 \import Meta
+\import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
@@ -85,8 +86,8 @@
           *-comm *> inv (pmap (_ +) mod=0 *> zro-right) *> isDivMod a b
         }
         | inr (_,q) => rdistr *> pmap2 (+)
-            (pmap (`* _) *-comm *> *-assoc *> *-comm *> pmap (`* _) (reduce*fueled-left s b (divMod a b).2 (<=-transitive q (NatLE.unsuc b<=s))))
-            (reduce*fueled-right s b (divMod a b).2 (<=-transitive q (NatLE.unsuc b<=s))) *> isDivMod a b
+            (pmap (`* _) *-comm *> *-assoc *> *-comm *> pmap (`* _) (reduce*fueled-left s b (divMod a b).2 (<-transitive-left q (<_suc_<= b<=s))))
+            (reduce*fueled-right s b (divMod a b).2 (<-transitive-left q (<_suc_<= b<=s))) *> isDivMod a b
       }
     }
 
@@ -96,12 +97,12 @@
       | yes b=0 => zro_*-left *> inv b=0
       | no b/=0 => \case isEuclideanMap a b b/=0 \with {
         | inl mod=0 => pmap2 ((reduce-fueled s b __).1 * gcd-fueled s b __) mod=0 mod=0 *> pmap2 (__.1 * __) (reduce_zro s b) (fueled_zro s b) *> ide-left
-        | inr (_,q) => reduce*fueled-left s b (divMod a b).2 (<=-transitive q (NatLE.unsuc b<=s))
+        | inr (_,q) => reduce*fueled-left s b (divMod a b).2 (<-transitive-left q (<_suc_<= b<=s))
       }
     }
 
   \lemma reduce*gcd-right (a b : E) : (reduce a b).2 * gcd a b = b
-    => reduce*fueled-right (suc' (euclideanMap b)) a b (rewrite suc'=suc <=-reflexive)
+    => reduce*fueled-right (suc' (euclideanMap b)) a b (rewrite suc'=suc id<suc)
 
   \func gcd-isGCD-fueled (s : Nat) {a b g : E} (g|a : LDiv g a) (g|b : LDiv g b) : LDiv g (gcd-fueled s a b) \elim s
     | 0 => g|a
@@ -114,7 +115,7 @@
     | gcd => gcd a b
     | gcd|val1 => \new LDiv {
       | inv => (reduce a b).1
-      | inv-right => *-comm *> reduce*fueled-left (suc' (euclideanMap b)) a b (rewrite suc'=suc <=-reflexive)
+      | inv-right => *-comm *> reduce*fueled-left (suc' (euclideanMap b)) a b (rewrite suc'=suc id<suc)
     }
     | gcd|val2 => \new LDiv {
       | inv => (reduce a b).2
@@ -187,7 +188,7 @@
     | 0 => absurd (d/=0 idp)
     | suc _ \as d => \new Monoid.LDiv {
       | inv => div y d
-      | inv-right => pmap (d * y div d +) (mod-unique {d} {z} {0} {x + y div d} {y mod d} (NatLE.suc<=suc NatLE.zero<=_) (fin_< (y mod d)) (inv (pmap (`+ _) ldistr *> +-assoc *> pmap (_ +) (divModProp y d) *> dx+y=dz))) *> divModProp y d
+      | inv-right => pmap (d * y div d +) (mod-unique {d} {z} {0} {x + y div d} {y mod d} NatSemiring.zero<suc (fin_< (y mod d)) (inv (pmap (`+ _) ldistr *> +-assoc *> pmap (_ +) (divModProp y d) *> dx+y=dz))) *> divModProp y d
     }
   }
   \where {
@@ -243,18 +244,15 @@
 
     \lemma intMod<right (x : Int) (n : Nat) : iabs (IntEuclidean.divMod x (suc n)).2 < suc n
       => \case IntEuclidean.isEuclideanMap x (suc n) (\case __) \with {
-        | inl mod=0 => rewrite mod=0 (NatLE.suc<=suc NatLE.zero<=_)
-        | inr (_,r) => r
-      }
+           | inl mod=0 => rewrite mod=0 NatSemiring.zero<suc
+           | inr (_,r) => r
+         }
 
     \lemma natMod<right (x : Int) (n : Nat) : x mod suc n < suc n
       => \let (q,r) => IntEuclidean.divMod x (suc n)
          \in \case r \as r, idp : r = (IntEuclidean.divMod x (suc n)).2 \return (modToNat (suc n) (q,r)).2 < suc n \with {
                | pos m, p => transportInv (`< suc n) (pmap iabs p) (intMod<right x n)
-               | neg (suc m), p =>
-                 \case transportInv (`<= pos n) (pos_iabs (<-implies-<= (transportInv (`< suc n) (pmap iabs p) (intMod<right x n)))) IntLE.minus<= \with {
-                   | IntLE.pos<=pos r => NatLE.suc<=suc r
-                 }
+               | neg (suc m), p => <-transitive-right (pos<=pos.conv (transportInv (`<= pos n) (pos_iabs (<=-less (transportInv (`< suc n) (pmap iabs p) (intMod<right x n)))) (IntRing.<=_+ {pos n} {n} {neg m} {0} <=-reflexive (LinearOrder.notGreater signum.signum_neg/=1)))) id<suc
              }
 
     \lemma divModProp (x y : Int) (y/=0 : Not (y = 0)) : y * x div y + x mod y = x
@@ -267,7 +265,7 @@
                        | yes x=0 => rewrite x=0 idp
                        | no x/=0 => iabs.*-comm *> pmap (_ *) (iabs.signum_/=0 x/=0)
                      }
-                 \in pmap (_ +) (pos_iabs (transportInv (`<= iabs y) (pmap iabs p) (transportInv (`<= iabs y) t (<-implies-<= (mod<right (\lam |y|=0 => y/=0 (iabs.equals0 |y|=0))))))) *>
+                 \in pmap (_ +) (pos_iabs (transportInv (`<= iabs y) (pmap iabs p) (transportInv (`<= iabs y) t (<=-less (mod<right (\lam |y|=0 => y/=0 (iabs.equals0 |y|=0))))))) *>
                      pmap (`+ _) ldistr *>
                      pmap ((_ + __) + _) (Ring.negative_*-right _ _ *> pmap negative (inv iabs.signum_*)) *>
                      +-assoc *>
