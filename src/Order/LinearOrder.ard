@@ -14,40 +14,29 @@
 \class TotalOrder \extends DistributiveLattice {
   | totality (x y : E) : x <= y || y <= x
 
-  | ∧ x y => (tjoin (totality x y)).1
-  | meet-left {x} {y} => (tjoin (totality x y)).2.1
-  | meet-right {x} {y} => (tjoin (totality x y)).2.2
-  | meet-univ {x} {y} {z} => (tjoin (totality x y)).2.3 z
+  \default meet (x y : E) : E => (tmeet (totality x y)).1
+  \default meet-left {x y : E} : meet x y <= x => (tmeet (totality x y)).2
+  \default meet-right {x y : E} : meet x y <= y => (tmeet (totality x y)).3
+  \default meet-univ {x y z : E} : z <= x -> z <= y -> z <= meet x y => (tmeet (totality x y)).4 z
 
-  | ∨ x y => (tmeet (totality x y)).1
-  | join-left {x} {y} => (tmeet (totality x y)).2.1
-  | join-right {x} {y} => (tmeet (totality x y)).2.2
-  | join-univ {x} {y} {z} => (tmeet (totality x y)).2.3 z
+  \default join (x y : E) : E => (tjoin (totality x y)).1
+  \default join-left {x y : E} : x <= join x y => (tjoin (totality x y)).2
+  \default join-right {x y : E} : y <= join x y => (tjoin (totality x y)).3
+  \default join-univ {x y z : E} : x <= z -> y <= z -> join x y <= z => (tjoin (totality x y)).4 z
 
-  | ldistr>= => rewriteI (total-distrib totality) <=-reflexive
-} \where {
-  \func tjoin {E : Poset} {x y : E} => ||.rec MeetSemilattice.Meet-isProp
-                                              (\lam x<=y => (x, (E.<=-reflexive, x<=y, \lam z z<=x _ => z<=x)))
-                                              (\lam y<=x => (y, (y<=x, E.<=-reflexive, \lam z _ z<=y => z<=y)))
-
-  \func tmeet {E : Poset} {x y : E} => ||.rec JoinSemilattice.Join-isProp
-                                              (\lam x<=y => (y, (x<=y, E.<=-reflexive, \lam z _ y<=z => y<=z)))
-                                              (\lam y<=x => (x, (E.<=-reflexive, y<=x, \lam z z<=x _ => z<=x)))
-
-  \lemma total-distrib {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x) {x y z : E} : x ∧ (y ∨ z) = (x ∧ y) ∨ (x ∧ z) =>
+  | ldistr>= {x} {y} {z} =>
     \case totality y z \with {
-      | byLeft y<=z => distrib-x-y totality y<=z
-      | byRight z<=y => transport2 (x ∧ __ = __) join-comm join-comm (distrib-x-y totality z<=y)
-    } \where {
-    \lemma distrib-x-y {E : Lattice} (totality : \Pi (x y : E) -> x <= y || y <= x)
-                       {x y z : E} (y<=z : y <= z) : x ∧ (y ∨ z) = (x ∧ y) ∨ (x ∧ z) =>
-      pmap (x ∧) (join_<= y<=z) *> (\case totality (x ∧ y) (x ∧ z) \with {
-        | byLeft xy<=xz => inv (join_<= xy<=xz)
-        | byRight xz<=xy =>
-          \have xz=xy => <=-antisymmetric xz<=xy (meet-univ meet-left (<=-transitive meet-right y<=z))
-          \in rewriteI xz=xy (inv join-idemp)
-      })
-  }
+      | byLeft y<=z => <=-transitive (meet-univ meet-left (<=-transitive meet-right (join-univ y<=z <=-reflexive))) join-right
+      | byRight z<=y => <=-transitive (meet-univ meet-left (<=-transitive meet-right (join-univ <=-reflexive z<=y))) join-left
+    }
+} \where {
+  \func tmeet {E : Poset} {x y : E} => ||.rec MeetSemilattice.Meet-isProp
+                                              (\lam x<=y => (x, E.<=-reflexive, x<=y, \lam z z<=x _ => z<=x))
+                                              (\lam y<=x => (y, y<=x, E.<=-reflexive, \lam z _ z<=y => z<=y))
+
+  \func tjoin {E : Poset} {x y : E} => ||.rec JoinSemilattice.Join-isProp
+                                              (\lam x<=y => (y, x<=y, E.<=-reflexive, \lam z _ y<=z => y<=z))
+                                              (\lam y<=x => (x, E.<=-reflexive, y<=x, \lam z z<=x _ => z<=x))
 }
 
 -- | A linearly ordered set.
@@ -110,6 +99,40 @@
       | equals x=y => byLeft (rewrite x=y (notGreater <-irreflexive))
       | greater y<x => byRight (<=-less y<x)
     }
+
+    | meet x y => \case trichotomy x y \with {
+      | less _ => x
+      | equals _ => x
+      | greater _ => y
+    }
+    | meet-left => unfold (mcases <=-reflexive \with {
+      | greater y<x => <=-less y<x
+    })
+    | meet-right => unfold (mcases \with {
+      | less x<y => <=-less x<y
+      | equals x=y => rewrite x=y <=-reflexive
+      | greater _ => <=-reflexive
+    })
+    | meet-univ z<=x z<=y => unfold (mcases z<=x \with {
+      | greater _ => z<=y
+    })
+
+    | join x y => \case trichotomy x y \with {
+      | less _ => y
+      | equals _ => x
+      | greater _ => x
+    }
+    | join-left => unfold (mcases <=-reflexive \with {
+      | less x<y => <=-less x<y
+    })
+    | join-right => unfold (mcases \with {
+      | less _x => <=-reflexive
+      | equals x=y => rewrite x=y <=-reflexive
+      | greater y<x => <=-less y<x
+    })
+    | join-univ x<=z y<=z => unfold (mcases x<=z \with {
+      | less _ => y<=z
+    })
 
     \default decideEq x y => \case trichotomy x y \with {
       | less x<y => no (\lam x=y => <-irreflexive (transport (`< y) x=y x<y))
