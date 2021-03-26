@@ -45,12 +45,12 @@
   | <-connectedness {x y : E} : Not (x < y) -> Not (y < x) -> x = y
 
   | <= => <=
-  | <=-reflexive => notGreater <-irreflexive
-  | <=-transitive {x} {y} {z} x<=y y<=z => notGreater (\case <-comparison y __ \with {
-    | byLeft z<y => notLess y<=z z<y
-    | byRight y<x => notLess x<=y y<x
-  })
-  | <=-antisymmetric x<=y y<=x => <-connectedness (notLess y<=x) (notLess x<=y)
+  | <=-reflexive => <-irreflexive
+  | <=-transitive {x} {y} {z} x<=y y<=z => \case <-comparison y __ \with {
+    | byLeft z<y => y<=z z<y
+    | byRight y<x => x<=y y<x
+  }
+  | <=-antisymmetric x<=y y<=x => <-connectedness y<=x x<=y
 } \where {
   \class With# \extends LinearOrder, Set#
     | # x y => x < y || y < x
@@ -74,11 +74,10 @@
     }
     | tightness x/#y => <-connectedness (\lam x<y => x/#y (byLeft x<y)) (\lam y<x => x/#y (byRight y<x))
 
-  \data \infix 4 <= {A : StrictPoset} (a a' : A)
-    | notGreater (Not (a' < a))
+  \type \infix 4 <= {A : StrictPoset} (a a' : A) => Not (a' < a)
 
-  \lemma notLess {A : StrictPoset} {a a' : A} (p : a <= a') (q : a' < a) : Empty \elim p
-    | notGreater p => p q
+  \lemma notLess {A : StrictPoset} {a a' : A} (p : a <= a') (q : a' < a) : Empty
+    => p q
 
   -- | A linearly ordered set with decidable inequality.
   \class Dec \extends LinearOrder, DecSet, TotalOrder {
@@ -96,7 +95,7 @@
     }
     | totality x y => \case trichotomy x y \with {
       | less x<y => byLeft (<=-less x<y)
-      | equals x=y => byLeft (rewrite x=y (notGreater <-irreflexive))
+      | equals x=y => byLeft (rewrite x=y <-irreflexive)
       | greater y<x => byRight (<=-less y<x)
     }
 
@@ -144,12 +143,12 @@
   \func <=-dec {A : Dec} {a a' : A} (p : a <= a') : (a < a') `Or` (a = a') => \case trichotomy a a' \with {
     | less a<a' => inl a<a'
     | equals a=a' => inr a=a'
-    | greater a'<a => absurd (notLess p a'<a)
+    | greater a'<a => absurd (p a'<a)
   }
 
   \func dec<_<= {A : Dec} (a a' : A) : (a < a') `Or` (a' <= a) => \case trichotomy a a' \with {
     | less a<a' => inl a<a'
-    | equals a=a' => inr (notGreater (rewrite a=a' <-irreflexive))
+    | equals a=a' => inr (rewrite a=a' <-irreflexive)
     | greater a'<a => inr (<=-less a'<a)
   }
 
@@ -164,8 +163,6 @@
     })
 }
 
-\open LinearOrder(notGreater)
-
 \data Tri {A : StrictPoset} (a a' : A)
   | less (a < a')
   | equals (a = a')
@@ -173,17 +170,17 @@
   \where
     \use \level levelProp : \Prop
 
-\lemma \fixr 4 <-transitive-right {A : LinearOrder} {a1 a2 a3 : A} (p : a1 LinearOrder.<= a2) (q : a2 < a3) : a1 < a3 \elim p
-  | notGreater a2/<a1 => \case <-comparison a1 q \with {
+\lemma \fixr 4 <-transitive-right {A : LinearOrder} {a1 a2 a3 : A} (a2/<a1 : a1 LinearOrder.<= a2) (q : a2 < a3) : a1 < a3
+  => \case <-comparison a1 q \with {
     | byLeft a2<a1 => absurd (a2/<a1 a2<a1)
     | byRight a1<a3 => a1<a3
   }
 
-\lemma \fixl 4 <-transitive-left {A : LinearOrder} {a1 a2 a3 : A} (p : a1 < a2) (q : a2 LinearOrder.<= a3) : a1 < a3 \elim q
-  | notGreater a3/<a2 => \case <-comparison a3 p \with {
+\lemma \fixl 4 <-transitive-left {A : LinearOrder} {a1 a2 a3 : A} (p : a1 < a2) (a3/<a2 : a2 LinearOrder.<= a3) : a1 < a3
+  => \case <-comparison a3 p \with {
     | byLeft a1<a3 => a1<a3
     | byRight a3<a2 => absurd (a3/<a2 a3<a2)
   }
 
 \lemma <=-less {A : StrictPoset} {a1 a2 : A} (p : a1 < a2) : a1 LinearOrder.<= a2
-  => notGreater (\lam q => <-irreflexive (<-transitive p q))
+  => \lam q => <-irreflexive (<-transitive p q)
