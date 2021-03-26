@@ -295,7 +295,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             if (occurrences == null || occurrences.contains(count + 1)) {
               CoreBody body1 = def.getBody();
               if (body1 instanceof CoreElimBody) {
-                if (def.getKind() == CoreFunctionDefinition.Kind.SFUNC) {
+                if (def.getKind() == CoreFunctionDefinition.Kind.SFUNC || def.getKind() == CoreFunctionDefinition.Kind.TYPE) {
                   isSCase[0] = true;
                 }
                 matchArgs = ((CoreFunCallExpression) expr).getDefCallArguments();

@@ -11,6 +11,7 @@ import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDataDefinition;
+import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -83,6 +84,16 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
   }
 
+  private static CoreExpression normalizeType(CoreExpression type) {
+    type = type.normalize(NormalizationMode.WHNF);
+    while (type instanceof CoreFunCallExpression && ((CoreFunCallExpression) type).getDefinition().getKind() == CoreFunctionDefinition.Kind.TYPE) {
+      CoreExpression norm = ((CoreFunCallExpression) type).evaluate();
+      if (norm == null) break;
+      type = norm.normalize(NormalizationMode.WHNF);
+    }
+    return type;
+  }
+
   private static RType makeRType(CoreBinding binding, CoreExpression paramType) {
     CoreFunCallExpression equality = paramType.toEquality();
     return equality != null ? new EqType(binding, equality, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2)) : new RType(binding, paramType);
@@ -143,7 +154,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
   private void makeNegationData(Deque<CoreParameter> parameters, CoreExpression codomain, NegationData negationData, List<NegationData> result) {
     while (!parameters.isEmpty()) {
       CoreParameter parameter = parameters.removeFirst();
-      CoreExpression type = parameter.getTypeExpr().normalize(NormalizationMode.WHNF);
+      CoreExpression type = normalizeType(parameter.getTypeExpr());
       List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithDataArguments() : null;
       if (constructors != null) {
         boolean ok = codomain == null || !codomain.findFreeBinding(parameter.getBinding());
@@ -298,7 +309,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
       if (contradiction == null) {
         return null;
       }
-      type = contradiction.getType().normalize(NormalizationMode.WHNF);
+      type = normalizeType(contradiction.getType());
       if (isEmpty(type)) {
         contr = factory.core(contradiction);
       } else {
@@ -317,7 +328,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
       boolean searchForContradiction = negations.isEmpty() && transGraphs.isEmpty();
       List<Integer> conIndices = new ArrayList<>();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
-        type = binding.getTypeExpr().normalize(NormalizationMode.WHNF);
+        type = normalizeType(binding.getTypeExpr());
         List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithDataArguments() : null;
         if (constructors != null && constructors.isEmpty()) {
           contr = factory.ref(binding);
