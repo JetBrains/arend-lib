@@ -11,10 +11,19 @@
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Set.Fin
 
 \data List (A : \Type)
   | nil
   | \infixr 5 :: A (List A)
+
+\func length {A : \Type} (l : List A) : Nat \elim l
+  | nil => 0
+  | :: a l => suc (length l)
+
+\func \infixl 9 !! {A : \Type} (l : List A) (i : Fin (length l)) : A \elim l, i
+  | :: a l, 0 => a
+  | :: a l, suc i => l !! i
 
 \func \infixr 5 ++ {A : \Type} (xs ys : List A) : List A \elim xs
   | nil => ys
@@ -31,6 +40,17 @@
 \func map {A B : \Type} (f : A -> B) (l : List A) : List B \elim l
   | nil => nil
   | :: a l => f a :: map f l
+
+\func length_map {A B : \Type} (f : A -> B) (l : List A) : length (map f l) = length l \elim l
+  | nil => idp
+  | :: a l => pmap suc (length_map f l)
+
+\func map_!!' {A B : \Type} (f : A -> B) (l : List A) (i : Fin (length (map f l))) : map f l !! i = f (l !! transport Fin (length_map f l) i) \elim l, i
+  | :: a l, 0 => rewrite transport_zero idp
+  | :: a l, suc i => rewrite transport_suc (map_!!' f l i)
+
+\func map_!! {A B : \Type} (f : A -> B) (l : List A) (i : Fin (length l)) : map f l !! transport Fin (inv (length_map f l)) i = f (l !! i)
+  => map_!!' f l _ *> pmap (\lam j => f (l !! j)) (transport_id_inv Fin (length_map f l) i)
 
 \func map_comp {A B C : \Type} (g : B -> C) (f : A -> B) (l : List A) : map (\lam x => g (f x)) l = map g (map f l) \elim l
   | nil => idp
@@ -62,6 +82,14 @@
 \func take {A : \Type} (n : Nat) (l : List A) => (splitAt n l).1
 
 \func drop {A : \Type} (n : Nat) (l : List A) => (splitAt n l).2
+
+\func fold {A B : \Type} (f : A -> B -> B) (b : B) (l : List A) : B \elim l
+  | nil => b
+  | :: a l => f a (fold f b l)
+
+\func fold_map {A B C : \Type} (f : B -> C -> C) (c : C) (g : A -> B) (l : List A) : fold f c (map g l) = fold (\lam a => f (g a)) c l \elim l
+  | nil => idp
+  | :: a l => pmap (f (g a)) (fold_map f c g l)
 
 \func replace {A : \Type} (l : List A) (i s : Nat) (r : List A) =>
   \let! (l1, l2) => splitAt i l
