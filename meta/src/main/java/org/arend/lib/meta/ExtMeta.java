@@ -9,6 +9,7 @@ import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
+import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.level.CoreLevel;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -718,7 +719,13 @@ public class ExtMeta extends BaseMetaDefinition {
       return null;
     }
 
-    CoreExpression normType = type.normalize(NormalizationMode.WHNF);
+    CoreExpression origNormType = type.normalize(NormalizationMode.WHNF);
+    CoreExpression normType = origNormType;
+    while (normType instanceof CoreFunCallExpression && ((CoreFunCallExpression) normType).getDefinition().getKind() == CoreFunctionDefinition.Kind.TYPE) {
+      CoreExpression result = ((CoreFunCallExpression) normType).evaluate();
+      if (result == null) break;
+      normType = result.normalize(NormalizationMode.WHNF);
+    }
     ConcreteExpression arg = args.get(0).getExpression();
     if (normType instanceof CoreUniverseExpression) {
       ConcreteExpression left = factory.core(equality.getDefCallArguments().get(1).computeTyped());
@@ -752,12 +759,13 @@ public class ExtMeta extends BaseMetaDefinition {
     }
 
     ArendRef iRef = factory.local("i");
+    CoreExpression finalNormType = normType;
     return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.meta("ext_result", new MetaDefinition() {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
         ExtGenerator generator = new ExtGenerator(typechecker, factory, marker, iRef);
-        ConcreteExpression result = generator.generate(arg, normType, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2));
-        return result == null ? null : generator.goalExpr != null ? generator.goalExpr.computeTyped() : typechecker.typecheck(result, result instanceof ConcreteGoalExpression ? null : normType);
+        ConcreteExpression result = generator.generate(arg, finalNormType, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2));
+        return result == null ? null : generator.goalExpr != null ? generator.goalExpr.computeTyped() : typechecker.typecheck(result, result instanceof ConcreteGoalExpression ? null : origNormType);
       }
     })))), contextData.getExpectedType());
   }
