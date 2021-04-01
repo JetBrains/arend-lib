@@ -694,7 +694,7 @@ public class ExtMeta extends BaseMetaDefinition {
       }
     }
 
-    return type instanceof CoreSigmaExpression || type instanceof CoreClassCallExpression ? DefermentChecker.Result.AFTER_LEVELS : DefermentChecker.Result.DO_NOT_DEFER;
+    return type instanceof CoreSigmaExpression ? DefermentChecker.Result.AFTER_LEVELS : DefermentChecker.Result.DO_NOT_DEFER;
   };
 
   @Override
