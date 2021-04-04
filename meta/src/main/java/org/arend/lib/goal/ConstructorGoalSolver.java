@@ -46,7 +46,7 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
 
   @Override
   public void solve(@NotNull ExpressionTypechecker typechecker, @NotNull ConcreteGoalExpression goalExpression, @Nullable CoreExpression expectedType, @NotNull ArendUI ui, @NotNull Consumer<ConcreteExpression> callback) {
-    CoreExpression type = expectedType == null ? null : expectedType.getUnderlyingExpression().normalize(NormalizationMode.WHNF);
+    CoreExpression type = expectedType == null ? null : Utils.unfoldType(expectedType.normalize(NormalizationMode.WHNF));
     ConcreteFactory factory = ext.factory.withData(goalExpression.getData());
 
     ConcreteExpression result;

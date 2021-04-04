@@ -720,12 +720,7 @@ public class ExtMeta extends BaseMetaDefinition {
     }
 
     CoreExpression origNormType = type.normalize(NormalizationMode.WHNF);
-    CoreExpression normType = origNormType;
-    while (normType instanceof CoreFunCallExpression && ((CoreFunCallExpression) normType).getDefinition().getKind() == CoreFunctionDefinition.Kind.TYPE) {
-      CoreExpression result = ((CoreFunCallExpression) normType).evaluate();
-      if (result == null) break;
-      normType = result.normalize(NormalizationMode.WHNF);
-    }
+    CoreExpression normType = Utils.unfoldType(origNormType);
     ConcreteExpression arg = args.get(0).getExpression();
     if (normType instanceof CoreUniverseExpression) {
       ConcreteExpression left = factory.core(equality.getDefCallArguments().get(1).computeTyped());
@@ -759,12 +754,11 @@ public class ExtMeta extends BaseMetaDefinition {
     }
 
     ArendRef iRef = factory.local("i");
-    CoreExpression finalNormType = normType;
     return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.meta("ext_result", new MetaDefinition() {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
         ExtGenerator generator = new ExtGenerator(typechecker, factory, marker, iRef);
-        ConcreteExpression result = generator.generate(arg, finalNormType, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2));
+        ConcreteExpression result = generator.generate(arg, normType, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2));
         return result == null ? null : generator.goalExpr != null ? generator.goalExpr.computeTyped() : typechecker.typecheck(result, result instanceof ConcreteGoalExpression ? null : origNormType);
       }
     })))), contextData.getExpectedType());

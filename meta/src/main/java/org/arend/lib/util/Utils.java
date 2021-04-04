@@ -255,4 +255,13 @@ public class Utils {
     }
     return classFields;
   }
+
+  public static CoreExpression unfoldType(CoreExpression type) {
+    while (type instanceof CoreFunCallExpression && ((CoreFunCallExpression) type).getDefinition().getKind() == CoreFunctionDefinition.Kind.TYPE) {
+      CoreExpression result = ((CoreFunCallExpression) type).evaluate();
+      if (result == null) break;
+      type = result.normalize(NormalizationMode.WHNF);
+    }
+    return type;
+  }
 }
