@@ -24,6 +24,7 @@ import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.function.Function;
 
@@ -263,5 +264,14 @@ public class Utils {
       type = result.normalize(NormalizationMode.WHNF);
     }
     return type;
+  }
+
+  public static Boolean isArrayEmpty(CoreExpression type, StdExtension ext) {
+    type = type.normalize(NormalizationMode.WHNF);
+    if (!(type instanceof CoreClassCallExpression)) return null;
+    CoreExpression length = ((CoreClassCallExpression) type).getAbsImplementationHere(ext.prelude.getArrayLength());
+    if (length == null) return null;
+    length = length.normalize(NormalizationMode.WHNF);
+    return length instanceof CoreIntegerExpression ? (Boolean) ((CoreIntegerExpression) length).getBigInteger().equals(BigInteger.ZERO) : length instanceof CoreConCallExpression && ((CoreConCallExpression) length).getDefinition() == ext.prelude.getSuc() ? false : null;
   }
 }

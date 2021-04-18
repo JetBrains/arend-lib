@@ -24,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -68,14 +69,21 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
       }
       result = factory.lam(cParams, factory.goal());
     } else if (type instanceof CoreClassCallExpression) {
-      CoreClassCallExpression classCall = (CoreClassCallExpression) type;
-      List<ConcreteClassElement> classElements = new ArrayList<>();
-      for (CoreClassField field : classCall.getDefinition().getFields()) {
-        if (!classCall.isImplemented(field)) {
-          classElements.add(factory.implementation(field.getRef(), factory.goal()));
+      Boolean isEmptyArray = Utils.isArrayEmpty(type, ext);
+      if (isEmptyArray == null) {
+        CoreClassCallExpression classCall = (CoreClassCallExpression) type;
+        List<ConcreteClassElement> classElements = new ArrayList<>();
+        for (CoreClassField field : classCall.getDefinition().getFields()) {
+          if (!classCall.isImplemented(field)) {
+            classElements.add(factory.implementation(field.getRef(), factory.goal()));
+          }
         }
+        result = factory.newExpr(factory.classExt(factory.ref(classCall.getDefinition().getRef()), classElements));
+      } else if (isEmptyArray) {
+        result = factory.ref(ext.prelude.getEmptyArray().getRef());
+      } else {
+        result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, Arrays.asList(factory.goal(), factory.goal()));
       }
-      result = factory.newExpr(factory.classExt(factory.ref(classCall.getDefinition().getRef()), classElements));
     } else if (type instanceof CoreDataCallExpression) {
       CoreDataCallExpression dataCall = (CoreDataCallExpression) type;
       if (dataCall.getDefinition() == ext.prelude.getPath()) {
