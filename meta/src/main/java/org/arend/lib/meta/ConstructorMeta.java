@@ -20,6 +20,7 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.TypeError;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,12 +47,17 @@ public class ConstructorMeta extends BaseMetaDefinition {
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     CoreExpression type = contextData.getExpectedType().normalize(NormalizationMode.WHNF);
 
-    if (type instanceof CoreSigmaExpression) {
-      List<ConcreteExpression> args = new ArrayList<>();
+    if (!withImplicit || type instanceof CoreSigmaExpression) {
       for (ConcreteArgument argument : contextData.getArguments()) {
         if (!argument.isExplicit()) {
           typechecker.getErrorReporter().report(new ArgumentExplicitnessError(true, argument.getExpression()));
         }
+      }
+    }
+
+    if (type instanceof CoreSigmaExpression) {
+      List<ConcreteExpression> args = new ArrayList<>();
+      for (ConcreteArgument argument : contextData.getArguments()) {
         args.add(argument.getExpression());
       }
       return typechecker.typecheck(factory.tuple(args), type);
@@ -60,6 +66,32 @@ public class ConstructorMeta extends BaseMetaDefinition {
     if (type instanceof CoreClassCallExpression) {
       CoreClassCallExpression classCall = (CoreClassCallExpression) type;
       List<? extends ConcreteArgument> args = contextData.getArguments();
+      Boolean isEmpty = Utils.isArrayEmpty(classCall, ext);
+      if (isEmpty != null) {
+        if (withImplicit) {
+          return typechecker.typecheck(factory.app(factory.ref(isEmpty ? ext.prelude.getEmptyArray().getRef() : ext.prelude.getArrayCons().getRef()), args), type);
+        }
+
+        boolean hasElementsType = classCall.isImplemented(ext.prelude.getArrayElementsType());
+        int expected = (hasElementsType ? 0 : 1) + (isEmpty ? 0 : 2);
+        if (args.size() < expected) {
+          typechecker.getErrorReporter().report(new TypecheckingError("Not enough arguments. Expected " + (expected - args.size()) + " more.", contextData.getMarker()));
+          return null;
+        } else if (args.size() > expected) {
+          typechecker.getErrorReporter().report(new TypecheckingError("Too many arguments", args.get(expected).getExpression()));
+          return null;
+        }
+
+        List<ConcreteArgument> newArgs = new ArrayList<>(expected);
+        if (!hasElementsType) {
+          newArgs.add(factory.arg(args.get(0).getExpression(), false));
+        }
+        for (int i = hasElementsType ? 0 : 1; i < args.size(); i++) {
+          newArgs.add(factory.arg(args.get(i).getExpression(), true));
+        }
+        return typechecker.typecheck(factory.app(factory.ref(isEmpty ? ext.prelude.getEmptyArray().getRef() : ext.prelude.getArrayCons().getRef()), newArgs), type);
+      }
+
       if (withImplicit) {
         return typechecker.typecheck(factory.newExpr(factory.app(factory.ref(classCall.getDefinition().getRef()), args)), type);
       }
@@ -78,9 +110,6 @@ public class ConstructorMeta extends BaseMetaDefinition {
             }
             typechecker.getErrorReporter().report(new TypecheckingError("Not enough arguments. Expected " + c + " more.", contextData.getMarker()));
             return null;
-          }
-          if (!args.get(i).isExplicit()) {
-            typechecker.getErrorReporter().report(new ArgumentExplicitnessError(true, args.get(i).getExpression()));
           }
           elements.add(factory.implementation(field.getRef(), args.get(i).getExpression()));
           i++;
@@ -109,9 +138,6 @@ public class ConstructorMeta extends BaseMetaDefinition {
             if (!param.hasNext()) {
               typechecker.getErrorReporter().report(new TypecheckingError("Too many arguments", arg.getExpression()));
               return null;
-            }
-            if (!arg.isExplicit()) {
-              typechecker.getErrorReporter().report(new ArgumentExplicitnessError(true, arg.getExpression()));
             }
             newArgs.add(factory.arg(arg.getExpression(), param.isExplicit()));
             param = param.getNext();
