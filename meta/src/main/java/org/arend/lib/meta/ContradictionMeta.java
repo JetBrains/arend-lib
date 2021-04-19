@@ -155,7 +155,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
     while (!parameters.isEmpty()) {
       CoreParameter parameter = parameters.removeFirst();
       CoreExpression type = normalizeType(parameter.getTypeExpr());
-      List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithDataArguments() : null;
+      List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? type.computeMatchedConstructorsWithDataArguments() : null;
       if (constructors != null) {
         boolean ok = codomain == null || !codomain.findFreeBinding(parameter.getBinding());
         if (ok) {
@@ -329,7 +329,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
       List<Integer> conIndices = new ArrayList<>();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
         type = normalizeType(binding.getTypeExpr());
-        List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? ((CoreDataCallExpression) type).computeMatchedConstructorsWithDataArguments() : null;
+        List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? type.computeMatchedConstructorsWithDataArguments() : null;
         if (constructors != null && constructors.isEmpty()) {
           contr = factory.ref(binding);
           break;

@@ -290,11 +290,7 @@ public class PatternUtils {
       return checkCoverage(patterns, parameters, result);
     }
 
-    if (!(type instanceof CoreDataCallExpression)) {
-      return false;
-    }
-
-    List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = ((CoreDataCallExpression) type).computeMatchedConstructorsWithDataArguments();
+    List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = type.computeMatchedConstructorsWithDataArguments();
     if (constructors == null) {
       return false;
     }
