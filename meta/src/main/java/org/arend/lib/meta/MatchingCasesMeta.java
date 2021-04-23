@@ -530,7 +530,17 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           if (exprType.isError()) return CoreExpression.FindAction.CONTINUE;
 
           for (int i = 0; i < resultDataList.size(); i++) {
-            if (expr == resultDataList.get(i).expression) {
+            CoreExpression resultExpr = resultDataList.get(i).expression;
+            boolean ok = expr == resultExpr;
+            if (!ok) {
+              if (tc.compare(resultExpr.computeType(), exprType, CMP.EQ, marker, false, true) && tc.compare(resultExpr, expr, CMP.EQ, marker, false, true)) {
+                tc.updateSavedState();
+                ok = true;
+              } else {
+                tc.loadSavedState();
+              }
+            }
+            if (ok) {
               indicesToAbstract.add(new Pair<>(i + dataList.size() - resultDataList.size(), -1));
               expressionsToAbstract.add(expr);
               return CoreExpression.FindAction.SKIP;

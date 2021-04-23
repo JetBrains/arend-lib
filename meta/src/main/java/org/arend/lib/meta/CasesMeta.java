@@ -331,7 +331,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       clauses = newClauses;
     }
 
-    return typechecker.typecheck(factory.caseExpr(false, caseArgs, searchPairs.isEmpty() ? null : factory.meta("return_expr", new ReplaceSubexpressionsMeta(contextData.getExpectedType(), searchPairs)), null, clauses), searchPairs.isEmpty() ? contextData.getExpectedType() : null);
+    return typechecker.typecheck(factory.caseExpr(false, caseArgs, searchPairs.isEmpty() ? null : factory.meta("return_expr", new ReplaceSubexpressionsMeta(contextData.getExpectedType().normalize(NormalizationMode.RNF), searchPairs)), null, clauses), searchPairs.isEmpty() ? contextData.getExpectedType() : null);
   }
 
   private List<ArendPattern> getPatterns(CoreExpression type, CoreParameter parameter) {
