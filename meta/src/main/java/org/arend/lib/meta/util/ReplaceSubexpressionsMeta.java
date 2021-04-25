@@ -5,13 +5,14 @@ import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreReferenceExpression;
 import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.ext.core.ops.CMP;
-import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.MetaDefinition;
 import org.arend.ext.typechecking.TypedExpression;
+import org.arend.lib.error.TypeError;
 import org.arend.lib.util.Pair;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,7 +29,7 @@ public class ReplaceSubexpressionsMeta implements MetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    UncheckedExpression result = typechecker.withCurrentState(tc -> expression.replaceSubexpressions(expr -> {
+    UncheckedExpression result = Utils.tryTypecheck(typechecker, tc -> expression.replaceSubexpressions(expr -> {
       for (Pair<CoreExpression, ArendRef> pair : substPairs) {
         boolean ok = false;
         if (pair.proj1 instanceof CoreReferenceExpression) {
@@ -51,7 +52,7 @@ public class ReplaceSubexpressionsMeta implements MetaDefinition {
       return null;
     }));
     if (result == null) {
-      typechecker.getErrorReporter().report(new TypecheckingError("Cannot substitute expressions", contextData.getMarker()));
+      typechecker.getErrorReporter().report(new TypeError("Cannot substitute expressions", expression, contextData.getMarker()));
       return null;
     }
     return typechecker.check(result, contextData.getMarker());
