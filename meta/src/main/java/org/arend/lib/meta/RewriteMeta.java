@@ -102,7 +102,7 @@ public class RewriteMeta extends BaseMetaDefinition {
       if (var instanceof CoreInferenceReferenceExpression && ((CoreInferenceReferenceExpression) var).getVariable() == ((CoreInferenceReferenceExpression) expectedType).getVariable()) {
         if (!(occurrences == null || occurrences.isEmpty() || occurrences.size() == 1 && occurrences.contains(1))) {
           occurrences.remove(1);
-          errorReporter.report(new SubexprError(occurrences, var, expectedType, refExpr));
+          errorReporter.report(new SubexprError(occurrences, var, null, expectedType, refExpr));
           return null;
         }
         ArendRef ref = factory.local("T");
@@ -137,7 +137,8 @@ public class RewriteMeta extends BaseMetaDefinition {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
           final int[] num = { 0 };
-          CoreExpression valueType = value.computeType();
+          CoreExpression valueType = eq.getDefCallArguments().get(0);
+          boolean[] typeFailed = new boolean[] { false };
           UncheckedExpression absExpr = typechecker.withCurrentState(tc -> normType.replaceSubexpressions(expression -> {
             boolean ok;
             if (value instanceof CoreFunCallExpression && expression instanceof CoreFunCallExpression && ((CoreFunCallExpression) value).getDefinition() == ((CoreFunCallExpression) expression).getDefinition()) {
@@ -154,7 +155,12 @@ public class RewriteMeta extends BaseMetaDefinition {
                 }
               }
             } else {
-              ok = tc.compare(expression.computeType(), valueType, CMP.EQ, refExpr, false, true) && tc.compare(expression, value, CMP.EQ, refExpr, false, true);
+              if (tc.compare(expression.computeType(), valueType, CMP.EQ, refExpr, false, true)) {
+                ok = tc.compare(expression, value, CMP.EQ, refExpr, false, true);
+              } else {
+                ok = false;
+                typeFailed[0] = true;
+              }
             }
             if (ok) {
               num[0]++;
@@ -174,7 +180,7 @@ public class RewriteMeta extends BaseMetaDefinition {
             occurrences.removeIf(i -> i <= num[0]);
           }
           if (num[0] == 0 || occurrences != null && !occurrences.isEmpty()) {
-            errorReporter.report(new SubexprError(occurrences, value, normType, refExpr));
+            errorReporter.report(new SubexprError(occurrences, value, typeFailed[0] ? valueType : null, normType, refExpr));
             return null;
           }
           return typechecker.check(absExpr, refExpr);
