@@ -137,30 +137,30 @@ public class RewriteMeta extends BaseMetaDefinition {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
           final int[] num = { 0 };
-          CoreExpression valueType = eq.getDefCallArguments().get(0);
+          CoreExpression valueType = value.computeType();
           boolean[] typeFailed = new boolean[] { false };
           UncheckedExpression absExpr = typechecker.withCurrentState(tc -> normType.replaceSubexpressions(expression -> {
             boolean ok;
-            if (value instanceof CoreFunCallExpression && expression instanceof CoreFunCallExpression && ((CoreFunCallExpression) value).getDefinition() == ((CoreFunCallExpression) expression).getDefinition()) {
-              ok = true;
-              List<? extends CoreExpression> args1 = ((CoreFunCallExpression) value).getDefCallArguments();
-              if (args1.isEmpty()) {
-                return null;
-              }
-              List<? extends CoreExpression> args2 = ((CoreFunCallExpression) expression).getDefCallArguments();
-              for (int i = 0; i < args1.size(); i++) {
-                if (!tc.compare(args1.get(i), args2.get(i), CMP.EQ, refExpr, false, true)) {
-                  ok = false;
-                  break;
+            if (tc.compare(valueType, expression.computeType(), CMP.LE, refExpr, false, true)) {
+              if (value instanceof CoreFunCallExpression && expression instanceof CoreFunCallExpression && ((CoreFunCallExpression) value).getDefinition() == ((CoreFunCallExpression) expression).getDefinition()) {
+                ok = true;
+                List<? extends CoreExpression> args1 = ((CoreFunCallExpression) value).getDefCallArguments();
+                if (args1.isEmpty()) {
+                  return null;
                 }
+                List<? extends CoreExpression> args2 = ((CoreFunCallExpression) expression).getDefCallArguments();
+                for (int i = 0; i < args1.size(); i++) {
+                  if (!tc.compare(args1.get(i), args2.get(i), CMP.EQ, refExpr, false, true)) {
+                    ok = false;
+                    break;
+                  }
+                }
+              } else {
+                ok = tc.compare(expression, value, CMP.EQ, refExpr, false, true);
               }
             } else {
-              if (tc.compare(expression.computeType(), valueType, CMP.EQ, refExpr, false, true)) {
-                ok = tc.compare(expression, value, CMP.EQ, refExpr, false, true);
-              } else {
-                ok = false;
-                typeFailed[0] = true;
-              }
+              ok = false;
+              typeFailed[0] = true;
             }
             if (ok) {
               num[0]++;
@@ -183,7 +183,11 @@ public class RewriteMeta extends BaseMetaDefinition {
             errorReporter.report(new SubexprError(occurrences, value, typeFailed[0] ? valueType : null, normType, refExpr));
             return null;
           }
-          return typechecker.check(absExpr, refExpr);
+          TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.check(absExpr, refExpr));
+          if (result == null) {
+            errorReporter.report(new SubexprError(occurrences, value, typeFailed[0] ? valueType : null, normType, refExpr));
+          }
+          return result;
         }
       })))
       .app(factory.core("transport _ {!} _", path))
