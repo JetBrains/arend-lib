@@ -287,7 +287,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
               }
             }
             if (!substitution.isEmpty()) {
-              type1 = typechecker.substitute(type1, null, substitution);
+              type1 = typechecker.substitute(type1, null, null, substitution);
               if (type1 != null) {
                 patterns1 = getPatterns(type1.normalize(NormalizationMode.WHNF), parameter);
               }

@@ -4,7 +4,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.level.CoreSort;
+import org.arend.ext.core.level.CoreLevel;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ContextData;
@@ -20,17 +20,19 @@ import java.util.List;
 
 public class SubstitutionMeta implements MetaDefinition {
   private final CoreExpression expression;
-  private final CoreSort sort;
+  private final CoreLevel pLevel;
+  private final CoreLevel hLevel;
   private final List<SubstitutionPair> substitution;
 
-  public SubstitutionMeta(CoreExpression expression, CoreSort sort, List<SubstitutionPair> substitution) {
+  public SubstitutionMeta(CoreExpression expression, CoreLevel pLevel, CoreLevel hLevel, List<SubstitutionPair> substitution) {
     this.expression = expression;
-    this.sort = sort;
+    this.pLevel = pLevel;
+    this.hLevel = hLevel;
     this.substitution = new ArrayList<>(substitution);
   }
 
   public SubstitutionMeta(CoreExpression expression, List<SubstitutionPair> substitution) {
-    this(expression, null, substitution);
+    this(expression, null, null, substitution);
   }
 
   public SubstitutionMeta(CoreExpression expression, CoreBinding binding, ConcreteExpression expr) {
@@ -44,7 +46,7 @@ public class SubstitutionMeta implements MetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    CoreExpression result = typechecker.substitute(expression, sort, substitution);
+    CoreExpression result = typechecker.substitute(expression, pLevel, hLevel, substitution);
     return result == null ? null : result.computeTyped();
   }
 }
