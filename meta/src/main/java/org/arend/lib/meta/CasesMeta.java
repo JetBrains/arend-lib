@@ -219,7 +219,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
 
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     List<ConcreteCaseArgument> caseArgs = new ArrayList<>();
-    List<Pair<CoreExpression,ArendRef>> searchPairs = new ArrayList<>();
+    List<Pair<TypedExpression,ArendRef>> searchPairs = new ArrayList<>();
     List<ConcreteParameter> concreteParameters = defaultExpr == null ? null : new ArrayList<>();
     for (int i = 0; i < argParametersList.size(); i++) {
       ArgParameters argParams = argParametersList.get(i);
@@ -238,7 +238,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
           argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType(), searchPairs));
         }
         if (!isElim) {
-          searchPairs.add(new Pair<>(typed.getExpression(), caseArgRef));
+          searchPairs.add(new Pair<>(typed, caseArgRef));
         }
       }
       caseArgs.add(isElim ? factory.caseArg((ConcreteReferenceExpression) argExpr, argType) : factory.caseArg(argExpr, caseArgRef, argType));

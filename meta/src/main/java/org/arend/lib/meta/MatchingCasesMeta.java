@@ -913,7 +913,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<List<ArendRef>> refLists = new ArrayList<>();
     List<List<CoreExpression>> substExprLists = new ArrayList<>();
     List<List<ArendRef>> substRefLists = new ArrayList<>();
-    List<Pair<CoreExpression,ArendRef>> substPairs = new ArrayList<>();
+    List<Pair<TypedExpression,ArendRef>> substPairs = new ArrayList<>();
     int totalArgs = 0;
     for (int i = 0; i < dataList.size(); i++) {
       SubexpressionData data = dataList.get(i);
@@ -960,14 +960,14 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           totalArgs++;
           exprs.add(typed.getExpression());
           refs.add(ref);
-          substPairs.add(new Pair<>(typed.getExpression(), ref));
+          substPairs.add(new Pair<>(typed, ref));
           refList.add(ref);
           refExprs.add(refExpr);
         } else {
           List<? extends CoreExpression> originalArgs = data.getOriginalArgs();
           exprs.add(originalArgs.get(j));
           refs.add(refLists.get(pair.proj1).get(pair.proj2));
-          substPairs.add(new Pair<>(originalArgs.get(j), refLists.get(pair.proj1).get(pair.proj2)));
+          substPairs.add(new Pair<>(originalArgs.get(j).computeTyped(), refLists.get(pair.proj1).get(pair.proj2)));
         }
       }
 
@@ -983,7 +983,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, factory.core(additionalArgs.get(i)), factory.ref(ref))));
       }
       totalArgs++;
-      substPairs.add(new Pair<>(additionalArgs.get(i).getExpression(), ref));
+      substPairs.add(new Pair<>(additionalArgs.get(i), ref));
     }
 
     for (int i = 0; i < dataList.size(); i++) {

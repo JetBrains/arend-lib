@@ -20,9 +20,9 @@ import java.util.List;
 
 public class ReplaceSubexpressionsMeta implements MetaDefinition {
   private final CoreExpression expression;
-  private final List<Pair<CoreExpression,ArendRef>> substPairs;
+  private final List<Pair<TypedExpression,ArendRef>> substPairs;
 
-  public ReplaceSubexpressionsMeta(CoreExpression expression, List<Pair<CoreExpression,ArendRef>> substPairs) {
+  public ReplaceSubexpressionsMeta(CoreExpression expression, List<Pair<TypedExpression,ArendRef>> substPairs) {
     this.expression = expression;
     this.substPairs = substPairs;
   }
@@ -30,14 +30,14 @@ public class ReplaceSubexpressionsMeta implements MetaDefinition {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     UncheckedExpression result = Utils.tryTypecheck(typechecker, tc -> expression.replaceSubexpressions(expr -> {
-      for (Pair<CoreExpression, ArendRef> pair : substPairs) {
+      for (Pair<TypedExpression, ArendRef> pair : substPairs) {
         boolean ok = false;
         if (pair.proj1 instanceof CoreReferenceExpression) {
           if (expr instanceof CoreReferenceExpression && ((CoreReferenceExpression) pair.proj1).getBinding() == ((CoreReferenceExpression) expr).getBinding()) {
             ok = true;
           }
         } else {
-          if (tc.compare(expr, pair.proj1, CMP.EQ, contextData.getMarker(), false, true)) {
+          if (tc.compare(pair.proj1.getType(), expr.computeType(), CMP.LE, contextData.getMarker(), false, true) && tc.compare(expr, pair.proj1.getExpression(), CMP.EQ, contextData.getMarker(), false, true)) {
             tc.updateSavedState();
             ok = true;
           } else {
