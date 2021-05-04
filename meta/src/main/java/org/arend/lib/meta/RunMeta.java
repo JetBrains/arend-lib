@@ -81,15 +81,6 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
       return ext.factory.withData(contextData.getCoclauses().getData()).goal();
     }
 
-    ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
-    List<? extends ConcreteArgument> arguments = contextData.getArguments();
-    ConcreteExpression repr = getConcreteRepresentation(arguments, refExpr);
-    ConcreteExpression result = resolver.resolve(repr);
-    if (result != repr) {
-      return result;
-    }
-
-    ConcreteFactory factory = ext.factory.withData(refExpr.getData());
-    return factory.app(refExpr.getPLevel() == null && refExpr.getHLevel() == null ? refExpr : factory.ref(refExpr.getReferent()), arguments);
+    return resolver.resolve(getConcreteRepresentation(contextData.getArguments(), contextData.getReferenceExpression()));
   }
 }
