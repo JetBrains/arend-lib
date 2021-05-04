@@ -854,7 +854,9 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                       args.add(PatternUtils.toExpression(actualRowWithoutAddPath.get(l + k), ext, factory, bindings));
                     }
                   }
+                }
 
+                for (SubexpressionData data : resultDataList) {
                   List<CorePattern> patternArgs = new ArrayList<>();
                   for (int k = 0; k < data.removedArgs.size(); k++) {
                     if (data.removedArgs.get(k) == null) {
