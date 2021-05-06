@@ -1,5 +1,6 @@
 package org.arend.lib.meta.util;
 
+import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreReferenceExpression;
@@ -20,41 +21,47 @@ import java.util.List;
 
 public class ReplaceSubexpressionsMeta implements MetaDefinition {
   private final CoreExpression expression;
-  private final List<Pair<TypedExpression,ArendRef>> substPairs;
+  private final List<Pair<TypedExpression,Object>> substPairs;
 
-  public ReplaceSubexpressionsMeta(CoreExpression expression, List<Pair<TypedExpression,ArendRef>> substPairs) {
+  public ReplaceSubexpressionsMeta(CoreExpression expression, List<Pair<TypedExpression,Object>> substPairs) {
     this.expression = expression;
     this.substPairs = substPairs;
   }
 
+  public TypedExpression invoke(@NotNull ExpressionTypechecker typechecker, @NotNull ConcreteSourceNode marker) {
+    return Utils.tryTypecheck(typechecker, tc -> {
+      UncheckedExpression replaced = expression.replaceSubexpressions(expr -> {
+        for (Pair<TypedExpression, Object> pair : substPairs) {
+          boolean ok = false;
+          if (pair.proj1 instanceof CoreReferenceExpression) {
+            if (expr instanceof CoreReferenceExpression && ((CoreReferenceExpression) pair.proj1).getBinding() == ((CoreReferenceExpression) expr).getBinding()) {
+              ok = true;
+            }
+          } else {
+            if (tc.compare(pair.proj1.getType(), expr.computeType(), CMP.LE, marker, false, true) && tc.compare(expr, pair.proj1.getExpression(), CMP.EQ, marker, false, true)) {
+              tc.updateSavedState();
+              ok = true;
+            } else {
+              tc.loadSavedState();
+            }
+          }
+          if (ok) {
+            CoreBinding binding = pair.proj2 instanceof CoreBinding ? (CoreBinding) pair.proj2 : tc.getFreeBinding((ArendRef) pair.proj2);
+            return binding == null ? null : binding.makeReference();
+          }
+        }
+        return null;
+      });
+      return replaced == null ? null : typechecker.check(replaced, marker);
+    });
+  }
+
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    UncheckedExpression result = Utils.tryTypecheck(typechecker, tc -> expression.replaceSubexpressions(expr -> {
-      for (Pair<TypedExpression, ArendRef> pair : substPairs) {
-        boolean ok = false;
-        if (pair.proj1 instanceof CoreReferenceExpression) {
-          if (expr instanceof CoreReferenceExpression && ((CoreReferenceExpression) pair.proj1).getBinding() == ((CoreReferenceExpression) expr).getBinding()) {
-            ok = true;
-          }
-        } else {
-          if (tc.compare(pair.proj1.getType(), expr.computeType(), CMP.LE, contextData.getMarker(), false, true) && tc.compare(expr, pair.proj1.getExpression(), CMP.EQ, contextData.getMarker(), false, true)) {
-            tc.updateSavedState();
-            ok = true;
-          } else {
-            tc.loadSavedState();
-          }
-        }
-        if (ok) {
-          CoreBinding binding = tc.getFreeBinding(pair.proj2);
-          return binding == null ? null : binding.makeReference();
-        }
-      }
-      return null;
-    }));
+    TypedExpression result = invoke(typechecker, contextData.getMarker());
     if (result == null) {
       typechecker.getErrorReporter().report(new TypeError("Cannot substitute expressions", expression, contextData.getMarker()));
-      return null;
     }
-    return typechecker.check(result, contextData.getMarker());
+    return result;
   }
 }

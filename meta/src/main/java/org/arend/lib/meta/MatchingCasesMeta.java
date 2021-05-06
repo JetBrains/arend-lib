@@ -6,6 +6,7 @@ import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.core.body.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.context.CoreParameterBuilder;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
@@ -458,19 +459,29 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       addPathList.remove(i);
     }
 
-    List<CoreParameter> allParameters = bodyParameters;
+    CoreParameterBuilder parameterBuilder = typechecker.newCoreParameterBuilder();
+    for (CoreParameter bodyParameter : bodyParameters) {
+      parameterBuilder.addCopyLast(bodyParameter);
+    }
     CoreParameter additionalParameters = null;
     if (!additionalArgs.isEmpty()) {
-      List<CoreExpression> types = new ArrayList<>(additionalArgs.size());
-      for (TypedExpression additionalArg : additionalArgs) {
-        types.add(additionalArg.getType());
+      List<Pair<TypedExpression,Object>> substPairs = new ArrayList<>();
+      CoreParameter param = parameterBuilder.getFirst();
+      for (SubexpressionData data : dataList) {
+        for (TypedExpression matchedArg : data.matchedArgs) {
+          substPairs.add(new Pair<>(matchedArg, param.getBinding()));
+          param = param.getNext();
+        }
       }
-      additionalParameters = typechecker.makeParameters(types, marker);
-      allParameters = new ArrayList<>(bodyParameters.size() + 1);
-      allParameters.addAll(bodyParameters);
-      allParameters.add(additionalParameters);
+      for (TypedExpression additionalArg : additionalArgs) {
+        TypedExpression replaced = new ReplaceSubexpressionsMeta(additionalArg.getType(), substPairs).invoke(typechecker, marker);
+        CoreParameter newParam = parameterBuilder.addLast(true, null, replaced == null ? additionalArg.getType() : replaced.getExpression(), marker);
+        if (additionalParameters == null) {
+          additionalParameters = newParam;
+        }
+      }
     }
-    CoreParameter caseParams = typechecker.mergeParameters(allParameters);
+    CoreParameter caseParams = parameterBuilder.getFirst();
 
     // Insert paths from addPath
     if (!addPathList.isEmpty()) {
@@ -913,7 +924,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<List<ArendRef>> refLists = new ArrayList<>();
     List<List<CoreExpression>> substExprLists = new ArrayList<>();
     List<List<ArendRef>> substRefLists = new ArrayList<>();
-    List<Pair<TypedExpression,ArendRef>> substPairs = new ArrayList<>();
+    List<Pair<TypedExpression,Object>> substPairs = new ArrayList<>();
     int totalArgs = 0;
     for (int i = 0; i < dataList.size(); i++) {
       SubexpressionData data = dataList.get(i);
