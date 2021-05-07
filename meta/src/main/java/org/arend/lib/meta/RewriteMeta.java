@@ -131,7 +131,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     // Replace occurrences and return the result
     ArendRef ref = factory.local("x");
     return typechecker.typecheck(factory.appBuilder(transport)
-      .app(factory.lam(Collections.singletonList(factory.param(ref)), factory.meta("transport (\\lam x => {!}) _ _", new MetaDefinition() {
+      .app(factory.lam(Collections.singletonList(factory.param(true, Collections.singletonList(ref), factory.core(eq.getDefCallArguments().get(0).computeTyped()))), factory.meta("transport (\\lam x => {!}) _ _", new MetaDefinition() {
         @Override
         public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
