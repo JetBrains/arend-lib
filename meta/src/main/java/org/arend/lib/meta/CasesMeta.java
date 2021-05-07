@@ -235,7 +235,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
           argExpr = factory.core(typed);
         }
         if (argType == null && !searchPairs.isEmpty()) {
-          argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType(), searchPairs));
+          argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType().normalize(NormalizationMode.RNF), searchPairs));
         }
         if (!isElim) {
           searchPairs.add(new Pair<>(typed, caseArgRef));
