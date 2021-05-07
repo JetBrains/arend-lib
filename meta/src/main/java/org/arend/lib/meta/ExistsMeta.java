@@ -4,11 +4,11 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.error.ArgumentExplicitnessError;
-import org.arend.ext.error.NameResolverError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,36 +21,6 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
 
   public ExistsMeta(StdExtension ext) {
     this.ext = ext;
-  }
-
-  private boolean getRef(ConcreteExpression expr, ExpressionResolver resolver, List<ArendRef> refs) {
-    if (expr instanceof ConcreteReferenceExpression) {
-      ArendRef ref = ((ConcreteReferenceExpression) expr).getReferent();
-      if (resolver.isLongUnresolvedReference(ref)) {
-        return false;
-      }
-      refs.add(ref);
-      return true;
-    }
-
-    if (expr instanceof ConcreteHoleExpression) {
-      refs.add(null);
-      return true;
-    }
-
-    return false;
-  }
-
-  private List<ArendRef> getRefs(ConcreteExpression expr, ExpressionResolver resolver) {
-    List<ArendRef> result = new ArrayList<>();
-    for (ConcreteArgument argument : expr.getArgumentsSequence()) {
-      if (!argument.isExplicit() || !getRef(argument.getExpression(), resolver, result)) {
-        resolver.getErrorReporter().report(new NameResolverError("Cannot parse references", expr));
-        return null;
-      }
-    }
-    return result;
-
   }
 
   @Override
@@ -76,18 +46,9 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
     List<ConcreteParameter> parameters = new ArrayList<>();
     for (ConcreteArgument argument : arguments) {
       if (argument.isExplicit()) {
-        if (argument.getExpression() instanceof ConcreteTypedExpression) {
-          ConcreteTypedExpression typedExpr = (ConcreteTypedExpression) argument.getExpression();
-          List<ArendRef> refs = getRefs(typedExpr.getExpression(), resolver);
-          if (refs == null) {
-            return null;
-          }
-          parameters.add(factory.param(refs, typedExpr.getType()));
-        } else {
-          parameters.add(factory.param(Collections.emptyList(), argument.getExpression()));
-        }
+        parameters.add(Utils.expressionToParameter(argument.getExpression(), resolver, factory));
       } else {
-        List<ArendRef> refs = getRefs(argument.getExpression(), resolver);
+        List<ArendRef> refs = Utils.getRefs(argument.getExpression(), resolver);
         if (refs == null) {
           return null;
         }

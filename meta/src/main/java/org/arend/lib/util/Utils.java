@@ -1,6 +1,7 @@
 package org.arend.lib.util;
 
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreParameter;
@@ -10,13 +11,11 @@ import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
-import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.error.GeneralError;
-import org.arend.ext.error.TypeMismatchError;
-import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.error.*;
 import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
+import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.MetaRef;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -273,5 +272,47 @@ public class Utils {
     if (length == null) return null;
     length = length.normalize(NormalizationMode.WHNF);
     return length instanceof CoreIntegerExpression ? (Boolean) ((CoreIntegerExpression) length).getBigInteger().equals(BigInteger.ZERO) : length instanceof CoreConCallExpression && ((CoreConCallExpression) length).getDefinition() == ext.prelude.getSuc() ? false : null;
+  }
+
+  private static boolean getRef(ConcreteExpression expr, ExpressionResolver resolver, List<ArendRef> refs) {
+    if (expr instanceof ConcreteReferenceExpression) {
+      ArendRef ref = ((ConcreteReferenceExpression) expr).getReferent();
+      if (resolver.isLongUnresolvedReference(ref)) {
+        return false;
+      }
+      refs.add(ref);
+      return true;
+    }
+
+    if (expr instanceof ConcreteHoleExpression) {
+      refs.add(null);
+      return true;
+    }
+
+    return false;
+  }
+
+  public static List<ArendRef> getRefs(ConcreteExpression expr, ExpressionResolver resolver) {
+    List<ArendRef> result = new ArrayList<>();
+    for (ConcreteArgument argument : expr.getArgumentsSequence()) {
+      if (!argument.isExplicit() || !getRef(argument.getExpression(), resolver, result)) {
+        resolver.getErrorReporter().report(new NameResolverError("Cannot parse references", expr));
+        return null;
+      }
+    }
+    return result;
+  }
+
+  public static ConcreteParameter expressionToParameter(ConcreteExpression expr, ExpressionResolver resolver, ConcreteFactory factory) {
+    if (expr instanceof ConcreteTypedExpression) {
+      ConcreteTypedExpression typedExpr = (ConcreteTypedExpression) expr;
+      List<ArendRef> refs = getRefs(typedExpr.getExpression(), resolver);
+      if (refs == null) {
+        return null;
+      }
+      return factory.param(refs, typedExpr.getType());
+    } else {
+      return factory.param(Collections.emptyList(), expr);
+    }
   }
 }

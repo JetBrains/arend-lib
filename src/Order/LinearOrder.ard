@@ -1,3 +1,4 @@
+\import Data.Array
 \import Data.Or
 \import Logic
 \import Logic.Meta
@@ -37,10 +38,35 @@
   \func tjoin {E : Poset} {x y : E} => ||.rec JoinSemilattice.Join-isProp
                                               (\lam x<=y => (y, x<=y, E.<=-reflexive, \lam z _ y<=z => y<=z))
                                               (\lam y<=x => (x, E.<=-reflexive, y<=x, \lam z z<=x _ => z<=x))
+
+  \lemma meet-isMin {E : TotalOrder} (x y : E) : (x ∧ y = x) || (x ∧ y = y)
+    => \case totality x y \with {
+      | byLeft x<=y => byLeft (<=-antisymmetric Lattice.meet-left (Lattice.meet-univ <=-reflexive x<=y))
+      | byRight y<=x => byRight (<=-antisymmetric Lattice.meet-right (Lattice.meet-univ y<=x <=-reflexive))
+    }
+
+  \lemma join-isMax {E : TotalOrder} (x y : E) : (x ∨ y = x) || (x ∨ y = y)
+    => \case totality x y \with {
+      | byLeft x<=y => byRight (<=-antisymmetric (Lattice.join-univ x<=y <=-reflexive) Lattice.join-right)
+      | byRight y<=x => byLeft (<=-antisymmetric (Lattice.join-univ <=-reflexive y<=x) Lattice.join-left)
+    }
+}
+
+\class BiorderedSet \extends StrictPoset, Poset {
+  | \fixr 4 <-transitive-right {a1 a2 a3 : E} : a1 <= a2 -> a2 < a3 -> a1 < a3
+  | \fixl 4 <-transitive-left {a1 a2 a3 : E} : a1 < a2 -> a2 <= a3 -> a1 < a3
+  | <=-less {a1 a2 : E} : a1 < a2 -> a1 <= a2
+
+  \func op : BiorderedSet \cowith
+    | StrictPoset => StrictPoset.op
+    | Poset => Poset.op
+    | <-transitive-right p q => <-transitive-left q p
+    | <-transitive-left p q => <-transitive-right q p
+    | <=-less => <=-less
 }
 
 -- | A linearly ordered set.
-\class LinearOrder \extends StrictPoset, Poset {
+\class LinearOrder \extends BiorderedSet {
   | <-comparison (y : E) {x z : E} : x < z -> x < y || y < z
   | <-connectedness {x y : E} : Not (x < y) -> Not (y < x) -> x = y
 
@@ -51,6 +77,24 @@
     | byRight y<x => x<=y y<x
   }
   | <=-antisymmetric x<=y y<=x => <-connectedness y<=x x<=y
+
+  | <-transitive-right {a1} {a2} {a3} a2/<a1 a2<a3 => \case <-comparison a1 a2<a3 \with {
+    | byLeft a2<a1 => absurd (a2/<a1 a2<a1)
+    | byRight a1<a3 => a1<a3
+  }
+  | <-transitive-left {a1} {a2} {a3} a1<a2 a3/<a2 => \case <-comparison a3 a1<a2 \with {
+    | byLeft a1<a3 => a1<a3
+    | byRight a3<a2 => absurd (a3/<a2 a3<a2)
+  }
+  | <=-less p => \lam q => <-irreflexive (<-transitive p q)
+
+  \func op : LinearOrder \cowith
+    | StrictPoset => StrictPoset.op
+    | <-comparison y x<z => \case <-comparison y x<z \with {
+      | byLeft z<y => byRight z<y
+      | byRight y<x => byLeft y<x
+    }
+    | <-connectedness p q => <-connectedness q p
 } \where {
   \class With# \extends LinearOrder, Set#
     | # x y => x < y || y < x
@@ -138,6 +182,15 @@
       | equals x=y => yes x=y
       | greater y<x => no (\lam x=y => <-irreflexive (transport (y <) x=y y<x))
     }
+
+    \func op : Dec \cowith
+      | LinearOrder => LinearOrder.op
+      | decideEq => decideEq
+      | trichotomy x y => \case trichotomy x y \with {
+        | less y<x => greater y<x
+        | equals x=y => equals x=y
+        | greater x<y => less x<y
+      }
   }
 
   \func <=-dec {A : Dec} {a a' : A} (p : a <= a') : (a < a') `Or` (a = a') => \case trichotomy a a' \with {
@@ -161,7 +214,48 @@
     => unfold dec<_<= (mcases (pmap inr (Path.inProp _ _)) \with {
       | less a<a' => contradiction
     })
+
+  \lemma trichotomy<_reduce {A : Dec} {a a' : A} (p : a < a') : trichotomy a a' = less p
+    => cases (trichotomy a a') contradiction \with {
+      | less q => pmap less (Path.inProp q p)
+    }
+
+  \lemma trichotomy=_reduce {A : Dec} {a a' : A} (p : a = a') : trichotomy a a' = equals p
+    => cases (trichotomy a a') contradiction \with {
+      | equals q => pmap equals (Path.inProp q p)
+    }
+
+  \lemma trichotomy>_reduce {A : Dec} {a a' : A} (p : a' < a) : trichotomy a a' = greater p
+    => cases (trichotomy a a') contradiction \with {
+      | greater q => pmap greater (Path.inProp _ _)
+    }
+
+  \lemma <_meet-univ {A : Dec} {x y z : A} (p : x < y) (q : x < z) : x < y ∧ z
+    => \case dec<_<= y z \with {
+      | inl y<z => rewrite (meet_<= (<=-less y<z)) p
+      | inr z<=y => rewrite (meet-comm *> meet_<= z<=y) q
+    }
+
+  \lemma fold_<_meet-univ {A : Dec} {l : Array A} {x y : A} (p : y < x) (f : \Pi (i : Fin l.len) -> y < l i) : y < fold (∧) x l \elim l
+    | nil => p
+    | :: a l => <_meet-univ (f 0) (fold_<_meet-univ p (\lam i => f (suc i)))
+
+  \lemma <_join-univ {A : Dec} {x y z : A} (p : x < z) (q : y < z) : x ∨ y < z
+    => \case dec<_<= x y \with {
+      | inl x<y => rewrite (join_<= (<=-less x<y)) q
+      | inr y<=x => rewrite (join-comm *> join_<= y<=x) p
+    }
+
+  \lemma fold_<_join-univ {A : Dec} {l : Array A} {x y : A} (p : x < y) (f : \Pi (i : Fin l.len) -> l i < y) : fold (∨) x l < y \elim l
+    | nil => p
+    | :: a l => <_join-univ (f 0) (fold_<_join-univ p (\lam i => f (suc i)))
 }
+
+\class DenseLinearOrder \extends LinearOrder
+  | isDense {x z : E} : x < z -> ∃ (y : E) (x < y) (y < z)
+  \where {
+    \class Dec \extends DenseLinearOrder, LinearOrder.Dec
+  }
 
 \data Tri {A : StrictPoset} (a a' : A)
   | less (a < a')
@@ -169,18 +263,3 @@
   | greater (a > a')
   \where
     \use \level levelProp : \Prop
-
-\lemma \fixr 4 <-transitive-right {A : LinearOrder} {a1 a2 a3 : A} (a2/<a1 : a1 LinearOrder.<= a2) (q : a2 < a3) : a1 < a3
-  => \case <-comparison a1 q \with {
-    | byLeft a2<a1 => absurd (a2/<a1 a2<a1)
-    | byRight a1<a3 => a1<a3
-  }
-
-\lemma \fixl 4 <-transitive-left {A : LinearOrder} {a1 a2 a3 : A} (p : a1 < a2) (a3/<a2 : a2 LinearOrder.<= a3) : a1 < a3
-  => \case <-comparison a3 p \with {
-    | byLeft a1<a3 => a1<a3
-    | byRight a3<a2 => absurd (a3/<a2 a3<a2)
-  }
-
-\lemma <=-less {A : StrictPoset} {a1 a2 : A} (p : a1 < a2) : a1 LinearOrder.<= a2
-  => \lam q => <-irreflexive (<-transitive p q)
