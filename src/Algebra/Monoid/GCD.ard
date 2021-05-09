@@ -114,9 +114,7 @@
     \func DivPreoder (M : CMonoid) : Preorder M \cowith
       | <= x y => TruncP (LDiv y x)
       | <=-reflexive {x} => inP (\new LDiv x x ide ide-right)
-      | <=-transitive {x} {y} {z} [y|x] [z|y] => \case [y|x], [z|y] \with {
-        | inP (y|x : LDiv y x), inP (z|y : LDiv z y) => inP (LDiv.trans z|y y|x)
-      }
+      | <=-transitive {x} {y} {z} (inP y|x) (inP z|y) => inP (LDiv.trans z|y y|x)
 
     \func \infix 4 ~ {M : CMonoid} => Equivalence.~ {EquivRel {DivPreoder M}}
 
@@ -125,28 +123,20 @@
     \lemma make~ {M : CMonoid} (x y : M) (p : inD x = inD y) : x ~ y =>
       Quotient.equalityEquiv (Preorder.EquivRel {DivPreoder M}) p
 
-    \lemma equivalent-areAssociates {M : CancelCMonoid} (x y : M) (p : x ~ y) : areAssociates x y
-      => \case p.1, p.2 \with {
-           | inP (y|x : LDiv y x), inP (x|y : LDiv x y) =>
-             (\new Inv y|x.inv x|y.inv {
-               | inv-left => cancel-left x (inv *-assoc *> pmap (`* _) x|y.inv-right *> y|x.inv-right *> inv ide-right)
-               | inv-right => cancel-left y (inv *-assoc *> pmap (`* _) y|x.inv-right *> x|y.inv-right *> inv ide-right)
-             }, inv y|x.inv-right *> *-comm)
-         }
+    \lemma equivalent-areAssociates {M : CancelCMonoid} (x y : M) (p : x ~ y) : areAssociates x y \elim p
+       | (inP (y|x : LDiv y x), inP (x|y : LDiv x y)) =>
+           (\new Inv y|x.inv x|y.inv {
+             | inv-left => cancel-left x (inv *-assoc *> pmap (`* _) x|y.inv-right *> y|x.inv-right *> inv ide-right)
+             | inv-right => cancel-left y (inv *-assoc *> pmap (`* _) y|x.inv-right *> x|y.inv-right *> inv ide-right)
+           }, inv y|x.inv-right *> *-comm)
 
     -- | The quotient monoid is indeed a monoid.
     \instance DivQuotientMonoid (M : CMonoid) : CMonoid (DivQuotient M)
       | ide => inD ide
       | * => *'
-      | ide-left {[x]} => \case \elim [x] \with {
-        | inD x => pmap inD ide-left
-      }
-      | *-assoc {[x]} {[y]} {[z]} => \case \elim [x], \elim [y], \elim [z] \with {
-        | inD x, inD y, inD z => pmap inD *-assoc
-      }
-      | *-comm {[x]} {[y]} => \case \elim [x], \elim [y] \with {
-        | inD x, inD y => pmap inD *-comm
-      }
+      | ide-left {inD x} => pmap inD ide-left
+      | *-assoc {inD x} {inD y} {inD z} => pmap inD *-assoc
+      | *-comm {inD x} {inD y} => pmap inD *-comm
     \where {
       \func \infixl 7 *' {M : CMonoid} (x y : DivQuotient M) : DivQuotient M
         | inD x, inD y => inD (x * y)
@@ -161,13 +151,10 @@
     -- | If the original monoid is cancellative, then so is the quotient monoid.
     \instance DivQuotientCancelMonoid (M : CancelCMonoid) : UnitlessMonoid
       | CMonoid => DivQuotientMonoid M
-      | cancel-left [x] {[y]} {[z]} [x*y=x*z] => \case \elim [x], \elim [y], \elim [z], [x*y=x*z] \with {
-        | inD x, inD y, inD z, x*y=x*z => path (~-equiv y z (
+      | cancel-left (inD x) {inD y} {inD z} x*y=x*z => path (~-equiv y z (
           \case make~ (x * y) (x * z) x*y=x*z \return y ~ z \with {
             | (inP x*z|x*y, inP x*y|x*z) => (inP (LDiv.cancel-left y x*z|x*y), inP (LDiv.cancel-left z x*y|x*z))
-          }
-        ))
-      }
+          }))
       | uniqueUnit (j : Inv) => \case j.val \as [x], j.inv \as [y], j.inv-right : [x] * [y] = inD ide \return [x] = inD ide \with {
         | inD x, inD y, p => path (~-equiv x ide (inv~ide (\have d : LDiv x ide => div-from~ (\new LDiv { | inv => inD y | inv-right => p }) \in Inv.rmake d.inv d.inv-right)))
       }
@@ -189,18 +176,16 @@
     -- | If the original monoid is a GCD-monoid, then the quotient monoid is a unit-less GCD-monoid.
     \instance DivQuotientGCDMonoid (M : GCDMonoid) : UnitlessGCDMonoid
       | UnitlessMonoid => DivQuotientCancelMonoid M
-      | isGCD [x] [y] => \case \elim [x], \elim [y] \with {
-        | inD x, inD y => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD (inD x) (inD y) (inD g.gcd) {
-          | gcd|val1 => div-to~ g.gcd|val1
-          | gcd|val2 => div-to~ g.gcd|val2
-          | gcd-univ [g'] [g']|x [g']|y =>
-            \case \elim [g'], [g']|x, [g']|y \return LDiv [g'] (inD g.gcd) \level LDiv.levelProp [g'] (inD g.gcd) \with {
-              | inD g' \as [g'], (inD x', ~x'*g'=x), (inD y', ~y'*g'=y) =>
-                  div-to~ (g.gcd-univ g' (div-from~ (\new LDiv { | inv => inD x' | inv-right => ~x'*g'=x }))
-                                         (div-from~ (\new LDiv { | inv => inD y' | inv-right => ~y'*g'=y })))
-            }
-        })
-      }
+      | isGCD (inD x) (inD y) => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD (inD x) (inD y) (inD g.gcd) {
+        | gcd|val1 => div-to~ g.gcd|val1
+        | gcd|val2 => div-to~ g.gcd|val2
+        | gcd-univ [g'] [g']|x [g']|y =>
+          \case \elim [g'], [g']|x, [g']|y \return LDiv [g'] (inD g.gcd) \level LDiv.levelProp [g'] (inD g.gcd) \with {
+            | inD g', (inD x', ~x'*g'=x), (inD y', ~y'*g'=y) =>
+                div-to~ (g.gcd-univ g' (div-from~ (\new LDiv { | inv => inD x' | inv-right => ~x'*g'=x }))
+                                       (div-from~ (\new LDiv { | inv => inD y' | inv-right => ~y'*g'=y })))
+          }
+      })
 
     \func gcd-to~ {M : CancelCMonoid} {x y z : M} (g : GCD x y z) : GCD (inD x) (inD y) (inD z) \cowith
       | gcd|val1 => div-to~ g.gcd|val1
