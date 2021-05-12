@@ -1,10 +1,11 @@
+\import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
-\import Arith.Rat
 \import Data.Array
 \import Data.Bool
 \import Data.Or
 \import Equiv
+\import Function.Meta ($, repeat)
 \import Logic
 \import Logic.Meta
 \import Meta
@@ -230,6 +231,44 @@
               | _, inr z2<=y'1 => deg (\lam x<z x<y' => <-irreflexive (<-transitive-left (<-transitive x<y'.1 x<z.2) z2<=y'1))
               | inr y'2<=z1, _ => deg (\lam x<z x<y' => <-irreflexive (<-transitive-left (<-transitive x<z.1 x<y'.2) y'2<=z1))
             })
+
+    \lemma locallyCompact {Q : DenseLinearOrder.Dec} : FramePres.isLocallyCompact {RealPres Q}
+      => \lam x => cover-trans (cover-basic (FramePres.indexing-make (later (false,x)))) (later (\lam (r,s,x1<r,_,s<x2) => cover-inj ((r,s), wayBelow (x1<r,s<x2)) idp))
   }
 
-\func RealLocale => PresentedFrame (RealPres RatField)
+\func RealLocale {Q : LinearOrder.Dec} : Locale => PresentedFrame (RealPres Q)
+  \where {
+    \lemma locallyCompact {Q : DenseLinearOrder.Dec} : RealLocale.isLocallyCompact
+      => locallyCompact-fromPres (RealPres.locallyCompact {Q})
+  }
+
+\func lowerHalf {Q : LinearOrder.Dec} (x : Q) : RealLocale {Q}
+  => Locale.Join {_} {\Sigma (a b : Q) (b <= x)} (\lam (a,b,_) => PresentedFrame.embed (later (a,b)))
+
+\func upperHalf {Q : LinearOrder.Dec} (x : Q) : RealLocale {Q}
+  => Locale.Join {_} {\Sigma (a b : Q) (x <= a)} (\lam (a,b,_) => PresentedFrame.embed (later (a,b)))
+
+\func closedInterval {Q : LinearOrder.Dec} (x y : Q) => Nucleus.locale {nucleus x y}
+  \where {
+    \func nucleus {Q : LinearOrder.Dec} (x y : Q) : Nucleus
+      => Locale.closed (lowerHalf x ∨ upperHalf y)
+
+    \lemma compact {Q : UnboundedDenseLinearOrder.Dec} (x y : Q) : Locale.isCompact {closedInterval x y}
+      => \case withoutLowerBound x, withoutUpperBound y \with {
+           | inP (x',x'<x), inP (y',y<y') => generalized x'<x y<y'
+         }
+      \where
+        \lemma generalized {Q : DenseLinearOrder.Dec} {x y a b : Q} (p : a < x) (q : y < b) : Locale.isCompact {Nucleus.locale {nucleus x y}}
+          => \case isDense p, isDense q \with {
+               | inP (a',a<a',a'<x), inP (b',y<b',b'<b) => closed-compact
+                   (Locale.closed-isClosed _)
+                   (<<-left (<<-fromPres (RealPres.wayBelow {_} {a',b'} {a,b} (a<a',b'<b))) Bounded.top-univ)
+                   (NucleusPoset.closed<=open {_} {_} {PresentedFrame.embed (later (a',b'))} (\lam {z} _ => cover-trans (RealPres.cover-pair a'<x) (\case \elim __ \with {
+                     | 0 => cover-inj (true, (z.1,x), later $ cover-inj (true, (z.1,x), cover-inj ((z.1,x,<=-reflexive), (z.1,x), cover-inj () idp) idp) idp) idp
+                     | 1 => cover-trans (RealPres.cover-pair y<b') (\case \elim __ \with {
+                       | 0 => cover-inj (false, (a',b'), cover-inj () idp) idp
+                       | 1 => cover-inj (true, (y,z.2), later $ cover-inj (false, (y,z.2), cover-inj ((y,z.2,<=-reflexive), (y,z.2), cover-inj () idp) idp) idp) idp
+                     })
+                   })))
+             }
+  }

@@ -8,6 +8,7 @@
 \import Category.Sub
 \import Data.Array
 \import Data.Bool
+\import Data.Maybe
 \import Data.Or
 \import Equiv (ESEquiv, Embedding, Equiv, QEquiv, idEquiv)
 \import Equiv.Univalence (Equiv-to-=)
@@ -26,7 +27,7 @@
 \import Set.Category
 \import Set.Fin
 \open Bounded(DistributiveLattice,top,top-univ)
-\open MeetSemilattice(meet-comm,meet-idemp)
+\open MeetSemilattice
 
 \class Locale \extends DistributiveLattice {
   | Join {J : \Set} : (J -> E) -> E
@@ -62,11 +63,44 @@
 
   \func SJoin (U : E -> \Prop) => Join (\lam (t : \Sigma (x : E) (U x)) => t.1)
 
-  \type \infix 4 << (x y : E) => \Pi {J : \Set} (g : J -> E) -> y <= Join g -> ∃ (l : Array J) (x <= Join (\lam i => g (l i)))
+  \type \infix 4 << (x y : E) => \Pi {J : \Set} {g : J -> E} -> y <= Join g -> ∃ (l : Array J) (x <= Join (\lam i => g (l i)))
 
   \type isCompact => top << top
 
   \type isLocallyCompact => \Pi (x : E) -> x <= SJoin (`<< x)
+
+  \func \infixr 5 --> (x y : E) => SJoin (__ ∧ x <= y)
+
+  \lemma exponent {x y z : E} : (x ∧ y <= z) = (x <= y --> z)
+    => ext (dir,conv)
+    \where {
+      \lemma dir {x y z : E} (p : x ∧ y <= z) : x <= y --> z
+        => Join-cond (later (x,p))
+
+      \lemma conv {x y z : E} (p : x <= y --> z) : x ∧ y <= z
+        => <=-transitive (meet-monotone p <=-reflexive) eval
+    }
+
+  \lemma eval {x y : E} : (x --> y) ∧ x <= y
+    => rewrite Join-rdistr (Join-univ __.2)
+
+  \lemma trueExponent {x y : E} (p : x <= y) : top <= x --> y
+    => exponent.dir (<=-transitive meet-right p)
+
+  \func open (a : E) : Nucleus (a --> __) \cowith
+    | nucleus-meet => <=-antisymmetric
+        (meet-univ (exponent.dir (<=-transitive eval meet-left)) (exponent.dir (<=-transitive eval meet-right)))
+        (exponent.dir (meet-univ (<=-transitive (meet-monotone meet-left <=-reflexive) eval) (<=-transitive (meet-monotone meet-right <=-reflexive) eval)))
+    | nucleus-unit => exponent.dir meet-left
+    | nucleus-join => exponent.dir (transport (_ ∧ __ <= _) meet-idemp (transport (`<= _) meet-assoc (<=-transitive (meet-monotone eval <=-reflexive) eval)))
+
+  \func closed (a : E) : Nucleus (a ∨ __) \cowith
+    | nucleus-meet => equation
+    | nucleus-unit => join-right
+    | nucleus-join => join-univ join-left <=-reflexive
+
+  \lemma closed-isClosed (a : E) : Nucleus.isClosed {closed a}
+    => \lam {x} => join-univ (<=-transitive join-left join-left) join-right
 }
 
 \record FrameHom \extends SetHom {
@@ -81,8 +115,92 @@
   \default func-Join \as func-Join-impl {J} {f} => <=-antisymmetric func-Join>= (Join-univ (\lam j => func-<= (Join-cond j)))
 
   \lemma func-<= {x y : Dom} (x<=y : x <= y) : func x <= func y
-    => rewrite (inv (pmap func (MeetSemilattice.meet_<= x<=y)) *> func-meet) meet-right
+    => rewrite (inv (pmap func (meet_<= x<=y)) *> func-meet) meet-right
+
+  \func direct (y : Cod) : Dom => SJoin (func __ <= y)
+
+  \lemma direct-<= {y z : Cod} (p : y <= z) : direct y <= direct z
+    => Join-univ (\lam (x,q) => Join-cond (later (x, <=-transitive q p)))
+
+  \lemma direct-meet {y z : Cod} : direct (y ∧ z) = direct y ∧ direct z
+    => <=-antisymmetric (meet-univ (direct-<= meet-left) (direct-<= meet-right)) (Join-cond (later (direct y ∧ direct z, meet-univ (<=-transitive (func-<= meet-left) direct-counit) (<=-transitive (func-<= meet-right) direct-counit))))
+
+  \lemma direct-counit {y : Cod} : func (direct y) <= y
+    => <=-transitive func-Join>= (Join-univ __.2)
+
+  \func nucleus : Nucleus (\lam x => direct (func x)) \cowith
+    | nucleus-meet => pmap direct func-meet *> direct-meet
+    | nucleus-unit {x} => Join-cond (later (x,<=-reflexive))
+    | nucleus-join => direct-<= direct-counit
 }
+
+-- | Nuclei encode sublocales
+\record Nucleus {L : Locale} (\coerce nucleus : L -> L) {
+  | nucleus-meet {x y : L} : nucleus (x ∧ y) = nucleus x ∧ nucleus y
+  | nucleus-unit {x : L} : x <= nucleus x
+  | nucleus-join {x : L} : nucleus (nucleus x) <= nucleus x
+
+  \lemma nucleus-<= {x y : L} (p : x <= y) : nucleus x <= nucleus y
+    => rewrite (inv (pmap nucleus (meet_<= p)) *> nucleus-meet) meet-right
+
+  \lemma nucleus-univ {x y : L} (p : x <= nucleus y) : nucleus x <= nucleus y
+    => <=-transitive (nucleus-<= p) nucleus-join
+
+  \func locale : Locale (\Sigma (x : L) (nucleus x <= x)) \cowith
+    | <= (x,_) (y,_) => x <= y
+    | <=-reflexive => <=-reflexive
+    | <=-transitive => <=-transitive
+    | <=-antisymmetric p q => ext (<=-antisymmetric p q)
+    | meet (x,p) (y,q) => (x ∧ y, rewrite nucleus-meet (meet-monotone p q))
+    | meet-left => meet-left
+    | meet-right => meet-right
+    | meet-univ => meet-univ
+    | top => (top, top-univ)
+    | top-univ => top-univ
+    | Join f => (nucleus (Join (f __).1), nucleus-join)
+    | Join-cond j {f} => <=-transitive (Join-cond j) nucleus-unit
+    | Join-univ {J} {f} {e} h => <=-transitive (nucleus-<= (Join-univ h)) e.2
+    | Join-ldistr>= {J} {f} {e} => <=-transitive (meet-monotone nucleus-unit <=-reflexive) (transport (`<= _) nucleus-meet (nucleus-<= Join-ldistr>=))
+
+  \func map : FrameHom L locale \cowith
+    | func x => (nucleus x, nucleus-join)
+    | func-top => ext (<=-antisymmetric top-univ nucleus-unit)
+    | func-meet => ext nucleus-meet
+    | func-Join>= => nucleus-<= (Join-univ (\lam j => <=-transitive nucleus-unit (Join-cond j)))
+
+  \func isClosed => \Pi {x : L} -> nucleus x <= nucleus L.bottom ∨ x
+}
+
+\instance NucleusPoset (L : Locale) : Poset (Nucleus {L})
+  | <= j j' => \Pi {x : L} -> j' x <= j x
+  | <=-reflexive => <=-reflexive
+  | <=-transitive p q {x} => <=-transitive q p
+  | <=-antisymmetric p q => exts (\lam x => <=-antisymmetric q p)
+  \where {
+    \lemma closed<=open {L : Locale} {c a : L} (p : top <= c ∨ a) : closed c <= open a
+      => \lam {x} => <=-transitive (meet-univ <=-reflexive (<=-transitive top-univ p)) (<=-transitive ldistr>= (JoinSemilattice.join-monotone meet-right eval))
+      \where
+        \lemma conv {L : Locale} {c a : L} (p : closed c <= open a) : top <= c ∨ a
+          => <=-transitive (trueExponent <=-reflexive) p
+
+    \lemma open<=closed {L : Locale} {c a : L} (p : c ∧ a <= L.bottom) : open a <= closed c
+      => \lam {x} => unfold (join-univ (exponent.dir (<=-transitive p L.bottom-univ)) (exponent.dir meet-left))
+      \where
+        \lemma conv {L : Locale} {c a : L} (p : open a <= closed c) : c ∧ a <= L.bottom
+          => <=-transitive (meet-monotone join-left <=-reflexive) (exponent.conv p)
+  }
+
+-- | A closed and "bounded" sublocale is compact.
+\lemma closed-compact {L : Locale} {N : Nucleus {L}} (c : N.isClosed) {a : L} (w : a << top) (b : N <= open a) : N.locale.isCompact
+  => \lam {J} {g} top<=g =>
+      \let | g' (j : Maybe J) : L => \case \elim j \with { | nothing => N L.bottom | just j => (g j).1 }
+           | top<=g' : top <= Join g' => <=-transitive (<=-transitive top<=g c) (join-univ (Join-cond nothing) (Join-univ (\lam j => Join-cond (just j))))
+           | (inP (l,a<=g'l)) => w top<=g'
+      \in inP (filterMap (\lam x => x) l, unfold (<=-transitive (trueExponent a<=g'l) (<=-transitive b (Nucleus.nucleus-univ (Join-univ (\lam j' => later (cases (l j' arg addPath) \with {
+        | nothing, _ => Nucleus.nucleus-<= L.bottom-univ
+        | just j, p => \have (k,q) => filterMap-index (\lam x => x) l p
+                       \in <=-transitive (rewriteI q (Join-cond k)) nucleus-unit
+      })))))))
 
 \func FrameCat : Cat Locale \cowith
   | Hom => FrameHom
@@ -378,20 +496,20 @@
 \open Locale
 
 \lemma <<-fromPres {P : FramePres} {x y : P} (x<<y : x FramePres.<< y) : embed x << {PresentedFrame P} embed y
-  => \lam {J} g y<=Jg => \case x<<y (y<=Jg (cover-inj () idp)) \with {
+  => \lam {J} {g} y<=Jg => \case x<<y (y<=Jg (cover-inj () idp)) \with {
        | inP (l,x<=l) => inP (map __.1 l, \lam c => cover-trans c (\lam _ => cover-trans x<=l (\lam i => cover-inj (i, (l i).2, (l i).3) idp)))
      }
 
 \lemma <<_<= {L : Locale} {x y : L} (x<<y : x << y) : x <= y
-  => \case x<<y {\Sigma} (\lam _ => y) (Join-cond ()) \with {
+  => \case x<<y {\Sigma} {\lam _ => y} (Join-cond ()) \with {
        | inP (_,x<=Jy) => <=-transitive x<=Jy (Join-univ (\lam _ => <=-reflexive))
      }
 
 \lemma <<-left {L : Locale} {x y z : L} (x<<y : x << y) (y<=z : y <= z) : x << z
-  => \lam {J} g z<=Jg => TruncP.map (x<<y g (<=-transitive y<=z z<=Jg)) (\lam t => t)
+  => \lam {J} {g} z<=Jg => TruncP.map (x<<y (<=-transitive y<=z z<=Jg)) (\lam t => t)
 
 \lemma <<-right {L : Locale} {x y z : L} (x<=y : x <= y) (y<<z : y << z) : x << z
-  => \lam {J} g z<=Jg => TruncP.map (y<<z g z<=Jg) (\lam t => (t.1, <=-transitive x<=y t.2))
+  => \lam {J} {g} z<=Jg => TruncP.map (y<<z z<=Jg) (\lam t => (t.1, <=-transitive x<=y t.2))
 
 \lemma locallyCompact-fromPres {P : FramePres} (lc : P.isLocallyCompact) : isLocallyCompact {PresentedFrame P}
   => \lam U {x} u => cover-trans (lc x) (\lam t => cover-inj ((embed t.1, <<-left (<<-fromPres t.2) (embed<= (cover-inj (x,u) idp))), t.1, cover-inj () idp) idp)
