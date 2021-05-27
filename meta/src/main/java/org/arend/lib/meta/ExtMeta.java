@@ -222,6 +222,7 @@ public class ExtMeta extends BaseMetaDefinition {
           }
         }
 
+        ConcreteExpression newArg = arg;
         Map<CoreClassField, PathExpression> superFields = new HashMap<>();
         if (type instanceof CoreClassCallExpression) {
           CoreClassCallExpression classCall = (CoreClassCallExpression) type;
@@ -306,7 +307,7 @@ public class ExtMeta extends BaseMetaDefinition {
               return null;
             }
 
-            arg = tupleFields.size() == 1 ? tupleFields.get(0) : factory.withData(arg.getData()).tuple(tupleFields);
+            newArg = tupleFields.isEmpty() ? null : tupleFields.size() == 1 ? tupleFields.get(0) : factory.withData(arg.getData()).tuple(tupleFields);
           }
         }
 
@@ -470,7 +471,7 @@ public class ExtMeta extends BaseMetaDefinition {
 
         if (!simpCoeIndices.isEmpty()) {
           ConcreteFactory argFactory = factory.withData(arg.getData());
-          if (arg instanceof ConcreteGoalExpression) {
+          if (newArg instanceof ConcreteGoalExpression) {
             return argFactory.goal(null, null, new GoalSolver() {
               @Override
               public @NotNull Collection<? extends InteractiveGoalSolver> getAdditionalSolvers() {
@@ -496,40 +497,48 @@ public class ExtMeta extends BaseMetaDefinition {
                 });
               }
             });
-          } else if (arg instanceof ConcreteTupleExpression && ((ConcreteTupleExpression) arg).getFields().size() == sigmaParams.size()) {
-            List<? extends ConcreteExpression> oldFields = ((ConcreteTupleExpression) arg).getFields();
-            List<ConcreteExpression> newFields = new ArrayList<>(oldFields.size());
-            boolean hasDeferred = false;
-            for (int j = 0; j < oldFields.size(); j++) {
-              Boolean simpCoe = simpCoeIndices.get(j);
-              newFields.add(simpCoe == null && !hasDeferred ? oldFields.get(j) : argFactory.app(hasDeferred ? argFactory.meta("later", ext.laterMeta) : simpCoe ? argFactory.meta("simp_coe", ext.simpCoeMeta) : argFactory.meta("ext", new DeferredMetaDefinition(ext.extMeta, false)), true, Collections.singletonList(oldFields.get(j))));
-              if (simpCoe != null) hasDeferred = true;
+          } else if (newArg instanceof ConcreteTupleExpression && ((ConcreteTupleExpression) newArg).getFields().size() == sigmaParams.size()) {
+            List<? extends ConcreteExpression> oldFields = ((ConcreteTupleExpression) newArg).getFields();
+            if (oldFields.isEmpty()) {
+              newArg = null;
+            } else {
+              List<ConcreteExpression> newFields = new ArrayList<>(oldFields.size());
+              boolean hasDeferred = false;
+              for (int j = 0; j < oldFields.size(); j++) {
+                Boolean simpCoe = simpCoeIndices.get(j);
+                newFields.add(simpCoe == null && !hasDeferred ? oldFields.get(j) : argFactory.app(hasDeferred ? argFactory.meta("later", ext.laterMeta) : simpCoe ? argFactory.meta("simp_coe", ext.simpCoeMeta) : argFactory.meta("ext", new DeferredMetaDefinition(ext.extMeta, false)), true, Collections.singletonList(oldFields.get(j))));
+                if (simpCoe != null) hasDeferred = true;
+              }
+              newArg = argFactory.tuple(newFields);
             }
-            arg = argFactory.tuple(newFields);
           } else {
-            typechecker.getErrorReporter().report(new TypecheckingError("Expected a tuple with " + sigmaParams.size() + " arguments", arg));
+            typechecker.getErrorReporter().report(new TypecheckingError("Expected a tuple with " + sigmaParams.size() + " arguments", newArg));
             return null;
           }
         }
 
         TypedExpression sigmaEqType = typechecker.typecheck(sigmaParams.size() == 1 ? lastSigmaParam : factory.sigma(sigmaParams), null);
         if (sigmaEqType == null) return null;
-        TypedExpression result = hidingIRef(arg, sigmaEqType.getExpression());
-        if (result == null) return null;
 
         ArendRef letRef;
-        ConcreteExpression concreteTuple;
-        CoreExpression resultExpr = result.getExpression().getUnderlyingExpression();
-        if (resultExpr instanceof CoreReferenceExpression) {
-          letRef = null;
-          concreteTuple = factory.core(result);
-        } else {
-          letRef = factory.local("arg");
-          concreteTuple = factory.ref(letRef);
-        }
+        CoreExpression resultExpr = null;
+        ConcreteExpression concreteTuple = null;
+        if (newArg != null) {
+          TypedExpression result = hidingIRef(newArg, sigmaEqType.getExpression());
+          if (result == null) return null;
 
-        if (letRef != null) {
-          haveClauses.add(factory.letClause(letRef, Collections.emptyList(), null, factory.core(result)));
+          resultExpr = result.getExpression().getUnderlyingExpression();
+          if (resultExpr instanceof CoreReferenceExpression) {
+            letRef = null;
+            concreteTuple = factory.core(result);
+          } else {
+            letRef = factory.local("arg");
+            concreteTuple = factory.ref(letRef);
+          }
+
+          if (letRef != null) {
+            haveClauses.add(factory.letClause(letRef, Collections.emptyList(), null, factory.core(result)));
+          }
         }
 
         List<ConcreteExpression> fields = new ArrayList<>();
@@ -559,10 +568,13 @@ public class ExtMeta extends BaseMetaDefinition {
               if (sigmaParams.size() == 1) {
                 useLet = false;
               } else {
-                useLet = useLet(resultExpr, i1);
+                useLet = resultExpr != null && useLet(resultExpr, i1);
               }
             }
 
+            if (concreteTuple == null) {
+              concreteTuple = factory.tuple();
+            }
             ConcreteExpression proj = sigmaParams.size() == 1 ? concreteTuple : factory.proj(concreteTuple, i1);
             if (piTreeDataList.get(i) != null) {
               PiTreeMaker piTreeMaker = piTreeDataList.get(i).maker;
