@@ -511,7 +511,7 @@ public class ExtMeta extends BaseMetaDefinition {
               }
               newArg = argFactory.tuple(newFields);
             }
-          } else {
+          } else if (newArg instanceof ConcreteTupleExpression || sigmaParams.size() != 1) {
             typechecker.getErrorReporter().report(new TypecheckingError("Expected a tuple with " + sigmaParams.size() + " arguments", newArg));
             return null;
           }
