@@ -1,5 +1,9 @@
+\import Algebra.Meta
 \import Algebra.Pointed
+\import Arith.Nat
+\import Data.Array
 \import HLevel
+\import Meta
 \import Paths
 \import Paths.Meta
 
@@ -8,6 +12,18 @@
   | ide-left {x : E} : ide * x = x
   | ide-right {x : E} : x * ide = x
   | *-assoc {x y z : E} : (x * y) * z = x * (y * z)
+
+  \func pow (a : E) (n : Nat) : E \elim n
+    | 0 => 1
+    | suc n => pow a n * a
+
+  \lemma pow_+ {a : E} {n m : Nat} : pow a (n + m) = pow a n * pow a m \elim m
+    | 0 => inv ide-right
+    | suc m => pmap (`* a) pow_+ *> *-assoc
+
+  \lemma pow_* {a : E} {n m : Nat} : pow a (n Nat.* m) = pow (pow a n) m \elim m
+    | 0 => idp
+    | suc m => pow_+ *> pmap (`* _) pow_*
 } \where {
   \func equals {M N : Monoid} (p : M = {\Set} N) (q : \let f x => coe (p @) x right \in \Pi (x y : M) -> f (x * y) = f x * f y) : M = N
     => exts (p, ide-equality p q, q)
@@ -237,12 +253,22 @@
          \in ext (ext (eq, Monoid.Inv.inv-isUnique t.1 t'.1 eq))
   }
 
-\class AddMonoid \extends AddPointed
+\class AddMonoid \extends AddPointed {
   | \infixl 6 + : E -> E -> E
   | zro-left {x : E} : zro + x = x
   | zro-right {x : E} : x + zro = x
   | +-assoc {x y z : E} : (x + y) + z = x + (y + z)
-  \where {
+
+  \func BigSum (l : Array E) => Big (+) zro l
+
+  \lemma BigSum_++ {l l' : Array E} : BigSum (l ++ l') = BigSum l + BigSum l' \elim l
+    | nil => inv zro-left
+    | :: a l => unfold BigSum (rewrite BigSum_++ (inv +-assoc))
+
+  \lemma BigSum_suc {n : Nat} {l : Array E (suc n)} : BigSum l = BigSum (\new Array E n (\lam i => l i)) + l n \elim n, l
+    | 0, :: a nil => zro-right *> inv zro-left
+    | suc n, :: a l => unfold BigSum (pmap (a +) (BigSum_suc {_} {n} {l} *> pmap (_ + (a :: l) Array.!! __) (fin_nat-inj (pmap suc (mod_< id<suc) *> inv (mod_< id<suc)))) *> inv +-assoc)
+} \where {
     \use \coerce fromMonoid (M : Monoid) => \new AddMonoid M.E M.ide (M.*) M.ide-left M.ide-right M.*-assoc
     \use \coerce toMonoid (M : AddMonoid) => \new Monoid M.E M.zro (M.+) M.zro-left M.zro-right M.+-assoc
   }
@@ -251,16 +277,26 @@
   | *-comm {x y : E} : x * y = y * x
   | ide-right => *-comm *> ide-left
 
-  \lemma divInv {x y : E} (cancel : \Pi {a b : E} -> x * a = x * b -> a = b) (xy|x : Monoid.LDiv (x * y) x) : Monoid.Inv y
-    => Monoid.Inv.lmake xy|x.inv (*-comm *> cancel (inv *-assoc *> xy|x.inv-right *> inv ide-right))
-}
+  \lemma divInv {x y : E} (cancel : \Pi {a b : E} -> x * a = x * b -> a = b) (xy|x : LDiv (x * y) x) : Inv y
+    => Inv.lmake xy|x.inv (*-comm *> cancel (inv *-assoc *> xy|x.inv-right *> inv ide-right))
 
-\class AbMonoid \extends AddMonoid
+  \lemma pow_*-comm {a b : E} {n : Nat} : pow (a * b) n = pow a n * pow b n \elim n
+    | 0 => inv ide-left
+    | suc n => rewrite pow_*-comm equation
+} \where \open Monoid
+
+\class AbMonoid \extends AddMonoid {
   | +-comm {x y : E} : x + y = y + x
   | zro-right => +-comm *> zro-left
+
+  \lemma BigSum_+ {n : Nat} {l l' : Array E n} : BigSum (\lam i => l i + l' i) = BigSum l + BigSum l' \elim n, l, l'
+    | 0, _, _ => inv zro-left
+    | suc n, :: a l, :: a' l' => unfold BigSum (rewrite (BigSum_+ {_} {n} {l}) equation)
+}
   \where {
     \use \coerce fromCMonoid (M : CMonoid) => \new AbMonoid M.E M.ide (M.*) M.ide-left M.*-assoc M.*-comm
     \use \coerce toCMonoid (M : AbMonoid) => \new CMonoid M.E M.zro (M.+) M.zro-left M.+-assoc M.+-comm
+    \open AddMonoid
   }
 
 \class CancelMonoid \extends Monoid

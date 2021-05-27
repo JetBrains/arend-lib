@@ -1,6 +1,7 @@
 package org.arend.lib.meta.cong;
 
 import org.arend.ext.ArendPrelude;
+import org.arend.ext.concrete.ConcreteClassElement;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteArgument;
@@ -8,6 +9,7 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -210,6 +212,108 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   @Override
   public Result visitDataCall(@NotNull CoreDataCallExpression expr, ParamType param) {
     return visitDefCall(expr, param);
+  }
+
+  @Override
+  public Result visitClassCall(@NotNull CoreClassCallExpression expr, ParamType param) {
+    CoreExpression otherExpr = param.other.getUnderlyingExpression();
+    if (!(otherExpr instanceof CoreClassCallExpression)) {
+      return visit(expr, param);
+    }
+
+    CoreClassCallExpression other = (CoreClassCallExpression) otherExpr;
+    if (expr.getDefinition() != other.getDefinition() || expr.getImplementations().size() != other.getImplementations().size()) {
+      return visit(expr, param);
+    }
+
+    List<ConcreteClassElement> args = new ArrayList<>();
+    boolean abstracted = false;
+    Set<CoreClassField> fieldsToCheck = new HashSet<>();
+    for (Map.Entry<? extends CoreClassField, ? extends CoreExpression> entry : expr.getImplementations()) {
+      CoreExpression otherImpl = other.getAbsImplementationHere(entry.getKey());
+      if (otherImpl == null) {
+        return visit(expr, param);
+      }
+      Result arg = entry.getValue().accept(this, new ParamType(() -> new Result(null), otherImpl));
+      if (arg != null) {
+        if (arg.expression != null) {
+          abstracted = true;
+          fieldsToCheck.add(entry.getKey());
+        }
+        args.add(factory.implementation(entry.getKey().getRef(), arg.getExpression(entry.getValue(), factory)));
+      }
+    }
+
+    if (!fieldsToCheck.isEmpty()) {
+      boolean check = false;
+      for (Map.Entry<? extends CoreClassField, ? extends CoreExpression> entry : expr.getImplementations()) {
+        if (!check) {
+          check = true;
+          continue;
+        }
+        if (entry.getKey().getResultType().processSubexpression(subexpr -> subexpr instanceof CoreFieldCallExpression && fieldsToCheck.contains(((CoreFieldCallExpression) subexpr).getDefinition()) ? CoreExpression.FindAction.STOP : CoreExpression.FindAction.CONTINUE)) {
+          return null;
+        }
+      }
+    }
+
+    return new Result(abstracted ? factory.classExt(factory.ref(expr.getDefinition().getRef()), args) : null);
+  }
+
+  @Override
+  public Result visitTuple(@NotNull CoreTupleExpression expr, ParamType param) {
+    CoreExpression otherExpr = param.other.getUnderlyingExpression();
+    if (!(otherExpr instanceof CoreTupleExpression)) {
+      return visit(expr, param);
+    }
+    CoreTupleExpression other = (CoreTupleExpression) otherExpr;
+    List<ConcreteArgument> args = new ArrayList<>();
+    boolean abstracted = visitArgs(expr.getFields(), other.getFields(), Collections.singletonList(expr.getSigmaType().getParameters()), true, args);
+    if (args.size() != expr.getFields().size()) {
+      return null;
+    }
+    List<ConcreteExpression> fields = new ArrayList<>(args.size());
+    for (ConcreteArgument arg : args) {
+      fields.add(arg.getExpression());
+    }
+    return new Result(abstracted ? factory.tuple(fields) : null);
+  }
+
+  @Override
+  public Result visitProj(@NotNull CoreProjExpression expr, ParamType param) {
+    CoreExpression otherExpr = param.other.getUnderlyingExpression();
+    if (!(otherExpr instanceof CoreProjExpression)) {
+      return visit(expr, param);
+    }
+    CoreProjExpression other = (CoreProjExpression) otherExpr;
+    if (expr.getField() != other.getField()) {
+      return visit(expr, param);
+    }
+
+    Result result = expr.getExpression().accept(this, new ParamType(() -> new Result(null), other.getExpression()));
+    return result == null || result.expression == null ? result : new Result(factory.proj(result.expression, expr.getField()));
+  }
+
+  @Override
+  public Result visitTypeCoerce(@NotNull CoreTypeCoerceExpression expr, ParamType param) {
+    CoreExpression otherExpr = param.other.getUnderlyingExpression();
+    if (!(otherExpr instanceof CoreTypeCoerceExpression)) {
+      return visit(expr, param);
+    }
+    CoreTypeCoerceExpression other = (CoreTypeCoerceExpression) otherExpr;
+    if (expr.isFromLeftToRight() != other.isFromLeftToRight()) {
+      return visit(expr, param);
+    }
+    return expr.getArgument().accept(this, new ParamType(() -> new Result(null), other.getArgument()));
+  }
+
+  @Override
+  public Result visitNew(@NotNull CoreNewExpression expr, ParamType param) {
+    CoreExpression otherExpr = param.other.getUnderlyingExpression();
+    if (!(otherExpr instanceof CoreNewExpression)) {
+      return visit(expr, param);
+    }
+    return visitClassCall(expr.getClassCall(), new ParamType(() -> new Result(null), ((CoreNewExpression) otherExpr).getClassCall()));
   }
 
   @Override

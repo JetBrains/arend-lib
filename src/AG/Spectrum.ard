@@ -1,0 +1,72 @@
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ring
+\import Algebra.Ring.Ideal
+\import Algebra.Semiring
+\import Data.Array
+\import Data.Bool
+\import Data.Maybe
+\import Equiv
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set.Fin
+\import Topology.Locale
+
+\func SpecPres (R : CRing) : FramePres R \cowith
+  | conj => *
+  | BasicCover => FramePres.Indexing
+      {Maybe (\Sigma R R)} {R}
+      (\case __ \with {
+        | just (a,b) => (Bool, a + b, if __ a b)
+        | nothing => (Empty, 0, absurd)
+      })
+  \where {
+    \open Ideal
+    \open Monoid(pow)
+
+    \lemma cover_ideal {R : CRing} {x : R} {J : \Set} {g : J -> R} (c : Cover {SpecPres R} x g) : radical {closure g} x \elim c
+      | cover-basic bc => FramePres.indexing-transport _ (later (\case \elim __ \with {
+        | nothing => inP (1, inP (nil, zro_*-right))
+        | just (a,b) => inP (1, inP ((1, true) :: (1, false) :: nil, equation))
+      })) bc
+      | cover-inj j idp => radical-superset (closure-superset j)
+      | cover-trans {I} {f} c h => \case cover_ideal c \with {
+        | inP (n, inP (l,p)) => radical_pow (rewriteF (inv p) (bigSum {radical {closure g}} (map (\lam (c,i) => c * f i) l) (\lam i => ideal-left (cover_ideal (h (l i).2)))))
+      }
+      | cover-proj1 idp j idp => ideal-right (radical-superset (closure-superset j))
+      | cover-proj2 idp j idp => ideal-left (radical-superset (closure-superset j))
+      | cover-idemp j p => radical_pow {_} {x} {2} (rewrite ide-left (later (rewriteI p (radical-superset (closure-superset j)))))
+      | cover-comm idp j p => rewrite *-comm (rewriteI p (radical-superset (closure-superset j)))
+      | cover-ldistr {a} {b} idp {f} c h => \case cover_ideal c \with {
+        | inP (n, inP (l : Array, p)) => inP (suc n, inP (map (\lam (c,j) => (pow a n * b * c, j)) l, run {
+          rewrite CMonoid.pow_*-comm,
+          rewrite p,
+          rewrite Ring.Big-ldistr,
+          Ring.Big-rdistr *> path (\lam i => AddMonoid.BigSum (\new Array R l.len (\lam j =>
+              (equation {usingOnly (h (l j).2)} : (pow a n * ((l j).1 * f (l j).2)) * (a * b) = (pow a n * b * (l j).1) * g (l j).2) @ i)))
+        }))
+      }
+
+    \lemma ideal_cover {R : CRing} {x : R} {J : \Set} {g : J -> R} (p : radical {closure g} x) : Cover {SpecPres R} x g \elim p
+      | inP (n, inP (l,p)) => cover-trans (cover_pow n) (\lam _ => rewrite p (cover-trans cover_bigSum (\lam i => cover-proj2 idp (l i).2 idp)))
+
+    \lemma cover_ide {R : CRing} {x : R} : Cover {SpecPres R} x {\Sigma} (\lam _ => 1)
+      => cover-proj1 (inv ide-left) () idp
+
+    \lemma cover_pow {R : CRing} {x : R} (n : Nat) : Cover {SpecPres R} x {\Sigma} (\lam _ => pow x n) \elim n
+      | 0 => cover_ide
+      | suc n => Cover.cover-prod (cover_pow n) (cover-inj () idp)
+
+    \lemma cover_bigSum {R : CRing} {l : Array R} : Cover {SpecPres R} (AddMonoid.BigSum l) l \elim l
+      | nil => cover-basic (inP (nothing, \new QEquiv absurd (\case __) (\case __) (\case __), idp, \case __))
+      | :: a l => cover-trans (cover-basic (FramePres.indexing-make (just (a, AddMonoid.BigSum l)))) (\case \elim __ \with {
+        | false => cover-trans cover_bigSum (\lam i => cover-inj (suc i) idp)
+        | true => cover-inj 0 idp
+      })
+  }
+
+\func Spec (R : CRing) : Locale
+  => PresentedFrame (SpecPres R)
