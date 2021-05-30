@@ -219,7 +219,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
 
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     List<ConcreteCaseArgument> caseArgs = new ArrayList<>();
-    List<Pair<CoreExpression,ArendRef>> searchPairs = new ArrayList<>();
+    List<Pair<TypedExpression,Object>> searchPairs = new ArrayList<>();
     List<ConcreteParameter> concreteParameters = defaultExpr == null ? null : new ArrayList<>();
     for (int i = 0; i < argParametersList.size(); i++) {
       ArgParameters argParams = argParametersList.get(i);
@@ -235,11 +235,9 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
           argExpr = factory.core(typed);
         }
         if (argType == null && !searchPairs.isEmpty()) {
-          argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType(), searchPairs));
+          argType = factory.meta("case_arg_type", new ReplaceSubexpressionsMeta(typed.getType().normalize(NormalizationMode.RNF), searchPairs));
         }
-        if (!isElim) {
-          searchPairs.add(new Pair<>(typed.getExpression(), caseArgRef));
-        }
+        searchPairs.add(new Pair<>(typed, isElim ? ((ConcreteReferenceExpression) argParams.expression).getReferent() : caseArgRef));
       }
       caseArgs.add(isElim ? factory.caseArg((ConcreteReferenceExpression) argExpr, argType) : factory.caseArg(argExpr, caseArgRef, argType));
       if (concreteParameters != null) {
@@ -287,7 +285,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
               }
             }
             if (!substitution.isEmpty()) {
-              type1 = typechecker.substitute(type1, null, substitution);
+              type1 = typechecker.substitute(type1, null, null, substitution);
               if (type1 != null) {
                 patterns1 = getPatterns(type1.normalize(NormalizationMode.WHNF), parameter);
               }
@@ -331,7 +329,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       clauses = newClauses;
     }
 
-    return typechecker.typecheck(factory.caseExpr(false, caseArgs, searchPairs.isEmpty() ? null : factory.meta("return_expr", new ReplaceSubexpressionsMeta(contextData.getExpectedType(), searchPairs)), null, clauses), searchPairs.isEmpty() ? contextData.getExpectedType() : null);
+    return typechecker.typecheck(factory.caseExpr(false, caseArgs, searchPairs.isEmpty() ? null : factory.meta("return_expr", new ReplaceSubexpressionsMeta(contextData.getExpectedType().normalize(NormalizationMode.RNF), searchPairs)), null, clauses), searchPairs.isEmpty() ? contextData.getExpectedType() : null);
   }
 
   private List<ArendPattern> getPatterns(CoreExpression type, CoreParameter parameter) {

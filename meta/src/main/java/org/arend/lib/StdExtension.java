@@ -166,7 +166,7 @@ public class StdExtension implements ArendExtension {
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
-        "`rewrite (p : a = b) t : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transport (\\lam x => T[x/a]) p t`\n\n" +
+        "`rewrite (p : a = b) t : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transportInv (\\lam x => T[x/a]) p t`\n\n" +
         "If the expected type is unknown, {rewrite} works like {rewriteF}.\n" +
         "`rewrite {i_1, ... i_k} p t` replaces only occurrences with indices `i_1`, ... `i_k`.\n" +
         "Also, `p` may be a function, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`",

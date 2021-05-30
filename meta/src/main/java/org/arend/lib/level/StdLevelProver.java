@@ -9,7 +9,7 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
-import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -106,8 +106,8 @@ public class StdLevelProver implements LevelProver {
       for (CoreDataCallExpression.ConstructorWithDataArguments con2 : constructors) {
         List<ConcretePattern> subPatterns1 = new ArrayList<>();
         List<ConcretePattern> subPatterns2 = new ArrayList<>();
-        CoreConstructor def1 = con1.getConstructor();
-        CoreConstructor def2 = con2.getConstructor();
+        CoreDefinition def1 = con1.getConstructor();
+        CoreDefinition def2 = con2.getConstructor();
         List<ArendRef> refs1 = def1 == def2 ? new ArrayList<>() : null;
         List<ArendRef> refs2 = def1 == def2 ? new ArrayList<>() : null;
         for (CoreParameter param = con1.getParameters(); param.hasNext(); param = param.getNext()) {

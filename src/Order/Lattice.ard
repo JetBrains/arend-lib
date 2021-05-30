@@ -1,13 +1,13 @@
 \import Algebra.Monoid
 \import Algebra.Semiring
 \import Category
+\import Data.Array
 \import Function.Meta
 \import HLevel
 \import Paths
 \import Order.PartialOrder
 \import Order.Lattice
 \import Paths.Meta
-\open Preorder
 \open Lattice
 \open JoinSemilattice
 \open MeetSemilattice
@@ -34,11 +34,26 @@
                                            (<=-transitive meet-right meet-left))
                                 (<=-transitive meet-right meet-right))
 
+  \lemma meet-monotone {x y x' y' : E} (p : x <= x') (q : y <= y') : x ∧ y <= x' ∧ y'
+    => meet-univ (<=-transitive meet-left p) (<=-transitive meet-right q)
+
   \lemma meet_<= {x y : E} (x<=y : x <= y) : x ∧ y = x
     => <=-antisymmetric meet-left (meet-univ <=-reflexive x<=y)
 
   \lemma meet_<=' {x y : E} (p : x ∧ y = x) : x <= y
     => transport (`<= y) p meet-right
+
+  \lemma fold_<=_meet0 {l : Array E} {x : E} : fold (∧) x l <= x \elim l
+    | nil => <=-reflexive
+    | :: a l => <=-transitive meet-right fold_<=_meet0
+
+  \lemma fold_<=_meet1 {l : Array E} {x : E} (i : Fin l.len) : fold (∧) x l <= l i \elim l, i
+    | :: a l, 0 => meet-left
+    | :: a l, suc i => <=-transitive meet-right (fold_<=_meet1 i)
+
+  \lemma fold_meet-univ {l : Array E} {x y : E} (p : y <= x) (f : \Pi (i : Fin l.len) -> y <= l i) : y <= fold (∧) x l \elim l
+    | nil => p
+    | :: a l => meet-univ (f 0) (fold_meet-univ p (\lam i => f (suc i)))
 } \where {
   -- | ``Meet x y`` is the type of elements which are meets of {x} and {y}.
   \func Meet {E : Poset} (x y : E) =>
@@ -53,6 +68,9 @@
   | join-left {x y : E} : x <= x ∨ y
   | join-right {x y : E} : y <= x ∨ y
   | join-univ {x y z : E} : x <= z -> y <= z -> x ∨ y <= z
+
+  \lemma join-monotone {x y x' y' : E} (p : x <= x') (q : y <= y') : x ∨ y <= x' ∨ y'
+    => join-univ (<=-transitive p join-left) (<=-transitive q join-right)
 
   \lemma join-idemp {x : E} : x ∨ x = x =>
     <=-antisymmetric (join-univ <=-reflexive <=-reflexive) join-left
@@ -72,6 +90,18 @@
 
   \lemma join_<=' {x y : E} (p : x ∨ y = y) : x <= y
     => transport (x <=) p join-left
+
+  \lemma join0_<=_fold {l : Array E} {x : E} : x <= fold (∨) x l \elim l
+    | nil => <=-reflexive
+    | :: a l => <=-transitive join0_<=_fold join-right
+
+  \lemma join1_<=_fold {l : Array E} {x : E} (i : Fin l.len) : l i <= fold (∨) x l \elim l, i
+    | :: a l, 0 => join-left
+    | :: a l, suc i => <=-transitive (join1_<=_fold i) join-right
+
+  \lemma fold_join-univ {l : Array E} {x y : E} (p : x <= y) (f : \Pi (i : Fin l.len) -> l i <= y) : fold (∨) x l <= y \elim l
+    | nil => p
+    | :: a l => join-univ (f 0) (fold_join-univ p (\lam i => f (suc i)))
 } \where {
   -- | ``Join x y`` is the type of elements which are joins of {x} and {y}.
   \func Join {E : Poset} (x y : E) =>

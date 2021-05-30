@@ -1,0 +1,72 @@
+\import Data.Bool
+\import Data.Maybe
+\import Equiv
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\func mkArray {A : \Type} {n : Nat} (f : Fin n -> A) => \new Array A n f
+
+\func map {A B : \Type} (f : A -> B) (as : Array A) : Array B \cowith
+  | len => as.len
+  | at i => f (as i)
+
+\func \infixr 5 ++ {A : \Type} (xs ys : Array A) : Array A \elim xs
+  | nil => ys
+  | :: a xs => a :: xs ++ ys
+
+\func ++_nil {A : \Type} {l : Array A} : l ++ nil = l \elim l
+  | nil => idp
+  | :: a l => pmap (a ::) ++_nil
+
+\func Index {A : \Type} (x : A) (l : Array A) => \Sigma (i : Fin l.len) (l i = x)
+
+\func index-left {A : \Type} {x : A} {l l' : Array A} (i : Index x l) : Index x (l ++ l') \elim l, i
+  | nil, ((), _)
+  | :: y l, (0, e) => (0, e)
+  | :: y l, (suc i, e) => \have (j,p) => index-left (i, e) \in (suc j, p)
+
+\func index-right {A : \Type} {x : A} {l l' : Array A} (i : Index x l') : Index x (l ++ l') \elim l
+  | nil => i
+  | :: y l => \have (j,p) => index-right i \in (suc j, p)
+
+\func filter {A : \Type} (p : A -> Bool) (l : Array A) : Array A \elim l
+  | nil => nil
+  | :: a l => if (p a) (a :: filter p l) (filter p l)
+
+\lemma filter-sat {A : \Type} (p : A -> Bool) (l : Array A) (i : Fin (Array.len {filter p l})) : p (filter p l i) = true \elim l
+  | :: a l => cases (p a arg addPath, i) \with {
+    | false, _, i => filter-sat p l i
+    | true, q, 0 => q
+    | true, q, suc i => filter-sat p l i
+  }
+
+\func fold {A B : \Type} (f : A -> B -> B) (b : B) (l : Array A) : B \elim l
+  | nil => b
+  | :: a l => f a (fold f b l)
+
+\func filter-index {A : \Type} (p : A -> Bool) (l : Array A) (i : Fin l.len) (px : p (l i) = true) : Index (l i) (filter p l) \elim l, i
+  | nil, ()
+  | :: a l, 0 => rewrite px (0, idp)
+  | :: a l, suc i => mcases {if} \with {
+    | true => \have (j,q) => filter-index p l i px \in (suc j, q)
+    | false => filter-index p l i px
+  }
+
+\func Big {A B : \Type} (op : A -> B -> B) (b : B) (l : Array A) : B \elim l
+  | nil => b
+  | :: a l => op a (Big op b l)
+
+\func filterMap {A B : \Type} (f : A -> Maybe B) (l : Array A) : Array B \elim l
+  | nil => nil
+  | :: a l => \case f a \with {
+    | nothing => filterMap f l
+    | just b => b :: filterMap f l
+  }
+
+\func filterMap-index {A B : \Type} (f : A -> Maybe B) (l : Array A) {b : B} {j : Fin l.len} (p : f (l j) = just b) : Index b (filterMap f l) \elim l, j
+  | :: a l, 0 => rewrite p (0,idp)
+  | :: a l, suc j => mcases \with {
+    | nothing => filterMap-index f l p
+    | just _ => \have (i,q) => filterMap-index f l p \in (suc i, q)
+  }

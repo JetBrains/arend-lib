@@ -1,15 +1,27 @@
+\import Algebra.Ordered
+\import Arith.Fin
 \import Arith.Nat
+\import Data.Array
 \import Data.Bool
+\import Data.Or
 \import Equiv
 \import Equiv.Univalence
+\import Function.Meta (repeat)
 \import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
 \import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Set
+\open Nat(+)
+\open LinearlyOrderedSemiring(<=_+)
 
-\record FinSet (A : \Set)
+\class FinSet \extends BaseSet
   | finCard : Nat
-  | finEq : TruncP (A = Fin finCard)
+  | finEq : TruncP (E = {\Set} Fin finCard)
   \where {
     \use \level levelProp (A : \Set) (X Y : FinSet A) : X = Y
       => ext (\case X.finEq, Y.finEq \with {
@@ -56,3 +68,154 @@
 
 \lemma transport_suc {n m : Nat} (p : n = m) (x : Fin n) : transport Fin (pmap suc p) (suc x) = suc (transport Fin p x) \elim p
   | idp => idp
+
+\func fin-inc {n m : Nat} (p : n <= m) (i : Fin n) : Fin m
+  => toFin (<-transitive-left (fin_< i) p)
+
+\func fin-raise {n k : Nat} (i : Fin n) : Fin (k + n) \elim k
+  | 0 => i
+  | suc k => suc (fin-raise i)
+
+\func sface {n : Nat} (k : Fin (suc n)) (i : Fin n) : Fin (suc n) => \case LinearOrder.dec<_<= (i : Nat) k \with {
+  | inl _ => i
+  | inr _ => suc i
+}
+
+\lemma sface-skip {n : Nat} (k : Fin (suc n)) (i : Fin n) : sface k i /= k => unfold sface (mcases \with {
+  | inl i<k => \lam i=k => NatSemiring.<-irreflexive (transport {Nat} (`< k) i=k i<k)
+  | inr k<=i => \lam i+1=k => NatSemiring.<-irreflexive (<-transitive-left id<suc (rewriteF (inv i+1=k) k<=i))
+})
+
+\func cyclePerm {n : Nat} (k : Fin n) : QEquiv {Fin n} {Fin n} \elim n
+  | suc n => \new QEquiv {
+    | f => \case __ \with {
+      | 0 => k
+      | suc i => sface k i
+    }
+    | ret i => \case LinearOrder.trichotomy (i : Nat) k \with {
+      | less i<k => suc (toFin (<-transitive-left i<k (<_suc_<= (fin_< k))))
+      | equals _ => 0
+      | greater _ => i
+    }
+    | ret_f => \case \elim __ \with {
+      | 0 => rewrite (LinearOrder.trichotomy=_reduce idp) idp
+      | suc i => mcases {2} \with {
+        | inl i<k => rewrite (LinearOrder.trichotomy<_reduce i<k) (pmap (\lam j => suc j) (finToNat-inj (toFin=id _)))
+        | inr k<=i => rewrite (LinearOrder.trichotomy>_reduce (<-transitive-right k<=i id<suc)) idp
+      }
+    }
+    | f_sec i => mcases {2} \with {
+      | less i<k => mcases \with {
+          | inl _ => finToNat-inj (toFin=id _)
+          | inr k<=i' => \case NatSemiring.<-irreflexive (NatSemiring.<-transitive-left i<k (rewriteF toFin=id k<=i'))
+        }
+      | equals i=k => inv (finToNat-inj i=k)
+      | greater k<i => \case \elim i, \elim k<i \with {
+        | 0, k<0 => contradiction
+        | suc i, k<i+1 => rewrite (LinearOrder.dec<=_reduce (<_suc_<= k<i+1)) idp
+      }
+    }
+  }
+
+\instance finFin (n : Nat) : FinSet (Fin n)
+  | finCard => n
+  | finEq => inP idp
+
+\instance finOr (S T : FinSet) : FinSet (Or S T)
+  | finCard => S.finCard + T.finCard
+  | finEq => \case S.finEq, T.finEq \with {
+    | inP Se, inP Te => inP (pmap2 Or Se Te *> QEquiv-to-= (aux {S.finCard} {T.finCard}))
+  }
+  \where {
+    \func aux {n m : Nat} : QEquiv {Or (Fin n) (Fin m)} {Fin (n + m)} \cowith
+      | f (e : Or (Fin n) (Fin m)) : Fin (n + m) \with {
+        | inl s => fin-inc (<=_+ <=-reflexive zero<=_) s
+        | inr t => fin-raise t
+      }
+      | ret (i : Fin (n + m)) : Or (Fin n) (Fin m) \elim n, i {
+        | 0, i => inr i
+        | suc n, 0 => inl 0
+        | suc n, suc i => \case ret i \with {
+          | inl s => inl (suc s)
+          | inr t => inr t
+        }
+      }
+      | ret_f => \case \elim __ \with {
+        | inl s => ret_inl-lem s
+        | inr t => ret_inr-lem t
+      }
+      | f_sec (i : Fin (n + m)) : f (ret i) = i \elim n, i {
+        | 0, i => idp
+        | suc n, 0 => idp
+        | suc n, suc i => mcases {_} {arg addPath} \with {
+          | inl s, p => \have q => inv (pmap f p) *> f_sec i \in \case \elim n, \elim i, \elim s, \elim q \with {
+            | suc n, i, s, q => finToNat-inj (mod_id (<-transitive-left (fin_< (suc s)) (suc<=suc (later (suc<=suc (<=_+ <=-reflexive zero<=_))))) *> inv (pmap suc (mod_id (<-transitive-left (fin_< s) (suc<=suc (<=_+ <=-reflexive zero<=_)))))) *> pmap (\lam i => suc i) q
+          }
+          | inr t, p => pmap (\lam i => suc i) (inv (pmap f p) *> f_sec i)
+        }
+      }
+
+    \lemma ret_inl-lem {n m : Nat} (s : Fin n) : finOr.aux.ret {n} {m} (toFin (<-transitive-left (fin_< s) (<=_+ <=-reflexive zero<=_))) = inl s
+      => aux (later (\case \elim n, \elim s \with {
+        | suc n, 0 => idp
+        | suc n, suc s => mod_id (<-transitive-left (fin_< (suc s)) (suc<=suc (<=_+ <=-reflexive zero<=_)))
+      }))
+      \where
+        \lemma aux {n m : Nat} {i : Fin (n + m)} {s : Fin n} (p : i = {Nat} s) : finOr.aux.ret i = inl s \elim n, i, s
+          | suc n, 0, _ => pmap inl (finToNat-inj {suc n} p)
+          | suc n, suc i, 0 => \case p
+          | suc n, suc i, suc s => rewrite (aux (pmap pred p)) idp
+
+    \lemma ret_inr-lem {n m : Nat} (t : Fin m) : aux.ret (fin-raise {m} {n} t) = inr t \elim n
+      | 0 => idp
+      | suc n => rewrite (ret_inr-lem {n} t) idp
+  }
+
+\lemma finSum (S : FinSet) (Q : S -> FinSet) : FinSet (\Sigma (i : S) (Q i))
+  => \case S.finEq \with {
+    | inP e => transportInv (\lam X => \Pi (Q : X -> FinSet) -> FinSet (\Sigma (i : X) (Q i))) e (\lam Q => \new FinSet {
+      | finCard => Big (+) 0 (\lam i => finCard {Q i})
+      | finEq => \case finiteAC.aux (\lam i => finEq {Q i}) \with {
+        | inP d => inP (path (\lam j => \Sigma (i : Fin S.finCard) (d i @ j)) *> Equiv-to-= (aux (\lam i => finCard {Q i})))
+      }
+    }) Q
+  }
+  \where {
+    \func aux {n : Nat} (Q : Fin n -> Nat) : QEquiv {\Sigma (i : Fin n) (Fin (Q i))} {Fin (Big (+) 0 Q)} \cowith
+      | f (p : \Sigma (i : Fin n) (Fin (Q i))) : Fin (Big (+) 0 Q) \elim n, p {
+        | 0, ((),_)
+        | suc n, (0, j) => fin-inc (<=_+ <=-reflexive zero<=_) j
+        | suc n, (suc i, j) => fin-raise (f (i,j))
+      }
+      | ret (k : Fin (Big (+) 0 Q)) : \Sigma (i : Fin n) (Fin (Q i)) \elim n {
+        | suc n => \case finOr.aux.ret k \with {
+          | inl s => (0,s)
+          | inr t => \have (i,r) => ret t \in (suc i, r)
+        }
+      }
+      | ret_f (p : \Sigma (i : Fin n) (Fin (Q i))) : ret (f p) = p \elim n, p {
+        | 0, ((),_)
+        | suc n, (0, j) => rewrite finOr.ret_inl-lem idp
+        | suc n, (suc i, j) => rewrite finOr.ret_inr-lem (rewrite (ret_f {n} {\lam i => Q (suc i)} (i,j)) idp)
+      }
+      | f_sec (k : Fin (Big (+) 0 Q)) : f (ret k) = k \elim n {
+        | suc n => mcases {_} {arg addPath} \with {
+          | inl s, p => inv (pmap finOr.aux.f p) *> finOr.aux.f_sec k
+          | inr t, p => pmap fin-raise (f_sec t) *> inv (pmap finOr.aux.f p) *> finOr.aux.f_sec k
+        }
+      }
+  }
+
+\lemma finiteAC {S : FinSet} {A : S -> \Type} (f : \Pi (i : S) -> TruncP (A i)) : TruncP (\Pi (i : S) -> A i)
+  => \case S.finEq \with {
+    | inP e => transportInv (\lam X => \Pi {A : X -> \Type} (f : \Pi (i : X) -> TruncP (A i)) -> TruncP (\Pi (i : X) -> A i)) e aux f
+  }
+  \where
+    \lemma aux {n : Nat} {A : Fin n -> \Type} (f : \Pi (i : Fin n) -> TruncP (A i)) : TruncP (\Pi (i : Fin n) -> A i) \elim n
+      | 0 => inP (\case __)
+      | suc n => \case f 0, aux (\lam i => f (suc i)) \with {
+        | inP a0, inP aS => inP (\case \elim __ \with {
+          | 0 => a0
+          | suc i => aS i
+        })
+      }

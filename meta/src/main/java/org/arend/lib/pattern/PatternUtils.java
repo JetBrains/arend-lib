@@ -13,7 +13,7 @@ import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
-import org.arend.ext.core.level.CoreSort;
+import org.arend.ext.core.level.CoreLevel;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -212,7 +212,7 @@ public class PatternUtils {
 
   // patterns[i] == null iff removedArgs[i] != null.
   // Moreover, if these equivalent conditions hold, then body.getClauses().get(j)[i].getBinding() != null for every j.
-  public static CoreExpression eval(CoreElimBody body, CoreSort sort, List<? extends CorePattern> patterns, List<? extends TypedExpression> removedArgs, ExpressionTypechecker typechecker, StdExtension ext, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  public static CoreExpression eval(CoreElimBody body, CoreLevel pLevel, CoreLevel hLevel, List<? extends CorePattern> patterns, List<? extends TypedExpression> removedArgs, ExpressionTypechecker typechecker, StdExtension ext, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
     loop:
     for (CoreElimClause clause : body.getClauses()) {
       Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
@@ -243,7 +243,7 @@ public class PatternUtils {
           TypedExpression removed = removedMap.get(param.getBinding());
           args.add(removed != null ? factory.core(removed) : toExpression(subst1.get(param.getBinding()), ext, factory, bindings));
         }
-        return (CoreExpression) typechecker.substituteAbstractedExpression(expr, sort, args);
+        return (CoreExpression) typechecker.substituteAbstractedExpression(expr, pLevel, hLevel, args);
       }
     }
     return null;
@@ -290,11 +290,7 @@ public class PatternUtils {
       return checkCoverage(patterns, parameters, result);
     }
 
-    if (!(type instanceof CoreDataCallExpression)) {
-      return false;
-    }
-
-    List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = ((CoreDataCallExpression) type).computeMatchedConstructorsWithDataArguments();
+    List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = type.computeMatchedConstructorsWithDataArguments();
     if (constructors == null) {
       return false;
     }

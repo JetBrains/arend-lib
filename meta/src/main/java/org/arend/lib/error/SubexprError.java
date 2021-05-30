@@ -13,17 +13,19 @@ import static org.arend.ext.prettyprinting.doc.DocFactory.*;
 
 public class SubexprError extends TypecheckingError {
   private final CoreExpression subexpr;
+  private final CoreExpression subexprType;
   private final CoreExpression expr;
 
-  public SubexprError(Set<Integer> occurrences, CoreExpression subexpr, CoreExpression expr, @Nullable ConcreteSourceNode cause) {
+  public SubexprError(Set<Integer> occurrences, CoreExpression subexpr, CoreExpression subexprType, CoreExpression expr, @Nullable ConcreteSourceNode cause) {
     super("Cannot find subexpression" + (occurrences == null ? "" : " at " + occurrences), cause);
     this.expr = expr;
     this.subexpr = subexpr;
+    this.subexprType = subexprType;
   }
 
   @Override
   public Doc getBodyDoc(PrettyPrinterConfig ppConfig) {
-    Doc expectedDoc = hang(text("Subexpression:"), termDoc(subexpr, ppConfig));
+    Doc expectedDoc = hang(text("Subexpression:"), subexprType == null ? termDoc(subexpr, ppConfig) : hang(termDoc(subexpr, ppConfig), hang(text(":"), termDoc(subexprType, ppConfig))));
     return vList(
         expectedDoc,
         hang(text(expectedDoc.getHeight() == 1 ? "   Expression:" : "Expression:"), termDoc(expr, ppConfig)));
