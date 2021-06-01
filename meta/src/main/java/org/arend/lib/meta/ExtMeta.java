@@ -657,6 +657,11 @@ public class ExtMeta extends BaseMetaDefinition {
         } else {
           concreteResult = factory.tuple(fields);
         }
+
+        for (PiTreeData piTreeData : piTreeDataList) {
+          if (piTreeData != null) piTreeData.maker.removeUnusedClauses(piTreeData.tree);
+        }
+
         ConcreteExpression let = letClauses.isEmpty() ? concreteResult : factory.letExpr(false, false, letClauses, concreteResult);
         return haveClauses.isEmpty() ? let : factory.letExpr(true, false, haveClauses, let);
       }
