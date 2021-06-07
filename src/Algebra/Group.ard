@@ -1,3 +1,4 @@
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
 \import Logic
@@ -10,6 +11,11 @@
   | inverse : E -> E
   | inverse-left {x : E} : inverse x * x = ide
   | inverse-right {x : E} : x * inverse x = ide
+
+  \default inverse-left {x} => make-inverse-left E (*) ide inverse *-assoc ide-right inverse-right x
+  \default ide-left {x} => make-ide-left E (*) ide inverse *-assoc ide-right inverse-right inverse-left x
+  \default inverse-right {x} => make-inverse-left E (\lam (x y : E) => y * x) ide inverse (\lam {x y z : E} => inv (*-assoc {_} {z} {y} {x})) ide-left inverse-left x
+  \default ide-right {x} => make-ide-left E (\lam (x y : E) => y * x) ide inverse (\lam {x y z : E} => inv (*-assoc {_} {z} {y} {x})) ide-left inverse-left inverse-right x
 
   | cancel-left x {y} {z} p =>
       y                   ==< inv ide-left >==
@@ -37,6 +43,41 @@
     | inverse-right => G.inverse-left
 
   \open Monoid(Inv)
+
+  \lemma make-inverse-left (X : \Set) (* : X -> X -> X) (ide : X) (inverse : X -> X)
+                          (*-assoc : \Pi {x y z : X} -> * (* x y) z = * x (* y z))
+                          (ide-right : \Pi {x : X} -> * x ide = x)
+                          (inverse-right : \Pi {x : X} -> * x (inverse x) = ide)
+                          (x : X) : * (inverse x) x = ide =>
+    \have
+      | inverse-x-idempotent : * (* (inverse x) x) (* (inverse x) x) = * (inverse x) x =>
+        * (* (inverse x) x) (* (inverse x) x) ==< *-assoc >==
+        * (inverse x) (* x (* (inverse x) x)) ==< pmap (* (inverse x)) (inv *-assoc) >==
+        * (inverse x) (* (* x (inverse x)) x) ==< cong inverse-right >==
+        * (inverse x) (* ide x)               ==< inv *-assoc >==
+        * (* (inverse x) ide) x               ==< cong ide-right >==
+        * (inverse x) x                       `qed
+      | idempotent-is-trivial {a : X} (a-idempotent : * a a = a) : a = ide =>
+        a                     ==< inv ide-right >==
+        * a ide               ==< cong (inv inverse-right) >==
+        * a (* a (inverse a)) ==< inv *-assoc >==
+        * (* a a) (inverse a) ==< cong a-idempotent >==
+        * a (inverse a)       ==< inverse-right >==
+        ide                 `qed
+      \in idempotent-is-trivial inverse-x-idempotent
+
+  \lemma make-ide-left (X : \Set) (* : X -> X -> X) (ide : X) (inverse : X -> X)
+                       (*-assoc : \Pi {x y z : X} -> * (* x y) z = * x (* y z))
+                       (ide-right : \Pi {x : X} -> * x ide = x)
+                       (inverse-right : \Pi {x : X} -> * x (inverse x) = ide)
+                       (inverse-left : \Pi {x : X} -> * (inverse x) x = ide)
+                       (x : X) : * ide x = x =>
+    * ide x                ==< pmap (* __ x) (inv inverse-right) >==
+    * (* x (inverse x)) x  ==< *-assoc >==
+    * x (* (inverse x) x)  ==< cong (inverse-left) >==
+    * x ide                ==< ide-right >==
+    x                      `qed
+
 
   \lemma inverse-equality {X : \Set} (G H : Group X) (z : G.ide = H.ide) (m : \Pi (x y : G) -> x G.* y = x H.* y) (e : G) : G.inverse e = H.inverse e
     => pmap (\lam (x : Inv) => x.inv) (Inv.levelProp {G}
