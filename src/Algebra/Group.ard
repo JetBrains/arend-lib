@@ -1,7 +1,10 @@
+\import Algebra.Group.Category
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Equiv
 \import Logic
+\import Meta
 \import Paths
 \import Paths.Meta
 \import Set
@@ -42,6 +45,8 @@
     | inverse-left => G.inverse-right
     | inverse-right => G.inverse-left
 
+  \lemma inverse-inverse {G : Group} (g : G) : inverse (inverse g) = g => cancel-left (inverse g) (rewrite inverse-left (rewrite inverse-right idp))
+
   \open Monoid(Inv)
 
   \lemma make-inverse-left (X : \Set) (* : X -> X -> X) (ide : X) (inverse : X -> X)
@@ -78,7 +83,6 @@
     * x ide                ==< ide-right >==
     x                      `qed
 
-
   \lemma inverse-equality {X : \Set} (G H : Group X) (z : G.ide = H.ide) (m : \Pi (x y : G) -> x G.* y = x H.* y) (e : G) : G.inverse e = H.inverse e
     => pmap (\lam (x : Inv) => x.inv) (Inv.levelProp {G}
         (\new Inv e (G.inverse e) G.inverse-left G.inverse-right)
@@ -99,6 +103,12 @@
                 (\new Inv e' (inverse e') inverse-left inverse-right)
     }
 }
+
+\instance GroupProduct (A B : Group) : Group \cowith
+  | Monoid => MonoidProduct A B
+  | inverse (x, y) => (inverse x, inverse y)
+  | inverse-left {x} => rewrite (A.inverse-left {x.1}) (rewrite (B.inverse-left {x.2}) idp)
+  | inverse-right {x} => rewrite (A.inverse-right {x.1}) (rewrite (B.inverse-right {x.2}) idp)
 
 \func \infixl 7 / {G : Group} (x y : G) => x * inverse y
 
@@ -202,3 +212,24 @@
         | +-comm => pathInProp (\Pi {x y : p @ __} -> x + y = y + x) A.+-comm B.+-comm @ i
       })
   }
+
+\record SubgroupData (G : Group) (\coerce P : G -> \Prop) {
+  | ide-closed : P 1
+
+  | /-closed {x y : G}: P x -> P y -> P (x / y)
+  | inv-closed {x : G}: P x -> P (inverse x)
+  | mult-closed {x y : G}: P x -> P y -> P (x * y)
+
+  \default /-closed {x} {y} A B => mult-closed A (inv-closed B)
+  \default inv-closed {x} A => rewriteF ide-left (/-closed ide-closed A)
+  \default mult-closed {x} {y} A B => rewriteF (Group.inverse-inverse y) (unfold (/) (/-closed A (inv-closed B)))
+}
+
+\instance Subgroup (G : Group) (d : SubgroupData G) : Group
+  | E => \Sigma (g : G.E) (d g)
+  | ide => (G.ide, ide-closed)
+  | * p q => (p.1 * q.1, d.mult-closed p.2 q.2)
+  | inverse p => (inverse p.1, d.inv-closed p.2)
+  | *-assoc => ext *-assoc
+  | ide-left => ext ide-left
+  | inverse-left => ext inverse-left
