@@ -4,6 +4,7 @@
 \import Arith.Nat
 \import Category
 \import Category.Functor
+\import Category.Limit
 \import Category.Meta
 \import Category.Sub
 \import Category.Topos.Sheaf
@@ -30,7 +31,7 @@
 \open Bounded(DistributiveLattice,top,top-univ)
 \open MeetSemilattice
 
-\class Locale \extends DistributiveLattice, Site {
+\class Locale \extends DistributiveLattice, SiteWithBasis, CompleteCat {
   | Join {J : \Set} : (J -> E) -> E
   | Join-cond {J : \Set} (j : J) {f : J -> E} : f j <= Join f
   | Join-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> f j <= e) -> Join f <= e
@@ -50,12 +51,33 @@
             => ext (\lam b => cases b idp)
     \in unfold (rewrite t Join-ldistr>=)
 
-  | isCover x s => x <= Join (\lam (t : \Sigma (y : E) (p : y <= x) (s p)) => t.1)
-  | cover-max x => Join-cond (later (x, <=-reflexive, ()))
-  | cover-stable {x} {y} h {s} c => <=-transitive
-      (meet-univ <=-reflexive (<=-transitive h c))
-      (<=-transitive Join-ldistr>= (Join-univ (\lam (z,z<=y,zS) => Join-cond (later (x ∧ z, meet-left, isSieve {s} meet-right z<=y zS)))))
-  | cover-transitive c r d => <=-transitive c (Join-univ (\lam (x,x<=y,xS) => <=-transitive (d x<=y xS) (Join-univ (\lam (z,z<=x,zR) => Join-cond (later (z, <=-transitive z<=x x<=y, zR))))))
+  | Meet {J : \Set} : (J -> E) -> E
+  | Meet {J} g => Join (\lam (t : \Sigma (x : E) (\Pi (j : J) -> x <= g j)) => t.1)
+  | Meet-cond {J : \Set} (j : J) {f : J -> E} : Meet f <= f j
+  | Meet-cond {J} j {f} => Join-univ (__.2 j)
+  | Meet-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> e <= f j) -> e <= Meet f
+  | Meet-univ {J} {f} {e} p => Join-cond (later (e,p))
+
+  | limit {J} G => \new Limit {
+    | apex => Meet (\lam (t : \Sigma (x : E) (∃ (j : J) (G j = x))) => t.1)
+    | coneMap j => Meet-cond (later (G j, inP (j, idp)))
+    | coneCoh _ => Path.inProp _ _
+    | isLimit x => \new QEquiv {
+      | ret (c : Cone) => Meet-univ (\lam (y, inP (j,p)) => transport (x <=) p (c.coneMap j))
+      | ret_f h => Path.inProp _ _
+      | f_sec c => exts (\lam j => Path.inProp _ _)
+    }
+  }
+  | pullback {x} {y} f g => \new Pullback {
+    | apex => x ∧ y
+    | cone => (meet-left, meet-right, Path.inProp _ _)
+    | pbMap c => meet-univ c.1 c.2
+    | pbBeta1 => Path.inProp _ _
+    | pbBeta2 => Path.inProp _ _
+    | pbEta _ _ => Path.inProp _ _
+  }
+  | isBasicCover x g => x <= Join (\lam j => (g j).1)
+  | basicCover-stable {x} {y} x<=y c => <=-transitive (meet-univ <=-reflexive (<=-transitive x<=y c)) Join-ldistr>=
 
   \lemma Join-ldistr {J : \Set} {f : J -> E} {e : E} : e ∧ Join f = Join (\lam (j : J) => e ∧ f j)
     => <=-antisymmetric Join-ldistr>= (Join-univ (\lam j => meet-univ meet-left (<=-transitive meet-right (Join-cond j))))
@@ -295,7 +317,7 @@
     \lemma cover-conj {P : FramePres} {J : \Set} {g : J -> P} {a b : P} {I1 : \Set} {h1 : I1 -> P} (aV : Cover a h1) {I2 : \Set} {h2 : I2 -> P} (bW : Cover b h2) (f : \Pi {i1 : I1} {i2 : I2} -> ∃ (j : J) (g j = conj (h1 i1) (h2 i2))) : Cover (conj a b) g
       => cover-trans {P} {_} {J} {g} {_} {\lam i => conj a (h2 i)} (cover-ldistr' idp bW (\lam i => inP (i, idp))) (\lam i2 => cover-rdistr' idp aV (\lam i1 => f))
 
-    \lemma cover-prod {P : FramePres} {x y z : P} (c : Cover x {\Sigma} (\lam _ => y)) (d : Cover x {\Sigma} (\lam _ => z)) : Cover x {\Sigma} (\lam _ => conj y z)
+    \lemma cover-prod {P : FramePres} {x y z : P} (c : Cover1 x y) (d : Cover1 x z) : Cover1 x (conj y z)
       => cover-trans (cover-idemp {_} {_} {_} {\lam _ => conj x x} () idp) (\lam _ => cover-conj c d (\lam {i1} {i2} => inP ((),idp)))
 
     \lemma map {F : FramePresHom} {x : F.Dom} {J : \Set} {g : J -> F.Dom} (c : Cover x g) : Cover (F x) (\lam j => F (g j)) \elim c
@@ -308,6 +330,73 @@
       | cover-comm p j q => cover-comm (pmap F p *> func-conj) j (pmap F q *> func-conj)
       | cover-ldistr p c f => cover-ldistr (pmap F p *> func-conj) (map c) (\lam j => pmap F (f j) *> func-conj)
   }
+
+\func Cover1 {P : FramePres} (x y : P) => Cover x {\Sigma} (\lam _ => y)
+
+\truncated \data Cover' {P : FramePres} (x : P) {J : \Set} (g : J -> P) : \Prop
+  | cover-basic' {a b : P} (x = conj a b) {f : J -> P} (BasicCover b f) (\Pi (j : J) -> g j = conj a (f j))
+  | cover-inj' (j : J) (g j = x)
+  | cover-trans' {I : \Set} {f : I -> P} (Cover' x f) (\Pi (i : I) -> Cover' (f i) g)
+  | cover-proj1-inj' {a b : P} (x = conj a b) (j : J) (g j = a)
+  | cover-proj2-inj' {a b : P} (x = conj a b) (j : J) (g j = b)
+  | cover-prod-inj' {a b : P} (Cover' x {\Sigma} (\lam _ => a)) (Cover' x {\Sigma} (\lam _ => b)) (j : J) (g j = conj a b)
+  \where {
+    \func Cover1' {P : FramePres} (x y : P) => Cover' x {\Sigma} (\lam _ => y)
+
+    \lemma cover-prod' {P : FramePres} {x y z : P} (c : Cover1' x y) (d : Cover1' x z) : Cover1' x (conj y z)
+      => cover-prod-inj' c d () idp
+
+    \lemma cover-proj1' {P : FramePres} {x y : P} : Cover1' (conj x y) x
+      => cover-proj1-inj' idp () idp
+
+    \lemma cover-proj2' {P : FramePres} {x y : P} : Cover1' (conj x y) y
+      => cover-proj2-inj' idp () idp
+
+    \lemma cover-ldistr' {P : FramePres} {J : \Set} {g : J -> P} {a b : P} {f : J -> P} (c : Cover b f) (q : \Pi (j : J) -> g j = conj a (f j)) : Cover' (conj a b) g \elim c
+      | cover-basic c => cover-basic' idp c q
+      | cover-inj j idp => cover-inj' j (q j)
+      | cover-trans c d => cover-trans' (cover-ldistr' c (\lam j => idp)) (\lam i => cover-ldistr' (d i) q)
+      | cover-proj1 p j s => cover-prod-inj' cover-proj1' (cover-trans' cover-proj2' (\lam _ => cover-proj1-inj' p () s)) j (q j)
+      | cover-proj2 p j s => cover-prod-inj' cover-proj1' (cover-trans' cover-proj2' (\lam _ => cover-proj2-inj' p () s)) j (q j)
+      | cover-idemp j p => cover-trans' (cover-prod' cover-proj1' (cover-prod' cover-proj2' cover-proj2')) (\lam _ => cover-inj' j (q j *> pmap (conj a) p))
+      | cover-comm idp j p => cover-trans' (cover-prod' cover-proj1' (cover-trans' cover-proj2' (\lam _ => cover-prod' cover-proj2' cover-proj1'))) (\lam _ => cover-inj' j (q j *> pmap (conj a) p))
+      | cover-ldistr idp c p => cover-trans' (cover-prod' (cover-prod' cover-proj1' (cover-trans' cover-proj2' (\lam _ => cover-proj1'))) (cover-trans' cover-proj2' (\lam _ => cover-proj2')))
+          (\lam _ => cover-trans' (cover-ldistr' c (\lam j => idp)) (\lam j => cover-trans' (cover-prod' (cover-trans' cover-proj1' (\lam _ => cover-proj1')) (cover-prod' (cover-trans' cover-proj1' (\lam _ => cover-proj2')) cover-proj2'))
+              (\lam _ => cover-inj' j (q j *> pmap (conj a) (p j)))))
+
+    \lemma cover-cover' {P : FramePres} {x : P} {J : \Set} {g : J -> P} (c : Cover x g) : Cover' x g
+      => cover-trans' (cover-prod' (cover-inj' () idp) (cover-inj' () idp))
+          (\lam _ => cover-trans' (cover-ldistr' c (\lam j => idp)) (\lam j => cover-proj2-inj' idp j idp))
+
+    \lemma cover'-cover {P : FramePres} {x : P} {J : \Set} {g : J -> P} (c : Cover' x g) : Cover x g \elim c
+      | cover-basic' p b q => cover-ldistr p (cover-basic b) q
+      | cover-inj' j p => cover-inj j p
+      | cover-trans' c d => cover-trans (cover'-cover c) (\lam i => cover'-cover (d i))
+      | cover-proj1-inj' p j q => cover-proj1 p j q
+      | cover-proj2-inj' p j q => cover-proj2 p j q
+      | cover-prod-inj' c1 c2 j p => cover-trans (Cover.cover-prod (cover'-cover c1) (cover'-cover c2)) (\lam _ => cover-inj j p)
+  }
+
+\func framePresPreorder (P : FramePres) : Preorder P \cowith
+  | <= => Cover1
+  | <=-reflexive => cover-inj () idp
+  | <=-transitive p q => cover-trans p (\lam _ => q)
+
+\func framePresSite (P : FramePres) : SiteWithBasis \cowith
+  | SmallPrecat => framePresPreorder P
+  -- TODO: It works much slower if pullback is implement using \new instead of a coclause function. Why?
+  | pullback {x y z : P} (f : Cover1 x z) (g : Cover1 y z) : Pullback {framePresPreorder P} f g \cowith {
+    | apex => conj x y
+    | cone => (cover-proj1 idp () idp, cover-proj2 idp () idp, Path.inProp _ _)
+    | pbMap c => cover-prod c.1 c.2
+    | pbBeta1 => Path.inProp _ _
+    | pbBeta2 => Path.inProp _ _
+    | pbEta _ _ => Path.inProp _ _
+  }
+  | isBasicCover x {J} g => ∃ (y : P) (Cover1 x y) (g' : J -> P) (BasicCover y g') (\Pi (j : J) -> \Sigma (Cover1 (g j).1 (g' j)) (Cover1 (conj x (g' j)) (g j).1))
+  | basicCover-stable {x} {y} x<=y {J} {g} (inP (z,y<=z,g',c,d)) => inP (z, cover-trans x<=y (\lam _ => y<=z), g', c, \lam j => (cover-trans (cover-proj2 idp () idp) (\lam _ => (d j).1),
+      cover-prod (cover-proj1 idp () idp) (cover-trans (cover-prod (cover-trans (cover-proj1 idp () idp) (\lam _ => x<=y)) (cover-proj2 idp () idp)) (\lam _ => (d j).2))))
+  \where \open Cover
 
 \record FramePresHom \extends SetHom {
   \override Dom : FramePres
@@ -364,7 +453,7 @@
   \where {
     \open FramePres(SCover)
 
-    \func Opens (P : FramePres) => \Sigma (U : P -> \Prop) (\Pi (x : P) -> SCover x U -> U x)
+    \type Opens (P : FramePres) => \Sigma (U : P -> \Prop) (\Pi (x : P) -> SCover x U -> U x)
 
     \func closure {P : FramePres} {J : \Set} (g : J -> P) : Opens P
       => (Cover __ g, \lam x c => cover-trans c __.2)
@@ -386,7 +475,7 @@
  -}
 \class FrameUnitalPres \extends FramePres
   | unit : E
-  | isUnit {x : E} : Cover x {\Sigma} (\lam _ => unit)
+  | isUnit {x : E} : Cover1 x unit
 
 \record FrameUnitalPresHom \extends FramePresHom {
   \override Dom : FrameUnitalPres
@@ -526,7 +615,7 @@
 -- | If {R} is a relation that satisfies conditions {basic}, {leq}, {dense}, and {comm}, then `R x y` implies `x << y`
 \lemma wayBelowPredicate {P : FramePres} (R : P -> P -> \Prop) {x y : P} (Rxy : R x y) {J : \Set} {g : J -> P} (c : Cover y g)
                          (basic : \Pi {x y : P} -> R x y -> \Pi {J : \Set} {g : J -> P} -> BasicCover y g -> ∃ (l : Array J) (Cover x (\lam i => g (l i))))
-                         (leq : \Pi {x y : P} -> R x y -> Cover x {\Sigma} (\lam _ => y))
+                         (leq : \Pi {x y : P} -> R x y -> Cover1 x y)
                          (dense : \Pi {x z : P} -> R x z -> ∃ (y : P) (R x y) (R y z))
                          (comm : \Pi {x y : P} -> R x y -> \Pi (z : P) (l : Array P) -> Cover y (z :: l) -> ∃ (l' : Array P) (\Pi (j : Fin l'.len) -> R (l' j) z) (Cover x (l' ++ l)))
   : ∃ (l : Array J) (Cover x (\lam i => g (l i))) \elim c
@@ -556,7 +645,7 @@
         (\lam j => h (l' j))))
   \where {
     \lemma comm-lem {P : FramePres} (R : P -> P -> \Prop)
-                    (leq : \Pi {x y : P} -> R x y -> Cover x {\Sigma} (\lam _ => y))
+                    (leq : \Pi {x y : P} -> R x y -> Cover1 x y)
                     (dense : \Pi {x z : P} -> R x z -> ∃ (y : P) (R x y) (R y z))
                     (comm : \Pi {x y : P} -> R x y -> \Pi (z : P) (l : Array P) -> Cover y (z :: l) -> ∃ (l' : Array P) (\Pi (j : Fin l'.len) -> R (l' j) z) (Cover x (l' ++ l)))
                     (k : Nat) {x y : P} (Rxy : R x y) {n : Nat} {g : Fin n -> P} (k<=n : k <= n) (c : Cover y g)

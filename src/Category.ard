@@ -26,6 +26,8 @@
   \override Ob : \hType
 }
 
+\class SmallCat \extends SmallPrecat, Cat
+
 \open Precat (>>)
 
 \func opP (C : Precat) : Precat \cowith
@@ -36,6 +38,9 @@
   | id-left => C.id-right
   | id-right => C.id-left
   | o-assoc => pinv C.o-assoc
+  \where
+    \func small (C : SmallPrecat) : SmallPrecat C \cowith
+      | Precat => opP C
 
 \record Map {C : Precat} {dom cod : C} (\coerce f : Hom dom cod)
 
@@ -120,16 +125,18 @@
               | Fib-equiv {x y : C} (e : Iso {C} {x} {y}) => transport isProp (Equiv-to-= (sigma-right (Eq e))) (isContr=>isProp (Equiv=>contrFibers (T-equiv {x} {y}) e))
          \in path (\lam i f => Fib-equiv f (F f) (G f) @ i)
 
-\func op (C : Cat) : Cat => \new Cat {
+\func op (C : Cat) : Cat \cowith
   | Precat => opP C
   | univalence (f : Iso) =>
     \case f.cod \as cod, f.f \as ff : Hom cod f.dom, f.inv \as inv : Hom f.dom cod, f.inv_f \as f_inv : inv >> ff = id f.dom, f.f_inv \as inv_f : ff >> inv = id cod,
           C.univalence (\new Iso inv ff f_inv inv_f) \return \Sigma (p : f.dom = cod) (transport (Hom {opP C} f.dom) p (id f.dom) = ff) \with {
       | cod, ff, inv, f_inv, inv_f, (idp,idp) => (idp, pinv f_inv *> id-right)
     }
-}
+  \where
+    \func small (C : SmallCat) : SmallCat C \cowith
+      | Cat => op C
 
-\func DiscretePrecat (X : \Type) : Precat X \cowith
+\func DiscretePrecat (X : \Type) : SmallPrecat X \cowith
   | Hom x y => Trunc0 (x = y)
   | id x => in0 idp
   | o {x y z : X} (t : Trunc0 (y = z)) (s : Trunc0 (x = y)) : Trunc0 (x = z) \elim t, s {
@@ -177,3 +184,33 @@
   | univalence (e : Iso) =>
     \let e' => Functor.Func-iso {slicePrecat.forget x} e
     \in (ext ((univalence e').1, Cat.transport_Hom_iso-left e' _ (pinv e.f.2)), simp_coe (Cat.transport_Hom_iso-right e' _ id-right))
+
+\class Graph (\coerce V : \Set) (E : V -> V -> \Set) {
+  \data Paths (x y : V)
+    | empty (x = y)
+    | cons {z : V} (E x z) (Paths z y)
+
+  \func concat {x y z : V} (p : Paths x y) (q : Paths y z) : Paths x z \elim p
+    | empty idp => q
+    | cons e p => cons e (concat p q)
+
+  \lemma concat_idp {x y : V} {p : Paths x y} : concat p (empty idp) = p \elim p
+    | empty idp => idp
+    | cons e p => pmap (cons e) concat_idp
+
+  \lemma concat-assoc {x y z w : V} {p : Paths x y} {q : Paths y z} {r : Paths z w} : concat (concat p q) r = concat p (concat q r) \elim p
+    | empty idp => idp
+    | cons e p => pmap (cons e) concat-assoc
+
+  \func FreeCat : SmallCat V \cowith
+    | Hom => Paths
+    | id x => empty idp
+    | o q p => concat p q
+    | id-left => concat_idp
+    | id-right => idp
+    | o-assoc => pinv concat-assoc
+    | univalence => \case \elim __ \with {
+      | (x, y, empty idp, _, _, _) => (idp,idp)
+      | (x, y, cons e p, _, (), _)
+    }
+}
