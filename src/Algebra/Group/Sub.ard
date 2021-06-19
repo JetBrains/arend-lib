@@ -1,7 +1,9 @@
 \import Algebra.Group
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Meta
 \import Paths.Meta
+\import Set.Category
 
 \record SubgroupData (G : Group) (\coerce P : G -> \Prop) {
   | ide-closed : P 1
@@ -13,13 +15,33 @@
   \default /-closed {x} {y} A B => mult-closed A (inv-closed B)
   \default inv-closed {x} A => rewriteF ide-left (/-closed ide-closed A)
   \default mult-closed {x} {y} A B => rewriteF (Group.inverse-inverse y) (unfold (/) (/-closed A (inv-closed B)))
+} \where {
+  \func ElementsOf {G : Group} (P : SubgroupData G) => \Sigma (g : G) (P g)
 }
 
-\func Subgroup (G : Group) (d : SubgroupData G) : Group \cowith
-  | E => \Sigma (g : G.E) (d g)
-  | ide => (G.ide, ide-closed)
-  | * p q => (p.1 * q.1, d.mult-closed p.2 q.2)
-  | inverse p => (inverse p.1, d.inv-closed p.2)
-  | *-assoc => ext *-assoc
-  | ide-left => ext ide-left
-  | inverse-left => ext inverse-left
+\record Subgroup \extends Subset {
+  \override X : Group
+  \override S : Group
+  \override i : MonoidHom S X
+}
+
+\func toSubgroup (G : Group) (d : SubgroupData G) : Subgroup \cowith
+  | X => G
+  | S => \new Group {
+    | E => \Sigma (g : G.E) (d g)
+    | ide => (G.ide, ide-closed)
+    | * p q => (p.1 * q.1, d.mult-closed p.2 q.2)
+    | inverse p => (inverse p.1, d.inv-closed p.2)
+    | *-assoc => ext *-assoc
+    | ide-left => ext ide-left
+    | inverse-left => ext inverse-left
+  }
+  | i => \new MonoidHom {
+    | func h => h.1
+    | func-ide => idp
+    | func-* x y => idp
+  }
+  | isInj p => ext p
+
+\record NormalSubgroupData \extends SubgroupData
+  | isNormal {x y : G} : P x -> P (y * x / y)
