@@ -214,8 +214,8 @@ public class MonoidSolver extends BaseEqualitySolver {
   private class ComMonoidWPSolver {
 
     public ConcreteExpression solve(CompiledTerm term1, CompiledTerm term2, List<Equality> axioms) {
-      int alphabetSize = Collections.max(term1.nf) + 1;
-      alphabetSize = Integer.max(alphabetSize, Collections.max(term2.nf) + 1);
+      int alphabetSize = term1.nf.isEmpty() ? 0 : Collections.max(term1.nf) + 1;
+      alphabetSize = term2.nf.isEmpty() ? alphabetSize : Integer.max(alphabetSize, Collections.max(term2.nf) + 1);
       for (Equality axiom : axioms) {
         if (!axiom.lhsNF.isEmpty()) {
           alphabetSize = Integer.max(alphabetSize, Collections.max(axiom.lhsNF) + 1);

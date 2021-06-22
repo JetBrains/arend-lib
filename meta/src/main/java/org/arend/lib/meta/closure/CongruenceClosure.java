@@ -445,7 +445,7 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
               break;
             }
           }
-          if (prefixSize > 0 && argInds.get(prefixSize - 1) == -1) {
+          if (prefixSize > argInds.size() || prefixSize > 0 && argInds.get(prefixSize - 1) == -1) {
             break;
           }
         }
