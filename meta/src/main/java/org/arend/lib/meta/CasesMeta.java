@@ -11,6 +11,7 @@ import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.CoreDataCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreReferenceExpression;
+import org.arend.ext.core.level.LevelSubstitution;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.ErrorReporter;
@@ -285,7 +286,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
               }
             }
             if (!substitution.isEmpty()) {
-              type1 = typechecker.substitute(type1, null, null, substitution);
+              type1 = typechecker.substitute(type1, LevelSubstitution.EMPTY, substitution);
               if (type1 != null) {
                 patterns1 = getPatterns(type1.normalize(NormalizationMode.WHNF), parameter);
               }
