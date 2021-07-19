@@ -146,6 +146,7 @@ public class SimpCoeMeta extends BaseMetaDefinition {
 
       ConcreteExpression caseResultType = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(piTreeMaker.makeCoe(piTree, true, pathRefs, concreteValueArg), factory.ref(rightFunRef)));
       ConcreteExpression result = factory.caseExpr(false, caseArgs, caseResultType, null, factory.clause(casePatterns, factory.app(factory.meta("ext", ext.extsMeta), true, Collections.singletonList(factory.ref(lastCaseRef)))));
+      piTreeMaker.removeUnusedClauses(piTree);
       return letClauses.isEmpty() ? result : factory.letExpr(false, false, letClauses, result);
     }
   }

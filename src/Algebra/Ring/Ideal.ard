@@ -1,0 +1,70 @@
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Monoid.Sub
+\import Algebra.Ordered
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Int
+\import Arith.Nat
+\import Combinatorics.Binom
+\import Data.Array
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\open AddMonoid
+
+-- | Left ideal
+\record LIdeal \extends AddSubMonoid {
+  \override E : Ring
+  | ideal-left {r a : E} : S a -> S (r * a)
+}
+
+-- | Right ideal
+\record RIdeal \extends AddSubMonoid {
+  \override E : Ring
+  | ideal-right {r a : E} : S a -> S (a * r)
+}
+
+-- | Two-sided ideal
+\record TIdeal \extends LIdeal, RIdeal
+
+-- | Ideal of a commutative ring
+\record Ideal \extends TIdeal {
+  \override E : CRing
+  | ideal-right s => transport S *-comm (ideal-left s)
+
+  \func radical : Ideal {E} \cowith
+    | S a => ∃ (n : Nat) (S (Monoid.pow a n))
+    | sub-zero => inP (1, transportInv S ide-left sub-zero)
+    | sub-+ {x} {y} (inP (n,xS)) (inP (m,yS)) => inP (n + m, transportInv S (binom.expansion x y (n + m)) (bigSum
+        (\new Array E (suc (n + m)) (\lam i => natCoef (binom (n + m) i) * (Monoid.pow x i * Monoid.pow y (iabs (n + m Nat.- i)))))
+        (\lam i => ideal-left (\let j => iabs (n + m Nat.- i) \in \case NatSemiring.splitSum (Poset.<=_= (pmap iabs (inv (pmap (`+ (n + m)) IntRing.minus__) *> IntRing.minus+pos i i (n + m) *> pmap (pos i +) (inv (pos_iabs (<_suc_<= (fin_< i))))))) \with {
+          | byLeft n<=i => ideal-right (rewriteI (<=_exists n<=i) (rewrite Monoid.pow_+ (ideal-right xS)))
+          | byRight m<=j => ideal-left (rewriteI (<=_exists m<=j) (rewrite Monoid.pow_+ (ideal-right yS)))
+        }))))
+    | ideal-left (inP (n,s)) => inP (n, transportInv S CMonoid.pow_*-comm (ideal-left s))
+
+  \lemma radical-superset {x : E} (s : S x) : radical x
+    => inP (1, transportInv S ide-left s)
+
+  \lemma radical_pow {x : E} {n : Nat} (s : radical (Monoid.pow x n)) : radical x \elim s
+    | inP (m,p) => inP (n * m, transportInv S Monoid.pow_* p)
+
+  \lemma bigSum (l : Array E) (p : \Pi (i : Fin l.len) -> S (l i)) : S (BigSum l) \elim l
+    | nil => sub-zero
+    | :: a l => sub-+ (p 0) (bigSum l (\lam i => p (suc i)))
+} \where {
+  \func closure {R : CRing} {J : \Set} (g : J -> R) : Ideal {R} \cowith
+    | S e => ∃ (l : Array (\Sigma R J)) (e = BigSum (map (\lam (c,j) => c * g j) l))
+    | sub-zero => inP (nil,idp)
+    | sub-+ (inP (l,p)) (inP (l',p')) => inP (l ++ l', pmap2 (+) p p' *> inv (pmap BigSum (map_++ (later (\lam (c,j) => c * g j))) *> BigSum_++))
+    | ideal-left {r} (inP (l,p)) => inP (map (\lam (c,j) => (r * c, j)) l, pmap (r *) p *> Ring.Big-ldistr *> path (\lam i => BigSum (map (\lam (c,j) => inv (R.*-assoc {r} {c} {g j}) @ i) l)))
+
+  \lemma closure-superset {R : CRing} {J : \Set} {g : J -> R} (j : J) : closure g (g j)
+    => inP ((1,j) :: nil, equation)
+}

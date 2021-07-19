@@ -5,6 +5,7 @@ import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.CoreExpression;
@@ -29,6 +30,7 @@ public class PiTreeMaker {
   private final ExpressionTypechecker typechecker;
   private final ConcreteFactory factory;
   private final List<ConcreteLetClause> clauses;
+  private final Map<ArendRef, ConcreteLetClause> clauseMap = new HashMap<>();
   private List<ConcreteParameter> lamParams;
   private List<SubstitutionPair> substitution;
   private Set<CoreBinding> substBindings;
@@ -113,7 +115,9 @@ public class PiTreeMaker {
     ConcreteExpression altHead;
     if (useLet) {
       ArendRef letRef = factory.local("T" + index++);
-      clauses.add(factory.letClause(letRef, Collections.emptyList(), null, concrete));
+      ConcreteLetClause clause = factory.letClause(letRef, Collections.emptyList(), null, concrete);
+      clauses.add(clause);
+      clauseMap.put(letRef, clause);
       altHead = factory.ref(letRef);
     } else {
       altHead = concrete;
@@ -142,6 +146,22 @@ public class PiTreeMaker {
     return (PiTreeRoot) make(true, null, expr);
   }
 
+  public void removeUnusedClauses(PiTreeRoot root) {
+    Set<ConcreteLetClause> unusedClauses = new HashSet<>();
+    getUnusedClauses(root, unusedClauses);
+    clauses.removeAll(unusedClauses);
+  }
+
+  private void getUnusedClauses(BasePiTree piTree, Set<ConcreteLetClause> clauses) {
+    if (!piTree.isAltHeadUsed() && piTree.getAltHead() instanceof ConcreteReferenceExpression) {
+      ConcreteLetClause clause = clauseMap.get(((ConcreteReferenceExpression) piTree.getAltHead()).getReferent());
+      if (clause != null) clauses.add(clause);
+    }
+    for (PiTreeNode subtree : piTree.subtrees) {
+      getUnusedClauses(subtree, clauses);
+    }
+  }
+
 
   public ConcreteExpression makeConcrete(PiTreeRoot tree, boolean useLet, List<ConcreteExpression> args) {
     return makeConcrete(tree, useLet, args, args, true);
@@ -163,13 +183,13 @@ public class PiTreeMaker {
       piRefs = null;
     }
 
-    ConcreteExpression result = useLet ? tree.altHead : tree.head;
+    ConcreteExpression result = useLet ? tree.getAltHead() : tree.head;
     if (!tree.indices.isEmpty()) {
       List<ConcreteExpression> headArgs = new ArrayList<>(tree.indices.size());
       for (Integer index : tree.indices) {
         headArgs.add((isEven ? evenArgs : oddArgs).get(index));
       }
-      result = factory.app(useLet ? tree.altHead : tree.head, true, headArgs);
+      result = factory.app(useLet ? tree.getAltHead() : tree.head, true, headArgs);
     }
 
     for (int i = tree.subtrees.size() - 1; i >= 0; i--) {
@@ -206,6 +226,19 @@ public class PiTreeMaker {
 
   private ConcreteExpression makeCoe(BasePiTree tree, List<ConcreteArgument> headArgs, boolean useLet, List<PathExpression> pathRefs, ConcreteExpression arg) {
     assert headArgs != null || tree instanceof PiTreeRoot;
+
+    boolean needCoe = false;
+    for (Integer index : tree.indices) {
+      if (index < pathRefs.size()) {
+        needCoe = true;
+        break;
+      }
+    }
+
+    if (!needCoe) {
+      return arg;
+    }
+
     ArendRef coeRef = factory.local("i");
     ConcreteExpression coeLam = factory.lam(Collections.singletonList(factory.param(coeRef)), factory.meta("ext_coe", new MetaDefinition() {
       @Override
@@ -218,7 +251,7 @@ public class PiTreeMaker {
             args.add(headArgs.get(index - pathRefs.size()).getExpression());
           }
         }
-        return typechecker.typecheck(headArgs != null ? factory.app(useLet ? tree.altHead : tree.head, true, args) : makeConcrete((PiTreeRoot) tree, useLet, args), null);
+        return typechecker.typecheck(headArgs != null ? factory.app(useLet ? tree.getAltHead() : tree.head, true, args) : makeConcrete((PiTreeRoot) tree, useLet, args), null);
       }
     }));
     return factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(coeLam, arg, factory.ref(ext.prelude.getRight().getRef())));
@@ -247,7 +280,7 @@ public class PiTreeMaker {
     if (tree.indices.size() == 1 && tree.indices.get(0) < pathRefs.size()) {
       PathExpression pathExpr = pathRefs.get(tree.indices.get(0));
       if (pathExpr.getClass().equals(PathExpression.class)) {
-        return factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(useLet ? tree.altHead : tree.head, pathExpr.pathExpression, result));
+        return factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(useLet ? tree.getAltHead() : tree.head, pathExpr.pathExpression, result));
       }
     }
 

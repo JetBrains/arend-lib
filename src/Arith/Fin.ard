@@ -21,20 +21,6 @@
 \import Set \hiding (#)
 \open Nat(div,mod,divModProp)
 
-\lemma finToNat-inj {n : Nat} {x y : Fin n} (p : x = {Nat} y) : x = y \elim n, x, y, p
-  | suc n, zero, zero, _ => idp
-  | suc n, suc x, suc y, p => pmap (\lam z => suc z) (finToNat-inj (pmap pred p))
-
-\lemma finToNat-ineq {n : Nat} {x y : Fin n} (p : Not (x = y)) : Not (x = {Nat} y)
-  => \lam q => p (finToNat-inj q)
-
-\lemma mod_id {n x : Nat} (x<=n : x < suc n) : x mod suc n = {Nat} x
-  => \have div_x=0 => n*_+_<n (rewriteF (inv (divModProp x (suc n))) x<=n)
-     \in inv (pmap (_ + _ * __) div_x=0) *> +-comm *> divModProp x (suc n)
-
-\lemma fin_mod_id {n : Nat} (x : Fin (suc n)) : x mod suc n = x
-  => finToNat-inj (mod_id (fin_< x))
-
 \lemma n*_+_mod_n {n q r : Nat} (r<=n : r < suc n) : (suc n * q + r) mod suc n = {Nat} r
   => mod-unique (fin_< _) r<=n (divModProp (suc n * q + r) (suc n))
 
@@ -43,7 +29,7 @@
     rewriteI {1} (divModProp r (suc n)),
     rewriteI NatSemiring.+-assoc,
     rewriteI NatSemiring.ldistr,
-    finToNat-inj (n*_+_mod_n (fin_< (r mod suc n)))
+    fin_nat-inj (n*_+_mod_n (fin_< (r mod suc n)))
   }
 
 \lemma int_n*_+_mod_n {n r : Nat} {q : Int} (r<=n : r < suc n) : (pos (suc n) * q + r) mod suc n = r
@@ -67,7 +53,7 @@
   }
 
 \lemma mod_+-right {n a b : Nat} : (a + b mod suc n) mod suc n = (a + b) mod suc n
-  => finToNat-inj (pmap (`mod _) +-comm *> mod_+-left *> pmap (`mod _) +-comm)
+  => fin_nat-inj (pmap (`mod _) +-comm *> mod_+-left *> pmap (`mod _) +-comm)
 
 \lemma mod_*-left {n a b : Nat} : (a mod suc n * b) mod suc n = (a * b) mod suc n
   => run {
@@ -78,7 +64,7 @@
   }
 
 \lemma mod_*-right {n a b : Nat} : (a * b mod suc n) mod suc n = (a * b) mod suc n
-  => finToNat-inj (pmap (`mod _) *-comm *> mod_*-left *> pmap (`mod _) *-comm)
+  => fin_nat-inj (pmap (`mod _) *-comm *> mod_*-left *> pmap (`mod _) *-comm)
 
 \lemma int_mod_*-left {n : Nat} {a b : Int} : (pos (a mod suc n) * b) mod suc n = (a * b) mod suc n
   => run {
@@ -106,9 +92,9 @@
   | negative x => iabs (suc n Nat.- x)
   | negative-left {x} =>
     \let t => pmap (`+ pos x) (pos_iabs (<=-less (fin_< x))) *> IntRing.+-assoc {pos (suc n)} {neg x} *> pmap (_ +) (IntRing.negative-left {pos x})
-    \in mod_+-left *> transport (__ mod suc n = 0) (inv (pmap iabs t)) (finToNat-inj (n*_+_mod_n {n} {1} NatSemiring.zero<suc))
+    \in mod_+-left *> transport (__ mod suc n = 0) (inv (pmap iabs t)) (fin_nat-inj (n*_+_mod_n {n} {1} NatSemiring.zero<suc))
   | decideEq x y => \case NatSemiring.decideEq x y \with {
-    | yes x=y => yes (finToNat-inj x=y)
+    | yes x=y => yes (fin_nat-inj x=y)
     | no x/=y => no (\lam p => x/=y p)
   }
   | *-comm => pmap Fin.fromNat *-comm
@@ -130,7 +116,7 @@
   }
   | isEuclideanMap x y y/=0 => \case decideEq (x mod y mod suc n) 0 \with {
     | yes x=0 => inl x=0
-    | no x/=0 => inr (x/=0, unfold_let (<-transitive-right mod<=left (mod<right (finToNat-ineq y/=0))))
+    | no x/=0 => inr (x/=0, unfold_let (<-transitive-right mod<=left (mod<right (fin_nat-ineq y/=0))))
   }
 
 \instance FinField {n : Nat} {p : Prime (suc n)} : DiscreteField (Fin (suc n))
@@ -141,11 +127,11 @@
   | finv_inv {x} x/=0 =>
     \let | (u,v) => bezout (pos (suc n)) (pos x)
          | (q,r) => IntEuclidean.natDivMod v (suc n)
-         | int_gcd=1 : gcd (pos (suc n)) (pos x) = 1 => int_gcd_pos *> pmap pos (gcd=1 p (finToNat-ineq x/=0) (fin_< x))
+         | int_gcd=1 : gcd (pos (suc n)) (pos x) = 1 => int_gcd_pos *> pmap pos (gcd=1 p (fin_nat-ineq x/=0) (fin_< x))
     \in *-comm *> pmap ((__ * x) mod suc n) (inv (int_n*_+_mod_n=mod *> IntEuclidean.natMod=mod r (suc n)) *> pmap (__ IntEuclidean.mod suc n) (IntEuclidean.natDivModProp v n)) *>
-        finToNat-inj (inv (IntEuclidean.natMod=mod _ _) *> int_mod_*-left *> inv int_n*_+_mod_n=mod *> pmap (__ IntEuclidean.mod suc n) (pmap (__ + v * pos x) *-comm *> bezoutIdentity (pos (suc n)) (pos x) *> int_gcd=1) *> IntEuclidean.natMod=mod 1 (suc n))
+                  fin_nat-inj (inv (IntEuclidean.natMod=mod _ _) *> int_mod_*-left *> inv int_n*_+_mod_n=mod *> pmap (__ IntEuclidean.mod suc n) (pmap (__ + v * pos x) *-comm *> bezoutIdentity (pos (suc n)) (pos x) *> int_gcd=1) *> IntEuclidean.natMod=mod 1 (suc n))
   | decideEq x y => \case NatSemiring.decideEq x y \with {
-    | yes x=y => yes (finToNat-inj x=y)
+    | yes x=y => yes (fin_nat-inj x=y)
     | no x/=y => no (\lam x=y => x/=y x=y)
   }
   \where {

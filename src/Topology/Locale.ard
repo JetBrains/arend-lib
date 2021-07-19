@@ -6,6 +6,7 @@
 \import Category.Functor
 \import Category.Meta
 \import Category.Sub
+\import Category.Topos.Sheaf
 \import Data.Array
 \import Data.Bool
 \import Data.Maybe
@@ -29,7 +30,7 @@
 \open Bounded(DistributiveLattice,top,top-univ)
 \open MeetSemilattice
 
-\class Locale \extends DistributiveLattice {
+\class Locale \extends DistributiveLattice, Site {
   | Join {J : \Set} : (J -> E) -> E
   | Join-cond {J : \Set} (j : J) {f : J -> E} : f j <= Join f
   | Join-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> f j <= e) -> Join f <= e
@@ -48,6 +49,13 @@
     \have t : (\lam b => if b (x ∧ y) (x ∧ z)) = (\lam b => x ∧ if b y z)
             => ext (\lam b => cases b idp)
     \in unfold (rewrite t Join-ldistr>=)
+
+  | isCover x s => x <= Join (\lam (t : \Sigma (y : E) (p : y <= x) (s p)) => t.1)
+  | cover-max x => Join-cond (later (x, <=-reflexive, ()))
+  | cover-stable {x} {y} h {s} c => <=-transitive
+      (meet-univ <=-reflexive (<=-transitive h c))
+      (<=-transitive Join-ldistr>= (Join-univ (\lam (z,z<=y,zS) => Join-cond (later (x ∧ z, meet-left, isSieve {s} meet-right z<=y zS)))))
+  | cover-transitive c r d => <=-transitive c (Join-univ (\lam (x,x<=y,xS) => <=-transitive (d x<=y xS) (Join-univ (\lam (z,z<=x,zR) => Join-cond (later (z, <=-transitive z<=x x<=y, zR))))))
 
   \lemma Join-ldistr {J : \Set} {f : J -> E} {e : E} : e ∧ Join f = Join (\lam (j : J) => e ∧ f j)
     => <=-antisymmetric Join-ldistr>= (Join-univ (\lam j => meet-univ meet-left (<=-transitive meet-right (Join-cond j))))
@@ -421,7 +429,7 @@
     | func-unit => func-top
   }
   | Func-id => idp
-  | Func-o g f => idp
+  | Func-o => idp
   | isFullyFaithful => \new QEquiv {
     | ret h => \new FrameHom {
       | func => h
@@ -437,7 +445,7 @@
   | F => F
   | Func => Func
   | Func-id => idp
-  | Func-o g f => idp
+  | Func-o => idp
   | isFullyFaithful => FrameUnitalSubcat.isFullyFaithful
   | reflector => PresentedFrame
   | reflectorMap (X : FramePres) : FramePresHom X (F (PresentedFrame X)) \cowith {
@@ -560,7 +568,7 @@
         \let | (inP (z,Rxz,Rzy)) => dense Rxy
              | (inP (g',z<=g',Q,S)) => comm-lem R leq dense comm k Rzy (LinearlyOrderedSemiring.<=_+ (suc<=suc.conv k<=n) (zero<=_ {1})) c
              | l => Big (++) nil (\lam i => g' (sface k i))
-             | kmod=k => mod_id (<-transitive-left id<suc k<=n)
+             | kmod=k => mod_< (<-transitive-left id<suc k<=n)
              | (inP (l',Rl'gk,x<=l'+g')) => comm Rxz (g k) l (transport (\lam t => Cover z (t ++ l)) (S k (rewrite kmod=k <=-reflexive)) (cover-trans z<=g' (\lam m =>
                  \have (i,j,p) => split g' m
                  \in Cover.cover-index (rewrite p (transport (\lam (x : Array P) => \Pi (j : Fin x.len) -> Index (x j) (g' k ++ l))
@@ -574,11 +582,11 @@
                   \in transportInv (Cover __ _) p (Cover.cover-index (rewriteF s (unsplit F (k Nat.mod suc n)) m))
                 | inr (m,p) =>
                   \have | (i,j,q) => split (\lam i => g' (sface k i)) m
-                        | s : F (sface k i) = g' (sface k i) => unfold F (rewrite (decideEq/=_reduce {_} {k} {sface k i} (\lam p => sface-skip k i (finToNat-inj (inv (kmod=k *> p))))) idp)
+                        | s : F (sface k i) = g' (sface k i) => unfold F (rewrite (decideEq/=_reduce {_} {k} {sface k i} (\lam p => sface-skip k i (fin_nat-inj (inv (kmod=k *> p))))) idp)
                   \in transportInv (Cover __ _) (p *> q) (Cover.cover-index (rewriteF s (unsplit F (sface k i)) j))
               }),
               \lam j j<k+1 => unfold F (mcases \with {
-                | yes k=j => rewriteF (finToNat-inj (kmod=k *> k=j)) Rl'gk
+                | yes k=j => rewriteF (fin_nat-inj (kmod=k *> k=j)) Rl'gk
                 | no k/=j => Q j (\case LinearOrder.<=-dec (<_suc_<= j<k+1) \with {
                   | inl j<k => j<k
                   | inr j=k => absurd (k/=j (inv j=k))

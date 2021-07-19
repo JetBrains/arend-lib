@@ -1,0 +1,68 @@
+\import Category
+\import Category.Functor
+\import Category.Limit
+\import Category.Sub
+\import Equiv (Embedding, Retraction, idEquiv)
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set.Category
+
+\record Sieve {C : SmallPrecat} (x : C) (\coerce S : \Pi {y : C} -> Hom y x -> \Prop) {
+  | isSieve : \Pi {z y : C} (g : Hom z y) (f : Hom y x) -> S f -> S (f ∘ g)
+
+  \func diagram : Functor
+    => Comp (slicePrecat.forget x) (subPrecat.embedding (\lam (p : \Sigma (y : slicePrecat x) (S y.2)) => p.1))
+
+  \func cone : Cone diagram.op x \cowith
+    | coneMap => __.1.2
+    | coneCoh => __.2
+
+  \func pullback {y : C} (h : Hom y x) : Sieve y \cowith
+    | S g => S (h ∘ g)
+    | isSieve g f hfS => transport S o-assoc (isSieve g (h ∘ f) hfS)
+} \where {
+    \func maximal {C : SmallPrecat} (x : C) : Sieve x \cowith
+      | S _ => \Sigma
+      | isSieve _ _ _ => ()
+  }
+
+\class Site \extends SmallPrecat
+  | isCover (x : Ob) : Sieve x -> \Prop
+  | cover-max (x : Ob) : isCover x (Sieve.maximal x)
+  | cover-stable {x y : Ob} (h : Hom x y) {s : Sieve y} (c : isCover y s) : isCover x (s.pullback h)
+  | cover-transitive {y : Ob} {s : Sieve y} (c : isCover y s) (r : Sieve y) : (\Pi {x : Ob} (h : Hom x y) -> s h -> isCover x (r.pullback h)) -> isCover y r
+
+-- | Presheaves valued in {D}
+\record VPresheaf (D : Cat) (C : SmallPrecat) (\coerce F : Functor (opP C) D)
+
+-- | Presheaves valued in sets
+\record Presheaf \extends VPresheaf
+  | D => SetCat
+
+\func presheafCat (C : SmallPrecat) : Cat
+  => subCat {FunctorCat {opP C} {SetCat}} {Presheaf C} (\new Embedding {
+    | f P => P
+    | isEmb _ _ => \new Retraction {
+      | sec p => ext p
+      | f_sec => idpe
+    }
+  })
+
+-- | Sheaves valued in {D}
+\class VSheaf \extends VPresheaf {
+  \override C : Site
+  | isSheaf {x : C} {s : Sieve x} : isCover x s -> Limit { | Cone => Cone.map F s.cone }
+}
+
+-- | Sheaves valued in sets
+\class Sheaf \extends Presheaf, VSheaf
+
+\func sheafCat (C : Site) : Cat
+  => subCat {presheafCat C} {Sheaf C} (\new Embedding {
+    | f P => P
+    | isEmb _ _ => \new Retraction {
+      | sec p => ext Sheaf { | Presheaf => p }
+      | f_sec => idpe
+    }
+  })

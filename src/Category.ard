@@ -1,3 +1,4 @@
+\import Category.Functor
 \import Equiv(Embedding, Equiv, Retraction)
 \import Equiv.Fiber
 \import Equiv.Path
@@ -13,7 +14,7 @@
 \class Precat (Ob : \hType (\suc \lp)) {
   | Hom : Ob -> Ob -> \Set
   | id (X : Ob) : Hom X X
-  | \fixr 8 o \alias \infixr 8 ∘ {X Y Z : Ob} : Hom Y Z -> Hom X Y -> Hom X Z
+  | \fixl 8 o \alias \infixl 8 ∘ {X Y Z : Ob} : Hom Y Z -> Hom X Y -> Hom X Z
   | id-left {X Y : Ob} {f : Hom X Y} : id Y ∘ f = f
   | id-right {X Y : Ob} {f : Hom X Y} : f ∘ id X = f
   | o-assoc {X Y Z W : Ob} {h : Hom Z W} {g : Hom Y Z} {f : Hom X Y} : (h ∘ g) ∘ f = h ∘ (g ∘ f)
@@ -156,3 +157,23 @@
   : \Sigma (p : X = Y) (Path (\lam i => Str (p @ i)) S1 S2) (\Pi (x : X) -> transport (\lam Z => Z) p x = e.f x)
   => \have (p,q,s) => SIP SetCat Str isHom st e S1 S2 p q
      \in (p, q, \lam x => pinv (transport_pi (\lam _ => X) (\lam Z => Z) p (\lam z => z) x) *> path (\lam i => (s @ i) x))
+
+\func slicePrecat {C : Precat} (x : C) : Precat (\Sigma (y : C) (Hom y x)) \cowith
+  | Hom (y,f) (z,g) => \Sigma (h : Hom y z) (g ∘ h = f)
+  | id (y,f) => (id y, id-right)
+  | o (h1,p1) (h2,p2) => (h1 ∘ h2, pinv o-assoc *> pmap (`∘ h2) p1 *> p2)
+  | id-left => ext id-left
+  | id-right => ext id-right
+  | o-assoc => ext o-assoc
+  \where
+    \func forget {C : Precat} (x : C) : FaithfulFunctor (slicePrecat x) C __.1 \cowith
+      | Func => __.1
+      | Func-id => idp
+      | Func-o => idp
+      | isFaithful p => ext p
+
+\func sliceCat {C : Cat} (x : C) : Cat \cowith
+  | Precat => slicePrecat x
+  | univalence (e : Iso) =>
+    \let e' => Functor.Func-iso {slicePrecat.forget x} e
+    \in (ext ((univalence e').1, Cat.transport_Hom_iso-left e' _ (pinv e.f.2)), simp_coe (Cat.transport_Hom_iso-right e' _ id-right))
