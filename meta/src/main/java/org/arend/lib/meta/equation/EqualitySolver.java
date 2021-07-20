@@ -24,6 +24,7 @@ public class EqualitySolver extends BaseEqualitySolver {
   private Values<UncheckedExpression> values;
   private final CoreClassDefinition forcedClass;
   private final boolean useSolver;
+  private boolean useHypotheses = true;
 
   private EqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreClassDefinition forcedClass, boolean useSolver) {
     super(meta, typechecker, factory, refExpr, null);
@@ -62,6 +63,8 @@ public class EqualitySolver extends BaseEqualitySolver {
     valuesType = type;
   }
 
+  public void setUseHypotheses(boolean useHypotheses) { this.useHypotheses = useHypotheses; }
+
   @Override
   public boolean initializeSolver() {
     if (!initializeAlgebraSolver(valuesType)) {
@@ -77,11 +80,13 @@ public class EqualitySolver extends BaseEqualitySolver {
     }
 
     ValuesRelationClosure closure = new ValuesRelationClosure(values, new EquivalenceClosure<>(factory.ref(meta.ext.prelude.getIdp().getRef()), factory.ref(meta.ext.inv.getRef()), factory.ref(meta.ext.concat.getRef()), factory));
-    ContextHelper helper = new ContextHelper(hint);
-    for (CoreBinding binding : helper.getAllBindings(typechecker)) {
-      CoreFunCallExpression equality = binding.getTypeExpr().normalize(NormalizationMode.WHNF).toEquality();
-      if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true)) {
-        closure.addRelation(equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2), factory.ref(binding));
+    if (useHypotheses) {
+      ContextHelper helper = new ContextHelper(hint);
+      for (CoreBinding binding : helper.getAllBindings(typechecker)) {
+        CoreFunCallExpression equality = binding.getTypeExpr().normalize(NormalizationMode.WHNF).toEquality();
+        if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true)) {
+          closure.addRelation(equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2), factory.ref(binding));
+        }
       }
     }
     return closure.checkRelation(leftExpr.getExpression(), rightExpr.getExpression());
@@ -94,8 +99,8 @@ public class EqualitySolver extends BaseEqualitySolver {
 
   private void initializeAlgebraSolver(TypedExpression instance, CoreClassCallExpression classCall) {
     algebraSolver = classCall.getDefinition().isSubClassOf(meta.Semiring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Semiring)) || classCall.getDefinition().isSubClassOf(meta.BoundedDistributiveLattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.BoundedDistributiveLattice))
-      ? new RingSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass)
-      : new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass);
+      ? new RingSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass, useHypotheses)
+      : new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass, useHypotheses);
   }
 
   private boolean initializeAlgebraSolver(CoreExpression type) {

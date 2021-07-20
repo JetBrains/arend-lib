@@ -170,13 +170,16 @@ public class StdExtension implements ArendExtension {
         "If the expected type is unknown, {rewrite} works like {rewriteF}.\n" +
         "`rewrite {i_1, ... i_k} p t` replaces only occurrences with indices `i_1`, ... `i_k`.\n" +
         "Also, `p` may be a function, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`",
-        Precedence.DEFAULT, new RewriteMeta(this, false, true));
+        Precedence.DEFAULT, new RewriteMeta(this, false, true, false));
     contributor.declare(paths, new LongName("rewriteI"),
         "`rewriteI p` is equivalent to `rewrite (inv p)`",
-        Precedence.DEFAULT, new RewriteMeta(this, false, false));
+        Precedence.DEFAULT, new RewriteMeta(this, false, false, false));
     contributor.declare(paths, new LongName("rewriteF"),
         "`rewriteF (p : a = b) e` is similar to {rewrite}, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
-        Precedence.DEFAULT, new RewriteMeta(this, true, false));
+        Precedence.DEFAULT, new RewriteMeta(this, true, false, false));
+    contributor.declare(paths, new LongName("rewriteEq"),
+            "`rewriteEq (p : a = b) t : T` is similar to {rewrite}, but it replaces occurrences of expressions equal to `a`, not just `a`",
+            Precedence.DEFAULT, new RewriteMeta(this, false, true, true));
     contributor.declare(paths, new LongName("simp_coe"),
       "Simplifies certain equalities. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
       "* If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right a = b'`, then the subgoal is `coe (B a) (f a) right = b`.\n" +
