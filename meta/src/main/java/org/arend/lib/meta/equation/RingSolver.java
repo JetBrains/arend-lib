@@ -50,8 +50,8 @@ public class RingSolver extends BaseEqualitySolver {
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
 
-  protected RingSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass) {
-    super(meta, typechecker, factory, refExpr, instance);
+  protected RingSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass, boolean useHypotheses) {
+    super(meta, typechecker, factory, refExpr, instance, useHypotheses);
     this.equality = equality;
     isLattice = classCall.getDefinition().isSubClassOf(meta.BoundedDistributiveLattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.BoundedDistributiveLattice));
     isRing = !isLattice && classCall.getDefinition().isSubClassOf(meta.Ring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Ring));
@@ -63,6 +63,10 @@ public class RingSolver extends BaseEqualitySolver {
     natCoefMatcher = isLattice ? null : FunctionMatcher.makeFieldMatcher(classCall, instance, meta.natCoef, typechecker, factory, refExpr, meta.ext, 1);
     intCoefMatcher = isRing ? new DefinitionFunctionMatcher(meta.intCoef, 1) : null;
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, refExpr, meta.ext, 1) : null;
+  }
+
+  protected RingSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass) {
+    this(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass, true);
   }
 
   @Override
@@ -218,7 +222,7 @@ public class RingSolver extends BaseEqualitySolver {
     Collections.sort(nf1);
     Collections.sort(nf2);
 
-    if (isCommutative) {
+    if (isCommutative && useHypotheses) {
       var rules = new ArrayList<Equality>();
       ContextHelper helper = new ContextHelper(hint);
       for (CoreBinding binding : helper.getAllBindings(typechecker)) {

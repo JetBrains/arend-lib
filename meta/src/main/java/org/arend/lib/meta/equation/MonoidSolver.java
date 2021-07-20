@@ -40,8 +40,8 @@ public class MonoidSolver extends BaseEqualitySolver {
   private boolean isSemilattice;
   private final CoreClassField ide;
 
-  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass) {
-    super(meta, typechecker, factory, refExpr, instance);
+  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass, boolean useHypotheses) {
+    super(meta, typechecker, factory, refExpr, instance, useHypotheses);
     this.equality = equality;
 
     isSemilattice = classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
@@ -51,6 +51,10 @@ public class MonoidSolver extends BaseEqualitySolver {
     CoreClassField mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, mul, typechecker, factory, refExpr, meta.ext, 2);
     ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ide, typechecker, factory, refExpr, meta.ext, 0);
+  }
+
+  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass) {
+    this(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass, true);
   }
 
   public static List<Integer> removeDuplicates(List<Integer> list) {
@@ -88,6 +92,8 @@ public class MonoidSolver extends BaseEqualitySolver {
 
     ConcreteExpression lastArgument;
     if (!term1.nf.equals(term2.nf)) {
+      if (!useHypotheses) return null;
+
       List<RuleExt> rules = new ArrayList<>();
       if (contextRules == null) {
         contextRules = new HashMap<>();

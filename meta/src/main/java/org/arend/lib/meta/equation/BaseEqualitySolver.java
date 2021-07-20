@@ -32,8 +32,9 @@ public abstract class BaseEqualitySolver implements EquationSolver {
   protected final Values<CoreExpression> values;
   protected final ArendRef dataRef;
   protected final List<ConcreteLetClause> letClauses;
+  protected boolean useHypotheses;
 
-  protected BaseEqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, TypedExpression instance) {
+  protected BaseEqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, TypedExpression instance, boolean useHypotheses) {
     this.meta = meta;
     this.typechecker = typechecker;
     this.factory = factory;
@@ -43,6 +44,11 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     letClauses = new ArrayList<>();
     letClauses.add(null);
     values = new Values<>(typechecker, refExpr);
+    this.useHypotheses = useHypotheses;
+  }
+
+  protected BaseEqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, TypedExpression instance) {
+    this(meta, typechecker, factory, refExpr, instance, true);
   }
 
   @Override
@@ -94,6 +100,10 @@ public abstract class BaseEqualitySolver implements EquationSolver {
   public boolean initializeSolver() {
     return true;
   }
+
+  public boolean getUseHypotheses() { return useHypotheses; }
+
+  public void setUseHypotheses(boolean useHypotheses) { this.useHypotheses = useHypotheses; }
 
   // any value whatsoever
   protected ConcreteExpression getDefaultValue() {
