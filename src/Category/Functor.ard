@@ -1,3 +1,4 @@
+\import Algebra.Meta
 \import Category
 \import Equiv \hiding (Map)
 \import Logic
@@ -6,7 +7,7 @@
 \import Paths
 \import Paths.Meta
 
-\class Functor (C D : Precat) (\classifying F : C -> D) {
+\class Functor \plevels obj >= hom (C D : Precat \levels (obj,hom) _) (\classifying F : C -> D) {
   | Func {X Y : C} : Hom X Y -> Hom (F X) (F Y)
   | Func-id {X : C} : Func (id X) = id (F X)
   | Func-o {X Y Z : C} {g : Hom Y Z} {f : Hom X Y} : Func (g ∘ f) = Func g ∘ Func f
@@ -34,9 +35,25 @@
   | Func-id => pmap G.Func F.Func-id *> G.Func-id
   | Func-o => pmap G.Func F.Func-o *> G.Func-o
 
-\record NatTrans {C D : Precat} (F G : Functor C D)
+\func Const {C D : Precat} (d : D) : Functor C D \cowith
+  | F _ => d
+  | Func _ => id d
+  | Func-id => idp
+  | Func-o => inv id-left
+  \where {
+    \func natTrans {C D : Precat} {d d' : D} (f : Hom d d') : NatTrans {C} (Const d) (Const d') \cowith
+      | trans _ => f
+      | natural g => id-right *> inv id-left
+  }
+
+\record NatTrans {C D : Precat} (F G : Functor C D) {
   | \coerce trans (X : C) : Hom (F X) (G X)
   | natural {X Y : C} (f : Hom X Y) : trans Y ∘ F.Func f = G.Func f ∘ trans X
+
+  \func op : NatTrans G.op F.op \cowith
+    | trans => trans
+    | natural f => inv (natural f)
+}
 
 \instance FunctorPrecat {C D : Precat} : Precat (Functor C D)
   | Hom => NatTrans
@@ -101,9 +118,15 @@
   \func inverse {X Y : C} (f : Hom (F X) (F Y)) : Hom X Y
     => isFullyFaithful.ret f
 
-  \lemma inverse-left {X Y : C} (f : Hom X Y) : inverse (Func f) = f
+  \lemma inverse-left {X Y : C} {f : Hom X Y} : inverse (Func f) = f
     => isFullyFaithful.ret_f f
 
-  \lemma inverse-right {X Y : C} (f : Hom (F X) (F Y)) : Func (inverse f) = f
+  \lemma inverse-right {X Y : C} {f : Hom (F X) (F Y)} : Func (inverse f) = f
     => isFullyFaithful.f_ret f
+
+  \lemma inverse-id {x : C} : inverse (id (F x)) = id x
+    => pmap inverse (inv Func-id) *> inverse-left
+
+  \lemma inverse-o {x y z : C} {g : Hom (F y) (F z)} {f : Hom (F x) (F y)} : inverse (g ∘ f) = inverse g ∘ inverse f
+    => inv (pmap inverse Func-o *> cong inverse-right inverse-right) *> inverse-left
 }

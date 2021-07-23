@@ -1,0 +1,53 @@
+\import Category
+\import Category.Functor
+\import Category.Limit
+\import Function.Meta
+\import Meta
+\import Paths
+
+\func LeftKanExt {C C' : Precat} {D : CocompletePrecat} (p : Functor C C') (F : Functor C D) : Functor C' D
+  => Functor.op {RightKanExt (opPCoC D) p.op F.op}
+
+\func RightKanExt {C C' : Precat} (D : CompletePrecat) (p : Functor C C') (F : Functor C D) : Functor C' D \cowith
+   | F c' => lim F c'
+   | Func {x} {y} f => limMap {lim F y} (Cone.premap (commaFunctor f) (lim F x))
+   | Func-id {x} => limUniqueBeta {lim F x} {lim F x} (\lam j => path (\lam i => coneMap {lim F x} (j.1, j.2, (id-right *> id-left) @ i)) *> inv id-right)
+   | Func-o {x} {y} {z} {g} {f} => limUniqueBeta {lim F z} {lim F x} (\lam j => inv (pmap (`∘ _) (limBeta {lim F z} (Cone.premap (commaFunctor g) (lim F y)) j) *>
+       limBeta {lim F y} (Cone.premap (commaFunctor f) (lim F x)) (j.1, j.2, id (p j.2) ∘ j.3 ∘ g) *> path (\lam i => coneMap {lim F x} (j.1, j.2, (pmap (`∘ _) id-left *> o-assoc) @ i))) *> o-assoc)
+  \where {
+    \open Limit
+
+    \func lim {C C' : Precat} {D : CompletePrecat} {p : Functor C C'} (F : Functor C D) (b : C')
+      => D.limit (Comp F (commaPrecat.rightForget (Const {TrivialCat} b) p))
+
+    \func commaFunctor {C C' : Precat} {p : Functor C C'} {x y : C'} (f : Hom y x)
+      => commaPrecat.functor (Const {TrivialCat} x) (Const y) p p (Const.natTrans f) (id p)
+
+    -- | A limit of the form `lim_{j : J} (LeftKanExt.op D p F (G j))` is a double limit and can be expressed as a single limit of {F} over the comma category `G|p`.
+    \class DoubleLimit \noclassifying {J C C' : Precat} {D : CompletePrecat} (p : Functor C C') (F : Functor C D) (G : Functor J C') {
+      \func iso : Iso {D} {D.limit (Comp (RightKanExt D p F) G)} {lim'} \cowith
+        | f => lim'.limMap cone
+        | inv => limMap cone'
+        | inv_f => limUnique (\lam j => inv o-assoc *> pmap (`∘ _) (limBeta cone' j) *> limUnique (\lam w => inv o-assoc *> pmap (`∘ _) (limBeta {lim F (G j)} (cone'' j) w) *> lim'.limBeta cone (j, w.2, w.3)) *> inv id-right)
+        | f_inv => limUnique (\lam w => inv o-assoc *> pmap (`∘ _) (lim'.limBeta cone w) *> o-assoc *> pmap (_ ∘) (limBeta {D.limit (Comp (RightKanExt D p F) G)} cone' w.1) *> limBeta {lim F (G w.1)} (cone'' w.1) ((), w.2, w.3) *> inv id-right)
+
+      \func lim' : Limit => D.limit (Comp F (commaPrecat.rightForget G p))
+
+      \func cone : Cone (Comp F (commaPrecat.rightForget G p)) (D.limit (Comp (RightKanExt D p F) G)) \cowith
+        | coneMap w => later (coneMap $ later ((), w.2, w.3)) ∘ coneMap (commaPrecat.leftForget G p w)
+        | coneCoh {w} {w'} h => inv o-assoc *> pmap (`∘ _) (coneCoh {lim F (G w.1)} {(), w.2, w.3} {(), w'.2, id (p w'.2) ∘ w'.3 ∘ G.Func h.1} (TrivialCat.id (), h.2, id-right *> o-assoc *> id-left *> h.3) *>
+                                                            inv (limBeta {lim F (G w'.1)} (Cone.premap (commaFunctor (G.Func h.1)) (lim F (G w.1))) ((), w'.2, w'.3) )) *>
+                                    o-assoc *> pmap (_ ∘) (coneCoh {D.limit (Comp (RightKanExt D p F) G)} h.1)
+
+      \func cone'' (j : J) : Cone (Comp F (commaPrecat.rightForget (Const {TrivialCat} (G j)) p)) lim' \cowith
+        | coneMap y => coneMap $ later (j, y.2, y.3)
+        | coneCoh {y} {y'} h => lim'.coneCoh {j, y.2, y.3} {j, y'.2, y'.3} (id j, h.2, pmap (y'.3 ∘) (later Func-id) *> h.3)
+
+      \func cone' : Cone (Comp (RightKanExt D p F) G) lim' \cowith
+        | coneMap j => limMap {lim F (G j)} (cone'' j)
+        | coneCoh {j} {j'} h => limUnique (\lam w => inv o-assoc *> pmap (`∘ _) (limBeta {lim F (G j')} (Cone.premap (commaFunctor (G.Func h)) (lim F (G j))) w) *>
+                                                     limBeta {lim F (G j)} (cone'' j) (w.1, w.2, id (p w.2) ∘ w.3 ∘ G.Func h) *> inv (pmap (`∘ _) Func-id *> id-left) *>
+                                                     lim'.coneCoh {j, w.2, id (p w.2) ∘ w.3 ∘ G.Func h} {j', w.2, w.3} (h, id w.2, inv $ pmap (`∘ _) Func-id *> id-left *> o-assoc *> id-left) *>
+                                                     inv (limBeta {lim F (G j')} (cone'' j') w))
+    }
+  }
