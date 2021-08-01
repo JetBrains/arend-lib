@@ -158,12 +158,48 @@
          inv (c.coneCoh {q'} {((pullback q.1.2 q'.1.2, q'.1.2 ∘ Pullback.cone.2), s.isSieve _ q'.2)} (Pullback.cone.2, idp))
   }
 
-\class SheafOnSubsite \noclassifying {C' C : Site} (i : FullyFaithfulFunctor C' C) {D : CompleteCat} (F : VSheaf D C') {
-  \lemma sheafOnSubsite : VSheaf D C FExt \cowith
-    | isSheaf {x} {s : Sieve x} x<s => Limit.iso_lim (Cone.map FExt s.cone) (D.limit (Comp FExt s.diagram.op)) (unfold {?})
+{-
+\class SheafOnSubsite \noclassifying {C' : Precat} {C : Site} (i : Functor C' C) {D : CompleteCat} (F : VSheaf D (inducedSite i)) {
+  \instance doubleLimit {x : C} (s : Sieve x) => \new RightKanExt.DoubleLimit {_} {_} {_} {D} i.op F s.diagram.op
 
   \func FExt : Functor (opP C) D
     => RightKanExt D i.op F
+
+  \lemma extend : VSheaf D C FExt \cowith
+    | isSheaf {x} {s : Sieve x} x<s => run {
+        iso_lim (Cone.map FExt s.cone) (D.limit (Comp FExt s.diagram.op)),
+        -- First, we use a lemma about Kan extensions to rewrite the double limit in the codomain as a single limit.
+        RightKanExt.DoubleLimit.map_iso s.cone,
+        -- Now, we get a map f1 : lim_{f : i t -> x} F(t) -> lim_{f : i t -> w, g : w -> x | s g} F(t) and we need to show it is an iso.
+        \let A => RightKanExt.lim {_} {_} {D} {i.op} F x,
+        \let B => RightKanExt.DoubleLimit.lim' {doubleLimit s},
+        \let f1 : Hom A B => limMap {B} (RightKanExt.DoubleLimit.map_cone s.cone),
+        -- By the lemma bellow, we have an iso I1 between the domain of the map and lim_{f : i t -> x, g : y -> t | s (f `o` i g)} F(y).
+        \let C => iso.cod s Id,
+        \let I1 : Iso {D} {A} {C} => iso s Id,
+        -- Now, we can show that f1 factors through I1; so, we get a map f2 such that f2 `o` f1 = I1.
+        \let f2 => transFuncMap C B (unfold {?}) {?},
+        -- By the lemma bellow, we have an iso I2 between B and lim_{f : y -> t, g : t -> w, h : i w -> x | s (f `o` i (g `o` f))} F(y).
+        -- Now, we can show that f2 factors through I2.
+        -- By 2-out-of-6, f1 is an iso.
+        {?}
+      }
+
+  \func comma (x : C) => commaPrecat.rightForget (Const {TrivialCat} {opP C} x) i.op
+
+  \lemma iso {x : C} (s : Sieve x) {J : Precat} (G : Functor J (commaPrecat (Const {TrivialCat} {opP C} x) i.op))
+    : Iso (transFuncMap
+            (cod s G)
+            (D.limit (Comp F (Comp (commaPrecat.rightForget (Const {TrivialCat} {opP C} x) i.op) G)))
+            (Comp (commaPrecat.leftForget (Comp (comma x) G) Id) (subPrecat.pred.embedding _))
+            (unfold $ \new NatTrans {
+              | trans w => Func {F} w.1.3
+              | natural {y} {z} f => unfold $ inv Func-o *> pmap (Func {F}) f.3 *> Func-o
+            }))
+    => {?}
+    \where
+      \func cod {x : C} (s : Sieve x) {J : Precat} (G : Functor J (commaPrecat (Const {TrivialCat} {opP C} x) i.op))
+        => D.limit (Comp F (Comp (commaPrecat.rightForget (Comp (comma x) G) Id) (subPrecat.pred.embedding $ later (\lam (j,y,f) => s {i y} ((G j).3 ∘ i.Func f)))))
 } \where {
   \open Limit
 }
@@ -267,3 +303,4 @@
       : extend-proj F y ∘ Func {extend F} h' = F.Func h ∘ extend-proj F z
       => extend-proj-nat' F h' *> inv (coneCoh h)
   }
+-}

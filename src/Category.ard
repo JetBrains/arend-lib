@@ -38,12 +38,12 @@
 \record Map {C : Precat} {dom cod : C} (\coerce f : Hom dom cod)
 
 \record Mono \extends Map
-  | isMono {x : C} (g h : Hom x dom) : g >> f = h >> f -> g = h
+  | isMono {x : C} {g h : Hom x dom} : f ∘ g = f ∘ h -> g = h
 
-\func isEpi {C : Precat} {x y : C} (f : Hom x y) => \Pi {z : C} (g h : Hom y z) -> f >> g = f >> h -> g = h
+\func isEpi {C : Precat} {x y : C} (f : Hom x y) => \Pi {z : C} {g h : Hom y z} -> f >> g = f >> h -> g = h
 
 \record SplitMono (inv : Hom cod dom) (inv_f : inv ∘ f = id dom) \extends Mono {
-  | isMono g h gf=hf =>
+  | isMono {_} {g} {h} gf=hf =>
     g               ==< pinv id-left >==
     g >> id dom     ==< pmap (g >>) (pinv inv_f) >==
     g >> (f >> inv) ==< o-assoc >==
@@ -60,12 +60,27 @@
 \record Iso (f_inv : f ∘ inv = id cod) \extends SplitMono {
   \lemma adjointInv {z : C} {g : Hom z dom} {h : Hom z cod} (p : g = inv ∘ h) : f ∘ g = h
     => pmap (f ∘) p *> pinv o-assoc *> pmap (`∘ h) f_inv *> id-left
+
+  \func op => \new Iso {opP C} f inv f_inv inv_f
 } \where {
     \func equals {C : Precat} {x y : C} (e e' : Iso {C} {x} {y}) (p : e.f = e'.f) : e = e'
-      => ext (p, isMono {e} e.inv e'.inv (e.f_inv *> pinv e'.f_inv *> pinv (pmap (e'.inv >>) p)))
+      => ext (p, isMono {e} (e.f_inv *> pinv e'.f_inv *> pinv (pmap (e'.inv >>) p)))
 
     \use \level levelProp {C : Precat} {x y : C} (f : Hom x y) (e e' : Iso f) => equals e e' idp
-  }
+
+    \lemma rightFactor {C : Precat} {x y z : C} (f : Hom x y) (e2 : Mono {C} {y} {z}) (e3 : Iso (e2.f ∘ f)) : Iso f \cowith
+      | inv => e3.inv ∘ e2
+      | inv_f => o-assoc *> e3.inv_f
+      | f_inv => e2.isMono {?} -- TODO: rewriteEq e3.f_inv (pinv id-right)
+
+    \lemma leftFactor {C : Precat} {x y z : C} {f : Hom x y} (e : isEpi f) (g : Hom y z) (e3 : Iso (g ∘ f)) : Iso g
+      => op {rightFactor {opP C} g (\new Mono f e) e3.op}
+
+    \lemma composite {C : Precat} {x y z : C} (f : Iso {C} {x} {y}) (g : Iso {C} {y} {z}) : Iso (g.f ∘ f.f) \cowith
+      | inv => f.inv ∘ g.inv
+      | inv_f => {?} -- TODO: rewriteEq g.inv_f f.inv_f
+      | f_inv => {?} -- TODO: rewriteEq f.f_inv g.f_inv
+}
 
 \func idIso {C : Precat} {x : C} : Iso (id x) \cowith
   | inv => id x
