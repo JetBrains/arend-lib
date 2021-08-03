@@ -50,6 +50,12 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideMTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   CoreConstructor mulMTerm;
 
+  @Dependency(module = "Category.Solver", name = "CatTerm.var")           CoreConstructor varCTerm;
+  @Dependency(module = "Category.Solver", name = "CatTerm.:id")           CoreConstructor idCTerm;
+  @Dependency(module = "Category.Solver", name = "CatTerm.:o")            CoreConstructor compCTerm;
+  @Dependency(module = "Category.Solver")                                 CoreClassDefinition HData;
+  @Dependency(module = "Category.Solver", name = "HData.terms-equality")  CoreFunctionDefinition catTermsEq;
+
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition Data;
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition CData;
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition LData;
@@ -171,7 +177,7 @@ public class EquationMeta extends BaseMetaDefinition {
     for (; argIndex < arguments.size(); argIndex++) {
       ConcreteArgument argument = arguments.get(argIndex);
       if (argument.isExplicit()) {
-        TypedExpression value = typechecker.typecheck(argument.getExpression(), solver.getValuesType());
+        TypedExpression value = typechecker.typecheck(argument.getExpression(), null);
         if (value == null) {
           return null;
         }

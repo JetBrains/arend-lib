@@ -1,5 +1,7 @@
 package org.arend.lib.meta.equation;
 
+import org.arend.ext.concrete.ConcreteAppBuilder;
+import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteArgument;
@@ -17,6 +19,7 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.error.AlgebraSolverError;
+import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.util.*;
 import org.arend.lib.util.algorithms.ComMonoidWP;
@@ -38,23 +41,25 @@ public class MonoidSolver extends BaseEqualitySolver {
   private Map<CoreBinding, List<RuleExt>> contextRules;
   private boolean isCommutative;
   private boolean isSemilattice;
+  private final boolean isCat;
   private final CoreClassField ide;
+  private final Values<CoreExpression> obValues;
+  private final Map<Pair<Integer,Integer>, Map<Integer,Integer>> homMap; // the key is the pair (domain,codomain), the value is a map from indices in `values` to indices specific to those objects.
 
   public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass, boolean useHypotheses) {
     super(meta, typechecker, factory, refExpr, instance, useHypotheses);
     this.equality = equality;
 
-    isSemilattice = classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
-    boolean isMultiplicative = !isSemilattice && classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid));
-    isCommutative = isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid)) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AbMonoid));
+    isCat = classCall == null;
+    isSemilattice = !isCat && classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
+    boolean isMultiplicative = !isSemilattice && !isCat && classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid));
+    isCommutative = !isCat && (isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid)) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AbMonoid)));
     ide = isSemilattice ? meta.top : isMultiplicative ? meta.ide : meta.zro;
     CoreClassField mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
-    mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, mul, typechecker, factory, refExpr, meta.ext, 2);
-    ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ide, typechecker, factory, refExpr, meta.ext, 0);
-  }
-
-  public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass) {
-    this(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass, true);
+    mulMatcher = isCat ? new DefinitionFunctionMatcher(meta.ext.sipMeta.catComp, 5) : FunctionMatcher.makeFieldMatcher(classCall, instance, mul, typechecker, factory, refExpr, meta.ext, 2);
+    ideMatcher = isCat ? new DefinitionFunctionMatcher(meta.ext.sipMeta.catId, 1) : FunctionMatcher.makeFieldMatcher(classCall, instance, ide, typechecker, factory, refExpr, meta.ext, 0);
+    obValues = isCat ? new Values<>(typechecker, refExpr) : null;
+    homMap = isCat ? new HashMap<>() : null;
   }
 
   public static List<Integer> removeDuplicates(List<Integer> list) {
@@ -193,8 +198,20 @@ public class MonoidSolver extends BaseEqualitySolver {
       lastArgument = factory.ref(meta.ext.prelude.getIdp().getRef());
     }
 
-    return factory.appBuilder(factory.ref((semilattice ? meta.semilatticeTermsEq : commutative ? meta.commTermsEq : meta.termsEq).getRef()))
-      .app(factory.ref(dataRef), false)
+    ConcreteAppBuilder builder = factory.appBuilder(factory.ref((isCat ? meta.catTermsEq : semilattice ? meta.semilatticeTermsEq : commutative ? meta.commTermsEq : meta.termsEq).getRef()))
+      .app(factory.ref(dataRef), false);
+    if (isCat) {
+      CoreExpression type = leftExpr.getType().normalize(NormalizationMode.WHNF);
+      if (type instanceof CoreAppExpression) {
+        CoreExpression fun = ((CoreAppExpression) type).getFunction().normalize(NormalizationMode.WHNF);
+        if (fun instanceof CoreAppExpression) {
+          int dom = obValues.addValue(((CoreAppExpression) fun).getArgument());
+          int cod = obValues.addValue(((CoreAppExpression) type).getArgument());
+          builder.app(factory.number(dom), false).app(factory.number(cod), false);
+        }
+      }
+    }
+    return builder
       .app(term1.concrete)
       .app(term2.concrete)
       .app(lastArgument)
@@ -567,20 +584,37 @@ public class MonoidSolver extends BaseEqualitySolver {
     CoreExpression expr = expression.normalize(NormalizationMode.WHNF);
 
     if (ideMatcher.match(expr) != null) {
-      return factory.ref(meta.ideMTerm.getRef());
+      return isCat ? factory.app(factory.ref(meta.idCTerm.getRef()), true, singletonList(factory.ref(meta.ext.prelude.getIdp().getRef()))) : factory.ref(meta.ideMTerm.getRef());
     }
 
     List<CoreExpression> args = mulMatcher.match(expr);
     if (args != null) {
-      List<ConcreteExpression> cArgs = new ArrayList<>(2);
-      cArgs.add(computeTerm(args.get(0), nf));
-      cArgs.add(computeTerm(args.get(1), nf));
-      return factory.app(factory.ref(meta.mulMTerm.getRef()), true, cArgs);
+      List<ConcreteExpression> cArgs = new ArrayList<>();
+      if (isCat) {
+        cArgs.add(factory.number(obValues.addValue(args.get(1))));
+      }
+      cArgs.add(computeTerm(args.get(args.size() - 2), nf));
+      cArgs.add(computeTerm(args.get(args.size() - 1), nf));
+      return factory.app(factory.ref((isCat ? meta.compCTerm : meta.mulMTerm).getRef()), true, cArgs);
     }
 
     int index = values.addValue(expr);
     nf.add(index);
-    return factory.app(factory.ref(meta.varMTerm.getRef()), true, singletonList(factory.number(index)));
+    if (isCat) {
+      CoreExpression type = expr.computeType().normalize(NormalizationMode.WHNF);
+      if (type instanceof CoreAppExpression) {
+        CoreExpression fun = ((CoreAppExpression) type).getFunction().normalize(NormalizationMode.WHNF);
+        if (fun instanceof CoreAppExpression) {
+          int dom = obValues.addValue(((CoreAppExpression) fun).getArgument());
+          int cod = obValues.addValue(((CoreAppExpression) type).getArgument());
+          Map<Integer,Integer> list = homMap.computeIfAbsent(new Pair<>(dom, cod), k -> new HashMap<>());
+          int newIndex = list.size();
+          Integer prev = list.putIfAbsent(index, newIndex);
+          index = prev != null ? prev : newIndex;
+        }
+      }
+    }
+    return factory.app(factory.ref((isCat ? meta.varCTerm : meta.varMTerm).getRef()), true, singletonList(factory.number(index)));
   }
 
   @Override
@@ -594,5 +628,50 @@ public class MonoidSolver extends BaseEqualitySolver {
     return isSemilattice
       ? factory.classExt(data, Arrays.asList(factory.implementation(meta.SemilatticeDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)))
       : factory.app(data, Arrays.asList(factory.arg(instanceArg, false), factory.arg(dataArg, true)));
+  }
+
+  private ConcreteExpression makeLambda2() {
+    ArendRef lamParam1 = factory.local("i");
+    ArendRef lamParam2 = factory.local("j");
+    List<CoreExpression> valueList = obValues.getValues();
+    List<ConcreteClause> caseClauses = new ArrayList<>();
+    for (Map.Entry<Pair<Integer, Integer>, Map<Integer, Integer>> entry : homMap.entrySet()) {
+      caseClauses.add(factory.clause(Arrays.asList(factory.numberPattern(entry.getKey().proj1), factory.numberPattern(entry.getKey().proj2)), makeFin(entry.getValue().size())));
+    }
+    if (homMap.size() < valueList.size() * valueList.size()) {
+      caseClauses.add(factory.clause(Arrays.asList(factory.refPattern(null, null), factory.refPattern(null, null)), makeFin(0)));
+    }
+    return factory.lam(Arrays.asList(factory.param(lamParam1), factory.param(lamParam2)),
+      factory.caseExpr(false, Arrays.asList(factory.caseArg(factory.ref(lamParam1), null, null), factory.caseArg(factory.ref(lamParam2), null, null)), null, null, caseClauses));
+  }
+
+  private ConcreteExpression makeLambda3() {
+    ArendRef lamParam1 = factory.local("i");
+    ArendRef lamParam2 = factory.local("j");
+    ArendRef lamParam3 = factory.local("k");
+    List<ConcreteClause> caseClauses = new ArrayList<>();
+    for (Map.Entry<Pair<Integer, Integer>, Map<Integer, Integer>> entry : homMap.entrySet()) {
+      int i = 0;
+      for (Integer index : entry.getValue().keySet()) {
+        caseClauses.add(factory.clause(Arrays.asList(factory.numberPattern(entry.getKey().proj1), factory.numberPattern(entry.getKey().proj2), factory.numberPattern(i++)), factory.core(values.getValue(index).computeTyped())));
+      }
+    }
+    return factory.lam(Arrays.asList(factory.param(false, lamParam1), factory.param(false, lamParam2), factory.param(lamParam3)),
+      factory.caseExpr(false, Arrays.asList(factory.caseArg(factory.ref(lamParam1), null), factory.caseArg(factory.ref(lamParam2), null), factory.caseArg(factory.ref(lamParam3), null, null)), null, null, caseClauses));
+  }
+
+  @Override
+  public TypedExpression finalize(ConcreteExpression result) {
+    if (!isCat) {
+      return super.finalize(result);
+    }
+
+    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(factory.appBuilder(factory.ref(meta.HData.getRef()))
+      .app(factory.core(instance), false)
+      .app(makeLambda(obValues))
+      .app(makeLambda2())
+      .app(makeLambda3())
+      .build())));
+    return typechecker.typecheck(meta.ext.factory.letExpr(false, false, letClauses, result), null);
   }
 }
