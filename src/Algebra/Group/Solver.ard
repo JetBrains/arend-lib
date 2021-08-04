@@ -1,0 +1,50 @@
+\import Algebra.Group
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Category.Topos.Sheaf
+\import Paths
+
+\data GroupTerm (V : \Type)
+  | var V
+  | :ide
+  | :inv (GroupTerm V)
+  | \infixl 6 :* (t s : GroupTerm V)
+
+\class Data \noclassifying {G : Group} {V : \Set} (f : V -> G) {
+  \func interpret (t : GroupTerm V) : G \elim t
+    | var x => f x
+    | :ide => ide
+    | :inv t => inverse (interpret t)
+    | :* t s => interpret t * interpret s
+}
+
+\class CData \extends Data {
+  | V => Nat
+  \override G : CGroup
+
+  \func interpretAdd (t : GroupTerm V) : AbGroup.fromCGroup G \elim t
+    | var x => f x
+    | :ide => zro {AbGroup.fromCGroup G}
+    | :inv t => negative {AbGroup.fromCGroup G} (interpretAdd t)
+    | :* t (:inv s) => interpretAdd t - {AbGroup.fromCGroup G} interpretAdd s
+    | :* t s => interpretAdd t + {AbGroup.fromCGroup G} interpretAdd s
+
+  \func moveVarRight (t : GroupTerm V) (v : V) : \Sigma (t' : GroupTerm V) (Data.interpret t = Data.interpret t') \elim t
+    | var v \as x => (x, idp)
+    | :ide => (:ide, idp)
+    | :inv (var v) \as x => (x, idp)
+    | :inv (:inv t) => \case moveVarRight t v \with { (t', p) => (t', Group.inverse-isInv (Data.interpret t) *> p)}
+    | :inv t \as x => \case (moveVarRight t v) \with {
+      | (:* t' (:inv (var v)\as y), p) => \let | t'_int => Data.interpret t' | y_int => (Data.interpret y) \in
+        (:* (:inv t') (var v), Group.inverse_* t'_int y_int)
+      | :* t' (var v) => :* (:inv t') (:inv (var v))
+      | t' => x
+    }
+    -- | :* t (var v) => :* t (var v)
+    -- | :* t (:inv (var v)) => :* t (:inv (var v))
+    | :* t s \as x => \case (moveVarRight s v) \with {
+      | :* s' (var v) => {?}
+      | :* s' (:inv (var v)) => {?}
+      | s' => x
+    }
+}

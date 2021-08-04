@@ -1,4 +1,4 @@
-package org.arend.lib.meta;
+package org.arend.lib.meta.simplify;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteArgument;
