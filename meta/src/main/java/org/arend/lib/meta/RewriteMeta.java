@@ -1,5 +1,6 @@
 package org.arend.lib.meta;
 
+import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.expr.*;
@@ -133,20 +134,35 @@ public class RewriteMeta extends BaseMetaDefinition {
 
   @Override
   public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+    List<? extends ConcreteArgument> args = contextData.getArguments();
+    int currentArg = 0;
+    ConcreteExpression occurrencesArg = args.get(0).isExplicit() ? null : args.get(currentArg++).getExpression();
+    List<? extends ConcreteExpression> args0 = Utils.getArgumentList(args.get(currentArg++).getExpression());
+    if (args0.isEmpty()) {
+      return typechecker.typecheck(args.get(currentArg).getExpression(), contextData.getExpectedType());
+    }
+
     ErrorReporter errorReporter = typechecker.getErrorReporter();
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
-    List<? extends ConcreteArgument> args = contextData.getArguments();
-    int currentArg = 0;
+    if (args0.size() > 1) {
+      ConcreteExpression result = args.get(currentArg++).getExpression();
+      for (int i = args0.size() - 1; i >= 0; i--) {
+        ConcreteAppBuilder builder = factory.appBuilder(refExpr);
+        if (occurrencesArg != null) builder.app(occurrencesArg, false);
+        result = builder.app(args0.get(i)).app(result).build();
+      }
+      return typechecker.typecheck(factory.app(result, args.subList(currentArg, args.size())), contextData.getExpectedType());
+    }
+    ConcreteExpression arg0 = args0.get(0);
 
     // Collect occurrences
     Set<Integer> occurrences;
-    if (!args.get(0).isExplicit()) {
+    if (occurrencesArg != null) {
       occurrences = new HashSet<>();
-      for (ConcreteExpression expr : Utils.getArgumentList(args.get(0).getExpression())) {
+      for (ConcreteExpression expr : Utils.getArgumentList(occurrencesArg)) {
         getNumber(expr, occurrences, errorReporter);
       }
-      currentArg++;
     } else {
       occurrences = null;
     }
@@ -158,7 +174,6 @@ public class RewriteMeta extends BaseMetaDefinition {
     boolean isInverse = reverse && !this.isForward ? !this.isInverse : this.isInverse;
 
     // Add inference holes to functions and type-check the path argument
-    ConcreteExpression arg0 = args.get(currentArg++).getExpression();
     TypedExpression path = Utils.typecheckWithAdditionalArguments(arg0, typechecker, ext, 0, false);
     if (path == null) {
       return null;
