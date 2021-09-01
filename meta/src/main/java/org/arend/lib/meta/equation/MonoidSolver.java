@@ -45,6 +45,8 @@ public class MonoidSolver extends BaseEqualitySolver {
   private final CoreClassField ide;
   private final Values<CoreExpression> obValues;
   private final Map<Pair<Integer,Integer>, Map<Integer,Integer>> homMap; // the key is the pair (domain,codomain), the value is a map from indices in `values` to indices specific to those objects.
+  private final Map<Integer, Integer> domMap; // indices of morphisms in `values` to indices of domains.
+  private final Map<Integer, Integer> codomMap; // indices of morphisms in `values` to indices of codomains.
 
   public MonoidSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass, boolean useHypotheses) {
     super(meta, typechecker, factory, refExpr, instance, useHypotheses);
@@ -60,6 +62,8 @@ public class MonoidSolver extends BaseEqualitySolver {
     ideMatcher = isCat ? new DefinitionFunctionMatcher(meta.ext.sipMeta.catId, 1) : FunctionMatcher.makeFieldMatcher(classCall, instance, ide, typechecker, factory, refExpr, meta.ext, 0);
     obValues = isCat ? new Values<>(typechecker, refExpr) : null;
     homMap = isCat ? new HashMap<>() : null;
+    domMap = isCat ? new HashMap<>() : null;
+    codomMap = isCat ? new HashMap<>() : null;
   }
 
   public static List<Integer> removeDuplicates(List<Integer> list) {
@@ -70,6 +74,189 @@ public class MonoidSolver extends BaseEqualitySolver {
       }
     }
     return result;
+  }
+
+  /*
+  private int findNFStrictOccurrence(List<Integer> nfSub, List<Integer> nf, int occurrence) {
+    int occurCounter = 0;
+
+    for (int i = 0; i < nf.size(); ++i) {
+      boolean match = true;
+      if (nf.size() - nfSub.size() >= i) {
+        for (int j = 0; j < nfSub.size(); ++j) {
+          if (!nf.get(i + j).equals(nfSub.get(j))) {
+            match = false;
+            break;
+          }
+        }
+      } else {
+        break;
+      }
+      if (match) {
+        ++occurCounter;
+      }
+      if (occurCounter == occurrence) {
+        return i;
+      }
+    }
+
+    return -1;
+  } /**/
+
+  private ConcreteExpression appendRightNFProof(ConcreteExpression nf, ConcreteExpression nfPatch, ConcreteExpression oldProof) {
+    if (nf == null) {
+      return null;
+    }
+
+    var mul = isCat ? factory.ref(meta.catMul.getRef()) : factory.ref(meta.mul.getRef());
+    var interpretNF = isCat ? factory.ref(meta.catInterpretNF.getRef()) : factory.ref(meta.monoidInterpretNF.getRef());
+    var interpretNFConcat = isCat ? factory.ref(meta.catInterpretNFConcat.getRef()) : factory.ref(meta.monoidInterpretNFConcat.getRef());
+    var nfConcatProof = factory.appBuilder(interpretNFConcat).app(nf).app(nfPatch).build();
+
+    if (oldProof == null) {
+      return nfConcatProof;
+    }
+
+    var nfPatchInterpreted = factory.appBuilder(interpretNF).app(nfPatch).build();
+    var nfVar = factory.local("nfVar");
+    var pmapLambda = factory.lam(Collections.singletonList(factory.param(nfVar)), factory.appBuilder(mul).app(factory.ref(nfVar)).app(nfPatchInterpreted).build());
+
+    return factory.appBuilder(factory.ref(meta.ext.pmap.getRef())).app(pmapLambda).app(oldProof).build();
+  }
+
+  private Pair<List<List<Integer>>, Integer> cutAccordingToOccurrences(List<Integer> subExpr, List<Integer> expr, List<Integer> occurrences) {
+    List<List<Integer>> result = new ArrayList<>();
+    List<Integer> exprSuffix = new ArrayList<>(expr);
+    int occurIndex = 0;
+    int occurCount = 0;
+    int occurPos = -1;
+
+    for (int occ = 0; occ < expr.size() - subExpr.size(); ++occ) {
+      //int occurPos = occ == 0 ? -1 : allOccurrences.get(occ - 1);
+      var tail = exprSuffix.subList(occurPos + 1, exprSuffix.size());
+
+      occurPos = Collections.indexOfSubList(subExpr, tail);
+      if (occurPos == -1) {
+        break;
+      }
+
+      if (occurrences == null || occurIndex < occurrences.size() && occurrences.get(occurIndex) == occurCount) {
+        result.add(exprSuffix.subList(0, occurPos));
+        result.add(null);
+        exprSuffix = exprSuffix.subList(occurPos + subExpr.size(), exprSuffix.size());
+        occurCount = 0;
+        ++occurIndex;
+        if (occurrences != null && occurIndex == occurrences.size()) {
+          break;
+        }
+        continue;
+      }
+
+      ++occurCount;
+    }
+
+    result.add(exprSuffix);
+    return new Pair<>(result, occurCount);
+  }
+
+  @Override
+  public SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences) {
+    if (isCommutative) return super.matchSubexpr(subExpr, expr, errorReporter, occurrences);
+
+    CompiledTerm subExTerm = compileTerm(subExpr.getExpression());
+    CompiledTerm term = compileTerm(expr.getExpression());
+    SubexprOccurrences result = new SubexprOccurrences();
+
+    result.occurrenceVar = factory.local("occurVar");
+
+    if (!isCommutative) {
+      /*
+      var allOccurrences = new ArrayList<Integer>();
+      for (int occ = 0; occ < term.nf.size() - subExTerm.nf.size(); ++occ) {
+        int occurPos = occ == 0 ? -1 : allOccurrences.get(occ - 1);
+        var nf = occ == 0 ? term.nf : term.nf.subList(occurPos + 1, term.nf.size());
+
+        occurPos = Collections.indexOfSubList(nf, subExTerm.nf);
+        if (occurPos == -1) {
+          break;
+        }
+        allOccurrences.add(occurPos);
+      }
+
+      if (allOccurrences.size() <= occurrence) {
+        return new SubexprOccurrences(null, null, null, allOccurrences.size());
+      }
+
+      int occurPos = allOccurrences.get(occurrence);
+       */
+      var exprSplitting = cutAccordingToOccurrences(subExTerm.nf, term.nf, occurrences);
+      var pieces = exprSplitting.proj1;
+
+      result.numOccurrencesSkipped = exprSplitting.proj2;
+
+      if (pieces.size() == 1 && pieces.get(0) != null) {
+        result.occurrenceVar = null;
+        return result;
+      }
+
+      for (List<Integer> piece : pieces) {
+        if (piece == null) {
+          ++result.numOccurrences;
+        }
+      }
+
+      var mul = isCat ? factory.ref(meta.catMul.getRef()) : factory.ref(meta.mul.getRef());
+      var interpretNF = isCat ? factory.ref(meta.catInterpretNF.getRef()) : factory.ref(meta.monoidInterpretNF.getRef());
+      var subExprNF = computeNFTerm(subExTerm.nf);
+      var constructedExprNF = pieces.get(0) == null ? subExTerm.nf : pieces.get(0);
+      ConcreteExpression concatNFsProof = null;
+
+      result.exprWithOccurrences = pieces.get(0) == null ? factory.ref(result.occurrenceVar) : factory.app(interpretNF, true, computeNFTerm(pieces.get(0)));
+
+      for (int i = 1; i < pieces.size(); ++i) {
+        var pieceNFTerm = pieces.get(i) == null ? subExprNF : computeNFTerm(pieces.get(i));
+        var pieceTerm = pieces.get(i) == null ? factory.ref(result.occurrenceVar) : factory.app(interpretNF, true, pieceNFTerm);
+        result.exprWithOccurrences = factory.appBuilder(mul).app(result.exprWithOccurrences).app(pieceTerm).build();
+        concatNFsProof = appendRightNFProof(computeNFTerm(constructedExprNF), pieceNFTerm, concatNFsProof);
+        if (pieces.get(i) == null) constructedExprNF.addAll(subExTerm.nf); else constructedExprNF.addAll(pieces.get(i));
+      }
+
+      /*
+      var nfPrefix = occurPos > 0 ? computeNFTerm(term.nf.subList(0, occurPos)) : null;
+      var nfSuffix = occurPos + subExTerm.nf.size() < term.nf.size() ? computeNFTerm(term.nf.subList(occurPos + subExTerm.nf.size(), term.nf.size())) : null;
+
+      result.exprWithOccurrences = factory.ref(result.occurrenceVar);
+      if (nfPrefix != null) {
+        var prefixTerm = factory.app(interpretNF, true, nfPrefix);
+        result.exprWithOccurrences = factory.appBuilder(mul).app(prefixTerm).app(result.exprWithOccurrences).build();
+        // exprWithOccExpr = factory.appBuilder(mul).app(prefixTerm).app(exprWithOccExpr).build();
+        concatNFsProof = appendRightNFProof(nfPrefix, constructedExprNF, null);
+        constructedExprNF = computeNFTerm(term.nf.subList(0, occurPos + subExTerm.nf.size()));
+      }
+      if (nfSuffix != null) {
+        var suffixTerm = factory.app(interpretNF, true, nfSuffix);
+        result.exprWithOccurrences = factory.appBuilder(mul).app(result.exprWithOccurrences).app(suffixTerm).build();
+        // exprWithOccExpr = factory.appBuilder(mul).app(exprWithOccExpr).app(suffixTerm).build();
+        concatNFsProof = appendRightNFProof(constructedExprNF, nfSuffix, concatNFsProof);
+      }
+      */
+      var occLambda = factory.lam(Collections.singletonList(factory.param(result.occurrenceVar)), result.exprWithOccurrences);
+      var normConsistSubExpr = factory.appBuilder(factory.ref(meta.monoidNormConsist.getRef())).app(subExTerm.concrete).build();
+      var normConsistExpr = factory.appBuilder(factory.ref(meta.monoidNormConsist.getRef())).app(term.concrete).build();
+      var pmapOccurrence = factory.appBuilder(factory.ref(meta.ext.pmap.getRef()))
+              .app(occLambda).app(factory.appBuilder(factory.ref(meta.ext.inv.getRef())).app(normConsistSubExpr).build()).build();
+      if (concatNFsProof == null) {
+      //  return new SubexprOccurrences(null, null, null, allOccurrences.size());
+        result.occurrenceVar = null;
+        return result;
+      }
+      result.equalityProof = factory.appBuilder(factory.ref(meta.ext.concat.getRef())).app(normConsistExpr)
+              .app(factory.appBuilder(factory.ref(meta.ext.concat.getRef())).app(concatNFsProof).app(pmapOccurrence).build()).build();
+      result.wrapExprWithOccurrences(factory.core(subExpr.getType().computeTyped()), factory);
+      return result;
+    }
+
+    return null;
   }
 
   @Override
@@ -466,6 +653,28 @@ public class MonoidSolver extends BaseEqualitySolver {
   }
 
   private ConcreteExpression computeNFTerm(List<Integer> nf) {
+    if (isCat) {
+      ConcreteExpression result = factory.ref(meta.nilCatNF.getRef());
+      Integer domNF = null;
+      for (int i = nf.size() - 1; i >= 0; i--) {
+        int dom = domMap.get(nf.get(i));
+        int codom = codomMap.get(nf.get(i));
+        int localIndex = homMap.get(new Pair<>(dom, codom)).get(nf.get(i));
+        if (domNF == null) {
+          domNF = dom;
+        }
+        result = factory.appBuilder(factory.ref(meta.consCatNF.getRef()))
+                //.app(factory.ref(meta.ext.prelude.getNat().getRef()), false)
+                .app(factory.hole(), false)
+                .app(factory.number(domNF), false)
+                .app(factory.number(codom), false)
+                .app(makeLambda2(), false)
+                .app(factory.number(dom), false)
+                .app(factory.number(localIndex))
+                .app(result).build();
+      }
+      return result;
+    }
     return formList(nf.stream().map(factory::number).collect(Collectors.toList()), factory, meta.ext.nil, meta.ext.cons);
   }
 
@@ -607,6 +816,8 @@ public class MonoidSolver extends BaseEqualitySolver {
         if (fun instanceof CoreAppExpression) {
           int dom = obValues.addValue(((CoreAppExpression) fun).getArgument());
           int cod = obValues.addValue(((CoreAppExpression) type).getArgument());
+          domMap.put(index, dom);
+          codomMap.put(index, cod);
           Map<Integer,Integer> list = homMap.computeIfAbsent(new Pair<>(dom, cod), k -> new HashMap<>());
           int newIndex = list.size();
           Integer prev = list.putIfAbsent(index, newIndex);

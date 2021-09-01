@@ -18,6 +18,8 @@ import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
+
 public class EqualitySolver extends BaseEqualitySolver {
   private CoreExpression valuesType;
   private EquationSolver algebraSolver;
@@ -71,6 +73,14 @@ public class EqualitySolver extends BaseEqualitySolver {
       values = new Values<>(typechecker, refExpr);
     }
     return true;
+  }
+
+  @Override
+  public SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences) {
+    if (algebraSolver != null) {
+      return algebraSolver.matchSubexpr(subExpr, expr, errorReporter, occurrences);
+    }
+    return super.matchSubexpr(subExpr, expr, errorReporter, occurrences);
   }
 
   @Override

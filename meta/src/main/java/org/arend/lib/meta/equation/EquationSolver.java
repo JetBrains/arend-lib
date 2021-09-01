@@ -1,12 +1,17 @@
 package org.arend.lib.meta.equation;
 
+import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.util.Maybe;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.Collections;
+import java.util.List;
 
 public interface EquationSolver {
   boolean isApplicable(CoreExpression type);
@@ -21,5 +26,33 @@ public interface EquationSolver {
   boolean isHint(ConcreteExpression expression);
   boolean initializeSolver();
   ConcreteExpression solve(@Nullable ConcreteExpression hint, @NotNull TypedExpression leftExpr, @NotNull TypedExpression rightExpr, @NotNull ErrorReporter errorReporter);
+  SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences);
   TypedExpression finalize(ConcreteExpression result);
+
+  class SubexprOccurrences {
+    public ArendRef occurrenceVar = null;
+    public ConcreteExpression exprWithOccurrences = null;
+    // Proof of expr = exprWithOccurrence.substitute(occurrenceVar -> subExpr);
+    public ConcreteExpression equalityProof = null;
+    // Number of occurrences of subExpr in exprWithOccurrences to the right of the last occurrence
+    public int numOccurrencesSkipped = 0;
+    public int numOccurrences = 0;
+
+    public SubexprOccurrences() {
+    }
+
+    public SubexprOccurrences(ArendRef occurrenceVar, ConcreteExpression exprWithOccurrences, ConcreteExpression equalityProof, int numOccurrences, int numOccurrencesSkipped) {
+      this.occurrenceVar = occurrenceVar;
+      this.exprWithOccurrences = exprWithOccurrences;
+      this.equalityProof = equalityProof;
+      this.numOccurrencesSkipped = numOccurrencesSkipped;
+      this.numOccurrences = numOccurrences;
+    }
+
+    public boolean doesExist() { return occurrenceVar != null; }
+
+    public void wrapExprWithOccurrences(ConcreteExpression type, ConcreteFactory factory) {
+      exprWithOccurrences = factory.lam(Collections.singletonList(factory.param(Collections.singletonList(occurrenceVar), type)), exprWithOccurrences);
+    }
+  }
 }

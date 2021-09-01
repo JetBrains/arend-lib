@@ -50,11 +50,17 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideMTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   CoreConstructor mulMTerm;
 
+  @Dependency(module = "Category", name = "Precat.o")      CoreClassField catMul;
+
   @Dependency(module = "Category.Solver", name = "CatTerm.var")           CoreConstructor varCTerm;
   @Dependency(module = "Category.Solver", name = "CatTerm.:id")           CoreConstructor idCTerm;
   @Dependency(module = "Category.Solver", name = "CatTerm.:o")            CoreConstructor compCTerm;
+  @Dependency(module = "Category.Solver", name = "CatNF.:nil")            CoreConstructor nilCatNF;
+  @Dependency(module = "Category.Solver", name = "CatNF.:cons")           CoreConstructor consCatNF;
   @Dependency(module = "Category.Solver")                                 CoreClassDefinition HData;
   @Dependency(module = "Category.Solver", name = "HData.terms-equality")  CoreFunctionDefinition catTermsEq;
+  @Dependency(module = "Category.Solver", name = "HData.interpretNF")     CoreFunctionDefinition catInterpretNF;
+  @Dependency(module = "Category.Solver", name = "HData.interpretNF_++")  CoreFunctionDefinition catInterpretNFConcat;
 
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition Data;
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition CData;
@@ -64,6 +70,9 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")         CoreFunctionDefinition termsEq;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")    CoreFunctionDefinition termsEqConv;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")     CoreFunctionDefinition replaceDef;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.normalize-consistent")   CoreFunctionDefinition monoidNormConsist;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.interpretNF")            CoreFunctionDefinition monoidInterpretNF;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.interpretNF_++")         CoreFunctionDefinition monoidInterpretNFConcat;
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality")        CoreFunctionDefinition commTermsEq;
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.terms-equality-conv")   CoreFunctionDefinition commTermsEqConv;
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.replace-consistent")    CoreFunctionDefinition commReplaceDef;

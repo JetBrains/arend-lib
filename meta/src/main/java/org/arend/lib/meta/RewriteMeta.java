@@ -5,8 +5,8 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
+import org.arend.ext.core.ops.ExpressionMapper;
 import org.arend.ext.core.ops.NormalizationMode;
-import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 
 import org.arend.lib.meta.equation.EqualitySolver;
+import org.arend.lib.meta.equation.EquationSolver;
 import org.arend.lib.meta.util.SubstitutionMeta;
 import org.arend.lib.util.Pair;
 import org.arend.lib.util.Utils;
@@ -22,8 +23,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 public class RewriteMeta extends BaseMetaDefinition {
   private final StdExtension ext;
@@ -48,10 +48,10 @@ public class RewriteMeta extends BaseMetaDefinition {
     return new boolean[] { false, true, true };
   }
 
-  private void getNumber(ConcreteExpression expression, Set<Integer> result, ErrorReporter errorReporter) {
+  private void getNumber(ConcreteExpression expression, List<Integer> result, ErrorReporter errorReporter) {
     int n = Utils.getNumber(expression, errorReporter);
-    if (n >= 0) {
-      result.add(n);
+    if (n >= 1) {
+      result.add(n - 1);
     }
   }
 
@@ -60,77 +60,300 @@ public class RewriteMeta extends BaseMetaDefinition {
     return ext.factory.appBuilder(ext.factory.ref(ext.transportInv.getRef())).app(ext.factory.hole()).app(arguments.subList(arguments.get(0).isExplicit() ? 0 : 1, arguments.size())).build();
   }
 
-  private ConcreteExpression smartEqualityCheck(CoreExpression expr1, CoreExpression expr2, ExpressionTypechecker tc, ConcreteReferenceExpression refExpr) {
-    if (tc.compare(expr1, expr2, CMP.EQ, refExpr, false, true)) {
-      return ext.factory.ref(ext.equationMeta.ide.getRef());
+  private EquationSolver.SubexprOccurrences matchSubexpr(CoreExpression subExpr, CoreExpression expr, ExpressionTypechecker tc, ConcreteReferenceExpression refExpr, List<Integer> occurrences) {
+    //if (tc.compare(subExpr, expr, CMP.EQ, refExpr, false, true)) {
+    //  return ext.factory.ref(ext.equationMeta.ide.getRef());
+   // }
+   // if (useEqSolver) {
+    var solver = new EqualitySolver(ext.equationMeta, tc, ext.factory, refExpr);
+    solver.setValuesType(expr.computeType());
+    solver.setUseHypotheses(false);
+    solver.initializeSolver();
+    var result = solver.matchSubexpr(subExpr.computeTyped(), expr.computeTyped(), tc.getErrorReporter(), occurrences);
+    if (result.doesExist()) {
+      result.equalityProof = ext.factory.core(solver.finalize(result.equalityProof));
+      result.exprWithOccurrences = ext.factory.core(solver.finalize(result.exprWithOccurrences));
     }
-    if (useEqSolver) {
-      var solver = new EqualitySolver(ext.equationMeta, tc, ext.factory, refExpr);
-      solver.setValuesType(expr2.computeType());
-      solver.setUseHypotheses(false);
-      solver.initializeSolver();
-      var result = solver.solve(null, expr1.computeTyped(), expr2.computeTyped(), tc.getErrorReporter());
-      if (result == null)  return null;
-      return ext.factory.core(solver.finalize(result));
-    }
-    return null;
+    return result;
+    //}
+    //return null;
   }
 
-  private Pair<UncheckedExpression, ConcreteExpression> replaceSubexpression(CoreExpression expr, CoreExpression subExpr, TypedExpression var, Set<Integer> occurrences, boolean exactMatch,
-                                                                            ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr) {
-    final int[] num = {0};
-    CoreExpression subExprType = subExpr.computeType();
-    AtomicReference<ConcreteExpression> equalityProof = new AtomicReference<>(null);
-    AtomicBoolean changedExpr = new AtomicBoolean(false);
-    UncheckedExpression newExpr = typechecker.withCurrentState(tc -> expr.replaceSubexpressions(expression -> {
+  private class RewriteExpressionProcessor implements Function<CoreExpression, CoreExpression.FindAction> {
+    private final CoreExpression subExpr;
+    // private final TypedExpression occurVar;
+    // private final TypedExpression exactOccurVar;
+    private final ExpressionTypechecker typechecker;
+    private final ConcreteReferenceExpression refExpr;
+    private final CoreExpression subExprType;
+    private final ConcreteFactory factory;
+
+    // private int occurCounter = 0;
+    private List<Integer> occurrences;
+    private final List<Pair<EquationSolver.SubexprOccurrences, CoreExpression>> foundOccurrences = new ArrayList<>();
+    private final List<Integer> exactMatches = new ArrayList<>();
+
+    public List<Integer> getExactMatches() {
+      return exactMatches;
+    }
+
+    public List<Pair<EquationSolver.SubexprOccurrences, CoreExpression>> getFoundOccurrences() {
+      return foundOccurrences;
+    }
+
+    public boolean allOccurrencesFound() { return occurrences == null || occurrences.isEmpty(); }
+
+    public RewriteExpressionProcessor(CoreExpression subExpr, CoreExpression subExprType, List<Integer> occurrences, ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr) {
+      this.subExpr = subExpr;
+     // this.occurVar = occurVar;
+     // this.exactOccurVar = exactOccurVar;
+      this.occurrences = occurrences != null ? new ArrayList<>(occurrences) : null;
+      this.typechecker = typechecker;
+      this.refExpr = refExpr;
+      this.subExprType = subExpr.computeType(); // subExprType;
+      this.factory = ext.factory.withData(refExpr.getData());
+    }
+
+    @Override
+    public @Nullable CoreExpression.FindAction apply(@NotNull CoreExpression expression) {
+      if (occurrences != null && occurrences.isEmpty()) return CoreExpression.FindAction.STOP;
       boolean ok;
-      if (changedExpr.get() && !exactMatch) {
-        return null;
-      }
+      boolean exactMatch = false;
+      boolean skip = false;
+      EquationSolver.SubexprOccurrences subExprOccur = null;
       if (subExpr instanceof CoreFunCallExpression && expression instanceof CoreFunCallExpression && ((CoreFunCallExpression) subExpr).getDefinition() == ((CoreFunCallExpression) expression).getDefinition()) {
         ok = true;
         List<? extends CoreExpression> args1 = ((CoreFunCallExpression) subExpr).getDefCallArguments();
         if (args1.isEmpty()) {
-          return null;
+          return CoreExpression.FindAction.CONTINUE;
         }
         List<? extends CoreExpression> args2 = ((CoreFunCallExpression) expression).getDefCallArguments();
         for (int i = 0; i < args1.size(); i++) {
-          if (!tc.compare(args1.get(i), args2.get(i), CMP.EQ, refExpr, false, true)) {
+          if (!typechecker.compare(args1.get(i), args2.get(i), CMP.EQ, refExpr, false, true)) {
             ok = false;
             break;
           }
         }
+        exactMatch = true;
       } else {
-        ok = tc.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true);
+        var subExprTypeFixed = subExprType;
+        var expressionTypeFixed = expression.computeType();
+        while (subExprTypeFixed instanceof CoreAppExpression) {
+          subExprTypeFixed = ((CoreAppExpression)subExprTypeFixed).getFunction();
+        }
+        while (expressionTypeFixed instanceof CoreAppExpression) {
+          expressionTypeFixed = ((CoreAppExpression)expressionTypeFixed).getFunction();
+        }
+        if (subExprTypeFixed instanceof CoreDefCallExpression) {
+          if (!(expressionTypeFixed instanceof CoreDefCallExpression)) {
+            ok = false;
+          } else {
+            ok = ((CoreDefCallExpression)subExprTypeFixed).getDefinition() == ((CoreDefCallExpression)expressionTypeFixed).getDefinition();
+          }
+        } else {
+          ok = typechecker.compare(subExprTypeFixed, expressionTypeFixed, CMP.LE, refExpr, false, true);
+        } /**/
         if (ok) {
-          if (exactMatch || !useEqSolver) {
-            ok = tc.compare(expression, subExpr, CMP.EQ, refExpr, false, true);
-            // If we are in useEqSolver regime and are looking for exact matches still should not forget to
-            // increment occurrences counter. Warning: will behave weirdly for nested equal subsexpressions!
-            if (!ok && useEqSolver && smartEqualityCheck(expression, subExpr, tc, refExpr) != null) {
-              num[0]++;
+          ok = typechecker.compare(subExpr, expression, CMP.EQ, refExpr, false, true);
+          if (!ok) {
+            if (useEqSolver) {
+              subExprOccur = matchSubexpr(subExpr, expression, typechecker, refExpr, occurrences);
+              ok = subExprOccur.doesExist();
+              //if (!ok) {
+              if (occurrences != null) {
+                if (ok) {
+                  occurrences = occurrences.subList(0, subExprOccur.numOccurrences);
+                }
+                if (!occurrences.isEmpty()) {
+                  occurrences.set(0, occurrences.get(0) - subExprOccur.numOccurrencesSkipped);
+                }
+              }
+              //}
+              skip = true;
             }
           } else {
-            equalityProof.set(smartEqualityCheck(expression, subExpr, tc, refExpr));
-            ok = equalityProof.get() != null;
+            exactMatch = true;
+            if (occurrences != null) {
+              if (occurrences.get(0) == 0) {
+                occurrences.remove(0);
+                var concreteExactOccurVar = factory.local("occurVar");
+                subExprOccur = new EquationSolver.SubexprOccurrences(concreteExactOccurVar, factory.ref(concreteExactOccurVar), factory.ref(ext.prelude.getIdp().getRef()), 1, 0);
+                subExprOccur.wrapExprWithOccurrences(factory.core(subExprType.computeTyped()), factory);
+              } else {
+                ok = false;
+                occurrences.set(0, occurrences.get(0) - 1);
+              }
+            }
           }
         }
       }
       if (ok) {
-        num[0]++;
-        if (occurrences == null || occurrences.contains(num[0])) {
-          if (occurrences != null) occurrences.remove(num[0]);
-          changedExpr.set(true);
-          tc.updateSavedState();
-          return var.getExpression();
+        typechecker.updateSavedState();
+        foundOccurrences.add(new Pair<>(subExprOccur, expression));
+        if (exactMatch) {
+          exactMatches.add(foundOccurrences.size() - 1);
+        }
+        return CoreExpression.FindAction.SKIP;
+      }
+      typechecker.loadSavedState();
+      return skip ? CoreExpression.FindAction.SKIP : CoreExpression.FindAction.CONTINUE;
+    }
+  }
+
+  /*
+  private static class ReplaceSubexpressionResult {
+    EquationSolver.SubexprOccurrences subExprOccur;
+    UncheckedExpression newExpression;
+    boolean isExactMatch;
+
+    public ReplaceSubexpressionResult(EquationSolver.SubexprOccurrences subExprOccur, UncheckedExpression newExpression, boolean isExactMatch) {
+      this.subExprOccur = subExprOccur;
+      this.newExpression = newExpression;
+      this.isExactMatch = isExactMatch;
+    }
+  }
+
+  private ReplaceSubexpressionResult replaceSubexpression(UncheckedExpression expr, CoreExpression subExpr, TypedExpression occurVar, TypedExpression exactOccurVar, List<Integer> occurrences,
+                                                                ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr) {
+    var processor = new RewriteExpressionProcessor(subExpr, occurVar, exactOccurVar, occurrence, typechecker, refExpr);
+    UncheckedExpression newExpr = typechecker.withCurrentState(tc -> expr.replaceSubexpressions(processor));
+    var localSubExprOccur = processor.getSubExprOccur();
+    if (!localSubExprOccur.doesExist()) return null;
+    return new ReplaceSubexpressionResult(localSubExprOccur, newExpr, processor.isExactMatch());
+  } /**/
+
+  private ConcreteExpression chainOfTransports(ConcreteExpression transport, ConcreteExpression type, List<ConcreteExpression> eqProofs, ConcreteExpression term, ConcreteFactory factory, ExpressionTypechecker typechecker) {
+    var result = term;
+    var curType = typechecker.typecheck(type, null);
+    boolean isInverse = ((ConcreteReferenceExpression)transport).getReferent() == ext.transportInv.getRef();
+
+    if (curType == null) return null;
+
+    for (int i = 0; i < eqProofs.size(); ++i) {
+      if (!(curType.getExpression() instanceof CoreLamExpression)) {
+        return null;
+      }
+      var body = ((CoreLamExpression)(curType.getExpression())).getBody();
+      var param = ((CoreLamExpression)(curType.getExpression())).getParameters();
+      var newType = curType;
+      var typeAppLeft = factory.core(body.computeTyped());
+      for (int j = i; j < eqProofs.size(); ++j) {
+        var checkedEqProof = typechecker.typecheck(eqProofs.get(j), null);
+        if (checkedEqProof == null) return null;
+        var equality = checkedEqProof.getType().toEquality();
+        if (equality == null) return null;
+        var left = equality.getDefCallArguments().get(1).normalize(NormalizationMode.NF);
+        var right = equality.getDefCallArguments().get(2).normalize(NormalizationMode.NF);
+        if (isInverse) {
+          var tmp = left;
+          left = right;
+          right = tmp;
+        }
+        if (j == i) {
+          newType = typechecker.typecheck(factory.appBuilder(factory.core(newType)).app(factory.core(right.computeTyped())).build(), null);
+          if (newType == null) return null;
+        } else {
+          typeAppLeft = factory.appBuilder(typeAppLeft).app(factory.core(left.computeTyped())).build();
         }
       }
-      tc.loadSavedState();
-      return null;
-    }));
-    if (!changedExpr.get()) return new Pair<>(null, null);
-    return new Pair<>(newExpr, equalityProof.get());
+      var transportTypeBody = typechecker.typecheck(typeAppLeft, null);
+      if (transportTypeBody == null) return null;
+      var transportType = typechecker.typecheck(SubstitutionMeta.makeLambda(transportTypeBody.getExpression(), param.getBinding(), factory), null);
+      if (transportType == null) return null;
+
+      result = factory.appBuilder(transport)
+              .app(factory.core(transportType))
+              .app(eqProofs.get(i))
+              .app(result)
+              .build();
+
+      curType = newType;
+    }
+
+    return result;
   }
+
+  /*
+  private TypedExpression typeWithOccurrences(UncheckedExpression type, CoreExpression value, TypedExpression valueType, TypedExpression exactOccurrence, List<ConcreteExpression> eqProofs, List<ArendRef> occurVars, List<Integer> occurrences, int occurIndex, ConcreteExpression concretePath, ConcreteReferenceExpression refExpr, ConcreteFactory factory, ErrorReporter errorReporter, ExpressionTypechecker typechecker) {
+    if (occurrences != null && occurIndex >= occurrences.size()) {
+      TypedExpression checkedType = typechecker.check(type, refExpr);
+      if (checkedType == null) {
+        errorReporter.report(new TypecheckingError("Cannot substitute expression", refExpr));
+        return null;
+      }
+      return checkedType;
+    }
+    ArendRef ref = factory.local("y" + occurVars.size());
+    int occurrence = occurrences == null ? 0 : occurrences.get(occurIndex);
+    final boolean[] refWasUsed = {true};
+    // factory.param(true, Collections.singletonList(ref), factory.core(valueType)))
+    ConcreteExpression lam = factory.lam(List.of(factory.param(ref)), factory.meta("\\lam x_v => {!}", new MetaDefinition() {
+      @Override
+      public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+        TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
+        assert var != null;
+        TypedExpression exactMatchVar = exactOccurrence != null ? exactOccurrence : var;
+        var replRes = replaceSubexpression(type, value, var, exactMatchVar, occurrence, typechecker, refExpr);
+        if (replRes == null) {
+          TypedExpression checkedType = typechecker.check(type, refExpr);
+          if (checkedType == null) {
+            errorReporter.report(new TypecheckingError("Cannot substitute expression", refExpr));
+            return null;
+          }
+          if (occurVars.isEmpty() || (occurrences != null && occurIndex < occurrences.size() - 1)) {
+            errorReporter.report(new SubexprError(occurrences, value, null, checkedType.getExpression(), refExpr));
+            return null;
+          }
+          refWasUsed[0] = false;
+          return checkedType;
+        }
+
+        TypedExpression newExactOccurrence = exactOccurrence;
+        if (replRes.isExactMatch) {
+          if (exactOccurrence == null) {
+            newExactOccurrence = var;
+            eqProofs.add(concretePath);
+            occurVars.add(ref);
+          } else {
+            refWasUsed[0] = false;
+          }
+        } else {
+          occurVars.add(ref);
+          // var pmapLambda = factory.lam(Collections.singletonList(factory.param(replRes.subExprOccur.occurrenceVar)), replRes.subExprOccur.exprWithOccurrence);
+          var occurPathTransport = factory.appBuilder(factory.ref(ext.pmap.getRef())).app(replRes.subExprOccur.exprWithOccurrences).app(concretePath).build();
+          eqProofs.add(factory.appBuilder(factory.ref(ext.concat.getRef())).app(replRes.subExprOccur.equalityProof).app(occurPathTransport).build());
+        }
+
+        var checkedType = typeWithOccurrences(replRes.newExpression, value, valueType, newExactOccurrence, eqProofs, occurVars, occurrences, occurIndex + 1, concretePath, refExpr, factory, errorReporter, typechecker);
+        if (checkedType == null) {
+          errorReporter.report(new TypecheckingError("Cannot substitute expression", refExpr));
+          return null;
+        }
+        return checkedType;
+      }
+    }));
+
+    var checkedLam = typechecker.typecheck(lam, null);
+    if (checkedLam == null) {
+      return null;
+    }
+
+    if (!refWasUsed[0]) {
+      return ((CoreLamExpression)checkedLam.getExpression()).getBody().computeTyped();
+    }
+    return checkedLam;
+  } */
+
+  /*
+  private static CoreExpression extractLamBodyAndParams(CoreExpression expr, List<CoreParameter> params, int numberOfParams) {
+    while (expr instanceof CoreLamExpression && numberOfParams > 0) {
+      var lam = (CoreLamExpression)expr;
+      expr = lam.getBody();
+      params.add(lam.getParameters());
+      --numberOfParams;
+    }
+    return expr;
+  } /**/
 
   @Override
   public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
@@ -157,9 +380,9 @@ public class RewriteMeta extends BaseMetaDefinition {
     ConcreteExpression arg0 = args0.get(0);
 
     // Collect occurrences
-    Set<Integer> occurrences;
+    List<Integer> occurrences;
     if (occurrencesArg != null) {
-      occurrences = new HashSet<>();
+      occurrences = new ArrayList<>();
       for (ConcreteExpression expr : Utils.getArgumentList(occurrencesArg)) {
         getNumber(expr, occurrences, errorReporter);
       }
@@ -218,108 +441,179 @@ public class RewriteMeta extends BaseMetaDefinition {
       lastArg = null;
       type = expectedType;
     }
+    ConcreteExpression concretePath = factory.core(path);
     CoreExpression normType = type.normalize(NormalizationMode.RNF);
     ConcreteExpression term = lastArg == null ? args.get(currentArg++).getExpression() : factory.core("transport _ _ {!}", lastArg);
+    var occurVars = new ArrayList<ArendRef>();
     var eqProofs = new ArrayList<ConcreteExpression>();
-    var typePrefixes = new ArrayList<ConcreteExpression>();
+
+    // var typeWOccur = typeWithOccurrences(normType, value, eq.getDefCallArguments().get(0).computeTyped(), null, eqProofs, occurVars, occurrences, 0, concretePath, refExpr, factory, errorReporter, typechecker);
+
+    //if (typeWOccur == null) {
+    //  return null;
+    //}
+
+    var processor = new RewriteExpressionProcessor(value, eq.getDefCallArguments().get(0), occurrences, typechecker, refExpr);
+    typechecker.withCurrentState(tc -> normType.processSubexpression(processor));
+
+    var foundOccurs = processor.getFoundOccurrences();
+    int firstExactMatch = processor.getExactMatches().isEmpty() ? -1 : processor.getExactMatches().get(0);
+
+    if (foundOccurs.isEmpty() || !processor.allOccurrencesFound()) {
+      errorReporter.report(new SubexprError(occurrences, value, null, normType, refExpr));
+      return null;
+    }
+
+    for (int i = 0; i < foundOccurs.size(); ++i) {
+      boolean isExactMatch = processor.getExactMatches().contains(i);
+      if (i <= firstExactMatch || !isExactMatch) {
+        var var = factory.local("y" + i);
+        occurVars.add(var);
+        if (isExactMatch) {
+          eqProofs.add(concretePath);
+        } else {
+          var subExprOccur = foundOccurs.get(i).proj1;
+          var occurPathTransport = factory.appBuilder(factory.ref(ext.pmap.getRef())).app(subExprOccur.exprWithOccurrences).app(concretePath).build();
+          eqProofs.add(factory.appBuilder(factory.ref(ext.concat.getRef())).app(subExprOccur.equalityProof).app(occurPathTransport).build());
+        }
+      }
+    }
+
+    ConcreteExpression lam = factory.lam(Collections.singletonList(factory.param(true, occurVars, factory.core(eq.getDefCallArguments().get(0).computeTyped()))), factory.meta("\\lam y_v => {!}", new MetaDefinition() {
+      @Override
+      public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+        List<TypedExpression> checkedVars = new ArrayList<>();
+
+        for (var var : occurVars) {
+          var checkedVar =  typechecker.typecheck(factory.ref(var), null);
+          assert checkedVar != null;
+          checkedVars.add(checkedVar);
+        }
+
+        Map<CoreExpression, Integer> indexOfSubExpr = new HashMap<>();
+
+        for (int i = 0; i < foundOccurs.size(); ++i) {
+          indexOfSubExpr.put(foundOccurs.get(i).proj2, i);
+        }
+
+        // TypedExpression exactMatchVar = finalExactMatchParam != null ? typechecker.typecheck(factory.ref(finalExactMatchParam.getBinding()), null) : var;
+        var typeWithOccur = normType.replaceSubexpressions(expression -> {
+          Integer index = indexOfSubExpr.get(expression);
+          if (index == null) return null;
+          return checkedVars.get(index).getExpression();
+        });
+
+        TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
+        if (result == null) {
+          errorReporter.report(new SubexprError(occurrences, value, null, normType, refExpr));
+        }
+        return result;
+      }
+    }));
+
+    var checkedLam = typechecker.typecheck(lam, null);
+
+    if (checkedLam == null) {
+      return null;
+    }
+
+    /*
+    CoreParameter exactMatchParam = null;
     int v = 0;
-    boolean exactMatch = true;
-    final boolean[] nothingChanged = {false};
 
     while (true) {
       ArendRef ref = factory.local("y" + v);
-      final boolean[] typecheckErrorOccurred = {false};
+      int occurrence = occurrences == null ? 0 : occurrences.get(v);
       CoreExpression finalNormType = normType;
+      final boolean[] substWasMade = {false};
+      final boolean[] typecheckErrorOccurred = {false};
+      final boolean[] isExactMatch = {false};
 
-      boolean finalExactMatch = exactMatch;
+      // CoreParameter finalExactMatchParam = exactMatchParam;
       ConcreteExpression lam = factory.lam(Collections.singletonList(factory.param(true, Collections.singletonList(ref), factory.core(eq.getDefCallArguments().get(0).computeTyped()))), factory.meta("\\lam x_v => {!}", new MetaDefinition() {
         @Override
         public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
           TypedExpression var = typechecker.typecheck(factory.ref(ref), null);
           assert var != null;
-          var replacementRes = replaceSubexpression(finalNormType, value, var, occurrences, finalExactMatch, typechecker, refExpr);
-          UncheckedExpression absNewType = replacementRes.proj1;
-          ConcreteExpression eqProof = replacementRes.proj2;
-          boolean prevNothingChanged = nothingChanged[0];
+          // TypedExpression exactMatchVar = finalExactMatchParam != null ? typechecker.typecheck(factory.ref(finalExactMatchParam.getBinding()), null) : var;
+          var replRes = replaceSubexpression(finalNormType, value, var, occurrence, typechecker, refExpr);
+          if (replRes == null) return finalNormType.computeTyped();
 
-          nothingChanged[0] = absNewType == null;
-          if (nothingChanged[0]) {
-            if (!useEqSolver || (!finalExactMatch && prevNothingChanged)) {
-              errorReporter.report(new TypecheckingError("Cannot substitute expression", refExpr));
-              typecheckErrorOccurred[0] = true;
-              return null;
-            }
-            return finalNormType.computeTyped();
-          }
-
-          ConcreteExpression concretePath = factory.core(path);
-          if (eqProof == null) {
-            eqProofs.add(concretePath);
+          substWasMade[0] = true;
+          if (replRes.isExactMatch) {
+            isExactMatch[0] = true;
+            //if (finalExactMatchParam == null) {
+              eqProofs.add(concretePath);
+            //}
           } else {
-            eqProofs.add(factory.appBuilder(factory.ref(ext.concat.getRef())).app(eqProof).app(concretePath).build());
+            // var pmapLambda = factory.lam(Collections.singletonList(factory.param(replRes.subExprOccur.occurrenceVar)), replRes.subExprOccur.exprWithOccurrence);
+            var occurPathTransport = factory.appBuilder(factory.ref(ext.pmap.getRef())).app(replRes.subExprOccur.exprWithOccurrence).app(concretePath).build();
+            eqProofs.add(factory.appBuilder(factory.ref(ext.concat.getRef())).app(replRes.subExprOccur.equalityProof).app(occurPathTransport).build());
           }
 
-          TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.check(absNewType, refExpr));
+          TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.check(replRes.newExpression, refExpr));
           if (result == null) {
             errorReporter.report(new SubexprError(occurrences, value, null, finalNormType, refExpr));
+            typecheckErrorOccurred[0] = true;
           }
-
           return result;
         }
       }));
 
       var checkedLam = typechecker.typecheck(lam, null);
 
-      if (typecheckErrorOccurred[0] || checkedLam == null) return null;
-      if (nothingChanged[0]) {
-        if (!exactMatch || !useEqSolver) {
-          --v;
-          break;
-        }
-        exactMatch = false;
-        continue;
-      }
-      if (v == 0) {
-        typePrefixes.add(factory.core(checkedLam.getExpression().computeTyped()));
+      if (typecheckErrorOccurred[0]) return null;
+
+      if (v == 0 && !substWasMade[0]) {
+        errorReporter.report(new TypecheckingError("Cannot substitute expression", refExpr));
+        return null;
       }
 
-      if (v > 0) {
-        var body = ((CoreLamExpression)checkedLam.getExpression()).getBody();
-        var param = ((CoreLamExpression)checkedLam.getExpression()).getParameters();
-        ConcreteExpression typeAppRight = factory.core(body.computeTyped());
-        for (int i = v - 1; i >= 0; --i) {
-          var checkedEqProof = typechecker.typecheck(eqProofs.get(i), null);
-          if (checkedEqProof == null) return null;
-          var equality = checkedEqProof.getType().toEquality();
-          if (equality == null) return null;
-          var right = equality.getDefCallArguments().get(2);
-          typeAppRight = factory.appBuilder(typeAppRight).app(factory.core(right.computeTyped())).build();
-        }
-        var typePrefixBody = typechecker.typecheck(typeAppRight, null);
-        if (typePrefixBody == null) return null;
-        var typePrefix = typechecker.typecheck(SubstitutionMeta.makeLambda(typePrefixBody.getExpression(), param.getBinding(), factory), null);
-        if (typePrefix == null) return null;
-        typePrefixes.add(factory.core(typePrefix));
-      } /**/
+      if (checkedLam == null) return null;
+
+      if (!substWasMade[0]) {
+        break;
+      }
+
       normType = checkedLam.getExpression();
-      if (!useEqSolver) break;
+      if (isExactMatch[0]) {
+        if (exactMatchParam == null) {
+          exactMatchParam = ((CoreLamExpression) checkedLam.getExpression()).getParameters();
+        }
+        //else {
+           //var body = ((CoreLamExpression)normType).getBody();
+          //var param = ((CoreLamExpression)normType).getParameters();
+          // var allParams = new ArrayList<CoreParameter>();
+          //var body = extractLamBodyAndParams(normType, allParams, eqProofs.size());
+          //var paramToReplace = allParams.get(0);
+          //body.substitute(Collections.singletonMap(param.getBinding(), exactMatchParam.getBinding().makeReference()));
+          //var concreteNormType = factory.core(body.computeTyped()).substitute(Collections.singletonMap(factory.ref(param.getBinding()).getReferent(), factory.ref(exactMatchParam.getBinding())));
+          // typechecker.substitute()
+          // AbstractedExpression
+          //var normTypeWORedundantParam = typechecker.substituteAbstractedExpression(((CoreLamExpression)normType).getAbstractedBody(), LevelSubstitution.EMPTY, Collections.singletonList(factory.ref(param.getBinding())));
+                  //typechecker.check(body.substitute(Collections.singletonMap(param.getBinding(), exactMatchParam.getBinding().makeReference())), factory.core(body.computeType().computeTyped()));// typechecker.typecheck(concreteNormType, null);
+          //if (normTypeWORedundantParam == null) return null;
+          //normType = normTypeWORedundantParam.getExpression();
+        //}
+      }
+
       ++v;
-      exactMatch = false;
+      if (occurrences != null && v >= occurrences.size()) break;
     }
 
-    if (occurrences != null && !occurrences.isEmpty()) {
+    if (occurrences != null && eqProofs.size() != occurrences.size()) {
       errorReporter.report(new SubexprError(occurrences, value, null, type, refExpr));
       return null;
-    }
+    } */
 
-    for (int i = v; i >= 0; --i) {
-      term = factory.appBuilder(transport)
-              .app(typePrefixes.get(i))
-              .app(eqProofs.get(i))
-              .app(term)
-              .app(args.subList(currentArg, args.size()))
-              .build();
-    }
+    // Collections.reverse(eqProofs);
+    term = chainOfTransports(transport, factory.core(checkedLam), eqProofs, term, factory, typechecker);
+
+    if (term == null) return null;
+
+    term = factory.appBuilder(term)
+            .app(args.subList(currentArg, args.size()))
+            .build();
 
     return typechecker.typecheck(term, expectedType);
   }
