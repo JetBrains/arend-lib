@@ -27,6 +27,7 @@ public interface EquationSolver {
   boolean initializeSolver();
   ConcreteExpression solve(@Nullable ConcreteExpression hint, @NotNull TypedExpression leftExpr, @NotNull TypedExpression rightExpr, @NotNull ErrorReporter errorReporter);
   SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences);
+  // boolean isAtomic(@NotNull TypedExpression expr);
   TypedExpression finalize(ConcreteExpression result);
 
   class SubexprOccurrences {
@@ -37,6 +38,8 @@ public interface EquationSolver {
     // Number of occurrences of subExpr in exprWithOccurrences to the right of the last occurrence
     public int numOccurrencesSkipped = 0;
     public int numOccurrences = 0;
+    // Temporary hack
+    public boolean subExprMissed = true;
 
     public SubexprOccurrences() {
     }
@@ -47,6 +50,18 @@ public interface EquationSolver {
       this.equalityProof = equalityProof;
       this.numOccurrencesSkipped = numOccurrencesSkipped;
       this.numOccurrences = numOccurrences;
+    }
+
+    public static SubexprOccurrences simpleSingletonOccur(ConcreteFactory factory, CoreExpression subExprType, ConcreteExpression eqProof) {
+      SubexprOccurrences result = new SubexprOccurrences();
+
+      result.occurrenceVar = factory.local("occurVar");
+      result.exprWithOccurrences = factory.ref(result.occurrenceVar);
+      result.wrapExprWithOccurrences(factory.core(subExprType.computeTyped()), factory);
+      result.equalityProof = eqProof;
+      result.numOccurrences = 1;
+      result.numOccurrencesSkipped = 0;
+      return result;
     }
 
     public boolean doesExist() { return occurrenceVar != null; }

@@ -58,7 +58,10 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Category.Solver", name = "CatNF.:nil")            CoreConstructor nilCatNF;
   @Dependency(module = "Category.Solver", name = "CatNF.:cons")           CoreConstructor consCatNF;
   @Dependency(module = "Category.Solver")                                 CoreClassDefinition HData;
+  @Dependency(module = "Category.Solver", name = "HData.H")               CoreClassField HDataFunc;
+  @Dependency(module = "Category.Solver", name = "HData.V")               CoreClassField VDataFunc;
   @Dependency(module = "Category.Solver", name = "HData.terms-equality")  CoreFunctionDefinition catTermsEq;
+  @Dependency(module = "Category.Solver", name = "HData.normalize-consistent")     CoreFunctionDefinition catNormConsist;
   @Dependency(module = "Category.Solver", name = "HData.interpretNF")     CoreFunctionDefinition catInterpretNF;
   @Dependency(module = "Category.Solver", name = "HData.interpretNF_++")  CoreFunctionDefinition catInterpretNFConcat;
 

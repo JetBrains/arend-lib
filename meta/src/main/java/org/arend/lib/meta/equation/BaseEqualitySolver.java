@@ -105,21 +105,14 @@ public abstract class BaseEqualitySolver implements EquationSolver {
 
   @Override
   public SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences) {
-    var eqProof = solve(null, subExpr, expr, errorReporter);
+    var eqProof = solve(null, expr, subExpr, errorReporter);
     var occurrence = occurrences == null ? 0 : occurrences.get(0);
 
     if (occurrence != 0 || eqProof == null) {
       return new SubexprOccurrences(null, null, null, 0, eqProof == null ? 0 : 1);
     }
 
-    SubexprOccurrences result = new SubexprOccurrences();
-
-    result.occurrenceVar = factory.local("occurVar");
-    result.exprWithOccurrences = factory.ref(result.occurrenceVar);
-    result.wrapExprWithOccurrences(factory.core(subExpr.getType().computeTyped()), factory);
-    result.equalityProof = eqProof;
-    result.numOccurrencesSkipped = 1;
-    return result;
+    return SubexprOccurrences.simpleSingletonOccur(factory, subExpr.getType(), eqProof);
   }
 
   public boolean getUseHypotheses() { return useHypotheses; }
