@@ -181,7 +181,7 @@ public class MonoidSolver extends BaseEqualitySolver {
       var mul = isCat ? factory.ref(meta.catMul.getRef()) : factory.ref(meta.mul.getRef());
       var interpretNF = isCat ? factory.ref(meta.catInterpretNF.getRef()) : factory.ref(meta.monoidInterpretNF.getRef());
       var subExprNF = computeNFTerm(subExTerm.nf);
-      var constructedExprNF = pieces.get(0) == null ? subExTerm.nf : pieces.get(0);
+      var constructedExprNF = pieces.get(0) == null ? new ArrayList<>(subExTerm.nf) : new ArrayList<>(pieces.get(0));
       ConcreteExpression concatNFsProof = null;
 
       result.exprWithOccurrences = pieces.get(0) == null ? factory.ref(result.occurrenceVar) : factory.app(interpretNF, true, computeNFTerm(pieces.get(0)));
