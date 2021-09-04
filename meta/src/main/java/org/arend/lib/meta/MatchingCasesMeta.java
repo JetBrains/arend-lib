@@ -895,7 +895,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
 
         Map<CoreBinding, ArendRef> bindings = new HashMap<>();
-        List<ConcretePattern> cPatterns = PatternUtils.toConcrete(refinedRows.get(i), ext.renamerFactory, factory, bindings);
+        List<ConcretePattern> cPatterns = PatternUtils.toConcrete(refinedRows.get(i), ext.renamerFactory, factory, bindings, null);
         CoreParameter param = lamParams;
         ConcreteExpression rhs = makeLet ? factory.ref(letRef) : cExpr;
         if (param != null) {
@@ -908,7 +908,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
         resultClauses.add(factory.clause(cPatterns, rhs));
       } else {
-        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRow, ext.renamerFactory, factory, null), isAbsurd ? null : args.get(caseParam + 1).getExpression()));
+        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRow, ext.renamerFactory, factory, null, null), isAbsurd ? null : args.get(caseParam + 1).getExpression()));
       }
     }
 

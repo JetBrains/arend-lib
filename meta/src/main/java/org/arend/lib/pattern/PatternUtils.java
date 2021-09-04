@@ -13,7 +13,6 @@ import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
-import org.arend.ext.core.level.CoreLevel;
 import org.arend.ext.core.level.LevelSubstitution;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.reference.ArendRef;
@@ -26,7 +25,7 @@ import org.arend.lib.util.Pair;
 import java.util.*;
 
 public class PatternUtils {
-  public static ConcretePattern toConcrete(CorePattern pattern, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  private static ConcretePattern toConcrete(CorePattern pattern, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
     if (pattern.isAbsurd()) {
       return factory.tuplePattern();
     }
@@ -43,15 +42,21 @@ public class PatternUtils {
       return factory.refPattern(ref, null);
     }
 
-    List<ConcretePattern> subpatterns = toConcrete(pattern.getSubPatterns(), renamer, factory, bindings);
+    List<ConcretePattern> subpatterns = toConcrete(pattern.getSubPatterns(), renamer, factory, bindings, pattern.getParameters());
     CoreDefinition def = pattern.getConstructor();
     return def == null ? factory.tuplePattern(subpatterns) : factory.conPattern(def.getRef(), subpatterns);
   }
 
-  public static List<ConcretePattern> toConcrete(Collection<? extends CorePattern> patterns, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  public static ConcretePattern toConcrete(CorePattern pattern, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings, boolean isExplicit) {
+    ConcretePattern result = toConcrete(pattern, renamer, factory, bindings);
+    return isExplicit ? result : result.implicit();
+  }
+
+  public static List<ConcretePattern> toConcrete(Collection<? extends CorePattern> patterns, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings, CoreParameter parameters) {
     List<ConcretePattern> result = new ArrayList<>(patterns.size());
     for (CorePattern pattern : patterns) {
-      result.add(toConcrete(pattern, renamer, factory, bindings));
+      result.add(toConcrete(pattern, renamer, factory, bindings, parameters == null || !parameters.hasNext() || parameters.isExplicit()));
+      if (parameters != null && parameters.hasNext()) parameters = parameters.getNext();
     }
     return result;
   }

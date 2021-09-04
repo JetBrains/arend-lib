@@ -322,7 +322,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
 
         for (List<ArendPattern> patternList : patternLists) {
           if (PatternUtils.computeCovering(actualRows, patternList) == null) {
-            newClauses.add(factory.clause(PatternUtils.toConcrete(patternList, ext.renamerFactory, factory, null), defaultExpr));
+            newClauses.add(factory.clause(PatternUtils.toConcrete(patternList, ext.renamerFactory, factory, null, null), defaultExpr));
           }
         }
       }
