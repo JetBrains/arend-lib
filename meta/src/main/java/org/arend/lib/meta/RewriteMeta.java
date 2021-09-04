@@ -4,6 +4,8 @@ import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.core.context.CoreBinding;
+import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.ExpressionMapper;
@@ -31,6 +33,8 @@ public class RewriteMeta extends BaseMetaDefinition {
   private final boolean isForward;
   private final boolean isInverse;
   private final boolean useEqSolver;
+
+  private EqualitySolver solver;
 
   public RewriteMeta(StdExtension ext, boolean isForward, boolean isInverse, boolean useEqSolver) {
     this.ext = ext;
@@ -62,15 +66,16 @@ public class RewriteMeta extends BaseMetaDefinition {
   }
 
   private EquationSolver.SubexprOccurrences matchSubexpr(CoreExpression subExpr, CoreExpression expr, ExpressionTypechecker tc, ConcreteReferenceExpression refExpr, List<Integer> occurrences, ConcreteFactory factory) {
+    /*
     var solver = new EqualitySolver(ext.equationMeta, tc, factory, refExpr);
     solver.setValuesType(expr.computeType());
     solver.setUseHypotheses(false);
-    solver.initializeSolver();
+    solver.initializeSolver(); /**/
     var result = solver.matchSubexpr(subExpr.computeTyped(), expr.computeTyped(), tc.getErrorReporter(), occurrences);
-    if (result.doesExist()) {
+    /*if (result.doesExist()) {
       result.equalityProof = factory.core(solver.finalize(result.equalityProof));
       result.exprWithOccurrences = factory.core(solver.finalize(result.exprWithOccurrences));
-    }
+    }/**/
     return result;
   }
 
@@ -190,53 +195,99 @@ public class RewriteMeta extends BaseMetaDefinition {
     }
   }
 
-  private ConcreteExpression chainOfTransports(ConcreteExpression transport, ConcreteExpression type, List<ConcreteExpression> eqProofs, ConcreteExpression term, ConcreteFactory factory, ExpressionTypechecker typechecker) {
+  private static class EqProofConcrete {
+    public ConcreteExpression proof;
+    public ConcreteExpression left;
+    public ConcreteExpression right;
+
+    public EqProofConcrete(ConcreteExpression proof, ConcreteExpression left, ConcreteExpression right) {
+      this.proof = proof;
+      this.left = left;
+      this.right = right;
+    }
+  }
+
+  private ConcreteExpression chainOfTransports(ConcreteExpression transport, CoreExpression type, List<EqProofConcrete> eqProofs, ConcreteExpression term, ConcreteFactory factory, ExpressionTypechecker typechecker) {
     var result = term;
-    var curType = typechecker.typecheck(type, null);
+    var curType = type; //typechecker.typecheck(type, null);
+    List<CoreBinding> paramList = new ArrayList<>();
     boolean isInverse = ((ConcreteReferenceExpression)transport).getReferent() == ext.transportInv.getRef();
 
+    for (int i = 0; i < eqProofs.size(); ++i) {
+      var body = ((CoreLamExpression)(curType)).getBody();
+      var param = ((CoreLamExpression)(curType)).getParameters();
+      int finalI = i;
+      paramList.add(param.getBinding());
+      var absNewBody = SubstitutionMeta.makeLambda(body, paramList, factory, expression -> {
+        var newBody = factory.core(expression.computeTyped());
+        for (int j = finalI + 1; j < eqProofs.size(); ++j) {
+          var left = !isInverse ? eqProofs.get(j).left : eqProofs.get(j).right;
+          newBody = factory.appBuilder(newBody).app(left).build();
+        }
+        return newBody;
+      });  //factory.lam(paramList, newBody);
+      for (int j = 0; j < i; ++j) {
+        var right = !isInverse ? eqProofs.get(j).right : eqProofs.get(j).left;
+        absNewBody = factory.appBuilder(absNewBody).app(right).build();
+      }
+      result = factory.appBuilder(transport)
+              //.app(factory.core(transportType))
+              .app(absNewBody)
+              .app(eqProofs.get(i).proof)
+              .app(result)
+              .build();
+      curType = body;
+    }
+
+    /*
     if (curType == null) return null;
 
     for (int i = 0; i < eqProofs.size(); ++i) {
-      if (!(curType.getExpression() instanceof CoreLamExpression)) {
+      if (!(curType instanceof ConcreteLamExpression)) {
         return null;
       }
-      var body = ((CoreLamExpression)(curType.getExpression())).getBody();
-      var param = ((CoreLamExpression)(curType.getExpression())).getParameters();
+      var body = ((ConcreteLamExpression)(curType)).getBody();
+      var param = ((ConcreteLamExpression)(curType)).getParameters();
       var newType = curType;
-      var typeAppLeft = factory.core(body.computeTyped());
+      var typeAppLeft = body; //factory.core(body.computeTyped());
       for (int j = i; j < eqProofs.size(); ++j) {
-        var checkedEqProof = typechecker.typecheck(eqProofs.get(j), null);
-        if (checkedEqProof == null) return null;
-        var equality = checkedEqProof.getType().toEquality();
-        if (equality == null) return null;
-        var left = equality.getDefCallArguments().get(1).normalize(NormalizationMode.NF);
-        var right = equality.getDefCallArguments().get(2).normalize(NormalizationMode.NF);
+        //var checkedEqProof = typechecker.typecheck(eqProofs.get(j), null);
+       // if (checkedEqProof == null) return null;
+       // var equality = checkedEqProof.getType().toEquality();
+       // if (equality == null) return null;
+        var left = eqProofs.get(j).left; //equality.getDefCallArguments().get(1).normalize(NormalizationMode.NF);
+        var right = eqProofs.get(j).right; //equality.getDefCallArguments().get(2).normalize(NormalizationMode.NF);
         if (isInverse) {
           var tmp = left;
           left = right;
           right = tmp;
         }
         if (j == i) {
-          newType = typechecker.typecheck(factory.appBuilder(factory.core(newType)).app(factory.core(right.computeTyped())).build(), null);
-          if (newType == null) return null;
+          newType = factory.appBuilder(newType).app(right).build();
+                  //typechecker.typecheck(factory.appBuilder(factory.core(newType)).app(factory.core(right.computeTyped())).build(), null);
+          // if (newType == null) return null;
         } else {
-          typeAppLeft = factory.appBuilder(typeAppLeft).app(factory.core(left.computeTyped())).build();
+          typeAppLeft = factory.appBuilder(typeAppLeft).app(left).build();
+                  //factory.appBuilder(typeAppLeft).app(factory.core(left.computeTyped())).build();
         }
       }
-      var transportTypeBody = typechecker.typecheck(typeAppLeft, null);
-      if (transportTypeBody == null) return null;
-      var transportType = typechecker.typecheck(SubstitutionMeta.makeLambda(transportTypeBody.getExpression(), param.getBinding(), factory), null);
-      if (transportType == null) return null;
+      //var transportTypeBody = typechecker.typecheck(typeAppLeft, null);
+      //if (transportTypeBody == null) return null;
+      var transportType = factory.lam(param, typeAppLeft);
+              //typechecker.typecheck(SubstitutionMeta.makeLambda(transportTypeBody.getExpression(), param.getBinding(), factory), null);
+      // if (transportType == null) return null;
 
       result = factory.appBuilder(transport)
-              .app(factory.core(transportType))
-              .app(eqProofs.get(i))
+              //.app(factory.core(transportType))
+              .app(transportType)
+              .app(eqProofs.get(i).proof)
               .app(result)
               .build();
 
       curType = newType;
     }
+
+     */
 
     return result;
   }
@@ -327,11 +378,19 @@ public class RewriteMeta extends BaseMetaDefinition {
       lastArg = null;
       type = expectedType;
     }
+
+    if (useEqSolver) {
+      solver = new EqualitySolver(ext.equationMeta, typechecker, factory, refExpr);
+      solver.setValuesType(value.computeType());
+      solver.setUseHypotheses(false);
+      solver.initializeSolver();
+    }
+
     ConcreteExpression concretePath = factory.core(path);
     CoreExpression normType = type.normalize(NormalizationMode.RNF);
     ConcreteExpression term = lastArg == null ? args.get(currentArg++).getExpression() : factory.core("transport _ _ {!}", lastArg);
     var occurVars = new ArrayList<ArendRef>();
-    var eqProofs = new ArrayList<ConcreteExpression>();
+    var eqProofs = new ArrayList<EqProofConcrete>();
 
     var processor = new RewriteExpressionProcessor(value, eq.getDefCallArguments().get(0), occurrences, typechecker, refExpr);
     typechecker.withCurrentState(tc -> normType.processSubexpression(processor));
@@ -352,12 +411,17 @@ public class RewriteMeta extends BaseMetaDefinition {
         var var = factory.local("y" + i);
         occurIndToVarInd.put(i, occurVars.size());
         occurVars.add(var);
+        var left = factory.core(foundOccurs.get(i).proj2.computeTyped());
+        var right = factory.core(eq.getDefCallArguments().get(2).computeTyped());
         if (isExactMatch) {
-          eqProofs.add(concretePath);
+          eqProofs.add(new EqProofConcrete(concretePath, left, right));
         } else {
           var subExprOccur = foundOccurs.get(i).proj1;
+          var fixedLeft = factory.appBuilder(subExprOccur.exprWithOccurrences).app(left).build();
+          var fixedRight = factory.appBuilder(subExprOccur.exprWithOccurrences).app(right).build();
           var occurPathTransport = factory.appBuilder(factory.ref(ext.pmap.getRef())).app(subExprOccur.exprWithOccurrences).app(concretePath).build();
-          eqProofs.add(factory.appBuilder(factory.ref(ext.concat.getRef())).app(subExprOccur.equalityProof).app(occurPathTransport).build());
+          var eqProof = factory.appBuilder(factory.ref(ext.concat.getRef())).app(subExprOccur.equalityProof).app(occurPathTransport).build();
+          eqProofs.add(new EqProofConcrete(eqProof, fixedLeft, fixedRight)); // (factory.core(solver.finalize(eqProof)));
         }
       } else {
         occurIndToVarInd.put(i, occurVars.size() - 1);
@@ -412,7 +476,7 @@ public class RewriteMeta extends BaseMetaDefinition {
       return null;
     }
 
-    term = chainOfTransports(transport, factory.core(checkedLam), eqProofs, term, factory, typechecker);
+    term = chainOfTransports(transport, checkedLam.getExpression(), eqProofs, term, factory, typechecker);
 
     if (term == null) return null;
 
@@ -420,6 +484,7 @@ public class RewriteMeta extends BaseMetaDefinition {
             .app(args.subList(currentArg, args.size()))
             .build();
 
+    if (useEqSolver) return solver.finalize(term);
     return typechecker.typecheck(term, expectedType);
   }
 }

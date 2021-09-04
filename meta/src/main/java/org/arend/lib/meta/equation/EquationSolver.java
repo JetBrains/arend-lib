@@ -27,7 +27,6 @@ public interface EquationSolver {
   boolean initializeSolver();
   ConcreteExpression solve(@Nullable ConcreteExpression hint, @NotNull TypedExpression leftExpr, @NotNull TypedExpression rightExpr, @NotNull ErrorReporter errorReporter);
   SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences);
-  // boolean isAtomic(@NotNull TypedExpression expr);
   TypedExpression finalize(ConcreteExpression result);
 
   class SubexprOccurrences {
@@ -44,7 +43,7 @@ public interface EquationSolver {
     public SubexprOccurrences() {
     }
 
-    public SubexprOccurrences(ArendRef occurrenceVar, ConcreteExpression exprWithOccurrences, ConcreteExpression equalityProof, int numOccurrences, int numOccurrencesSkipped) {
+    public SubexprOccurrences(ArendRef occurrenceVar, ConcreteExpression exprWithOccurrences, ConcreteExpression exprWithSubExprInserted, ConcreteExpression equalityProof, int numOccurrences, int numOccurrencesSkipped) {
       this.occurrenceVar = occurrenceVar;
       this.exprWithOccurrences = exprWithOccurrences;
       this.equalityProof = equalityProof;

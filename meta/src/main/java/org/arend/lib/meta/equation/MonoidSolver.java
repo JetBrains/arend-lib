@@ -190,6 +190,7 @@ public class MonoidSolver extends BaseEqualitySolver {
         var piece = pieces.get(i);
         var pieceNFTerm = piece == null ? subExprNF : computeNFTerm(piece);
         var pieceTerm = piece == null ? factory.ref(result.occurrenceVar) : factory.app(interpretNF, true, pieceNFTerm);
+        var pieceTermSubExpr = piece == null ? factory.core(subExpr) : factory.app(interpretNF, true, pieceNFTerm);
         result.exprWithOccurrences = factory.appBuilder(mul).app(result.exprWithOccurrences).app(pieceTerm).build();
         concatNFsProof = appendRightNFProof(computeNFTerm(constructedExprNF), pieceNFTerm, concatNFsProof);
         if (piece == null) constructedExprNF.addAll(subExTerm.nf); else constructedExprNF.addAll(piece);
@@ -244,6 +245,8 @@ public class MonoidSolver extends BaseEqualitySolver {
     lastTerm = rightExpr;
     lastCompiled = term2;
 
+    // TODO: get rid of this shit with flags
+    boolean oldCommutative = isCommutative;
     boolean commutative = false;
     if (isCommutative && !term1.nf.equals(term2.nf)) {
       commutative = true;
@@ -252,6 +255,7 @@ public class MonoidSolver extends BaseEqualitySolver {
     }
     isCommutative = commutative;
 
+    boolean oldSemilattice = isSemilattice;
     boolean semilattice = false;
     if (isSemilattice && commutative && !term1.nf.equals(term2.nf)) {
       semilattice = true;
@@ -290,6 +294,8 @@ public class MonoidSolver extends BaseEqualitySolver {
             equalities.add(new Equality(rule.binding != null ? factory.ref(rule.binding) : factory.core(rule.expression), rule.rhsTerm, rule.lhsTerm, rule.rhs, rule.lhs));
           }
         }
+        isCommutative = oldCommutative;
+        isSemilattice = oldSemilattice;
         return solver.solve(term1, term2, equalities);
       }
 
@@ -298,6 +304,8 @@ public class MonoidSolver extends BaseEqualitySolver {
       List<Integer> newNf1 = applyRules(term1.nf, rules, trace1);
       List<Integer> newNf2 = applyRules(term2.nf, rules, trace2);
       if (!newNf1.equals(newNf2)) {
+        isCommutative = oldCommutative;
+        isSemilattice = oldSemilattice;
         errorReporter.report(new AlgebraSolverError(term1.nf, term2.nf, values.getValues(), rules, trace1, trace2, hint != null ? hint : refExpr));
         return null;
       }
@@ -376,6 +384,8 @@ public class MonoidSolver extends BaseEqualitySolver {
         }
       }
     }
+    isCommutative = oldCommutative;
+    isSemilattice = oldSemilattice;
     return builder
       .app(term1.concrete)
       .app(term2.concrete)

@@ -103,13 +103,21 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     return true;
   }
 
+  /*
+  @Override
+  public void useDataFromOtherSolver(@NotNull EquationSolver solver) {
+    if (solver instanceof BaseEqualitySolver) {
+
+    }
+  } /**/
+
   @Override
   public SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences) {
     var eqProof = solve(null, expr, subExpr, errorReporter);
     var occurrence = occurrences == null ? 0 : occurrences.get(0);
 
     if (occurrence != 0 || eqProof == null) {
-      return new SubexprOccurrences(null, null, null, 0, eqProof == null ? 0 : 1);
+      return new SubexprOccurrences(null, null, null, null, 0, eqProof == null ? 0 : 1);
     }
 
     return SubexprOccurrences.simpleSingletonOccur(factory, subExpr.getType(), eqProof);
