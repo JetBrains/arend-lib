@@ -169,7 +169,8 @@ public class StdExtension implements ArendExtension {
         "`rewrite (p : a = b) t : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transportInv (\\lam x => T[x/a]) p t`\n\n" +
         "If the expected type is unknown, {rewrite} works like {rewriteF}.\n" +
         "`rewrite {i_1, ... i_k} p t` replaces only occurrences with indices `i_1`, ... `i_k`.\n" +
-        "Also, `p` may be a function, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`",
+        "Also, `p` may be a function, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`.\n" +
+        "`rewrite (p_1, ... p_n) t` is equivalent to `rewrite p_1 (... rewrite p_n t ...)`",
         Precedence.DEFAULT, new RewriteMeta(this, false, true, false));
     contributor.declare(paths, new LongName("rewriteI"),
         "`rewriteI p` is equivalent to `rewrite (inv p)`",

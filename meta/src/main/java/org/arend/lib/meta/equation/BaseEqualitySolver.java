@@ -114,6 +114,21 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     return null;
   }
 
+  protected ConcreteExpression makeFin(int n) {
+    return factory.app(factory.ref(meta.ext.prelude.getFin().getRef()), true, factory.number(n));
+  }
+
+  protected ConcreteExpression makeLambda(Values<CoreExpression> values) {
+    ArendRef lamParam = factory.local("j");
+    List<CoreExpression> valueList = values.getValues();
+    ConcreteClause[] caseClauses = new ConcreteClause[valueList.size()];
+    for (int i = 0; i < valueList.size(); i++) {
+      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(valueList.get(i).computeTyped()));
+    }
+    return factory.lam(singletonList(factory.param(singletonList(lamParam), makeFin(valueList.size()))),
+      factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
+  }
+
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
     ArendRef lamParam = factory.local("n");

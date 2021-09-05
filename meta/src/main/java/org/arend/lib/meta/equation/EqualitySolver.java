@@ -84,7 +84,7 @@ public class EqualitySolver extends BaseEqualitySolver {
       ContextHelper helper = new ContextHelper(hint);
       for (CoreBinding binding : helper.getAllBindings(typechecker)) {
         CoreFunCallExpression equality = binding.getTypeExpr().normalize(NormalizationMode.WHNF).toEquality();
-        if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true)) {
+        if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), valuesType, CMP.EQ, refExpr, false, true)) {
           closure.addRelation(equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2), factory.ref(binding));
         }
       }
@@ -118,19 +118,34 @@ public class EqualitySolver extends BaseEqualitySolver {
           return true;
         }
       }
-    } else {
-      TypedExpression instance = typechecker.findInstance(new InstanceSearchParameters() {
-        @Override
-        public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
-          return classDefinition.isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid)) || classDefinition.isSubClassOf(meta.AddMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AddMonoid)) || classDefinition.isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
+      return false;
+    }
+
+    if (type instanceof CoreAppExpression) {
+      CoreExpression typeFun = ((CoreAppExpression) type).getFunction().normalize(NormalizationMode.WHNF);
+      if (typeFun instanceof CoreAppExpression) {
+        CoreExpression fun = ((CoreAppExpression) typeFun).getFunction().normalize(NormalizationMode.WHNF);
+        if (fun instanceof CoreFieldCallExpression) {
+          if (((CoreFieldCallExpression) fun).getDefinition() == meta.ext.sipMeta.catHom) {
+            algebraSolver = new MonoidSolver(meta, typechecker, factory, refExpr, equality, ((CoreFieldCallExpression) fun).getArgument().computeTyped(), null, null, false);
+            return true;
+          }
+          return false;
         }
-      }, type, null, refExpr);
-      if (instance != null) {
-        CoreClassCallExpression classCall = getClassCall(instance.getType());
-        if (classCall != null) {
-          initializeAlgebraSolver(instance, classCall);
-          return true;
-        }
+      }
+    }
+
+    TypedExpression instance = typechecker.findInstance(new InstanceSearchParameters() {
+      @Override
+      public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
+        return classDefinition.isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid)) || classDefinition.isSubClassOf(meta.AddMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AddMonoid)) || classDefinition.isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
+      }
+    }, type, null, refExpr);
+    if (instance != null) {
+      CoreClassCallExpression classCall = getClassCall(instance.getType());
+      if (classCall != null) {
+        initializeAlgebraSolver(instance, classCall);
+        return true;
       }
     }
 

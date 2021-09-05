@@ -11,6 +11,7 @@ import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.level.CoreLevel;
+import org.arend.ext.core.level.LevelSubstitution;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
@@ -173,7 +174,7 @@ public class ExtMeta extends BaseMetaDefinition {
               substitution.add(new SubstitutionPair(param.getBinding(), sigmaRefs.get(param.getBinding()).applyAt(coeRef, factory, ext)));
             }
           }
-          CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), null, null, substitution);
+          CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), LevelSubstitution.EMPTY, substitution);
           return result == null ? null : result.computeTyped();
         }
       }));

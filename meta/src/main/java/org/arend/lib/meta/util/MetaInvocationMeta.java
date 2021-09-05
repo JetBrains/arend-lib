@@ -123,6 +123,9 @@ public abstract class MetaInvocationMeta extends BaseMetaDefinition {
       }
     }
 
+    if (!keepMetaArgument()) {
+      contextData.setMarker(arg);
+    }
     contextData.setArguments(mergeArgs(metaArgs, args, currentArg));
     return invokeMeta(meta, implicitArgs, typechecker, contextData);
   }

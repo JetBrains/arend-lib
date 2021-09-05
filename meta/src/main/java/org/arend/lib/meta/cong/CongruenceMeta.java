@@ -76,7 +76,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     ArendRef iRef = factory.local("i");
     CongVisitor visitor = new CongVisitor(ext.prelude, factory, typechecker, contextData.getMarker(), contextData.getArguments().stream().map(ConcreteArgument::getExpression).collect(Collectors.toList()), iRef);
-    CongVisitor.Result result = args.get(1).normalize(NormalizationMode.RNF).accept(visitor, new CongVisitor.ParamType(() -> new CongVisitor.Result(factory.core(args.get(0).normalize(NormalizationMode.RNF).computeTyped())), args.get(2)));
+    CongVisitor.Result result = args.get(1).normalize(NormalizationMode.RNF).accept(visitor, new CongVisitor.ParamType(() -> new CongVisitor.Result(factory.core(args.get(0).normalize(NormalizationMode.RNF).computeTyped())), args.get(2).normalize(NormalizationMode.RNF)));
     if (result == null) {
       if (visitor.index > contextData.getArguments().size()) {
         typechecker.getErrorReporter().report(new MissingArgumentsError(visitor.index - contextData.getArguments().size(), contextData.getMarker()));

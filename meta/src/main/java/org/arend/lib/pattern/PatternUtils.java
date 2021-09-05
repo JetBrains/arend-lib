@@ -13,7 +13,7 @@ import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
-import org.arend.ext.core.level.CoreLevel;
+import org.arend.ext.core.level.LevelSubstitution;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -25,7 +25,7 @@ import org.arend.lib.util.Pair;
 import java.util.*;
 
 public class PatternUtils {
-  public static ConcretePattern toConcrete(CorePattern pattern, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  private static ConcretePattern toConcrete(CorePattern pattern, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
     if (pattern.isAbsurd()) {
       return factory.tuplePattern();
     }
@@ -42,15 +42,21 @@ public class PatternUtils {
       return factory.refPattern(ref, null);
     }
 
-    List<ConcretePattern> subpatterns = toConcrete(pattern.getSubPatterns(), renamer, factory, bindings);
+    List<ConcretePattern> subpatterns = toConcrete(pattern.getSubPatterns(), renamer, factory, bindings, pattern.getParameters());
     CoreDefinition def = pattern.getConstructor();
     return def == null ? factory.tuplePattern(subpatterns) : factory.conPattern(def.getRef(), subpatterns);
   }
 
-  public static List<ConcretePattern> toConcrete(Collection<? extends CorePattern> patterns, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  public static ConcretePattern toConcrete(CorePattern pattern, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings, boolean isExplicit) {
+    ConcretePattern result = toConcrete(pattern, renamer, factory, bindings);
+    return isExplicit ? result : result.implicit();
+  }
+
+  public static List<ConcretePattern> toConcrete(Collection<? extends CorePattern> patterns, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings, CoreParameter parameters) {
     List<ConcretePattern> result = new ArrayList<>(patterns.size());
     for (CorePattern pattern : patterns) {
-      result.add(toConcrete(pattern, renamer, factory, bindings));
+      result.add(toConcrete(pattern, renamer, factory, bindings, parameters == null || !parameters.hasNext() || parameters.isExplicit()));
+      if (parameters != null && parameters.hasNext()) parameters = parameters.getNext();
     }
     return result;
   }
@@ -212,7 +218,7 @@ public class PatternUtils {
 
   // patterns[i] == null iff removedArgs[i] != null.
   // Moreover, if these equivalent conditions hold, then body.getClauses().get(j)[i].getBinding() != null for every j.
-  public static CoreExpression eval(CoreElimBody body, CoreLevel pLevel, CoreLevel hLevel, List<? extends CorePattern> patterns, List<? extends TypedExpression> removedArgs, ExpressionTypechecker typechecker, StdExtension ext, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
+  public static CoreExpression eval(CoreElimBody body, LevelSubstitution levelSubst, List<? extends CorePattern> patterns, List<? extends TypedExpression> removedArgs, ExpressionTypechecker typechecker, StdExtension ext, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings) {
     loop:
     for (CoreElimClause clause : body.getClauses()) {
       Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
@@ -243,7 +249,7 @@ public class PatternUtils {
           TypedExpression removed = removedMap.get(param.getBinding());
           args.add(removed != null ? factory.core(removed) : toExpression(subst1.get(param.getBinding()), ext, factory, bindings));
         }
-        return (CoreExpression) typechecker.substituteAbstractedExpression(expr, pLevel, hLevel, args);
+        return (CoreExpression) typechecker.substituteAbstractedExpression(expr, levelSubst, args);
       }
     }
     return null;
