@@ -49,6 +49,7 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Paths")              public CoreFunctionDefinition Jl;
   @Dependency(module = "Paths")              public CoreFunctionDefinition pathOver;
   @Dependency(module = "Paths")              public CoreFunctionDefinition pathInProp;
+  @Dependency(module = "Paths")              public CoreFunctionDefinition pmap;
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
