@@ -182,7 +182,8 @@ public class StdExtension implements ArendExtension {
     contributor.declare(paths, new LongName("rewriteEq"),
             "`rewriteEq (p : a = b) t : T` is similar to {rewrite}, but it finds and replaces occurrences of `a` up to algebraic equivalences.\n" +
                     "For example, `rewriteEq (p : b * (c * id) = x) t : T` rewrites `(a * b) * (id * c)` as `a * x` in `T`. \n" +
-                    "Similarly to `rewrite` this meta allows specification of occurrence numbers.",
+                    "Similarly to `rewrite` this meta allows specification of occurrence numbers. \n" +
+                    "Currently this meta supports noncommutative monoids and categories.",
             Precedence.DEFAULT, new RewriteMeta(this, false, true, true));
     contributor.declare(paths, new LongName("simp_coe"),
       "Simplifies certain equalities. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
