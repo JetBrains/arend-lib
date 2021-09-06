@@ -169,7 +169,7 @@ public class StdExtension implements ArendExtension {
     contributor.declare(paths, new LongName("rewrite"),
         "`rewrite (p : a = b) t : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transportInv (\\lam x => T[x/a]) p t`\n\n" +
         "If the expected type is unknown, {rewrite} works like {rewriteF}.\n" +
-        "`rewrite {i_1, ... i_k} p t` replaces only occurrences with indices `i_1`, ... `i_k`.\n" +
+        "`rewrite {i_1, ... i_k} p t` replaces only occurrences with indices `i_1`, ... `i_k`. Here `i_j` is the number of occurrence after replacing all the previous occurrences. \n" +
         "Also, `p` may be a function, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`.\n" +
         "`rewrite (p_1, ... p_n) t` is equivalent to `rewrite p_1 (... rewrite p_n t ...)`",
         Precedence.DEFAULT, new RewriteMeta(this, false, true, false));
@@ -180,7 +180,9 @@ public class StdExtension implements ArendExtension {
         "`rewriteF (p : a = b) e` is similar to {rewrite}, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
         Precedence.DEFAULT, new RewriteMeta(this, true, false, false));
     contributor.declare(paths, new LongName("rewriteEq"),
-            "`rewriteEq (p : a = b) t : T` is similar to {rewrite}, but it replaces occurrences of expressions equal to `a`, not just `a`",
+            "`rewriteEq (p : a = b) t : T` is similar to {rewrite}, but it finds and replaces occurrences of `a` up to algebraic equivalences.\n" +
+                    "For example, `rewriteEq (p : b * (c * id) = x) t : T` rewrites `(a * b) * (id * c)` as `a * x` in `T`. \n" +
+                    "Similarly to `rewrite` this meta allows specification of occurrence numbers.",
             Precedence.DEFAULT, new RewriteMeta(this, false, true, true));
     contributor.declare(paths, new LongName("simp_coe"),
       "Simplifies certain equalities. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
