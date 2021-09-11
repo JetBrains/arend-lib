@@ -44,6 +44,11 @@ public class ArendPattern implements CorePattern {
   }
 
   @Override
+  public @Nullable CoreParameter getParameters() {
+    return parameters;
+  }
+
+  @Override
   public @NotNull List<? extends CorePattern> getSubPatterns() {
     return subPatterns == null ? Collections.emptyList() : subPatterns;
   }

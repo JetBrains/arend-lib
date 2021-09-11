@@ -38,7 +38,7 @@ public class UnfoldLetMeta extends BaseMetaDefinition {
       if (arg == null) {
         return null;
       }
-      return arg.replaceType(arg.getType().unfold(Collections.emptySet(), null, true, false));
+      return arg.replaceType(arg.getType().normalize(NormalizationMode.RNF).unfold(Collections.emptySet(), null, true, false));
     }
   }
 }

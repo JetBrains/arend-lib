@@ -230,6 +230,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
     boolean abstracted = false;
     Set<CoreClassField> fieldsToCheck = new HashSet<>();
     for (Map.Entry<? extends CoreClassField, ? extends CoreExpression> entry : expr.getImplementations()) {
+      if (entry.getKey().isProperty()) continue;
       CoreExpression otherImpl = other.getAbsImplementationHere(entry.getKey());
       if (otherImpl == null) {
         return visit(expr, param);

@@ -267,7 +267,7 @@ public class Utils {
 
   public static Boolean isArrayEmpty(CoreExpression type, StdExtension ext) {
     type = type.normalize(NormalizationMode.WHNF);
-    if (!(type instanceof CoreClassCallExpression && ((CoreClassCallExpression) type).getDefinition() == ext.prelude.getArray())) return null;
+    if (!(type instanceof CoreClassCallExpression && ((CoreClassCallExpression) type).getDefinition() == ext.prelude.getDArray())) return null;
     CoreExpression length = ((CoreClassCallExpression) type).getAbsImplementationHere(ext.prelude.getArrayLength());
     if (length == null) return null;
     length = length.normalize(NormalizationMode.WHNF);

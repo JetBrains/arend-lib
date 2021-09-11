@@ -329,6 +329,11 @@ public class TransitivitySolver implements EquationSolver {
   }
 
   @Override
+  public SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences) {
+    return null;
+  }
+
+  @Override
   public TypedExpression finalize(ConcreteExpression result) {
     return typechecker.typecheck(result, null);
   }

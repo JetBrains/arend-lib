@@ -1,10 +1,11 @@
 package org.arend.lib.meta.util;
 
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.expr.CoreExpression;
-import org.arend.ext.core.level.CoreLevel;
+import org.arend.ext.core.level.LevelSubstitution;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ContextData;
@@ -17,22 +18,30 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 public class SubstitutionMeta implements MetaDefinition {
   private final CoreExpression expression;
-  private final CoreLevel pLevel;
-  private final CoreLevel hLevel;
+  private final LevelSubstitution levelSubst;
   private final List<SubstitutionPair> substitution;
+  private final Function<CoreExpression, ConcreteExpression> operationOnExpr;
 
-  public SubstitutionMeta(CoreExpression expression, CoreLevel pLevel, CoreLevel hLevel, List<SubstitutionPair> substitution) {
+  public SubstitutionMeta(CoreExpression expression, LevelSubstitution levelSubst, List<SubstitutionPair> substitution) {
     this.expression = expression;
-    this.pLevel = pLevel;
-    this.hLevel = hLevel;
+    this.levelSubst = levelSubst;
     this.substitution = new ArrayList<>(substitution);
+    this.operationOnExpr = null;
+  }
+
+  public SubstitutionMeta(CoreExpression expression, LevelSubstitution levelSubst, List<SubstitutionPair> substitution, Function<CoreExpression, ConcreteExpression> operationOnExpr) {
+    this.expression = expression;
+    this.levelSubst = levelSubst;
+    this.substitution = new ArrayList<>(substitution);
+    this.operationOnExpr = operationOnExpr;
   }
 
   public SubstitutionMeta(CoreExpression expression, List<SubstitutionPair> substitution) {
-    this(expression, null, null, substitution);
+    this(expression, LevelSubstitution.EMPTY, substitution);
   }
 
   public SubstitutionMeta(CoreExpression expression, CoreBinding binding, ConcreteExpression expr) {
@@ -44,9 +53,24 @@ public class SubstitutionMeta implements MetaDefinition {
     return factory.lam(Collections.singletonList(factory.param(ref)), factory.meta("substitution_meta", new SubstitutionMeta(expr, binding, factory.ref(ref))));
   }
 
+  public static ConcreteExpression makeLambda(CoreExpression expr, List<CoreBinding> coreBindings, ConcreteFactory factory, Function<CoreExpression, ConcreteExpression> operationOnExpr) {
+    List<SubstitutionPair> subst = new ArrayList<>();
+    List<ConcreteParameter> paramList = new ArrayList<>();
+    for (int v = 0; v < coreBindings.size(); ++v) {
+      ArendRef ref = factory.local("x" + v);
+      subst.add(new SubstitutionPair(coreBindings.get(v), factory.ref(ref)));
+      paramList.add(factory.param(ref));
+    }
+    return factory.lam(paramList, factory.meta("substitution_meta", new SubstitutionMeta(expr, LevelSubstitution.EMPTY, subst, operationOnExpr)));
+  }
+
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    CoreExpression result = typechecker.substitute(expression, pLevel, hLevel, substitution);
-    return result == null ? null : result.computeTyped();
+    CoreExpression result = typechecker.substitute(expression, levelSubst, substitution);
+    if (result == null) return null;
+    if (operationOnExpr == null) {
+      return result.computeTyped();
+    }
+    return typechecker.typecheck(operationOnExpr.apply(result), null);
   }
 }

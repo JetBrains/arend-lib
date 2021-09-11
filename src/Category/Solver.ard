@@ -1,0 +1,56 @@
+\import Category
+\import Function.Meta
+\import Paths
+\import Paths.Meta
+
+\data CatTerm {V : \Type} (a b : V) (H : V -> V -> \Type)
+  | var (H a b)
+  | :id (a = b)
+  | :o (c : V) (CatTerm c b H) (CatTerm a c H)
+
+\data CatNF {V : \Type} (a b : V) (H : V -> V -> \Type)
+  | :nil (a = b)
+  | \infixl 7 :cons {c : V} (H c b) (CatNF a c H)
+
+\func normalize {V : \Type} {a b : V} {H : V -> V -> \Type} (t : CatTerm a b H) : CatNF a b H
+  => aux t (:nil idp)
+  \where
+    \func aux {V : \Type} {a b c : V} {H : V -> V -> \Type} (t : CatTerm b c H) (acc : CatNF a b H) : CatNF a c H \elim t
+      | var h => h :cons acc
+      | :id idp => acc
+      | :o _ t s => aux t (aux s acc)
+
+\class HData \noclassifying {C : Precat} {V : \Set} (f : V -> C) (H : V -> V -> \Set) (g : \Pi {x y : V} -> H x y -> Hom (f x) (f y)) {
+  \func interpret {a b : V} (t : CatTerm a b H) : Hom (f a) (f b) \elim t
+    | var h => g h
+    | :id idp => id (f a)
+    | :o _ t s => interpret t ∘ interpret s
+
+  \func interpretNF {a b : V} (t : CatNF a b H) : Hom (f a) (f b) \elim t
+    | :nil idp => id (f a)
+    | :cons h (:nil idp) => g h
+    | :cons h t => g h ∘ interpretNF t
+    \where
+      \lemma cons {a b c : V} (h : H b c) (l : CatNF a b H) : interpretNF (h :cons l) = g h ∘ interpretNF l \elim l
+        | :nil idp => inv id-right
+        | :cons a l => idp
+
+  \func \infixr 5 :++ {a b c : V} (h : CatNF b c H) (h' : CatNF a b H) : CatNF a c H \elim h
+    | :nil idp => h'
+    | :cons h t => h :cons (t :++ h')
+
+  \lemma interpretNF_++ {a b c : V} (h : CatNF b c H) (h' : CatNF a b H) : interpretNF (h :++ h') = interpretNF h ∘ interpretNF h' \elim h
+    | :nil idp => inv id-left
+    | :cons h t => repeat {2} (rewrite interpretNF.cons) $ rewrite interpretNF_++ (inv o-assoc)
+
+  \lemma normalize-consistent {a b : V} (t : CatTerm a b H) : interpret t = interpretNF (normalize t)
+    => inv id-right *> aux t (:nil idp)
+    \where
+      \lemma aux {a b c : V} (t : CatTerm b c H) (acc : CatNF a b H) : interpret t ∘ interpretNF acc = interpretNF (normalize.aux t acc) \elim t
+        | var h => inv (interpretNF.cons h acc)
+        | :id idp => id-left
+        | :o _ t s => o-assoc *> pmap (interpret t ∘) (aux s acc) *> aux t (normalize.aux s acc)
+
+  \lemma terms-equality {a b : V} (t s : CatTerm a b H) (p : interpretNF (normalize t) = interpretNF (normalize s)) : interpret t = interpret s
+    => normalize-consistent t *> p *> inv (normalize-consistent s)
+}

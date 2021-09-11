@@ -7,12 +7,14 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
+import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.util.Maybe;
 import org.arend.lib.util.Values;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -101,6 +103,26 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     return true;
   }
 
+  /*
+  @Override
+  public void useDataFromOtherSolver(@NotNull EquationSolver solver) {
+    if (solver instanceof BaseEqualitySolver) {
+
+    }
+  } /**/
+
+  @Override
+  public SubexprOccurrences matchSubexpr(@NotNull TypedExpression subExpr, @NotNull TypedExpression expr, @NotNull ErrorReporter errorReporter, List<Integer> occurrences) {
+    var eqProof = solve(null, expr, subExpr, errorReporter);
+    var occurrence = occurrences == null ? 0 : occurrences.get(0);
+
+    if (occurrence != 0 || eqProof == null) {
+      return new SubexprOccurrences(null, null, null, null, 0, eqProof == null ? 0 : 1);
+    }
+
+    return SubexprOccurrences.simpleSingletonOccur(factory, subExpr.getType(), eqProof);
+  }
+
   public boolean getUseHypotheses() { return useHypotheses; }
 
   public void setUseHypotheses(boolean useHypotheses) { this.useHypotheses = useHypotheses; }
@@ -112,6 +134,21 @@ public abstract class BaseEqualitySolver implements EquationSolver {
 
   protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
     return null;
+  }
+
+  protected ConcreteExpression makeFin(int n) {
+    return factory.app(factory.ref(meta.ext.prelude.getFin().getRef()), true, factory.number(n));
+  }
+
+  protected ConcreteExpression makeLambda(Values<CoreExpression> values) {
+    ArendRef lamParam = factory.local("j");
+    List<CoreExpression> valueList = values.getValues();
+    ConcreteClause[] caseClauses = new ConcreteClause[valueList.size()];
+    for (int i = 0; i < valueList.size(); i++) {
+      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(valueList.get(i).computeTyped()));
+    }
+    return factory.lam(singletonList(factory.param(singletonList(lamParam), makeFin(valueList.size()))),
+      factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
   }
 
   @Override
