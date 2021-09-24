@@ -214,7 +214,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     boolean isInverse = ((ConcreteReferenceExpression)transport).getReferent() == ext.transportInv.getRef();
 
     for (int i = 0; i < eqProofs.size(); ++i) {
-      assert curType instanceof CoreLamExpression;
+      if (!(curType instanceof CoreLamExpression)) return null;
       var body = ((CoreLamExpression)(curType)).getBody();
       var param = ((CoreLamExpression)(curType)).getParameters();
       int finalI = i;
