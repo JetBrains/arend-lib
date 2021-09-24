@@ -147,7 +147,7 @@ public class RewriteMeta extends BaseMetaDefinition {
             ok = ((CoreDefCallExpression)subExprTypeFixed).getDefinition() == ((CoreDefCallExpression)expressionTypeFixed).getDefinition();
           }
         } else {
-          ok = typechecker.compare(subExprTypeFixed, expressionTypeFixed, CMP.LE, refExpr, false, true);
+          ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true);
         } /**/
         if (ok) {
           ok = typechecker.compare(subExpr, expression, CMP.EQ, refExpr, false, true);
@@ -238,56 +238,6 @@ public class RewriteMeta extends BaseMetaDefinition {
               .build();
       curType = body;
     }
-
-    /*
-    if (curType == null) return null;
-
-    for (int i = 0; i < eqProofs.size(); ++i) {
-      if (!(curType instanceof ConcreteLamExpression)) {
-        return null;
-      }
-      var body = ((ConcreteLamExpression)(curType)).getBody();
-      var param = ((ConcreteLamExpression)(curType)).getParameters();
-      var newType = curType;
-      var typeAppLeft = body; //factory.core(body.computeTyped());
-      for (int j = i; j < eqProofs.size(); ++j) {
-        //var checkedEqProof = typechecker.typecheck(eqProofs.get(j), null);
-       // if (checkedEqProof == null) return null;
-       // var equality = checkedEqProof.getType().toEquality();
-       // if (equality == null) return null;
-        var left = eqProofs.get(j).left; //equality.getDefCallArguments().get(1).normalize(NormalizationMode.NF);
-        var right = eqProofs.get(j).right; //equality.getDefCallArguments().get(2).normalize(NormalizationMode.NF);
-        if (isInverse) {
-          var tmp = left;
-          left = right;
-          right = tmp;
-        }
-        if (j == i) {
-          newType = factory.appBuilder(newType).app(right).build();
-                  //typechecker.typecheck(factory.appBuilder(factory.core(newType)).app(factory.core(right.computeTyped())).build(), null);
-          // if (newType == null) return null;
-        } else {
-          typeAppLeft = factory.appBuilder(typeAppLeft).app(left).build();
-                  //factory.appBuilder(typeAppLeft).app(factory.core(left.computeTyped())).build();
-        }
-      }
-      //var transportTypeBody = typechecker.typecheck(typeAppLeft, null);
-      //if (transportTypeBody == null) return null;
-      var transportType = factory.lam(param, typeAppLeft);
-              //typechecker.typecheck(SubstitutionMeta.makeLambda(transportTypeBody.getExpression(), param.getBinding(), factory), null);
-      // if (transportType == null) return null;
-
-      result = factory.appBuilder(transport)
-              //.app(factory.core(transportType))
-              .app(transportType)
-              .app(eqProofs.get(i).proof)
-              .app(result)
-              .build();
-
-      curType = newType;
-    }
-
-     */
 
     return result;
   }
@@ -472,7 +422,7 @@ public class RewriteMeta extends BaseMetaDefinition {
 
     var checkedLam = typechecker.typecheck(lam, null);
 
-    if (checkedLam == null) {
+    if (checkedLam == null || checkedLam instanceof CoreErrorExpression) {
       return null;
     }
 
