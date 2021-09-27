@@ -188,6 +188,25 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
     return args.size() == conCall1.getDataTypeArguments().size() + conCall1.getDefCallArguments().size() ? new Result(abstracted ? factory.app(factory.ref(conCall1.getDefinition().getRef()), args) : null) : null;
   }
 
+  @Override
+  public Result visitPath(@NotNull CorePathExpression expr, ParamType param) {
+    CoreExpression other = param.other.getUnderlyingExpression();
+    if (!(other instanceof CorePathExpression)) {
+      return visit(expr, param);
+    }
+
+    CorePathExpression path2 = (CorePathExpression) other;
+    if (expr.getArgumentType() != null && path2.getArgumentType() != null) {
+      Result arg = expr.getArgumentType().accept(this, new ParamType(() -> new Result(null), path2.getArgumentType()));
+      if (arg == null) return null;
+      Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CorePathExpression) other).getArgument()));
+      return result == null ? null : new Result(arg.expression == null || result.expression == null ? null : factory.path(result.expression));
+    } else {
+      Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CorePathExpression) other).getArgument()));
+      return result == null || result.expression == null ? result : new Result(factory.path(result.expression));
+    }
+  }
+
   private Result visitDefCall(@NotNull CoreDefCallExpression defCall1, ParamType param) {
     CoreExpression other = param.other.getUnderlyingExpression();
     if (!(other instanceof CoreDefCallExpression)) {

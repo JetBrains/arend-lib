@@ -144,7 +144,7 @@ public class ExtMeta extends BaseMetaDefinition {
     }
 
     private ConcreteExpression applyPath(ArendRef iRef, ConcreteExpression expr) {
-      return factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), expr)));
+      return factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), expr)));
     }
 
     private TypedExpression checkGoals(TypedExpression typed) {
@@ -463,7 +463,7 @@ public class ExtMeta extends BaseMetaDefinition {
               lamParams.add(factory.param(subtree.parameter.isExplicit(), ref));
               args.add(factory.arg(factory.ref(ref), subtree.parameter.isExplicit()));
             }
-            sigmaRefExpr = factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(lamParams, applyAt(factory.app(sigmaRefExpr, args), iRef))));
+            sigmaRefExpr = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(lamParams, applyAt(factory.app(sigmaRefExpr, args), iRef))));
           }
 
           sigmaRefs.put(paramBinding, new PathExpression(sigmaRefExpr));
@@ -592,7 +592,7 @@ public class ExtMeta extends BaseMetaDefinition {
                   args.add(factory.arg(factory.ref(ref), subtree.parameter.isExplicit()));
                 }
                 fieldWithAt = factory.lam(lamParams.subList(1, lamParams.size()), applyAt(factory.app(proj, args), this.iRef));
-                proj = factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(lamParams, applyAt(factory.app(proj, args), iRef))));
+                proj = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(lamParams, applyAt(factory.app(proj, args), iRef))));
               } else {
                 if (!(coreLeft instanceof CoreReferenceExpression)) {
                   ArendRef projRef = factory.local("l");
@@ -771,7 +771,7 @@ public class ExtMeta extends BaseMetaDefinition {
     }
 
     ArendRef iRef = factory.local("i");
-    return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.meta("ext_result", new MetaDefinition() {
+    return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.meta("ext_result", new MetaDefinition() {
       @Override
       public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
         ExtGenerator generator = new ExtGenerator(typechecker, factory, marker, iRef);
