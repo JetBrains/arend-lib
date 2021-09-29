@@ -141,9 +141,9 @@ public class StdLevelProver implements LevelProver {
                   if (expr == null) {
                     return null;
                   }
-                  args.add(factory.arg(factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(expr, iExpr)), conParam.isExplicit()));
+                  args.add(factory.arg(factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(expr, iExpr)), conParam.isExplicit()));
                 }
-                result = factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(def1.getRef()), args))));
+                result = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(def1.getRef()), args))));
               } else {
                 result = factory.ref(ext.prelude.getIdp().getRef());
               }
