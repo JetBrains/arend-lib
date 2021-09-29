@@ -84,7 +84,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
             ? factory.app(factory.ref(prelude.getPath().getRef()), true, Arrays.asList(typeArg.expression, arg1, arg2))
             : factory.app(factory.ref(prelude.getEquality().getRef()), true, Arrays.asList(arg1, arg2)));
         }
-        return new Result(factory.app(factory.ref(prelude.getAt().getRef()), true, Arrays.asList(arg, iRef)));
+        return new Result(factory.app(factory.ref(prelude.getAtRef()), true, Arrays.asList(arg, iRef)));
       }
     }
   }
@@ -202,9 +202,22 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
       Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CorePathExpression) other).getArgument()));
       return result == null ? null : new Result(arg.expression == null || result.expression == null ? null : factory.path(result.expression));
     } else {
-      Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CorePathExpression) other).getArgument()));
+      Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), path2.getArgument()));
       return result == null || result.expression == null ? result : new Result(factory.path(result.expression));
     }
+  }
+
+  @Override
+  public Result visitAt(@NotNull CoreAtExpression expr, ParamType param) {
+    CoreExpression other = param.other.getUnderlyingExpression();
+    if (!(other instanceof CoreAtExpression)) {
+      return visit(expr, param);
+    }
+    CoreAtExpression atExpr2 = (CoreAtExpression) other;
+    Result pathArg = expr.getPathArgument().accept(this, new ParamType(() -> new Result(null), atExpr2.getPathArgument()));
+    if (pathArg == null) return null;
+    Result intervalArg = expr.getIntervalArgument().accept(this, new ParamType(() -> new Result(null), atExpr2.getIntervalArgument()));
+    return intervalArg == null ? null : new Result(pathArg.expression == null || intervalArg.expression == null ? null : factory.at(pathArg.expression, intervalArg.expression));
   }
 
   private Result visitDefCall(@NotNull CoreDefCallExpression defCall1, ParamType param) {

@@ -136,7 +136,7 @@ public class ExtMeta extends BaseMetaDefinition {
     }
 
     private ConcreteExpression applyAt(ConcreteExpression arg, ArendRef iRef) {
-      return factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(arg, factory.ref(iRef)));
+      return factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(arg, factory.ref(iRef)));
     }
 
     private ConcreteExpression applyAt(ConcreteExpression arg) {

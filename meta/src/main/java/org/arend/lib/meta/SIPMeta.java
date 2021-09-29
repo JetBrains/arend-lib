@@ -138,13 +138,13 @@ public class SIPMeta extends BaseMetaDefinition {
     ConcreteExpression eInv = factory.app(factory.ref(isoInv.getRef()), false, Collections.singletonList(factory.ref(isoRef)));
     ConcreteExpression eFuncInv = factory.app(factory.ref(isoFuncInv.getRef()), false, Collections.singletonList(factory.ref(isoRef)));
     ConcreteExpression eInvFunc = factory.app(factory.ref(isoInvFunc.getRef()), false, Collections.singletonList(factory.ref(isoRef)));
-    ConcreteExpression eFuncInvPath = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(homFunc.getRef()), false, Collections.singletonList(factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(eFuncInv, factory.ref(iRef))))))));
-    ConcreteExpression eInvFuncPath = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(homFunc.getRef()), false, Collections.singletonList(factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(eInvFunc, factory.ref(iRef))))))));
+    ConcreteExpression eFuncInvPath = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(homFunc.getRef()), false, Collections.singletonList(factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(eFuncInv, factory.ref(iRef))))))));
+    ConcreteExpression eInvFuncPath = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(homFunc.getRef()), false, Collections.singletonList(factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(eInvFunc, factory.ref(iRef))))))));
 
     List<ConcreteClassElement> obFields = new ArrayList<>();
     for (CoreClassField field : ((CoreClassCallExpression) ob).getDefinition().getFields()) {
       if (!((CoreClassCallExpression) ob).isImplemented(field)) {
-        ConcreteExpression arg = factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(factory.proj(factory.ref(sipRef), field == homFunc ? 0 : 1), factory.ref(iRef)));
+        ConcreteExpression arg = factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(factory.proj(factory.ref(sipRef), field == homFunc ? 0 : 1), factory.ref(iRef)));
         obFields.add(factory.implementation(field.getRef(), field == homFunc ? arg : factory.app(factory.ref(field.getRef()), false, Collections.singletonList(arg))));
       }
     }
@@ -174,7 +174,7 @@ public class SIPMeta extends BaseMetaDefinition {
               .app(factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(transportRef)), factory.app(factory.core(homTyped), true, Arrays.asList(eDom, factory.ref(transportRef)))), factory.ref(jRef2), factory.app(factory.core(idTyped), true, Collections.singletonList(eDom)))), false)
               .app(factory.ref(extRef))
               .build(),
-            factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(ext.prelude.getAt().getRef()), true, Arrays.asList(factory.ref(jRef2), factory.ref(iRef)))), factory.ref(extRef), factory.ref(ext.prelude.getRight().getRef())))))))
+            factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(factory.ref(jRef2), factory.ref(iRef)))), factory.ref(extRef), factory.ref(ext.prelude.getRight().getRef())))))))
           .app(factory.ref(ext.prelude.getIdp().getRef()))
           .app(factory.ref(pathRef))
           .build(),
