@@ -51,6 +51,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   CoreConstructor mulMTerm;
 
   @Dependency(module = "Category", name = "Precat.o")      CoreClassField catMul;
+  @Dependency(module = "Category", name = "Precat.Hom")      public CoreClassField catHom;
 
   @Dependency(module = "Category.Solver", name = "CatTerm.var")           CoreConstructor varCTerm;
   @Dependency(module = "Category.Solver", name = "CatTerm.:id")           CoreConstructor idCTerm;

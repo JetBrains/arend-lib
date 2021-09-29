@@ -132,23 +132,27 @@ public class RewriteMeta extends BaseMetaDefinition {
         }
         exactMatch = true;
       } else {
-        var subExprTypeFixed = subExprType;
-        var expressionTypeFixed = expression.computeType();
-        while (subExprTypeFixed instanceof CoreAppExpression) {
-          subExprTypeFixed = ((CoreAppExpression)subExprTypeFixed).getFunction();
-        }
-        while (expressionTypeFixed instanceof CoreAppExpression) {
-          expressionTypeFixed = ((CoreAppExpression)expressionTypeFixed).getFunction();
-        }
-        if (subExprTypeFixed instanceof CoreDefCallExpression) {
-          if (!(expressionTypeFixed instanceof CoreDefCallExpression)) {
-            ok = false;
-          } else {
-            ok = ((CoreDefCallExpression)subExprTypeFixed).getDefinition() == ((CoreDefCallExpression)expressionTypeFixed).getDefinition();
+        if (useEqSolver) {
+          var subExprTypeFixed = subExprType;
+          var expressionTypeFixed = expression.computeType();
+          while (subExprTypeFixed instanceof CoreAppExpression) {
+            subExprTypeFixed = ((CoreAppExpression) subExprTypeFixed).getFunction();
           }
+          while (expressionTypeFixed instanceof CoreAppExpression) {
+            expressionTypeFixed = ((CoreAppExpression) expressionTypeFixed).getFunction();
+          }
+          if (subExprTypeFixed instanceof CoreDefCallExpression && ((CoreDefCallExpression) subExprTypeFixed).getDefinition() == ext.equationMeta.catHom) {
+            if (!(expressionTypeFixed instanceof CoreDefCallExpression)) {
+              ok = false;
+            } else {
+              ok = ((CoreDefCallExpression) subExprTypeFixed).getDefinition() == ((CoreDefCallExpression) expressionTypeFixed).getDefinition();
+            }
+          } else {
+            ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true);
+          } /**/
         } else {
           ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true);
-        } /**/
+        }
         if (ok) {
           ok = typechecker.compare(subExpr, expression, CMP.EQ, refExpr, false, true);
           if (!ok) {
