@@ -46,7 +46,11 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
     List<ConcreteParameter> parameters = new ArrayList<>();
     for (ConcreteArgument argument : arguments) {
       if (argument.isExplicit()) {
-        parameters.add(Utils.expressionToParameter(argument.getExpression(), resolver, factory));
+        ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, factory);
+        if (param == null) {
+          return null;
+        }
+        parameters.add(param);
       } else {
         List<ArendRef> refs = Utils.getRefs(argument.getExpression(), resolver);
         if (refs == null) {
