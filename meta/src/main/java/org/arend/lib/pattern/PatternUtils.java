@@ -18,9 +18,9 @@ import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
+import org.arend.ext.util.Pair;
 import org.arend.ext.variable.VariableRenamerFactory;
 import org.arend.lib.StdExtension;
-import org.arend.lib.util.Pair;
 
 import java.util.*;
 
@@ -249,7 +249,7 @@ public class PatternUtils {
           TypedExpression removed = removedMap.get(param.getBinding());
           args.add(removed != null ? factory.core(removed) : toExpression(subst1.get(param.getBinding()), ext, factory, bindings));
         }
-        return (CoreExpression) typechecker.substituteAbstractedExpression(expr, levelSubst, args);
+        return (CoreExpression) typechecker.substituteAbstractedExpression(expr, levelSubst, args, null);
       }
     }
     return null;

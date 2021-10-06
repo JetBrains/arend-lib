@@ -1,6 +1,6 @@
 package org.arend.lib.util.algorithms;
 
-import org.arend.lib.util.Pair;
+import org.arend.ext.util.Pair;
 import org.arend.lib.util.algorithms.idealmem.IdealMembership;
 import org.arend.lib.util.algorithms.polynomials.Monomial;
 import org.arend.lib.util.algorithms.polynomials.Poly;

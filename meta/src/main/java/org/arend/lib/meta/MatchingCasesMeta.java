@@ -18,12 +18,12 @@ import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
+import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.meta.util.ReplaceSubexpressionsMeta;
 import org.arend.lib.meta.util.SubstitutionMeta;
 import org.arend.lib.pattern.ArendPattern;
-import org.arend.lib.util.Pair;
 import org.arend.lib.pattern.PatternUtils;
 import org.arend.lib.util.Utils;
 import org.arend.lib.util.Values;
@@ -321,7 +321,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                   matched.add(param.getBinding());
                   CoreFunCallExpression funCall = param.getTypeExpr().toEquality(); // try to take the type immediately
                   if (funCall == null) { // if it's not an equality, then this may be because we need to substitute patterns
-                    CoreExpression type = (CoreExpression) typechecker.substituteAbstractedExpression(parameters.abstractType(i), levelSubst, PatternUtils.toExpression(clause.getPatterns().subList(0, i), ext, factory, null));
+                    CoreExpression type = (CoreExpression) typechecker.substituteAbstractedExpression(parameters.abstractType(i), levelSubst, PatternUtils.toExpression(clause.getPatterns().subList(0, i), ext, factory, null), null);
                     funCall = type == null ? null : type.toEquality();
                     if (funCall != null) {
                       List<CoreBinding> patternBindings = new ArrayList<>(2);
@@ -948,7 +948,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           caseArgs.add(factory.caseArg(factory.core(typed), ref, factory.meta(name + "_" + (j + 1), new MetaDefinition() {
               @Override
               public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-                AbstractedExpression argType = typechecker.substituteAbstractedExpression(abstracted, levelSubst, refExprsCopy);
+                AbstractedExpression argType = typechecker.substituteAbstractedExpression(abstracted, levelSubst, refExprsCopy, null);
                 return argType == null ? null : ((CoreExpression) argType).computeTyped();
               }
             })
