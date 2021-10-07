@@ -8,6 +8,7 @@ import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Precedence;
+import org.arend.ext.util.Pair;
 
 import java.util.*;
 import java.util.function.BiFunction;

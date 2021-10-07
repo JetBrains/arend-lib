@@ -1,6 +1,6 @@
 package org.arend.lib.util.algorithms.polynomials;
 
-import org.arend.lib.util.Pair;
+import org.arend.ext.util.Pair;
 
 import java.util.ArrayList;
 import java.util.Collections;

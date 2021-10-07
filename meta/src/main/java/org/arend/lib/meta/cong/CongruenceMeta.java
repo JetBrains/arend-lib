@@ -46,9 +46,9 @@ public class CongruenceMeta extends BaseMetaDefinition {
     if (equality != null) {
       ArendRef iParam = factory.local("i");
       ConcreteExpression funcLam = factory.lam(Collections.singletonList(factory.param(iParam)), factory.core(equality.getDefCallArguments().get(0).computeTyped()));
-      return factory.app(factory.ref(prelude.getAt().getRef()), Arrays.asList(factory.arg(funcLam, false), factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
+      return factory.app(factory.ref(prelude.getAtRef()), Arrays.asList(factory.arg(funcLam, false), factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
     }
-    return factory.app(factory.ref(prelude.getAt().getRef()), Arrays.asList(factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
+    return factory.app(factory.ref(prelude.getAtRef()), Arrays.asList(factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
   }
 
   public static ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<CongruenceClosure.EqProofOrElement> eqProofs, ConcreteFactory factory, ArendPrelude prelude) {
@@ -61,9 +61,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
       eqProofsAtJ.add(factory.arg(appAt(typechecker, eqProofs.get(i), jParam, factory, prelude), true));
     }
 
-    ConcreteExpression congrLambda = factory.lam(Collections.singleton(factory.param(jParam)), factory.app(appAt(typechecker, eqProofs.get(0), jParam, factory, prelude), eqProofsAtJ));
-
-    return factory.appBuilder(factory.ref(prelude.getPathCon().getRef())).app(congrLambda).build();
+    return factory.app(factory.ref(prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singleton(factory.param(jParam)), factory.app(appAt(typechecker, eqProofs.get(0), jParam, factory, prelude), eqProofsAtJ))));
   }
 
   private TypedExpression mapMode(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
@@ -84,7 +82,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
       return null;
     }
 
-    return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), result.getExpression(args.get(1), factory)))), contextData.getExpectedType());
+    return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), result.getExpression(args.get(1), factory)))), contextData.getExpectedType());
   }
 
   @Override

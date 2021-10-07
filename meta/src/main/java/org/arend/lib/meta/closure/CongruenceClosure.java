@@ -7,7 +7,7 @@ import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.lib.util.Pair;
+import org.arend.ext.util.Pair;
 import org.arend.lib.util.Values;
 import org.jetbrains.annotations.Nullable;
 
