@@ -10,6 +10,7 @@ import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ArgumentExplicitnessError;
 import org.arend.ext.error.TypeMismatchError;
+import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
@@ -24,10 +25,14 @@ import java.util.*;
 
 public class ExistsMeta implements MetaResolver, MetaDefinition {
   private final StdExtension ext;
+  private final Kind kind;
 
-  public ExistsMeta(StdExtension ext) {
+  public ExistsMeta(StdExtension ext, Kind kind) {
     this.ext = ext;
+    this.kind = kind;
   }
+
+  public enum Kind { TRUNCATED, SIGMA, PI }
 
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
@@ -49,9 +54,38 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
       return factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(arguments.get(0).getExpression())));
     }
 
+    ConcreteExpression codomain = null;
     List<ConcreteParameter> parameters = new ArrayList<>();
-    for (ConcreteArgument argument : arguments) {
-      if (argument.isExplicit()) {
+    for (int i = 0; i < arguments.size(); i++) {
+      ConcreteArgument argument = arguments.get(i);
+      if (kind == Kind.PI) {
+        if (argument.getExpression() instanceof ConcreteTypedExpression) {
+          if (i == arguments.size() - 1) {
+            resolver.getErrorReporter().report(new TypecheckingError("Expected a type +  without variables", contextData.getMarker()));
+            return null;
+          }
+          ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, factory);
+          if (param == null) {
+            return null;
+          }
+          parameters.add(argument.isExplicit() ? param : param.implicit());
+        } else {
+          if (i == arguments.size() - 1) {
+            if (!argument.isExplicit()) {
+              resolver.getErrorReporter().report(new ArgumentExplicitnessError(true, argument.getExpression()));
+              return null;
+            }
+            codomain = argument.getExpression();
+          } else {
+            List<ArendRef> refs = Utils.getRefs(argument.getExpression(), resolver);
+            if (refs == null) {
+              return null;
+            }
+            ConcreteParameter param = factory.param(refs, factory.hole());
+            parameters.add(argument.isExplicit() ? param : param.implicit());
+          }
+        }
+      } else if (argument.isExplicit()) {
         ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, factory);
         if (param == null) {
           return null;
@@ -65,17 +99,20 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
         parameters.add(factory.param(refs, factory.hole()));
       }
     }
-    return factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(factory.sigma(parameters))));
+
+    return factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(codomain != null ? factory.pi(parameters, codomain) : factory.sigma(parameters))));
   }
 
   private class Processor {
     private final ConcreteFactory factory;
     private final List<ConcreteExpression> arguments = new ArrayList<>();
     private final List<ConcreteParameter> sigmaParams = new ArrayList<>();
+    private final ConcreteExpression codomain;
     private int arrayIndex = 0;
 
-    private Processor(ConcreteFactory factory) {
+    private Processor(ConcreteFactory factory, ConcreteExpression codomain) {
       this.factory = factory;
+      this.codomain = codomain;
     }
 
     private ConcreteExpression processParameters(List<? extends ConcreteParameter> parameters, int abstracted, ExpressionTypechecker typechecker) {
@@ -166,14 +203,15 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
         for (int i = 0; i < refs.size(); i++) {
           TypedExpression result = tc.typecheck(factory.app(factory.ref(ext.prelude.getArrayIndex().getRef()), true, Arrays.asList(factory.withData(cType.getData()).core(typedType), factory.ref(refs.get(i)))), null);
           if (result == null) return null;
-          list.add(new Pair<>(param.getRefList().get(i), result.makeEvaluatingBinding(param.getRefList().get(i).getRefName())));
+          ArendRef ref = param.getRefList().get(i);
+          list.add(new Pair<>(ref, result.makeEvaluatingBinding(ref != null ? ref.getRefName() : ext.renamerFactory.getNameFromType(result.getType(), null))));
         }
         return tc.withFreeBindings(new FreeBindingsModifier().addRef(list), tc2 -> processParameters(newParams, newAbstracted, tc2));
       });
     }
 
     private ConcreteExpression getResult() {
-      return factory.app(factory.ref(ext.TruncP.getRef()), true, factory.sigma(sigmaParams));
+      return codomain != null ? factory.pi(sigmaParams, codomain) : kind == Kind.TRUNCATED ? factory.app(factory.ref(ext.TruncP.getRef()), true, factory.sigma(sigmaParams)) : factory.sigma(sigmaParams);
     }
   }
 
@@ -181,7 +219,17 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ConcreteFactory factory = ext.factory.withData(contextData.getReferenceExpression().getData());
     ConcreteExpression arg = contextData.getArguments().get(0).getExpression();
-    ConcreteExpression result = new Processor(factory).processParameters(arg instanceof ConcreteSigmaExpression ? ((ConcreteSigmaExpression) arg).getParameters() : Collections.singletonList(factory.param(true, arg)), 0, typechecker);
+    List<? extends ConcreteParameter> params;
+    ConcreteExpression codomain = null;
+    if (arg instanceof ConcretePiExpression) {
+      params = ((ConcretePiExpression) arg).getParameters();
+      codomain = ((ConcretePiExpression) arg).getCodomain();
+    } else if (arg instanceof ConcreteSigmaExpression) {
+      params = ((ConcreteSigmaExpression) arg).getParameters();
+    } else {
+      params = Collections.singletonList(factory.param(true, arg));
+    }
+    ConcreteExpression result = new Processor(factory, codomain).processParameters(params, 0, typechecker);
     return result == null ? null : typechecker.typecheck(result, contextData.getExpectedType());
   }
 }

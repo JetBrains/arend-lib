@@ -240,9 +240,25 @@ public class StdExtension implements ArendExtension {
         "A proof of a contradiction can be explicitly specified as an implicit argument\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, contradictionMeta);
+    contributor.declare(logic, new LongName("Given"),
+      "Given constructs a \\Sigma-type:\n" +
+      "* `Given (x y z : A) B` is equivalent to `\\Sigma (x y z : A) B`.\n" +
+      "* `Given {x y z} B` is equivalent to `\\Sigma (x y z : _) B`\n" +
+      "* If `P : A -> B -> C -> \\Type`, then `Given ((x,y,z) (a,b,c) : P) (Q x y z a b c)` is equivalent to `\\Sigma (x a : A) (y b : B) (z c : C) (P x y z) (P a b c) (Q x y z a b c)`\n" +
+      "* If `l : Array A`, then `Given (x y : l) (P x y)` is equivalent to `\\Sigma (j j' : Fin l.len) (P (l j) (l j'))`",
+      Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.SIGMA));
     contributor.declare(logic, new LongName("Exists"),
-      "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
-      "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, new ExistsMeta(this));
+      "{Exists} is a truncated version of {Given}. That is, `Exists a b c` is equivalent to `TruncP (Given a b c)`",
+      Precedence.DEFAULT, "∃", Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.TRUNCATED));
+    contributor.declare(logic, new LongName("Forall"),
+      "{Forall} works like {Given}, but returns a \\Pi-type instead of a \\Sigma-type.\n" +
+      "The last argument should be a type and will be used as the codomain.\n" +
+      "Other arguments work like arguments of {Given} with the exception that curly braces mean implicit arguments:\n" +
+      "* `Forall (x y : A) B` is equivalent to `\\Pi (x y : A) -> B`\n" +
+      "* `Forall {x y : A} B` is equivalent to `\\Pi {x y : A} -> B`\n" +
+      "* `Forall x y B` is equivalent to `\\Pi (x : _) (y : _) -> B\n`" +
+      "* `Forall {x y} {z} B` is equivalent to `\\Pi {x y : _} {z : _} -> B`",
+      Precedence.DEFAULT, "∀", Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.PI));
     constructorMetaRef = contributor.declare(logic, new LongName("constructor"),
       "Returns either a tuple, a \\new expression, or a single constructor of a data type depending on the expected type",
       Precedence.DEFAULT, new ConstructorMeta(this, false));
