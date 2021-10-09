@@ -7,7 +7,6 @@ import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.*;
-import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ArgumentExplicitnessError;
 import org.arend.ext.error.TypeMismatchError;
 import org.arend.ext.error.TypecheckingError;
@@ -58,6 +57,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
     List<ConcreteParameter> parameters = new ArrayList<>();
     for (int i = 0; i < arguments.size(); i++) {
       ConcreteArgument argument = arguments.get(i);
+      ConcreteFactory argFactory = factory.withData(argument.getExpression().getData());
       if (kind == Kind.PI) {
         if (i == arguments.size() - 1) {
           if (!argument.isExplicit()) {
@@ -74,10 +74,10 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
             codomain = argument.getExpression();
           } else {
             if (argument.getExpression() instanceof ConcreteReferenceExpression) {
-              ConcreteParameter param = factory.param(Collections.singletonList(((ConcreteReferenceExpression) argument.getExpression()).getReferent()), factory.hole());
+              ConcreteParameter param = argFactory.param(Collections.singletonList(((ConcreteReferenceExpression) argument.getExpression()).getReferent()), argFactory.hole());
               parameters.add(argument.isExplicit() ? param : param.implicit());
             } else {
-              ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, factory);
+              ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory);
               if (param == null) {
                 return null;
               }
@@ -89,21 +89,21 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           if (refs == null) {
             return null;
           }
-          ConcreteParameter param = factory.param(refs, factory.hole());
+          ConcreteParameter param = argFactory.param(refs, argFactory.hole());
           parameters.add(argument.isExplicit() ? param : param.implicit());
         }
       } else if (argument.isExplicit()) {
-        ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, factory);
+        ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory);
         if (param == null) {
           return null;
         }
         parameters.add(param);
       } else {
-        List<ArendRef> refs = Utils.getRefs(argument.getExpression(), resolver);
+        List<ArendRef> refs = Utils.getTuplesOfRefs(argument.getExpression(), resolver);
         if (refs == null) {
           return null;
         }
-        parameters.add(factory.param(refs, factory.hole()));
+        parameters.add(argFactory.param(refs, argFactory.hole()));
       }
     }
 
@@ -128,7 +128,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
       ConcreteParameter param = parameters.get(0);
       ConcreteExpression cType = Objects.requireNonNull(param.getType());
       ConcreteExpression aType;
-      ConcreteExpression varType;
+      List<ConcreteParameter> varParams;
       TypedExpression typedType;
       CoreExpression type = null;
       if (cType instanceof ConcreteHoleExpression) {
@@ -157,48 +157,90 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
 
       List<ArendRef> refs;
       if (type instanceof CorePiExpression) {
-        CorePiExpression piType = (CorePiExpression) type;
-        CoreParameter piParam = piType.getParameters();
-        CoreExpression cod = piType.getCodomain().normalize(NormalizationMode.WHNF);
-        if (!(cod instanceof CoreUniverseExpression && !piParam.getNext().hasNext())) {
-          typechecker.getErrorReporter().report(new TypeMismatchError(DocFactory.text("_ -> \\Type"), piType, cType));
+        List<CoreParameter> piParams = new ArrayList<>();
+        CoreExpression cod = type.getPiParameters(piParams);
+        if (!(cod instanceof CoreUniverseExpression)) {
+          typechecker.getErrorReporter().report(new TypeMismatchError(DocFactory.text("_ -> \\Type"), type, cType));
           return null;
         }
         refs = null;
-        varType = factory.withData(cType.getData()).core(piParam.getTypedType());
         List<ArendRef> sigmaRefs = new ArrayList<>(param.getRefList().size());
-        for (ArendRef ref : param.getRefList()) {
-          sigmaRefs.add(ref != null ? ref : factory.local(ext.renamerFactory.getNameFromType(piParam.getTypeExpr(), null)));
+        List<? extends ArendRef> paramRefList = param.getRefList();
+        if (param.getRefList().isEmpty() || param.getRefList().size() == 1 && param.getRefList().get(0) == null) {
+          paramRefList = new ArrayList<>(piParams.size());
+          for (CoreParameter ignored : piParams) {
+            paramRefList.add(null);
+          }
         }
-        sigmaParams.add(factory.param(param.isExplicit(), sigmaRefs, varType));
-        for (ArendRef ref : sigmaRefs) {
-          sigmaParams.add(factory.param(true, factory.app(factory.withData(cType.getData()).core(typedType), piParam.isExplicit(), factory.ref(ref))));
+        int i = 0;
+        for (ArendRef ref : paramRefList) {
+          sigmaRefs.add(ref != null ? ref : factory.local(ext.renamerFactory.getNameFromType(piParams.get(i % piParams.size()).getTypeExpr(), null)));
+          i++;
+        }
+        if (sigmaRefs.size() % piParams.size() != 0) {
+          typechecker.getErrorReporter().report(new TypecheckingError("Expected (" + piParams.size() + " * n) parameters", param));
+          return null;
+        }
+
+        varParams = new ArrayList<>(piParams.size());
+        int j = 0;
+        for (CoreParameter piParam : piParams) {
+          List<ArendRef> curRef = new ArrayList<>();
+          for (i = j; i < sigmaRefs.size(); i += piParams.size()) {
+            curRef.add(sigmaRefs.get(i));
+          }
+          ConcreteParameter varParam = factory.param(param.isExplicit(), curRef, factory.withData(cType.getData()).core(piParam.getTypedType()));
+          sigmaParams.add(varParam);
+          varParams.add(varParam);
+          j++;
+        }
+        i = 0;
+        while (i < sigmaRefs.size()) {
+          List<ConcreteArgument> args = new ArrayList<>(piParams.size());
+          for (CoreParameter piParam : piParams) {
+            args.add(factory.arg(factory.ref(sigmaRefs.get(i++)), piParam.isExplicit()));
+          }
+          sigmaParams.add(factory.param(true, factory.app(factory.withData(cType.getData()).core(typedType), args)));
+        }
+
+        j = 0;
+        for (CoreParameter ignored : piParams) {
+          for (i = j; i < paramRefList.size(); i += piParams.size()) {
+            ArendRef ref = paramRefList.get(i);
+            arguments.add(ref == null ? null : factory.ref(ref));
+          }
+          j++;
         }
       } else if (type instanceof CoreClassCallExpression && ((CoreClassCallExpression) type).getDefinition() == ext.prelude.getDArray()) {
         TypedExpression typed = typechecker.typecheck(factory.app(factory.ref(ext.prelude.getFin().getRef()), true, Collections.singletonList(factory.app(factory.ref(ext.prelude.getArrayLength().getRef()), false, Collections.singletonList(aType)))), null);
         if (typed == null) return null;
-        varType = factory.core(typed);
         refs = new ArrayList<>(param.getRefList().size());
         for (ArendRef ignored : param.getRefList()) {
           refs.add(factory.local("j" + (arrayIndex == 0 ? "" : arrayIndex)));
           arrayIndex++;
         }
-        sigmaParams.add(factory.param(param.isExplicit(), refs, varType));
+        ConcreteParameter varParam = factory.withData(param.getData()).param(param.isExplicit(), refs, factory.core(typed));
+        varParams = Collections.singletonList(varParam);
+        sigmaParams.add(varParam);
+
+        for (ArendRef ref : refs) {
+          arguments.add(factory.ref(ref));
+        }
       } else {
         refs = null;
-        varType = factory.withData(cType.getData()).core(typedType);
+        varParams = Collections.singletonList(factory.withData(param.getData()).param(param.isExplicit(), param.getRefList(), factory.withData(cType.getData()).core(typedType)));
         sigmaParams.add(factory.param(param.isExplicit(), param.getRefList(), aType));
+
+        for (ArendRef ref : param.getRefList()) {
+          arguments.add(ref == null ? null : factory.ref(ref));
+        }
       }
 
       if (parameters.size() == 1) {
         return getResult();
       }
 
-      for (ArendRef ref : refs == null ? param.getRefList() : refs) {
-        arguments.add(ref == null ? null : factory.ref(ref));
-      }
-
-      return typechecker.withFreeBindings(new FreeBindingsModifier().addParams(factory.withData(param.getData()).param(param.isExplicit(), refs == null ? param.getRefList() : refs, varType)), tc -> {
+      return typechecker.withFreeBindings(new FreeBindingsModifier().addParams(varParams), tc -> {
         List<? extends ConcreteParameter> newParams = parameters.subList(1, parameters.size());
         int newAbstracted = abstracted + param.getNumberOfParameters();
         if (refs == null) {

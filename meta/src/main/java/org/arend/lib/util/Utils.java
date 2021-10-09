@@ -303,10 +303,56 @@ public class Utils {
     return result;
   }
 
+  private static boolean getTupleOfRefs(ConcreteExpression expr, ExpressionResolver resolver, List<ArendRef> refs) {
+    if (expr instanceof ConcreteReferenceExpression) {
+      ArendRef ref = ((ConcreteReferenceExpression) expr).getReferent();
+      if (resolver.isLongUnresolvedReference(ref)) {
+        return false;
+      }
+      refs.add(ref);
+      return true;
+    }
+
+    if (expr instanceof ConcreteHoleExpression) {
+      refs.add(null);
+      return true;
+    }
+
+    if (expr instanceof ConcreteTupleExpression) {
+      for (ConcreteExpression field : ((ConcreteTupleExpression) expr).getFields()) {
+        if (field instanceof ConcreteReferenceExpression) {
+          ArendRef ref = ((ConcreteReferenceExpression) field).getReferent();
+          if (resolver.isLongUnresolvedReference(ref)) {
+            return false;
+          }
+          refs.add(ref);
+        } else if (field instanceof ConcreteHoleExpression) {
+          refs.add(null);
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  public static List<ArendRef> getTuplesOfRefs(ConcreteExpression expr, ExpressionResolver resolver) {
+    List<ArendRef> result = new ArrayList<>();
+    for (ConcreteArgument argument : expr.getArgumentsSequence()) {
+      if (!argument.isExplicit() || !getTupleOfRefs(argument.getExpression(), resolver, result)) {
+        resolver.getErrorReporter().report(new NameResolverError("Cannot parse references", expr));
+        return null;
+      }
+    }
+    return result;
+  }
+
   public static ConcreteParameter expressionToParameter(ConcreteExpression expr, ExpressionResolver resolver, ConcreteFactory factory) {
     if (expr instanceof ConcreteTypedExpression) {
       ConcreteTypedExpression typedExpr = (ConcreteTypedExpression) expr;
-      List<ArendRef> refs = getRefs(typedExpr.getExpression(), resolver);
+      List<ArendRef> refs = getTuplesOfRefs(typedExpr.getExpression(), resolver);
       if (refs == null) {
         return null;
       }
