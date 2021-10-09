@@ -257,7 +257,9 @@ public class StdExtension implements ArendExtension {
       "* `Forall (x y : A) B` is equivalent to `\\Pi (x y : A) -> B`\n" +
       "* `Forall {x y : A} B` is equivalent to `\\Pi {x y : A} -> B`\n" +
       "* `Forall x y B` is equivalent to `\\Pi (x : _) (y : _) -> B\n`" +
-      "* `Forall {x y} {z} B` is equivalent to `\\Pi {x y : _} {z : _} -> B`",
+      "* `Forall x (B 0) (B 1)` is equivalent to `\\Pi (x : _) -> B 0 -> B 1\n`" +
+      "* `Forall {x y} {z} B` is equivalent to `\\Pi {x y : _} {z : _} -> B`\n" +
+      "* If `P : A -> \\Type`, then `Forall {x y : P} (Q x) (Q y)` is equivalent to `\\Pi {x y : A} -> P x -> P y -> Q x -> Q y`",
       Precedence.DEFAULT, "∀", Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.PI));
     constructorMetaRef = contributor.declare(logic, new LongName("constructor"),
       "Returns either a tuple, a \\new expression, or a single constructor of a data type depending on the expected type",
