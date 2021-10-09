@@ -200,7 +200,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           for (CoreParameter piParam : piParams) {
             args.add(factory.arg(factory.ref(sigmaRefs.get(i++)), piParam.isExplicit()));
           }
-          sigmaParams.add(factory.param(true, factory.app(factory.withData(cType.getData()).core(typedType), args)));
+          sigmaParams.add(factory.param(true, factory.app(aType, args)));
         }
 
         j = 0;
@@ -212,14 +212,12 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           j++;
         }
       } else if (type instanceof CoreClassCallExpression && ((CoreClassCallExpression) type).getDefinition() == ext.prelude.getDArray()) {
-        TypedExpression typed = typechecker.typecheck(factory.app(factory.ref(ext.prelude.getFin().getRef()), true, Collections.singletonList(factory.app(factory.ref(ext.prelude.getArrayLength().getRef()), false, Collections.singletonList(aType)))), null);
-        if (typed == null) return null;
         refs = new ArrayList<>(param.getRefList().size());
         for (ArendRef ignored : param.getRefList()) {
           refs.add(factory.local("j" + (arrayIndex == 0 ? "" : arrayIndex)));
           arrayIndex++;
         }
-        ConcreteParameter varParam = factory.withData(param.getData()).param(param.isExplicit(), refs, factory.core(typed));
+        ConcreteParameter varParam = factory.withData(param.getData()).param(param.isExplicit(), refs, factory.app(factory.ref(ext.prelude.getFin().getRef()), true, Collections.singletonList(factory.app(factory.ref(ext.prelude.getArrayLength().getRef()), false, Collections.singletonList(aType)))));
         varParams = Collections.singletonList(varParam);
         sigmaParams.add(varParam);
 
