@@ -1,0 +1,82 @@
+\import Algebra.Meta
+\import Category
+\import Category.Functor
+\import Category.Limit
+\import Data.Array
+\import Equiv (Equiv, QEquiv)
+\import Function.Meta
+\import Logic
+\import Logic.FirstOrder.Algebraic
+\import Logic.FirstOrder.Term
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set.Category
+
+\record ModelHom {T : Theory} (Dom Cod : Model T)
+  | \coerce func {s : Sort} : Dom s -> Cod s
+  | func-op {r : Sort} (h : Symb r) (d : ∀ (s : domain h) (Dom s)) : func (operation h d) = operation h (\lam j => func (d j))
+  | func-rel (P : PredSymb) (d : ∀ (s : predDomain P) (Dom s)) : relation P d -> relation P (\lam j => func (d j))
+
+\instance ModelCat (T : Theory) : CompleteCat (Model T)
+  | Precat => ModelPrecat T
+  | univalence (e : Iso) =>
+    \have t => SIP (FamCat SetCat) (Model T) (\lam M N f => ModelHom M N f)
+                   (\lam {E} {M} {N} (p1 : ModelHom M N) (p2 : ModelHom N M) => exts (\lam h d => p1.func-op h d, \lam P d => ext (p1.func-rel P d, p2.func-rel P d)))
+                   (\new Iso (\lam {j} => e.f {j}) (\lam {j} => e.inv {j}) (path (\lam i {j} => (e.inv_f @ i) {j})) (path (\lam i {j} => (e.f_inv @ i) {j}))) e.dom e.cod e.f e.inv
+    \in (t.2, simp_coe t.3)
+  | limit {J} (G : Functor) => \new Limit {
+    | apex => \new Model {
+      | Structure => limitStructure T G
+      | isModel S a rho h => propExt.conv (limitStructureTruth S.3) (\lam j => isModel S a (\lam v => (rho v).1 j) (\lam k => propExt.dir (limitStructureTruth (S.2 k)) (h k) j))
+    }
+    | coneMap j => \new ModelHom {
+      | func P => P.1 j
+      | func-op _ _ => idp
+      | func-rel P d h => h j
+    }
+    | coneCoh f => exts (\lam P => P.2 f)
+    | isLimit M => \new QEquiv {
+      | ret (c : Cone) => \new ModelHom {
+        | func x => (\lam j => c.coneMap j x, \lam f => (c.coneCoh f @ __) x)
+        | func-op h d => ext $ ext (\lam j => func-op h d)
+        | func-rel P d x j => func-rel P d x
+      }
+      | ret_f f => exts (\lam x => ext idp)
+      | f_sec => idpe
+    }
+  } \where {
+    \open Structure
+
+    \func ModelPrecat (T : Theory) : Precat (Model T) \cowith
+      | Hom M N => ModelHom M N
+      | id M => \new ModelHom {
+        | func x => x
+        | func-op _ _ => idp
+        | func-rel _ _ p => p
+      }
+      | o g f => \new ModelHom {
+        | func x => g (f x)
+        | func-op h d => rewrite (func-op {f} h d) (func-op h _)
+        | func-rel P d x => func-rel P (\lam j => f (d j)) (func-rel P d x)
+      }
+      | id-left => idp
+      | id-right => idp
+      | o-assoc => idp
+
+    \func limitStructure (T : Theory) {J : Precat} (G : Functor J (ModelPrecat T)) : Structure T \cowith
+      | E s => \Sigma (P : \Pi (j : J) -> G j s) (\Pi {j j' : J} (h : Hom j j') -> G.Func h (P j) = P j')
+      | operation h d => (\lam j => operation h (\lam k => (d k).1 j), \lam {j} {j'} f => \let t => func-op {G.Func f} h (\lam k => (d k).1 j) \in t *> cong (ext (\lam k => (d k).2 f)))
+      | relation P d => \Pi (j : J) -> relation P (\lam k => (d k).1 j)
+
+    \lemma limitStructureInterp {T : Theory} {J : Precat} {G : Functor J (ModelPrecat T)} {V : Sort -> \Set} {rho : Env {limitStructure T G} V} {s : Sort} (t : Term V s) {j : J}
+      : (interpret rho t).1 j = interpret (\lam v => (rho v).1 j) t \elim t
+      | var v => idp
+      | apply f d => unfold $ cong $ ext (\lam k => limitStructureInterp (d k))
+
+    \lemma limitStructureTruth {T : Theory} {J : Precat} {G : Functor J (ModelPrecat T)} {V : Sort -> \Set} {rho : Env {limitStructure T G} V} (phi : Formula V)
+      : isFormulaTrue rho phi = (\Pi (j : J) -> isFormulaTrue (\lam v => (rho v).1 j) phi) \elim phi
+      | equality t t' => ext (\lam ft j => inv (limitStructureInterp t) *> rewrite ft idp *> limitStructureInterp t', \lam ft => exts (\lam j => limitStructureInterp t *> ft j *> inv (limitStructureInterp t')))
+      | predicate P d => ext (\lam ft j => transport (relation P) (ext (\lam k => limitStructureInterp (d k))) (ft j), \lam ft j => transport (relation P) (ext (\lam k => inv $ limitStructureInterp (d k))) (ft j))
+}

@@ -6,6 +6,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreExpressionPattern;
+import org.arend.ext.core.context.CoreEvaluatingBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.CoreDataCallExpression;
@@ -225,7 +226,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     for (int i = 0; i < argParametersList.size(); i++) {
       ArgParameters argParams = argParametersList.get(i);
       boolean isLocalRef = argParams.expression instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) argParams.expression).getReferent().isLocalRef();
-      boolean isElim = isLocalRef && !argParams.addPath && argParams.name == null && defaultExpr == null;
+      boolean isElim = isLocalRef && !argParams.addPath && argParams.name == null && defaultExpr == null && !(typechecker.getFreeBinding(((ConcreteReferenceExpression) argParams.expression).getReferent()) instanceof CoreEvaluatingBinding);
       ConcreteExpression argExpr = argParams.expression;
       ConcreteExpression argType = argParams.type;
       ArendRef caseArgRef = argParams.name != null ? argParams.name : !isElim ? factory.local("x") : null;

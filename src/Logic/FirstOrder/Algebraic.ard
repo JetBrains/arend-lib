@@ -1,0 +1,77 @@
+\import Data.Array
+\import Logic
+\import Logic.FirstOrder.Term
+\import Logic.Meta
+
+\class Signature \extends TermSig
+  | PredSymb : \Set
+  | predDomain : PredSymb -> Array Sort
+
+\data Formula {S : Signature} (V : S -> \Set)
+  | equality {s : S} (Term V s) (Term V s)
+  | predicate (P : PredSymb) (DArray (\lam j => Term V (predDomain P j)))
+
+\func substF {S : Signature} {U V : S -> \Set} (phi : Formula U) (rho : \Pi {s : S} -> U s -> Term V s) : Formula V \elim phi
+  | equality t1 t2 => equality (subst t1 rho) (subst t2 rho)
+  | predicate P ts => predicate P (\lam j => subst (ts j) rho)
+
+\func Sequent {S : Signature} => \Sigma (V : S -> \Set) (Array (Formula V)) (Formula V)
+
+\class Theory \extends Signature {
+  | axioms : Sequent -> \Prop
+
+  \truncated \data isTheorem (seq : Sequent) : \Prop \with
+    | (V, phi, equality a b) => refl (a = b)
+    | (V, phi, psi) => {
+      | substPres {U : Sort -> \Set} (chi : Formula U) (rho rho' : \Pi {s : Sort} -> U s -> Term V s)
+                  (\Pi {s : Sort} (u : U s) -> isTheorem (V, phi, equality (rho u) (rho' u)))
+                  (isTheorem (V, phi, substF chi rho))
+                  (psi = substF chi rho')
+      | axiom (a : Sequent) (axioms a) (rho : \Pi {s : Sort} -> a.1 s -> Term V s)
+              (∀ (chi : a.2) (isTheorem (V, phi, substF chi rho)))
+              (psi = substF a.3 rho)
+    }
+
+  \truncated \data isPartialTheorem (seq : Sequent) : \Prop \with
+    | (_, _, equality (var v) (var v')) => varDef (v = v')
+    | (V, phi, equality a b) => sym (isTheorem (V, phi, equality b a))
+    | (V, phi, psi) => {
+      | partSubstPres {U : Sort -> \Set} (chi : Formula U) (rho rho' : \Pi {s : Sort} -> U s -> Term V s)
+                      (\Pi {s : Sort} (u : U s) -> isTheorem (V, phi, equality (rho u) (rho' u)))
+                      (isTheorem (V, phi, substF chi rho))
+                      (psi = substF chi rho')
+      | predDef (P : PredSymb) (ts : DArray (\lam j => Term V (predDomain P j)))
+                (isTheorem (V, phi, predicate P ts))
+                (Given (t : ts) (psi = equality t t))
+      | funcDef {s : Sort} (h : Symb s) (ts : DArray (\lam j => Term V (domain h j)))
+                (isTheorem (V, phi, equality (apply h ts) (apply h ts)))
+                (Given (t : ts) (psi = equality t t))
+      | partAxiom (a : Sequent) (axioms a) (rho : \Pi {s : Sort} -> a.1 s -> Term V s)
+                  (\Pi {s : Sort} (v : a.1 s) -> isTheorem (V, phi, equality (rho v) (rho v)))
+                  (∀ (chi : a.2) (isTheorem (V, phi, substF chi rho)))
+                  (psi = substF a.3 rho)
+    }
+}
+
+\class Structure (T : Signature) (\classifying E : Sort -> \Set) {
+  | operation {r : Sort} (h : Symb r) : ∀ (s : domain h) (E s) -> E r
+  | relation (P : PredSymb) : ∀ (s : predDomain P) (E s) -> \Prop
+
+  \func Env (V : Sort -> \Set) => \Pi {s : Sort} -> V s -> E s
+
+  \func interpret {V : Sort -> \Set} (rho : Env V) {s : Sort} (t : Term V s) : E s \elim t
+    | var v => rho v
+    | apply f d => operation f (\lam j => interpret rho (d j))
+
+  \func isFormulaTrue {V : Sort -> \Set} (rho : Env V) (phi : Formula V) : \Prop \elim phi
+    | equality t t' => interpret rho t = interpret rho t'
+    | predicate P d => relation P (\lam j => interpret rho (d j))
+
+  \func isSequentTrue (S : Sequent) =>
+    \Pi (rho : Env S.1) -> ∀ (phi : S.2) (isFormulaTrue rho phi) -> isFormulaTrue rho S.3
+}
+
+\class Model \extends Structure {
+  \override T : Theory
+  | isModel (S : Sequent) : axioms {T} S -> Structure.isSequentTrue S
+}
