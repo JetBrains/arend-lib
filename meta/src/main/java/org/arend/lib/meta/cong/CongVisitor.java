@@ -346,7 +346,8 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
     if (!(otherExpr instanceof CoreNewExpression)) {
       return visit(expr, param);
     }
-    return visitClassCall(expr.getClassCall(), new ParamType(() -> new Result(null), ((CoreNewExpression) otherExpr).getClassCall()));
+    Result result = visitClassCall(expr.getClassCall(), new ParamType(() -> new Result(null), ((CoreNewExpression) otherExpr).getClassCall()));
+    return result == null || result.expression == null ? result : new Result(factory.newExpr(result.expression));
   }
 
   @Override
