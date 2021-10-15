@@ -80,6 +80,13 @@ public class CongruenceMeta extends BaseMetaDefinition {
         typechecker.getErrorReporter().report(new MissingArgumentsError(visitor.index - contextData.getArguments().size(), contextData.getMarker()));
       }
       return null;
+    } else {
+      for (int i = visitor.index; i < contextData.getArguments().size(); i++) {
+        typechecker.getErrorReporter().report(new IgnoredArgumentError(contextData.getArguments().get(i).getExpression()));
+      }
+      if (visitor.index == 0) {
+        typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING, "'cong' can be replaced with 'idp'", contextData.getMarker()));
+      }
     }
 
     return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), result.getExpression(args.get(1), factory)))), contextData.getExpectedType());
@@ -115,7 +122,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
 
     ContextHelper contextHelper = new ContextHelper(Context.TRIVIAL, contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression());
     if (contextHelper.meta == null && !contextData.getArguments().isEmpty()) {
-      typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", contextData.getArguments().get(0).getExpression()));
+      typechecker.getErrorReporter().report(new IgnoredArgumentError(contextData.getArguments().get(0).getExpression()));
     }
 
     ConcreteFactory factory = ext.factory.withData(refExpr);
