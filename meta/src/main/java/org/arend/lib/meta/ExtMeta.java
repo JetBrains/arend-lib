@@ -19,6 +19,7 @@ import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.ui.ArendUI;
 import org.arend.lib.StdExtension;
+import org.arend.lib.error.IgnoredArgumentError;
 import org.arend.lib.error.SubclassError;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.meta.pi_tree.*;
@@ -160,7 +161,8 @@ public class ExtMeta extends BaseMetaDefinition {
     }
 
     private TypedExpression hidingIRef(ConcreteExpression expr, CoreExpression type) {
-      return checkGoals(typechecker.withFreeBindings(new FreeBindingsModifier().remove(typechecker.getFreeBinding(iRef)), tc -> tc.typecheck(expr, type)));
+      CoreBinding binding = typechecker.getFreeBinding(iRef);
+      return binding == null ? typechecker.typecheck(expr, type) : checkGoals(typechecker.withFreeBindings(new FreeBindingsModifier().remove(binding), tc -> tc.typecheck(expr, type)));
     }
 
     private ConcreteExpression makeCoeLambda(CoreParameter typeParams, CoreBinding paramBinding, Set<CoreBinding> used, Map<CoreBinding, PathExpression> sigmaRefs, ConcreteFactory factory) {

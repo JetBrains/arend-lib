@@ -15,16 +15,14 @@ import org.arend.ext.core.expr.CoreReferenceExpression;
 import org.arend.ext.core.level.LevelSubstitution;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
-import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.error.GeneralError;
-import org.arend.ext.error.NameResolverError;
-import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
+import org.arend.lib.error.IgnoredArgumentError;
 import org.arend.lib.meta.util.ReplaceSubexpressionsMeta;
 import org.arend.lib.pattern.ArendPattern;
 import org.arend.lib.pattern.PatternUtils;
@@ -309,7 +307,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       }
 
       if (patternLists.isEmpty()) {
-        typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", defaultExpr));
+        typechecker.getErrorReporter().report(new IgnoredArgumentError(defaultExpr));
       } else {
         List<List<CoreExpressionPattern>> actualRows = new ArrayList<>();
         for (ConcreteClause clause : clauses) {

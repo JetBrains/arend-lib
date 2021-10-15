@@ -20,6 +20,7 @@ import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
+import org.arend.lib.error.IgnoredArgumentError;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.meta.util.ReplaceSubexpressionsMeta;
 import org.arend.lib.meta.util.SubstitutionMeta;
@@ -225,7 +226,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                     defOccurrences.put((CoreFunctionDefinition) def, occurrences);
                   }
                 } else {
-                  errorReporter.report(new IgnoredArgumentError("Parameters for '" + def.getName() + "' are already specified", param));
+                  errorReporter.report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Parameters for '" + def.getName() + "' are already specified", param));
                 }
               } else {
                 errorReporter.report(new TypecheckingError("Expected a function defined by pattern matching", param));
@@ -236,7 +237,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             if (myCaseOccurrences != null && myCaseOccurrences.isEmpty()) {
               myCaseOccurrences = occurrences.isEmpty() ? null : occurrences;
             } else {
-              errorReporter.report(new IgnoredArgumentError("Parameters for \\case expressions are already specified", list.isEmpty() ? args.get(0).getExpression() : list.get(0)));
+              errorReporter.report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Parameters for \\case expressions are already specified", list.isEmpty() ? args.get(0).getExpression() : list.get(0)));
             }
           }
         }
@@ -734,7 +735,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         List<Integer> covering = coveringRows.get(i);
         Map<CoreBinding, CorePattern> subst1 = new HashMap<>();
         Map<CoreBinding, CorePattern> subst2 = new HashMap<>();
-        // This conditions is equivalent to PatternUtils.refines(refinedRow, requiredBlock.get(i))
+        // This condition is equivalent to PatternUtils.refines(refinedRow, requiredBlock.get(i))
         if (PatternUtils.unify(refinedRow, requiredBlock.get(i), subst1, subst2) && PatternUtils.isTrivial(subst1.values())) {
           if (covering == null) {
             boolean trivial = PatternUtils.isTrivial(subst2.values());

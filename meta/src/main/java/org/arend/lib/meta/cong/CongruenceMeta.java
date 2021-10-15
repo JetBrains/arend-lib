@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.context.Context;
 import org.arend.lib.context.ContextHelper;
+import org.arend.lib.error.IgnoredArgumentError;
 import org.arend.lib.meta.closure.CongruenceClosure;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
