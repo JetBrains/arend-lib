@@ -15,6 +15,7 @@ import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
+import org.arend.ext.error.quickFix.RemoveErrorQuickFix;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
@@ -192,23 +193,23 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         errorReporter.report(new IgnoredArgumentError(args.get(0).getExpression()));
         caseOccurrences = null;
       } else {
-        List<List<? extends ConcreteExpression>> lists = new ArrayList<>();
+        List<Pair<ConcreteExpression, List<? extends ConcreteExpression>>> lists = new ArrayList<>();
         List<ConcreteExpression> defList = new ArrayList<>();
         for (ConcreteExpression param : params) {
           if (param instanceof ConcreteTupleExpression) {
-            lists.add(Utils.getArgumentList(param));
+            lists.add(new Pair<>(param, Utils.getArgumentList(param)));
           } else {
             defList.add(param);
           }
         }
         if (!defList.isEmpty()) {
-          lists.add(defList);
+          lists.add(new Pair<>(null, defList));
         }
 
         Set<Integer> myCaseOccurrences = new HashSet<>();
-        for (List<? extends ConcreteExpression> list : lists) {
+        for (Pair<ConcreteExpression, List<? extends ConcreteExpression>> pair : lists) {
           Set<Integer> occurrences = new HashSet<>();
-          for (ConcreteExpression param : list) {
+          for (ConcreteExpression param : pair.proj2) {
             if (param instanceof ConcreteNumberExpression) {
               occurrences.add(((ConcreteNumberExpression) param).getNumber().intValue());
             } else if (!(param instanceof ConcreteReferenceExpression)) {
@@ -216,7 +217,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             }
           }
           boolean isCase = true;
-          for (ConcreteExpression param : list) {
+          for (ConcreteExpression param : pair.proj2) {
             if (param instanceof ConcreteReferenceExpression) {
               CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) param).getReferent());
               if (def instanceof CoreFunctionDefinition && ((CoreFunctionDefinition) def).getBody() instanceof CoreElimBody) {
@@ -226,7 +227,8 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
                     defOccurrences.put((CoreFunctionDefinition) def, occurrences);
                   }
                 } else {
-                  errorReporter.report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Parameters for '" + def.getName() + "' are already specified", param));
+                  TypecheckingError error = new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Parameters for '" + def.getName() + "' are already specified", pair.proj1 != null ? pair.proj1 : param);
+                  errorReporter.report(pair.proj1 != null ? error.withQuickFix(new RemoveErrorQuickFix("Remove")) : error);
                 }
               } else {
                 errorReporter.report(new TypecheckingError("Expected a function defined by pattern matching", param));
@@ -237,7 +239,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             if (myCaseOccurrences != null && myCaseOccurrences.isEmpty()) {
               myCaseOccurrences = occurrences.isEmpty() ? null : occurrences;
             } else {
-              errorReporter.report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Parameters for \\case expressions are already specified", list.isEmpty() ? args.get(0).getExpression() : list.get(0)));
+              errorReporter.report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Parameters for \\case expressions are already specified", pair.proj2.isEmpty() ? args.get(0).getExpression() : pair.proj2.get(0)));
             }
           }
         }
