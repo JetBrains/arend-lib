@@ -1,18 +1,32 @@
 \import Category
 \import Category.Functor
-\import Equiv (Equiv, QEquiv)
+\import Equiv (Equiv, QEquiv, TwoOutOfThree, symQEquiv)
 \import Function.Meta
 \import Meta
+\import Paths
 \import Paths.Meta
 
-\class RightAdjoint \extends Functor
-  | leftAdjoint : Functor D C
-  | eta : NatTrans {D} {D} Id (Comp \this leftAdjoint)
-  | isAdjoint {X : D} {Y : C} : Equiv {Hom (leftAdjoint X) Y} {Hom X (F Y)} (Func __ ∘ eta X)
-  \where {
+\class RightAdjoint \extends Functor {
+  | LAdj : Functor D C
+  | eta : NatTrans Id (Comp \this LAdj)
+  \field isAdjoint {X : D} {Y : C} : Equiv {Hom (LAdj X) Y} {Hom X (F Y)} (Func __ ∘ eta X)
+
+  \func epsilon : NatTrans (Comp LAdj \this) Id \cowith
+    | trans X => isAdjoint.ret (id _)
+    | natural f => isAdjoint.isInj $ unfold $ rewrite (Func-o, Func-o, o-assoc, o-assoc, isAdjoint.f_ret, id-right, inv (eta.natural _), inv o-assoc, isAdjoint.f_ret) id-left
+
+  \lemma eta_epsilon-left (Y : C) : Func (epsilon Y) ∘ eta (F Y) = id (F Y)
+    => isAdjoint.f_ret _
+
+  \lemma eta_epsilon-right (X : D) : epsilon (LAdj X) ∘ LAdj.Func (eta X) = id (LAdj X)
+    => isAdjoint.isInj $ unfold $ rewrite (Func-id, Func-o, o-assoc, inv (eta.natural _), inv o-assoc, isAdjoint.f_ret) idp
+
+  \lemma adjoint_epsilon {X : D} {Y : C} (f : Hom X (F Y)) : isAdjoint.ret f = epsilon Y ∘ LAdj.Func f
+    => isAdjoint.isInj $ unfold $ isAdjoint.f_ret _ *> rewrite (Func-o, o-assoc, inv (eta.natural _), inv o-assoc, isAdjoint.f_ret, id-left) idp
+} \where {
     \func rightFactor {C D E : Precat} (G1 : FullyFaithfulFunctor D E) (G2 : Functor E D) (adj : RightAdjoint { | Functor => Comp G1 G2 }) : RightAdjoint \cowith
       | Functor => G2
-      | leftAdjoint => Comp adj.leftAdjoint G1
+      | LAdj => Comp adj.LAdj G1
       | eta {
         | trans Y => G1.inverse (adj.eta (G1 Y))
         | natural h => run {
@@ -32,3 +46,23 @@
           }
       }
   }
+
+\class CatEquiv \extends FullyFaithfulFunctor, RightAdjoint {
+  | eta-iso {X : D} : Iso (eta X)
+  | epsilon-iso {Y : C} : Iso (epsilon Y)
+  | isFullyFaithful => TwoOutOfThree.rightFactor _ (symQEquiv isAdjoint) $ transport (QEquiv __) (ext (\lam h => inv (adjoint_epsilon _ *> epsilon.natural h))) epsilon-iso.-o_Equiv
+
+  \func reverse : CatEquiv \cowith
+    | Functor => LAdj
+    | LAdj => \this
+    | eta => epsilon.iso epsilon-iso
+    | isAdjoint => \new QEquiv {
+      | ret h => eta-iso.inv ∘ Func h
+      | ret_f h => rewrite (Func-o, inv o-assoc, natural {eta.iso eta-iso}, o-assoc) $
+                    pmap (h ∘) (pmap (`∘ _) (inv (Iso.adjoint' (eta_epsilon-left _) *> id-left )) *> Iso.f_inv {Functor.Func-iso epsilon-iso}) *> id-right
+      | f_sec h => rewrite (LAdj.Func-o, o-assoc, inv (natural {epsilon.iso epsilon-iso} _), inv o-assoc) $
+                    pmap (`∘ h) (pmap (_ ∘) (inv (epsilon-iso.adjoint (eta_epsilon-right _) *> id-right)) *> Iso.inv_f {LAdj.Func-iso eta-iso}) *> id-left
+    }
+    | eta-iso => epsilon-iso.reverse
+    | epsilon-iso => unfold $ rewrite (Func-id,id-right) eta-iso.reverse
+}

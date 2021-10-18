@@ -1,5 +1,6 @@
 \import Arith.Bool
 \import Category
+\import Category.Adjoint
 \import Category.Functor
 \import Category.Limit
 \import Data.Bool
@@ -369,6 +370,21 @@
 \class CompletePrecat \extends PrecatWithPullbacks {
   | limit {J : Precat} (G : Functor J \this) : Limit G
   \default pullback f g => Pullback.fromLimit (limit (Diagram.functor {Pullback.diagram f g}))
+} \where {
+  \func applyQEquiv {C : CompletePrecat} (E : CatEquiv C) {J : Precat} (G : Functor J E.D) : Limit G
+    => \have lim : Limit => limit (Comp E.LAdj G)
+       \in \new Limit {
+        | apex => E lim
+        | coneMap j => E.eta-iso.inv ∘ E.Func (lim.coneMap j)
+        | coneCoh h => rewrite (inv (pmap E.Func (lim.coneCoh h)), Func-o, inv o-assoc, inv o-assoc)
+                               (pmap (`∘ _) (inv (NatTrans.natural {E.eta.iso E.eta-iso} (G.Func h))))
+        | isLimit z => TwoOutOfThree.rightFactor _ (Cone.mapEquiv E.reverse _) (transport (QEquiv __) (ext (\lam h => exts (\lam j =>
+            pmap (_ ∘) (E.adjoint_epsilon h) *>
+            inv (pmap (`∘ _) (E.epsilon.natural _) *> o-assoc) *>
+            pmap (__ ∘ _ ∘ _) (Iso.adjoint' {E.LAdj.Func-iso E.eta-iso} (E.eta_epsilon-right _) *> id-left) *>
+            pmap (`∘ _) (inv Func-o) *>
+            inv Func-o))) (transEquiv (symQEquiv E.isAdjoint) (lim.isLimit (E.LAdj z))))
+      }
 }
 
 \class CompleteCat \extends CompletePrecat, Cat (obj,hom) {
