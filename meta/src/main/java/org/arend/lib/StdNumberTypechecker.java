@@ -43,7 +43,7 @@ public class StdNumberTypechecker implements LiteralTypechecker {
         generate = true;
       } else {
         CoreClassDefinition classDef = number.equals(BigInteger.ZERO) ? ext.equationMeta.AddPointed : number.equals(BigInteger.ONE) ? ext.equationMeta.Pointed : number.signum() == -1 ? ext.equationMeta.Ring : ext.equationMeta.Semiring;
-        instance = Utils.findInstance(new SubclassSearchParameters(classDef), ext.carrier, expectedType, typechecker, contextData.getMarker());
+        instance = classDef == null ? null : Utils.findInstance(new SubclassSearchParameters(classDef), ext.carrier, expectedType, typechecker, contextData.getMarker());
         generate = instance != null;
       }
       if (generate) {
