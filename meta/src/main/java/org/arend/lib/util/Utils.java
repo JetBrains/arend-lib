@@ -208,11 +208,12 @@ public class Utils {
   public static <T> T tryTypecheck(ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
     return typechecker.withCurrentState(tc -> {
       try {
+        ErrorReporter errorReporter = tc.getErrorReporter();
         return tc.withErrorReporter(error -> {
           if (error.level == GeneralError.Level.ERROR) {
             throw new MyException();
           }
-          tc.getErrorReporter().report(error);
+          errorReporter.report(error);
         }, action);
       } catch (MyException e) {
         tc.loadSavedState();
