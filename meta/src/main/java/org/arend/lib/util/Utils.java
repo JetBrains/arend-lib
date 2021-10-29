@@ -212,6 +212,7 @@ public class Utils {
           if (error.level == GeneralError.Level.ERROR) {
             throw new MyException();
           }
+          tc.getErrorReporter().report(error);
         }, action);
       } catch (MyException e) {
         tc.loadSavedState();
