@@ -263,9 +263,14 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         return null;
       }
 
+      int numberOfAddPaths = 0;
+      for (ArgParameters argParams : argParametersList) {
+        if (argParams.addPath) numberOfAddPaths++;
+      }
+
       CoreParameter parameter = parameters;
-      for (TypedExpression typedArg : typedArgs) {
-        CoreExpression type = typedArg.getType().normalize(NormalizationMode.WHNF);
+      for (int j = 0; j < typedArgs.size(); j++) {
+        CoreExpression type = typedArgs.get(j).getType().normalize(NormalizationMode.WHNF);
         List<ArendPattern> patterns = getPatterns(type, parameter);
         if (patterns != null && patterns.isEmpty()) {
           patternLists = Collections.emptyList();
@@ -301,9 +306,16 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
             newPatternLists.add(newPatternList);
           }
         }
-        patternLists = newPatternLists;
 
+        patternLists = newPatternLists;
         parameter = parameter.getNext();
+
+        if (argParametersList.get(j).addPath) {
+          for (List<ArendPattern> patternList : patternLists) {
+            patternList.add(new ArendPattern(parameter.getBinding(), null, Collections.emptyList(), parameter, ext.renamerFactory));
+          }
+          parameter = parameter.getNext();
+        }
       }
 
       if (patternLists.isEmpty()) {
