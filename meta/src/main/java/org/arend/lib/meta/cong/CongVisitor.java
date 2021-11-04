@@ -328,16 +328,15 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   }
 
   @Override
-  public Result visitTypeCoerce(@NotNull CoreTypeCoerceExpression expr, ParamType param) {
+  public Result visitTypeConstructor(@NotNull CoreTypeConstructorExpression expr, ParamType param) {
     CoreExpression otherExpr = param.other.getUnderlyingExpression();
-    if (!(otherExpr instanceof CoreTypeCoerceExpression)) {
-      return visit(expr, param);
-    }
-    CoreTypeCoerceExpression other = (CoreTypeCoerceExpression) otherExpr;
-    if (expr.isFromLeftToRight() != other.isFromLeftToRight()) {
-      return visit(expr, param);
-    }
-    return expr.getArgument().accept(this, new ParamType(() -> new Result(null), other.getArgument()));
+    return otherExpr instanceof CoreTypeConstructorExpression ? expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CoreTypeConstructorExpression) otherExpr).getArgument())) : visit(expr, param);
+  }
+
+  @Override
+  public Result visitTypeDestructor(@NotNull CoreTypeDestructorExpression expr, ParamType param) {
+    CoreExpression otherExpr = param.other.getUnderlyingExpression();
+    return otherExpr instanceof CoreTypeDestructorExpression ? expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CoreTypeDestructorExpression) otherExpr).getArgument())) : visit(expr, param);
   }
 
   @Override
