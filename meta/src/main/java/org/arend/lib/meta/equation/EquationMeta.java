@@ -46,6 +46,10 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Order.Lattice", name = "Bounded.JoinSemilattice.bottom")  CoreClassField bottom;
   @Dependency(module = "Order.Lattice", name = "Bounded.DistributiveLattice")     CoreClassDefinition BoundedDistributiveLattice;
 
+  @Dependency(module = "Order.LinearOrder")                                           public CoreClassDefinition LinearOrder;
+  @Dependency(module = "Order.StrictOrder", name = "StrictPoset.<")                   public CoreClassField less;
+  @Dependency(module = "Order.LinearOrder", name = "BiorderedSet.<-transitive-left")  public CoreClassField lessTransitiveLeft;
+
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.var")  CoreConstructor varMTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideMTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:*")   CoreConstructor mulMTerm;

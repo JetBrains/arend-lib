@@ -11,7 +11,6 @@ import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDataDefinition;
-import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -22,7 +21,6 @@ import org.arend.lib.context.Context;
 import org.arend.lib.context.HidingContext;
 import org.arend.lib.error.TypeError;
 import org.arend.lib.key.FieldKey;
-import org.arend.lib.meta.closure.BinaryRelationClosure;
 import org.arend.lib.meta.closure.BunchedEquivalenceClosure;
 import org.arend.lib.meta.closure.ValuesRelationClosure;
 import org.arend.lib.context.ContextHelper;
@@ -82,16 +80,6 @@ public class ContradictionMeta extends BaseMetaDefinition {
       this.type = type;
       this.proof = proof;
     }
-  }
-
-  private static CoreExpression normalizeType(CoreExpression type) {
-    type = type.normalize(NormalizationMode.WHNF);
-    while (type instanceof CoreFunCallExpression && ((CoreFunCallExpression) type).getDefinition().getKind() == CoreFunctionDefinition.Kind.TYPE) {
-      CoreExpression norm = ((CoreFunCallExpression) type).evaluate();
-      if (norm == null) break;
-      type = norm.normalize(NormalizationMode.WHNF);
-    }
-    return type;
   }
 
   private static RType makeRType(CoreBinding binding, CoreExpression paramType) {
@@ -154,7 +142,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
   private void makeNegationData(Deque<CoreParameter> parameters, CoreExpression codomain, NegationData negationData, List<NegationData> result) {
     while (!parameters.isEmpty()) {
       CoreParameter parameter = parameters.removeFirst();
-      CoreExpression type = normalizeType(parameter.getTypeExpr());
+      CoreExpression type = Utils.unfoldType(parameter.getTypeExpr().normalize(NormalizationMode.WHNF));
       List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? type.computeMatchedConstructorsWithDataArguments() : null;
       if (constructors != null) {
         boolean ok = codomain == null || !codomain.findFreeBinding(parameter.getBinding());
@@ -189,48 +177,77 @@ public class ContradictionMeta extends BaseMetaDefinition {
     result.add(negationData);
   }
 
-  private static class TransData {
-    final CoreAppExpression leftApp;
-    final int rightArg;
-    final ConcreteExpression proof;
+  private static class Triple {
+    final CoreFieldCallExpression fun;
+    final CoreExpression arg1;
+    final CoreExpression arg2;
 
-    private TransData(CoreAppExpression leftApp, int rightArg, ConcreteExpression proof) {
-      this.leftApp = leftApp;
-      this.rightArg = rightArg;
-      this.proof = proof;
+    Triple(CoreFieldCallExpression fun, CoreExpression arg1, CoreExpression arg2) {
+      this.fun = fun;
+      this.arg1 = arg1;
+      this.arg2 = arg2;
+    }
+
+    public static Triple make(CoreExpression expr) {
+      if (!(expr instanceof CoreAppExpression)) {
+        return null;
+      }
+
+      CoreAppExpression app2 = (CoreAppExpression) expr;
+      if (!(app2.getFunction() instanceof CoreAppExpression)) {
+        return null;
+      }
+
+      CoreAppExpression app1 = (CoreAppExpression) app2.getFunction();
+      CoreExpression fun = app1.getFunction();
+      return fun instanceof CoreFieldCallExpression ? new Triple((CoreFieldCallExpression) fun, app1.getArgument(), app2.getArgument()) : null;
     }
   }
 
-  private boolean makeNegation(CoreExpression type, ConcreteExpression proof, ConcreteFactory factory, List<Negation> negations, Values<UncheckedExpression> values, Map<CoreClassField, Map<Integer, List<TransData>>> transGraphs) {
+  private boolean makeNegation(CoreExpression type, ConcreteExpression proof, ConcreteFactory factory, List<Negation> negations, Values<UncheckedExpression> values, Map<CoreClassField, Map<Integer, List<Edge<Integer>>>> transGraphs) {
     List<CoreParameter> parameters;
     if (type instanceof CorePiExpression) {
       parameters = new ArrayList<>();
-      type = type.getPiParameters(parameters).normalize(NormalizationMode.WHNF);
+      type = type.getPiParameters(parameters);
     } else {
       parameters = Collections.emptyList();
     }
 
     if (isEmpty(type)) {
+      if (parameters.size() == 1) {
+        Triple triple = Triple.make(Utils.unfoldType(parameters.get(0).getTypeExpr().normalize(NormalizationMode.WHNF)));
+        if (triple != null) {
+          if (triple.fun.getDefinition() == ext.equationMeta.less) {
+            CoreExpression argType = triple.fun.getArgument().computeType().normalize(NormalizationMode.WHNF);
+            if (argType instanceof CoreClassCallExpression && ((CoreClassCallExpression) argType).getDefinition().isSubClassOf(ext.equationMeta.LinearOrder)) {
+              Integer index1 = values.addValue(triple.arg2);
+              transGraphs.computeIfAbsent(ext.equationMeta.less, k -> new HashMap<>()).computeIfAbsent(index1, k -> new ArrayList<>())
+                .add(new Edge<>(index1, values.addValue(triple.arg1), proof, EdgeKind.LESS_OR_EQ, null));
+            }
+          }
+        }
+      }
+
       List<NegationData> negationDataList = new ArrayList<>();
       makeNegationData(new ArrayDeque<>(parameters), type, new NegationData(new ArrayList<>(), new ArrayDeque<>()), negationDataList);
       for (NegationData negationData : negationDataList) {
         negations.add(negationData.make(parameters, type, proof, factory));
       }
       return true;
-    } else if (type instanceof CoreAppExpression) {
+    } else if (parameters.isEmpty() && type instanceof CoreAppExpression) {
       CoreAppExpression app2 = (CoreAppExpression) type;
       if (app2.getFunction() instanceof CoreAppExpression) {
         CoreAppExpression app1 = (CoreAppExpression) app2.getFunction();
-        CoreExpression fun = app1.getFunction().normalize(NormalizationMode.WHNF);
+        CoreExpression fun = app1.getFunction();
         if (fun instanceof CoreFieldCallExpression) {
           CoreClassField field = ((CoreFieldCallExpression) fun).getDefinition();
+          if (field.getUserData(ext.transitivityKey) != null) {
+            Integer index1 = values.addValue(app1.getArgument());
+            transGraphs.computeIfAbsent(field, f -> new HashMap<>()).computeIfAbsent(index1, i -> new ArrayList<>()).add(new Edge<>(index1, values.addValue(app2.getArgument()), proof, EdgeKind.LESS, factory.core(app1.computeTyped())));
+            return true;
+          }
           FieldKey.Data irreflexivityData = field.getUserData(ext.irreflexivityKey);
           if (irreflexivityData != null) {
-            if (field.getUserData(ext.transitivityKey) != null) {
-              transGraphs.computeIfAbsent(field, f -> new HashMap<>()).computeIfAbsent(values.addValue(app1.getArgument()), i -> new ArrayList<>()).add(new TransData(app1, values.addValue(app2.getArgument()), proof));
-              return true;
-            }
-
             List<CoreParameter> irrParams = new ArrayList<>(2);
             CoreExpression irrCodomain = irreflexivityData.field.getResultType().getPiParameters(irrParams);
             if (irrParams.size() != 2) { // This shouldn't happen
@@ -294,6 +311,90 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }));
   }
 
+  private enum EdgeKind { EQ, EQ_INV, LESS, LESS_OR_EQ }
+
+  private static class Edge<V> {
+    final V source;
+    final V target;
+    final ConcreteExpression proof;
+    final EdgeKind kind;
+    final ConcreteExpression leftApp;
+
+    Edge(V source, V target, ConcreteExpression proof, EdgeKind kind, ConcreteExpression leftApp) {
+      this.source = source;
+      this.target = target;
+      this.proof = proof;
+      this.kind = kind;
+      this.leftApp = leftApp;
+    }
+  }
+
+  /**
+   * Finds the shortest path from {@code first} to {@code last} that contains a LESS edge.
+   */
+  private <V> List<Edge<V>> bfs(Map<V, List<Edge<V>>> graph, V first, V last) {
+    Map<V, Boolean> visited = new HashMap<>(); // true means we met a LESS edge on the way to the vertex
+    Map<V, Edge<V>> parent = new HashMap<>();
+    visited.put(first, false);
+    Deque<V> queue = new ArrayDeque<>();
+    queue.addLast(first);
+    while (!queue.isEmpty()) {
+      V vertex = queue.removeFirst();
+      boolean metLess = Boolean.TRUE.equals(visited.get(vertex));
+      if (metLess && vertex.equals(last)) {
+        List<Edge<V>> result = new ArrayList<>();
+        metLess = false;
+        while (!(metLess && vertex.equals(first))) {
+          Edge<V> edge = parent.get(vertex);
+          vertex = edge.source;
+          result.add(edge);
+          if (!metLess && edge.kind == EdgeKind.LESS) metLess = true;
+        }
+        Collections.reverse(result);
+        return result;
+      }
+
+      List<Edge<V>> edges = graph.get(vertex);
+      if (edges == null) continue;
+      for (Edge<V> edge : edges) {
+        Boolean targetVisited = visited.get(edge.target);
+        if (targetVisited == null || !targetVisited && (metLess || edge.kind == EdgeKind.LESS)) {
+          visited.put(edge.target, metLess || edge.kind == EdgeKind.LESS);
+          queue.add(edge.target);
+          parent.put(edge.target, edge);
+        }
+      }
+    }
+    return null;
+  }
+
+  private ConcreteExpression makeTransitivityProof(CoreClassField field, List<Edge<Integer>> path, ConcreteFactory factory) {
+    FieldKey.Data transitivityData = Objects.requireNonNull(field.getUserData(ext.transitivityKey));
+    int i0 = 0;
+    while (path.get(i0).kind != EdgeKind.LESS) {
+      i0++;
+    }
+    ConcreteExpression transProof = path.get(i0).proof;
+    for (int i = (i0 + 1) % path.size(); i != i0; i = (i + 1) % path.size()) {
+      if (path.get(i).kind == EdgeKind.LESS) {
+        List<ConcreteArgument> args = new ArrayList<>(5);
+        for (int j = 0; j < 3; j++) {
+          if (transitivityData.parametersExplicitness.get(j)) {
+            args.add(factory.arg(factory.hole(), true));
+          }
+        }
+        args.add(factory.arg(transProof, transitivityData.parametersExplicitness.get(3)));
+        args.add(factory.arg(path.get(i).proof, transitivityData.parametersExplicitness.get(4)));
+        transProof = factory.app(factory.ref(transitivityData.field.getRef()), args);
+      } else if (path.get(i).kind == EdgeKind.LESS_OR_EQ) {
+        transProof = factory.app(factory.ref(ext.equationMeta.lessTransitiveLeft.getRef()), true, Arrays.asList(transProof, path.get(i).proof));
+      } else {
+        transProof = factory.app(factory.ref((path.get(i).kind == EdgeKind.EQ ? ext.transport : ext.transportInv).getRef()), true, Arrays.asList(path.get(i0).leftApp, path.get(i).proof, transProof));
+      }
+    }
+    return transProof;
+  }
+
   private ConcreteExpression checkInternal(Context context, ConcreteExpression argument, CoreExpression expectedType, boolean withExpectedType, ConcreteSourceNode marker, ExpressionTypechecker typechecker) {
     ContextHelper contextHelper = new ContextHelper(context, argument);
     ConcreteFactory factory = ext.factory.withData(marker.getData());
@@ -301,7 +402,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
     CoreExpression type = null;
     ConcreteExpression contr = null;
     Values<UncheckedExpression> values = new Values<>(typechecker, marker);
-    Map<CoreClassField, Map<Integer, List<TransData>>> transGraphs = new HashMap<>();
+    Map<CoreClassField, Map<Integer, List<Edge<Integer>>>> transGraphs = new HashMap<>();
     List<Negation> negations = new ArrayList<>();
     List<ConcreteClause> clauses = new ArrayList<>();
     if (argument != null && contextHelper.meta == null) {
@@ -309,7 +410,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
       if (contradiction == null) {
         return null;
       }
-      type = normalizeType(contradiction.getType());
+      type = Utils.unfoldType(contradiction.getType().normalize(NormalizationMode.WHNF));
       if (isEmpty(type)) {
         contr = factory.core(contradiction);
       } else {
@@ -323,12 +424,13 @@ public class ContradictionMeta extends BaseMetaDefinition {
     if (contr == null) {
       BunchedEquivalenceClosure<Integer> equivalenceClosure = new BunchedEquivalenceClosure<>(factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef()), factory);
       ValuesRelationClosure closure = new ValuesRelationClosure(values, equivalenceClosure);
+      List<Edge<Integer>> equalities = new ArrayList<>();
       Values<CoreExpression> typeValues = new Values<>(typechecker, marker);
       Map<Integer, RType> assumptions = new HashMap<>();
       boolean searchForContradiction = negations.isEmpty() && transGraphs.isEmpty();
       List<Integer> conIndices = new ArrayList<>();
       for (CoreBinding binding : contextHelper.getAllBindings(typechecker)) {
-        type = normalizeType(binding.getTypeExpr());
+        type = Utils.unfoldType(binding.getTypeExpr().normalize(NormalizationMode.WHNF));
         List<CoreDataCallExpression.ConstructorWithDataArguments> constructors = isAppropriateDataCall(type) ? type.computeMatchedConstructorsWithDataArguments() : null;
         if (constructors != null && constructors.isEmpty()) {
           contr = factory.ref(binding);
@@ -366,7 +468,9 @@ public class ContradictionMeta extends BaseMetaDefinition {
           if (expr2 instanceof CoreConCallExpression || expr2 instanceof CoreIntegerExpression) {
             conIndices.add(value2);
           }
-          closure.addRelation(value1, value2, factory.ref(binding));
+          ConcreteExpression proof = factory.ref(binding);
+          closure.addRelation(value1, value2, proof);
+          equalities.add(new Edge<>(value1, value2, proof, EdgeKind.EQ, null));
         } else {
           prev = assumptions.putIfAbsent(typeValues.addValue(type), rType);
         }
@@ -442,32 +546,47 @@ public class ContradictionMeta extends BaseMetaDefinition {
 
           if (contr == null) {
             loop:
-            for (Map.Entry<CoreClassField, Map<Integer, List<TransData>>> entry : transGraphs.entrySet()) {
-              for (Integer index : entry.getValue().keySet()) {
-                Set<Integer> visited = new HashSet<>();
-                List<TransData> transDataList = new ArrayList<>();
-                Object eqProof = findContradiction(equivalenceClosure, entry.getValue(), index, index, visited, transDataList);
-                if (eqProof != null) {
-                  ConcreteExpression transProof = transDataList.get(0).proof;
-                  FieldKey.Data transitivityData = Objects.requireNonNull(entry.getKey().getUserData(ext.transitivityKey));
-                  for (int i = 1; i < transDataList.size(); i++) {
-                    List<ConcreteArgument> args = new ArrayList<>(5);
-                    for (int j = 0; j < 3; j++) {
-                      if (transitivityData.parametersExplicitness.get(j)) {
-                        args.add(factory.arg(factory.hole(), true));
-                      }
-                    }
-                    args.add(factory.arg(transDataList.get(i).proof, transitivityData.parametersExplicitness.get(3)));
-                    args.add(factory.arg(transProof, transitivityData.parametersExplicitness.get(4)));
-                    transProof = factory.app(factory.ref(transitivityData.field.getRef()), args);
-                  }
+            for (Map.Entry<CoreClassField, Map<Integer, List<Edge<Integer>>>> entry : transGraphs.entrySet()) {
+              for (Edge<Integer> edge : equalities) {
+                entry.getValue().computeIfAbsent(edge.source, k -> new ArrayList<>()).add(edge);
+                entry.getValue().computeIfAbsent(edge.target, k -> new ArrayList<>()).add(new Edge<>(edge.target, edge.source, edge.proof, EdgeKind.EQ_INV, null));
+              }
 
-                  if (eqProof instanceof ConcreteExpression) {
-                    transProof = factory.app(factory.ref(ext.transportInv.getRef()), true, Arrays.asList(factory.core(transDataList.get(transDataList.size() - 1).leftApp.computeTyped()), (ConcreteExpression) eqProof, transProof));
+              for (Negation negation : negations) {
+                List<Triple> triples = new ArrayList<>(negation.assumptions.size());
+                for (RType assumption : negation.assumptions) {
+                  Triple triple = Triple.make(assumption.type);
+                  if (triple == null || triple.fun.getDefinition() != entry.getKey()) break;
+                  if (negation.assumptions.size() == 1) {
+                    CoreExpression instanceType = triple.fun.getArgument().computeType().normalize(NormalizationMode.WHNF);
+                    if (instanceType instanceof CoreClassCallExpression && ((CoreClassCallExpression) instanceType).getDefinition().isSubClassOf(ext.equationMeta.LinearOrder)) break;
                   }
+                  triples.add(triple);
+                }
+                if (triples.size() != negation.assumptions.size()) continue;
 
+                Deque<ConcreteExpression> negationArgs = new ArrayDeque<>(triples.size());
+                for (Triple triple : triples) {
+                  List<Edge<Integer>> path = bfs(entry.getValue(), values.addValue(triple.arg1), values.addValue(triple.arg2));
+                  if (path == null) break;
+                  negationArgs.add(makeTransitivityProof(entry.getKey(), path, factory));
+                }
+
+                if (negationArgs.size() == triples.size()) {
+                  contr = negation.proof.apply(negationArgs);
+                  type = negation.type;
+                  break loop;
+                }
+              }
+
+              FieldKey.Data irreflexivityData = entry.getKey().getUserData(ext.irreflexivityKey);
+              if (irreflexivityData == null) continue;
+
+              for (Integer vertex : entry.getValue().keySet()) {
+                List<Edge<Integer>> path = bfs(entry.getValue(), vertex, vertex);
+                if (path != null) {
+                  ConcreteExpression transProof = makeTransitivityProof(entry.getKey(), path, factory);
                   List<CoreParameter> irrParams = new ArrayList<>(2);
-                  FieldKey.Data irreflexivityData = Objects.requireNonNull(entry.getKey().getUserData(ext.irreflexivityKey));
                   type = irreflexivityData.field.getResultType().getPiParameters(irrParams);
                   List<ConcreteArgument> irrArgs = new ArrayList<>(2);
                   if (irrParams.get(0).isExplicit()) {
@@ -490,37 +609,6 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
 
     return expectedType != null && type != null && expectedType.compare(type, CMP.EQ) ? contr : factory.caseExpr(false, Collections.singletonList(factory.caseArg(contr, null, null)), withExpectedType ? null : factory.ref(ext.Empty.getRef()), null, clauses);
-  }
-
-  private Object findContradiction(BinaryRelationClosure<Integer> closure, Map<Integer, List<TransData>> map, int index, int startIndex, Set<Integer> visited, List<TransData> result) {
-    if (!visited.add(index)) {
-      return null;
-    }
-
-    List<TransData> transDataList = map.get(index);
-    if (transDataList == null) {
-      return null;
-    }
-
-    for (TransData transData : transDataList) {
-      if (startIndex == transData.rightArg) {
-        result.add(transData);
-        return true;
-      }
-      Object resultExpr = closure.checkRelation(startIndex, transData.rightArg);
-      if (resultExpr != null) {
-        result.add(transData);
-        return resultExpr;
-      }
-
-      resultExpr = findContradiction(closure, map, transData.rightArg, startIndex, visited, result);
-      if (resultExpr != null) {
-        result.add(transData);
-        return resultExpr;
-      }
-    }
-
-    return null;
   }
 
   public static boolean isEmpty(CoreExpression type) {

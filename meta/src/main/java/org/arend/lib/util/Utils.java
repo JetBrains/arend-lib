@@ -234,7 +234,7 @@ public class Utils {
   }
 
   public static boolean safeCompare(ExpressionTypechecker typechecker, UncheckedExpression expr1, UncheckedExpression expr2, CMP cmp, ConcreteSourceNode marker, boolean allowEquations, boolean normalize) {
-    return typechecker.withCurrentState(tc -> {
+    return expr1.getUnderlyingExpression() == expr2.getUnderlyingExpression() || typechecker.withCurrentState(tc -> {
       if (tc.compare(expr1, expr2, cmp, marker, allowEquations, normalize)) {
         return true;
       }
