@@ -106,6 +106,11 @@ public class StdExtension implements ArendExtension {
     provider.load(this);
     provider.load(simpCoeMeta);
     provider.load(sipMeta);
+    provider.getDefinition(ModulePath.fromString("Data.List"), new LongName("ListMonoid"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Arith.Nat"), new LongName("NatSemiring"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Arith.Int"), new LongName("IntRing"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalProduct"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalList"), CoreFunctionDefinition.class);
     provider.load(equationMeta);
   }
 
