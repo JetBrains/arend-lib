@@ -143,7 +143,9 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           if (!(types[0] instanceof CoreUniverseExpression || types[0] instanceof CorePiExpression || types[0] instanceof CoreClassCallExpression && ((CoreClassCallExpression) types[0]).getDefinition() == ext.prelude.getDArray())) {
             typed = typechecker.coerceToType(typed, cType);
             if (typed == null) {
-              typechecker.getErrorReporter().report(new TypeMismatchError(DocFactory.text("\\Type"), types[0], cType));
+              if (!types[0].reportIfError(typechecker.getErrorReporter(), cType)) {
+                typechecker.getErrorReporter().report(new TypeMismatchError(DocFactory.text("\\Type"), types[0], cType));
+              }
               return null;
             }
           }

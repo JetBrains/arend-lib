@@ -177,14 +177,9 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
       return visit(conCall1, param);
     }
 
-    CoreParameter parameter = conCall1.getDefinition().getAllParameters();
-    if (!parameter.hasNext()) {
-      return new Result(null);
-    }
-
     List<ConcreteArgument> args = new ArrayList<>();
-    boolean abstracted = visitArgs(conCall1.getDataTypeArguments(), conCall2.getDataTypeArguments(), Collections.singletonList(parameter), false, args);
-    abstracted = visitArgs(conCall1.getDefCallArguments(), conCall2.getDefCallArguments(), Collections.singletonList(parameter), true, args) || abstracted;
+    boolean abstracted = visitArgs(conCall1.getDataTypeArguments(), conCall2.getDataTypeArguments(), Collections.singletonList(conCall1.getDefinition().getDataTypeParameters()), false, args);
+    abstracted = visitArgs(conCall1.getDefCallArguments(), conCall2.getDefCallArguments(), Collections.singletonList(conCall1.getDefinition().getParameters()), true, args) || abstracted;
     return args.size() == conCall1.getDataTypeArguments().size() + conCall1.getDefCallArguments().size() ? new Result(abstracted ? factory.app(factory.ref(conCall1.getDefinition().getRef()), args) : null) : null;
   }
 

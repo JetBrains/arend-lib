@@ -3,23 +3,28 @@
 \import Category.Functor
 \import Category.Limit
 \import Data.Array
-\import Equiv (Equiv, QEquiv)
+\import Data.Or
+\import Equiv (Equiv, QEquiv, Retraction)
 \import Function.Meta
 \import Logic
+\import Logic.Classical
 \import Logic.FirstOrder.Algebraic
 \import Logic.FirstOrder.Term
 \import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
+\import Set \hiding (#)
 \import Set.Category
+\import Set.Fin
 
 \record ModelHom {T : Theory} (Dom Cod : Model T)
   | \coerce funcs {s : Sort} : Dom s -> Cod s
   | func-op {r : Sort} (h : Symb r) (d : DArray (\lam j => Dom (domain h j))) : funcs (operation h d) = operation h (\lam j => funcs (d j))
   | func-rel (P : PredSymb) (d : DArray (\lam j => Dom (predDomain P j))) : relation P d -> relation P (\lam j => funcs (d j))
 
-\instance ModelCat (T : Theory) : CompleteCat (Model T)
+\instance ModelCat (T : Theory) : BicompleteCat (Model T)
   | Precat => ModelPrecat T
   | univalence (e : Iso) =>
     \have t => SIP (FamCat SetCat) (Model T) (\lam M N f => ModelHom M N f)
@@ -29,7 +34,7 @@
   | limit {J} (G : Functor) => \new Limit {
     | apex => \new Model {
       | Structure => limitStructure T G
-      | isModel S a rho h => propExt.conv (limitStructureTruth S.3) (\lam j => isModel S a (\lam v => (rho v).1 j) (\lam k => propExt.dir (limitStructureTruth (S.2 k)) (h k) j))
+      | isModel S a rho h => propExt.conv (limitStructureTruth S.4) (\lam j => isModel S a (\lam v => (rho v).1 j) (\lam k => propExt.dir (limitStructureTruth (S.3 k)) (h k) j))
     }
     | coneMap j => \new ModelHom {
       | funcs P => P.1 j
@@ -46,10 +51,23 @@
       | ret_f f => exts (\lam x => ext idp)
       | f_sec => idpe
     }
-  } \where {
+  }
+  | colimit G => \let data => \new ColimitData G \in \new Limit {
+    | apex => Colimit
+    | coneMap => colimitMap
+    | coneCoh => colimitCone.coneCoh
+    | isLimit => isColimit
+  }
+  \where {
     \open Structure
+    \open Theory
+    \open ColimitData \hiding (T)
 
-    \func ModelPrecat (T : Theory) : Precat (Model T) \cowith
+    \func emptyFin {S : \Set} : FinSet (\Sigma S Empty) \cowith
+      | finCard => 0
+      | finEq => inP $ path $ iso {\Sigma S Empty} {Fin 0} (\case __.2) (\case __) (\case __.2) (\case __)
+
+    \instance ModelPrecat (T : Theory) : Precat (Model T)
       | Hom M N => ModelHom M N
       | id M => \new ModelHom {
         | funcs x => x
@@ -65,9 +83,126 @@
       | id-right => idp
       | o-assoc => idp
 
+    \class ColimitData \noclassifying {J : Precat} {T : Theory} (G : Functor J (ModelPrecat T)) {
+      \func sigExt : Signature \cowith
+        | Sort => T.Sort
+        | Symb s => Or (T.Symb s) (Trunc0 (\Sigma (j : J) (G j s)))
+        | domain => \case \elim __ \with {
+          | inl f => T.domain f
+          | inr _ => nil
+        }
+        | PredSymb => T.PredSymb
+        | predDomain => T.predDomain
+
+      \func liftTerm {V : Sort -> \Set} {s : Sort} (t : Term V s) : Term {sigExt} V s \elim t
+        | var v => var v
+        | apply f d => apply (inl f) (\new DArray { | at j => liftTerm (d j) })
+
+      \func liftFormula {V : Sort -> \Set} (phi : Formula V) : Formula {sigExt} V \elim phi
+        | equality t t' => equality (liftTerm t) (liftTerm t')
+        | predicate P d => predicate P (\new DArray { | at j => liftTerm (d j) })
+
+      \func liftSequent (S : Sequent) : Sequent {sigExt}
+        => (S.1, S.2, map liftFormula S.3, liftFormula S.4)
+
+      \instance thExt : Theory
+        | Signature => sigExt
+        | axioms S => OneOf ((\Sigma (S' : Sequent) (T.axioms S') (S = liftSequent S')) ::
+            (\Sigma (j : J) (s : Sort) (f : Symb s) (vars : DArray (\lam i => G j (domain f i))) (S = (\lam _ => Empty, emptyFin, nil, equality (apply (inl f) (\lam i => apply (inr (in0 (j, vars i))) nil)) (apply (inr (in0 (j, operation f vars))) nil)))) ::
+            (\Sigma (j : J) (P : PredSymb) (vars : DArray (\lam i => G j (predDomain P i))) (relation P vars) (S = (\lam _ => Empty, emptyFin, nil, predicate P (\new DArray { | at i => apply (inr (in0 (j, vars i))) nil })))) ::
+            (\Sigma (j j' : J) (h : Hom j j') (s : Sort) (x : G j s) (S = (\lam _ => Empty, emptyFin, nil, equality (apply (inr (in0 (j', G.Func h x))) nil) (apply (inr (in0 (j, x))) nil)))) :: nil)
+
+      \instance ColimitStr : Structure T
+        | E => thExt.QTerm
+        | operation h args => qapply (inl h) args
+        | relation P args => ∃ (args' : DArray (\lam i => Term (\lam _ => Empty) (predDomain P i)))
+                               (isTheorem nil (predicate P args'))
+                               (\Pi (i : Fin (DArray.len {predDomain P})) -> qinj (args' i) = args i)
+
+      \lemma substInterpF {V : Sort -> \Set} (rho : \Pi {s : Sort} -> V s -> Term (\lam _ => Empty) s) (phi : Formula {T} V)
+        : isFormulaTrue (\lam v => qinj (rho v)) phi = isTheorem nil (substF (liftFormula phi) (\lam {s} v => rho {s} v)) \elim phi
+        | equality t t' => pmap2 (=) (substInterpT _ t) (substInterpT _ t') *> qinj-equality
+        | predicate P d => propExt (\lam (inP (d',q,e)) => congruenceF (\lam j => propExt.dir qinj-equality (e j *> substInterpT rho (d j))) q) (\lam q => inP (\new DArray { | at j => subst (liftTerm (d j)) (\lam {s} => rho) }, q, \lam i => inv (substInterpT rho (d i))))
+
+      \lemma substInterpT {V : Sort -> \Set} (rho : \Pi {s : Sort} -> V s -> Term (\lam _ => Empty) s) {s : Sort} (t : Term {T} V s)
+        : ColimitStr.interpret (\lam v => qinj (rho v)) t = qinj (subst (liftTerm t) rho) \elim t
+        | var v => idp
+        | apply f d => unfold $ cong (ext (\lam j => substInterpT rho (d j))) *> inv (path (qmerge _))
+
+      \func Colimit : Model T \cowith
+        | Structure => ColimitStr
+        | isModel S ax => \lam rho phiT =>
+            \let | (inP (tau',p)) => Choice.liftDepSurj {S.2} (\lam {v} => qinj-surj {_} {v.1}) (\lam v => rho v.2)
+                 | tau {s'} v => tau' (s',v)
+                 | eq : \Pi (phi : Formula {T} S.1) -> isFormulaTrue rho phi = isTheorem nil (substF (liftFormula phi) tau)
+                 => rewrite (path (\lam i {s'} v => inv (p (s',v)) @ i)) (substInterpF tau)
+            \in propExt.conv (eq S.4) (axiom (liftSequent S) (inP (0,(S,ax,idp))) tau (\lam j => propExt.dir (eq (S.3 j)) (phiT j)) idp)
+
+      \func colimitMap (j : J) : ModelHom {T} (G j) Colimit \cowith
+        | funcs x => qapply (inr (in0 (j,x))) nil
+        | func-op {s} h d =>
+            \have args => \new DArray _ (\lam k => apply (inr (in0 (j, d k))) nil)
+            \in inv (path (qmerge nil)) *> inv (path (qquot (axiom (\lam _ => Empty, emptyFin, nil, _) (inP (1,(j,s,h,_,idp))) (\lam {_} => absurd) (\case __) idp))) *>
+                path (qmerge args) *> path (\lam i => qapply (inl h) (\new DArray _ (\lam k => qmerge {_} {_} {inr (in0 (j, d k))} nil i)))
+        | func-rel P d r => inP (\new DArray { | at i => apply (inr (in0 (j, d i))) nil }, axiom (\lam _ => Empty, emptyFin, nil, _) (inP (2,(j,P,d,r,idp))) (\lam {_} => absurd) (\case __) idp, \lam i => path (qmerge _))
+
+      \func colimitCone : Cone G.op \cowith
+        | apex => Colimit
+        | coneMap => colimitMap
+        | coneCoh {j} {j'} h => exts (\lam {s} x => unfold (inv (path (qmerge nil)) *> path (qquot (axiom _ (inP (3,(j',j,h,s,x,idp))) (absurd __) (\case __) idp)) *> path (qmerge nil)))
+
+      \func strExt {M : Model T} (C : Cone G.op M) : Structure thExt M \cowith
+        | operation => \case \elim __ \with {
+          | inl h => operation h
+          | inr (in0 (j,x)) => \lam _ => C.coneMap j x
+        }
+        | relation => relation
+
+      \lemma strExtT {V : Sort -> \Set} (C : Cone G.op) {rho : Env {C} V} {s : Sort} (t : Term {T} V s)
+        : interpret {strExt C} rho (liftTerm t) = interpret {C} rho t \elim t
+        | var v => idp
+        | apply f d => unfold $ cong $ ext (\lam j => strExtT C (d j))
+
+      \lemma strExtF {V : Sort -> \Set} (C : Cone G.op) {rho : Env {C} V} (phi : Formula {T} V)
+        : isFormulaTrue {strExt C} rho (liftFormula phi) = isFormulaTrue {C} rho phi \elim phi
+        | equality t t' => pmap2 (=) (strExtT C t) (strExtT C t')
+        | predicate P d => cong (ext (\lam j => strExtT C (d j)))
+
+      \func modelExt {M : Model T} (C : Cone G.op M) : Model thExt M \cowith
+        | Structure => strExt C
+        | isModel => \case \elim __, \elim __ \with {
+          | _, inP (0,(S,a,idp)) => \lam rho p => propExt.conv (strExtF C S.4) (isModel S a rho (\lam j => propExt.dir (strExtF C (S.3 j)) (p j)))
+          | _, inP (1,(j,s,f,d,idp)) => \lam rho _ => inv (func-op f d)
+          | _, inP (2,(j,P,d,r,idp)) => \lam rho _ => func-rel P d r
+          | _, inP (3,(j,j',h,s,x,idp)) => \lam rho _ => cong (path (\lam i => funcs {C.coneCoh h  @ i} x))
+        }
+
+      \func modelExtHom {M : Model T} (C : Cone G.op M) : ModelHom {T} Colimit C \cowith
+        | funcs => Model.qinterpret {modelExt C}
+        | func-op h d => idp
+        | func-rel P d (inP (d',t,p)) => coe (\lam i => relation P (\new DArray _ (\lam j => Model.qinterpret {modelExt C} (p j @ i)))) (Model.theoremIsTrue {modelExt C} t (\lam {s} => absurd {modelExt C s}) (\case __)) right
+
+      \lemma interpret=map {M : Model T} (f : ModelHom {T} Colimit M) {s : Sort} (t : Term (\lam _ => Empty) s)
+        : Model.interpret {modelExt (conePullback {_} {_} {G.op} colimitCone M f)} (\lam {_} => absurd) t = f (qinj t) \elim t
+        | var ()
+        | apply (inl h) d => unfold (cong (ext (\lam j => interpret=map f (d j)))) *> inv (f.func-op h (\new DArray _ (\lam j => qinj (d j)))) *> pmap (f __) (inv (path (qmerge d)))
+        | apply (inr (in0 (j,x))) nil => pmap (f __) (inv (path (qmerge nil)))
+
+      \lemma qinterpret=map {M : Model T} (f : ModelHom {T} Colimit M) {s : Sort} (t : QTerm s) : Model.qinterpret {modelExt (conePullback {_} {_} {G.op} colimitCone M f)} t = f t \elim t
+        | qinj t => interpret=map f t
+        | qapply (inl h) d => unfold (cong (ext (\lam j => qinterpret=map f (d j)))) *> inv (f.func-op h d)
+        | qapply (inr (in0 (j,x))) d => idp
+
+      \lemma isColimit (M : Model T) : Equiv (conePullback {_} {_} {G.op} colimitCone M) => \new QEquiv {
+        | ret => modelExtHom
+        | ret_f f => exts (qinterpret=map f)
+        | f_sec C => exts (\lam j => exts (\lam x => idp))
+      }
+    }
+
     \func limitStructure (T : Theory) {J : Precat} (G : Functor J (ModelPrecat T)) : Structure T \cowith
       | E s => \Sigma (P : \Pi (j : J) -> G j s) (\Pi {j j' : J} (h : Hom j j') -> G.Func h (P j) = P j')
-      | operation h d => (\lam j => operation h (\lam k => (d k).1 j), \lam {j} {j'} f => \let t => func-op {G.Func f} h (\lam k => (d k).1 j) \in t *> cong (ext (\lam k => (d k).2 f)))
+      | operation h d => (\lam j => operation h (\lam k => (d k).1 j), \lam {j} {j'} f => func-op {G.Func f} h (\lam k => (d k).1 j) *> cong (ext (\lam k => (d k).2 f)))
       | relation P d => \Pi (j : J) -> relation P (\lam k => (d k).1 j)
 
     \lemma limitStructureInterp {T : Theory} {J : Precat} {G : Functor J (ModelPrecat T)} {V : Sort -> \Set} {rho : Env {limitStructure T G} V} {s : Sort} (t : Term V s) {j : J}

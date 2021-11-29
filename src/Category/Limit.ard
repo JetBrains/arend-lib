@@ -358,20 +358,28 @@
 \class PrecatWithPullbacks \extends Precat
   | pullback {x y z : Ob} (f : Hom x z) (g : Hom y z) : Pullback f g
 
-\func pullbackFunctor {C : PrecatWithPullbacks} {x y : C} (f : Hom x y) : Functor (slicePrecat y) (slicePrecat x) \cowith
-  | F t => (pullback f t.2, map f t.2)
-  | Func {a} g => (pbMap (\have c => Pullback.cone {pullback f a.2} \in (c.1, g.1 ∘ c.2, c.3 *> pmap (`∘ c.2) (inv g.2) *> o-assoc)), pbBeta1)
-  | Func-id => ext $ pbEta (pbBeta1 *> inv id-right) (pbBeta2 *> id-left *> inv id-right)
-  | Func-o => ext $ pbEta (pbBeta1 *> inv (pmap (`∘ _) pbBeta1 *> later pbBeta1) *> o-assoc) (pbBeta2 *> inv (pmap (`∘ _) pbBeta2 *> o-assoc *> pmap (_ ∘) pbBeta2 *> inv o-assoc) *> o-assoc)
-  \where
-    \func map {C : PrecatWithPullbacks} {x y z : C} (f : Hom x y) (g : Hom z y) : Hom (pullback f g) x
-      => (Pullback.cone {pullback f g}).1
+\func pullbackFunctor {C : PrecatWithPullbacks} {x y : C} (f : Hom x y) : Functor (slicePrecat y) (slicePrecat x) =>
+  \let | F (t : slicePrecat y) : slicePrecat x => (pullback f t.2, map f t.2)
+       | Func {a} {b} (g : Hom a b) : Hom (F a) (F b) =>
+         \let c => Pullback.cone {pullback f a.2}
+         \in (pbMap (c.1, g.1 ∘ c.2, c.3 *> pmap (`∘ c.2) (inv g.2) *> o-assoc), pbBeta1)
+  \in \new Functor {
+    | F => F
+    | Func => Func
+    | Func-id => ext $ pbEta (pbBeta1 *> inv id-right) (pbBeta2 *> id-left *> inv id-right)
+    | Func-o => ext $ pbEta (pbBeta1 *> inv (pmap (`∘ _) pbBeta1 *> later pbBeta1) *> o-assoc) (pbBeta2 *> inv (pmap (`∘ _) pbBeta2 *> o-assoc *> pmap (_ ∘) pbBeta2 *> inv o-assoc) *> o-assoc)
+  } \where
+  \func map {C : PrecatWithPullbacks} {x y z : C} (f : Hom x y) (g : Hom z y) : Hom (pullback f g) x
+    => (Pullback.cone {pullback f g}).1
 
 \class CompletePrecat \extends PrecatWithPullbacks {
   | limit {J : Precat} (G : Functor J \this) : Limit G
   \default pullback f g => Pullback.fromLimit (limit (Diagram.functor {Pullback.diagram f g}))
+
+  \func product {J : \Type} (G : J -> Ob) : Product G
+    => Product.fromLimit (limit (Product.functor G))
 } \where {
-  \func applyQEquiv {C : CompletePrecat} (E : CatEquiv C) {J : Precat} (G : Functor J E.D) : Limit G
+  \func applyEquiv \plevels obj >= hom {C : CompletePrecat \levels (obj,hom) _} (E : CatEquiv C) {J : Precat} (G : Functor J E.D) : Limit G
     => \have lim : Limit => limit (Comp E.LAdj G)
        \in \new Limit {
         | apex => E lim
@@ -387,10 +395,7 @@
       }
 }
 
-\class CompleteCat \extends CompletePrecat, Cat (obj,hom) {
-  \func product {J : \Type} (G : J -> Ob) : Product G
-    => Product.fromLimit (limit (Product.functor G))
-}
+\class CompleteCat \extends CompletePrecat, Cat (obj,hom)
 
 \class CocompletePrecat \extends Precat {
   | colimit {J : Precat} (G : Functor J \this) : Colimit G

@@ -1,17 +1,27 @@
 \import Data.Bool
 \import Data.Or
+\import Equiv
+\import Homotopy.Fibration
 \import Logic
+\import Logic.Meta
 \import Paths
 \import Relation.Equivalence
 \import Set
 
 \class LEM | lem (P : \Prop) : Dec P
 
-\class Choice (A : \Set)
-  | choice (B : A -> \Set) : (\Pi (x : A) -> TruncP (B x)) -> TruncP (\Pi (x : A) -> B x)
+\class Choice \extends BaseSet {
+  | choice (B : E -> \Set) : (\Pi (x : E) -> TruncP (B x)) -> TruncP (\Pi (x : E) -> B x)
+
+  \lemma liftDepSurj {A : E -> \Set} {B : E -> \1-Type} {f : \Pi {x : E} -> A x -> B x} (isSur : \Pi {x : E} (y : B x) -> TruncP (Fib f y)) (g : \Pi (x : E) -> B x) : ∃ (g' : \Pi (x : E) -> A x) (\Pi (x : E) -> f (g' x) = g x)
+    => TruncP.map (choice (\lam x => \Sigma (a : A x) (f a = g x)) (\lam x => isSur (g x))) (\lam h => (\lam x => (h x).1, \lam x => (h x).2))
+
+  \lemma liftSurj {A : \Set} {B : \1-Type} {f : A -> B} (isSur : \Pi (y : B) -> TruncP (Fib f y)) (g : E -> B) : ∃ (g' : E -> A) (\Pi (x : E) -> f (g' x) = g x)
+    => liftDepSurj (\lam {_} => isSur) g
+}
 
 \class AC \extends LEM {
-  | axiomOfChoice {A : \Set} (B : A -> \Set) : (\Pi (x : A) -> TruncP (B x)) -> TruncP (\Pi (x : A) -> B x)
+  | axiomOfChoice {A : \Set} : Choice A
 
   | lem P =>
     \let | R (x y : Bool) : \Prop => \case x, y \with {
@@ -41,7 +51,7 @@
              | false, false, true, p, q => q
            }
          }
-    \in \case axiomOfChoice (\lam q => \Sigma (x : Bool) (in~ x = q)) (\lam (in~ x) => inP (x,idp)) \with {
+    \in \case axiomOfChoice.choice (\lam q => \Sigma (x : Bool) (in~ x = q)) (\lam (in~ x) => inP (x,idp)) \with {
           | inP f =>
             \case (f (in~ true)).1 \as x, idp : (f (in~ true)).1 = x, (f (in~ false)).1 \as y, idp : (f (in~ false)).1 = y \with {
               | true, p, true, q => yes (Quotient.equalityEquiv E (pmap in~ (inv q) *> (f (in~ false)).2))
