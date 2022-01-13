@@ -616,6 +616,8 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         List<SubstitutionPair> substitution = new ArrayList<>();
         int k = 0;
         List<TypedExpression> removedArgs = data.removedArgs;
+        Set<CoreBinding> matchedParams = new HashSet<>();
+        Pair<CoreParameter, CoreBinding> errorPair = null;
         for (int j = 0; j < removedArgs.size(); j++) {
           ConcreteExpression subst;
           if (removedArgs.get(j) != null) {
@@ -627,12 +629,24 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             if (ref != null) {
               subst = factory.ref(ref);
               needSubst = true;
+              if (errorPair != null) break;
             } else {
+              CoreBinding binding = parameter.getTypeExpr().findFreeBindings(matchedParams);
+              if (binding != null) {
+                errorPair = new Pair<>(parameter, binding);
+                if (needSubst) break;
+              }
               subst = factory.core(dataList.get(pair.proj1).matchedArgs.get(pair.proj2));
             }
+            matchedParams.add(parameter.getBinding());
           }
           substitution.add(new SubstitutionPair(parameter.getBinding(), subst));
           parameter = parameter.getNext();
+        }
+
+        if (needSubst && errorPair != null) {
+          errorReporter.report(new TypecheckingError("Dependent pattern matching is not supported (parameter '" + errorPair.proj1.getBinding().getName() + "' depends on '" + errorPair.proj2.getName() + "')", marker));
+          return null;
         }
 
         ArendRef ref = factory.local(ext.renamerFactory.getNameFromType(resultType, null));
