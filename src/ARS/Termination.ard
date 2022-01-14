@@ -1,0 +1,79 @@
+\import ARS.AbstractReductionSystem
+\import Data.List
+\import Data.Or
+\import Equiv
+\import Logic
+\import Logic.Meta
+\import Paths
+\import Paths.Meta
+\import Relation.Truncated
+\import Set.Fin
+\import Set
+
+\func isNormalForm {A : SimpleARS} (a : A) : \Prop => \Pi {b : A} -> Not (a ~> b)
+
+\truncated \data HasNormalForm {A : SimpleARS} (a : A) : \Prop
+  | normal-form (b : A) (isNormalForm b) (a ~>_* b)
+
+\func isNormalizing (A : SimpleARS) : \Prop => \Pi (a : A) -> HasNormalForm a
+
+{- | Definition of accessibility (termination) for SimpleARS -}
+\data Acc {A : \Set} (R : Rel A) (a : A)
+  | acc (\Pi (a' : A) -> a `R` a' -> Acc R a')
+
+\func Acc-Trans {A : \Set} (R : Rel A) (a : A) : \Type => Acc (transitive-closure R) a
+
+\lemma Acc=>AccTrans
+  {A : \Set} {R : Rel A}
+  (a : A) (a-acc : Acc R a) : Acc (transitive-closure R) a =>
+  well-founded-induction
+      (Acc (transitive-closure R))
+      (\lam a f => acc (\lam a' aR+a' => transit-to-last f aR+a')) a a-acc
+  \where {
+    \lemma transit-to-last
+      {A : \Set} {R : Rel A} {a b : A}
+      (f : \Pi (b : A) -> R a b -> Acc (transitive-closure R) b)
+      (aR+b : transitive-closure R a b): Acc (transitive-closure R) b \elim aR+b
+      | tc-direct aRb => f b aRb
+      | tc-connect c aRc t => \case (f c aRc) \with {
+        | acc g => transit-to-last (\lam b cRb => g b (tc-direct cRb)) t
+      }
+  }
+
+\func isTerminating (A : SimpleARS) : \Prop => \Pi (a : A) -> Acc (~>) a
+
+\lemma Termination=>Normalization {A : SimpleARS} (dec : \Pi (a : A) -> Dec (∃ (a' : A) (a ~> a')))
+                                  (a : A)
+                                  (term : Acc (~>) a) : HasNormalForm a =>
+  well-founded-induction-transitive
+      HasNormalForm
+      (\lam z step => \case dec z \with {
+        | yes (inP (x, z~>x)) => \case (step x (tc-direct z~>x)) \with {
+          | normal-form e nfe x~>*e => normal-form e nfe (~>*-concat (trc-unary z~>x) x~>*e)
+        }
+        | no n => normal-form z (\lam {b} z~>b => n (inP (b, z~>b))) trc-direct'
+      })
+      a
+      (Acc=>AccTrans a term)
+
+\func well-founded-induction
+  {A : \Set} {R : Rel A} (C : A -> \Type)
+  (induction : \Pi (a : A) (\Pi (b : A) (a `R` b) -> C b) -> C a)
+  (a : A) (a-is-accessible : Acc R a) : C a
+\elim a-is-accessible
+  | acc successors => induction a (\lam b a~>b => well-founded-induction C induction b (successors b a~>b))
+
+\func well-founded-induction-transitive {A : \Set} {R : Rel A} (C : A -> \Type)
+                                        (induction : \Pi (a : A) (\Pi (b : A) (transitive-closure R a b) -> C b) -> C a)
+                                        (a : A) (a-is-accessible : Acc-Trans R a) : C a \elim a-is-accessible
+  | acc successors => induction a (\lam b a~>b => well-founded-induction C induction b (successors b a~>b))
+
+
+\func one-step-reduction {A : SimpleARS} (a : A) : \Set => \Sigma (b : A) (a ~> b)
+
+\data ReductionPath {A : SimpleARS} (a : A)
+  | branch (b : A) (ReductionPath b) (a ~> b)
+  | leaf (isNormalForm a)
+
+
+

@@ -1,0 +1,249 @@
+\import Data.List
+\import Data.Or
+\import Logic
+\import Logic.Meta
+\import Paths
+\import Paths.Meta
+\import Set
+\import Set.Fin
+
+\func Index {A : \Type} (list : List A) : \Type => Fin (length list)
+
+\cons fsuc {n : Nat} (x : Fin n) : Fin (suc n) => suc x
+
+\func last-fin (n : Nat) : Fin (suc n) \elim n
+  | 0 => 0
+  | suc n => suc (last-fin n)
+
+\func fin-eq-dec {n : Nat} (x y : Fin n) : Dec (x = y) \elim n, x, y
+  | suc n, 0, 0 => yes idp
+  | suc n, 0, suc y => no contradiction
+  | suc n, suc x, 0 => no contradiction
+  | suc n, suc x, suc y => \case fin-eq-dec x y \with {
+    | yes e => yes (pmap fsuc e)
+    | no n1 => no (\lam p => n1 (FinSet.suc-isInj x y p))
+  }
+
+\func expand-fin-left {A : \Type} {a b : List A} (i : Index a) : Index (a ++ b) \elim a, i
+  | :: a _, 0 => 0
+  | :: _ _, suc i => suc (expand-fin-left i)
+  \where {
+    \func correct {A : \Type} {a b : List A} (i : Index a) : (a ++ b) !! expand-fin-left i = a !! i \elim a, i
+      | :: a a1, 0 => idp
+      | :: a a1, suc i => correct i
+  }
+
+\func expand-fin-right {A : \Type} {a b : List A} (i : Index b) : Index (a ++ b) \elim a
+  | nil => i
+  | :: a a1 => suc (expand-fin-right i)
+  \where {
+    \func correct {A : \Type} {a b : List A} (i : Index b) : (a ++ b) !! expand-fin-right i = b !! i \elim a
+      | nil => idp
+      | :: a a1 => correct i
+  }
+
+\func partial-fin-induction
+  {A : \Type} {a b : List A} (C : Index (a ++ b) -> \Type)
+  (proof-for-prefix : \Pi (i : Index a) -> C (expand-fin-left i))
+  (proof-for-suffix : \Pi (i : Index b) -> C (expand-fin-right i))
+  (index : Index (a ++ b)) : C index =>
+  \case fin-list-decide index \with {
+    | inl (i, p) => rewrite p (proof-for-prefix i)
+    | inr (j, p) => rewrite p (proof-for-suffix j)
+  }
+  \where {
+    \func fin-list-decide {A : \Type} {a b : List A} (index : Index (a ++ b)) :
+      (\Sigma (i : Index a) (index = expand-fin-left i)) `Or` (\Sigma (j : Index b) (index = expand-fin-right j))
+    \elim a, index
+      | nil, index => inr (index, idp)
+      | :: a a1, 0 => inl (0, idp)
+      | :: a a1, suc index => \case fin-list-decide index \with {
+        | inl (i, eq) => inl (suc i, pmap fsuc eq)
+        | inr (j, eq) => inr (j, pmap fsuc eq)
+      }
+  }
+
+\func modular-function
+  {n : Nat}
+  (C : Fin n -> \Type)
+  (f g : \Pi (i : Fin n) -> C i)
+  (delim : Fin (suc n))
+  (i : Fin n)
+  : C i
+\elim n, delim, i
+  | suc n, 0, i => f i
+  | suc n, suc delim, 0 => g 0
+  | suc n, suc delim, suc i => modular-function (\lam i => C (suc i)) (\lam i => f (suc i)) (\lam i => g (suc i)) delim i
+  \where {
+    \func pure-left-modular
+      {n : Nat}
+      (C : Fin n -> \Type)
+      (f g : \Pi (i : Fin n) -> C i)
+      : modular-function C f g 0 = f => ext (unext C f g)
+      \where {
+        \func unext
+          {n : Nat}
+          (C : Fin n -> \Type)
+          (f g : \Pi (i : Fin n) -> C i)
+          (i : Fin n) : modular-function C f g 0 i = f i \elim n, i
+          | suc n, i => idp
+      }
+
+    \func modular-bridge
+      {n : Nat}
+      (C : Fin n -> \Type)
+      (f g : \Pi (i : Fin n) -> C i)
+      (delim : Fin n)
+      (eq : f delim = g delim) : modular-function C f g delim = modular-function C f g (suc delim) =>
+      ext (unext C f g delim eq)
+      \where {
+        \func unext
+          {n : Nat}
+          (C : Fin n -> \Type)
+          (f g : \Pi (i : Fin n) -> C i)
+          (delim : Fin n)
+          (eq : f delim = g delim)
+          (j : Fin n)
+          : modular-function C f g delim j = modular-function C f g (suc delim) j
+        \elim n, delim, j
+          | suc n, 0, 0 => eq
+          | suc n, 0, suc j => rewrite pure-left-modular.unext idp
+          | suc n, suc delim, 0 => idp
+          | suc n, suc delim, suc j => unext (\lam i => C (suc i)) (\lam i => f (suc i)) (\lam i => g (suc i)) delim eq j
+      }
+
+    \func pure-right-modular
+      {n : Nat}
+      (C : Fin n -> \Type)
+      (f g : \Pi (i : Fin n) -> C i) : modular-function C f g (last-fin n) = g => ext (unext C f g)
+      \where {
+        \func unext
+          {n : Nat}
+          (C : Fin n -> \Type)
+          (f g : \Pi (i : Fin n) -> C i)
+          (i : Fin n)
+          : modular-function C f g (last-fin n) i = g i \elim n, i
+          | suc n, 0 => idp
+          | suc n, suc i => unext (\lam i => C (suc i)) (\lam i => f (suc i)) (\lam i => g (suc i)) i
+      }
+  }
+
+\func modular-induction
+  {n : Nat} (C : Fin n -> \Type)
+  (Q : (\Pi (i : Fin n) -> C i) -> \Type)
+  (f g : \Pi (i : Fin n) -> C i)
+  (start : Q f)
+  (step : \Pi (delim : Fin n) (Q (modular-function C f g delim)) -> Q (modular-function C f g (suc delim)))
+  : Q g =>
+  transport Q (modular-function.pure-right-modular C f g) (progressive-induction-lemma {n} C Q f g step (last-fin n) start)
+  \where {
+    \func progressive-induction-lemma
+      {n : Nat} (C : Fin n -> \Type)
+      (Q : (\Pi (i : Fin n) -> C i) -> \Type)
+      (f g : \Pi (i : Fin n) -> C i)
+      (step : \Pi (delim : Fin n) (Q (modular-function C f g delim)) -> Q (modular-function C f g (suc delim)))
+      (delim : Fin (suc n))
+      (start : Q f)
+      : Q (modular-function C f g delim) \elim n, delim
+      | 0, 0 => transportInv Q (modular-function.pure-left-modular C f g) start
+      | suc n, 0 => start
+      | suc n, suc delim => step delim (progressive-induction-lemma {suc n} C Q f g step delim start)
+  }
+
+\func pointed-function {n : Nat} (C : Fin n -> \Type)
+                       (f : \Pi (i : Fin n) -> C i)
+                       (index : Fin n)
+                       (point : C index)
+                       (j : Fin n)
+  : C j \elim n, index, j
+  | suc n, 0, 0 => point
+  | suc n, 0, suc j => f (suc j)
+  | suc n, suc index, 0 => f 0
+  | suc n, suc index, suc j => pointed-function (\lam i => C (suc i)) (\lam i => f (suc i)) index point j
+  \where {
+    \func at-index
+      {n : Nat} (C : Fin n -> \Type)
+      (f : \Pi (i : Fin n) -> C i)
+      (index : Fin n)
+      (point : C index)
+      : pointed-function C f index point index = point \elim n, index
+      | suc n, 0 => idp
+      | suc n, suc index => at-index (\lam i => C (suc i)) (\lam i => f (suc i)) index point
+
+    \func not-at-index
+      {n : Nat} (C : Fin n -> \Type)
+      (f : \Pi (i : Fin n) -> C i)
+      (index : Fin n)
+      (point : C index)
+      (j : Fin n)
+      (j-not-index : j = index -> Empty)
+      : pointed-function C f index point j = f j \elim n, index, j
+      | suc n, 0, 0 => \have contra => j-not-index idp \in contradiction
+      | suc n, 0, suc j => idp
+      | suc n, suc index, 0 => idp
+      | suc n, suc index, suc j
+      => not-at-index (\lam i => C (suc i)) (\lam i => f (suc i)) index point j (\lam p => j-not-index (pmap fsuc p))
+  }
+
+\func pointed-induction
+  {n : Nat} (C : Fin n -> \Type)
+  (Q : \Pi (i : Fin n) -> (C i) -> \Type)
+  (f : \Pi (i : Fin n) -> C i)
+  (index : Fin n)
+  (point : C index)
+  (eq1 : Q index point)
+  (eq2 : \Pi (j : Fin n) (Not (j = index)) -> Q j (f j))
+  (i : Fin n)
+  : Q i (pointed-function C f index point i)
+\elim n, index, i
+  | suc n, 0, 0 => eq1
+  | suc n, 0, suc i => eq2 (suc i) (\lam e => contradiction)
+  | suc n, suc index, 0 => eq2 0 (\lam e => contradiction)
+  | suc n, suc index, suc i =>
+    pointed-induction
+        (\lam i => C (suc i))
+        (\lam i ci => Q (suc i) ci)
+        (\lam i => f (suc i)) index point eq1
+        (\lam j ne => eq2 (suc j)
+            (\lam p => ne (FinSet.suc-isInj _ _ p))) i
+
+\func modular-to-pointed
+  {n : Nat} (C : Fin n -> \Type)
+  (f g : \Pi (i : Fin n) -> C i)
+  (delim : Fin n)
+  : modular-function C f g delim = pointed-function C (modular-function C f g delim) delim (f delim) =>
+  ext (unext C f g delim)
+  \where {
+    \func unext
+      {n : Nat} (C : Fin n -> \Type)
+      (f g : \Pi (i : Fin n) -> C i)
+      (delim : Fin n)
+      (i : Fin n)
+      : modular-function C f g delim i = pointed-function C (modular-function C f g delim) delim (f delim) i
+    \elim n, delim, i
+      | suc n, 0, 0 => idp
+      | suc n, 0, suc i => idp
+      | suc n, suc delim, 0 => idp
+      | suc n, suc delim, suc i =>
+        unext (\lam i => C (suc i)) (\lam i => f (suc i)) (\lam j => g (suc j)) delim i
+  }
+
+\func modular-to-pointed-forward
+  {n : Nat} (C : Fin n -> \Type)
+  (f g : \Pi (i : Fin n) -> C i)
+  (delim : Fin n)
+  : modular-function C f g (suc delim) = pointed-function C (modular-function C f g delim) delim (g delim) =>
+  ext (unext C f g delim)
+  \where {
+    \func unext
+      {n : Nat} (C : Fin n -> \Type)
+      (f g : \Pi (i : Fin n) -> C i)
+      (delim : Fin n)
+      (i : Fin n)
+      : modular-function C f g (suc delim) i = pointed-function C (modular-function C f g delim) delim (g delim) i
+    \elim n, delim, i
+      | suc n, 0, 0 => idp
+      | suc n, 0, suc i => rewrite modular-function.pure-left-modular.unext idp
+      | suc n, suc delim, 0 => idp
+      | suc n, suc delim, suc i => unext (\lam i => C (suc i)) (\lam i => f (suc i)) (\lam j => g (suc j)) delim i
+  }
