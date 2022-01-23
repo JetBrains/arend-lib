@@ -298,11 +298,13 @@
   | cover-inj (j : J) (g j = x)
   | cover-trans {I : \Set} {f : I -> P} (Cover x f) (\Pi (i : I) -> Cover (f i) g)
   | cover-proj1 {a b : P} (x = conj a b) (j : J) (g j = a)
-  | cover-proj2 {a b : P} (x = conj a b) (j : J) (g j = b)
   | cover-idemp (j : J) (g j = conj x x)
   | cover-comm {a b : P} (x = conj a b) (j : J) (g j = conj b a)
   | cover-ldistr {a b : P} (x = conj a b) {f : J -> P} (Cover b f) (\Pi (j : J) -> g j = conj a (f j))
   \where {
+    \lemma cover-proj2 {P : FramePres} {x : P} {J : \Set} {g : J -> P} {a b : P} (p : x = conj a b) (j : J) (q : g j = b) : Cover x g
+      => cover-trans (cover-comm {_} {_} {\Sigma} {\lam _ => conj b a} p () idp) (\lam _ => cover-proj1 idp j q)
+
     \lemma cover-index {P : FramePres} {x : P} {l : Array P} (i : Index x l) : Cover x l
       => cover-inj i.1 i.2
 
@@ -331,7 +333,6 @@
       | cover-inj j p => cover-inj j (pmap F p)
       | cover-trans c g => cover-trans (map c) (\lam i => map (g i))
       | cover-proj1 p j q => cover-proj1 (pmap F p *> func-conj) j (pmap F q)
-      | cover-proj2 p j q => cover-proj2 (pmap F p *> func-conj) j (pmap F q)
       | cover-idemp j p => cover-idemp j (pmap F p *> func-conj)
       | cover-comm p j q => cover-comm (pmap F p *> func-conj) j (pmap F q *> func-conj)
       | cover-ldistr p c f => cover-ldistr (pmap F p *> func-conj) (map c) (\lam j => pmap F (f j) *> func-conj)
@@ -363,7 +364,6 @@
       | cover-inj j idp => cover-inj' j (q j)
       | cover-trans c d => cover-trans' (cover-ldistr' c (\lam j => idp)) (\lam i => cover-ldistr' (d i) q)
       | cover-proj1 p j s => cover-prod-inj' cover-proj1' (cover-trans' cover-proj2' (\lam _ => cover-proj1-inj' p () s)) j (q j)
-      | cover-proj2 p j s => cover-prod-inj' cover-proj1' (cover-trans' cover-proj2' (\lam _ => cover-proj2-inj' p () s)) j (q j)
       | cover-idemp j p => cover-prod-inj' cover-proj1' (cover-prod' cover-proj2' cover-proj2') j (q j *> pmap (conj a) p)
       | cover-comm idp j p => cover-prod-inj' cover-proj1' (cover-trans' cover-proj2' (\lam _ => cover-prod' cover-proj2' cover-proj1')) j (q j *> pmap (conj a) p)
       | cover-ldistr idp c p => cover-trans' (cover-prod' (cover-prod' cover-proj1' (cover-trans' cover-proj2' (\lam _ => cover-proj1'))) (cover-trans' cover-proj2' (\lam _ => cover-proj2')))
@@ -378,7 +378,7 @@
       | cover-inj' j p => cover-inj j p
       | cover-trans' c d => cover-trans (cover'-cover c) (\lam i => cover'-cover (d i))
       | cover-proj1-inj' p j q => cover-proj1 p j q
-      | cover-proj2-inj' p j q => cover-proj2 p j q
+      | cover-proj2-inj' p j q => Cover.cover-proj2 p j q
       | cover-prod-inj' c1 c2 j p => cover-trans (Cover.cover-prod (cover'-cover c1) (cover'-cover c2)) (\lam _ => cover-inj j p)
   }
 
@@ -447,7 +447,7 @@
   | <=-antisymmetric U<=V V<=U => exts (\lam x => ext (U<=V, V<=U))
   | meet U V => closure (\lam (t : \Sigma (a b : P) (U.1 a) (V.1 b)) => conj t.1 t.2)
   | meet-left {U} {V} => closure<= (\lam t => cover-proj1 idp (t.1,t.3) idp)
-  | meet-right {U} {V} => closure<= (\lam t => cover-proj2 idp (t.2,t.4) idp)
+  | meet-right {U} {V} => closure<= (\lam t => Cover.cover-proj2 idp (t.2,t.4) idp)
   | meet-univ {U} {V} {W} W<=U W<=V {x} xW => cover-trans (cover-idemp {P} {x} {\Sigma} {\lam _ => conj x x} () idp) (\lam _ => cover-inj (x, x, W<=U xW, W<=V xW) idp)
   | top => (\lam _ => \Sigma, \lam _ _ => ())
   | top-univ _ => ()
@@ -648,7 +648,6 @@
       | cover-inj j p => rewriteI p (Join-cond j)
       | cover-trans c f => locale_cover c <=∘ Join-univ (\lam i => locale_cover (f i))
       | cover-proj1 p j q => rewrite p (meet-left <=∘ rewriteI q (Join-cond j))
-      | cover-proj2 p j q => rewrite p (meet-right <=∘ rewriteI q (Join-cond j))
       | cover-idemp j p => transport (`<= _) (p *> meet-idemp) (Join-cond j)
       | cover-comm p j q => transport (`<= _) (q *> meet-comm *> inv p) (Join-cond j)
       | cover-ldistr p c f => rewrite p (meet-univ meet-left (meet-right <=∘ locale_cover c) <=∘ Join-ldistr>= <=∘ Join-univ (\lam j => transport (`<= _) (f j) (Join-cond j)))
@@ -756,11 +755,10 @@
         \have p => unsplit2 (\lam i => DArray.len {g' i}) (\lam p => (S p).1) i j m
         \in cover-inj p.1 (pmap g p.2)))))
   | cover-proj1 p j q => inP (j :: nil, cover-trans (leq Rxy) (\lam _ => cover-proj1 p 0 q))
-  | cover-proj2 p j q => inP (j :: nil, cover-trans (leq Rxy) (\lam _ => cover-proj2 p 0 q))
   | cover-idemp j p => inP (j :: nil, cover-trans (leq Rxy) (\lam _ => cover-idemp 0 p))
   | cover-comm p j q => inP (j :: nil, cover-trans (leq Rxy) (\lam _ => cover-comm p 0 q))
   | cover-ldistr {a} {b} p {f} c h =>
-    \let | (inP (b',Rb'b,x<=b')) => comm Rxy b nil (cover-proj2 p 0 idp)
+    \let | (inP (b',Rb'b,x<=b')) => comm Rxy b nil (Cover.cover-proj2 p 0 idp)
          | (inP k) => FinSet.finiteAC (\lam j => wayBelowPredicate R (Rb'b j) c basic leq dense comm)
          | l' => Big (++) nil (\lam i => (k i).1)
     \in inP (l', cover-trans (Cover.cover-prod (cover-trans (leq Rxy) (\lam _ => cover-proj1 p () idp)) (cover-inj () idp))
