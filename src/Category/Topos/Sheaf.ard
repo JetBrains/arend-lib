@@ -29,7 +29,7 @@
   \lemma pullback_id : pullback (id x) = {Presieve x} \this
     => exts (\lam h => pmap S id-left)
 } \where {
-  \lemma idLimit {C D : Precat} {F : Functor (opP C) D} {x : C} {S : Presieve x} (xS : S (id x)) : Limit { | Cone => Cone.map F S.cone } \cowith
+  \lemma idLimit {C D : Precat} {F : Functor (opP C) D} {x : C} (S : Presieve x) (xS : S (id x)) : Limit { | Cone => Cone.map F S.cone } \cowith
     | isLimit z => \new QEquiv {
       | ret (c : Cone) => c.coneMap ((x, id x), xS)
       | ret_f h => pmap (`∘ _) Func-id *> id-left
@@ -44,7 +44,7 @@
                     (L2 : \Pi {b : C} {h : Hom b a} -> S1 h -> Limit { | Cone => Cone.map F (cone {S2.pullback h}) })
     : Limit { | Cone => Cone.map F S2.cone } \cowith
     | isLimit z =>
-      \have | L : Limit { | Cone => Cone.map F S1.cone } => rewriteF S1.pullback_id (L1 (id a))
+      \have | L : Limit { | Cone => Cone.map F S1.cone } => rewriteI S1.pullback_id (L1 (id a))
             | cm (c : Cone (Comp F S2.diagram.op) z) : Cone L.G z =>
               \new Cone {
                 | coneMap ((x,Hxa),xS1) => limMap {L2 xS1} (\new Cone {
@@ -134,10 +134,8 @@
       \in \new QEquiv {
         | ret (c' : Cone) => e.ret (mf c')
         | ret_f h => pmap e.ret (ext idp) *> e.ret_f h
-        | f_sec c' => exts (\lam ((y,Hyx),ys) => Equiv.isInj {p y (\lam j => pullbackFunctor Hyx (g j)) (basicCover-stable Hyx c) z} (MatchingFamily-equality (\lam j =>
-          -- TODO: It works much slower without \have. Why? Replacing MatchingFamily-equality with exts also makes it slower.
-          \have s => inv o-assoc *> pmap (`∘ _) (inv F.Func-o *> pmap F.Func Pullback.cone.3 *> Func-o) *> o-assoc *> path (\lam i => _ ∘ family {e.f_ret (mf c') @ i} j) *> inv (cone-isMatching z ((y,Hyx),ys) (g j, d j))
-          \in s)))
+        | f_sec c' => exts (\lam ((y,Hyx),ys) => Equiv.isInj {p y (\lam j => pullbackFunctor Hyx (g j)) (basicCover-stable Hyx c) z}
+            (exts (\lam j => inv o-assoc *> pmap (`∘ _) (inv F.Func-o *> pmap F.Func Pullback.cone.3 *> Func-o) *> o-assoc *> path (\lam i => _ ∘ family {e.f_ret (mf c') @ i} j) *> inv (cone-isMatching z ((y,Hyx),ys) (g j, d j)))))
       }
   } \where {
     \record MatchingFamily {C : SiteWithBasis} {D : Cat} (F : Functor (opP C) D) (x : C) {J : \Set} (g : J -> slicePrecat x) (z : D)
@@ -147,9 +145,6 @@
     \func matchingFamily {C : SiteWithBasis} {D : Cat} (F : Functor (opP C) D) (x : C) {J : \Set} (g : J -> slicePrecat x) (z : D) (h : Hom z (F x)) : MatchingFamily F x g z \cowith
       | family j => Func (g j).2 ∘ h
       | isMatching j j' => inv o-assoc *> pmap (`∘ h) (inv Func-o *> pmap Func Pullback.cone.3 *> Func-o) *> o-assoc
-
-    \lemma MatchingFamily-equality {C : SiteWithBasis} {D : Cat} {F : Functor (opP C) D} {x : C} {J : \Set} {g : J -> slicePrecat x} {z : D} {m m' : MatchingFamily F x g z} (p : \Pi (j : J) -> m.family j = m'.family j) : m = m'
-      => exts p
 
     \lemma cone-isMatching {C : SiteWithBasis} {D : Cat} {F : Functor (opP C) D} {x : C} (z : D) {s : Sieve x} {c : Cone (Comp F s.diagram.op) z} (q q' : \Sigma (y : slicePrecat x) (s y.2))
       : F.Func Pullback.cone.1 ∘ c.coneMap q = Func Pullback.cone.2 ∘ c.coneMap q'
@@ -203,16 +198,10 @@
 } \where {
   \open Limit
 }
+-}
 
 \lemma sheafOnPresentedFrame {P : FramePres} {D : CompleteCat} (F : VSheaf D (framePresSite P)) : VSheaf D (PresentedFrame P) (extend F) \cowith
-  | isSheaf {U} {s : Sieve} (inP (J, g, U<=g, g<=s)) => -- Presieve.transLimit {_} {_} {extend F} (\new Presieve U (\lam {V} _ => ∃ (a : P) (U.1 a) (V = embed a))) s {?} {?}
-    {- \have | s' : Presieve
-          | C1 => Cone (Comp (extend F)) z
-          | C2 => Cone (Comp (extend F) s.diagram.op) z
-    \in {?} -}
-  -- iso_lim {_} {_} {_} {Cone.map (extend F) s.cone} (extend.lim F U) {?}
-  -- iso_lim {Cone.map (extend F) s.cone} (D.limit (Comp (extend F) s.diagram.op)) {?}
-      -- iso_lim (D.limit (Comp F s.diagram.op)) {?}
+  | isSheaf {U} {s : Sieve} (inP (J, g, U<=g, g<=s)) =>
   \new Limit {
     | isLimit z =>
       \have | lim (j : \Sigma (x : P) (embed x <= U)) => cover-lem F (U<=g (j.2 (cover-inj () idp)))
@@ -222,7 +211,7 @@
       \in \new QEquiv {
         | ret (c : Cone) =>
           \have cone j => \new Cone (Cone.G {lim j}) z {
-            | coneMap k => extend-proj F k.1.1 ∘ c.coneMap ((embed k.1.1, \lam z<=y => j.2 (cover-trans z<=y (\lam _ => k.1.2))), lem j k)
+            | coneMap k => extend-proj F k.1.1 ∘ c.coneMap ((embed k.1.1, \lam z<=y => j.2 (cover-trans z<=y (\lam _ => k.1.2))), lem j (k.1,k.2))
             | coneCoh h => inv o-assoc *> pmap (`∘ _) (inv (extend-proj-nat F h.1 (cover-trans __ (\lam _ => h.1)))) *> o-assoc *> pmap (_ ∘) (c.coneCoh (later (cover-trans __ (\lam _ => h.1), Path.inProp _ _)))
           }
           \in limMap {extend.lim F U} $ \new Cone {
@@ -247,7 +236,7 @@
 
     \lemma cover1-lem {P : FramePres} {D : Cat} {F : VSheaf D (framePresSite P)} {a : P} {J : \Set} {g : J -> P} (j : J) (p : Cover1 a (g j))
       : Limit { | Cone => Cone.map F (Presieve.cone {genSieve a g}) }
-      => Presieve.idLimit (inP (later (j,p)))
+      => Presieve.idLimit (genSieve a g) (inP (later (j,p)))
 
     \lemma cover-lem {P : FramePres} {D : Cat} (F : VSheaf D (framePresSite P)) {a : P} {J : \Set} {g : J -> P} (c : Cover a g)
       => cover'-lem F (cover-inj () idp) (Cover'.cover-cover' c)
@@ -276,7 +265,7 @@
              \in D.limit {opP (subPrecat {framePresPreorder P} f)} (Comp F (Functor.op {subPrecat.embedding f}))
 
         \func cone {P : FramePres} {D : CompleteCat} (F : Functor (opP (framePresPreorder P)) D) {a b : PresentedFrame P} (b<=a : b <= a) : Cone (Cone.G {lim F b}) (lim F a) \cowith
-          | coneMap (x,x<=b) => coneMap (later (x, <=-transitive x<=b b<=a))
+          | coneMap (x,x<=b) => coneMap (later (x, <=-transitive (\lam {_} => x<=b) b<=a))
           | coneCoh {j} {j'} => \case \elim j, \elim j' \with { | (_,_), (_,_) => coneCoh }
       }
 
@@ -303,4 +292,3 @@
       : extend-proj F y ∘ Func {extend F} h' = F.Func h ∘ extend-proj F z
       => extend-proj-nat' F h' *> inv (coneCoh h)
   }
--}
