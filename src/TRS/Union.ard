@@ -1,0 +1,40 @@
+\import Data.List (List)
+\import Meta
+\import Paths
+\import TRS.HRS
+
+\func SumFSignature {J Sort : \Set} (S : J -> FSignature Sort) : FSignature Sort \cowith
+  | symbol s => \Sigma (j : J) (symbol {S j} s)
+  | domain symb => domain {S symb.1} symb.2
+
+\func inject-term {J Sort : \Set} (S : J -> FSignature Sort) {s : Sort} {c : List Sort} {mc : MetaContext Sort}
+                  {j : J} (t : Term (S j) c s mc) : Term (SumFSignature S) c s mc \elim t
+  | var index p => var index p
+  | metavar m args => metavar m (\lam i => inject-term S (args i))
+  | func f args => func (j,f) (\lam i => inject-term S (args i))
+  \where {
+    \func over-transport-sort {J Sort : \Set} {S : J -> FSignature Sort} {s s' : Sort} {c : List Sort} {mc : MetaContext Sort}
+                              (eq : s = s')
+                              {j : J} (t : Term (S j) c s mc) :
+      inject-term S (transport (Term (S j) c __ mc) eq t) = transport (Term (SumFSignature S) c __ mc) eq (inject-term S t)
+    \elim eq
+      | idp => idp
+
+    \func over-transport-ctx {J Sort : \Set} {S : J -> FSignature Sort} {s : Sort} {c c' : List Sort} {mc : MetaContext Sort}
+                             (eq : c = c')
+                             {j : J} (t : Term (S j) c s mc) :
+      inject-term S (transport (Term (S j) __ s mc) eq t) = transport (Term (SumFSignature S) __ s mc) eq (inject-term S t) \elim eq
+      | idp => idp
+  }
+
+\func inject-rule-container {J Sort : \Set} (S : J -> FSignature Sort) {s : Sort} {j : J} (R : RewriteRule {S j} s) : RewriteRule {SumFSignature S} s \cowith
+  | rr-mc => R.rr-mc
+  | rr-l => inject-term S R.rr-l
+  | rr-r => inject-term S R.rr-r
+  | rr-l-func-root => cases (R.rr-l, R.rr-l-func-root) \with {
+    | func f arguments, T-has-functional-root => T-has-functional-root {SumFSignature S}
+  }
+
+\func SumRegistry {J Sort : \Set} (S : J -> FSignature Sort) (L : \Pi (j : J) -> RuleRegistry (S j)) : RuleRegistry (SumFSignature S) \cowith
+  | rule-J s => \Sigma (j : J) (rule-J {L j} s)
+  | rule-container p => inject-rule-container S (rule-container p.2)

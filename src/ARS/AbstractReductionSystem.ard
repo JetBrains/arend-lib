@@ -1,0 +1,80 @@
+\import Paths
+\import Paths.Meta
+\import Relation.Truncated
+
+\class AbstractReductionSystem \alias ARS (A : \Set)
+  | \infix 4 ~> : Rel A -- | Reduction relation
+  | \infix 5 |--| : Rel A -- | Symmetric relation
+  | |--|_symmetric (a b : A) (a~b : a |--| b) : b |--| a
+
+\class SimpleARS \extends AbstractReductionSystem
+  | |--| => \lam a b => a = b
+  | |--|_symmetric (a b : A) (p : a |--| b) => inv p
+
+\func \infix 4 ~>_0 {A : ARS} : Rel A => =
+
+\func \infix 4 ~>_1 {A : ARS} : Rel A => A.~>
+
+\func \infix 4 ~>_= {A : ARS} : Rel A => reflexive-closure (~>)
+
+\func \infix 4 ~>_+ {A : ARS} : Rel A => transitive-closure (~>)
+
+\func \infix 4 ~>_* {A : ARS} : Rel A => transitive-refl-closure (~>)
+
+\func \infix 4 <~ {A : ARS} : Rel A => \lam a b => b ~> a
+
+\func \infix 4 <~> {A : ARS} : Rel A => symmetric-closure (~>)
+
+\func <~>-reverse {A : ARS} {a b : A} (a<~>b : a <~> b) : b <~> a \elim a<~>b
+  | sc-left a~>b => sc-right a~>b
+  | sc-right a<~b => sc-left a<~b
+
+\func \infix 4 <~>* {A : ARS} : A -> A -> \Prop => transitive-refl-closure (<~>)
+
+\lemma <~>*-compose {A : ARS} {a c : A} (b : A) (a<~>*b : a <~>* b) (b<~>*c : b <~>* c) : a <~>* c \elim a<~>*b
+  | trc-direct a=b => rewrite a=b b<~>*c
+  | trc-connect c1 a<~>c1 c1<~>*c => trc-connect c1 a<~>c1 (<~>*-compose b c1<~>*c b<~>*c)
+
+\lemma <~>*-reverse {A : ARS} {a b : A} (a<~>*b : a <~>* b) : b <~>* a \elim a<~>*b
+  | trc-direct p => trc-direct (inv p)
+  | trc-connect c a<~>c c<~>*b => <~>*-compose c (<~>*-reverse c<~>*b) (trc-connect a (<~>-reverse a<~>c) (trc-direct idp))
+
+\lemma ~>=><~>* {A : ARS} {a b : A} (red : a ~> b) : a <~>* b => trc-connect b (sc-left red) (trc-direct idp)
+
+\lemma ~>*=><~>* {A : ARS} {a b : A} (red : a ~>_* b) : a <~>* b \elim red
+  | trc-direct a=b => trc-direct a=b
+  | trc-connect c r t => trc-connect c (sc-left r) (~>*=><~>* t)
+
+\lemma ~>*-concat {A : ARS} {a b c : A} (a~>*b : a ~>_* b) (b~>*c : b ~>_* c) : a ~>_* c \elim a~>*b
+  | trc-direct a=b => rewrite a=b b~>*c
+  | trc-connect c' a~>c' c'~>*b => trc-connect c' a~>c' (~>*-concat c'~>*b b~>*c)
+
+\lemma ~>_=-append {A : ARS} {a b c : A} (a~>_=b : a ~>_= b) (b~>*c : b ~>_* c) : a ~>_* c \elim a~>_=b
+  | rc-id p => rewrite p b~>*c
+  | rc-rel a~>b => trc-connect b a~>b b~>*c
+
+\truncated \data Join {A : ARS} (a b : A) : \Prop
+  | join (c : A) (a ~>_* c) (b ~>_* c)
+  \where {
+    \lemma append-left {A : ARS} {a b c : A} (c~>*a : c ~>_* a) (j : Join a b) : Join c b \elim j
+      | join c' a~>*c' b~>*c' => join c' (~>*-concat c~>*a a~>*c') b~>*c'
+
+    \lemma append-right {A : ARS} {a b c : A} (c~>*b : c ~>_* b) (j : Join a b) : Join a c \elim j
+      | join c' a~>*c' b~>*c' => join c' a~>*c' (~>*-concat c~>*b b~>*c')
+  }
+
+\func \infix 5 ~ {A : ARS} : Rel A => transitive-refl-closure (|--|)
+
+\truncated \data \infix 5 |==| {A : ARS} (a b : A) : \Prop
+  | red-to (a ~> b)
+  | red-from (a <~ b)
+  | eq (a ~ b)
+
+\func Conversion~ {A : ARS} : Rel A => transitive-refl-closure (|==|)
+
+\truncated \data Join~ {A : ARS} (a b : A) : \Prop
+  | join~ (c d : A) (a ~>_* c) (c ~ d) (b ~>_* d)
+
+\truncated \data \infix 4 ~>~ {A : ARS} (a b : A) : \Prop
+  | red~ (c d : A) (a ~ c) (c ~> d) (d ~ b)
+

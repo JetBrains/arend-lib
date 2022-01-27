@@ -1,0 +1,99 @@
+\import Data.List (!!, ++, ::, List, length, nil)
+\import Logic
+\import Logic.Meta
+\import Paths
+\import Paths.Meta
+\import Data.Fin
+\import Data.SubList
+\import TRS.HRS
+\import TRS.MetaContexts
+\import TRS.Substitutions
+\open FSignature
+
+\data GenericLinearTerm
+  (env : FSignature)
+  (context : List Sort)
+  (termSort : Sort)
+  (allow-variables : \Prop)
+  | l-func
+    (f : symbol termSort)
+    (arguments : DArray {arity f} (\lam index => GenericLinearTerm env (context ++ (f !!domain index)) (f !!sort index) allow-variables))
+  | l-full-metavar
+  | l-var (index : Index context) (termSort = context !! index) allow-variables
+
+\module Linear \where {
+  \func convert-to-term
+    {env : FSignature} {context : List Sort} {s : Sort} {allowVariables : \Prop}
+    (term : GenericLinearTerm env context s allowVariables)
+    : Term env context s (LinearMetaContext term)
+  \elim term
+    | l-func f arguments => func f (\lam i => ModularMetaContext.upgrade-metavariables (\lam i => LinearMetaContext (arguments i)) (convert-to-term (arguments i)))
+    | l-var index p _ => var index p
+    | l-full-metavar => metavar idp (\lam i => var i idp)
+}
+
+\func LinearMetaContext {env : FSignature} {context : List Sort} {s : Sort} {allowVariables : \Prop}
+                        (term : GenericLinearTerm env context s allowVariables) : MetaContext Sort \elim term
+  | l-func f arguments => ModularMetaContext (\lam i => LinearMetaContext (arguments i))
+  | l-var index p _ => EmptyMetaContext
+  | l-full-metavar => SingularMetaContext s context
+
+\func LinearTerm (env : FSignature) (context : List Sort) (termSort : Sort) : \Type
+  => GenericLinearTerm env context termSort (\Sigma)
+
+\cons lt-var {env : FSignature} {context : List Sort} {termSort : Sort} (index : Index context) (p : termSort = context !! index)
+: LinearTerm env context termSort
+=> l-var index p ()
+
+\func LinearPattern (env : FSignature) (context : List Sort) (termSort : Sort) : \Type
+  => GenericLinearTerm env context termSort Empty
+
+\lemma modular-commutation {env : FSignature} {subcontext context : List Sort} {s : Sort} {msig : MetaContext Sort}
+                           {n : Nat}
+                           (sigs : \Pi (i : Fin n) -> MetaContext Sort)
+                           (i : Fin n)
+                           (sublist : SubList subcontext context)
+                           (term : Term env context s (sigs i))
+                           (rho : MetaSubstitution env subcontext (ModularMetaContext sigs) msig)
+  :
+  MetaSubstitution.apply term sublist (\lam m => rho (i, m))
+    =
+  MetaSubstitution.apply (ModularMetaContext.upgrade-metavariables sigs term) sublist rho
+\elim term
+  | var index p => idp
+  | metavar m arguments => pmap
+      (\lam f => Substitution.apply (rho (i, m)) (extend-substitution-left sublist f))
+      (ext (\lam index => modular-commutation sigs i sublist (arguments index) rho))
+  | func f arguments => Term.fext (\lam index => modular-commutation sigs i (SubList.extend-right-single sublist) (arguments index) rho)
+
+\lemma invariant-through-empty-subst
+  {env : FSignature} {context context' : List Sort} {s : Sort} {old-msig new-msig : MetaContext Sort}
+  (rho : MetaSubstitution env nil old-msig new-msig)
+  (sublist sublist' : SubList nil (context ++ context'))
+  (term : Term env (context ++ context') s old-msig)
+  :
+  MetaSubstitution.apply term sublist rho
+    =
+  MetaSubstitution.apply term sublist' rho => lemma rho sublist sublist' term (trivial-sublist-contractible _ _)
+  \where {
+    \lemma lemma
+      {env : FSignature} {context context' : List Sort} {s : Sort} {old-msig new-msig : MetaContext Sort}
+      (rho : MetaSubstitution env nil old-msig new-msig)
+      (sublist sublist' : SubList nil (context ++ context'))
+      (term : Term env (context ++ context') s old-msig)
+      (eq : sublist = sublist')
+      : MetaSubstitution.apply term sublist rho = MetaSubstitution.apply term sublist' rho \elim eq
+      | idp => idp
+  }
+
+\record LinearRewriteRule \extends RewriteRule {
+  | rr-pattern : LinearPattern env nil s
+  | rr-mc => LinearMetaContext rr-pattern
+  | rr-l => Linear.convert-to-term rr-pattern
+}
+
+\record LinearRegistry \extends RuleRegistry {
+  \override rule-container : \Pi {s : Sort} (id : rule-J s) -> LinearRewriteRule {env} s
+
+  \func rule-pattern {s : Sort} (idx : rule-J s) : LinearPattern env nil s => rr-pattern {rule-container idx}
+}

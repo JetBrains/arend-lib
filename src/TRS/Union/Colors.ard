@@ -1,0 +1,80 @@
+\import Data.List \hiding (Sort)
+\import Logic
+\import Paths
+\import Paths.Meta
+\import Set
+\import Data.Fin
+\import TRS.HRS
+\import TRS.Linearity
+\import TRS.MetaContexts
+\import TRS.Union
+
+\class TheoremContext \noclassifying
+  (Color : DecSet)
+  (Sort' : \Set)
+  (envs : Color -> FSignature Sort')
+  (rules : \Pi (c : Color) -> LinearRegistry (envs c)) {
+
+  \instance env : FSignature => SumFSignature envs
+
+  \func monochrome-reduction (c : Color) {context : List Sort'} {s : Sort'} {mc : MetaContext Sort'} (A B : Term (envs c) context s mc) : \Type
+    => RewriteRelation {envs c} (rules c) A B
+
+  \func JRegistry : RuleRegistry env => SumRegistry envs rules
+
+  \func get-rule-pattern {s : Sort'} {c : Color} (idx : rule-J {rules c} s) : LinearPattern (envs c) nil s =>
+    LinearRegistry.rule-pattern {rules c} idx
+
+  \func rule-linear-mc {s : Sort'} {c : Color} (idx : rule-J {rules c} s) : MetaContext Sort' =>
+      LinearMetaContext {envs c} (get-rule-pattern idx)
+
+  \func rule-right-linear {s : Sort'} {c : Color} (idx : rule-J {rules c} s) : Term (envs c) nil s (rule-linear-mc idx) =>
+    LinearRegistry.rule-r {rules c} idx
+
+  \data HasColoredRoot (color : Color) {context : List Sort'} {s : Sort'} {mc : MetaContext Sort'} (term : Term env context s mc) \elim term
+    | func f _ => func-root (f.1 = color)
+    \where {
+      \lemma equalize-colors (color color' : Color) {context : List Sort'} {s : Sort'} {mc : MetaContext Sort'}
+                             (f : symbol s)
+                             (arguments arguments' : DArray {env.arity f} (\lam (index : Index (domain f)) => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc))
+                             (hcl1 : HasColoredRoot color (func f arguments))
+                             (hcl2 : HasColoredRoot color' (func f arguments'))
+        : color = color' \elim hcl1, hcl2
+        | func-root p, func-root q => inv p *> q
+
+      \lemma reorganize (color : Color) {context : List Sort'} {s : Sort'} {mc : MetaContext Sort'}
+                        {f : symbol s}
+                        {arguments : DArray {env.arity f} (\lam (index : Index (domain f)) => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc)}
+                        (hcl : HasColoredRoot color (func f arguments))
+        : f.1 = color \elim hcl
+        | func-root p => p
+    }
+
+  \data HasExcludedColoredRoot (color : Color) {context : List Sort'} {s : Sort'} {mc : MetaContext Sort'} (term : Term env context s mc) \elim term
+    | func f _ => ex-func-root (Not (f.1 = color))
+}
+
+\open TheoremContext
+
+\func convert-to-injected-term
+  {tc : TheoremContext} {allow-variables : \Prop}
+  (color : Color) {context : List Sort'} {s : Sort'}
+  (term : GenericLinearTerm (envs color) context s allow-variables)
+  : Term env context s (LinearMetaContext {envs color} term) \elim term
+  | l-func f arguments => func (color,f) (\lam i => ModularMetaContext.upgrade-metavariables (\lam i => LinearMetaContext {envs color} (arguments i)) (convert-to-injected-term color (arguments i)))
+  | l-full-metavar => metavar idp (\lam i => var i idp)
+  | l-var index p _ => var index p
+
+\lemma unwrap-injection {tc : TheoremContext} {color : Color} {context : List Sort'} {s : Sort'} {allow-variables : \Prop} (t : GenericLinearTerm (envs color) context s allow-variables) :
+  inject-term envs (Linear.convert-to-term {envs color} t) = convert-to-injected-term color {context} {s} t \elim t
+  | l-func f arguments => Term.fext (\lam index => rewriteI (unwrap-injection (arguments index)) (swap color (\lam i => LinearMetaContext {envs color} (arguments i)) (Linear.convert-to-term {envs color} (arguments index))) )
+  | l-full-metavar => idp
+  | l-var index p _ => idp
+  \where {
+    \lemma swap
+      {tc : TheoremContext} (color : Color) {context : List Sort'} {s : Sort'} {n : Nat} {j : Fin n} (msigs : Fin n -> MetaContext Sort') (t : Term (envs color) context s (msigs j))
+      : inject-term envs (ModularMetaContext.upgrade-metavariables {envs color} msigs t) = ModularMetaContext.upgrade-metavariables msigs (inject-term envs t) \elim t
+      | var index p => idp
+      | metavar m arguments => path (\lam i => metavar (j,m) (\new DArray { | at j => swap color msigs (arguments j) @ i}))
+      | func f arguments => Term.fext (\lam index => swap color msigs (arguments index))
+  }
