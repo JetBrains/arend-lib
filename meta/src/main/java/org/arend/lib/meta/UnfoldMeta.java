@@ -85,7 +85,7 @@ public class UnfoldMeta extends BaseMetaDefinition {
             }
           }
         }
-        if (var == null || var instanceof CoreFunctionDefinition && !(((CoreFunctionDefinition) var).getBody() instanceof CoreExpression) || var instanceof CoreClassField && ((CoreClassField) var).isProperty()) {
+        if (var == null || var instanceof CoreFunctionDefinition && !(((CoreFunctionDefinition) var).getBody() instanceof CoreExpression) && ((CoreFunctionDefinition) var).getKind() != CoreFunctionDefinition.Kind.TYPE || var instanceof CoreClassField && ((CoreClassField) var).isProperty()) {
           typechecker.getErrorReporter().report(new TypecheckingError(var == null ? "Expected either a function or a field" : "Function '" + var.getName() + "' cannot be unfolded", expr).withQuickFix(new RemoveErrorQuickFix("Remove")));
         } else {
           if (!functions.add(var)) {
