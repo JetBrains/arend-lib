@@ -1,17 +1,11 @@
 \import Algebra.Monoid
 \import Algebra.Semiring
-\import Category
 \import Data.Array
 \import Function.Meta
 \import HLevel
 \import Paths
 \import Order.PartialOrder
-\import Order.Lattice
 \import Paths.Meta
-\open Lattice
-\open JoinSemilattice
-\open MeetSemilattice
-\open Precat(>>)
 
 \class MeetSemilattice \extends Poset {
   | meet \alias \infixl 7 ∧ : E -> E -> E
@@ -20,27 +14,27 @@
   | meet-univ {x y z : E} : z <= x -> z <= y -> z <= x ∧ y
 
   \lemma meet-idemp {x : E} : x ∧ x = x =>
-    <=-antisymmetric meet-left (meet-univ <=-reflexive <=-reflexive)
+    <=-antisymmetric meet-left (meet-univ <=-refl <=-refl)
 
   \lemma meet-comm {x y : E} : x ∧ y = y ∧ x =>
     <=-antisymmetric (meet-univ meet-right meet-left)
                      (meet-univ meet-right meet-left)
 
-  \lemma meet-assoc {x y z : E} : (x ∧ y) ∧ z = x ∧ (y ∧ z) =>
-    <=-antisymmetric (meet-univ (meet-left <=∘ meet-left) (meet-univ (meet-left <=∘ meet-right) meet-right))
-                     (meet-univ (meet-univ meet-left (meet-right <=∘ meet-left)) (meet-right <=∘ meet-right))
-
   \lemma meet-monotone {x y x' y' : E} (p : x <= x') (q : y <= y') : x ∧ y <= x' ∧ y'
     => meet-univ (meet-left <=∘ p) (meet-right <=∘ q)
 
+  \lemma meet-assoc {x y z : E} : (x ∧ y) ∧ z = x ∧ (y ∧ z) =>
+    <=-antisymmetric (meet-univ (meet-left <=∘ meet-left) (meet-monotone meet-right <=-refl))
+                     (meet-univ (meet-monotone <=-refl meet-left) (meet-right <=∘ meet-right))
+
   \lemma meet_<= {x y : E} (x<=y : x <= y) : x ∧ y = x
-    => <=-antisymmetric meet-left (meet-univ <=-reflexive x<=y)
+    => <=-antisymmetric meet-left (meet-univ <=-refl x<=y)
 
   \lemma meet_<=' {x y : E} (p : x ∧ y = x) : x <= y
     => transport (`<= y) p meet-right
 
   \lemma fold_<=_meet0 {l : Array E} {x : E} : fold (∧) x l <= x \elim l
-    | nil => <=-reflexive
+    | nil => <=-refl
     | :: a l => meet-right <=∘ fold_<=_meet0
 
   \lemma fold_<=_meet1 {l : Array E} {x : E} (i : Fin l.len) : fold (∧) x l <= l i \elim l, i
@@ -69,7 +63,7 @@
     => join-univ (p <=∘ join-left) (q <=∘ join-right)
 
   \lemma join-idemp {x : E} : x ∨ x = x =>
-    <=-antisymmetric (join-univ <=-reflexive <=-reflexive) join-left
+    <=-antisymmetric (join-univ <=-refl <=-refl) join-left
 
   \lemma join-comm {x y : E} : x ∨ y = y ∨ x =>
     <=-antisymmetric (join-univ join-right join-left)
@@ -82,13 +76,13 @@
                                 (join-univ (join-right >> join-left) join-right))
 
   \lemma join_<= {x y : E} (x<=y : x <= y) : x ∨ y = y
-    => <=-antisymmetric (join-univ x<=y <=-reflexive) join-right
+    => <=-antisymmetric (join-univ x<=y <=-refl) join-right
 
   \lemma join_<=' {x y : E} (p : x ∨ y = y) : x <= y
     => transport (x <=) p join-left
 
   \lemma join0_<=_fold {l : Array E} {x : E} : x <= fold (∨) x l \elim l
-    | nil => <=-reflexive
+    | nil => <=-refl
     | :: a l => join0_<=_fold <=∘ join-right
 
   \lemma join1_<=_fold {l : Array E} {x : E} (i : Fin l.len) : l i <= fold (∨) x l \elim l, i
@@ -109,8 +103,7 @@
 
 \class Lattice \extends MeetSemilattice, JoinSemilattice {
   \lemma ldistr<= {x y z : E} : (x ∧ y) ∨ (x ∧ z) <= x ∧ (y ∨ z)
-    => join-univ (meet-univ meet-left (meet-right <=∘ join-left))
-                 (meet-univ meet-left (meet-right <=∘ join-right))
+    => join-univ (meet-monotone <=-refl join-left) (meet-monotone <=-refl join-right)
 }
 
 \class DistributiveLattice \extends Lattice {
@@ -118,6 +111,12 @@
 
   \lemma ldistr {x y z : E} : x ∧ (y ∨ z) = (x ∧ y) ∨ (x ∧ z)
     => <=-antisymmetric ldistr>= ldistr<=
+
+  \lemma rdistr {x y z : E} : (y ∨ z) ∧ x = (y ∧ x) ∨ (z ∧ x)
+    => meet-comm *> ldistr *> pmap2 (∨) meet-comm meet-comm
+
+  \lemma rdistr>= {x y z : E} : (y ∨ z) ∧ x <= (y ∧ x) ∨ (z ∧ x)
+    => =_<= rdistr
 
   \lemma lcodistr {x y z : E} : x ∨ (y ∧ z) = (x ∨ y) ∧ (x ∨ z) => inv $
     ldistr *>
@@ -131,10 +130,10 @@
     | top-univ {x : E} : x <= top
 
     \lemma top-left {x : E} : top ∧ x = x
-      => <=-antisymmetric meet-right (meet-univ top-univ <=-reflexive)
+      => <=-antisymmetric meet-right (meet-univ top-univ <=-refl)
 
     \lemma top-right {x : E} : x ∧ top = x
-      => <=-antisymmetric meet-left (meet-univ <=-reflexive top-univ)
+      => <=-antisymmetric meet-left (meet-univ <=-refl top-univ)
   } \where {
       \use \coerce toMonoid (L : MeetSemilattice) : CMonoid L \cowith
         | ide => top
@@ -151,7 +150,7 @@
       \use \coerce toMonoid (L : JoinSemilattice) : AbMonoid L \cowith
         | zro => bottom
         | + => join
-        | zro-left {x} => <=-antisymmetric (join-univ bottom-univ <=-reflexive) join-right
+        | zro-left {x} => <=-antisymmetric (join-univ bottom-univ <=-refl) join-right
         | +-assoc => join-assoc
         | +-comm => join-comm
     }
@@ -163,12 +162,12 @@
       \use \coerce toSemiring (L : DistributiveLattice) : CSemiring L \cowith
         | zro => bottom
         | + => join
-        | zro-left {x} => <=-antisymmetric (join-univ bottom-univ <=-reflexive) join-right
+        | zro-left {x} => <=-antisymmetric (join-univ bottom-univ <=-refl) join-right
         | +-assoc => join-assoc
         | +-comm => join-comm
         | ide => top
         | * => meet
-        | ide-left {x} => <=-antisymmetric meet-right (meet-univ top-univ <=-reflexive)
+        | ide-left {x} => <=-antisymmetric meet-right (meet-univ top-univ <=-refl)
         | *-assoc => meet-assoc
         | ldistr => Order.Lattice.DistributiveLattice.ldistr
         | zro_*-left {x} => <=-antisymmetric meet-left bottom-univ
