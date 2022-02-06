@@ -20,7 +20,7 @@
 \import Logic.Classical
 \import Logic.Meta
 \import Meta
-\import Order.Lattice \hiding (DistributiveLattice)
+\import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -29,12 +29,13 @@
 \import Set
 \import Set.Category
 \import Set.Fin
-\open Bounded(DistributiveLattice,top,top-univ)
+\open Bounded(top,top-univ,bottom,bottom-univ)
 \open MeetSemilattice
+\open JoinSemilattice
 \open PresentedFrame \hiding (<=)
 \open Locale
 
-\class Locale \extends DistributiveLattice, SiteWithBasis, CompleteCat (\lp,\lp) {
+\class Locale \extends Bounded.DistributiveLattice, SiteWithBasis, CompleteCat (\lp,\lp) {
   | Join {J : \Set} : (J -> E) -> E
   | Join-cond {J : \Set} (j : J) {f : J -> E} : f j <= Join f
   | Join-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> f j <= e) -> Join f <= e
@@ -166,6 +167,12 @@
   \lemma func-<= {x y : Dom} (x<=y : x <= y) : func x <= func y
     => rewrite (inv (pmap func (meet_<= x<=y)) *> func-meet) meet-right
 
+  \lemma func-join {x y : Dom} : func (x ∨ y) = func x ∨ func y
+    => func-Join *> pmap Join (ext (\lam b => cases b idp))
+
+  \lemma func-join>= {x y : Dom} : func (x ∨ y) <= func x ∨ func y
+    => Preorder.=_<= func-join
+
   \func direct (y : Cod) : Dom => SJoin (func __ <= y)
 
   \lemma direct-<= {y z : Cod} (p : y <= z) : direct y <= direct z
@@ -183,18 +190,43 @@
   \lemma direct-counit {y : Cod} : func (direct y) <= y
     => func-Join>= <=∘ Join-univ __.2
 
-  \func nucleus : Nucleus (\lam x => direct (func x)) \cowith
+  \func image : Nucleus (\lam x => direct (func x)) \cowith
     | nucleus-meet => pmap direct func-meet *> direct-meet
     | nucleus-unit => direct-unit
     | nucleus-join => direct-<= direct-counit
 
+  -- | A map is dense if and only if its image is dense.
+  \func isDense => \Pi {x : Dom} -> func x <= bottom -> x <= bottom
+
   -- | A map is closed if and only if the image of a closed sublocale is closed.
-  \func isClosed => \Pi (x : Cod) (y : Dom) -> direct (x ∨ func y) <= direct x ∨ y
+  \func isClosed => \Pi {x : Cod} {y : Dom} -> direct (x ∨ func y) <= direct x ∨ y
+
+  -- | The image of a closed map is closed.
+  \lemma image_closed (c : isClosed) : image.isClosed
+    => \lam {y} => direct-<= join-right <=∘ c <=∘ join-monotone (direct-<= bottom-univ) <=-refl
+
+  -- | If the image of an embedding is closed, then it is a closed map.
+  \lemma closed-embedding_image (s : isSurj func) (c : image.isClosed) : isClosed
+    => \lam {x} {y} => \case s x \with {
+      | inP (a,p) => rewriteI (p,func-join) (c <=∘ join-univ (direct-<= (func-<= bottom-univ) <=∘ join-left) (join-monotone direct-unit <=-refl))
+    }
 
   \lemma surjective-split (s : isSurj func) (x : Cod) : func (direct x) = x
     => \case s x \with {
       | inP (y,p) => rewriteI p $ <=-antisymmetric direct-counit (func-<= direct-unit)
     }
+
+  \func factor : FrameHom image.locale Cod \cowith
+    | func x => func x.1
+    | func-top => func-top
+    | func-meet => func-meet
+    | func-Join>= => direct-counit <=∘ func-Join>=
+
+  \lemma surj_nucleus (s : isSurj func) : Equiv factor => \new QEquiv {
+    | ret y => (direct y, direct-<= direct-counit)
+    | ret_f x => ext (<=-antisymmetric x.2 direct-unit)
+    | f_sec y => surjective-split s y
+  }
 }
 
 -- | Nuclei encode sublocales
@@ -230,8 +262,14 @@
     | func-top => ext (<=-antisymmetric top-univ nucleus-unit)
     | func-meet => ext nucleus-meet
     | func-Join>= => nucleus-<= (Join-univ (\lam j => nucleus-unit <=∘ Join-cond j))
+    \where {
+      \lemma surjective : isSurj map
+        => \lam y => inP (y.1, ext $ <=-antisymmetric y.2 nucleus-unit)
+    }
 
-  \func isClosed => \Pi {x : L} -> nucleus x <= nucleus L.bottom ∨ x
+  \func isClosed => \Pi {x : L} -> nucleus x <= nucleus bottom ∨ x
+
+  \func isDense => nucleus bottom <= bottom
 }
 
 -- | The order of nuclei is inversed. That is, `n <= m` iff `m.locale` is a sublocale of `n.locale`.
@@ -242,25 +280,25 @@
   | <=-antisymmetric p q => exts (\lam x => <=-antisymmetric p q)
 
 \lemma closed>=open {L : Locale} {c a : L} (p : top <= c ∨ a) : closed c >= open a
-  => \lam {x} => meet-univ <=-refl (top-univ <=∘ p) <=∘ ldistr>= <=∘ JoinSemilattice.join-monotone meet-right eval
+  => \lam {x} => meet-univ <=-refl (top-univ <=∘ p) <=∘ ldistr>= <=∘ join-monotone meet-right eval
   \where
     \lemma conv {L : Locale} {c a : L} (p : closed c >= open a) : top <= c ∨ a
       => trueExponent <=-refl <=∘ p
 
-\lemma open<=closed {L : Locale} {c a : L} (p : c ∧ a <= L.bottom) : open a >= closed c
-  => \lam {x} => unfold (join-univ (exponent.dir (p <=∘ L.bottom-univ)) (exponent.dir meet-left))
+\lemma open<=closed {L : Locale} {c a : L} (p : c ∧ a <= bottom) : open a >= closed c
+  => \lam {x} => unfold (join-univ (exponent.dir (p <=∘ bottom-univ)) (exponent.dir meet-left))
   \where
-    \lemma conv {L : Locale} {c a : L} (p : open a >= closed c) : c ∧ a <= L.bottom
+    \lemma conv {L : Locale} {c a : L} (p : open a >= closed c) : c ∧ a <= bottom
       => meet-monotone join-left <=-refl <=∘ exponent.conv p
 
 -- | A closed and "bounded" sublocale is compact.
 \lemma closed-compact {L : Locale} {N : Nucleus {L}} (c : N.isClosed) {a : L} (w : a << top) (b : N >= open a) : N.locale.isCompact
   => \lam {J} {g} top<=g =>
-      \let | g' (j : Maybe J) : L => \case \elim j \with { | nothing => N L.bottom | just j => (g j).1 }
+      \let | g' (j : Maybe J) : L => \case \elim j \with { | nothing => N bottom | just j => (g j).1 }
            | top<=g' : top <= Join g' => top<=g <=∘ c <=∘ join-univ (Join-cond nothing) (Join-univ (\lam j => Join-cond (just j)))
            | (inP (l,a<=g'l)) => w top<=g'
       \in inP (filterMap (\lam x => x) l, unfold (trueExponent a<=g'l <=∘ b <=∘ Nucleus.nucleus-univ (Join-univ (\lam j' => later (cases (l j' arg addPath) \with {
-        | nothing, _ => Nucleus.nucleus-<= L.bottom-univ
+        | nothing, _ => Nucleus.nucleus-<= bottom-univ
         | just j, p => \have (k,q) => filterMap-index (\lam x => x) l p
                        \in rewriteI q (Join-cond k) <=∘ nucleus-unit
       })))))
@@ -288,6 +326,17 @@
     | top => h1.func-top
     | Join f => h1.func-Join
   })
+  \where {
+    \lemma equiv_iso {f : FrameHom} (e : Equiv f) : Iso {FrameCat} f \cowith
+      | inv => \new FrameHom {
+        | func => e.ret
+        | func-top => pmap e.ret (inv func-top) *> e.ret_f top
+        | func-meet {x} {y} => pmap e.ret (inv (func-meet *> pmap2 (∧) (e.f_ret x) (e.f_ret y))) *> e.ret_f _
+        | func-Join {J} {g} => pmap e.ret (inv (func-Join *> path (\lam i => Join (\lam j => e.f_ret (g j) i)))) *> e.ret_f _
+      }
+      | inv_f => exts e.ret_f
+      | f_inv => exts e.f_ret
+  }
 
 {- | Presentation of frames.
  -   {conj} represents meets and {BasicCover} represents relation `__ <= Join __`.
@@ -850,7 +899,7 @@
       -> p1 a ∧ p2 b <= extend p1 p2 U
 
     \func extend {L M : Locale} (p1 p2 : LocaleCat.Hom M L) (U : M -> \Prop)
-      => SJoin (\lam x => U x || (\Sigma (a b : L) (a ∧ b <= L.bottom) (x = p1 a ∧ p2 b)))
+      => SJoin (\lam x => U x || (\Sigma (a b : L) (a ∧ b <= bottom) (x = p1 a ∧ p2 b)))
   }
 
 \lemma regular_Hausdorff {L : Locale} (reg : L.isRegular) : isHausdorff L
@@ -897,7 +946,7 @@
   => \lam U {x} u => cover-trans (lc x) (\lam t => cover-inj ((embed t.1, <<-left (<<-fromPres t.2) (embed<= (cover-inj (x,u) idp))), t.1, cover-inj () idp) idp)
 
 \lemma <=<_<= {L : Locale} {x y : L} (x<=<y : x <=< y) : x <= y
-  => meet-univ (top-univ <=∘ x<=<y) <=-refl <=∘ L.rdistr>= <=∘ join-univ (L.eval <=∘ L.bottom-univ) meet-left
+  => meet-univ (top-univ <=∘ x<=<y) <=-refl <=∘ L.rdistr>= <=∘ join-univ (L.eval <=∘ bottom-univ) meet-left
 
 \lemma <=<-left {L : Locale} {x y z : L} (x<=<y : x <=< y) (y<=z : y <= z) : x <=< z
   => unfold (<=<) $ x<=<y <=∘ join-univ join-left (y<=z <=∘ join-right)
