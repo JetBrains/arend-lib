@@ -1,6 +1,5 @@
 \import Algebra.Meta
 \import Algebra.Ordered
-\import Arith.Fin
 \import Arith.Nat
 \import Category
 \import Category.Functor
@@ -14,6 +13,7 @@
 \import Data.Or
 \import Equiv (ESEquiv, Embedding, Equiv, QEquiv, idEquiv)
 \import Equiv.Univalence (Equiv-to-=)
+\import Function (isSurj)
 \import Function.Meta ($)
 \import Homotopy.Fibration
 \import Logic
@@ -174,16 +174,27 @@
   \lemma direct-meet {y z : Cod} : direct (y ∧ z) = direct y ∧ direct z
     => <=-antisymmetric (meet-univ (direct-<= meet-left) (direct-<= meet-right)) (Join-cond (later (direct y ∧ direct z, meet-univ (func-<= meet-left <=∘ direct-counit) (func-<= meet-right <=∘ direct-counit))))
 
+  \lemma direct-top : direct top = top
+    => <=-antisymmetric top-univ (Join-cond (later (top, top-univ)))
+
+  \lemma direct-unit {x : Dom} : x <= direct (func x)
+    => Join-cond $ later (x,<=-refl)
+
   \lemma direct-counit {y : Cod} : func (direct y) <= y
     => func-Join>= <=∘ Join-univ __.2
 
   \func nucleus : Nucleus (\lam x => direct (func x)) \cowith
     | nucleus-meet => pmap direct func-meet *> direct-meet
-    | nucleus-unit {x} => Join-cond (later (x,<=-refl))
+    | nucleus-unit => direct-unit
     | nucleus-join => direct-<= direct-counit
 
   -- | A map is closed if and only if the image of a closed sublocale is closed.
   \func isClosed => \Pi (x : Cod) (y : Dom) -> direct (x ∨ func y) <= direct x ∨ y
+
+  \lemma surjective-split (s : isSurj func) (x : Cod) : func (direct x) = x
+    => \case s x \with {
+      | inP (y,p) => rewriteI p $ <=-antisymmetric direct-counit (func-<= direct-unit)
+    }
 }
 
 -- | Nuclei encode sublocales
@@ -489,6 +500,13 @@
 
     \lemma embed<= {P : FramePres} {x : P} {U : Opens P} (p : SCover x U.1) : embed x <= U
       => closure<= (\lam _ => p)
+
+    \func surj-map {L : Locale} {P : FramePres} (f : FrameHom L (PresentedFrame P)) (p : \Pi (y : P) -> ∃ (x : L) (f x = embed y)) (U : PresentedFrame P) : \Sigma (x : L) (f x = U)
+      => (SJoin (\lam x => f x <= U), func-Join *> exts (\lam y => ext (
+          \lam c => U.2 y (cover-trans c (\lam i => cover-inj (i.2, i.1.2 i.3) idp)),
+          \lam yU => \case p y \with {
+            | inP (x,q) => cover-inj ((x, \lam {z} t => U.2 z $ rewrite q at t $ cover-trans t (\lam _ => cover-inj (y,yU) idp)), y, rewrite q (cover-inj () idp)) idp
+          })))
   }
 
 {- | Unital presentation of frames.
@@ -621,6 +639,10 @@
     | ret_f h => idp
     | f_sec h => idp
   }
+  \where {
+    \lemma Func-inverse {L M : Locale} (f : FrameUPresHom (F L) (F M)) (x : L) : FrameUnitalSubcat.inverse f x = f x
+      => path (\lam i => FrameUnitalSubcat.inverse-right i x)
+  }
 
 \func FrameReflectiveSubcat : ReflectiveSubPrecat FrameCat FramePresCat \cowith
   | F => F
@@ -646,15 +668,15 @@
     | func-cover {_} {_} {f} b c => cover-trans c (\lam _ => cover-trans (cover-basic b) (\lam j => cover-inj (j, f j, cover-inj () idp) idp))
     | func-image => cover-basic (\lam {x} _ => cover-inj (x, x, cover-inj () idp) idp)
   }
-  | isReflective {X : FramePres} {Y : Locale} => ESEquiv.toEquiv (\new ESEquiv {
+  | isReflective {X : FramePres} {Y : Locale} => \new ESEquiv {
     | Embedding => Embedding.fromInjection (\lam {h} {h'} p => exts (\lam e =>
         \let | g (q : \Sigma (x : X) (e.1 x)) => reflectorMap X q.1
              | t : e = Join {PresentedFrame X} g => exts (\lam x => ext (\lam u => cover-inj ((x, u), x, cover-inj () idp) idp, closure<= (\lam t => cover-trans t.3 (\lam _ => cover-inj t.1 idp))))
-        \in rewrite t (func-Join {h} {_} {g} *> path (\lam i => Join (\lam (j : \Sigma (x : X) (e.1 x)) => (p @ i) j.1)) *> inv (func-Join {h'} {_} {g}))))
+        \in rewrite t (func-Join {h} {_} {g} *> path (\lam i => Join (\lam (j : \Sigma (x : X) (e.1 x)) => p i j.1)) *> inv (func-Join {h'} {_} {g}))))
     | isSurj f => inP (adjointMap f, exts (\lam x => unfold (<=-antisymmetric
         (Join-univ (\lam j => locale_cover (Cover.map j.2) <=∘ Join-univ (\lam _ => <=-refl)))
         (Join-cond (later (x, cover-inj () idp))))))
-  })
+  }
   \where {
     \open PresentedFrame \hiding (<=)
     \open FrameUnitalSubcat
@@ -712,6 +734,19 @@
       | f_sec c => idp
     }
   }
+  | pullback {X} {Y} {Z} f g => \new Pullback {
+    | apex => pullback-obj f g
+    | cone => (proj1, proj2, exts __.3)
+    | pbMap c => \new FrameHom {
+      | func x => (c.1 x, c.2 x, path (\lam i => c.3 i x))
+      | func-top => ext (func-top, func-top)
+      | func-meet => ext (func-meet, func-meet)
+      | func-Join => ext (func-Join, func-Join)
+    }
+    | pbBeta1 => idp
+    | pbBeta2 => idp
+    | pbEta p q => exts (\lam x => ext (path (\lam i => p i x), path (\lam i => q i x)))
+  }
   | colimit G => reflectiveSubPrecatColimit FrameUnitalReflectiveSubcat G (FrameUPresCocompleteCat.colimit (Comp FrameUnitalReflectiveSubcat G))
   \where {
     \func limit-obj {J : Precat} (G : Functor J FrameCat) : Locale \cowith
@@ -730,21 +765,85 @@
       | Join-cond k j => Join-cond k
       | Join-univ p j => Join-univ (\lam k => p k j)
       | Join-ldistr>= j => Join-ldistr>=
+
+    \func pullback-obj {L M K : Locale} (f : FrameHom L K) (g : FrameHom M K) : Locale \cowith
+      | E => \Sigma (x : L) (y : M) (f x = g y)
+      | <= P Q => \Sigma (P.1 <= Q.1) (P.2 <= Q.2)
+      | <=-refl => (<=-refl, <=-refl)
+      | <=-transitive p q => (p.1 <=∘ q.1, p.2 <=∘ q.2)
+      | <=-antisymmetric p q => ext (<=-antisymmetric p.1 q.1, <=-antisymmetric p.2 q.2)
+      | meet P Q => (P.1 ∧ Q.1, P.2 ∧ Q.2, func-meet *> pmap2 (∧) P.3 Q.3 *> inv func-meet)
+      | meet-left => (meet-left, meet-left)
+      | meet-right => (meet-right, meet-right)
+      | meet-univ p q => (meet-univ p.1 q.1, meet-univ p.2 q.2)
+      | top => (top, top, func-top *> inv func-top)
+      | top-univ => (top-univ, top-univ)
+      | Join F => (Join (\lam j => (F j).1), Join (\lam j => (F j).2), func-Join *> pmap Join (ext (\lam j => (F j).3)) *> inv func-Join)
+      | Join-cond j {f} => (Join-cond j, Join-cond j)
+      | Join-univ p => (Join-univ (\lam j => (p j).1), Join-univ (\lam j => (p j).2))
+      | Join-ldistr>= => (Join-ldistr>=, Join-ldistr>=)
+
+    \func proj1 {L M K : Locale} {f : FrameHom L K} {g : FrameHom M K} : FrameHom (pullback-obj f g) L \cowith
+      | func P => P.1
+      | func-top => idp
+      | func-meet => idp
+      | func-Join>= => <=-refl
+
+    \func proj2 {L M K : Locale} {f : FrameHom L K} {g : FrameHom M K} : FrameHom (pullback-obj f g) M \cowith
+      | func P => P.2
+      | func-top => idp
+      | func-meet => idp
+      | func-Join>= => <=-refl
+
+    \lemma coneMap_finj {J : Precat} {G : Functor J FrameCat} (j : J) (x : G j)
+      : coneMap {FrameBicat.colimit G} j x = embed (FrameUPresCocompleteCat.finj {J} {Comp FrameUnitalReflectiveSubcat G} x)
+      => FrameUnitalSubcat.Func-inverse _ x
   }
 
 \instance LocaleCat : BicompleteCat => FrameBicat.op
 
-\func BinProduct (L M : Locale) : Locale
-  => structure L M
+\lemma regular_surj {L M : Locale} (f : Hom L M) (reg : isRegularMono {LocaleCat} f) : isSurj f \elim reg
+  | inP (E : Equalizer) => \lam y =>
+    \let | E' : Equalizer => LocaleCat.equalizer E.f E.g
+         | s => PresentedFrame.surj-map E'.eql regular_surj-lemma
+         | i : Iso => Equalizer.unique E E'
+         | x => (s (i.inv y)).1
+    \in inP (x, inv (path (\lam j => Equalizer.unique-map E E' j x)) *> pmap i.f (s (i.inv y)).2 *> path (\lam j => i.inv_f j y))
   \where {
-    \sfunc structure (L M : Locale) : Product => LocaleCat.product (if __ L M)
+    \open FrameUPresCocompleteCat
 
-    \sfunc proj1 {L M : Locale} => proj {structure L M} true
-
-    \sfunc proj2 {L M : Locale} => proj {structure L M} false
+    \func regular_surj-lemma {L M : Locale} {f g : LocaleCat.Hom L M} (y : FTerm (Comp FrameUnitalReflectiveSubcat (Functor.op {Equalizer.functor {LocaleCat} f g})))
+      : ∃ (x : L) (Equalizer.eql {LocaleCat.equalizer f g} x = embed y) \elim y
+      | finj {j} x => \case \elim j, \elim x \with {
+        | false, x => inP (x, FrameBicat.coneMap_finj false x)
+        | true, x => inP (f x, FrameBicat.coneMap_finj false (f x) *> pmap embed (path (finj-eq {Equalizer.Shape.op} Equalizer.arrow1 x)))
+      }
+      | fconj t1 t2 => \case regular_surj-lemma t1, regular_surj-lemma t2 \with {
+        | inP (x1,p1), inP (x2,p2) => inP (x1 ∧ x2, func-meet *> pmap2 (∧) p1 p2 *> unfold (unfold $ unfold embed $ unfold closure (exts (\lam e => ext (cover-trans __ (\lam i => Cover.cover-conj1 i.3 i.4), cover-trans __ (\lam _ => cover-inj (t1, t2, cover-inj () idp, cover-inj () idp) idp))))))
+      }
+      | funit => inP (top, func-top *> exts (\lam e => ext (\lam _ => cover-basic (byRight idp), \lam _ => ())))
   }
 
-\type isHausdorff (L : Locale) => generalized L (BinProduct L L) BinProduct.proj1 BinProduct.proj2
+\lemma surj_regular {L M : Locale} (f : FrameHom M L) (sur : isSurj f) : isRegularMono {LocaleCat} f
+  => \let | pb : Pullback => FrameBicat.pullback f f
+          | cone => pb.cone
+     \in inP (\new Equalizer {LocaleCat} {M} {pb} cone.1 cone.2 L f cone.3 {
+       | isEqualizer Z => \new ESEquiv {
+         | isSurj (h,p) =>
+           \have lem (x : M) => path (\lam i => p i (f.direct (f x), x, FrameHom.surjective-split sur (f x)))
+           \in inP (\new FrameHom {
+             | func x => h (f.direct x)
+             | func-top => pmap h f.direct-top *> func-top
+             | func-meet => pmap h f.direct-meet *> func-meet
+             | func-Join {J} {g} => inv (pmap (\lam z => h (f.direct z)) func-Join *> path (\lam i => h (f.direct (Join (\lam j => FrameHom.surjective-split sur (g j) i))))) *> lem _ *> func-Join
+           }, ext (exts lem))
+         | Embedding => Embedding.fromInjection (\lam {h} {h'} p => exts (\lam y => \case sur y \with {
+           | inP (x,q) => inv (pmap h q) *> pmap (\lam z => z.1 x) p *> pmap h' q
+         }))
+       }
+     })
+
+\type isHausdorff (L : Locale) => generalized L (LocaleCat.binProduct L L) LocaleCat.proj1 LocaleCat.proj2
   \where {
     \func generalized (L M : Locale) (p1 p2 : LocaleCat.Hom M L) => \Pi (a b : L) (U : M -> \Prop)
       -> a ∧ b <= SJoin (\lam x => U (p1 x ∧ p2 x))
@@ -755,7 +854,7 @@
   }
 
 \lemma regular_Hausdorff {L : Locale} (reg : L.isRegular) : isHausdorff L
-  => generalized reg (BinProduct L L) BinProduct.proj1 BinProduct.proj2
+  => generalized reg (LocaleCat.binProduct L L) LocaleCat.proj1 LocaleCat.proj2
   \where {
     \open isHausdorff(extend)
     \open FrameHom
