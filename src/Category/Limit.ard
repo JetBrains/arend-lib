@@ -406,27 +406,50 @@
   \func map {C : PrecatWithPullbacks} {x y z : C} (f : Hom x y) (g : Hom z y) : Hom (pullback f g) x
     => (Pullback.cone {pullback f g}).1
 
-\class CompletePrecat \extends PrecatWithPullbacks {
+\class CartesianPrecat \extends Precat {
+  | terminal : Product {Empty} {\this} absurd
+  | binProduct (x y : Ob) : Product (x :: y :: nil)
+
+  \func proj1 {x y : Ob} => proj {binProduct x y} 0
+
+  \func proj2 {x y : Ob} => proj {binProduct x y} 1
+
+  \func pair {x y z : Ob} (f : Hom z x) (g : Hom z y) : Hom z (binProduct x y)
+    => tupleMap (\case \elim __ \with {
+      | 0 => f
+      | 1 => g
+    })
+
+  \lemma beta1 {x y z : Ob} (f : Hom z x) (g : Hom z y) : proj1 ∘ pair f g = f
+    => tupleBeta {binProduct x y} _ 0
+
+  \lemma beta2 {x y z : Ob} (f : Hom z x) (g : Hom z y) : proj2 ∘ pair f g = g
+    => tupleBeta {binProduct x y} _ 1
+
+  \lemma pair-unique {x y z : Ob} {h1 h2 : Hom z (binProduct x y)} (p1 : proj1 ∘ h1 = proj1 ∘ h2) (p2 : proj2 ∘ h1 = proj2 ∘ h2) : h1 = h2
+    => tupleEq (\case \elim __ \with {
+      | 0 => p1
+      | 1 => p2
+    })
+
+  \func diagonal (x : Ob) : Hom x (binProduct x x)
+    => pair (id x) (id x)
+    \where
+      \lemma isSplitMono (x : Ob) : SplitMono (diagonal x) proj1 \cowith
+        | inv_f => beta1 _ _
+}
+
+\class CompletePrecat \extends PrecatWithPullbacks, CartesianPrecat {
   | limit {J : Precat} (G : Functor J \this) : Limit G
   \default pullback f g => Pullback.fromLimit (limit (Diagram.functor {Pullback.diagram f g}))
+  \default terminal => Product.fromLimit (limit (Product.functor absurd))
+  \default binProduct x y => Product.fromLimit (limit (Product.functor (x :: y :: nil)))
 
   \func product {J : \Type} (G : J -> Ob) : Product G
     => Product.fromLimit (limit (Product.functor G))
 
   \func equalizer {x y : Ob} (f g : Hom x y) : Equalizer f g
     => Equalizer.fromLimit (limit (Equalizer.functor f g))
-
-  \func binProduct (x y : Ob) => product (x :: y :: nil)
-
-  \func proj1 {x y : Ob} => proj {binProduct x y} 0
-
-  \func proj2 {x y : Ob} => proj {binProduct x y} 1
-
-  \func diagonal (x : Ob) : Hom x (binProduct x x)
-    => tupleMap (\lam _ => id x)
-    \where
-      \lemma isSplitMono (x : Ob) : SplitMono (diagonal x) proj1 \cowith
-        | inv_f => tupleBeta {binProduct x x} _ 0
 
   \func op : CocompletePrecat \cowith
     | Precat => Precat.op
@@ -479,6 +502,9 @@
 }
 
 \func isRegularMono {C : Precat} {x y : C} (f : Hom x y) => TruncP (Equalizer { | D => C | X => y | apex => x | eql => f })
+
+\lemma regularMono_Mono {C : Precat} {x y : C} {f : Hom x y} (reg : isRegularMono f) : Mono f \elim reg
+  | inP (E : Equalizer) => \new Mono f E.eqMono
 
 \lemma splitMono_regular (f : SplitMono {}) : isRegularMono f.f
   => inP (\new Equalizer {

@@ -2,6 +2,7 @@
 \import Algebra.Ordered
 \import Arith.Nat
 \import Category
+\import Category.Factorization
 \import Category.Functor
 \import Category.Limit
 \import Category.Meta
@@ -34,6 +35,7 @@
 \open JoinSemilattice
 \open PresentedFrame \hiding (<=)
 \open Locale
+\open Preorder (=_<=)
 
 \class Locale \extends Bounded.DistributiveLattice, SiteWithBasis, CompleteCat (\lp,\lp) {
   | Join {J : \Set} : (J -> E) -> E
@@ -171,7 +173,13 @@
     => func-Join *> pmap Join (ext (\lam b => cases b idp))
 
   \lemma func-join>= {x y : Dom} : func (x ∨ y) <= func x ∨ func y
-    => Preorder.=_<= func-join
+    => =_<= func-join
+
+  \lemma func-bottom : func bottom = bottom
+    => func-Join *> pmap Join (ext (\case __))
+
+  \lemma func-bottom>= : func bottom <= bottom
+    => =_<= func-bottom
 
   \func direct (y : Cod) : Dom => SJoin (func __ <= y)
 
@@ -197,6 +205,12 @@
 
   -- | A map is dense if and only if its image is dense.
   \func isDense => \Pi {x : Dom} -> func x <= bottom -> x <= bottom
+
+  \lemma dense_direct (d : isDense) : direct bottom <= bottom
+    => Join-univ (\lam j => d j.2)
+
+  \lemma direct_dense (d : direct bottom <= bottom) : isDense
+    => \lam {x} p => Join-cond (later (x,p)) <=∘ d
 
   -- | A map is closed if and only if the image of a closed sublocale is closed.
   \func isClosed => \Pi {x : Cod} {y : Dom} -> direct (x ∨ func y) <= direct x ∨ y
@@ -266,6 +280,9 @@
       \lemma surjective : isSurj map
         => \lam y => inP (y.1, ext $ <=-antisymmetric y.2 nucleus-unit)
     }
+
+  \lemma map_direct (x : locale) : map.direct x = x.1
+    => <=-antisymmetric (Join-univ (\lam j => nucleus-unit <=∘ j.2)) (Join-cond (later (x.1, x.2)))
 
   \func isClosed => \Pi {x : L} -> nucleus x <= nucleus bottom ∨ x
 
@@ -851,7 +868,7 @@
 
 \instance LocaleCat : BicompleteCat => FrameBicat.op
 
-\lemma regular_surj {L M : Locale} (f : Hom L M) (reg : isRegularMono {LocaleCat} f) : isSurj f \elim reg
+\lemma regular_surj {L M : Locale} {f : Hom L M} (reg : isRegularMono {LocaleCat} f) : isSurj f \elim reg
   | inP (E : Equalizer) => \lam y =>
     \let | E' : Equalizer => LocaleCat.equalizer E.f E.g
          | s => PresentedFrame.surj-map E'.eql regular_surj-lemma
@@ -873,7 +890,7 @@
       | funit => inP (top, func-top *> exts (\lam e => ext (\lam _ => cover-basic (byRight idp), \lam _ => ())))
   }
 
-\lemma surj_regular {L M : Locale} (f : FrameHom M L) (sur : isSurj f) : isRegularMono {LocaleCat} f
+\lemma surj_regular {L M : Locale} {f : FrameHom M L} (sur : isSurj f) : isRegularMono {LocaleCat} f
   => \let | pb : Pullback => FrameBicat.pullback f f
           | cone => pb.cone
      \in inP (\new Equalizer {LocaleCat} {M} {pb} cone.1 cone.2 L f cone.3 {
@@ -918,13 +935,39 @@
                | lem2 {d x y : L} (p : d <=< x) (q : p1 d ∧ p2 (y ∧ x) <= extend p1 p2 U) : p1 d ∧ p2 y <= extend p1 p2 U
                  => meet-monotone <=-refl (func-<= (meet-univ <=-refl (top-univ <=∘ later p) <=∘ ldistr>=) <=∘ func-Join>=) <=∘ Join-ldistr>= <=∘ Join-univ (\case \elim __ \with {
                    | false => q
-                   | true => Join-cond (later (p1 d ∧ p2 (y ∧ neg d), byRight (d, y ∧ neg d, meet-monotone <=-refl meet-right <=∘ L.=_<= meet-comm <=∘ eval, idp)))
+                   | true => Join-cond (later (p1 d ∧ p2 (y ∧ neg d), byRight (d, y ∧ neg d, meet-monotone <=-refl meet-right <=∘ =_<= meet-comm <=∘ eval, idp)))
                  })
                | tu<=NU {t u : L} (q : p1 u ∧ p2 u <= extend p1 p2 U) : p1 t ∧ p2 u <= extend p1 p2 U
                  => meet-monotone <=-refl (func-<= (reg u) <=∘ func-Join>=) <=∘ Join-ldistr>= <=∘ Join-univ (\lam j => lem1 j.2 (meet-monotone (func-<= meet-right) (func-<= (<=<_<= j.2)) <=∘ q))
                | ss<=NU => meet-monotone <=-refl func-Join>= <=∘ Join-ldistr>= <=∘ Join-univ (\lam j => tu<=NU (Join-cond (later (p1 j.1 ∧ p2 j.1, byLeft j.2))))
-         \in meet-monotone (func-<= (reg a) <=∘ func-Join>=) <=-refl <=∘ Join-rdistr>= <=∘ Join-univ (\lam j => lem2 j.2 (meet-monotone <=-refl (func-<= (L.=_<= meet-comm <=∘ p)) <=∘ tu<=NU ss<=NU))
+         \in meet-monotone (func-<= (reg a) <=∘ func-Join>=) <=-refl <=∘ Join-rdistr>= <=∘ Join-univ (\lam j => lem2 j.2 (meet-monotone <=-refl (func-<= (=_<= meet-comm <=∘ p)) <=∘ tu<=NU ss<=NU))
   }
+
+\func dense_closed_ofs : OFS {LocaleCat} \cowith
+  | L f => isDense {f}
+  | R (f : FrameHom) => \Sigma f.image.isClosed (isSurj f)
+  | factors {L} {M} (h : FrameHom) =>
+    \have n : Nucleus => closed (h.direct bottom)
+    \in (n.locale,
+         \new FrameHom {
+           | func x => h.func x.1
+           | func-top => func-top
+           | func-meet => func-meet
+           | func-Join>= => func-join>= <=∘ join-univ (direct-counit <=∘ bottom-univ) func-Join>=
+         },
+         n.map,
+         exts (\lam x => func-join *> <=-antisymmetric (join-univ (direct-counit <=∘ bottom-univ) <=-refl) join-right),
+         \lam {x} p => unfold $ direct-unit <=∘ direct-<= p <=∘ join-left,
+         (\lam {x} => =_<= (n.map_direct (n.map x)) <=∘ join-univ (join-left <=∘ =_<= (inv (n.map_direct (n.map bottom))) <=∘ join-left) join-right, Nucleus.map.surjective {n}))
+  | unique-lift f (g : FrameHom) Lf Rg => OFS.liftFromMono {LocaleCat} f g (regularMono_Mono (surj_regular Rg.2)) (\lam t s p =>
+    \have lem x : s (g.direct (g x)) = s x => <=-antisymmetric (func-<= (Rg.1 {x}) <=∘ func-join>= <=∘ join-univ (Lf (=_<= (inv (path (\lam i => p i (g.direct (inv g.func-bottom i)))) *> pmap t (surjective-split Rg.2 bottom) *> func-bottom)) <=∘ bottom-univ) <=-refl) (func-<= direct-unit)
+    \in (\new FrameHom {
+       | func x => s (g.direct x)
+       | func-top => pmap s g.direct-top *> func-top
+       | func-meet => pmap s g.direct-meet *> func-meet
+       | func-Join {J} {F} => inv (pmap (\lam x => s (g.direct x)) func-Join *> path (\lam i => s (g.direct (Join (\lam j => g.surjective-split Rg.2 (F j) i))))) *> lem _ *> func-Join
+     }, exts lem))
+  \where \open FrameHom
 
 \lemma <<-fromPres {P : FramePres} {x y : P} (x<<y : x FramePres.<< y) : embed x << {PresentedFrame P} embed y
   => \lam {J} {g} y<=Jg => \case x<<y (y<=Jg (cover-inj () idp)) \with {
