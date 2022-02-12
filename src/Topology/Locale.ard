@@ -15,7 +15,7 @@
 \import Equiv (ESEquiv, Embedding, Equiv, QEquiv, idEquiv)
 \import Equiv.Univalence (Equiv-to-=)
 \import Function (isSurj)
-\import Function.Meta ($)
+\import Function.Meta ($, repeat)
 \import Homotopy.Fibration
 \import Logic
 \import Logic.Classical
@@ -392,6 +392,9 @@
   | cover-comm {a b : P} (x = conj a b) (j : J) (g j = conj b a)
   | cover-ldistr {a b : P} (x = conj a b) {f : J -> P} (Cover b f) (\Pi (j : J) -> g j = conj a (f j))
   \where {
+    \lemma cover-trans1 {P : FramePres} {x : P} {J : \Set} {g : J -> P} {y : P} (c : Cover1 x y) (d : Cover y g) : Cover x g
+      => cover-trans c (\lam _ => d)
+
     \lemma cover-proj2 {P : FramePres} {x : P} {J : \Set} {g : J -> P} {a b : P} (p : x = conj a b) (j : J) (q : g j = b) : Cover x g
       => cover-trans (cover-comm {_} {_} {\Sigma} {\lam _ => conj b a} p () idp) (\lam _ => cover-proj1 idp j q)
 
@@ -550,6 +553,7 @@
   | Join-ldistr>= => cover-trans __ (\lam t => Cover.cover-ldistr' idp t.4 (\lam s => inP ((s.1, conj t.1 s.2, cover-inj (t.1, s.2, t.3, s.3) idp), idp)))
   \where {
     \open FramePres(SCover)
+    \open Topology.Locale(PresentedFrame)
 
     \type Opens (P : FramePres) => \Sigma (U : P -> \Prop) (\Pi (x : P) -> SCover x U -> U x)
 
@@ -566,6 +570,9 @@
 
     \lemma embed<= {P : FramePres} {x : P} {U : Opens P} (p : SCover x U.1) : embed x <= U
       => closure<= (\lam _ => p)
+
+    \lemma element_join {P : FramePres} {U : Opens P} : U = Join (\lam (q : \Sigma (x : P) (U.1 x)) => embed q.1)
+      => <=-antisymmetric (\lam {x} Ux => cover-inj ((x,Ux), x, cover-inj () idp) idp) (\lam {x} c => U.2 x $ cover-trans c (\lam q => cover-trans q.3 (\lam _ => cover-inj q.1 idp)))
 
     \func surj-map {L : Locale} {P : FramePres} (f : FrameHom L (PresentedFrame P)) (p : \Pi (y : P) -> ∃ (x : L) (f x = embed y)) (U : PresentedFrame P) : \Sigma (x : L) (f x = U)
       => (SJoin (\lam x => f x <= U), func-Join *> exts (\lam y => ext (
@@ -644,6 +651,24 @@
       | BasicCover {K} x f => (\Sigma (j : J) (y : G j) (g : K -> G j) (BasicCover y g) (x = finj y) (\Pi (k : K) -> f k = finj (g k))) || ((K,f) = {\Sigma (K : \Set) (K -> FTerm G)} (\Sigma, \lam _ => funit))
       | unit => funit
       | isUnit => byRight idp
+
+    \func fpair {L M : Locale} (a : L) (b : M) : FTerm (Comp FrameUnitalReflectiveSubcat (Functor.op {Product.functor {Fin 2} {LocaleCat} ((L :: M :: nil) DArray.!!)}))
+      => fconj (mkcon finj {0 : Fin 2} a) (mkcon finj {1 : Fin 2} b)
+
+    \open Cover
+
+    \lemma term-product {L M : Locale} (x : FTerm (Comp FrameUnitalReflectiveSubcat (Functor.op {Product.functor {Fin 2} {LocaleCat} ((L :: M :: nil) DArray.!!)})))
+      : ∃ (a : L) (b : M) (Cover1 x (fpair a b)) (Cover1 (fpair a b) x) \elim x
+      | finj {0} a => inP (a, top, cover-prod (cover-inj () idp) (transportInv (Cover1 _) funit-eq (cover-basic (byRight idp))), cover-proj1 idp () idp)
+      | finj {1} b => inP (top, b, cover-prod (transportInv (Cover1 _) funit-eq (cover-basic (byRight idp))) (cover-inj () idp), cover-proj2 idp () idp)
+      | fconj t1 t2 => \case term-product t1, term-product t2 \with {
+        | inP (a1,b1,p1,q1), inP (a2,b2,p2,q2) => inP (a1 ∧ a2, b1 ∧ b2,
+            cover-prod (transportInv (Cover1 _) (path (fconj-eq a1 a2)) (cover-prod (cover-trans1 (cover-proj1 idp () idp) (cover-trans1 p1 (cover-proj1 idp () idp))) (cover-trans1 (cover-proj2 idp () idp) (cover-trans1 p2 (cover-proj1 idp () idp)))))
+                       (transportInv (Cover1 _) (path (fconj-eq b1 b2)) (cover-prod (cover-trans1 (cover-proj1 idp () idp) (cover-trans1 p1 (cover-proj2 idp () idp))) (cover-trans1 (cover-proj2 idp () idp) (cover-trans1 p2 (cover-proj2 idp () idp))))),
+            cover-prod (cover-trans1 (cover-prod (cover-trans1 (cover-proj1 idp () idp) (transportInv (Cover1 __ _) (path (fconj-eq a1 a2)) (cover-proj1 idp () idp))) (cover-trans1 (cover-proj2 idp () idp) (transportInv (Cover1 __ _) (path (fconj-eq b1 b2)) (cover-proj1 idp () idp)))) q1)
+                       (cover-trans1 (cover-prod (cover-trans1 (cover-proj1 idp () idp) (transportInv (Cover1 __ _) (path (fconj-eq a1 a2)) (cover-proj2 idp () idp))) (cover-trans1 (cover-proj2 idp () idp) (transportInv (Cover1 __ _) (path (fconj-eq b1 b2)) (cover-proj2 idp () idp)))) q2))
+      }
+      | funit => inP (top, top, cover-prod (transportInv (Cover1 funit) funit-eq (cover-inj () idp)) (transportInv (Cover1 funit) funit-eq (cover-inj () idp)), cover-basic (byRight idp))
 
     \func colimitMap {J : Precat} (G : Functor J FrameUPresCat) (j : J) : FrameUPresHom (G j) (colimit-obj G) \cowith
       | func => finj
@@ -734,14 +759,15 @@
     | func-cover {_} {_} {f} b c => cover-trans c (\lam _ => cover-trans (cover-basic b) (\lam j => cover-inj (j, f j, cover-inj () idp) idp))
     | func-image => cover-basic (\lam {x} _ => cover-inj (x, x, cover-inj () idp) idp)
   }
-  | isReflective {X : FramePres} {Y : Locale} => \new ESEquiv {
-    | Embedding => Embedding.fromInjection (\lam {h} {h'} p => exts (\lam e =>
-        \let | g (q : \Sigma (x : X) (e.1 x)) => reflectorMap X q.1
-             | t : e = Join {PresentedFrame X} g => exts (\lam x => ext (\lam u => cover-inj ((x, u), x, cover-inj () idp) idp, closure<= (\lam t => cover-trans t.3 (\lam _ => cover-inj t.1 idp))))
-        \in rewrite t (func-Join {h} {_} {g} *> path (\lam i => Join (\lam (j : \Sigma (x : X) (e.1 x)) => p i j.1)) *> inv (func-Join {h'} {_} {g}))))
-    | isSurj f => inP (adjointMap f, exts (\lam x => unfold (<=-antisymmetric
+  | isReflective {X : FramePres} {Y : Locale} => \new QEquiv {
+    | ret => adjointMap
+    | ret_f f => exts (\lam U =>
+        \let | g (q : \Sigma (x : X) (U.1 x)) => reflectorMap X q.1
+             | t : U = Join g => exts (\lam x => ext (\lam u => cover-inj ((x, u), x, cover-inj () idp) idp, closure<= (\lam t => cover-trans t.3 (\lam _ => cover-inj t.1 idp))))
+        \in rewrite t $ func-Join {_} {_} {g} *> inv (pmap Join (ext (\lam j => pmap f PresentedFrame.element_join *> func-Join))) *> inv (func-Join {f} {_} {g}))
+    | f_sec f => exts (\lam x => <=-antisymmetric
         (Join-univ (\lam j => locale_cover (Cover.map j.2) <=∘ Join-univ (\lam _ => <=-refl)))
-        (Join-cond (later (x, cover-inj () idp))))))
+        (Join-cond (later (x, cover-inj () idp))))
   }
   \where {
     \open PresentedFrame \hiding (<=)
@@ -911,12 +937,46 @@
 
 \type isHausdorff (L : Locale) => generalized L (LocaleCat.binProduct L L) LocaleCat.proj1 LocaleCat.proj2
   \where {
-    \func generalized (L M : Locale) (p1 p2 : LocaleCat.Hom M L) => \Pi (a b : L) (U : M -> \Prop)
-      -> a ∧ b <= SJoin (\lam x => U (p1 x ∧ p2 x))
-      -> p1 a ∧ p2 b <= extend p1 p2 U
+    \open CartesianPrecat
+    \open FrameUPresCocompleteCat
+    \open Cover
+    \open FrameReflectiveSubcat(locale_cover)
+    \open FrameBicat(coneMap_finj)
 
-    \func extend {L M : Locale} (p1 p2 : LocaleCat.Hom M L) (U : M -> \Prop)
-      => SJoin (\lam x => U x || (\Sigma (a b : L) (a ∧ b <= bottom) (x = p1 a ∧ p2 b)))
+    \func generalized (L M : Locale) (p1 p2 : Hom M L) => \Pi (a b : L) (y : M)
+      -> a ∧ b <= SJoin (\lam x => p1 x ∧ p2 x <= y)
+      -> p1 a ∧ p2 b <= extend p1 p2 y
+
+    \func extend {L M : Locale} (p1 p2 : Hom M L) (y : M)
+      => SJoin (\lam x => x <= y || (\Sigma (a b : L) (a ∧ b <= bottom) (x = p1 a ∧ p2 b)))
+
+    \lemma diagonal_func {L : Locale} (U : LocaleCat.binProduct L L) : diagonal L U = SJoin (\lam x => U.1 (fpair x x))
+      => <=-antisymmetric (Join-univ (\lam j => \case term-product j.1 \with {
+        | inP (a,b,p,q) => locale_cover (map {colimit-univ (Comp FrameUnitalReflectiveSubcat (Functor.op {Product.functor (L :: L :: nil)})) (Cone.map FrameUnitalReflectiveSubcat.op (Product.fromLimit.cone {_} {_} {_} {Product.functor (L :: L :: nil)} (\case \elim __ \with { | 0 => id L | 1 => id L })))} p) <=∘
+            Join-univ (\lam _ => Join-cond $ later (a ∧ b, U.2 _ $ cover-trans1 (cover-conj1 (transportInv (Cover1 __ _) (path (fconj-eq a b)) (cover-proj1 idp () idp)) (transportInv (Cover1 __ _) (path (fconj-eq a b)) (cover-proj2 idp () idp))) $ cover-trans1 q $ cover-inj j idp))
+      })) (Join-univ (\lam j => meet-univ <=-refl <=-refl <=∘ Join-cond (later (_, j.2))))
+
+    \lemma diagonal_direct {L : Locale} (a : L) : FrameHom.direct {diagonal L} a = PresentedFrame.closure (\lam (j : \Sigma (b c : L) (b ∧ c <= a)) => fpair j.1 j.2)
+      => <=-antisymmetric (Join-univ (\lam (U,Up) {t} Ut => \case term-product t \with {
+        | inP (x,y,p,q) => cover-trans1 p (cover-inj (x, y, Join-cond (later (_, U.2 _ $ unfold fpair $ repeat {2} (rewrite (path (fconj-eq x y))) $ cover-trans1 (cover-conj1 (cover-proj1 idp () idp) (cover-proj2 idp () idp)) $ cover-trans1 q $ cover-inj (t,Ut) idp)) <=∘ =_<= (inv (diagonal_func U)) <=∘ Up) idp)
+      })) (closure<= (\lam j => cover-inj (_, unfold FrameHom.direct $ cover-inj (
+            \let U => closure (\lam _ => fpair j.1 j.2)
+            \in (U, =_<= (diagonal_func U) <=∘ Join-univ (\lam k =>
+                \have m => colimit-univ _ (Product.fromLimit.cone (later (\case \elim __ \with { | 0 => id _ | 1 => id _ })))
+                \in (meet-univ <=-refl <=-refl <=∘ locale_cover (map {m} k.2) <=∘ Join-univ (\lam _ => <=-refl)) <=∘ j.3)), _, cover-inj () idp) idp) idp))
+
+    \lemma diagonal-isClosed {L : Locale} (h : isHausdorff L) : Nucleus.isClosed {FrameHom.image {diagonal L}}
+      => \lam {U} => rewrite (diagonal_direct, diagonal_direct, diagonal_func, FrameHom.func-bottom {diagonal L}) $ closure<= $ later (\lam j =>
+          \have t => h j.1 j.2 U (j.3 <=∘ Join-univ (\lam k => Join-cond $ later (_, \lam {x} c => U.2 x (cover-trans c (\lam (a,b,a<=k,b<=k) => run {
+                       rewrite coneMap_finj at a<=k,
+                       rewrite coneMap_finj at b<=k,
+                       cover-trans1 (cover-conj1 a<=k b<=k),
+                       cover-inj (_, k.2) idp
+                     }))))) (cover-inj (_, _, rewrite coneMap_finj $ cover-inj () idp, rewrite coneMap_finj $ cover-inj () idp) idp)
+          \in cover-trans t (\lam l => cover-inj (l.2, \case l.1.2 \with {
+            | byLeft v => cover-inj (false, l.2, v l.3) idp
+            | byRight v => cover-inj (true, l.2, cover-trans (transport (__.1 l.2) v.4 l.3) (\lam (a,b,a<=v1,b<=v2) => cover-trans1 (cover-conj1 (rewrite coneMap_finj at a<=v1 $ a<=v1) (rewrite coneMap_finj at b<=v2 $ b<=v2)) (cover-inj (v.1,v.2,v.3) idp))) idp
+          }) idp))
   }
 
 \lemma regular_Hausdorff {L : Locale} (reg : L.isRegular) : isHausdorff L
