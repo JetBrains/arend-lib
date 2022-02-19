@@ -410,42 +410,62 @@
 
 \class CartesianPrecat \extends Precat {
   | terminal : Product {Empty} {\this} absurd
-  | binProduct (x y : Ob) : Product (x :: y :: nil)
+  | Bprod (x y : Ob) : Product (x :: y :: nil)
 
-  \func proj1 {x y : Ob} => proj {binProduct x y} 0
+  \func terminalMap {x : Ob} : Hom x terminal
+    => tupleMap (\case __)
 
-  \func proj2 {x y : Ob} => proj {binProduct x y} 1
+  \func proj1 {x y : Ob} => proj {Bprod x y} 0
 
-  \func pair {x y z : Ob} (f : Hom z x) (g : Hom z y) : Hom z (binProduct x y)
+  \func proj2 {x y : Ob} => proj {Bprod x y} 1
+
+  \func pair {x y z : Ob} (f : Hom z x) (g : Hom z y) : Hom z (Bprod x y)
     => tupleMap (\case \elim __ \with {
       | 0 => f
       | 1 => g
     })
 
+  \func prodMap {x y x' y' : Ob} (f : Hom x y) (f' : Hom x' y') : Hom (Bprod x x') (Bprod y y')
+    => pair (f ∘ proj1) (f' ∘ proj2)
+
   \lemma beta1 {x y z : Ob} (f : Hom z x) (g : Hom z y) : proj1 ∘ pair f g = f
-    => tupleBeta {binProduct x y} _ 0
+    => tupleBeta {Bprod x y} _ 0
 
   \lemma beta2 {x y z : Ob} (f : Hom z x) (g : Hom z y) : proj2 ∘ pair f g = g
-    => tupleBeta {binProduct x y} _ 1
+    => tupleBeta {Bprod x y} _ 1
 
-  \lemma pair-unique {x y z : Ob} {h1 h2 : Hom z (binProduct x y)} (p1 : proj1 ∘ h1 = proj1 ∘ h2) (p2 : proj2 ∘ h1 = proj2 ∘ h2) : h1 = h2
+  \lemma pair-unique {x y z : Ob} {h1 h2 : Hom z (Bprod x y)} (p1 : proj1 ∘ h1 = proj1 ∘ h2) (p2 : proj2 ∘ h1 = proj2 ∘ h2) : h1 = h2
     => tupleEq (\case \elim __ \with {
       | 0 => p1
       | 1 => p2
     })
 
-  \func diagonal (x : Ob) : Hom x (binProduct x x)
+  \lemma pair-comp {x y z w : Ob} {f : Hom x y} {g : Hom y z} {h : Hom y w} : pair g h ∘ f = pair (g ∘ f) (h ∘ f)
+    => pair-unique (rewriteEq (beta1 g h) $ inv (beta1 _ _)) (rewriteEq (beta2 g h) $ inv (beta2 _ _))
+
+  \lemma pair-proj {x y : Ob} : pair proj1 proj2 = id (Bprod x y)
+    => pair-unique (beta1 _ _ *> inv id-right) (beta2 _ _ *> inv id-right)
+
+  \func diagonal (x : Ob) : Hom x (Bprod x x)
     => pair (id x) (id x)
     \where
       \lemma isSplitMono (x : Ob) : SplitMono (diagonal x) proj1 \cowith
         | inv_f => beta1 _ _
+
+  \func associator {x y z : Ob} : Hom (Bprod (Bprod x y) z) (Bprod x (Bprod y z))
+    => pair (proj1 ∘ proj1) (pair (proj2 ∘ proj1) proj2)
+
+  \func associator-iso {x y z : Ob} : Iso (associator {_} {x} {y} {z}) \cowith
+    | inv => pair (pair proj1 (proj1 ∘ proj2)) (proj2 ∘ proj2)
+    | inv_f => rewrite (pair-comp,pair-comp,beta1,o-assoc,beta2,beta1,o-assoc,beta2,beta2,inv pair-comp,pair-proj,id-left) pair-proj
+    | f_inv => rewrite (pair-comp,o-assoc,beta1,beta1,pair-comp,beta2,o-assoc,beta1,beta2,inv pair-comp,pair-proj,id-left) pair-proj
 }
 
 \class CompletePrecat \extends PrecatWithPullbacks, CartesianPrecat {
   | limit {J : Precat} (G : Functor J \this) : Limit G
   \default pullback f g => Pullback.fromLimit (limit (Diagram.functor {Pullback.diagram f g}))
   \default terminal => Product.fromLimit (limit (Product.functor absurd))
-  \default binProduct x y => Product.fromLimit (limit (Product.functor (x :: y :: nil)))
+  \default Bprod x y => Product.fromLimit (limit (Product.functor (x :: y :: nil)))
 
   \func product {J : \Type} (G : J -> Ob) : Product G
     => Product.fromLimit (limit (Product.functor G))
