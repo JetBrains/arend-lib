@@ -254,10 +254,17 @@ public class RewriteMeta extends BaseMetaDefinition {
       return typechecker.typecheck(args.get(currentArg).getExpression(), contextData.getExpectedType());
     }
 
+    CoreExpression expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().getUnderlyingExpression();
+    boolean reverse = expectedType == null || args.size() > currentArg + 2;
+    boolean isForward = reverse || this.isForward;
+
     ErrorReporter errorReporter = typechecker.getErrorReporter();
     ConcreteReferenceExpression refExpr = contextData.getReferenceExpression();
     ConcreteFactory factory = ext.factory.withData(refExpr.getData());
     if (args0.size() > 1) {
+      if (isForward) {
+        Collections.reverse(args0);
+      }
       ConcreteExpression result = args.get(currentArg++).getExpression();
       for (int i = args0.size() - 1; i >= 0; i--) {
         ConcreteAppBuilder builder = factory.appBuilder(refExpr);
@@ -279,9 +286,6 @@ public class RewriteMeta extends BaseMetaDefinition {
       occurrences = null;
     }
 
-    CoreExpression expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().getUnderlyingExpression();
-    boolean reverse = expectedType == null || args.size() > currentArg + 2;
-    boolean isForward = reverse || this.isForward;
     //noinspection SimplifiableConditionalExpression
     boolean isInverse = reverse && !this.isForward ? !this.isInverse : this.isInverse;
 

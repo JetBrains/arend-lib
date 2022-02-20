@@ -1,7 +1,9 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.FreeBindingsModifier;
+import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteArgument;
+import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.error.TypecheckingError;
@@ -10,10 +12,10 @@ import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
 import java.util.List;
 
 public class AtMeta extends BaseMetaDefinition {
@@ -24,7 +26,7 @@ public class AtMeta extends BaseMetaDefinition {
   }
 
   @Override
-  public @Nullable boolean[] argumentExplicitness() {
+  public boolean[] argumentExplicitness() {
     return new boolean[] { true, true, true };
   }
 
@@ -42,7 +44,13 @@ public class AtMeta extends BaseMetaDefinition {
       return null;
     }
 
-    TypedExpression replacement = typechecker.typecheck(ext.factory.withData(contextData.getMarker().getData()).app(args.get(0).getExpression(), Collections.singletonList(args.get(1))), null);
+    ConcreteFactory factory = ext.factory.withData(contextData.getMarker().getData());
+    ConcreteExpression cReplacement = args.get(1).getExpression();
+    for (ConcreteExpression function : Utils.getArgumentList(args.get(0).getExpression())) {
+      cReplacement = factory.app(function, true, cReplacement);
+    }
+
+    TypedExpression replacement = typechecker.typecheck(cReplacement, null);
     if (replacement == null) {
       return null;
     }

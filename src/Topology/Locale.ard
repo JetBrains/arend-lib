@@ -155,9 +155,11 @@
 \record FrameHom \extends SetHom {
   \override Dom : Locale
   \override Cod : Locale
+  | func-<= {x y : Dom} : x <= y -> func x <= func y
   | func-top : func top = top
   | func-top>= : top <= func top
   | func-meet {x y : Dom} : func (x ∧ y) = func x ∧ func y
+  | func-meet>= {x y : Dom} : func x ∧ func y <= func (x ∧ y)
   | func-Join {J : \Set} {f : J -> Dom} : func (Join f) = Join (\lam j => func (f j))
   | func-Join>= {J : \Set} {f : J -> Dom} : func (Join f) <= Join (\lam j => func (f j))
 
@@ -165,9 +167,9 @@
   \default func-Join \as func-Join-impl {J} {f} => <=-antisymmetric func-Join>= (Join-univ (\lam j => func-<= (Join-cond j)))
   \default func-top>= => transportInv (_ <=) func-top <=-refl
   \default func-top => <=-antisymmetric top-univ func-top>=
-
-  \lemma func-<= {x y : Dom} (x<=y : x <= y) : func x <= func y
-    => rewrite (inv (pmap func (meet_<= x<=y)) *> func-meet) meet-right
+  \default func-<= x<=y => rewrite (inv (pmap func (meet_<= x<=y)) *> func-meet) meet-right
+  \default func-meet>= => =_<= (inv func-meet)
+  \default func-meet => <=-antisymmetric (meet-univ (func-<= meet-left) (func-<= meet-right)) func-meet>=
 
   \lemma func-join {x y : Dom} : func (x ∨ y) = func x ∨ func y
     => func-Join *> pmap Join (ext (\lam b => cases b idp))
@@ -892,7 +894,57 @@
       => FrameUnitalSubcat.Func-inverse _ x
   }
 
-\instance LocaleCat : BicompleteCat => FrameBicat.op
+\func discrete (X : \Set) : Locale (X -> \Prop) \cowith
+  | <= U V => \Pi {x : X} -> U x -> V x
+  | <=-refl u => u
+  | <=-transitive p q u => q (p u)
+  | <=-antisymmetric p q => ext (\lam e => ext (p,q))
+  | meet U V x => \Sigma (U x) (V x)
+  | meet-left => __.1
+  | meet-right => __.2
+  | meet-univ p q e => (p e, q e)
+  | top _ => \Sigma
+  | top-univ _ => ()
+  | Join {J} F x => ∃ (j : J) (F j x)
+  | Join-cond j u => inP (j,u)
+  | Join-univ c => \case __ \with {
+    | inP (j,u) => c j u
+  }
+  | Join-ldistr>= => \case __ \with {
+    | (u, inP (j,v)) => inP (j,(u,v))
+  }
+  \where {
+    \func functor : Functor SetCat LocaleCat \cowith
+      | F => discrete
+      | Func {X} {Y} f => \new FrameHom {
+        | func U x => U (f x)
+        | func-top>= _ => ()
+        | func-meet => idp
+        | func-Join => idp
+      }
+      | Func-id => idp
+      | Func-o => idp
+  }
+
+\instance LocaleCat : BicompleteCat \cowith
+  | Cat => Cat.op {FrameBicat}
+  | limit (G : Functor) => FrameBicat.colimit G.op
+  | colimit (G : Functor) => FrameBicat.limit G.op
+  | terminal {
+    | apex => discrete (\Sigma)
+    | proj => \case __
+    | tupleMap _ => \new FrameHom {
+      | func P => Join (\lam (_ : P ()) => top)
+      | func-<= x<=y => Join-univ (\lam xu => Join-cond (x<=y xu))
+      | func-top>= => Join-cond ()
+      | func-meet>= => rewrite Join-distr $ Join-univ (\lam p => meet-left <=∘ Join-cond p)
+      | func-Join>= => Join-univ (\lam (inP (j,x)) => Join-cond x <=∘ Join-cond j)
+    }
+    | tupleBeta _ => \case __
+    | tupleEq _ => exts (\lam P =>
+        \have t : P = Join {discrete (\Sigma)} (\lam (_ : P ()) => top {discrete (\Sigma)}) => ext (\lam _ => ext (\lam x => inP (x,()), \lam (inP (x,_)) => x))
+        \in rewrite t $ func-Join *> path (\lam i => Join (\lam _ => (func-top *> inv func-top) i)) *> inv func-Join)
+  }
 
 \lemma regular_surj {L M : Locale} {f : Hom L M} (reg : isRegularMono {LocaleCat} f) : isSurj f \elim reg
   | inP (E : Equalizer) => \lam y =>
@@ -1164,24 +1216,4 @@
                           (p : \Pi (i : I) -> R x (h i).2 -> ∃ (l : Array (h i).1) (Cover x (\lam j => (h i).3 (l j))))
                           {y : P} (Rxy : R x y) {J : \Set} {g : J -> P} (ind : FramePres.Indexing h y g) : ∃ (l : Array J) (Cover x (\lam i => g (l i)))
       => FramePres.indexing-transport (\lam {J'} y' g' =>  R x y' -> ∃ (l : Array J') (Cover x (\lam j => g' (l j)))) p ind Rxy
-  }
-
-\func discrete (X : \Set) : Locale (X -> \Prop) \cowith
-  | <= U V => \Pi {x : X} -> U x -> V x
-  | <=-refl u => u
-  | <=-transitive p q u => q (p u)
-  | <=-antisymmetric p q => ext (\lam e => ext (p,q))
-  | meet U V x => \Sigma (U x) (V x)
-  | meet-left => __.1
-  | meet-right => __.2
-  | meet-univ p q e => (p e, q e)
-  | top _ => \Sigma
-  | top-univ _ => ()
-  | Join {J} F x => ∃ (j : J) (F j x)
-  | Join-cond j u => inP (j,u)
-  | Join-univ c => \case __ \with {
-    | inP (j,u) => c j u
-  }
-  | Join-ldistr>= => \case __ \with {
-    | (u, inP (j,v)) => inP (j,(u,v))
   }
