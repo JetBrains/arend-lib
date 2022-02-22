@@ -100,7 +100,10 @@
   \lemma Join-distr {I J : \Set} {f : I -> E} {g : J -> E} : Join f ∧ Join g = Join (\lam (p : \Sigma I J) => f p.1 ∧ g p.2)
     => Join-rdistr *> path (\lam i => Join (\lam i' => Join-ldistr {_} {J} {g} {f i'} @ i)) *> Join-double {_} {I} {J} {\lam i j => f i ∧ g j}
 
-  \func SJoin (U : E -> \Prop) => Join (Total.proj U)
+  \lemma Join-distr>= {I J : \Set} {f : I -> E} {g : J -> E} : Join f ∧ Join g <= Join (\lam (p : \Sigma I J) => f p.1 ∧ g p.2)
+    => =_<= Join-distr
+
+  \func SJoin (U : E -> \Prop) => Join (\lam (t : Total U) => t.1)
 
   \type \infix 4 << (x y : E) => \Pi {J : \Set} {g : J -> E} -> y <= Join g -> ∃ (l : Array J) (x <= Join (\lam i => g (l i)))
 
@@ -150,6 +153,21 @@
 
   \lemma closed-isClosed (a : E) : Nucleus.isClosed {closed a}
     => \lam {x} => join-univ (join-left <=∘ join-left) join-right
+
+  \func pHat (P : \Prop) => Join (\lam (_ : P) => top)
+
+  \func isPositive (a : E) => \Pi (P : \Prop) -> a <= pHat P -> P
+
+  \lemma positive_<= {a b : E} (a<=b : a <= b) (p : isPositive a) : isPositive b
+    => \lam g q => p g (a<=b <=∘ q)
+
+  \lemma positive_cover {a : E} (p : isPositive a) {J : \Set} (g : J -> E) (c : a <= Join g) : TruncP J
+    => p _ $ c <=∘ Join-univ (\lam j => top-univ <=∘ Join-cond (inP j))
+
+  \func isOvert => \Pi (a : E) -> a <= pHat (isPositive a)
+
+  \lemma overt_cover (o : isOvert) {a : E} : a <= Join (\lam (_ : isPositive a) => a)
+    => meet-univ <=-refl (o a) <=∘ Join-ldistr>= <=∘ Join-univ (\lam p => meet-left <=∘ Join-cond {_} {isPositive a} p)
 }
 
 \record FrameHom \extends SetHom {
@@ -213,6 +231,8 @@
 
   \lemma direct_dense (d : direct bottom <= bottom) : isDense
     => \lam {x} p => Join-cond (later (x,p)) <=∘ d
+
+  \func isStronglyDense => \Pi (P : \Prop) (x : Dom) -> func x <= pHat P -> x <= pHat P
 
   -- | A map is closed if and only if the image of a closed sublocale is closed.
   \func isClosed => \Pi {x : Cod} {y : Dom} -> direct (x ∨ func y) <= direct x ∨ y
@@ -369,6 +389,10 @@
   \func SCover (x : E) (U : E -> \Prop) => Cover x (\lam (t : \Sigma (x : E) (U x)) => t.1)
 
   \type isLocallyCompact => \Pi (x : E) -> SCover x (`<< x)
+
+  \func isPositive (a : E) => \Pi {J : \Set} (g : J -> E) -> Cover a g -> TruncP J
+
+  \func isOvert => \Pi (a : E) -> Cover a (\lam (_ : isPositive a) => a)
 } \where {
   \type Indexing {I X : \Set} (h : I -> \Sigma (J : \Set) X (J -> X)) {J : \Set} (e : X) (g : J -> X)
     => ∃ (i : I) (p : Equiv {(h i).1} {J}) ((h i).2 = e) (\Pi (j : (h i).1) -> (h i).3 j = g (p j))
@@ -582,6 +606,12 @@
           \lam yU => \case p y \with {
             | inP (x,q) => cover-inj ((x, \lam {z} t => U.2 z $ rewrite q at t $ cover-trans t (\lam _ => cover-inj (y,yU) idp)), y, rewrite q (cover-inj () idp)) idp
           })))
+
+    \lemma embed_<= {P : FramePres} {a b : P} (a<=b : Cover1 a b) : embed a <= embed b
+      => Cover.cover-trans1 __ a<=b
+
+    \lemma embed_meet {P : FramePres} {a b : P} : embed a ∧ embed b = embed (conj a b)
+      => exts (\lam e => ext (cover-trans __ (\lam i => Cover.cover-conj1 i.3 i.4), Cover.cover-trans1 __ $ cover-inj (a, b, cover-inj () idp, cover-inj () idp) idp))
   }
 
 {- | Unital presentation of frames.
@@ -934,7 +964,7 @@
     | apex => discrete (\Sigma)
     | proj => \case __
     | tupleMap _ => \new FrameHom {
-      | func P => Join (\lam (_ : P ()) => top)
+      | func P => pHat (P ())
       | func-<= x<=y => Join-univ (\lam xu => Join-cond (x<=y xu))
       | func-top>= => Join-cond ()
       | func-meet>= => rewrite Join-distr $ Join-univ (\lam p => meet-left <=∘ Join-cond p)
@@ -942,7 +972,7 @@
     }
     | tupleBeta _ => \case __
     | tupleEq _ => exts (\lam P =>
-        \have t : P = Join {discrete (\Sigma)} (\lam (_ : P ()) => top {discrete (\Sigma)}) => ext (\lam _ => ext (\lam x => inP (x,()), \lam (inP (x,_)) => x))
+        \have t : P = pHat {discrete (\Sigma)} (P ()) => ext (\lam _ => ext (\lam x => inP (x,()), \lam (inP (x,_)) => x))
         \in rewrite t $ func-Join *> path (\lam i => Join (\lam _ => (func-top *> inv func-top) i)) *> inv func-Join)
   }
 
@@ -1080,6 +1110,23 @@
        | func-Join {J} {F} => inv (pmap (\lam x => s (g.direct x)) func-Join *> path (\lam i => s (g.direct (Join (\lam j => g.surjective-split Rg.2 (F j) i))))) *> lem _ *> func-Join
      }, exts lem))
   \where \open FrameHom
+
+\lemma overt-fromPres {P : FramePres} (o : P.isOvert) : isOvert {PresentedFrame P}
+  => \lam U {x} Ux => cover-trans (o x) (\lam i => cover-inj (\lam Q p => TruncP.remove' $ TruncP.map (i _ (p Ux)) __.1, x, ()) idp)
+
+\lemma sdense_positive {f : FrameHom} (d : f.isStronglyDense) {x : f.Dom} (p : isPositive x)
+  => \lam P fx<=P => p P (d P x fx<=P)
+
+\lemma func_positive {f : FrameHom} {x : f.Dom} (p : isPositive (f x)) : isPositive x
+  => \lam P x<=P => p P (func-<= x<=P <=∘ func-Join>= <=∘ Join-univ (\lam q => top-univ <=∘ Join-cond q))
+
+\lemma sdense_overt {f : FrameHom} (d : f.isStronglyDense) (o : isOvert {f.Cod}) : isOvert {f.Dom}
+  => \lam a => d _ a $ o _ <=∘ Join-univ (\lam h => Join-cond $ func_positive h)
+
+\lemma sdense-fromPres {P : FramePres} {L : Locale} {f : FramePresHom P (FrameUnitalSubcat.F L)}
+  (s : \Pi (Q : \Prop) (x : P) -> f x <= Join (\lam (_ : Q) => f x) -> Cover x (\lam (_ : Q) => x))
+  : FrameHom.isStronglyDense {FrameReflectiveSubcat.isReflective.ret f}
+  => \lam Q U p {x} Ux => cover-trans (s Q x (meet-univ <=-refl (Join-cond (later (x,Ux)) <=∘ p) <=∘ Join-ldistr>= <=∘ Join-univ (\lam q => meet-left <=∘ Join-cond q))) (\lam q => cover-inj (q,x,()) idp)
 
 \lemma <<-fromPres {P : FramePres} {x y : P} (x<<y : x FramePres.<< y) : embed x << {PresentedFrame P} embed y
   => \lam {J} {g} y<=Jg => \case x<<y (y<=Jg (cover-inj () idp)) \with {

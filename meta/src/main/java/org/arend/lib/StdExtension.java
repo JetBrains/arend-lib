@@ -169,7 +169,8 @@ public class StdExtension implements ArendExtension {
       "If the first argument is omitted, it unfold all fields.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
       Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), true, false));
-    contributor.declare(meta, new LongName("unfold_let"), "unfolds \\let expressions", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldLetMeta(), true, false));
+    contributor.declare(meta, new LongName("unfold_let"), "Unfolds \\let expressions", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldLetMeta(), true, false));
+    contributor.declare(meta, new LongName("unfolds"), "Unfolds recursively top-level functions and fields", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldsMeta(), true, false));
     contributor.declare(meta, new LongName("<|>"), "`x <|> y` invokes `x` and if it fails, invokes `y`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 3, true), new OrElseMeta());
     contributor.declare(meta, new LongName("try"), "The same as {<|>}", Precedence.DEFAULT, new OrElseMeta());
     contributor.declare(meta, new LongName("mkcon"),

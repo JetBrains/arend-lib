@@ -106,7 +106,7 @@ public class UnfoldMeta extends BaseMetaDefinition {
       if (arg == null) {
         return null;
       }
-      result = arg.replaceType(arg.getType().unfold(functions, unfolded, false, unfoldFields));
+      result = arg.replaceType(arg.getType().normalize(NormalizationMode.RNF).unfold(functions, unfolded, false, unfoldFields));
     }
 
     if (firstArgList != null && unfolded.size() != functions.size()) {
