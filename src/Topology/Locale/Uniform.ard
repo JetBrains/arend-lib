@@ -27,6 +27,12 @@
   | meet-uniform {U V : E -> \Prop} : isUniform U -> isUniform V -> isUniform (\lam x => \Sigma (U x) (V x))
   | <=-uniform {U V : E -> \Prop} : isUniform U -> (\Pi {x : E} -> U x -> V x) -> (\Pi {x y : E} -> V y -> x <= y -> V x) -> isUniform V
   | star-uniform {U : E -> \Prop} : isUniform U -> ∃ (V : E -> \Prop) (isUniform V) (\Pi (x : E) -> V x -> U (star x V))
+  \where {
+    \lemma dClosure {L M : Preorder} {f : L -> M} {U : L -> \Prop} {x y : M} (p : ∃ (z : L) (U z) (y <= f z)) (x<=y : x <= y) : ∃ (z : L) (U z) (x <= f z) \elim p
+      | inP (z,Uz,y<=fz) => inP (z, Uz, x<=y <=∘ y<=fz)
+  }
+
+\open PreuniformLocale(dClosure)
 
 \record UniformHom \extends FrameHom {
   \override Dom : PreuniformLocale
@@ -47,14 +53,12 @@
   | Hom => UniformHom
   | id L => \new UniformHom {
     | FrameHom => FrameCat.id L
-    | func-uniform => <=-uniform __ (\lam {x} Ux => inP (x,Ux,<=-refl))
-        (\lam {x} {y} (inP (z,Uz,y<=z)) x<=y => inP (z, Uz, x<=y <=∘ y<=z))
+    | func-uniform => <=-uniform __ (\lam {x} Ux => inP (x,Ux,<=-refl)) dClosure
   }
   | o g f => \new UniformHom {
     | FrameHom => g FrameCat.∘ f
     | func-uniform uU => <=-uniform (func-uniform {g} (func-uniform {f} uU))
-        (\lam {x} (inP (y, inP (z,Uz,y<=fz), x<=gy)) => inP (z, Uz, x<=gy <=∘ func-<= y<=fz))
-        (\lam {x} {y} (inP (z,Uz,y<=gfz)) x<=y => inP (z, Uz, x<=y <=∘ y<=gfz))
+        (\lam {x} (inP (y, inP (z,Uz,y<=fz), x<=gy)) => inP (z, Uz, x<=gy <=∘ func-<= y<=fz)) dClosure
   }
   | id-left => idp
   | id-right => idp
@@ -72,7 +76,7 @@
                        (u : isUniform (\lam y => ∃ (x : L) (U x) (y <= x)))
                        (d : \Pi {x y : L} -> U y -> x <= y -> U x)
       : isUniform U
-      => <=-uniform u (\lam {x} (inP (y,Uy,x<=y))=> d Uy x<=y) d
+      => <=-uniform u (\lam {x} (inP (y,Uy,x<=y)) => d Uy x<=y) d
   }
 
 \func CompletionPres (L : UniformLocale) : FramePres L \cowith
@@ -93,7 +97,7 @@
 
 \func Completion (L : UniformLocale) => PresentedFrame (CompletionPres L)
 
-\func completion {L : UniformLocale} : Hom L (Completion L)
+\func completion {L : UniformLocale} : LocaleCat.Hom L (Completion L)
   => FrameReflectiveSubcat.isReflective.ret completion.presentation
   \where {
     \open FrameHom
@@ -110,7 +114,7 @@
       | func-image {x} => cover-inj x idp
 
     \lemma sdense {L : UniformLocale} : isStronglyDense {completion {L}}
-      => sdense-fromPres (\lam Q x x<=Q => Cover.cover-trans1 (<=_cover x<=Q) $ cover-trans (cover-basic $ FramePres.indexing-make $ later (1,_))
+      => sdense-fromPres (\lam x<=Q => Cover.cover-trans1 (<=_cover x<=Q) $ cover-trans (cover-basic $ FramePres.indexing-make $ later (1,_))
         (\lam p => \have (inP q) => positive_cover p _ <=-refl \in cover-inj q (<=-antisymmetric (Join-cond q) (Join-univ (\lam _ => <=-refl)))))
 
     \lemma completion_embed {L : UniformLocale} {a : L} : completion (embed a) = a
@@ -143,7 +147,11 @@
     \func make-covering {L : UniformLocale} (U : L -> \Prop) (uU : L.isUniform U)
       : \Sigma (V : Completion L -> \Prop) (isUniform V) (\Pi (a : L) -> star (embed a) V <= embed (star a U))
       => (\lam s => ∃ (x : L) (U x) (s <= embed x),
-          inP (U, uU, \lam {a} Ua => inP (a,Ua,<=-refl), \lam {x} {y} (inP (z,Uz,y<=z)) x<=y => inP (z, Uz, x<=y <=∘ y<=z)),
+          inP (U, uU, \lam {a} Ua => inP (a,Ua,<=-refl), dClosure),
           \lam a => Join-univ (\lam (t, (inP (y, V'y, t<=y), xt>0)) => t<=y <=∘ embed_<= (<=_cover $ Join-cond $ later (y, (V'y, transport isPositive completion.completion_embed $
               sdense_positive {completion} completion.sdense $ transport isPositive embed_meet $ positive_<= (MeetSemilattice.meet-monotone (<=-refl {_} {embed a}) t<=y) xt>0)))))
   }
+
+\func completionUniform {L : UniformLocale} : UniformHom (CompletionUniform L) L \cowith
+  | FrameHom => completion
+  | func-uniform {U} (inP (V,uV,V<=U,dV)) => <=-uniform uV (\lam {x} Vx => inP (embed x, V<=U Vx, Join-cond $ later (x, cover-inj () idp))) dClosure
