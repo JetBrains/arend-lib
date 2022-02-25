@@ -295,26 +295,29 @@
     => eqBeta eql equal
 }
 
-\class Pullback \plevels obj >= hom {D : Precat \levels (obj,hom) _} {x y z : D} (f : Hom x z) (g : Hom y z) (\classifying apex : D) (cone : Cone f g apex) {
-  | pbMap {w : D} : Cone f g w -> Hom w apex
-  | pbBeta1 {w : D} {c : Cone f g w} : cone.1 ∘ pbMap c = c.1
-  | pbBeta2 {w : D} {c : Cone f g w} : cone.2 ∘ pbMap c = c.2
-  | pbEta {w : D} {h1 h2 : Hom w apex} : cone.1 ∘ h1 = cone.1 ∘ h2 -> cone.2 ∘ h1 = cone.2 ∘ h2 -> h1 = h2
+\class Pullback \plevels obj >= hom {D : Precat \levels (obj,hom) _} {x y z : D} (f : Hom x z) (g : Hom y z) (\classifying apex : D) {
+  | pbProj1 : Hom apex x
+  | pbProj2 : Hom apex y
+  | pbCoh : f ∘ pbProj1 = g ∘ pbProj2
+  | pbMap {w : D} (p1 : Hom w x) (p2 : Hom w y) : f ∘ p1 = g ∘ p2 -> Hom w apex
+  | pbBeta1 {w : D} {p1 : Hom w x} {p2 : Hom w y} {c : f ∘ p1 = g ∘ p2} : pbProj1 ∘ pbMap p1 p2 c = p1
+  | pbBeta2 {w : D} {p1 : Hom w x} {p2 : Hom w y} {c : f ∘ p1 = g ∘ p2} : pbProj2 ∘ pbMap p1 p2 c = p2
+  | pbEta {w : D} {h1 h2 : Hom w apex} : pbProj1 ∘ h1 = pbProj1 ∘ h2 -> pbProj2 ∘ h1 = pbProj2 ∘ h2 -> h1 = h2
 
   \func toLimit : LimitDiagram \cowith
     | Diagram => diagram f g
     | apex => apex
     | coneMap => \case \elim __ \with {
-      | 0 => cone.1
-      | 1 => cone.2
-      | 2 => f ∘ cone.1
+      | 0 => pbProj1
+      | 1 => pbProj2
+      | 2 => f ∘ pbProj1
     }
     | diagramCoh {g} {g'} e => \case \elim g, \elim g', \elim e \with {
       | 0, 2, _ => idp
-      | 1, 2, _ => inv cone.3
+      | 1, 2, _ => inv pbCoh
     }
     | isLimitDiagram z => \new QEquiv {
-      | ret (c : DiagramCone) => pbMap (c.coneMap 0, c.coneMap 1, c.diagramCoh {0} {2} () *> inv (c.diagramCoh {1} {2} ()))
+      | ret (c : DiagramCone) => pbMap (c.coneMap 0) (c.coneMap 1) (c.diagramCoh {0} {2} () *> inv (c.diagramCoh {1} {2} ()))
       | ret_f h => pbEta pbBeta1 pbBeta2
       | f_sec c => exts (\case \elim __ \with {
         | 0 => pbBeta1
@@ -323,9 +326,6 @@
       })
     }
 } \where {
-  \type Cone {D : Precat} {x y z : D} (f : Hom x z) (g : Hom y z) (w : D)
-    => \Sigma (p : Hom w x) (q : Hom w y) (f ∘ p = g ∘ q)
-
   \instance Shape : Graph => \new Graph (Fin 3) (\case __, __ \with {
     | 0, 2 => \Sigma
     | 1, 2 => \Sigma
@@ -345,30 +345,32 @@
 
   \use \coerce fromLimit {D : Precat \levels (obj,hom) _} {x y z : D} {f : Hom x z} {g : Hom y z} (L : Limit (Diagram.functor {diagram f g})) : Pullback f g L.apex
     => \let | d : DiagramCone => Equiv.ret {DiagramCone.equiv {diagram f g} L.apex} L
-            | d' {w} (c : Cone f g w) => \new DiagramCone {
+            | d' {w} p1 p2 c => \new DiagramCone {
               | Diagram => diagram f g
               | apex => w
               | coneMap => \case \elim __ \with {
-                | 0 => c.1
-                | 1 => c.2
-                | 2 => f ∘ c.1
+                | 0 => p1
+                | 1 => p2
+                | 2 => f ∘ p1
               }
               | diagramCoh {g} {g'} e => \case \elim g, \elim g', \elim e \with {
                 | 0, 2, _ => idp
-                | 1, 2, _ => inv c.3
+                | 1, 2, _ => inv c
               }
             }
        \in \new Pullback {
-         | cone => (L.coneMap 0, L.coneMap 1, d.diagramCoh {0} {2} () *> inv (d.diagramCoh {1} {2} ()))
-         | pbMap {w} c => Equiv.ret {L.isLimit w} (d' c)
-         | pbBeta1 {w} {c} => L.limBeta (d' c) 0
-         | pbBeta2 {w} {c} => L.limBeta (d' c) 1
+        | pbProj1 => L.coneMap 0
+        | pbProj2 => L.coneMap 1
+        | pbCoh => d.diagramCoh {0} {2} () *> inv (d.diagramCoh {1} {2} ())
+         | pbMap {w} p1 p2 c => Equiv.ret {L.isLimit w} (d' p1 p2 c)
+         | pbBeta1 {w} {p1} {p2} {c} => L.limBeta (d' p1 p2 c) 0
+         | pbBeta2 {w} {p1} {p2} {c} => L.limBeta (d' p1 p2 c) 1
          | pbEta {w} {h1} {h2} p q => inv (Equiv.ret_f {L.isLimit w} h1) *> pmap (Equiv.ret {L.isLimit w}) (exts (\case \elim __ \with {
            | 0 => p
            | 1 => q
            | 2 => pmap (`∘ _) (inv (d.diagramCoh {0} {2} ())) *> o-assoc *> pmap (f ∘) p *> inv o-assoc *> pmap (`∘ _) (d.diagramCoh {0} {2} ())
          })) *> Equiv.ret_f {L.isLimit w} h2
-       }
+      }
 }
 
 \func limits<=pr+eq \plevels obj >= hom {D : Precat \levels (obj,hom) _}
@@ -397,8 +399,8 @@
 \func pullbackFunctor {C : PrecatWithPullbacks} {x y : C} (f : Hom x y) : Functor (slicePrecat y) (slicePrecat x) =>
   \let | F (t : slicePrecat y) : slicePrecat x => (pullback f t.2, map f t.2)
        | Func {a} {b} (g : Hom a b) : Hom (F a) (F b) =>
-         \let c => Pullback.cone {pullback f a.2}
-         \in (pbMap (c.1, g.1 ∘ c.2, c.3 *> pmap (`∘ c.2) (inv g.2) *> o-assoc), pbBeta1)
+         \let p : Pullback => pullback f a.2
+         \in (pbMap p.pbProj1 (g.1 ∘ p.pbProj2) (p.pbCoh *> pmap (`∘ p.pbProj2) (inv g.2) *> o-assoc), pbBeta1)
   \in \new Functor {
     | F => F
     | Func => Func
@@ -406,7 +408,7 @@
     | Func-o => ext $ pbEta (pbBeta1 *> inv (pmap (`∘ _) pbBeta1 *> later pbBeta1) *> o-assoc) (pbBeta2 *> inv (pmap (`∘ _) pbBeta2 *> o-assoc *> pmap (_ ∘) pbBeta2 *> inv o-assoc) *> o-assoc)
   } \where
   \func map {C : PrecatWithPullbacks} {x y z : C} (f : Hom x y) (g : Hom z y) : Hom (pullback f g) x
-    => (Pullback.cone {pullback f g}).1
+    => pbProj1 {pullback f g}
 
 \class CartesianPrecat \extends Precat {
   | terminal : Product {Empty} {\this} absurd
