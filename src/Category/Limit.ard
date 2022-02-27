@@ -6,6 +6,7 @@
 \import Equiv \hiding (Map)
 \import Function.Meta
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.PartialOrder
 \import Paths
@@ -293,6 +294,14 @@
 
   \lemma unique-map {D : Precat} {x y : D} {f g : Hom x y} (E E' : Equalizer f g) : E'.eql ∘ Iso.f {unique E E'} = E.eql
     => eqBeta eql equal
+
+  \lemma mono=>equalizer {D : Precat} {x y e : D} {f g : Hom x y} {eql : Hom e x} {equal : f ∘ eql = g ∘ eql}
+                         (m : Mono eql) (p : \Pi {z : D} (h : Hom z x) -> f ∘ h = g ∘ h -> ∃ (k : Hom z e) (eql ∘ k = h))
+    : \Pi (z : D) -> Equiv {Hom z e} {\Sigma (h : Hom z x) (f ∘ h = g ∘ h)} (\lam h => (eql ∘ h, inv o-assoc *> pmap (`∘ h) equal *> o-assoc))
+    => \lam z => \new ESEquiv {
+      | isSurj t => TruncP.map (p t.1 t.2) (\lam q => (q.1, ext q.2))
+      | Embedding => Embedding.fromInjection (\lam q => m.isMono $ pmap __.1 q)
+    }
 }
 
 \class Pullback \plevels obj >= hom {D : Precat \levels (obj,hom) _} {x y z : D} (f : Hom x z) (g : Hom y z) (\classifying apex : D) {
@@ -371,6 +380,15 @@
            | 2 => pmap (`∘ _) (inv (d.diagramCoh {0} {2} ())) *> o-assoc *> pmap (f ∘) p *> inv o-assoc *> pmap (`∘ _) (d.diagramCoh {0} {2} ())
          })) *> Equiv.ret_f {L.isLimit w} h2
       }
+
+  \func fromIso (P : Pullback {}) (e : Iso {P.D} { | cod => P }) : Pullback P.f P.g e.dom \cowith
+    | pbProj1 => pbProj1 ∘ e
+    | pbProj2 => pbProj2 ∘ e
+    | pbCoh => rewriteEq pbCoh o-assoc
+    | pbMap p1 p2 c => e.inv ∘ pbMap p1 p2 c
+    | pbBeta1 => rewriteEq e.f_inv $ rewrite id-right pbBeta1
+    | pbBeta2 => rewriteEq e.f_inv $ rewrite id-right pbBeta2
+    | pbEta s1 s2 => e.isMono $ pbEta (rewriteEq s1 o-assoc) (rewriteEq s2 o-assoc)
 }
 
 \func limits<=pr+eq \plevels obj >= hom {D : Precat \levels (obj,hom) _}
@@ -416,6 +434,9 @@
 
   \func terminalMap {x : Ob} : Hom x terminal
     => tupleMap (\case __)
+
+  \lemma terminal-unique {x : Ob} {f g : Hom x terminal} : f = g
+    => tupleEq (\case __)
 
   \func proj1 {x y : Ob} => proj {Bprod x y} 0
 
@@ -463,7 +484,23 @@
     | f_inv => rewrite (pair-comp,o-assoc,beta1,beta1,pair-comp,beta2,o-assoc,beta1,beta2,inv pair-comp,pair-proj,id-left) pair-proj
 }
 
-\class CompletePrecat \extends PrecatWithPullbacks, CartesianPrecat {
+\class FinCompletePrecat \extends PrecatWithPullbacks, CartesianPrecat {
+  \default Bprod x y => \new Product {
+    | apex => pullback (terminal.tupleMap (\case __)) (tupleMap (\case __))
+    | proj => \case \elim __ \with {
+      | 0 => pbProj1
+      | 1 => pbProj2
+    }
+    | tupleMap f => pbMap (f 0) (f 1) $ tupleEq (\case __)
+    | tupleBeta f => \case \elim __ \with {
+      | 0 => pbBeta1
+      | 1 => pbBeta2
+    }
+    | tupleEq f => pbEta (f 0) (f 1)
+  }
+}
+
+\class CompletePrecat \extends FinCompletePrecat {
   | limit {J : Precat} (G : Functor J \this) : Limit G
   \default pullback f g => Pullback.fromLimit (limit (Diagram.functor {Pullback.diagram f g}))
   \default terminal => Product.fromLimit (limit (Product.functor absurd))
@@ -529,6 +566,9 @@
 
 \lemma regularMono_Mono {C : Precat} {x y : C} {f : Hom x y} (reg : isRegularMono f) : Mono f \elim reg
   | inP (E : Equalizer) => \new Mono f E.eqMono
+
+\lemma regularMono_pullback (P : Pullback {}) (m : isRegularMono P.g) : isRegularMono P.pbProj1
+  => {?}
 
 \lemma splitMono_regular (f : SplitMono {}) : isRegularMono f.f
   => inP (\new Equalizer {

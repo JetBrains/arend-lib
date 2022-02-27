@@ -6,7 +6,8 @@
 \import Category.Functor
 \import Category.Limit
 \import Category.Meta
-\import Category.Sub
+\import Category.Subcat
+\import Category.Subobj
 \import Category.Topos.Sheaf
 \import Data.Array
 \import Data.Bool
@@ -22,7 +23,7 @@
 \import Logic.Meta
 \import Meta
 \import Order.Lattice
-\import Order.LinearOrder
+\import Order.LinearOrder \hiding (isDense)
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
@@ -105,6 +106,9 @@
   \lemma Join-distr>= {I J : \Set} {f : I -> E} {g : J -> E} : Join f ∧ Join g <= Join (\lam (p : \Sigma I J) => f p.1 ∧ g p.2)
     => =_<= Join-distr
 
+  \lemma Join_= {J : \Set} {f g : J -> E} (p : \Pi (j : J) -> f j = g j) : Join f = Join g
+    => path (\lam i => Join (p __ i))
+
   \func SJoin (U : E -> \Prop) => Join (\lam (t : Total U) => t.1)
 
   \type \infix 4 << (x y : E) => \Pi {J : \Set} {g : J -> E} -> y <= Join g -> ∃ (l : Array J) (x <= Join (\lam i => g (l i)))
@@ -148,12 +152,12 @@
         (meet-univ (exponent.1 (eval <=∘ meet-left)) (exponent.1 (eval <=∘ meet-right)))
         (exponent.1 (meet-univ (meet-monotone meet-left <=-refl <=∘ eval) (meet-monotone meet-right <=-refl <=∘ eval)))
     | nucleus-unit => exponent.1 meet-left
-    | nucleus-join => exponent.1 (transport (_ ∧ __ <= _) meet-idemp (transport (`<= _) meet-assoc (meet-monotone eval <=-refl <=∘ eval)))
+    | nucleus-join>= => exponent.1 (transport (_ ∧ __ <= _) meet-idemp (transport (`<= _) meet-assoc (meet-monotone eval <=-refl <=∘ eval)))
 
   \func closed (a : E) : Nucleus (a ∨ __) \cowith
     | nucleus-meet => equation
     | nucleus-unit => join-right
-    | nucleus-join => join-univ join-left <=-refl
+    | nucleus-join>= => join-univ join-left <=-refl
 
   \lemma closed-isClosed (a : E) : Nucleus.isClosed {closed a}
     => \lam {x} => join-univ (join-left <=∘ join-left) join-right
@@ -219,17 +223,20 @@
   \lemma direct-<= {y z : Cod} (p : y <= z) : direct y <= direct z
     => Join-univ (\lam (x,q) => Join-cond (later (x, q <=∘ p)))
 
-  \lemma direct-meet {y z : Cod} : direct (y ∧ z) = direct y ∧ direct z
-    => <=-antisymmetric (meet-univ (direct-<= meet-left) (direct-<= meet-right)) (Join-cond (later (direct y ∧ direct z, meet-univ (func-<= meet-left <=∘ direct-counit) (func-<= meet-right <=∘ direct-counit))))
-
-  \lemma direct-top : direct top = top
-    => <=-antisymmetric top-univ (Join-cond (later (top, top-univ)))
-
   \lemma direct-unit {x : Dom} : x <= direct (func x)
     => Join-cond $ later (x,<=-refl)
 
   \lemma direct-counit {y : Cod} : func (direct y) <= y
     => func-Join>= <=∘ Join-univ __.2
+
+  \lemma direct-adjoint {x : Dom} {y : Cod} : func x <= y <-> x <= direct y
+    => (direct-unit <=∘ direct-<= __, func-<= __ <=∘ direct-counit)
+
+  \lemma direct-meet {y z : Cod} : direct (y ∧ z) = direct y ∧ direct z
+    => <=-antisymmetric (meet-univ (direct-<= meet-left) (direct-<= meet-right)) (Join-cond (later (direct y ∧ direct z, meet-univ (direct-adjoint.2 meet-left) (direct-adjoint.2 meet-right))))
+
+  \lemma direct-top : direct top = top
+    => <=-antisymmetric top-univ (Join-cond (later (top, top-univ)))
 
   \lemma func_direct_func {x : Dom} : func (direct (func x)) = func x
     => <=-antisymmetric direct-counit (func-<= direct-unit)
@@ -237,7 +244,7 @@
   \func image : Nucleus (\lam x => direct (func x)) \cowith
     | nucleus-meet => pmap direct func-meet *> direct-meet
     | nucleus-unit => direct-unit
-    | nucleus-join => direct-<= direct-counit
+    | nucleus-join>= => direct-<= direct-counit
 
   -- | A map is dense if and only if its image is dense.
   \func isDense => \Pi {x : Dom} -> func x <= bottom -> x <= bottom
@@ -259,7 +266,7 @@
     | nucleus-<= p => Meet-univ (\lam j => Meet-cond j <=∘ nucleus-<= p)
     | nucleus-meet>= => Meet-univ (\lam j => meet-monotone (Meet-cond j) (Meet-cond j) <=∘ nucleus-meet>=)
     | nucleus-unit {x} => Join-cond $ later (x, \lam j => nucleus-unit)
-    | nucleus-join => Meet-univ (\lam j => Meet-cond j <=∘ nucleus-<= (Meet-cond j) <=∘ nucleus-join)
+    | nucleus-join>= => Meet-univ (\lam j => Meet-cond j <=∘ nucleus-<= (Meet-cond j) <=∘ nucleus-join>=)
 
   -- | A map is closed if and only if the image of a closed sublocale is closed.
   \func isClosed => \Pi {x : Cod} {y : Dom} -> direct (x ∨ func y) <= direct x ∨ y
@@ -273,6 +280,9 @@
     => \lam {x} {y} => \case s x \with {
       | inP (a,p) => rewriteI (p,func-join) (c <=∘ join-univ (direct-<= (func-<= bottom-univ) <=∘ join-left) (join-monotone direct-unit <=-refl))
     }
+
+  -- | A map is open if and only if the image of an open sublocale is open.
+  \func isOpen => \Pi (x : Cod) -> ∃ (z : Dom) (\Pi (y : Dom) -> direct (x --> func y) = z --> y)
 
   \lemma surjective-split (s : isSurj func) (x : Cod) : func (direct x) = x
     => \case s x \with {
@@ -290,6 +300,9 @@
     | ret_f x => ext (<=-antisymmetric x.2 direct-unit)
     | f_sec y => surjective-split s y
   }
+} \where {
+  \lemma direct_o {L M K : Locale} (f : FrameHom L M) (g : FrameHom M K) {x : K} : direct {g FrameCat.∘ f} x = f.direct (g.direct x)
+    => <=-antisymmetric (direct-adjoint.1 $ direct-adjoint.1 $ direct-counit {g FrameCat.∘ f}) ((direct-adjoint {g FrameCat.∘ f}).1 $ func-<= direct-counit <=∘ direct-counit)
 }
 
 -- | Nuclei encode sublocales
@@ -298,19 +311,24 @@
   | nucleus-meet>= {x y : L} : nucleus x ∧ nucleus y <= nucleus (x ∧ y)
   | nucleus-<= {x y : L} : x <= y -> nucleus x <= nucleus y
   | nucleus-unit {x : L} : x <= nucleus x
-  | nucleus-join {x : L} : nucleus (nucleus x) <= nucleus x
+  | nucleus-join>= {x : L} : nucleus (nucleus x) <= nucleus x
+  | nucleus-join {x : L} : nucleus (nucleus x) = nucleus x
 
   \default nucleus-<= p => rewrite (inv (pmap nucleus (meet_<= p)) *> nucleus-meet) meet-right
   \default nucleus-meet => <=-antisymmetric (meet-univ (nucleus-<= meet-left) (nucleus-<= meet-right)) nucleus-meet>=
   \default nucleus-meet>= => =_<= (inv nucleus-meet)
+  \default nucleus-join => <=-antisymmetric nucleus-join>= nucleus-unit
+  \default nucleus-join>= => =_<= nucleus-join
 
   \lemma nucleus-univ {x y : L} (p : x <= nucleus y) : nucleus x <= nucleus y
-    => nucleus-<= p <=∘ nucleus-join
+    => nucleus-<= p <=∘ nucleus-join>=
 
   \lemma nucleus_exponent {x y : L} (p : nucleus y <= y) : nucleus (x --> y) <= x --> y
     => exponent.1 $ meet-monotone <=-refl nucleus-unit <=∘ nucleus-meet>= <=∘ nucleus-<= eval <=∘ p
 
-  \func locale : Locale (\Sigma (x : L) (nucleus x <= x)) \cowith
+  \type Subtype => \Sigma (x : L) (nucleus x <= x)
+
+  \instance locale : Locale Subtype
     | <= (x,_) (y,_) => x <= y
     | <=-refl => <=-refl
     | <=-transitive => <=-transitive
@@ -321,13 +339,13 @@
     | meet-univ => meet-univ
     | top => (top, top-univ)
     | top-univ => top-univ
-    | Join f => (nucleus (Join (f __).1), nucleus-join)
+    | Join f => (nucleus (Join (f __).1), nucleus-join>=)
     | Join-cond j {f} => Join-cond j <=∘ nucleus-unit
     | Join-univ {J} {f} {e} h => nucleus-<= (Join-univ h) <=∘ e.2
     | Join-ldistr>= {J} {f} {e} => meet-monotone nucleus-unit <=-refl <=∘ transport (`<= _) nucleus-meet (nucleus-<= Join-ldistr>=)
 
   \func map : FrameHom L locale \cowith
-    | func x => (nucleus x, nucleus-join)
+    | func x => (nucleus x, nucleus-join>=)
     | func-top => ext (<=-antisymmetric top-univ nucleus-unit)
     | func-meet => ext nucleus-meet
     | func-Join>= => nucleus-<= (Join-univ (\lam j => nucleus-unit <=∘ Join-cond j))
@@ -354,7 +372,7 @@
     | nucleus x => j x ∧ j' x
     | nucleus-meet => rewrite (nucleus-meet {j}) $ rewrite (nucleus-meet {j'}) equation
     | nucleus-unit => meet-univ nucleus-unit nucleus-unit
-    | nucleus-join => meet-monotone (Nucleus.nucleus-univ meet-left) (Nucleus.nucleus-univ meet-right)
+    | nucleus-join>= => meet-monotone (Nucleus.nucleus-univ meet-left) (Nucleus.nucleus-univ meet-right)
   }
   | meet-left => meet-left
   | meet-right => meet-right
@@ -364,7 +382,7 @@
     | nucleus-meet>= => top-univ
     | nucleus-<= _ => <=-refl
     | nucleus-unit => top-univ
-    | nucleus-join => <=-refl
+    | nucleus-join>= => <=-refl
   }
   | top-univ => top-univ
   | Join {J} g => \new Nucleus {
@@ -372,18 +390,13 @@
     | nucleus-meet>= => Meet-univ (\lam p => meet-univ (meet-left <=∘ Meet-cond p) (meet-right <=∘ Meet-cond p) <=∘ nucleus-meet>=)
     | nucleus-<= x<=y => Meet-univ (\lam p => Meet-cond p <=∘ nucleus-<= x<=y)
     | nucleus-unit => Meet-univ (\lam p => nucleus-unit)
-    | nucleus-join => Meet-univ (\lam p => Meet-cond p <=∘ Nucleus.nucleus-univ (Meet-cond p))
+    | nucleus-join>= => Meet-univ (\lam p => Meet-cond p <=∘ Nucleus.nucleus-univ (Meet-cond p))
   }
   | Join-cond j {g} {x} => Join-cond $ later (g j x, \lam p => p.2 j)
   | Join-univ c {x} => Join-univ (\lam p => p.2 (_,c))
   | Join-ldistr>= {J} {g} {k} {x} => Join-ldistr>= <=∘ Join-univ (\lam p => Meet-univ (\lam q => =_<= meet-comm <=∘ exp-univ2 (p.2 (exp k q.1, \lam j => exp-univ1 (\lam {y} => =_<= meet-comm <=∘ q.2 j)))))
   \where {
-    \func <=-map {L : Locale} (j j' : Nucleus {L}) (j<=j' : j <= {NucleusFrame L} j') : FrameHom j.locale j'.locale \cowith
-      | func x => (j' x.1, nucleus-join)
-      | func-<= => nucleus-<=
-      | func-top>= => nucleus-unit
-      | func-meet>= => nucleus-meet>=
-      | func-Join>= => unfold $ nucleus-<= j<=j' <=∘ nucleus-join <=∘ nucleus-<= (Join-univ (\lam j => nucleus-unit <=∘ Join-cond j))
+    \open Topology.Locale(NucleusFrame)
 
     \func exp {L : Locale} (j j' : Nucleus {L}) : Nucleus \cowith
       | nucleus x => Meet (\lam (p : \Sigma (y : L) (x <= y)) => j p.1 --> j' p.1)
@@ -394,7 +407,7 @@
             nucleus-meet>= <=∘ nucleus-<= (ldistr>= <=∘ join-univ (L.rdistr>= <=∘ join-univ p.2 meet-left) meet-right)))
       | nucleus-<= x<=y => Meet-univ (\lam p => Meet-cond (later (p.1, x<=y <=∘ p.2)) <=∘ exponent.1 eval)
       | nucleus-unit => Meet-univ (\lam p => exponent.1 $ meet-left <=∘ p.2 <=∘ nucleus-unit)
-      | nucleus-join => Meet-univ (\lam p => Meet-cond (later (j p.1 --> j' p.1, Meet-cond p)) <=∘ exponent_monotone <=-refl (Nucleus.nucleus_exponent nucleus-join) <=∘
+      | nucleus-join>= => Meet-univ (\lam p => Meet-cond (later (j p.1 --> j' p.1, Meet-cond p)) <=∘ exponent_monotone <=-refl (Nucleus.nucleus_exponent nucleus-join>=) <=∘
           =_<= exponent-double <=∘ exponent_monotone (meet-univ (nucleus-<= $ exponent.1 $ meet-left <=∘ nucleus-unit) <=-refl) <=-refl)
 
     \lemma exp-univ1 {L : Locale} {j k n : Nucleus {L}} (p : \Pi {x : L} -> meet j k x <= n x) {x : L} : j x <= exp k n x
@@ -402,6 +415,38 @@
 
     \lemma exp-univ2 {L : Locale} {k n : Nucleus {L}} {x y : L} (p : y <= exp k n x) : y ∧ k x <= n x
       => exponent.2 (p <=∘ Meet-cond (later (x,<=-refl)))
+
+    \func <=-map {L : Locale} (j j' : Nucleus {L}) (j<=j' : j <= j') : FrameHom j.locale j'.locale \cowith
+      | func x => (j' x.1, nucleus-join>=)
+      | func-<= => nucleus-<=
+      | func-top>= => nucleus-unit
+      | func-meet>= => nucleus-meet>=
+      | func-Join>= => unfold $ nucleus-<= j<=j' <=∘ nucleus-join>= <=∘ nucleus-<= (Join-univ (\lam j => nucleus-unit <=∘ Join-cond j))
+      \where
+        \lemma surjective {L : Locale} {j j' : Nucleus {L}} (j<=j' : j <= j') : isSurj (<=-map j j' j<=j')
+          => \lam y => inP ((y.1, j<=j' <=∘ y.2), ext $ <=-antisymmetric y.2 nucleus-unit)
+
+    \lemma double-nucleus-left {L : Locale} {j k : Nucleus {L}} (j<=k : j <= k) (x : L) : k (j x) = k x
+      => <=-antisymmetric (k.nucleus-univ j<=k) (nucleus-<= nucleus-unit)
+
+    \lemma double-nucleus-right {L : Locale} {j k : Nucleus {L}} (j<=k : j <= k) (x : L) : j (k x) = k x
+      => <=-antisymmetric (j<=k <=∘ nucleus-join>=) nucleus-unit
+
+    -- | The intersection of two sublocales is a pullback.
+    \sfunc intersection-pullback {L : Locale} (j k : Nucleus {L}) : Pullback {LocaleCat} j.map k.map (Nucleus.locale {j ∨ k})
+        (<=-map j (j ∨ k) (join-left {NucleusFrame L})) (<=-map k (j ∨ k) (join-right {NucleusFrame L}))
+      => \have coh : j.map ∘ {LocaleCat} <=-map j (j ∨ k) (join-left {_} {j}) = k.map ∘ {LocaleCat} <=-map k (j ∨ k) (join-right {_} {j})
+                   => exts (\lam x => ext $ double-nucleus-left {_} {j} {j ∨ k} (join-left {_} {j} {k}) x *> inv (double-nucleus-left {_} {k} {j ∨ k} (join-right {_} {j} {k}) x))
+         \in regularSubobj_meet-pullback.exact {LocaleCat} j.map (surj_regular $ Nucleus.map.surjective {j}) k.map (surj_regular $ Nucleus.map.surjective {k}) {<=-map j (j ∨ k) (join-left {NucleusFrame L})} coh
+              (surj_regular {_} {_} {j.map ∘ {LocaleCat} <=-map j (j ∨ k) (join-left {_} {j})} (isSurj.comp Nucleus.map.surjective (<=-map.surjective (join-left {_} {j}))))
+              (inP (_, idp), inP (_, inv coh), \case \elim __ \with {
+                | regSubobj {sub} (f : FrameHom) fm => \lam (inP (h1,jh1=f)) (inP (h2,kh2=f)) =>
+                    \have jk<=f : j ∨ k <= f.image => join-univ
+                            (\lam {x} => direct-adjoint.1 $ transport (\lam (f : FrameHom L sub) => f (j x) <= f x) jh1=f $ func-<= nucleus-join>=)
+                            (\lam {x} => direct-adjoint.1 $ transport (\lam (f : FrameHom L sub) => f (k x) <= f x) kh2=f $ func-<= nucleus-join>=)
+                    \in inP (<=-map (j ∨ k) f.image jk<=f ∘ f.factor, exts (\lam x =>
+                          func_direct_func *> pmap f (double-nucleus-left {_} {j} {j ∨ k} (join-left {_} {j}) x) *> <=-antisymmetric (direct-adjoint.2 jk<=f) (func-<= $ nucleus-unit {j ∨ k})))
+              })
   }
 
 \lemma closed>=open {L : Locale} {c a : L} (p : top <= c ∨ a) : closed c >= open a
@@ -436,7 +481,7 @@
     | func-meet => idp
     | func-Join => idp
   }
-  | o g f => \new FrameHom {
+  | o {L M K : Locale} (g : FrameHom M K) (f : FrameHom L M) : FrameHom L K => \new FrameHom {
     | func x => g (f x)
     | func-top => pmap g func-top *> func-top
     | func-meet {x} {y} => pmap g func-meet *> func-meet
@@ -1066,6 +1111,16 @@
         \in rewrite t $ func-Join *> path (\lam i => Join (\lam _ => (func-top *> inv func-top) i)) *> inv func-Join)
   }
 
+\open FrameHom
+
+-- | Open maps are closed under pullbacks.
+\lemma pullback_open (P : Pullback {LocaleCat}) (o : isOpen {P.g}) : isOpen {P.pbProj1}
+  => {?}
+
+-- | Strongly dense maps are closed under pullbacks along open maps.
+\lemma pullback_sdense (P : Pullback {LocaleCat}) (o : isOpen {P.f}) (d : isStronglyDense {P.g}) : isStronglyDense {P.pbProj1}
+  => {?}
+
 \lemma regular_surj {L M : Locale} {f : Hom L M} (reg : isRegularMono {LocaleCat} f) : isSurj f \elim reg
   | inP (E : Equalizer) => \lam y =>
     \let | E' : Equalizer => LocaleCat.equalizer E.f E.g
@@ -1220,14 +1275,14 @@
   | L f => isStronglyDense {f}
   | R f => isWeaklyClosed {f}
   | factors {L} {M} (h : FrameHom) =>
-    \have | left+right=h x : factor h (h.wclosed-image.map x) = h x => unfold $ <=-antisymmetric (func-<= (Meet-cond $ later (h.image, \lam {P} {y} hy<=P => direct-unit <=∘ direct-<= (hy<=P <=∘ func-pHat<=))) <=∘ direct-counit) (func-<= h.wclosed-image.nucleus-unit)
+    \have | left+right=h x : factor h (h.wclosed-image.map x) = h x => unfold $ <=-antisymmetric (direct-adjoint.2 (Meet-cond $ later (h.image, \lam {P} {y} hy<=P => direct-adjoint.1 (hy<=P <=∘ func-pHat<=)))) (func-<= h.wclosed-image.nucleus-unit)
           | left-sdense : isStronglyDense {factor h} => \lam c => Meet-univ (\lam j => j.2 c)
     \in (h.wclosed-image.locale, factor h, h.wclosed-image.map, exts left+right=h, left-sdense,
         (Nucleus.map.surjective, \lam j p {x} => Join-univ (\lam k => nucleus-unit {h.wclosed-image} <=∘ k.2 <=∘
           Meet-cond (later (j, \lam {P} {y} t => p $ left-sdense {P} {h.wclosed-image.map y} $ rewrite left+right=h t)))))
   | unique-lift f (g : FrameHom) Lf Rg => OFS.liftFromMono {LocaleCat} f g (regularMono_Mono (surj_regular Rg.1)) (\lam t (s : FrameHom) gt=sf =>
-      \have g<=s : g.image <= s.image => Rg.2 s.image (\lam {P} {x} gx<=P => direct-unit <=∘ direct-<= (Lf (rewriteI (path (gt=sf __ x)) $ func-<= gx<=P <=∘ func-pHat>=) <=∘ func-pHat<=))
-      \in (Iso.inv {surj_equiv Rg.1} ∘ NucleusFrame.<=-map g.image s.image g<=s ∘ s.factor, exts (\lam x => func_direct_func *> <=-antisymmetric (func-<= g<=s <=∘ direct-counit) (func-<= direct-unit))))
+      \have g<=s : g.image <= s.image => Rg.2 s.image (\lam {P} {x} gx<=P => direct-adjoint.1 $ Lf (rewriteI (path (gt=sf __ x)) $ func-<= gx<=P <=∘ func-pHat>=) <=∘ func-pHat<=)
+      \in (Iso.inv {surj_equiv Rg.1} ∘ NucleusFrame.<=-map g.image s.image g<=s ∘ s.factor, exts (\lam x => func_direct_func *> <=-antisymmetric (direct-adjoint.2 g<=s) (func-<= direct-unit))))
   \where {
     \open FrameHom
 
@@ -1235,7 +1290,7 @@
       | func x => func x.1
       | func-top => func-top
       | func-meet => func-meet
-      | func-Join>= => func-<= (Meet-cond $ later (image, \lam hx<=P => direct-unit <=∘ direct-<= (hx<=P <=∘ func-pHat<=))) <=∘ direct-counit <=∘ func-Join>=
+      | func-Join>= => direct-adjoint.2 (Meet-cond $ later (image, \lam hx<=P => direct-adjoint.1 (hx<=P <=∘ func-pHat<=))) <=∘ func-Join>=
   }
 
 \lemma overt-fromPres {P : FramePres} (o : P.isOvert) : isOvert {PresentedFrame P}

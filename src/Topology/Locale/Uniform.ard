@@ -1,5 +1,6 @@
 \import Category
 \import Category.Meta
+\import Data.Bool
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -11,12 +12,15 @@
 \import Topology.Locale
 \open Locale
 \open Bounded(top,top-univ)
+\open Nucleus
 
 \func star {L : Locale} (x : L) (U : L -> \Prop) => SJoin (\lam y => \Sigma (U y) (isPositive (x ∧ y)))
   \where {
     \lemma star_<= {L : Locale} {x y : L} (x<=y : x <= y) (U : L -> \Prop) : star x U <= star y U
       => Join-univ (\lam j => Join-cond $ later (j.1, (j.2.1, positive_<= (MeetSemilattice.meet-monotone x<=y <=-refl) j.2.2)))
   }
+
+\func nucleus-star {L : Locale} (j : Nucleus {L}) (U : L -> \Prop) => SJoin (\lam y => \Sigma (U y) (isPositive {locale {j ∨ open y}} top))
 
 \class PreuniformLocale \extends Locale
   | overt : isOvert
@@ -48,6 +52,22 @@
 
 \class UniformLocale \extends PreuniformLocale
   | isAdmissible (b : E) : b <= SJoin (`<=u b)
+  \where {
+    \lemma wclosed-overlap {L : PreuniformLocale} {j : Nucleus {L}} (x : L) : isPositive {locale {j.map.wclosed-image ∨ open x}} top = isPositive {locale {j ∨ open x}} top
+      => unfold isPositive $ unfold $ ext (\lam h P jx<=P => {?}, \lam h P cjx<=P => h P $ cjx<=P <=∘ Meet-univ (\lam p => Meet-cond $ later (p.1, \lam b {y} => \case \elim b \with {
+        | false => p.2 false
+        | true => Meet-cond (later (j, nucleus-unit <=∘ __)) <=∘ p.2 true
+      })))
+
+    \lemma star_wclosure {L : PreuniformLocale} {j : Nucleus {L}} {U : L -> \Prop} (uU : isUniform U) : nucleus-star j.map.wclosed-image U = nucleus-star j U
+      => unfold nucleus-star {?}
+
+    \lemma top>=star {L : PreuniformLocale} {j : Nucleus {L}} {U : L -> \Prop} (uU : isUniform U) : j >= open (nucleus-star j U)
+      => {?}
+
+    \lemma wclosure<=star {L : PreuniformLocale} {j : Nucleus {L}} {U : L -> \Prop} (uU : isUniform U) : open (nucleus-star j U) <= j.map.wclosed-image
+      => =_<= (pmap open $ inv $ star_wclosure uU) <=∘ top>=star uU
+  }
 
 \func UniformCat : Cat UniformLocale \cowith
   | Hom => UniformHom
