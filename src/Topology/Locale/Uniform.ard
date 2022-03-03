@@ -1,7 +1,5 @@
 \import Category
-\import Category.Limit
 \import Category.Meta
-\import Data.Bool
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -14,6 +12,8 @@
 \open Locale
 \open Bounded(top,top-univ)
 \open Nucleus
+\open Preorder(=_<=)
+\open MeetSemilattice \hiding (Meet)
 
 \func star {L : Locale} (x : L) (U : L -> \Prop) => SJoin (\lam y => \Sigma (U y) (isPositive (x ∧ y)))
   \where {
@@ -21,11 +21,13 @@
       => Join-univ (\lam j => Join-cond $ later (j.1, (j.2.1, positive_<= (MeetSemilattice.meet-monotone x<=y <=-refl) j.2.2)))
   }
 
-\func nucleus-star {L : Locale} (j : Nucleus {L}) (U : L -> \Prop) => SJoin (\lam y => \Sigma (U y) (isPositive {locale {j ∨ open y}} top))
+\func nucleus-star {L : Locale} (j : Nucleus {L}) (U : L -> \Prop) => SJoin (\lam y => \Sigma (U y) (j.locale.isPositive (j y, nucleus-join>=)))
   \where {
     \lemma star_open {L : Locale} (a : L) (U : L -> \Prop) : nucleus-star (open a) U = star a U
-      => \have lem x : isPositive {locale {open a ∨ open x}} top = isPositive (a ∧ x) => {?}
-         \in path (\lam i => SJoin (\lam x => \Sigma (U x) (lem x i)))
+      => \have lem x P : (a --> x <= a --> pHat P) = (a ∧ x <= pHat P)
+            => propExt (\lam c => =_<= meet-comm <=∘ exponent.2 (nucleus-unit {open a} <=∘ c))
+                       (\lam c => nucleus-univ {open a} $ exponent.1 $ =_<= meet-comm <=∘ c)
+         \in path (\lam i => SJoin (\lam x => \Sigma (U x) (\Pi (P : \Prop) -> lem x P i -> P)))
   }
 
 \class PreuniformLocale \extends Locale
@@ -61,17 +63,14 @@
   \where {
     \open NucleusFrame
 
-    \lemma wclosed-overlap {L : PreuniformLocale} {j : Nucleus {L}} (x : L) : isPositive {locale {j.map.wclosed-image ∨ open x}} top = isPositive {locale {j ∨ open x}} top
-      => \have | pb1 => intersection-pullback j.map.wclosed-image (open x)
-               | pb : Pullback => Pullback.flip {pullback-lemma-conv pb1 (intersection-pullback j (open x)) (<=-map j.map.wclosed-image j wclosure_<=) $ exts wclosure-inclusion}
-               | sdense => pullback_sdense pb (pullback_open pb1 $ open-isOpen x) wclosure-sdense
-         \in ext (\lam p => transport isPositive (func-top {pb.pbProj1}) $ sdense_positive {pb.pbProj1} sdense p, \lam p => func_positive {pb.pbProj1} $ transportInv isPositive func-top p)
-
     \lemma star_wclosure {L : PreuniformLocale} {j : Nucleus {L}} {U : L -> \Prop} (uU : isUniform U) : nucleus-star j.map.wclosed-image U = nucleus-star j U
-      => path (\lam i => SJoin (\lam y => \Sigma (U y) (wclosed-overlap y i)))
+      => \have lem x P : (j.map.wclosed-image x <= j.map.wclosed-image (pHat P)) = (j x <= j (pHat P))
+            => propExt (\lam c => nucleus-univ $ j.map.wclosed-image.nucleus-unit <=∘ c <=∘ wclosure_<=)
+                       (\lam c => j.map.wclosed-image.nucleus-univ $ nucleus-unit <=∘ c <=∘ Meet-univ (\lam p => p.2 nucleus-join>=))
+         \in path (\lam i => SJoin (\lam y => \Sigma (U y) (\Pi (P : \Prop) -> lem y P i -> P)))
 
     \lemma top>=star {L : PreuniformLocale} {j : Nucleus {L}} (o : j.locale.isOvert) {U : L -> \Prop} (uU : isUniform U) : open (nucleus-star j U) <= j
-      => nucleus>=open $ isCovering uU <=∘ Join-univ (\lam y => {?})
+      => nucleus>=open $ isCovering uU <=∘ Join-univ (\lam y => j.nucleus-unit <=∘ overt_cover o {j y.1, nucleus-join>=} <=∘ nucleus-univ (Join-univ (\lam jy>0 => nucleus-<= $ Join-cond $ later (y.1, (y.2, jy>0)))))
 
     \lemma wclosure>=nucleus-star {L : PreuniformLocale} {j : Nucleus {L}} (o : j.locale.isOvert) {U : L -> \Prop} (uU : isUniform U) : open (nucleus-star j U) <= j.map.wclosed-image
       => =_<= (pmap open $ inv $ star_wclosure uU) <=∘ top>=star (sdense_overt {<=-map j.map.wclosed-image j wclosure_<=} wclosure-sdense o) uU
@@ -80,6 +79,9 @@
       => \have a-overt : isOvert {locale {open a}} => overt=open.2 $ transport (FrameHom.isOpen {__}) (terminal-unique {_} {locale {open a}} {terminalMap {_} {locale {open a}}} {LocaleCat.terminalMap ∘ Nucleus.map {open a}}) $ open-comp (Nucleus.map {open a}) (open-isOpen a) (terminalMap {LocaleCat} {L}) $ overt=open.1 L.overt
          \in =_<= (pmap open $ inv $ nucleus-star.star_open a U) <=∘ wclosure>=nucleus-star a-overt uU
   }
+
+\lemma uniform=>wregular (L : UniformLocale) : L.isWeaklyRegular
+  => \lam x => L.isAdmissible x <=∘ Join-univ (\lam (b, inP (U,uU,b*U<=x)) => Join-cond $ later (b, unfold (<=<w) $ NucleusFrame.open_<= b*U<=x <=∘ UniformLocale.wclosure>=star uU))
 
 \func UniformCat : Cat UniformLocale \cowith
   | Hom => UniformHom
