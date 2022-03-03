@@ -154,6 +154,13 @@
     | nucleus-unit => exponent.1 meet-left
     | nucleus-join>= => exponent.1 (transport (_ ∧ __ <= _) meet-idemp (transport (`<= _) meet-assoc (meet-monotone eval <=-refl <=∘ eval)))
 
+  \lemma open_exp {a : E} (x y : Nucleus.locale {open a}) : (x --> {Nucleus.locale {open a}} y).1 = x.1 --> y.1
+    => <=-antisymmetric (Join-univ (\lam p => exponent.1 $ exponent.1 (=_<= (meet-assoc *> pmap (_ ∧) meet-comm *> inv meet-assoc) <=∘ meet-monotone p.2 <=-refl <=∘ Join-rdistr>= <=∘ Join-univ __.2) <=∘ y.2))
+                        (Join-univ (\lam p => exponent.1 $ exponent.1 (meet-left <=∘ meet-left) <=∘ Join-cond (later ((a --> p.1, nucleus-join>=), exponent.1 (meet-univ (meet-monotone meet-left <=-refl <=∘ eval) (meet-left <=∘ meet-right) <=∘ p.2) <=∘ y.2))))
+
+  \lemma open-isOpen (a : E) : isOpen {Nucleus.map {open a}}
+    => \lam x => inP (a ∧ x.1, \lam y => rewrite Nucleus.map_direct $ open_exp x (a --> y, nucleus-join>=) *> exponent-double *> pmap (__ --> y) meet-comm)
+
   \func closed (a : E) : Nucleus (a ∨ __) \cowith
     | nucleus-meet => equation
     | nucleus-unit => join-right
@@ -246,6 +253,12 @@
     | nucleus-unit => direct-unit
     | nucleus-join>= => direct-<= direct-counit
 
+  \func factor : FrameHom image.locale Cod \cowith
+    | func x => func x.1
+    | func-top => func-top
+    | func-meet => func-meet
+    | func-Join>= => direct-counit <=∘ func-Join>=
+
   -- | A map is dense if and only if its image is dense.
   \func isDense => \Pi {x : Dom} -> func x <= bottom -> x <= bottom
 
@@ -268,6 +281,15 @@
     | nucleus-unit {x} => Join-cond $ later (x, \lam j => nucleus-unit)
     | nucleus-join>= => Meet-univ (\lam j => Meet-cond j <=∘ nucleus-<= (Meet-cond j) <=∘ nucleus-join>=)
 
+  \func wclosed-factor : FrameHom wclosed-image.locale Cod \cowith
+    | func x => func x.1
+    | func-top => func-top
+    | func-meet => func-meet
+    | func-Join>= => direct-adjoint.2 (Meet-cond $ later (image, \lam hx<=P => direct-adjoint.1 (hx<=P <=∘ func-pHat<=))) <=∘ func-Join>=
+
+  \lemma wclosed-factor-sdense : wclosed-factor.isStronglyDense
+    => \lam c => Meet-univ (\lam j => j.2 c)
+
   -- | A map is closed if and only if the image of a closed sublocale is closed.
   \func isClosed => \Pi {x : Cod} {y : Dom} -> direct (x ∨ func y) <= direct x ∨ y
 
@@ -288,12 +310,6 @@
     => \case s x \with {
       | inP (y,p) => rewriteI p func_direct_func
     }
-
-  \func factor : FrameHom image.locale Cod \cowith
-    | func x => func x.1
-    | func-top => func-top
-    | func-meet => func-meet
-    | func-Join>= => direct-counit <=∘ func-Join>=
 
   \lemma surj_nucleus (s : isSurj func) : Equiv factor => \new QEquiv {
     | ret y => (direct y, direct-<= direct-counit)
@@ -325,6 +341,9 @@
 
   \lemma nucleus_exponent {x y : L} (p : nucleus y <= y) : nucleus (x --> y) <= x --> y
     => exponent.1 $ meet-monotone <=-refl nucleus-unit <=∘ nucleus-meet>= <=∘ nucleus-<= eval <=∘ p
+
+  \lemma exponent-func {x y : L} : x --> y <= nucleus x --> nucleus y
+    => Join-univ (\lam p => exponent.1 $ meet-monotone nucleus-unit <=-refl <=∘ nucleus-meet>= <=∘ nucleus-<= p.2)
 
   \type Subtype => \Sigma (x : L) (nucleus x <= x)
 
@@ -432,11 +451,26 @@
     \lemma double-nucleus-right {L : Locale} {j k : Nucleus {L}} (j<=k : j <= k) (x : L) : j (k x) = k x
       => <=-antisymmetric (j<=k <=∘ nucleus-join>=) nucleus-unit
 
+    \lemma wclosure_<= {j : Nucleus {}} : j.map.wclosed-image <= {NucleusFrame _} j
+      => \lam {x} => Meet-cond $ later (j, nucleus-unit <=∘ __)
+
+    \lemma wclosure-sdense {j : Nucleus {}} : isStronglyDense {<=-map j.map.wclosed-image j wclosure_<=}
+      => \lam c => Meet-univ (\lam p => p.2 c)
+
+    \lemma wclosure-inclusion {j : Nucleus {}} (x : j.L) : <=-map j.map.wclosed-image j wclosure_<= (j.map.wclosed-image.map x) = j.map x
+      => ext $ double-nucleus-left {j.L} wclosure_<= x
+
+    \lemma nucleus>=open {L : Locale} {a : L} {j : Nucleus {L}} (c : top <= j a) : open a <= j
+      => \lam {x} => j.exponent-func <=∘ meet-univ <=-refl (top-univ <=∘ c) <=∘ eval
+      \where
+        \lemma conv {L : Locale} {a : L} {j : Nucleus {L}} (c : open a <= j) : top <= j a
+          => exponent.1 meet-right <=∘ c
+
     -- | The intersection of two sublocales is a pullback.
     \sfunc intersection-pullback {L : Locale} (j k : Nucleus {L}) : Pullback {LocaleCat} j.map k.map (Nucleus.locale {j ∨ k})
         (<=-map j (j ∨ k) (join-left {NucleusFrame L})) (<=-map k (j ∨ k) (join-right {NucleusFrame L}))
       => \have coh : j.map ∘ {LocaleCat} <=-map j (j ∨ k) (join-left {_} {j}) = k.map ∘ {LocaleCat} <=-map k (j ∨ k) (join-right {_} {j})
-                   => exts (\lam x => ext $ double-nucleus-left {_} {j} {j ∨ k} (join-left {_} {j} {k}) x *> inv (double-nucleus-left {_} {k} {j ∨ k} (join-right {_} {j} {k}) x))
+           => exts (\lam x => ext $ double-nucleus-left {_} {j} {j ∨ k} (join-left {_} {j} {k}) x *> inv (double-nucleus-left {_} {k} {j ∨ k} (join-right {_} {j} {k}) x))
          \in regularSubobj_meet-pullback.exact {LocaleCat} j.map (surj_regular $ Nucleus.map.surjective {j}) k.map (surj_regular $ Nucleus.map.surjective {k}) {<=-map j (j ∨ k) (join-left {NucleusFrame L})} coh
               (surj_regular {_} {_} {j.map ∘ {LocaleCat} <=-map j (j ∨ k) (join-left {_} {j})} (isSurj.comp Nucleus.map.surjective (<=-map.surjective (join-left {_} {j}))))
               (inP (_, idp), inP (_, inv coh), \case \elim __ \with {
@@ -1121,6 +1155,14 @@
 \lemma pullback_sdense (P : Pullback {LocaleCat}) (o : isOpen {P.f}) (d : isStronglyDense {P.g}) : isStronglyDense {P.pbProj1}
   => {?}
 
+-- | A locale {L} is overt if and only the unique map from L to the terminal locale is open.
+\lemma overt=open {L : Locale} : L.isOvert <-> isOpen {LocaleCat.terminalMap {L}}
+  => {?}
+
+-- | Open maps are closed under composition.
+\lemma open-comp {L M K : Locale} (f : Hom L M) (fo : isOpen {f}) (g : Hom M K) (go : isOpen {g}) : isOpen {g LocaleCat.∘ f}
+  => {?}
+
 \lemma regular_surj {L M : Locale} {f : Hom L M} (reg : isRegularMono {LocaleCat} f) : isSurj f \elim reg
   | inP (E : Equalizer) => \lam y =>
     \let | E' : Equalizer => LocaleCat.equalizer E.f E.g
@@ -1275,28 +1317,19 @@
   | L f => isStronglyDense {f}
   | R f => isWeaklyClosed {f}
   | factors {L} {M} (h : FrameHom) =>
-    \have | left+right=h x : factor h (h.wclosed-image.map x) = h x => unfold $ <=-antisymmetric (direct-adjoint.2 (Meet-cond $ later (h.image, \lam {P} {y} hy<=P => direct-adjoint.1 (hy<=P <=∘ func-pHat<=)))) (func-<= h.wclosed-image.nucleus-unit)
-          | left-sdense : isStronglyDense {factor h} => \lam c => Meet-univ (\lam j => j.2 c)
-    \in (h.wclosed-image.locale, factor h, h.wclosed-image.map, exts left+right=h, left-sdense,
+    \have left+right=h x : h.wclosed-factor (h.wclosed-image.map x) = h x => unfold $ <=-antisymmetric (direct-adjoint.2 (Meet-cond $ later (h.image, \lam {P} {y} hy<=P => direct-adjoint.1 (hy<=P <=∘ func-pHat<=)))) (func-<= h.wclosed-image.nucleus-unit)
+    \in (h.wclosed-image.locale, h.wclosed-factor, h.wclosed-image.map, exts left+right=h, h.wclosed-factor-sdense,
         (Nucleus.map.surjective, \lam j p {x} => Join-univ (\lam k => nucleus-unit {h.wclosed-image} <=∘ k.2 <=∘
-          Meet-cond (later (j, \lam {P} {y} t => p $ left-sdense {P} {h.wclosed-image.map y} $ rewrite left+right=h t)))))
+          Meet-cond (later (j, \lam {P} {y} t => p $ h.wclosed-factor-sdense {P} {h.wclosed-image.map y} $ rewrite left+right=h t)))))
   | unique-lift f (g : FrameHom) Lf Rg => OFS.liftFromMono {LocaleCat} f g (regularMono_Mono (surj_regular Rg.1)) (\lam t (s : FrameHom) gt=sf =>
       \have g<=s : g.image <= s.image => Rg.2 s.image (\lam {P} {x} gx<=P => direct-adjoint.1 $ Lf (rewriteI (path (gt=sf __ x)) $ func-<= gx<=P <=∘ func-pHat>=) <=∘ func-pHat<=)
       \in (Iso.inv {surj_equiv Rg.1} ∘ NucleusFrame.<=-map g.image s.image g<=s ∘ s.factor, exts (\lam x => func_direct_func *> <=-antisymmetric (direct-adjoint.2 g<=s) (func-<= direct-unit))))
-  \where {
-    \open FrameHom
-
-    \func factor (h : FrameHom) : FrameHom h.wclosed-image.locale h.Cod \cowith
-      | func x => func x.1
-      | func-top => func-top
-      | func-meet => func-meet
-      | func-Join>= => direct-adjoint.2 (Meet-cond $ later (image, \lam hx<=P => direct-adjoint.1 (hx<=P <=∘ func-pHat<=))) <=∘ func-Join>=
-  }
+  \where \open FrameHom
 
 \lemma overt-fromPres {P : FramePres} (o : P.isOvert) : isOvert {PresentedFrame P}
   => \lam U {x} Ux => cover-trans (o x) (\lam i => cover-inj (\lam Q p => TruncP.remove' $ TruncP.map (i _ (p Ux)) __.1, x, ()) idp)
 
-\lemma sdense_positive {f : FrameHom} (d : f.isStronglyDense) {x : f.Dom} (p : isPositive x)
+\lemma sdense_positive {f : FrameHom} (d : f.isStronglyDense) {x : f.Dom} (p : isPositive x) : isPositive (f x)
   => \lam P fx<=P => p P (d fx<=P)
 
 \lemma func_positive {f : FrameHom} {x : f.Dom} (p : isPositive (f x)) : isPositive x

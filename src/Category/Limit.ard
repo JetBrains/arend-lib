@@ -313,6 +313,15 @@
   | pbBeta2 {w : D} {p1 : Hom w x} {p2 : Hom w y} {c : f ∘ p1 = g ∘ p2} : pbProj2 ∘ pbMap p1 p2 c = p2
   | pbEta {w : D} {h1 h2 : Hom w apex} : pbProj1 ∘ h1 = pbProj1 ∘ h2 -> pbProj2 ∘ h1 = pbProj2 ∘ h2 -> h1 = h2
 
+  \lemma pbMap-comp {a b : D} {p1 : Hom b x} {p2 : Hom b y} {c : f ∘ p1 = g ∘ p2} {h : Hom a b} : pbMap p1 p2 c ∘ h = pbMap (p1 ∘ h) (p2 ∘ h) (inv o-assoc *> pmap (`∘ h) c *> o-assoc)
+    => pbEta (inv o-assoc *> rewrite pbBeta1 idp *> inv pbBeta1) (inv o-assoc *> rewrite pbBeta2 idp *> inv pbBeta2)
+
+  \func flip : Pullback g f apex pbProj2 pbProj1 (inv pbCoh) \cowith
+    | pbMap p1 p2 c => pbMap p2 p1 (inv c)
+    | pbBeta1 => pbBeta2
+    | pbBeta2 => pbBeta1
+    | pbEta q1 q2 => pbEta q2 q1
+
   \func toLimit : LimitDiagram \cowith
     | Diagram => diagram f g
     | apex => apex
@@ -569,6 +578,33 @@
 
 \lemma regularMono_pullback (P : Pullback {}) (m : isRegularMono P.g) : isRegularMono P.pbProj1
   => {?}
+
+{- | If both squares are pullbacks, then the outter rectangle is a pullback.
+  Q  -->  P  --> P.y
+  |       |       |
+  |       |       |
+ Q.x --> P.x --> P.z
+ -}
+\func pullback-lemma (P : Pullback {}) (Q : Pullback {P.D} { | y => P | z => P.x | g => P.pbProj1 }) : Pullback (P.f ∘ Q.f) P.g Q Q.pbProj1 (P.pbProj2 ∘ Q.pbProj2) \cowith
+  | pbCoh => rewriteEq (Q.pbCoh,P.pbCoh) o-assoc
+  | pbMap p1 p2 c => Q.pbMap p1 (P.pbMap (Q.f ∘ p1) p2 $ inv o-assoc *> c) $ inv P.pbBeta1
+  | pbBeta1 => Q.pbBeta1
+  | pbBeta2 => rewriteEq Q.pbBeta2 P.pbBeta2
+  | pbEta p1 p2 => Q.pbEta p1 $ P.pbEta (inv o-assoc *> rewriteI Q.pbCoh (rewriteEq p1 (inv o-assoc) *> pmap (`∘ _) Q.pbCoh) *> o-assoc) (inv o-assoc *> p2 *> o-assoc)
+
+{- | If the right square and the outter rectangle are pullbacks, then the left square is a pullback.
+  Q  -->  P  --> P.y
+  |       |       |
+  |       |       |
+ Q.x --> P.x --> P.z
+ -}
+\func pullback-lemma-conv (P : Pullback {}) (Q : Pullback {P.D} { | y => P.y | z => P.z | g => P.g }) (t : Hom Q.x P.x) (fs=Qf : P.f ∘ t = Q.f) : Pullback t P.pbProj1 Q Q.pbProj1 \cowith
+  | pbProj2 => P.pbMap (t ∘ Q.pbProj1) Q.pbProj2 (inv o-assoc *> pmap (`∘ _) fs=Qf *> Q.pbCoh)
+  | pbCoh => inv P.pbBeta1
+  | pbMap p1 p2 c => Q.pbMap p1 (P.pbProj2 ∘ p2) $ pmap (`∘ p1) (inv fs=Qf) *> o-assoc *> pmap (P.f ∘) c *> inv o-assoc *> pmap (`∘ p2) P.pbCoh *> o-assoc
+  | pbBeta1 => Q.pbBeta1
+  | pbBeta2 {_} {_} {_} {c} => pbEta (inv o-assoc *> rewrite P.pbBeta1 (rewriteEq Q.pbBeta1 c)) (inv o-assoc *> rewrite P.pbBeta2 Q.pbBeta2)
+  | pbEta p1 p2 => Q.pbEta p1 $ rewriteF P.pbBeta2 $ o-assoc *> pmap (P.pbProj2 ∘) p2 *> inv o-assoc
 
 \lemma splitMono_regular (f : SplitMono {}) : isRegularMono f.f
   => inP (\new Equalizer {
