@@ -1,3 +1,10 @@
+{- | We follow the following sources:
+     [1] Peter T. Johnstone, Stone Spaces, 1982
+     [2] Francis Borceux, Handbook of Categorical Algebra: Volume 3, 1994 (Chapter 1)
+     [3] Peter T. Johnstone, A constructive “Closed subgroup theorem” for localic groups and groupoids, 1989
+     [4] Peter T. Johnstone, Fibrewise separation axioms for locales, 1990
+ -}
+
 \import Algebra.Meta
 \import Algebra.Ordered
 \import Arith.Nat
@@ -173,6 +180,9 @@
 
   \func pHat (P : \Prop) => Join (\lam (_ : P) => top)
 
+  \lemma pHat-impl {P Q : \Prop} (f : P -> Q) : pHat P <= pHat Q
+    => Join-univ (\lam p => Join-cond (f p))
+
   \func isPositive (a : E) => \Pi (P : \Prop) -> a <= pHat P -> P
 
   \lemma positive_<= {a b : E} (a<=b : a <= b) (p : isPositive a) : isPositive b
@@ -270,7 +280,7 @@
   \lemma direct_dense (d : direct bottom <= bottom) : isDense
     => \lam {x} p => Join-cond (later (x,p)) <=∘ d
 
-  \func isStronglyDense => \Pi {P : \Prop} {x : Dom} -> func x <= pHat P -> x <= pHat P
+  \type isStronglyDense => \Pi {P : \Prop} {x : Dom} -> func x <= pHat P -> x <= pHat P
 
   \func isWeaklyClosed => \Sigma (isSurj func) (\Pi (j : Nucleus) ->
       (\Pi {P : \Prop} {x : Dom} -> func x <= pHat P -> x <= j (pHat P)) -> \Pi {x : Dom} -> direct (func x) <= j x)
@@ -787,6 +797,9 @@
 
     \lemma embed_meet {P : FramePres} {a b : P} : embed a ∧ embed b = embed (conj a b)
       => exts (\lam e => ext (cover-trans __ (\lam i => Cover.cover-conj1 i.3 i.4), Cover.cover-trans1 __ $ cover-inj (a, b, cover-inj () idp, cover-inj () idp) idp))
+
+    \lemma func-equality {P : FramePres} {L : Locale} (f g : FrameHom (PresentedFrame P) L) (p : \Pi (x : P) -> f (embed x) = g (embed x)) (U : PresentedFrame P) : f U = g U
+      => pmap f element_join *> f.func-Join *> path (\lam i => Join (\lam q => p q.1 i)) *> inv (pmap g element_join *> g.func-Join)
   }
 
 {- | Unital presentation of frames.
@@ -972,9 +985,7 @@
         \let | g (q : \Sigma (x : X) (U.1 x)) => reflectorMap X q.1
              | t : U = Join g => exts (\lam x => ext (\lam u => cover-inj ((x, u), x, cover-inj () idp) idp, closure<= (\lam t => cover-trans t.3 (\lam _ => cover-inj t.1 idp))))
         \in rewrite t $ func-Join {_} {_} {g} *> inv (pmap Join (ext (\lam j => pmap f PresentedFrame.element_join *> func-Join))) *> inv (func-Join {f} {_} {g}))
-    | f_sec f => exts (\lam x => <=-antisymmetric
-        (Join-univ (\lam j => locale_cover (Cover.map j.2) <=∘ Join-univ (\lam _ => <=-refl)))
-        (Join-cond (later (x, cover-inj () idp))))
+    | f_sec f => exts (adjointMap_embed f)
   }
   \where {
     \open PresentedFrame \hiding (<=)
@@ -996,6 +1007,11 @@
           (Join-univ (later (\lam p => locale_cover (Cover.map p.2) <=∘ Join-univ (\lam t => rewrite f.func-conj (Join-cond (later ((t.1,t.3),(t.2,t.4))))))))
           (Join-univ (\lam p => transport (`<= _) f.func-conj (Y.Join-cond (later (conj p.1.1 p.2.1, cover-inj (later (p.1.1, p.2.1, p.1.2, p.2.2)) idp))))) *> inv Locale.Join-distr
       | func-Join>= => Join-univ (\lam p => locale_cover (Cover.map p.2) <=∘ Join-univ (\lam t => Join-cond (later (t.2,t.3)) <=∘ Join-cond t.1))
+
+    \lemma adjointMap_embed {X : FramePres} {Y : Locale} (f : FramePresHom X (F Y)) (x : X) : adjointMap f (embed x) = f x
+      => <=-antisymmetric
+          (Join-univ (\lam j => locale_cover (Cover.map j.2) <=∘ Join-univ (\lam _ => <=-refl)))
+          (Join-cond (later (x, cover-inj () idp)))
   }
 
 \func FrameUnitalReflectiveSubcat : ReflectiveSubPrecat FrameCat FrameUPresCat \cowith
@@ -1131,6 +1147,9 @@
       }
       | Func-id => idp
       | Func-o => idp
+
+    \lemma exponent {X : \Set} (P Q : X -> \Prop) : P --> {discrete X} Q = (\lam x => P x -> Q x)
+      => ext (\lam x => ext (\lam (inP ((S,SP=>Q),s)) => \lam p => SP=>Q (s,p), \lam P=>Q => inP ((\lam x => P x -> Q x, \lam p => p.1 p.2), P=>Q)))
   }
 
 \instance LocaleCat : BicompleteCat \cowith
@@ -1152,24 +1171,32 @@
         \have t : P = pHat {discrete (\Sigma)} (P ()) => ext (\lam _ => ext (\lam x => inP (x,()), \lam (inP (x,_)) => x))
         \in rewrite t $ func-Join *> path (\lam i => Join (\lam _ => (func-top *> inv func-top) i)) *> inv func-Join)
   }
+  \where {
+    \lemma terminal-direct {L : Locale} (x : L) : direct {LocaleCat.terminalMap {L}} x = (\lam _ => top <= x)
+      => ext (\lam _ => ext (\lam (inP ((P,P<=x),p)) => Join-cond p <=∘ P<=x, \lam top<=x => inP ((\lam _ => \Sigma, top-univ <=∘ top<=x), ())))
+  }
 
 \open FrameHom
 
 -- | Open maps are closed under pullbacks.
 \lemma pullback_open (P : Pullback {LocaleCat}) (o : isOpen {P.g}) : isOpen {P.pbProj1}
-  => {?}
+  => {?} -- [2, Theorem 1.6.4]
 
 -- | Strongly dense maps are closed under pullbacks along open maps.
 \lemma pullback_sdense (P : Pullback {LocaleCat}) (o : isOpen {P.f}) (d : isStronglyDense {P.g}) : isStronglyDense {P.pbProj1}
-  => {?}
+  => {?} -- [3, Lemma 1.9]
 
 -- | A locale {L} is overt if and only the unique map from L to the terminal locale is open.
 \lemma overt=open {L : Locale} : L.isOvert <-> isOpen {LocaleCat.terminalMap {L}}
-  => {?}
+  => coe2 (\lam i => L.isOvert <-> (\Pi (x : L) -> ∃ (P : \Sigma -> \Prop) (\Pi (Q : \Sigma -> \Prop) -> LocaleCat.terminal-direct (x --> pHat (Q ())) i = discrete.exponent P Q @ i))) right
+      (\lam o x => inP (\lam _ => isPositive x, \lam Q => ext (\lam _ => ext (\lam x<=Q x>0 => x>0 (Q ()) $ meet-univ top-univ <=-refl <=∘ exponent.2 x<=Q, \lam f => exponent.1 $ meet-right <=∘ o x <=∘ pHat-impl f))),
+       \lam f x => \case f x \with {
+         | inP (P,g) => meet-univ top-univ <=-refl <=∘ exponent.2 (propExt.conv (pmap (__ ()) $ g (\lam _ => isPositive x)) (\lam p Q x<=Q => propExt.dir (pmap (__ ()) $ g (\lam _ => Q)) (exponent.1 $ meet-right <=∘ x<=Q) p))
+       }) left
 
 -- | Open maps are closed under composition.
 \lemma open-comp {L M K : Locale} (f : Hom L M) (fo : isOpen {f}) (g : Hom M K) (go : isOpen {g}) : isOpen {g LocaleCat.∘ f}
-  => {?}
+  => {?} -- [2, Corollary 1.6.3]
 
 \lemma regular_surj {L M : Locale} {f : Hom L M} (reg : isRegularMono {LocaleCat} f) : isSurj f \elim reg
   | inP (E : Equalizer) => \lam y =>
@@ -1271,6 +1298,7 @@
           }) idp))
   }
 
+-- | Regular locales are Hausdorff
 \lemma regular_Hausdorff {L : Locale} (reg : L.isRegular) : isHausdorff L
   => generalized reg (LocaleCat.Bprod L L) LocaleCat.proj1 LocaleCat.proj2
   \where {
@@ -1334,6 +1362,12 @@
       \in (Iso.inv {surj_equiv Rg.1} ∘ NucleusFrame.<=-map g.image s.image g<=s ∘ s.factor, exts (\lam x => func_direct_func *> <=-antisymmetric (direct-adjoint.2 g<=s) (func-<= direct-unit))))
   \where \open FrameHom
 
+\type isWeaklyHausdorff (L : Locale) => isWeaklyClosed {LocaleCat.diagonal L}
+
+-- | A weakly regular locale is weakly Hausdorff
+\lemma wregular_wHausdorff {L : Locale} (reg : L.isWeaklyRegular) : isWeaklyHausdorff L
+  => {?} -- [4, Corollary 3.4]
+
 \lemma overt-fromPres {P : FramePres} (o : P.isOvert) : isOvert {PresentedFrame P}
   => \lam U {x} Ux => cover-trans (o x) (\lam i => cover-inj (\lam Q p => TruncP.remove' $ TruncP.map (i _ (p Ux)) __.1, x, ()) idp)
 
@@ -1348,8 +1382,11 @@
 
 \lemma sdense-fromPres {P : FramePres} {L : Locale} {f : FramePresHom P (FrameUnitalSubcat.F L)}
   (s : \Pi {Q : \Prop} {x : P} -> f x <= Join (\lam (_ : Q) => f x) -> Cover x (\lam (_ : Q) => x))
-  : FrameHom.isStronglyDense {FrameReflectiveSubcat.isReflective.ret f}
+  : FrameHom.isStronglyDense {FrameReflectiveSubcat.adjointMap f}
   => \lam p {x} Ux => cover-trans (s (meet-univ <=-refl (Join-cond (later (x,Ux)) <=∘ p) <=∘ Join-ldistr>= <=∘ Join-univ (\lam q => meet-left <=∘ Join-cond q))) (\lam q => cover-inj (q,x,()) idp)
+
+\lemma sdense-comp {L M K : Locale} (f : Hom L M) (fd : isStronglyDense {f}) (g : Hom M K) (gd : isStronglyDense {g}) : isStronglyDense {g LocaleCat.∘ f}
+  => \lam p => gd (fd p)
 
 \lemma <<-fromPres {P : FramePres} {x y : P} (x<<y : x FramePres.<< y) : embed x << {PresentedFrame P} embed y
   => \lam {J} {g} y<=Jg => \case x<<y (y<=Jg (cover-inj () idp)) \with {
