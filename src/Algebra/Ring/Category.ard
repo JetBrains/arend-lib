@@ -2,16 +2,23 @@
 \import Algebra.Group.Category
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
-\import Algebra.Pointed
 \import Algebra.Ring
 \import Algebra.Semiring
-\import Category (Cat, Iso)
+\import Category (Cat, Iso, id)
+\import Category.Adjoint
+\import Category.Functor
+\import Category.Limit
 \import Category.Meta
-\import Category.Sub
+\import Category.Subcat
 \import Equiv
+\import Logic
+\import Logic.FirstOrder.Algebraic
+\import Logic.FirstOrder.Algebraic.Category
+\import Logic.FirstOrder.Term
 \import Paths
 \import Paths.Meta
 \import Set.Category
+\import Set.Fin
 
 \record SemiringHom \extends AddMonoidHom, MonoidHom {
   \override Dom : Semiring
@@ -62,3 +69,134 @@
       | f_sec => idpe
     }
   })
+
+\instance CRingBicat : BicompleteCat
+  | Cat => CRingCat
+  | limit => CompletePrecat.applyEquiv catEquiv
+  | colimit => CocompletePrecat.applyEquiv catEquiv
+  \where {
+    \instance theory : Theory
+      | Sort => \Sigma
+      | Symb _ => Fin 5
+      | domain => \case __ \with {
+        | 0 => nil
+        | 1 => nil
+        | 2 => () :: () :: nil
+        | 3 => () :: () :: nil
+        | 4 => () :: nil
+      }
+      | PredSymb => Empty
+      | predDomain => absurd
+      | axioms => arraySubset {Sequent {\this}} (
+          (\lam _ => \Sigma, _, nil, equality (apply 2 (apply 0 nil :: var () :: nil)) (var ())) ::
+          (\lam _ => Fin 3,  _, nil, equality (apply 2 (apply 2 (var 0 :: var 1 :: nil) :: var 2 :: nil)) (apply 2 (var 0 :: apply 2 (var 1 :: var 2 :: nil) :: nil))) ::
+          (\lam _ => \Sigma, _, nil, equality (apply 3 (apply 1 nil :: var () :: nil)) (var ())) ::
+          (\lam _ => Fin 3,  _, nil, equality (apply 3 (apply 3 (var 0 :: var 1 :: nil) :: var 2 :: nil)) (apply 3 (var 0 :: apply 3 (var 1 :: var 2 :: nil) :: nil))) ::
+          (\lam _ => Fin 2,  _, nil, equality (apply 2 (var 0 :: var 1 :: nil)) (apply 2 (var 1 :: var 0 :: nil))) ::
+          (\lam _ => Fin 2,  _, nil, equality (apply 3 (var 0 :: var 1 :: nil)) (apply 3 (var 1 :: var 0 :: nil))) ::
+          (\lam _ => \Sigma,  _, nil, equality (apply 2 (apply 4 (var () :: nil) :: var () :: nil)) (apply 0 nil)) ::
+          (\lam _ => Fin 3,  _, nil, equality (apply 3 (var 0 :: apply 2 (var 1 :: var 2 :: nil) :: nil)) (apply 2 (apply 3 (var 0 :: var 1 :: nil) :: apply 3 (var 0 :: var 2 :: nil) :: nil))) ::
+          nil)
+
+    \func catEquiv : CatEquiv (ModelCat theory) CRingCat modToRing \cowith
+      | Func (f : ModelHom) => \new RingHom {
+        | func => f.funcs
+        | func-zro => f.func-op 0 nil
+        | func-ide => f.func-op 1 nil
+        | func-+ x y => f.func-op 2 (x :: y :: nil)
+        | func-* x y => f.func-op 3 (x :: y :: nil)
+      }
+      | Func-id => idp
+      | Func-o => idp
+      | LAdj => ringtoMod.functor
+      | eta {
+        | trans M => id M
+        | natural f => idp
+      }
+      | isAdjoint => \new QEquiv {
+        | ret (h : RingHom) => \new ModelHom {
+          | funcs => h
+          | func-op => \case \elim __ \with {
+            | 0 => \lam _ => h.func-zro
+            | 1 => \lam _ => h.func-ide
+            | 2 => \lam d => h.func-+ (d 0) (d 1)
+            | 3 => \lam d => h.func-* (d 0) (d 1)
+            | 4 => \lam d => h.func-negative (d 0)
+          }
+          | func-rel => \case __
+        }
+        | ret_f X => path (\lam _ => X)
+        | f_sec X => path (\lam _ => X)
+      }
+      | eta-iso {X} => \new Iso {
+        | inv => id X
+        | inv_f => idp
+        | f_inv => idp
+      }
+      | epsilon-iso {Y} => \new Iso {
+        | inv => \new ModelHom {
+          | funcs y => y
+          | func-op => \case \elim __ \with {
+            | 0 => \lam d => idp
+            | 1 => \lam d => idp
+            | 2 => \lam d => idp
+            | 3 => \lam d => idp
+            | 4 => \lam d => idp
+          }
+          | func-rel => \case \elim __
+        }
+        | inv_f => idp
+        | f_inv => idp
+      }
+
+    \func modToRing (M : Model theory) : CRing (M ()) \cowith
+      | zro => operation 0 nil
+      | ide => operation 1 nil
+      | + x y => operation 2 (x :: y :: nil)
+      | * x y => operation 3 (x :: y :: nil)
+      | negative x => operation 4 (x :: nil)
+      | zro-left {x} => M.isModel _ (inP (0,idp)) (\lam _ => x) (\case __)
+      | +-assoc {x} {y} {z} => M.isModel _ (inP (1,idp)) (\lam {_} => x :: y :: z :: nil) (\case __)
+      | ide-left {x} => M.isModel _ (inP (2,idp)) (\lam _ => x) (\case __)
+      | *-assoc {x} {y} {z} => M.isModel _ (inP (3,idp)) (\lam {_} => x :: y :: z :: nil) (\case __)
+      | +-comm {x} {y} => M.isModel _ (inP (4,idp)) (\lam {_} => x :: y :: nil) (\case __)
+      | *-comm {x} {y} => M.isModel _ (inP (5,idp)) (\lam {_} => x :: y :: nil) (\case __)
+      | negative-left {x} => M.isModel _ (inP (6,idp)) (\lam {_} _ => x) (\case __)
+      | ldistr {x} {y} {z} => M.isModel _ (inP (7,idp)) (\lam {_} => x :: y :: z :: nil) (\case __)
+
+    \func ringtoMod (R : CRing) : Model theory (\lam _ => R) \cowith
+      | operation => \case \elim __ \with {
+        | 0 => \lam _ => 0
+        | 1 => \lam _ => 1
+        | 2 => \lam l => l 0 + l 1
+        | 3 => \lam l => l 0 * l 1
+        | 4 => \lam l => negative (l 0)
+      }
+      | relation => \case __
+      | isModel => \case \elim __, \elim __ \with {
+        | _, inP (0,idp) => \lam rho _ => zro-left
+        | _, inP (1,idp) => \lam rho _ => +-assoc
+        | _, inP (2,idp) => \lam rho _ => ide-left
+        | _, inP (3,idp) => \lam rho _ => *-assoc
+        | _, inP (4,idp) => \lam rho _ => +-comm
+        | _, inP (5,idp) => \lam rho _ => *-comm
+        | _, inP (6,idp) => \lam rho _ => negative-left
+        | _, inP (7,idp) => \lam rho _ => ldistr
+      }
+      \where {
+        \func functor : Functor CRingCat (ModelCat theory) ringtoMod \cowith
+          | Func (f : RingHom) => \new ModelHom {
+            | funcs => f
+            | func-op => \case \elim __ \with {
+              | 0 => \lam _ => f.func-zro
+              | 1 => \lam _ => f.func-ide
+              | 2 => \lam _ => f.func-+ _ _
+              | 3 => \lam _ => f.func-* _ _
+              | 4 => \lam _ => f.func-negative _
+            }
+            | func-rel => \case __
+          }
+          | Func-id => idp
+          | Func-o => idp
+      }
+  }
