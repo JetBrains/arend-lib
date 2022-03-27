@@ -1,0 +1,72 @@
+\import Data.List (List)
+\import Data.Or
+\import Logic
+\import Logic.Meta
+\import Paths
+\import Paths.Meta
+\import Data.Fin
+\import Data.SubList
+\import TRS.HRS
+\import TRS.Substitutions
+
+\func ModularMetaContext {env : FSignature} {n : Nat} (meta-contexts : Fin n -> MetaContext Sort) : MetaContext Sort
+\cowith
+  | metaname s => \Sigma (i : Fin n) (metaname {meta-contexts i} s)
+  | m-domain m => m-domain {meta-contexts m.1} m.2
+  \where {
+    \func upgrade-metavariables
+      {env : FSignature} {context : List Sort} {s : Sort} {n : Nat}
+      {index : Fin n}
+      (meta-contexts : Fin n -> MetaContext Sort)
+      (A : Term env context s (meta-contexts index))
+      : Term env context s (ModularMetaContext meta-contexts)
+    \elim A
+      | var index p => var index p
+      | metavar m arguments => metavar (index, m) (\lam i => upgrade-metavariables meta-contexts (arguments i))
+      | func f arguments => func f (\lam i => upgrade-metavariables meta-contexts (arguments i))
+  }
+
+\func PointedModularMetaContext {env : FSignature} {n : Nat} (point : Sort) (context-for-point : List Sort)
+                                (meta-contexts : Fin n -> MetaContext Sort) : MetaContext Sort
+\cowith
+  | metaname s => (s = point) `Or` metaname {ModularMetaContext meta-contexts} s
+  | m-domain m => \case \elim m \with {
+    | inl eq => context-for-point
+    | inr m => m-domain {ModularMetaContext meta-contexts} m
+  }
+  \where {
+    \func upgrade-metavariables
+      {env : FSignature} {context : List Sort} {s : Sort}
+      (point : Sort)
+      (pointed-context : List Sort)
+      {index : Index pointed-context}
+      (metas : \Pi (Index pointed-context) -> MetaContext Sort)
+      (A : Term env context s (metas index))
+      : Term env context s (PointedModularMetaContext point pointed-context metas)
+    \elim A
+      | var index p => var index p
+      | metavar m arguments => metavar (inr (index, m)) (\lam i => upgrade-metavariables point pointed-context metas (arguments i))
+      | func f arguments => func f (\lam i => upgrade-metavariables point pointed-context metas (arguments i))
+  }
+
+\func SingularMetaContext {env : FSignature} (point : Sort) (context : List Sort)
+  : MetaContext Sort \cowith
+  | metaname s => s = point
+  | m-domain eq => context
+
+\func EmptyMetaContext {env : FSignature} : MetaContext Sort \cowith
+  | metaname m => Empty
+  | m-domain e => contradiction
+
+\func PureTerm (env : FSignature) (context : List Sort) (s : Sort) : \Type => Term env context s EmptyMetaContext
+
+\lemma apply-modularity {env : FSignature} {context subst-context pattern-context : List Sort} {s : Sort} {mc : MetaContext Sort} {n : Nat} {index : Fin n}
+                        (producer : Fin n -> MetaContext Sort)
+                        (substitutions : \Pi (i : Fin n) -> MetaSubstitution env subst-context (producer i) mc)
+                        (sublist : SubList subst-context context)
+                        (pat-sublist : SubList pattern-context context)
+                        (t : Term env pattern-context s (producer index)) :
+  MetaSubstitution.apply (weakening t pat-sublist) sublist (substitutions index) = MetaSubstitution.apply (weakening (ModularMetaContext.upgrade-metavariables producer t) pat-sublist) sublist (\lam m => substitutions m.1 m.2) \elim t
+  | var index1 p => idp
+  | metavar m arguments => pmap (\lam e => Substitution.apply (substitutions index m) (extend-substitution-left sublist e)) (ext (\lam i => apply-modularity producer substitutions sublist pat-sublist (arguments i)))
+  | func f arguments => Term.fext (\lam i => apply-modularity producer substitutions (SubList.extend-right-single sublist) (SubList.extend-right-both pat-sublist) (arguments i))

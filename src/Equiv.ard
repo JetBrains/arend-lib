@@ -4,6 +4,7 @@
 \import HLevel
 \import Homotopy.Fibration
 \import Logic
+\import Logic.Meta
 \import Paths
 \import Paths.Meta
 
@@ -120,7 +121,7 @@
   \func leftFactorPath {A B C : \Type} (e1 : Retraction {A} {B}) {g : B -> C} (e3 : QEquiv {A} {C}) (p : g `o` e1 = e3) : QEquiv g
     => leftFactor e1 g (transportInv (QEquiv __) p e3)
 
-  \func rightFactor {A B C : \Type} (f : A -> B) (e2 : Section {B} {C}) (e3 : QEquiv (e2 `o` f)) : QEquiv f \cowith
+  \func rightFactor {A B C : \Type} (f : A -> B) (e2 : Section {B} {C}) (e3 : QEquiv (\lam a => e2 (f a))) : QEquiv f \cowith
     | ret b => e3.ret (e2 b)
     | ret_f => e3.ret_f
     | f_sec b =>
@@ -133,10 +134,10 @@
     => rightFactor f e2 (transportInv (QEquiv __) p e3)
 
   \lemma rightEmbedding {A B C : \Type} (f : A -> B) (e2 : B >-> C) (e3 : QEquiv (e2 `o` f)) : Equiv f
-    => rightFactor f (ESEquiv.toEquiv (\new ESEquiv e2 {
+    => rightFactor f (\new ESEquiv e2 {
       | isEmb => e2.isEmb
       | isSurj c => inP (f (e3.ret c), e3.f_sec c)
-    })) e3
+    }) e3
 
   \lemma parallelEquiv {A B C D : \Type} (ab : A -> B) (cd : C -> D) (ac : Equiv {A} {C}) (bd : Equiv {B} {D}) (h : \Pi (a : A) -> bd (ab a) = cd (ac a)) : Equiv ab = Equiv cd
     => propExt (\lam e => leftFactor ac cd (coe (\lam i => QEquiv (h __ @ i)) (transQEquiv e bd) right))
@@ -277,25 +278,24 @@
 
 \func \infixr 1 >-> (A B : \Type) => Embedding {A} {B}
 
-\record Surjection (isSurj : \Pi (y : B) -> TruncP (Fib f y)) \extends Map
+\record Surjection (isSurj : \Pi (y : B) -> ∃ (x : A) (f x = y)) \extends Map
 
 \func \infixr 1 ->> (A B : \Type) => Surjection {A} {B}
 
-\record ESEquiv \extends Embedding, Surjection
+\record ESEquiv \extends Embedding, Surjection, Equiv
+  | ret y => (aux \this isSurj y).1
+  | sec y => (aux \this isSurj y).1
+  | ret_f x => Retraction.sec {isEmb _ _} (aux \this isSurj (f x)).2
+  | f_sec y => (aux \this isSurj y).2
   \where {
     \use \level levelProp {A B : \Type} {f : A -> B} (e e' : ESEquiv f) : e = e' =>
       path (\lam i => \new ESEquiv { | Embedding  => Embedding.levelProp  e e' @ i
                                      | Surjection => Path.inProp {Surjection f} e e' @ i })
 
-    \use \coerce toEquiv {A B : \Type} {f : A -> B} (e : ESEquiv f) : QEquiv f =>
-      \have sec (y : e.B) => TruncP.remove (Embedding.embeddingFiber-isProp e y) (e.isSurj y)
-      \in \new QEquiv {
-        | ret y => (sec y).1
-        | ret_f x => Retraction.sec {e.isEmb _ _} (sec (e x)).2
-        | f_sec y => (sec y).2
-      }
-
     \use \coerce fromEquiv (e : Equiv) : ESEquiv e.f \cowith
       | isEmb a a' => pmapEquiv e {a} {a'}
       | isSurj y => inP (e.sec y, e.f_sec y)
+
+    \lemma aux (e : Embedding) (s : \Pi (y : e.B) -> ∃ (x : e.A) (f x = y)) (y : e.B)
+      => TruncP.remove (Embedding.embeddingFiber-isProp e y) (s y)
   }

@@ -117,7 +117,7 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     var occurrence = occurrences == null ? 0 : occurrences.get(0);
 
     if (occurrence != 0 || eqProof == null) {
-      return new SubexprOccurrences(null, null, null, null, 0, eqProof == null ? 0 : 1);
+      return new SubexprOccurrences(null, null, null, 0, eqProof == null ? 0 : 1);
     }
 
     return SubexprOccurrences.simpleSingletonOccur(factory, subExpr.getType(), eqProof);

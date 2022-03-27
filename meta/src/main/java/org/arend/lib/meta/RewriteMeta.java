@@ -5,21 +5,18 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
-import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
-import org.arend.ext.core.ops.ExpressionMapper;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
+import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 
 import org.arend.lib.meta.equation.EqualitySolver;
 import org.arend.lib.meta.equation.EquationSolver;
 import org.arend.lib.meta.util.SubstitutionMeta;
-import org.arend.lib.util.Pair;
 import org.arend.lib.util.Utils;
 import org.arend.lib.error.SubexprError;
 import org.jetbrains.annotations.NotNull;
@@ -132,23 +129,27 @@ public class RewriteMeta extends BaseMetaDefinition {
         }
         exactMatch = true;
       } else {
-        var subExprTypeFixed = subExprType;
-        var expressionTypeFixed = expression.computeType();
-        while (subExprTypeFixed instanceof CoreAppExpression) {
-          subExprTypeFixed = ((CoreAppExpression)subExprTypeFixed).getFunction();
-        }
-        while (expressionTypeFixed instanceof CoreAppExpression) {
-          expressionTypeFixed = ((CoreAppExpression)expressionTypeFixed).getFunction();
-        }
-        if (subExprTypeFixed instanceof CoreDefCallExpression) {
-          if (!(expressionTypeFixed instanceof CoreDefCallExpression)) {
-            ok = false;
-          } else {
-            ok = ((CoreDefCallExpression)subExprTypeFixed).getDefinition() == ((CoreDefCallExpression)expressionTypeFixed).getDefinition();
+        if (useEqSolver) {
+          var subExprTypeFixed = subExprType;
+          var expressionTypeFixed = expression.computeType();
+          while (subExprTypeFixed instanceof CoreAppExpression) {
+            subExprTypeFixed = ((CoreAppExpression) subExprTypeFixed).getFunction();
           }
+          while (expressionTypeFixed instanceof CoreAppExpression) {
+            expressionTypeFixed = ((CoreAppExpression) expressionTypeFixed).getFunction();
+          }
+          if (subExprTypeFixed instanceof CoreDefCallExpression && ((CoreDefCallExpression) subExprTypeFixed).getDefinition() == ext.equationMeta.catHom) {
+            if (!(expressionTypeFixed instanceof CoreDefCallExpression)) {
+              ok = false;
+            } else {
+              ok = ((CoreDefCallExpression) subExprTypeFixed).getDefinition() == ((CoreDefCallExpression) expressionTypeFixed).getDefinition();
+            }
+          } else {
+            ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true);
+          } /**/
         } else {
-          ok = typechecker.compare(subExprTypeFixed, expressionTypeFixed, CMP.LE, refExpr, false, true);
-        } /**/
+          ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true);
+        }
         if (ok) {
           ok = typechecker.compare(subExpr, expression, CMP.EQ, refExpr, false, true);
           if (!ok) {
@@ -214,6 +215,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     boolean isInverse = ((ConcreteReferenceExpression)transport).getReferent() == ext.transportInv.getRef();
 
     for (int i = 0; i < eqProofs.size(); ++i) {
+      if (!(curType instanceof CoreLamExpression)) return null;
       var body = ((CoreLamExpression)(curType)).getBody();
       var param = ((CoreLamExpression)(curType)).getParameters();
       int finalI = i;
@@ -238,56 +240,6 @@ public class RewriteMeta extends BaseMetaDefinition {
               .build();
       curType = body;
     }
-
-    /*
-    if (curType == null) return null;
-
-    for (int i = 0; i < eqProofs.size(); ++i) {
-      if (!(curType instanceof ConcreteLamExpression)) {
-        return null;
-      }
-      var body = ((ConcreteLamExpression)(curType)).getBody();
-      var param = ((ConcreteLamExpression)(curType)).getParameters();
-      var newType = curType;
-      var typeAppLeft = body; //factory.core(body.computeTyped());
-      for (int j = i; j < eqProofs.size(); ++j) {
-        //var checkedEqProof = typechecker.typecheck(eqProofs.get(j), null);
-       // if (checkedEqProof == null) return null;
-       // var equality = checkedEqProof.getType().toEquality();
-       // if (equality == null) return null;
-        var left = eqProofs.get(j).left; //equality.getDefCallArguments().get(1).normalize(NormalizationMode.NF);
-        var right = eqProofs.get(j).right; //equality.getDefCallArguments().get(2).normalize(NormalizationMode.NF);
-        if (isInverse) {
-          var tmp = left;
-          left = right;
-          right = tmp;
-        }
-        if (j == i) {
-          newType = factory.appBuilder(newType).app(right).build();
-                  //typechecker.typecheck(factory.appBuilder(factory.core(newType)).app(factory.core(right.computeTyped())).build(), null);
-          // if (newType == null) return null;
-        } else {
-          typeAppLeft = factory.appBuilder(typeAppLeft).app(left).build();
-                  //factory.appBuilder(typeAppLeft).app(factory.core(left.computeTyped())).build();
-        }
-      }
-      //var transportTypeBody = typechecker.typecheck(typeAppLeft, null);
-      //if (transportTypeBody == null) return null;
-      var transportType = factory.lam(param, typeAppLeft);
-              //typechecker.typecheck(SubstitutionMeta.makeLambda(transportTypeBody.getExpression(), param.getBinding(), factory), null);
-      // if (transportType == null) return null;
-
-      result = factory.appBuilder(transport)
-              //.app(factory.core(transportType))
-              .app(transportType)
-              .app(eqProofs.get(i).proof)
-              .app(result)
-              .build();
-
-      curType = newType;
-    }
-
-     */
 
     return result;
   }
@@ -472,7 +424,7 @@ public class RewriteMeta extends BaseMetaDefinition {
 
     var checkedLam = typechecker.typecheck(lam, null);
 
-    if (checkedLam == null) {
+    if (checkedLam == null || checkedLam instanceof CoreErrorExpression) {
       return null;
     }
 

@@ -6,6 +6,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreExpressionPattern;
+import org.arend.ext.core.context.CoreEvaluatingBinding;
 import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.CoreDataCallExpression;
@@ -14,20 +15,18 @@ import org.arend.ext.core.expr.CoreReferenceExpression;
 import org.arend.ext.core.level.LevelSubstitution;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
-import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.error.GeneralError;
-import org.arend.ext.error.NameResolverError;
-import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.error.*;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
+import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
+import org.arend.lib.error.IgnoredArgumentError;
 import org.arend.lib.meta.util.ReplaceSubexpressionsMeta;
 import org.arend.lib.pattern.ArendPattern;
 import org.arend.lib.pattern.PatternUtils;
 import org.arend.lib.util.NamedParameter;
-import org.arend.lib.util.Pair;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -225,7 +224,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     for (int i = 0; i < argParametersList.size(); i++) {
       ArgParameters argParams = argParametersList.get(i);
       boolean isLocalRef = argParams.expression instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) argParams.expression).getReferent().isLocalRef();
-      boolean isElim = isLocalRef && !argParams.addPath && argParams.name == null && defaultExpr == null;
+      boolean isElim = isLocalRef && !argParams.addPath && argParams.name == null && defaultExpr == null && !(typechecker.getFreeBinding(((ConcreteReferenceExpression) argParams.expression).getReferent()) instanceof CoreEvaluatingBinding);
       ConcreteExpression argExpr = argParams.expression;
       ConcreteExpression argType = argParams.type;
       ArendRef caseArgRef = argParams.name != null ? argParams.name : !isElim ? factory.local("x") : null;
@@ -264,9 +263,14 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         return null;
       }
 
+      int numberOfAddPaths = 0;
+      for (ArgParameters argParams : argParametersList) {
+        if (argParams.addPath) numberOfAddPaths++;
+      }
+
       CoreParameter parameter = parameters;
-      for (TypedExpression typedArg : typedArgs) {
-        CoreExpression type = typedArg.getType().normalize(NormalizationMode.WHNF);
+      for (int j = 0; j < typedArgs.size(); j++) {
+        CoreExpression type = typedArgs.get(j).getType().normalize(NormalizationMode.WHNF);
         List<ArendPattern> patterns = getPatterns(type, parameter);
         if (patterns != null && patterns.isEmpty()) {
           patternLists = Collections.emptyList();
@@ -302,13 +306,20 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
             newPatternLists.add(newPatternList);
           }
         }
-        patternLists = newPatternLists;
 
+        patternLists = newPatternLists;
         parameter = parameter.getNext();
+
+        if (argParametersList.get(j).addPath) {
+          for (List<ArendPattern> patternList : patternLists) {
+            patternList.add(new ArendPattern(parameter.getBinding(), null, Collections.emptyList(), parameter, ext.renamerFactory));
+          }
+          parameter = parameter.getNext();
+        }
       }
 
       if (patternLists.isEmpty()) {
-        typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", defaultExpr));
+        typechecker.getErrorReporter().report(new IgnoredArgumentError(defaultExpr));
       } else {
         List<List<CoreExpressionPattern>> actualRows = new ArrayList<>();
         for (ConcreteClause clause : clauses) {

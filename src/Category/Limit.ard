@@ -1,7 +1,7 @@
 \import Arith.Bool
 \import Category
+\import Category.Adjoint
 \import Category.Functor
-\import Category.Limit
 \import Data.Bool
 \import Equiv \hiding (Map)
 \import Function.Meta
@@ -11,7 +11,6 @@
 \import Paths
 \import Paths.Meta
 \import Set(in0)
-\open Precat
 
 \class Cone \plevels obj >= hom {J : Precat} {D : Precat \levels (obj,hom) _} (G : Functor J D) (\classifying apex : D)
   | coneMap (j : J) : Hom apex (G j)
@@ -45,7 +44,7 @@
   | coneCoh h => inv o-assoc *> pmap (`∘ f) (coneCoh h)
 
 \class Limit \extends Cone {
-  | isLimit (z : D) : Equiv (conePullback \this z)
+  \field isLimit (z : D) : Equiv (conePullback \this z)
 
   \func limMap {z : D} (c : Cone G z) : Hom z apex
     => Equiv.ret {isLimit z} c
@@ -63,7 +62,7 @@
     | isLimit z => \new QEquiv {
       | ret c' => f.inv ∘ limMap c'
       | ret_f h => inv (f.adjoint (inv (limUniqueBeta (\lam j => pmap (`∘ h) (inv (limBeta c j)) *> o-assoc))))
-      | f_sec c' => exts (\lam j => unfold (pmap (`∘ _) (inv (L.limBeta c j)) *> (rewriteEq f.f_inv (rewriteEq (L.limBeta c' j) idp))))
+      | f_sec c' => exts (\lam j => unfold (pmap (`∘ _) (inv (L.limBeta c j)) *> rewriteEq f.f_inv (rewriteEq (L.limBeta c' j) idp)))
     }
 
   \lemma lim_iso {J D : Precat} {G : Functor J D} (L L' : Limit G) : Iso (L.limMap L') \cowith
@@ -161,38 +160,32 @@
     | Func-o {x} {y} {z} {in0 idp} {in0 idp} => inv id-left
 
   \use \coerce fromLimit {J : \Type} {D : Precat \levels (obj,hom) _} (L : Limit {DiscretePrecat J} {D}) : Product L.G L.apex L.coneMap \cowith
-    | tupleMap c => L.limMap (\new Cone {
-      | coneMap => c
-      | coneCoh {_} {j'} (in0 p) => \case \elim j', \elim p \with {
-        | _, idp => pmap (`∘ _) Func-id *> id-left
-      }
-    })
+    | tupleMap c => L.limMap (cone c)
     | tupleBeta {z} f => L.limBeta _
     | tupleEq {z} {h1} {h2} f => inv (Equiv.ret_f {L.isLimit z} h1) *> pmap (Equiv.ret {L.isLimit z}) (exts f) *> Equiv.ret_f {L.isLimit z} h2
+    \where {
+      \func cone {J : \Type} {D : Precat} {Z : D} {G : Functor (DiscretePrecat J) D} (c : \Pi (j : J) -> Hom Z (G j)) : Cone G Z \cowith
+        | coneMap => c
+        | coneCoh {_} {j'} (in0 p) => \case \elim j', \elim p \with {
+          | _, idp => pmap (`∘ _) Func-id *> id-left
+        }
+    }
 }
 
 \class Equalizer {D : Precat} {X Y : D} (f g : Hom X Y) (\classifying apex : D) (eql : Hom apex X) (equal : f ∘ eql = g ∘ eql) {
-  | eqMap {Z : D} (h : Hom Z X) : f ∘ h = g ∘ h -> Hom Z apex
-  | eqBeta {Z : D} (h : Hom Z X) (p : f ∘ h = g ∘ h) : eql ∘ eqMap h p = h
-  | eqMono {Z : D} {h1 h2 : Hom Z apex} : eql ∘ h1 = eql ∘ h2 -> h1 = h2
+  | isEqualizer (Z : D) : Equiv {Hom Z apex} {\Sigma (h : Hom Z X) (f ∘ h = g ∘ h)} (\lam h => (eql ∘ h, inv o-assoc *> pmap (`∘ h) equal *> o-assoc))
 
-  \func isEqualizer (Z : D) => \new QEquiv {Hom Z apex} {\Sigma (h : Hom Z X) (f ∘ h = g ∘ h)} {
-    | f h => (eql ∘ h, inv o-assoc *> pmap (`∘ h) equal *> o-assoc)
-    | ret p => eqMap p.1 p.2
-    | ret_f h => eqMono (eqBeta _ _)
-    | f_sec p => ext (eqBeta p.1 p.2)
-  }
+  \func eqMap {Z : D} (h : Hom Z X) (p : f ∘ h = g ∘ h) : Hom Z apex
+    => Equiv.ret {isEqualizer Z} (h,p)
+
+  \lemma eqBeta {Z : D} (h : Hom Z X) (p : f ∘ h = g ∘ h) : eql ∘ eqMap h p = h
+    => pmap __.1 (Equiv.f_ret {isEqualizer Z} (h,p))
+
+  \lemma eqMono {Z : D} {h1 h2 : Hom Z apex} (p : eql ∘ h1 = eql ∘ h2) : h1 = h2
+    => inv (Equiv.ret_f {isEqualizer Z} h1) *> pmap Equiv.ret (ext p) *> Equiv.ret_f {isEqualizer Z} h2
 
   \func toLimit : Limit {Shape} {D} \cowith
-    | G : Functor Shape D \cowith {
-      | F => if __ Y X
-      | Func => map f g
-      | Func-id {x} => cases x idp
-      | Func-o {x} {y} {z} {h} {k} => cases (x,y,z,h,k) (inv id-left) \with {
-        | false, false, true, arrow1, id_false => inv id-right
-        | false, false, true, arrow2, id_false => inv id-right
-      }
-    }
+    | G => functor f g
     | apex => apex
     | coneMap x => \case \elim x \with {
       | false => eql
@@ -204,7 +197,7 @@
       | false, false, id_false => id-left
       | true, true, id_true => id-left
     }
-    | isLimit Z => \have equiv => transEquiv {_} {_} {Cone G Z} (isEqualizer Z) (\new QEquiv {
+    | isLimit Z => \have equiv => transEquiv {_} {_} {Cone (functor f g) Z} (isEqualizer Z) (\new QEquiv {
         | f p => \new Cone {
           | coneMap b => \case \elim b \with {
             | false => p.1
@@ -256,6 +249,50 @@
     | id-left {x} {y} {f} => cases (x,y,f) idp
     | id-right {x} {y} {f} => cases (x,y,f) idp
     | o-assoc {x} {y} {z} {w} {h} {g} {f} => cases (x,y,z,w,h,g,f) idp
+
+  \func functor {D : Precat} {x y : D} (f g : Hom x y) : Functor Shape D \cowith
+    | F => if __ y x
+    | Func => map f g
+    | Func-id {x} => cases x idp
+    | Func-o {x} {y} {z} {h} {k} => cases (x,y,z,h,k) (inv id-left) \with {
+      | false, false, true, arrow1, id_false => inv id-right
+      | false, false, true, arrow2, id_false => inv id-right
+    }
+
+  \use \coerce fromLimit {D : Precat} {x y : D} {f g : Hom x y} (L : Limit (functor f g)) : Equalizer f g
+    => \have cone {z : D} (h : Hom z x) (p : f ∘ h = g ∘ h) => \new Cone (functor f g) z {
+         | coneMap => \case \elim __ \with {
+           | false => h
+           | true => g ∘ h
+         }
+         | coneCoh {j} {j'} k => cases (j,j',k) \with {
+           | false, true, arrow1 => p
+           | false, true, arrow2 => idp
+           | false, false, id_false => id-left
+           | true, true, id_true => id-left
+         }
+       } \in \new Equalizer {
+         | apex => L.apex
+         | eql => L.coneMap false
+         | equal => L.coneCoh arrow1 *> inv (L.coneCoh arrow2)
+         | isEqualizer Z => \new QEquiv {
+           | ret (h,p) => L.limMap (cone h p)
+           | ret_f h => L.limUnique (\case \elim __ \with {
+             | false => L.limBeta _ false
+             | true => L.limBeta _ true *> inv o-assoc *> pmap (`∘ h) (L.coneCoh arrow2)
+           })
+           | f_sec (h,p) => ext (L.limBeta (cone h p) false)
+         }
+    }
+
+  \func unique {D : Precat} {x y : D} {f g : Hom x y} (E E' : Equalizer f g) : Iso {D} {E} {E'} \cowith
+    | f => eqMap eql equal
+    | inv => eqMap eql equal
+    | inv_f => eqMono $ rewriteEq (E.eqBeta E'.eql equal) (eqBeta _ _ *> inv id-right)
+    | f_inv => eqMono $ rewriteEq (E'.eqBeta E.eql equal) (eqBeta _ _ *> inv id-right)
+
+  \lemma unique-map {D : Precat} {x y : D} {f g : Hom x y} (E E' : Equalizer f g) : E'.eql ∘ Iso.f {unique E E'} = E.eql
+    => eqBeta eql equal
 }
 
 \class Pullback \plevels obj >= hom {D : Precat \levels (obj,hom) _} {x y z : D} (f : Hom x z) (g : Hom y z) (\classifying apex : D) (cone : Cone f g apex) {
@@ -357,37 +394,151 @@
 \class PrecatWithPullbacks \extends Precat
   | pullback {x y z : Ob} (f : Hom x z) (g : Hom y z) : Pullback f g
 
-\func pullbackFunctor {C : PrecatWithPullbacks} {x y : C} (f : Hom x y) : Functor (slicePrecat y) (slicePrecat x) \cowith
-  | F t => (pullback f t.2, map f t.2)
-  | Func {a} g => (pbMap (\have c => Pullback.cone {pullback f a.2} \in (c.1, g.1 ∘ c.2, c.3 *> pmap (`∘ c.2) (inv g.2) *> o-assoc)), pbBeta1)
-  | Func-id => ext $ pbEta (pbBeta1 *> inv id-right) (pbBeta2 *> id-left *> inv id-right)
-  | Func-o => ext $ pbEta (pbBeta1 *> inv (pmap (`∘ _) pbBeta1 *> later pbBeta1) *> o-assoc) (pbBeta2 *> inv (pmap (`∘ _) pbBeta2 *> o-assoc *> pmap (_ ∘) pbBeta2 *> inv o-assoc) *> o-assoc)
-  \where
-    \func map {C : PrecatWithPullbacks} {x y z : C} (f : Hom x y) (g : Hom z y) : Hom (pullback f g) x
-      => (Pullback.cone {pullback f g}).1
+\func pullbackFunctor {C : PrecatWithPullbacks} {x y : C} (f : Hom x y) : Functor (slicePrecat y) (slicePrecat x) =>
+  \let | F (t : slicePrecat y) : slicePrecat x => (pullback f t.2, map f t.2)
+       | Func {a} {b} (g : Hom a b) : Hom (F a) (F b) =>
+         \let c => Pullback.cone {pullback f a.2}
+         \in (pbMap (c.1, g.1 ∘ c.2, c.3 *> pmap (`∘ c.2) (inv g.2) *> o-assoc), pbBeta1)
+  \in \new Functor {
+    | F => F
+    | Func => Func
+    | Func-id => ext $ pbEta (pbBeta1 *> inv id-right) (pbBeta2 *> id-left *> inv id-right)
+    | Func-o => ext $ pbEta (pbBeta1 *> inv (pmap (`∘ _) pbBeta1 *> later pbBeta1) *> o-assoc) (pbBeta2 *> inv (pmap (`∘ _) pbBeta2 *> o-assoc *> pmap (_ ∘) pbBeta2 *> inv o-assoc) *> o-assoc)
+  } \where
+  \func map {C : PrecatWithPullbacks} {x y z : C} (f : Hom x y) (g : Hom z y) : Hom (pullback f g) x
+    => (Pullback.cone {pullback f g}).1
 
-\class CompletePrecat \extends PrecatWithPullbacks {
+\class CartesianPrecat \extends Precat {
+  | terminal : Product {Empty} {\this} absurd
+  | Bprod (x y : Ob) : Product (x :: y :: nil)
+
+  \func terminalMap {x : Ob} : Hom x terminal
+    => tupleMap (\case __)
+
+  \func proj1 {x y : Ob} => proj {Bprod x y} 0
+
+  \func proj2 {x y : Ob} => proj {Bprod x y} 1
+
+  \func pair {x y z : Ob} (f : Hom z x) (g : Hom z y) : Hom z (Bprod x y)
+    => tupleMap (\case \elim __ \with {
+      | 0 => f
+      | 1 => g
+    })
+
+  \func prodMap {x y x' y' : Ob} (f : Hom x y) (f' : Hom x' y') : Hom (Bprod x x') (Bprod y y')
+    => pair (f ∘ proj1) (f' ∘ proj2)
+
+  \lemma beta1 {x y z : Ob} (f : Hom z x) (g : Hom z y) : proj1 ∘ pair f g = f
+    => tupleBeta {Bprod x y} _ 0
+
+  \lemma beta2 {x y z : Ob} (f : Hom z x) (g : Hom z y) : proj2 ∘ pair f g = g
+    => tupleBeta {Bprod x y} _ 1
+
+  \lemma pair-unique {x y z : Ob} {h1 h2 : Hom z (Bprod x y)} (p1 : proj1 ∘ h1 = proj1 ∘ h2) (p2 : proj2 ∘ h1 = proj2 ∘ h2) : h1 = h2
+    => tupleEq (\case \elim __ \with {
+      | 0 => p1
+      | 1 => p2
+    })
+
+  \lemma pair-comp {x y z w : Ob} {f : Hom x y} {g : Hom y z} {h : Hom y w} : pair g h ∘ f = pair (g ∘ f) (h ∘ f)
+    => pair-unique (rewriteEq (beta1 g h) $ inv (beta1 _ _)) (rewriteEq (beta2 g h) $ inv (beta2 _ _))
+
+  \lemma pair-proj {x y : Ob} : pair proj1 proj2 = id (Bprod x y)
+    => pair-unique (beta1 _ _ *> inv id-right) (beta2 _ _ *> inv id-right)
+
+  \func diagonal (x : Ob) : Hom x (Bprod x x)
+    => pair (id x) (id x)
+    \where
+      \lemma isSplitMono (x : Ob) : SplitMono (diagonal x) proj1 \cowith
+        | inv_f => beta1 _ _
+
+  \func associator {x y z : Ob} : Hom (Bprod (Bprod x y) z) (Bprod x (Bprod y z))
+    => pair (proj1 ∘ proj1) (pair (proj2 ∘ proj1) proj2)
+
+  \func associator-iso {x y z : Ob} : Iso (associator {_} {x} {y} {z}) \cowith
+    | inv => pair (pair proj1 (proj1 ∘ proj2)) (proj2 ∘ proj2)
+    | inv_f => rewrite (pair-comp,pair-comp,beta1,o-assoc,beta2,beta1,o-assoc,beta2,beta2,inv pair-comp,pair-proj,id-left) pair-proj
+    | f_inv => rewrite (pair-comp,o-assoc,beta1,beta1,pair-comp,beta2,o-assoc,beta1,beta2,inv pair-comp,pair-proj,id-left) pair-proj
+}
+
+\class CompletePrecat \extends PrecatWithPullbacks, CartesianPrecat {
   | limit {J : Precat} (G : Functor J \this) : Limit G
   \default pullback f g => Pullback.fromLimit (limit (Diagram.functor {Pullback.diagram f g}))
+  \default terminal => Product.fromLimit (limit (Product.functor absurd))
+  \default Bprod x y => Product.fromLimit (limit (Product.functor (x :: y :: nil)))
+
+  \func product {J : \Type} (G : J -> Ob) : Product G
+    => Product.fromLimit (limit (Product.functor G))
+
+  \func equalizer {x y : Ob} (f g : Hom x y) : Equalizer f g
+    => Equalizer.fromLimit (limit (Equalizer.functor f g))
+
+  \func op : CocompletePrecat \cowith
+    | Precat => Precat.op
+    | colimit (G : Functor) => limit G.op
+} \where {
+  \func applyEquiv \plevels obj >= hom {C : CompletePrecat \levels (obj,hom) _} (E : CatEquiv C) {J : Precat} (G : Functor J E.D) : Limit G
+    => \have lim : Limit => limit (Comp E.LAdj G)
+       \in \new Limit {
+        | apex => E lim
+        | coneMap j => E.eta-iso.inv ∘ E.Func (lim.coneMap j)
+        | coneCoh h => rewrite (inv (pmap E.Func (lim.coneCoh h)), Func-o, inv o-assoc, inv o-assoc)
+                               (pmap (`∘ _) (inv (NatTrans.natural {E.eta.iso E.eta-iso} (G.Func h))))
+        | isLimit z => TwoOutOfThree.rightFactor _ (Cone.mapEquiv E.reverse _) (transport (QEquiv __) (ext (\lam h => exts (\lam j =>
+            pmap (_ ∘) (E.adjoint_epsilon h) *>
+            inv (pmap (`∘ _) (E.epsilon.natural _) *> o-assoc) *>
+            pmap (__ ∘ _ ∘ _) (Iso.adjoint' {E.LAdj.Func-iso E.eta-iso} (E.eta_epsilon-right _) *> id-left) *>
+            pmap (`∘ _) (inv Func-o) *>
+            inv Func-o))) (transEquiv (symQEquiv E.isAdjoint) (lim.isLimit (E.LAdj z))))
+      }
 }
 
 \class CompleteCat \extends CompletePrecat, Cat (obj,hom) {
-  \func product {J : \Type} (G : J -> Ob) : Product G
-    => Product.fromLimit (limit (Product.functor G))
+  \func op : CocompleteCat \cowith
+    | Cat => Cat.op
+    | colimit (G : Functor) => limit G.op
 }
 
 \class CocompletePrecat \extends Precat {
   | colimit {J : Precat} (G : Functor J \this) : Colimit G
+
+  \func op : CompletePrecat \cowith
+    | Precat => Precat.op
+    | limit (G : Functor) => colimit G.op
+} \where {
+  \func applyEquiv \plevels obj >= hom {C : CocompletePrecat \levels (obj,hom) _} (E : CatEquiv C) {J : Precat} (G : Functor J E.D) : Colimit G
+    => CompletePrecat.applyEquiv {C.op} E.op G.op
 }
 
-\class CocompleteCat \extends CocompletePrecat, Cat
+\class CocompleteCat \extends CocompletePrecat, Cat {
+  \func op : CompleteCat \cowith
+    | Cat => Cat.op
+    | limit (G : Functor) => colimit G.op
+}
 
-\func opPC (C : CompletePrecat) : CocompletePrecat \cowith
-  | Precat => opP C
-  | colimit G => C.limit (Functor.op {G})
+\class BicompleteCat \extends CompleteCat, CocompleteCat (obj,hom) {
+  \func op : BicompleteCat \cowith
+    | Cat => Cat.op
+    | limit (G : Functor) => colimit G.op
+    | colimit (G : Functor) => limit G.op
+}
 
-\func opPCoC (C : CocompletePrecat) : CompletePrecat \cowith
-  | Precat => opP C
-  | limit G => C.colimit (Functor.op {G})
+\func isRegularMono {C : Precat} {x y : C} (f : Hom x y) => TruncP (Equalizer { | D => C | X => y | apex => x | eql => f })
 
-\class BicompleteCat \extends CompleteCat, CocompleteCat (obj,hom)
+\lemma regularMono_Mono {C : Precat} {x y : C} {f : Hom x y} (reg : isRegularMono f) : Mono f \elim reg
+  | inP (E : Equalizer) => \new Mono f E.eqMono
+
+\lemma splitMono_regular (f : SplitMono {}) : isRegularMono f.f
+  => inP (\new Equalizer {
+    | Y => f.cod
+    | f => f.f ∘ f.inv
+    | g => id f.cod
+    | equal => rewriteEq f.inv_f (id-right *> inv id-left)
+    | isEqualizer Z => \new QEquiv {
+      | ret (h,p) => f.inv ∘ h
+      | ret_f h => rewriteEq f.inv_f id-left
+      | f_sec (h,p) => ext (inv o-assoc *> p *> id-left)
+    }
+  })
+
+\func isRegularEpi {C : Precat} {x y : C} (f : Hom x y) => isRegularMono {C.op} f

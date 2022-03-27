@@ -4,6 +4,7 @@ import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.core.definition.*;
 import org.arend.ext.core.ops.NormalizationMode;
+import org.arend.ext.dependency.ArendReferenceProvider;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
@@ -105,11 +106,16 @@ public class StdExtension implements ArendExtension {
     provider.load(this);
     provider.load(simpCoeMeta);
     provider.load(sipMeta);
+    provider.getDefinition(ModulePath.fromString("Data.List"), new LongName("ListMonoid"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Arith.Nat"), new LongName("NatSemiring"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Arith.Int"), new LongName("IntRing"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalProduct"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalList"), CoreFunctionDefinition.class);
     provider.load(equationMeta);
   }
 
   @Override
-  public void declareDefinitions(@NotNull DefinitionContributor contributor) {
+  public void declareDefinitions(@NotNull ArendReferenceProvider provider, @NotNull DefinitionContributor contributor) {
     ModulePath meta = new ModulePath("Meta");
     contributor.declare(meta, new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, laterMeta);
     contributor.declare(meta, new LongName("fails"),
@@ -164,6 +170,11 @@ public class StdExtension implements ArendExtension {
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
       Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), true, false));
     contributor.declare(meta, new LongName("unfold_let"), "unfolds \\let expressions", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldLetMeta(), true, false));
+    contributor.declare(meta, new LongName("<|>"), "`x <|> y` invokes `x` and if it fails, invokes `y`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 3, true), new OrElseMeta());
+    contributor.declare(meta, new LongName("try"), "The same as {<|>}", Precedence.DEFAULT, new OrElseMeta());
+    contributor.declare(meta, new LongName("mkcon"),
+      "Inserts data type arguments in constructor invocation.\n" +
+      "If constructor `con` has 3 data type arguments, then `mkcon con args` is equivalent to `con {_} {_} {_} args`", Precedence.DEFAULT, new MakeConstructorMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
@@ -240,9 +251,27 @@ public class StdExtension implements ArendExtension {
         "A proof of a contradiction can be explicitly specified as an implicit argument\n" +
         "`using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context",
         Precedence.DEFAULT, contradictionMeta);
+    contributor.declare(logic, new LongName("Given"),
+      "Given constructs a \\Sigma-type:\n" +
+      "* `Given (x y z : A) B` is equivalent to `\\Sigma (x y z : A) B`.\n" +
+      "* `Given {x y z} B` is equivalent to `\\Sigma (x y z : _) B`\n" +
+      "* If `P : A -> B -> C -> \\Type`, then `Given ((x,y,z) (a,b,c) : P) (Q x y z a b c)` is equivalent to `\\Sigma (x a : A) (y b : B) (z c : C) (P x y z) (P a b c) (Q x y z a b c)`\n" +
+      "* If `l : Array A`, then `Given (x y : l) (P x y)` is equivalent to `\\Sigma (j j' : Fin l.len) (P (l j) (l j'))`",
+      Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.SIGMA));
     contributor.declare(logic, new LongName("Exists"),
-      "`Exists (x y z : A) B` is equivalent to `TruncP (\\Sigma (x y z : A) B)`.\n" +
-      "`Exists {x y z} B` is equivalent to `TruncP (\\Sigma (x y z : _) B)`", Precedence.DEFAULT, "∃", Precedence.DEFAULT, new ExistsMeta(this));
+      "{Exists} is a truncated version of {Given}. That is, `Exists a b c` is equivalent to `TruncP (Given a b c)`",
+      Precedence.DEFAULT, "∃", Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.TRUNCATED));
+    contributor.declare(logic, new LongName("Forall"),
+      "{Forall} works like {Given}, but returns a \\Pi-type instead of a \\Sigma-type.\n" +
+      "The last argument should be a type and will be used as the codomain.\n" +
+      "Other arguments work like arguments of {Given} with the exception that curly braces mean implicit arguments:\n" +
+      "* `Forall (x y : A) B` is equivalent to `\\Pi (x y : A) -> B`\n" +
+      "* `Forall {x y : A} B` is equivalent to `\\Pi {x y : A} -> B`\n" +
+      "* `Forall x y B` is equivalent to `\\Pi (x : _) (y : _) -> B\n`" +
+      "* `Forall x (B 0) (B 1)` is equivalent to `\\Pi (x : _) -> B 0 -> B 1\n`" +
+      "* `Forall {x y} {z} B` is equivalent to `\\Pi {x y : _} {z : _} -> B`\n" +
+      "* If `P : A -> \\Type`, then `Forall {x y : P} (Q x) (Q y)` is equivalent to `\\Pi {x y : A} -> P x -> P y -> Q x -> Q y`",
+      Precedence.DEFAULT, "∀", Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.PI));
     constructorMetaRef = contributor.declare(logic, new LongName("constructor"),
       "Returns either a tuple, a \\new expression, or a single constructor of a data type depending on the expected type",
       Precedence.DEFAULT, new ConstructorMeta(this, false));

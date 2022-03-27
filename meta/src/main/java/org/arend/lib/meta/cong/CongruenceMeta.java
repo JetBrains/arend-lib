@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.context.Context;
 import org.arend.lib.context.ContextHelper;
+import org.arend.lib.error.IgnoredArgumentError;
 import org.arend.lib.meta.closure.CongruenceClosure;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -46,9 +47,9 @@ public class CongruenceMeta extends BaseMetaDefinition {
     if (equality != null) {
       ArendRef iParam = factory.local("i");
       ConcreteExpression funcLam = factory.lam(Collections.singletonList(factory.param(iParam)), factory.core(equality.getDefCallArguments().get(0).computeTyped()));
-      return factory.app(factory.ref(prelude.getAt().getRef()), Arrays.asList(factory.arg(funcLam, false), factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
+      return factory.app(factory.ref(prelude.getAtRef()), Arrays.asList(factory.arg(funcLam, false), factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
     }
-    return factory.app(factory.ref(prelude.getAt().getRef()), Arrays.asList(factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
+    return factory.app(factory.ref(prelude.getAtRef()), Arrays.asList(factory.arg(path.eqProofOrElement, true), factory.arg(factory.ref(param), true)));
   }
 
   public static ConcreteExpression applyCongruence(ExpressionTypechecker typechecker, List<CongruenceClosure.EqProofOrElement> eqProofs, ConcreteFactory factory, ArendPrelude prelude) {
@@ -61,9 +62,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
       eqProofsAtJ.add(factory.arg(appAt(typechecker, eqProofs.get(i), jParam, factory, prelude), true));
     }
 
-    ConcreteExpression congrLambda = factory.lam(Collections.singleton(factory.param(jParam)), factory.app(appAt(typechecker, eqProofs.get(0), jParam, factory, prelude), eqProofsAtJ));
-
-    return factory.appBuilder(factory.ref(prelude.getPathCon().getRef())).app(congrLambda).build();
+    return factory.app(factory.ref(prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singleton(factory.param(jParam)), factory.app(appAt(typechecker, eqProofs.get(0), jParam, factory, prelude), eqProofsAtJ))));
   }
 
   private TypedExpression mapMode(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
@@ -82,9 +81,16 @@ public class CongruenceMeta extends BaseMetaDefinition {
         typechecker.getErrorReporter().report(new MissingArgumentsError(visitor.index - contextData.getArguments().size(), contextData.getMarker()));
       }
       return null;
+    } else {
+      for (int i = visitor.index; i < contextData.getArguments().size(); i++) {
+        typechecker.getErrorReporter().report(new IgnoredArgumentError(contextData.getArguments().get(i).getExpression()));
+      }
+      if (visitor.index == 0) {
+        typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING, "'cong' can be replaced with 'idp'", contextData.getMarker()));
+      }
     }
 
-    return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathCon().getRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), result.getExpression(args.get(1), factory)))), contextData.getExpectedType());
+    return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), result.getExpression(args.get(1), factory)))), contextData.getExpectedType());
   }
 
   @Override
@@ -117,7 +123,7 @@ public class CongruenceMeta extends BaseMetaDefinition {
 
     ContextHelper contextHelper = new ContextHelper(Context.TRIVIAL, contextData.getArguments().isEmpty() ? null : contextData.getArguments().get(0).getExpression());
     if (contextHelper.meta == null && !contextData.getArguments().isEmpty()) {
-      typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Argument is ignored", contextData.getArguments().get(0).getExpression()));
+      typechecker.getErrorReporter().report(new IgnoredArgumentError(contextData.getArguments().get(0).getExpression()));
     }
 
     ConcreteFactory factory = ext.factory.withData(refExpr);

@@ -45,7 +45,7 @@ public class Utils {
 
   public static CoreFunCallExpression toEquality(CoreExpression expression, ErrorReporter errorReporter, ConcreteSourceNode sourceNode) {
     CoreFunCallExpression equality = expression.toEquality();
-    if (equality == null && errorReporter != null && !expression.isError()) {
+    if (equality == null && errorReporter != null && !expression.reportIfError(errorReporter, sourceNode)) {
       errorReporter.report(new TypeMismatchError(DocFactory.text("_ = _"), expression, sourceNode));
     }
     return equality;
@@ -208,10 +208,12 @@ public class Utils {
   public static <T> T tryTypecheck(ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
     return typechecker.withCurrentState(tc -> {
       try {
+        ErrorReporter errorReporter = tc.getErrorReporter();
         return tc.withErrorReporter(error -> {
           if (error.level == GeneralError.Level.ERROR) {
             throw new MyException();
           }
+          errorReporter.report(error);
         }, action);
       } catch (MyException e) {
         tc.loadSavedState();
@@ -232,7 +234,7 @@ public class Utils {
   }
 
   public static boolean safeCompare(ExpressionTypechecker typechecker, UncheckedExpression expr1, UncheckedExpression expr2, CMP cmp, ConcreteSourceNode marker, boolean allowEquations, boolean normalize) {
-    return typechecker.withCurrentState(tc -> {
+    return expr1.getUnderlyingExpression() == expr2.getUnderlyingExpression() || typechecker.withCurrentState(tc -> {
       if (tc.compare(expr1, expr2, cmp, marker, allowEquations, normalize)) {
         return true;
       }
@@ -303,10 +305,56 @@ public class Utils {
     return result;
   }
 
+  private static boolean getTupleOfRefs(ConcreteExpression expr, ExpressionResolver resolver, List<ArendRef> refs) {
+    if (expr instanceof ConcreteReferenceExpression) {
+      ArendRef ref = ((ConcreteReferenceExpression) expr).getReferent();
+      if (resolver.isLongUnresolvedReference(ref)) {
+        return false;
+      }
+      refs.add(ref);
+      return true;
+    }
+
+    if (expr instanceof ConcreteHoleExpression) {
+      refs.add(null);
+      return true;
+    }
+
+    if (expr instanceof ConcreteTupleExpression) {
+      for (ConcreteExpression field : ((ConcreteTupleExpression) expr).getFields()) {
+        if (field instanceof ConcreteReferenceExpression) {
+          ArendRef ref = ((ConcreteReferenceExpression) field).getReferent();
+          if (resolver.isLongUnresolvedReference(ref)) {
+            return false;
+          }
+          refs.add(ref);
+        } else if (field instanceof ConcreteHoleExpression) {
+          refs.add(null);
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  public static List<ArendRef> getTuplesOfRefs(ConcreteExpression expr, ExpressionResolver resolver) {
+    List<ArendRef> result = new ArrayList<>();
+    for (ConcreteArgument argument : expr.getArgumentsSequence()) {
+      if (!argument.isExplicit() || !getTupleOfRefs(argument.getExpression(), resolver, result)) {
+        resolver.getErrorReporter().report(new NameResolverError("Cannot parse references", expr));
+        return null;
+      }
+    }
+    return result;
+  }
+
   public static ConcreteParameter expressionToParameter(ConcreteExpression expr, ExpressionResolver resolver, ConcreteFactory factory) {
     if (expr instanceof ConcreteTypedExpression) {
       ConcreteTypedExpression typedExpr = (ConcreteTypedExpression) expr;
-      List<ArendRef> refs = getRefs(typedExpr.getExpression(), resolver);
+      List<ArendRef> refs = getTuplesOfRefs(typedExpr.getExpression(), resolver);
       if (refs == null) {
         return null;
       }

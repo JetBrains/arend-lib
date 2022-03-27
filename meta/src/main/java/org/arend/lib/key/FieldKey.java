@@ -39,9 +39,8 @@ public abstract class FieldKey extends SerializableKey<FieldKey.Data> implements
     this.ext = ext;
   }
 
-  @NotNull
   @Override
-  public byte[] serialize(@NotNull ArendSerializer serializer, Data data) {
+  public byte @NotNull [] serialize(@NotNull ArendSerializer serializer, Data data) {
     ByteBuffer buffer = ByteBuffer.allocate(4 + data.parametersExplicitness.size());
     for (Boolean explicitness : data.parametersExplicitness) {
       buffer.put((byte) (explicitness ? 1 : 0));
@@ -54,7 +53,7 @@ public abstract class FieldKey extends SerializableKey<FieldKey.Data> implements
 
   @NotNull
   @Override
-  public Data deserialize(@NotNull ArendDeserializer deserializer, @NotNull byte[] data) throws DeserializationException {
+  public Data deserialize(@NotNull ArendDeserializer deserializer, byte @NotNull [] data) throws DeserializationException {
     int length = 4 + getNumberOfParameters();
     if (data.length != length) {
       throw new DeserializationException("Expected byte array of length " + length);
@@ -121,7 +120,7 @@ public abstract class FieldKey extends SerializableKey<FieldKey.Data> implements
     }
 
     CoreClassDefinition classDef = (CoreClassDefinition) definition;
-    if (!classDef.isSubClassOf(ext.BaseSet)) {
+    if (ext.BaseSet == null || !classDef.isSubClassOf(ext.BaseSet)) {
       return;
     }
 

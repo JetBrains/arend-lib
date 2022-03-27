@@ -10,7 +10,8 @@ import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.ops.NormalizationMode;
-import org.arend.ext.error.IgnoredArgumentError;
+import org.arend.ext.error.GeneralError;
+import org.arend.ext.error.quickFix.RemoveErrorQuickFix;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
@@ -84,11 +85,11 @@ public class UnfoldMeta extends BaseMetaDefinition {
             }
           }
         }
-        if (var == null || var instanceof CoreFunctionDefinition && !(((CoreFunctionDefinition) var).getBody() instanceof CoreExpression) || var instanceof CoreClassField && ((CoreClassField) var).isProperty()) {
-          typechecker.getErrorReporter().report(new TypecheckingError(var == null ? "Expected either a function or a field" : "Function '" + var.getName() + "' cannot be unfolded", expr));
+        if (var == null || var instanceof CoreFunctionDefinition && !(((CoreFunctionDefinition) var).getBody() instanceof CoreExpression) && ((CoreFunctionDefinition) var).getKind() != CoreFunctionDefinition.Kind.TYPE || var instanceof CoreClassField && ((CoreClassField) var).isProperty()) {
+          typechecker.getErrorReporter().report(new TypecheckingError(var == null ? "Expected either a function or a field" : "Function '" + var.getName() + "' cannot be unfolded", expr).withQuickFix(new RemoveErrorQuickFix("Remove")));
         } else {
           if (!functions.add(var)) {
-            typechecker.getErrorReporter().report(new IgnoredArgumentError("Repeated function", expr));
+            typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Repeated function", expr).withQuickFix(new RemoveErrorQuickFix("Remove function")));
           }
         }
       }
@@ -113,13 +114,13 @@ public class UnfoldMeta extends BaseMetaDefinition {
         if (expr instanceof ConcreteReferenceExpression) {
           CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) expr).getReferent());
           if ((def instanceof CoreFunctionDefinition || def instanceof CoreClassField) && !unfolded.contains(def)) {
-            typechecker.getErrorReporter().report(new IgnoredArgumentError("Function was not unfolded", expr));
+            typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Function was not unfolded", expr).withQuickFix(new RemoveErrorQuickFix("Remove function")));
             unfolded.add(def);
           }
           if (def == null) {
             CoreBinding binding = typechecker.getFreeBinding(((ConcreteReferenceExpression) expr).getReferent());
             if (binding instanceof CoreEvaluatingBinding && !unfolded.contains(binding)) {
-              typechecker.getErrorReporter().report(new IgnoredArgumentError("Binding was not unfolded", expr));
+              typechecker.getErrorReporter().report(new TypecheckingError(GeneralError.Level.WARNING_UNUSED, "Binding was not unfolded", expr).withQuickFix(new RemoveErrorQuickFix("Remove binding")));
               unfolded.add(binding);
             }
           }

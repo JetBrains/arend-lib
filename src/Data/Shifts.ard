@@ -1,0 +1,112 @@
+\import Data.List
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Data.Fin
+\import Data.SubList
+
+\func shift-index {A : \Set} {a b : List A} (sublist : SubList a b) (ind : Index a) : Fin (length b)
+\elim a, b, sublist, ind
+  | :: x xs, :: y ys, sublist-match p sublist, zero => zero
+  | :: x xs, :: y ys, sublist-match p sublist, suc ind => suc (shift-index sublist ind)
+  | l, :: y ys, sublist-skip sublist, ind => suc (shift-index sublist ind)
+
+\module Shifts \where {
+  \func proof {A : \Set} {a b : List A} {point : A} (sublist : SubList a b) (ind : Index a) (p : point = a !! ind)
+    : point = b !! shift-index sublist ind
+  \elim a, b, sublist, ind, p
+    | :: x xs, :: y ys, sublist-match p sublist, zero, idp => p
+    | :: x xs, :: y ys, sublist-match p sublist, suc ind, idp => proof sublist ind idp
+    | nil, :: y ys, sublist-skip sublist, ind, idp => proof sublist ind idp
+    | :: x a, :: y b, sublist-skip sublist, ind, idp => proof sublist ind idp
+
+  \lemma over-identity {A : \Set} {a : List A} (ind : Index a)
+    : shift-index SubList.identity ind = ind
+  \elim a, ind
+    | :: a a1, zero => idp
+    | :: a a1, suc ind => pmap fsuc (over-identity ind)
+
+  \lemma over-skip {A : \Set} {a b : List A} {point' : A} (sublist : SubList a b) (ind : Index a)
+    : shift-index {_} {_} {point' :: b} (sublist-skip sublist) ind = suc (shift-index sublist ind)
+  \elim a
+    | :: x a => idp
+    | nil => idp
+
+  \lemma over-shrink {A : \Set} {x : A} {a b : List A} (sublist : SubList (x :: a) b) (ind : Index a)
+    : shift-index (SubList.shrink sublist) ind  = shift-index sublist (fsuc ind)
+  \elim a, b, sublist
+    | nil, :: y b, sublist-match p1 sublist => idp
+    | :: a a1, :: y b, sublist-match p1 sublist => idp
+    | :: a a1, :: y b, sublist-skip sublist => rewrite (over-shrink sublist ind) idp
+
+  \lemma over-right-single {A : \Set} {a b : List A} (ind : Index a)
+    : shift-index (SubList.extend-right-single SubList.identity) ind = expand-fin-left {A} {a} {b} ind
+  \elim a, ind
+    | :: a a1, 0 => idp
+    | :: a a1, suc ind => pmap fsuc (over-right-single ind)
+
+  \lemma over-left-single {A : \Set} {a b : List A} (ind : Index b)
+    : shift-index {A} {b} {a ++ b} SubList.id+left ind = expand-fin-right ind
+  \elim a
+    | nil => over-identity _
+    | :: a a1 => rewrite over-skip (pmap fsuc (over-left-single ind))
+
+  \lemma over-right-both {A : \Set} {a b c : List A} (sublist : SubList a b) (fin : Index c)
+    : shift-index (SubList.extend-right-both sublist) (expand-fin-right fin) = expand-fin-right fin \elim a, b, c, sublist, fin
+    | nil, nil, :: a c, sublist-nil, 0 => idp
+    | nil, nil, :: a c, sublist-nil, suc fin => pmap fsuc (over-right-both sublist-nil fin)
+    | :: x a, :: y b, c, sublist-match p sublist, fin => pmap fsuc (over-right-both sublist fin)
+    | nil, :: y b, :: a c, sublist-skip sublist, 0 => pmap fsuc (over-right-both sublist 0)
+    | nil, :: y b, :: a c, sublist-skip sublist, suc fin => pmap fsuc (over-right-both {_} {_} {_} {:: a c} sublist (suc fin))
+    | :: a a1, :: y b, c, sublist-skip sublist, fin => pmap fsuc (over-right-both sublist fin)
+
+  \lemma right-extension {A : \Set} {a b : List A} (ind : Index a) :
+    \Sigma (eq : (a !! ind) = (a ++ b) !! expand-fin-left ind)
+           ((shift-index SubList.id+right ind, proof SubList.id+right ind idp)
+             = {\Sigma (ind' : Fin (length (a ++ b))) (a !! ind = (a ++ b) !! ind')}
+           (expand-fin-left ind, eq))
+  \elim a, ind
+    | :: a a1, 0 => (idp, ext idp)
+    | :: a a1, suc ind => \have sig => right-extension {_} {a1} {b} ind
+                          \in (sig.1, ext (pmap fsuc (pmap __.1 sig.2)))
+
+  \lemma left-extension-generic {A : \Set} {a b : List A} {point : A} (ind : Index b) {point-eq : point = b !! ind} :
+    \Sigma (eq2 : point = (a ++ b) !! expand-fin-right ind)
+           ((shift-index (SubList.extend-left-single SubList.identity ) ind, proof (SubList.extend-left-single SubList.identity) ind point-eq)
+             = {\Sigma (ind' : Fin (length (a ++ b))) (point = (a ++ b) !! ind')}
+           (expand-fin-right ind, eq2))
+  \elim a, point-eq
+    | nil, idp => (idp, ext (over-identity ind))
+    | :: a a1, idp =>
+      \have sig => left-extension-generic {_} {a1} {b} ind {idp}
+      \in (sig.1, ext (later (rewrite over-skip (pmap fsuc (pmap __.1 sig.2)))))
+
+  \lemma left-extension {A : \Set} {a b : List A} (ind : Index b)
+    :
+    (shift-index {A} {b} {a ++ b} SubList.id+left ind, proof SubList.id+left ind idp)
+      = {\Sigma (ind' : Fin (length (a ++ b))) (b !! ind = (a ++ b) !! ind')}
+    (expand-fin-right ind, inv (expand-fin-right.correct {_} {a} ind))
+    => ext (over-left-single ind)
+
+  \func right-both-after-expand-left {A : \Set} {a b c : List A} (sublist : SubList a b) (index : Index a)
+    :
+    shift-index (SubList.extend-right-both sublist {c}) (expand-fin-left index)
+      =
+    shift-index
+        (SubList.extend-right-single SubList.identity) (shift-index sublist index)
+  \elim a, b, sublist, index
+    | :: x a, :: y b, sublist-match p sublist, 0 => idp
+    | :: x a, :: y b, sublist-match p sublist, suc index => pmap fsuc (right-both-after-expand-left sublist index)
+    | :: a a1, :: y b, sublist-skip sublist, index => pmap fsuc (right-both-after-expand-left sublist index)
+
+  \func right-both-after-expand-right {A : \Set} {a b : List A} (sublist : SubList a b) {c : List A} (index : Index c) :
+    shift-index (SubList.extend-right-both sublist {c}) (expand-fin-right index)
+      =
+    shift-index (SubList.extend-left-single SubList.identity) index
+  \elim a, b, sublist, c, index
+    | nil, nil, sublist-nil, :: a c, index => idp
+    | :: x a, :: y b, sublist-match p sublist, :: a1 c, 0 => pmap fsuc (right-both-after-expand-right sublist 0)
+    | :: x a, :: y b, sublist-match idp sublist, :: a1 c, suc index => pmap fsuc (right-both-after-expand-right sublist {:: a1 c} (fsuc index))
+    | nil, :: y b, sublist-skip sublist, :: a1 c, ind => pmap fsuc (right-both-after-expand-right sublist {:: a1 c} ind)
+    | :: a a2, :: y b, sublist-skip sublist, :: a1 c, ind => pmap fsuc (right-both-after-expand-right sublist {:: a1 c} ind)
+}

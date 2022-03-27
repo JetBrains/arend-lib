@@ -2,7 +2,7 @@ package org.arend.lib.meta.closure;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.lib.util.Pair;
+import org.arend.ext.util.Pair;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;

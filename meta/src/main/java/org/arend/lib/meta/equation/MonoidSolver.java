@@ -17,11 +17,14 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
+import org.arend.ext.util.Pair;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.error.AlgebraSolverError;
 import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
-import org.arend.lib.util.*;
+import org.arend.lib.util.CountingSort;
+import org.arend.lib.util.Utils;
+import org.arend.lib.util.Values;
 import org.arend.lib.util.algorithms.ComMonoidWP;
 import org.arend.lib.util.algorithms.groebner.Buchberger;
 import org.arend.lib.util.algorithms.idealmem.GroebnerIM;
@@ -198,8 +201,8 @@ public class MonoidSolver extends BaseEqualitySolver {
 
       var normConsist = isCat ? meta.catNormConsist.getRef() : meta.monoidNormConsist.getRef();
 
-      ConcreteExpression normConsistSubExpr = null;
-      ConcreteExpression normConsistExpr = null;
+      ConcreteExpression normConsistSubExpr;
+      ConcreteExpression normConsistExpr;
 
       if (!isCat) {
         normConsistSubExpr = factory.appBuilder(factory.ref(normConsist)).app(subExTerm.concrete).build();

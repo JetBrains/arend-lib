@@ -2,12 +2,11 @@
 \import Arith.Fin
 \import Arith.Nat
 \import Data.Array
-\import Data.Bool
 \import Data.Or
 \import Equiv
 \import Equiv.Univalence
-\import Function.Meta (repeat)
 \import Logic
+\import Logic.Classical
 \import Logic.Meta
 \import Meta
 \import Order.LinearOrder
@@ -19,14 +18,27 @@
 \open Nat(+)
 \open LinearlyOrderedSemiring(<=_+)
 
-\class FinSet \extends BaseSet
+\class FinSet \extends BaseSet, Choice
   | finCard : Nat
   | finEq : TruncP (E = {\Set} Fin finCard)
+
+  | choice B => \case finEq \with {
+    | inP p => rewriteF (inv p) (finiteAC {finCard}) {B}
+  }
   \where {
     \use \level levelProp (A : \Set) (X Y : FinSet A) : X = Y
       => ext (\case X.finEq, Y.finEq \with {
         | inP A=Xcard, inP A=Ycard => FinCardBij (inv A=Xcard *> A=Ycard)
       })
+
+    \lemma finiteAC {n : Nat} {A : Fin n -> \Type} (f : \Pi (i : Fin n) -> TruncP (A i)) : TruncP (\Pi (i : Fin n) -> A i) \elim n
+      | 0 => inP (\case __)
+      | suc n => \case f 0, finiteAC (\lam i => f (suc i)) \with {
+        | inP a0, inP aS => inP (\case \elim __ \with {
+          | 0 => a0
+          | suc i => aS i
+        })
+      }
 
     \func pred {n : Nat} (x : Fin (suc (suc n))) : Fin (suc n) \elim x
       | 0 => 0
@@ -117,6 +129,14 @@
     }
   }
 
+\instance emptyFin : FinSet Empty
+  | finCard => 0
+  | finEq => inP (path (iso {Empty} {Fin 0} (\case __) (\case __) idpe (\case __)))
+
+\instance unitFin : FinSet (\Sigma)
+  | finCard => 1
+  | finEq => inP (path (iso {\Sigma} {Fin 1} (\lam _ => 0) (\lam _ => ()) idpe (\lam x => cases x idp)))
+
 \instance finFin (n : Nat) : FinSet (Fin n)
   | finCard => n
   | finEq => inP idp
@@ -129,7 +149,7 @@
   \where {
     \func aux {n m : Nat} : QEquiv {Or (Fin n) (Fin m)} {Fin (n + m)} \cowith
       | f (e : Or (Fin n) (Fin m)) : Fin (n + m) \with {
-        | inl s => fin-inc (<=_+ <=-reflexive zero<=_) s
+        | inl s => fin-inc (<=_+ <=-refl zero<=_) s
         | inr t => fin-raise t
       }
       | ret (i : Fin (n + m)) : Or (Fin n) (Fin m) \elim n, i {
@@ -149,16 +169,16 @@
         | suc n, 0 => idp
         | suc n, suc i => mcases {_} {arg addPath} \with {
           | inl s, p => \have q => inv (pmap f p) *> f_sec i \in \case \elim n, \elim i, \elim s, \elim q \with {
-            | suc n, i, s, q => fin_nat-inj (mod_< (<-transitive-left (fin_< (suc s)) (suc<=suc (later (suc<=suc (<=_+ <=-reflexive zero<=_))))) *> inv (pmap suc (mod_< (<-transitive-left (fin_< s) (suc<=suc (<=_+ <=-reflexive zero<=_)))))) *> pmap (\lam i => suc i) q
+            | suc n, i, s, q => fin_nat-inj (mod_< (<-transitive-left (fin_< (suc s)) (suc<=suc (later (suc<=suc (<=_+ <=-refl zero<=_))))) *> inv (pmap suc (mod_< (<-transitive-left (fin_< s) (suc<=suc (<=_+ <=-refl zero<=_)))))) *> pmap (\lam i => suc i) q
           }
           | inr t, p => pmap (\lam i => suc i) (inv (pmap f p) *> f_sec i)
         }
       }
 
-    \lemma ret_inl-lem {n m : Nat} (s : Fin n) : finOr.aux.ret {n} {m} (toFin (<-transitive-left (fin_< s) (<=_+ <=-reflexive zero<=_))) = inl s
+    \lemma ret_inl-lem {n m : Nat} (s : Fin n) : finOr.aux.ret {n} {m} (toFin (<-transitive-left (fin_< s) (<=_+ <=-refl zero<=_))) = inl s
       => aux (later (\case \elim n, \elim s \with {
         | suc n, 0 => idp
-        | suc n, suc s => mod_< (<-transitive-left (fin_< (suc s)) (suc<=suc (<=_+ <=-reflexive zero<=_)))
+        | suc n, suc s => mod_< (<-transitive-left (fin_< (suc s)) (suc<=suc (<=_+ <=-refl zero<=_)))
       }))
       \where
         \lemma aux {n m : Nat} {i : Fin (n + m)} {s : Fin n} (p : i = {Nat} s) : finOr.aux.ret i = inl s \elim n, i, s
@@ -175,7 +195,7 @@
   => \case S.finEq \with {
     | inP e => transportInv (\lam X => \Pi (Q : X -> FinSet) -> FinSet (\Sigma (i : X) (Q i))) e (\lam Q => \new FinSet {
       | finCard => Big (+) 0 (\lam i => finCard {Q i})
-      | finEq => \case finiteAC.aux (\lam i => finEq {Q i}) \with {
+      | finEq => \case FinSet.finiteAC (\lam i => finEq {Q i}) \with {
         | inP d => inP (path (\lam j => \Sigma (i : Fin S.finCard) (d i @ j)) *> Equiv-to-= (aux (\lam i => finCard {Q i})))
       }
     }) Q
@@ -184,7 +204,7 @@
     \func aux {n : Nat} (Q : Fin n -> Nat) : QEquiv {\Sigma (i : Fin n) (Fin (Q i))} {Fin (Big (+) 0 Q)} \cowith
       | f (p : \Sigma (i : Fin n) (Fin (Q i))) : Fin (Big (+) 0 Q) \elim n, p {
         | 0, ((),_)
-        | suc n, (0, j) => fin-inc (<=_+ <=-reflexive zero<=_) j
+        | suc n, (0, j) => fin-inc (<=_+ <=-refl zero<=_) j
         | suc n, (suc i, j) => fin-raise (f (i,j))
       }
       | ret (k : Fin (Big (+) 0 Q)) : \Sigma (i : Fin n) (Fin (Q i)) \elim n {
@@ -206,16 +226,4 @@
       }
   }
 
-\lemma finiteAC {S : FinSet} {A : S -> \Type} (f : \Pi (i : S) -> TruncP (A i)) : TruncP (\Pi (i : S) -> A i)
-  => \case S.finEq \with {
-    | inP e => transportInv (\lam X => \Pi {A : X -> \Type} (f : \Pi (i : X) -> TruncP (A i)) -> TruncP (\Pi (i : X) -> A i)) e aux f
-  }
-  \where
-    \lemma aux {n : Nat} {A : Fin n -> \Type} (f : \Pi (i : Fin n) -> TruncP (A i)) : TruncP (\Pi (i : Fin n) -> A i) \elim n
-      | 0 => inP (\case __)
-      | suc n => \case f 0, aux (\lam i => f (suc i)) \with {
-        | inP a0, inP aS => inP (\case \elim __ \with {
-          | 0 => a0
-          | suc i => aS i
-        })
-      }
+\instance pairFin (A B : FinSet) => finSum A (\lam _ => B)

@@ -1,0 +1,675 @@
+\import Data.List (!!, ++, ++-assoc, ++_nil, ::, List, length, nil)
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Data.Fin
+\import Data.Shifts
+\import Data.SubList
+\import TRS.HRS
+\import TRS.Utils
+
+\func plain-identity {env : FSignature} {context : List Sort} {mc : MetaContext Sort}
+  : Substitution context context mc => \lam i => var i idp
+
+\lemma plain-identity-effect
+  {env : FSignature} {context : List Sort} {s : Sort} {mc : MetaContext Sort}
+  (t : Term env context s mc)
+  : Substitution.apply t plain-identity = t \elim t
+  | var index idp => idp
+  | metavar m arguments => Term.mext (\lam index => plain-identity-effect (arguments index))
+  | func f arguments => Term.fext (\lam index => rewrite append-context-right.to-identity (plain-identity-effect (arguments index)))
+
+\func weakening
+  {env : FSignature} {s' : Sort} {narrow-context wide-context : List Sort} {mc : MetaContext Sort}
+  (t : Term env narrow-context s' mc)
+  (sublist : SubList narrow-context wide-context)
+  : Term env wide-context s' mc
+\elim t
+  | var index p => var (shift-index sublist index) (proof sublist index p)
+  | metavar m arguments => metavar m (\lam i1 => weakening (arguments i1) sublist)
+  | func f arguments => func f (\lam i1 => weakening (arguments i1) (SubList.extend-right-both sublist))
+  \where {
+    \open Shifts
+
+    \lemma over-transport-sort {env : FSignature} {context context' : List Sort} {s s' : Sort} {mc : MetaContext Sort}
+                               (T : Term env context s mc) (eq : s = s') (sublist : SubList context context')
+      : weakening (transport (Term env context __ mc) eq T) sublist = transport (Term env context' __ mc) eq (weakening T sublist) \elim eq
+      | idp => idp
+
+    \lemma over-transport-ctx
+      {env : FSignature} {context-a big-context big-context' : List Sort} {mc : MetaContext Sort} (a : Sort)
+      (t : Term env context-a a mc) (sl : SubList context-a big-context) (eq : big-context = big-context')
+      : transport (Term env __ a mc) eq (weakening t sl) = weakening t (transport (SubList context-a) eq sl) \elim eq | idp => idp
+
+    \lemma over-metasubstitution
+      {env : FSignature} {s : Sort} {mc mc' : MetaContext Sort} {context context' : List Sort}
+      (t : Term env context s mc)
+      (msubst : MetaSubstitution env nil mc mc')
+      (sublist : SubList context context')
+      : weakening (MetaSubstitution.apply t SubList.sublist-nil-free msubst) sublist =
+    MetaSubstitution.apply (weakening t sublist) SubList.sublist-nil-free msubst \elim t
+      | var index p => idp
+      | metavar m arguments =>
+        \let
+          | inductive-ext : (\lam i => MetaSubstitution.apply (weakening (arguments i) sublist) SubList.sublist-nil-free msubst) =
+                            (\lam i => weakening (MetaSubstitution.apply (arguments i) SubList.sublist-nil-free msubst) sublist)
+                            => ext (\lam i => inv (over-metasubstitution (arguments i) msubst sublist))
+          | induced : (\lam i => weakening (MetaSubstitution.apply (arguments i) SubList.sublist-nil-free msubst) sublist) =
+                      (\lam i => Substitution.apply (MetaSubstitution.apply (arguments i) SubList.sublist-nil-free msubst) (weakening.substitution sublist))
+                      => ext (\lam i => rewrite weakening.substitution-eq idp)
+        \in rewrite (inductive-ext, weakening.substitution-eq, induced, subst-comm) idp
+      | func f arguments => Term.fext (\lam index => rewrite (trivial-sublist-contractible (SubList.extend-right-single SubList.sublist-nil-free) SubList.sublist-nil-free) (rewrite (trivial-sublist-contractible (SubList.extend-right-single SubList.sublist-nil-free) SubList.sublist-nil-free) (over-metasubstitution (arguments index) msubst (SubList.extend-right-both sublist))))
+
+    \lemma composition
+      {env : FSignature} {context-a context-b context-c : List Sort} {mc : MetaContext Sort}
+      {a : Sort}
+      (t : Term env context-a a mc)
+      (sl : SubList context-a context-b)
+      (sl' : SubList context-b context-c)
+      : weakening (weakening t sl) sl' = weakening t (SubList.compose sl sl') \elim t
+      | var index p => var-extensionality (lemma _ _ _)
+      | metavar m arguments => Term.mext (\lam index => composition (arguments index) _ _)
+      | func f arguments => Term.fext (\lam index => rewrite (composition (arguments index) _ _)
+          (pmap (weakening (arguments index)) (SubList.compose.over-right-both _ _)))
+      \where {
+        \func lemma {A : \Set} {a b c : List A} (sl : SubList a b) (sl' : SubList b c) (ind : Index a) :
+          shift-index sl' (shift-index sl ind) = shift-index (SubList.compose sl sl') ind \elim a, b, c, sl, sl', ind
+          | :: x a, :: x1 b, :: y c, sublist-match p sl, sublist-match p1 sl', 0 => idp
+          | :: x a, :: x1 b, :: y c, sublist-match p sl, sublist-match p1 sl', suc ind => pmap fsuc (lemma _ _ _)
+          | :: x a, :: y b, :: y1 c, sublist-match p sl, sublist-skip sl', 0 => pmap fsuc (lemma _ _ _)
+          | :: x a, :: y b, :: y1 c, sublist-match p sl, sublist-skip sl', suc ind => pmap fsuc (lemma _ _ _)
+          | nil, :: x b, :: y c, sublist-skip sl, sublist-match p sl', ind => pmap fsuc (lemma _ _ _)
+          | :: a a1, :: x b, :: y c, sublist-skip sl, sublist-match p sl', ind => pmap fsuc (lemma _ _ _)
+          | :: a a1, :: y b, :: y1 c, sublist-skip sl, sublist-skip sl', ind => pmap fsuc (lemma _ _ _)
+      }
+
+    \func substitution
+      {env : FSignature} {narrow-context wide-context : List Sort}
+      (sublist : SubList narrow-context wide-context) {ms : MetaContext Sort}
+      : Substitution narrow-context wide-context ms => \lam i => weakening (var i idp) sublist
+
+    \func substitution-eq
+      {env : FSignature} {narrow-context wide-context : List Sort} {s : Sort} (sublist : SubList narrow-context wide-context) {ms : MetaContext Sort}
+      (t : Term env narrow-context s ms)
+      : weakening t sublist = Substitution.apply t (weakening.substitution sublist)
+    \elim t
+      | var index idp => idp
+      | metavar m arguments => Term.mext (\lam index => substitution-eq sublist (arguments index))
+      | func f arguments => Term.fext (\lam index => substitution-eq (SubList.extend-right-both sublist) (arguments index) *> pmap (Substitution.apply (arguments index)) (ext (\lam index1 => weakening-commutation-lemma sublist index1)))
+      \where {
+        \func weakening-commutation-lemma
+          {env : FSignature}
+          {narrow-context wide-context add-context : List Sort}
+          (sublist : SubList narrow-context wide-context) {ms : MetaContext Sort}
+          (index : Index (narrow-context ++ add-context))
+          : weakening.substitution (SubList.extend-right-both sublist) {ms} index = append-context-right (weakening.substitution sublist) index =>
+          partial-fin-induction
+              (\lam i => weakening.substitution (SubList.extend-right-both sublist) {ms} i = append-context-right (weakening.substitution sublist) i)
+              (\lam i => rewrite (append-context-right.on-begin, transport-var-over-sort) (var-extensionality (Shifts.right-both-after-expand-left _ _)))
+              (\lam i => rewrite append-context-right.on-end (var-extensionality (Shifts.right-both-after-expand-right _ _)))
+              index
+      }
+
+    \func combine-with-append-right
+      {env : FSignature} {context-a context-b context-c : List Sort} {s : Sort} {ms : MetaContext Sort}
+      (subst : Substitution context-a context-b ms)
+      (t : Term env context-a s ms)
+      :
+      Substitution.apply (weakening t (SubList.extend-right-single SubList.identity {context-c})) (append-context-right subst)
+        =
+      weakening (Substitution.apply t subst) (SubList.extend-right-single SubList.identity) => run {
+      rewrite weakening.substitution-eq,
+      rewrite weakening.substitution-eq,
+      rewrite subst-comm-for-weakening,
+      rewrite subst-comm-for-weakening-2,
+      pmap (Substitution.apply t),
+      ext (\lam i => rewriteI weakening.substitution-eq (untransport subst SubList.sublist-nil-free i idp idp))
+    }
+      \where {
+        \func subst-comm-for-weakening
+          {env : FSignature} {context-a context-b context-c : List Sort} {s : Sort} {ms : MetaContext Sort}
+          (subst : Substitution context-b context-c ms)
+          (t : Term env context-a s ms)
+          (sublist : SubList context-a context-b)
+          :
+          Substitution.apply (Substitution.apply t (weakening.substitution sublist)) subst =
+          Substitution.apply t (\lam i => Substitution.apply (Substitution.apply (var i idp) (weakening.substitution sublist)) subst) \elim t
+          | var index idp => idp
+          | metavar m arguments => Term.mext (\lam index => subst-comm-for-weakening subst (arguments index) sublist)
+          | func f arguments => Term.fext (\lam index =>
+              \let inductive => subst-comm-for-weakening (append-context-right subst) (arguments index) (SubList.extend-right-both sublist)
+              \in rewrite append-context-right-after-subst
+                  (inductive *> pmap (Substitution.apply (arguments index))
+                                    (ext (\lam index1 => rewriteI append-context-right-after-subst (wsubst-over-right-extension subst sublist index1)))))
+
+        \func subst-comm-for-weakening-2
+          {env : FSignature} {context-a context-b context-c : List Sort} {s : Sort} {ms : MetaContext Sort}
+          (subst : Substitution context-a context-b ms)
+          (t : Term env context-a s ms)
+          (sublist : SubList context-b context-c)
+          :
+          Substitution.apply (Substitution.apply t subst) (weakening.substitution sublist) =
+          Substitution.apply t (\lam i => Substitution.apply (subst i) (weakening.substitution sublist))
+        \elim t
+          | var index idp => idp
+          | metavar m arguments => Term.mext (\lam index => subst-comm-for-weakening-2 subst (arguments index) sublist)
+          | func f arguments => Term.fext (\lam index =>
+              \let inductive => subst-comm-for-weakening-2 (append-context-right subst) (arguments index) (SubList.extend-right-both sublist)
+              \in rewrite append-context-right-after-subst (inductive *> pmap (Substitution.apply (arguments index)) (ext (\lam index1 => rewriteI append-context-right-after-subst (wsubst-over-right-extension-2 subst sublist index1)))))
+
+        \func wsubst-over-right-extension
+          {env : FSignature} {context-a context-b context-c context-add : List Sort} {ms : MetaContext Sort}
+          (subst : Substitution context-b context-c ms)
+          (sublist : SubList context-a context-b)
+          (index : Index (context-a ++ context-add))
+          :
+          Substitution.apply (append-context-right (weakening.substitution sublist) index) (append-context-right subst) =
+          append-context-right (\lam i => Substitution.apply (weakening.substitution sublist i) subst) index =>
+          partial-fin-induction
+              (\lam fin => Substitution.apply (append-context-right (weakening.substitution sublist) fin) (append-context-right subst) = append-context-right (\lam i => Substitution.apply (weakening.substitution sublist i) subst) fin)
+              (\lam fin => repeat {2} (rewrite append-context-right.on-begin) (untransport subst sublist _ _ _))
+              (\lam fin => repeat {2} (rewrite append-context-right.on-end) (rewrite (pmap sigma-to-var (Shifts.left-extension-generic _ {_}).2 ) (rewrite subst-to-var (rewrite append-context-right.on-end (repeat {2} (rewrite (pmap sigma-to-var (Shifts.left-extension-generic fin {_}).2)) (rewrite transport-var-over-sort (var-extensionality idp)))))))
+              index
+
+        \func wsubst-over-right-extension-2
+          {env : FSignature} {context-a context-b context-c context-add : List Sort} {ms : MetaContext Sort}
+          (subst : Substitution context-a context-b ms)
+          (sublist : SubList context-b context-c)
+          (index : Index (context-a ++ context-add))
+          :
+          Substitution.apply (append-context-right subst index) (append-context-right (weakening.substitution sublist)) =
+          append-context-right (\lam i => Substitution.apply (subst i) (weakening.substitution sublist)) index =>
+          partial-fin-induction
+              (\lam fin => Substitution.apply (append-context-right subst fin) (append-context-right (weakening.substitution sublist)) = append-context-right (\lam i => Substitution.apply (subst i) (weakening.substitution sublist)) fin)
+              (\lam fin => repeat {2} (rewrite append-context-right.on-begin) (rewrite append-context-right-after-subst (repeat {2} (rewriteI weakening.substitution-eq) (double-weakening _ (subst fin) _))))
+              (\lam fin => repeat {2} (rewrite append-context-right.on-end) (rewrite append-context-right-after-subst (rewriteI weakening.substitution-eq (var-extensionality (rewrite (Shifts.over-left-single {_} {context-c} {context-add} fin) (rewrite (Shifts.over-left-single {_} {context-b} {context-add} fin) (Shifts.over-right-both _ _)))))))
+              index
+          \where {
+            \func double-weakening {env : FSignature} {context context' context-add : List Sort} {s s' : Sort} {mc : MetaContext Sort}
+                                   (eq : s = s')
+                                   (t : Term env context s mc)
+                                   (sublist : SubList context context'): weakening (weakening (transport (\lam (p0 : env.Sort) => Term env context p0 mc) eq t)
+                (SubList.extend-right-single SubList.identity {context-add})) (SubList.extend-right-both sublist) =
+            weakening (transport (\lam (p0 : env.Sort) => Term env context' p0 mc) eq (weakening t sublist))
+                (SubList.extend-right-single SubList.identity) \elim eq, t
+              | idp, t => unfold transport (rewrite weakening.composition (rewrite weakening.composition (pmap (weakening t) (SubList.compose.over-right-single sublist))))
+          }
+
+        \func untransport {env : FSignature} {context-a context-b context-c context-add : List Sort} {s s' : Sort} {ms : MetaContext Sort}
+                          (subst : Substitution context-b context-c ms)
+                          (sublist : SubList context-a context-b)
+                          (i : Index context-b)
+                          (ieq : s = context-b !! i)
+                          (eq : s = s')
+          :  Substitution.apply
+            (weakening (transport (\lam (p0 : env.Sort) => Term env context-b p0 ms) eq (var i ieq))
+                (SubList.extend-right-single SubList.identity)) (append-context-right subst {context-add}) = weakening (transport (\lam (p0 : env.Sort) => Term env context-c p0 ms) eq
+            (Substitution.apply (var i ieq) subst)) (SubList.extend-right-single SubList.identity) \elim ieq, eq
+          | idp, idp => rewrite (pmap sigma-to-var (Shifts.right-extension i).2, subst-to-var, append-context-right.on-begin, over-transport-sort, inv (transport_*> _ _ _ _), Path.inProp _ idp) idp
+
+        \func append-context-right-after-subst
+          {env : FSignature} {context-a context-b context-c : List Sort} {ms : MetaContext Sort}
+          (sublist : SubList context-a context-b)
+          :
+          append-context-right (weakening.substitution sublist) =
+          weakening.substitution (SubList.extend-right-both sublist {context-c}) {ms} =>
+          ext (partial-fin-induction
+              (\lam fin => append-context-right (weakening.substitution sublist) fin = weakening.substitution (SubList.extend-right-both sublist {context-c}) {ms} fin)
+              (\lam fin => rewrite (append-context-right.on-begin, transport-var-over-sort) (var-extensionality (rewrite (over-right-single, right-both-after-expand-left, over-right-single) idp)))
+              (\lam fin => rewrite append-context-right.on-end (var-extensionality (inv (Shifts.right-both-after-expand-right _ _))))
+              )
+      }
+
+    \func combine-with-append-left
+      {env : FSignature} {context-a context-b context-c : List Sort} {s : Sort} {ms : MetaContext Sort}
+      (subst : Substitution context-a context-b ms)
+      (t : Term env context-c s ms)
+      :
+      Substitution.apply (weakening t (SubList.extend-left-single SubList.identity {context-a})) (append-context-right subst) =
+      weakening t (SubList.extend-left-single SubList.identity) =>
+      rewrite (weakening.substitution-eq, weakening.substitution-eq, subst-comm)
+          (pmap (Substitution.apply t) (ext (\lam index => rewrite (pmap sigma-to-var (Shifts.left-extension _), subst-to-var, append-context-right.on-end, transport-var-over-sort) (var-extensionality idp))))
+
+    \func combine-with-extend-right
+      {env : FSignature} {context-a context-b context-c : List Sort} {s : Sort} {ms : MetaContext Sort}
+      (subst : Substitution context-b (context-a ++ context-c) ms)
+      (t : Term env context-a s ms)
+      :
+      Substitution.apply (weakening t (SubList.extend-right-single SubList.identity)) (extend-substitution-left (SubList.extend-right-single SubList.identity) subst)
+        =
+      weakening t (SubList.extend-right-single SubList.identity) =>
+      rewrite (weakening.substitution-eq, weakening.substitution-eq, subst-comm)
+          (pmap (Substitution.apply t) (ext (\lam index => rewrite (pmap sigma-to-var (Shifts.right-extension index).2, subst-to-var, extend-substitution-left.on-begin, transport-var-over-sort) (var-extensionality idp))))
+
+    \func combine-with-extend-left
+      {env : FSignature} {context-a context-b context-c : List Sort} {s : Sort} {ms : MetaContext Sort}
+      (subst : Substitution context-b (context-a ++ context-c) ms)
+      (t : Term env context-b s ms)
+      :
+      Substitution.apply (weakening t SubList.id+left) (extend-substitution-left SubList.id+right subst)
+        =
+      Substitution.apply t subst =>
+      rewrite (weakening.substitution-eq, subst-comm) (pmap (Substitution.apply t) (ext (\lam index => unfold weakening.substitution (rewrite (pmap sigma-to-var (Shifts.left-extension _)) (rewrite subst-to-var (rewrite extend-substitution-left.on-end (rewrite transport_inv_id idp)))))))
+
+    \func over-identity
+      {env : FSignature} {context : List Sort} {s : Sort} {mc : MetaContext Sort}
+      (t : Term env context s mc)
+      : weakening t SubList.identity = t \elim t
+      | var index idp => var-extensionality (rewrite Shifts.over-identity idp)
+      | metavar m arguments => Term.mext (\lam index => over-identity (arguments index))
+      | func f arguments => Term.fext (\lam index => rewrite identity-invariant-over-right-extension (over-identity (arguments index)))
+  }
+
+\func transport-var-over-sort {env : FSignature} {context : List Sort} {s s' : Sort} {mc : MetaContext Sort}
+                              (seq : s = s')
+  (i : Index context) (eq : s = context !! i) : transport (Term env context __ mc) seq (var i eq) = var i (transport (__ = context !! i) seq eq) \elim seq
+  | idp => var-extensionality idp
+
+\func append-context-right
+  {env : FSignature} {old-context new-context : List Sort} {mc : MetaContext Sort}
+  (subst : Substitution old-context new-context mc)
+  {additional-context : List Sort}
+  (index : Index (old-context ++ additional-context))
+  : Term env (new-context ++ additional-context) ((old-context ++ additional-context) !! index) mc
+\elim old-context, index
+  | nil, index => weakening (var index idp) SubList.id+left
+  | :: a old-context, zero => weakening (subst 0) SubList.id+right
+  | :: a old-context, suc index => append-context-right (\lam i => subst (suc i)) index
+  \where {
+    \lemma on-begin
+      {env : FSignature} {old-context new-context : List Sort} {mc : MetaContext Sort}
+      {additional-context : List Sort}
+      (subst : Substitution old-context new-context mc)
+      (index : Index old-context)
+      :
+      append-context-right subst {additional-context} (expand-fin-left index)
+        =
+      weakening (transport (Term env new-context __ mc) (inv (expand-fin-left.correct index)) (subst index)) SubList.id+right
+    \elim old-context, index
+      | :: a old-context, 0 => idp
+      | :: a old-context, suc index => on-begin (\lam i => subst (suc i)) index
+
+    \lemma on-end
+      {env : FSignature} {old-context new-context : List Sort} {mc : MetaContext Sort}
+      {additional-context : List Sort}
+      (subst : Substitution old-context new-context mc)
+      (index : Index additional-context)
+      :
+      append-context-right subst {additional-context} (expand-fin-right index)
+        =
+      weakening (var index (expand-fin-right.correct index)) SubList.id+left
+    \elim old-context
+      | nil => idp
+      | :: a old-context => on-end (\lam i => subst (suc i)) index
+
+    \lemma to-identity
+      {env : FSignature} {old-context : List Sort} {mc : MetaContext Sort}
+      {additional-context : List Sort}
+      : append-context-right plain-identity = plain-identity {env} {old-context ++ additional-context} {mc} =>
+      ext (partial-fin-induction
+          (\lam i => append-context-right {_} {old-context} {_} {mc} plain-identity {additional-context} i = plain-identity i)
+          (\lam i1 => append-context-right.on-begin plain-identity i1 *>
+          rewrite weakening.over-transport-sort (rewrite transport-var-over-sort (var-extensionality (Shifts.over-right-single _))))
+          (\lam i1 => append-context-right.on-end plain-identity i1 *> var-extensionality (Shifts.over-left-single _)))
+
+    \lemma composition
+      {env : FSignature} {context-a context-res context-b context-c : List Sort} {mc : MetaContext Sort}
+      (subst : Substitution context-a context-res mc)
+      :
+      append-context-right (append-context-right subst)
+        =
+      transport2 (\lam ctx ctx' => \Pi (index : Index ctx) ->
+          Term env ctx' (ctx !! index) mc) (inv ++-assoc) (inv ++-assoc) (append-context-right subst {context-b ++ context-c}) =>
+      ext (partial-fin-induction
+          (\lam fin =>
+              append-context-right (append-context-right subst) fin =
+              transport2 (\lam ctx ctx' => \Pi (index : Index ctx) -> Term env ctx' (ctx !! index) mc) (inv ++-assoc) (inv ++-assoc) (append-context-right subst {context-b ++ context-c}) fin)
+          (\lam i1 => rewrite (append-context-right.on-begin, end-over-transport, end-over-transport-3, transport_inv_id) idp)
+          (\lam i1 => rewrite (append-context-right.on-end, end-over-transport, end-over-transport-2, transport_inv_id) idp))
+      \where {
+        \lemma end-over-transport
+          {env : FSignature} {context-a context-b context-res context-add : List Sort} {mc : MetaContext Sort}
+          (subst : Substitution context-a context-res mc)
+          (i1 : Index ((context-a ++ context-b) ++ context-add))
+          :
+          transport2 (\lam (ctx : List env.Sort) (ctx' : List env.Sort) => \Pi (index : Index ctx) -> Term env ctx' (ctx !! index) mc)
+              (inv ++-assoc) (inv ++-assoc) (append-context-right subst) i1  =
+          transport (\lam (ctx' : List env.Sort) => Term env ctx' (((context-a ++ context-b) ++ context-add) !! i1) mc)
+              (inv ++-assoc) (transport (\lam ctx => \Pi (index : Index ctx) -> Term env (context-res ++ context-b ++ context-add) (ctx !! index) mc) (inv ++-assoc) (append-context-right subst) i1) =>
+          rewriteI decompose-transport2 (lemma subst _ _ _)
+          \where {
+            \func lemma {env : FSignature} {big-context-al big-context-ar context-sl context-rl context-add : List Sort} {mc : MetaContext Sort}
+                        (subst : Substitution context-sl context-rl mc)
+                        (eq : context-sl ++ context-add = big-context-al)
+                        (eq' : context-rl ++ context-add = big-context-ar)
+                        (i1 : Index big-context-al) : transport (\lam (p0 : List env.Sort) =>
+                \Pi (index : Index p0) -> Term env big-context-ar (p0 !! index) mc) eq
+                (transport (\lam (p0 : List env.Sort) => \Pi (index : Index (context-sl ++ context-add)) ->
+                    Term env p0 ((context-sl ++ context-add) !! index) mc) eq' (append-context-right subst)) i1 = transport (\lam (ctx' : List env.Sort) => Term env ctx' (big-context-al !! i1) mc) eq'
+                                                                                                                      (transport (\lam (ctx : List env.Sort) =>
+                                                                                                                          \Pi (index : Index ctx) -> Term env (context-rl ++ context-add) (ctx !! index) mc) eq
+                                                                                                                          (append-context-right subst) i1) \elim eq, eq'
+              | idp, idp => idp
+          }
+
+        \func decompose-transport2
+          {A B : \Type} (C : A -> B -> \Type) {a a' : A} (eq : a = a') {b b' : B} (eq' : b = b') (x : C a b) : transport (C __ b') eq (transport (C a __) eq' x) = transport2 C eq eq' x \elim eq, eq'
+          | idp, idp => idp
+
+        \func end-over-transport-2
+          {env : FSignature} {context-a context-b context-res context-add : List Sort} {mc : MetaContext Sort}
+          (subst : Substitution context-a context-res mc)
+          (i1 : Index context-add)
+          : transport (\lam (ctx : List env.Sort) =>
+            \Pi (index : Index ctx) -> Term env (context-res ++ context-b ++ context-add) (ctx !! index) mc) (inv ++-assoc)
+            (append-context-right subst) (expand-fin-right i1) =
+        transport (Term env __ (((context-a ++ context-b) ++ context-add) !! expand-fin-right i1) mc) ++-assoc (weakening (var i1 (expand-fin-right.correct i1)) (SubList.extend-left-single SubList.identity))
+        \elim context-a
+          | nil => unfold transport
+              (transport (\lam vr => var vr.1 vr.2 =
+              coe (\lam i => Term env (++-assoc @ i) ((context-b ++ context-add) !! expand-fin-right i1) mc)
+                  (var (shift-index (SubList.extend-left-single SubList.identity) i1)
+                      (Shifts.proof (SubList.extend-left-single SubList.identity) i1 (expand-fin-right.correct i1))) right) (inv (Shifts.left-extension (expand-fin-right i1)))
+                  (rewrite (push-transport-into-var _ _ _).2 (var-extensionality (expansion-lemma {_} {context-res} {context-b} i1 *> idp))))
+          | :: a context-a => \let inductive => end-over-transport-2 {_} {_} {context-b} (\lam i => subst (suc i)) i1 \in transport-unifier _ _ _ _ *> inductive
+          \where {
+            \func expansion-lemma
+              {A : \Set} {context-a context-b context-c : List A}
+              (index : Index context-c) :
+              expand-fin-right {_} {context-a} (expand-fin-right {_} {context-b} index) =
+              transport (\lam ctx => Fin (length ctx)) ++-assoc
+                  (shift-index (SubList.extend-left-single SubList.identity) index) \elim context-a, context-b
+              | nil, nil => rewrite Shifts.over-identity idp
+              | nil, :: a context-b => unfold transport (transport (\lam (r : SubList context-c (a :: context-b ++ context-c)) => fsuc (expand-fin-right index) = shift-index r index) idp (rewrite Shifts.over-skip (pmap fsuc (inv (Shifts.over-left-single index)))))
+              | :: a context-a, context-b => rewrite (expansion-lemma {_} {context-a} index) (unassoc _ _)
+              \where {
+                \func unassoc {A : \Set} {context-a context-b context-c big-context : List A} {a : A}
+                              (eq : (context-a ++ context-b) ++ context-c = big-context)
+                              (index : Index context-c) : suc (coe (\lam (i : I) => Index (eq @ i))
+                    (shift-index (SubList.extend-left-single SubList.identity) index) right) =
+                transport (\lam (ctx : List A) => Index ctx) (path (\lam (i : I) => a :: eq @ i))
+                    (shift-index (sublist-skip {_} {_} {a} (SubList.extend-left-single SubList.identity)) index)
+                \elim eq
+                  | idp => unfold transport (rewrite Shifts.over-skip idp)
+              }
+          }
+
+        \func transport-unifier
+          {env : FSignature} {context-a context-b context-res context-add big-context-a : List Sort} {mc : MetaContext Sort}
+          (a : Sort)
+          (subst : Substitution (a :: context-a) context-res mc)
+          (i1 : Index big-context-a)
+          (eq : big-context-a = context-a ++ (context-b ++ context-add))
+          :
+          transport (\lam (ctx : List env.Sort) =>
+              \Pi (index : Index ctx) -> Term env (context-res ++ context-b ++ context-add) (ctx !! index) mc)
+              (inv (path (\lam (i : I) => a :: eq @ i))) (append-context-right subst) (suc i1) = transport (\lam (ctx : List env.Sort) =>
+              \Pi (index : Index ctx) -> Term env (context-res ++ context-b ++ context-add) (ctx !! index) mc) (inv eq)
+                                                                                                     (append-context-right (\lam (i : Index context-a) => subst (suc i))) i1 \elim eq
+          | idp => idp
+
+        \func push-transport-into-var
+          {env : FSignature} {s : Sort}
+          {context context' : List Sort}
+          (eq : context = context')
+          {ms : MetaContext Sort}
+          (index : Index context)
+          (eq' : s = context !! index)
+          : \Sigma (eqn : s = context' !! transport (\lam ctx => Index ctx) eq index) (transport (Term env __ s ms) eq (var index eq') = var (transport (\lam ctx => Index ctx) eq index) eqn) \elim eq
+          | idp => (eq', idp)
+
+        \func push-transport-into-var-2
+          {env : FSignature} {s s' : Sort}
+          {context : List Sort}
+          (eq : s = s')
+          {ms : MetaContext Sort}
+          (index : Index context)
+          (eq' : s = context !! index)
+          : transport (Term env context __ ms) eq (var index eq') = var index (inv eq <* eq') \elim eq
+          | idp => idp
+
+        \func end-over-transport-3
+          {env : FSignature} {context-a context-b context-res context-add : List Sort} {mc : MetaContext Sort}
+          (subst : Substitution context-a context-res mc)
+          (i2 : Index (context-a ++ context-b))
+          : transport (\lam (ctx : List env.Sort) =>
+            \Pi (index : Index ctx) -> Term env (context-res ++ context-b ++ context-add) (ctx !! index) mc) (inv ++-assoc)
+            (append-context-right subst) (expand-fin-left i2) =
+        transport (Term env __ _ mc) ++-assoc
+            (weakening (transport (Term env (context-res ++ context-b) __ mc) (inv (expand-fin-left.correct {_} {_} {context-add} i2)) (append-context-right subst i2)) (SubList.extend-right-single SubList.identity))
+        \elim context-a, context-b, i2
+          | nil, context-b, i2 => transport (\lam eqt => transport (\lam (ctx : List env.Sort) =>
+              \Pi (index : Index ctx) -> Term env (context-res ++ context-b ++ context-add) (ctx !! index) mc)
+              (path (\lam (_ : I) => context-b ++ context-add)) (\lam (index1 : Index (nil ++ context-b ++ context-add)) =>
+                  var (shift-index (SubList.extend-left-single SubList.identity) index1)
+                      (Shifts.proof (SubList.extend-left-single SubList.identity) index1 idp)) (expand-fin-left i2) =
+          transport (\lam (p0 : List env.Sort) => Term env p0 ((context-b ++ context-add) !! expand-fin-left i2) mc) ++-assoc
+              (weakening eqt
+                  (SubList.extend-right-single SubList.identity))) (inv (push-transport-into-var-2 _ _ _)) (rewrite (push-transport-into-var _ _ _).2 (var-extensionality (repeat {2} (rewrite Shifts.over-left-single) fin-transporting-lemma)))
+          | :: a context-a, context-b, 0 => equating-lemma a subst _
+          | :: a context-a, context-b, suc i2 => \let inductive => end-over-transport-3 {_} {_} {_} {context-res} {context-add} (\lam i => subst (suc i)) i2 \in transport-unifier _ _ _ _ *> inductive
+          \where {
+            \lemma fin-transporting-lemma {A : \Set} {context-a context-b context-c : List A} {i2 : Index context-b} :
+              expand-fin-right {_} {context-a} (expand-fin-left {_} {_} {context-c} i2) =
+              transport (\lam ctx => Index ctx) ++-assoc (shift-index (SubList.extend-right-single SubList.identity) (expand-fin-right i2)) \elim context-a,  i2
+              | nil, i2 => inv (Shifts.over-right-single i2)
+              | :: a context-a, i2 => rewrite fin-transporting-lemma (transport-unifier {_} {a})
+              \where {
+                \lemma transport-unifier {A : \Set} {x : A} {context-a context-b : List A} {f1 : Index context-b} {eq : context-b = context-a} : fsuc (transport (\lam ctx => Index ctx) eq f1) = transport (\lam ctx => Index ctx) (path (\lam (i : I) => x :: eq @ i)) (suc f1) \elim eq
+                  | idp => idp
+              }
+
+            \func equating-lemma
+              {env : FSignature} {context-a context-b context-res context-add big-context : List Sort} {mc : MetaContext Sort}
+              (a : Sort)
+              (subst : Substitution (a :: context-a) context-res mc)
+              (eq : big-context = context-a ++ (context-b ++ context-add))
+              : transport (\lam (ctx : List env.Sort) =>
+                \Pi (index : Index ctx) -> Term env (context-res ++ context-b ++ context-add) (ctx !! index) mc)
+                (inv (path (\lam (i : I) => a :: eq @ i))) (append-context-right subst) 0 =
+            transport (\lam (p0 : List env.Sort) => Term env p0 a mc) ++-assoc
+                (weakening (weakening (subst 0) (SubList.extend-right-single SubList.identity)) (SubList.extend-right-single SubList.identity)) \elim eq
+              | idp => subequating-lemma _ _
+              \where {
+                \lemma subequating-lemma
+                  {env : FSignature} {context-a context-b context-c : List Sort} {mc : MetaContext Sort}
+                  (a : Sort)
+                  (t : Term env context-a a mc)
+                  : weakening t (SubList.extend-right-single SubList.identity) =
+                transport (Term env __ a mc) ++-assoc
+                    (weakening (weakening t (SubList.extend-right-single SubList.identity {context-b})) (SubList.extend-right-single SubList.identity {context-c})) =>
+                  rewrite weakening.composition (rewrite weakening.over-transport-ctx (pmap (weakening t) Transports.rs-rs-to-rs.inv'2))
+              }
+          }
+      }
+
+    \func to-nil
+      {env : FSignature} {context-a context-b : List Sort} {mc : MetaContext Sort}
+      (subst : Substitution context-a context-b mc)
+      : subst = transport2 (\lam ctx ctx' => Substitution ctx ctx' mc) ++_nil ++_nil (append-context-right subst) =>
+      ext (\lam i => rewrite (inv (decompose-transport2 _ _ _ _), move-under-transport, transport-move, append-context-right-commute-with-transport, transport_id_inv, weakening.over-transport-ctx, Transports.extension-to-nil-right, transport_id_inv)  (inv (weakening.over-identity (subst i))))
+      \where {
+
+        \func decompose-transport2 {A B : \Type} (C : A -> B -> \Type) {a a' : A} (eq : a = a') {b b' : B} (eq' : b = b') (x : C a b) : transport (C a') eq' (transport (C __ b) eq x) = transport2 C eq eq' x \elim eq, eq'
+          | idp, idp => idp
+
+        \func move-under-transport
+          {env : FSignature} {context-a context-b context-c : List Sort} {mc : MetaContext Sort}
+          (subst : Substitution context-a context-b mc)
+          (eq : context-b = context-c)
+          (i : Index context-a)
+          : transport (Substitution context-a __ mc) eq subst i = transport (Term env __ (context-a !! i) mc) eq (subst i)
+        \elim eq
+          | idp => idp
+
+        \func indexing-exteded-list {A : \Type} {a : List A} (i : Index a)
+          : (a ++ nil) !! transport (\lam ctx => Index ctx) (inv ++_nil) i = a !! i => unifier i (inv ++_nil)
+          \where {
+            \func unifier {A : \Type} {a b : List A} (i : Index a) (eq : a = b): b !! transport Index eq i = a !! i \elim eq
+              | idp => idp
+          }
+
+        \func indexing-extended-list-2 {A : \Type} {a : List A} (fin : Index (a ++ nil))
+          : a !! transport (\lam ctx => Index ctx) ++_nil fin = (a ++ nil) !! fin => unifier _ _
+          \where {
+            \func unifier {A : \Type} {a b : List A} (fin : Index b) (eq : b = a) : a !! transport (\lam ctx => Index ctx) eq fin = b !! fin \elim eq | idp => idp
+          }
+
+        \func transport-move
+          {env : FSignature} {context new-context : List Sort} {mc : MetaContext Sort}
+          {subst : Substitution context new-context mc} (i : Index context)
+          : transport (\lam (p0 : List env.Sort) => Substitution p0 (new-context ++ nil) mc) ++_nil (append-context-right subst) i =
+        transport (Term env _ __ mc) (indexing-exteded-list i) (append-context-right subst (transport (\lam ctx => Index ctx) (inv ++_nil) i)) =>
+          generic-transport-move i ++_nil _
+
+        \func generic-transport-move
+          {env : FSignature} {context new-context inner-context add-context : List Sort} {mc : MetaContext Sort}
+          {subst : Substitution inner-context new-context mc}
+          (i : Index context)
+          (eq : inner-context ++ add-context = context)
+          (eq' : (inner-context ++ add-context) !! transport (\lam (ctx : List env.Sort) => Index ctx) (inv eq) i = context !! i)
+          : transport (Substitution __ (new-context ++ add-context) mc) eq (append-context-right subst) i =
+        transport (Term env _ __ mc) eq' (append-context-right subst (transport (\lam ctx => Index ctx) (inv eq) i))
+        \elim eq
+          | idp => \let q : eq' = idp => Path.inProp _ _ \in rewrite q idp
+
+        \func append-context-right-commute-with-transport
+          {env : FSignature} {context new-context : List Sort} {mc : MetaContext Sort} {subst : Substitution context new-context mc} (i : Index context)
+          :
+          append-context-right subst (transport (\lam (ctx : List env.Sort) => Index ctx) (inv ++_nil) i)
+            =
+          transport (Term env _ __ mc) (inv (indexing-exteded-list i)) (weakening (subst i) SubList.id+right) =>
+          \let q => partial-fin-induction
+              (\lam fin => append-context-right subst fin = weakening (transport (Term env _ __ mc) (indexing-extended-list-2 fin) (subst (transport (\lam ctx => Index ctx) ++_nil fin))) (SubList.extend-right-single SubList.identity))
+              (\lam i1 => rewrite append-context-right.on-begin (pmap (weakening __ _) (unifier _ _ (subst i1) *> inv (untransport subst ++_nil (expand-fin-left i1) i1 (unexpand-fin i1) (inv (indexing-exteded-list i1) *> pmap ((context ++ nil) !!) (unexpand-fin-2 i1)) (indexing-extended-list-2 (expand-fin-left i1))))))
+              (\lam i1 => contradiction)
+              (transport (\lam (ctx : List env.Sort) => Index ctx) (inv ++_nil) i)
+          \in q *> rewriteI weakening.over-transport-sort (pmap (weakening __ _) (untransport subst ++_nil (transport (\lam (ctx : List env.Sort) => Index ctx) (inv ++_nil) i) i (rewrite transport_id_inv idp) (inv (indexing-exteded-list _)) (indexing-extended-list-2 (transport (\lam (ctx : List env.Sort) => Index ctx) (inv ++_nil) i))))
+          \where {
+            \func untransport
+              {env : FSignature} {context context' new-context : List Sort} {s : Sort} {mc : MetaContext Sort}
+              (subst : Substitution context' new-context mc)
+              (eq2 : context = context')
+              (i : Index context)
+              (j : Index context')
+              (eqij : j = transport (\lam ctx => Index ctx) eq2 i)
+              (eq' : context' !! j = s)
+              (eq : context' !! transport (\lam ctx => Index ctx) eq2 i = s)
+              : transport (Term env new-context __ mc) eq (subst (transport (\lam ctx => Index ctx) eq2 i)) = transport (Term env new-context __ mc) eq' (subst j) \elim eq2
+              | idp => \case \elim i, \elim eqij, \elim eq \with {
+                | i, idp, eq => \let q : eq' = eq => Path.inProp _ _ \in rewrite q idp
+              }
+
+            \func unifier {env : FSignature} {context : List Sort} {s s' : Sort} {mc : MetaContext Sort} (eq1 eq2 : s = s') (t : Term env context s mc)
+              : transport (Term env context __ mc) eq1 t = transport (Term env context __ mc) eq2 t =>
+              \let q : eq1 = eq2 => Path.inProp _ _ \in rewrite q idp
+
+            \lemma unexpand-fin {A : \Type} {a : List A} (i1 : Index a)
+              : i1 = transport (\lam ctx => Index ctx) ++_nil (expand-fin-left i1) \elim a, i1
+              | :: a a1, 0 => add-lemma {_} {a} ++_nil
+              | :: a a1, suc i1 => suc-lemma {_} {a} ++_nil _ _ (unexpand-fin i1)
+              \where {
+                \func add-lemma {A : \Type} {x : A} {a b : List A} (eq : a = b) : 0 = {Index (x :: b)} transport (\lam ctx => Index ctx) (path (\lam (i : I) => x :: eq @ i)) 0 \elim eq
+                  | idp => idp
+
+                \func suc-lemma {A : \Type} {x : A} {a b : List A} (eq : a = b) (j : Index b) (k : Index a) (eq' : j = transport (\lam ctx => Index ctx) (path (\lam (i : I) => eq @ i)) k) : suc j = {Index (x :: b)} transport (\lam ctx => Index ctx) (path (\lam (i : I) => x :: eq @ i)) (suc k) \elim eq
+                  | idp => pmap fsuc eq'
+              }
+
+            \lemma unexpand-fin-2 {A : \Type} {a : List A} (i1 : Index a)
+              : transport (\lam ctx => Index ctx) (inv ++_nil) i1 = expand-fin-left i1 =>
+              pmap (transport (\lam ctx => Index ctx) (inv ++_nil)) (unexpand-fin i1) *> transport_inv_id (\lam ctx => Index ctx) ++_nil (expand-fin-left i1)
+          }
+      }
+  }
+
+\func extend-substitution-left
+  {env : FSignature} {left-context right-context some-context : List Sort} {mc : MetaContext Sort}
+  (sublist : SubList left-context some-context)
+  (chooser : Substitution right-context some-context mc)
+  (j : Index (left-context ++ right-context))
+  : Term env some-context ((left-context ++ right-context) !! j) mc
+\elim left-context, j
+  | nil, j => chooser j
+  | :: a left-context, 0 => weakening (var 0 idp) sublist
+  | :: a left-context, suc j => extend-substitution-left (SubList.shrink sublist) chooser j
+  \where {
+    \lemma on-begin
+      {env : FSignature} {left-context right-context some-context : List Sort} {mc : MetaContext Sort}
+      (sublist : SubList left-context some-context)
+      (subst : Substitution right-context some-context mc)
+      (j : Index left-context) : extend-substitution-left sublist subst (expand-fin-left j) = weakening (var j (expand-fin-left.correct j)) sublist \elim left-context, j
+      | :: a left-context, 0 => idp
+      | :: a left-context, suc j => on-begin (SubList.shrink sublist) subst j *> var-extensionality (Shifts.over-shrink _ _)
+
+    \lemma on-end
+      {env : FSignature} {left-context right-context some-context : List Sort} {mc : MetaContext Sort}
+      (sublist : SubList left-context some-context)
+      (subst : Substitution right-context some-context mc)
+      (j : Index right-context)
+      : extend-substitution-left sublist subst (expand-fin-right j) = transport (Term env some-context __ mc) (inv (expand-fin-right.correct j)) (subst j)
+    \elim left-context, j
+      | nil, j => idp
+      | :: a left-context, j => on-end (SubList.shrink sublist) subst j
+  }
+
+\func subst-to-var
+  {env : FSignature} {context wide-context : List Sort} {s : Sort} {ms : MetaContext Sort} (i : Index context) (eq : s = context !! i)
+  (subst : Substitution context wide-context ms)
+  : Substitution.apply (var i eq) subst = transport (Term env wide-context __ ms) (inv eq) (subst i) \elim eq
+  | idp => idp
+
+\func sigma-to-var {env : FSignature} {some-context : List Sort} {s : Sort} {msig : MetaContext Sort} (sig : \Sigma (ind : Index some-context) (s = some-context !! ind))
+  : Term env some-context s msig => var sig.1 sig.2
+
+\func var-extensionality
+  {env : FSignature} {context : List Sort} {s : Sort} {ms : MetaContext Sort}
+  {i1 i2 : Index context}
+  {p1 : s = context !! i1}
+  {p2 : s = context !! i2}
+  (eq : i1 = i2) : var {_} {_} {_} {ms} i1 p1 = var i2 p2 \elim eq
+  | idp => pmap (var i1) (Path.inProp _ _)
+
+\func subst-comm
+  {env : FSignature} {context-a context-b context-c : List Sort} {s : Sort} {mc : MetaContext Sort}
+  (subst-a : Substitution context-a context-b mc)
+  (subst-b : Substitution context-b context-c mc)
+  (t : Term env context-a s mc)
+  :
+  Substitution.apply (Substitution.apply t subst-a) subst-b
+    =
+  Substitution.apply t (\lam i => Substitution.apply (subst-a i) subst-b)
+\elim t
+  | var index idp => idp
+  | metavar m arguments => Term.mext (\lam index => subst-comm subst-a subst-b (arguments index))
+  | func f arguments => Term.fext (\lam index => subst-comm (append-context-right subst-a) (append-context-right subst-b) (arguments index) *> pmap (Substitution.apply (arguments index)) (ext (distribute-append-context-right subst-a subst-b)))
+  \where {
+    \func distribute-append-context-right
+      {env : FSignature} {context-a context-b context-c context-add : List Sort} {mc : MetaContext Sort}
+      (subst-a : Substitution context-a context-b mc)
+      (subst-b : Substitution context-b context-c mc)
+      (i : Index (context-a ++ context-add))
+      : Substitution.apply (append-context-right subst-a i) (append-context-right subst-b) = append-context-right (\lam i => Substitution.apply (subst-a i) subst-b) {context-add} i =>
+      partial-fin-induction
+          (\lam fin => Substitution.apply (append-context-right subst-a fin) (append-context-right subst-b) = append-context-right (\lam i => Substitution.apply (subst-a i) subst-b) {context-add} fin)
+          (\lam i1 => rewrite (append-context-right.on-begin,
+                               append-context-right.on-begin,
+                               weakening.combine-with-append-right,
+                               Substitution.over-transport-sort)
+              idp)
+          (\lam i1 => rewrite (append-context-right.on-end,
+                               append-context-right.on-end,
+                               pmap sigma-to-var (Shifts.left-extension-generic _ {_}).2,
+                               pmap sigma-to-var (Shifts.left-extension-generic _ {_}).2,
+                               subst-to-var,
+                               append-context-right.on-end,
+                               pmap sigma-to-var (Shifts.left-extension-generic _ {_}).2,
+                               transport-var-over-sort,
+                               var-extensionality idp)
+              idp)
+          i
+  }
+

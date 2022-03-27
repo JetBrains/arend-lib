@@ -84,7 +84,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
             ? factory.app(factory.ref(prelude.getPath().getRef()), true, Arrays.asList(typeArg.expression, arg1, arg2))
             : factory.app(factory.ref(prelude.getEquality().getRef()), true, Arrays.asList(arg1, arg2)));
         }
-        return new Result(factory.app(factory.ref(prelude.getAt().getRef()), true, Arrays.asList(arg, iRef)));
+        return new Result(factory.app(factory.ref(prelude.getAtRef()), true, Arrays.asList(arg, iRef)));
       }
     }
   }
@@ -177,15 +177,42 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
       return visit(conCall1, param);
     }
 
-    CoreParameter parameter = conCall1.getDefinition().getAllParameters();
-    if (!parameter.hasNext()) {
-      return new Result(null);
+    List<ConcreteArgument> args = new ArrayList<>();
+    boolean abstracted = visitArgs(conCall1.getDataTypeArguments(), conCall2.getDataTypeArguments(), Collections.singletonList(conCall1.getDefinition().getDataTypeParameters()), false, args);
+    abstracted = visitArgs(conCall1.getDefCallArguments(), conCall2.getDefCallArguments(), Collections.singletonList(conCall1.getDefinition().getParameters()), true, args) || abstracted;
+    return args.size() == conCall1.getDataTypeArguments().size() + conCall1.getDefCallArguments().size() ? new Result(abstracted ? factory.app(factory.ref(conCall1.getDefinition().getRef()), args) : null) : null;
+  }
+
+  @Override
+  public Result visitPath(@NotNull CorePathExpression expr, ParamType param) {
+    CoreExpression other = param.other.getUnderlyingExpression();
+    if (!(other instanceof CorePathExpression)) {
+      return visit(expr, param);
     }
 
-    List<ConcreteArgument> args = new ArrayList<>();
-    boolean abstracted = visitArgs(conCall1.getDataTypeArguments(), conCall2.getDataTypeArguments(), Collections.singletonList(parameter), false, args);
-    abstracted = visitArgs(conCall1.getDefCallArguments(), conCall2.getDefCallArguments(), Collections.singletonList(parameter), true, args) || abstracted;
-    return args.size() == conCall1.getDataTypeArguments().size() + conCall1.getDefCallArguments().size() ? new Result(abstracted ? factory.app(factory.ref(conCall1.getDefinition().getRef()), args) : null) : null;
+    CorePathExpression path2 = (CorePathExpression) other;
+    if (expr.getArgumentType() != null && path2.getArgumentType() != null) {
+      Result arg = expr.getArgumentType().accept(this, new ParamType(() -> new Result(null), path2.getArgumentType()));
+      if (arg == null) return null;
+      Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CorePathExpression) other).getArgument()));
+      return result == null ? null : new Result(arg.expression == null || result.expression == null ? null : factory.path(result.expression));
+    } else {
+      Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), path2.getArgument()));
+      return result == null || result.expression == null ? result : new Result(factory.path(result.expression));
+    }
+  }
+
+  @Override
+  public Result visitAt(@NotNull CoreAtExpression expr, ParamType param) {
+    CoreExpression other = param.other.getUnderlyingExpression();
+    if (!(other instanceof CoreAtExpression)) {
+      return visit(expr, param);
+    }
+    CoreAtExpression atExpr2 = (CoreAtExpression) other;
+    Result pathArg = expr.getPathArgument().accept(this, new ParamType(() -> new Result(null), atExpr2.getPathArgument()));
+    if (pathArg == null) return null;
+    Result intervalArg = expr.getIntervalArgument().accept(this, new ParamType(() -> new Result(null), atExpr2.getIntervalArgument()));
+    return intervalArg == null ? null : new Result(pathArg.expression == null || intervalArg.expression == null ? null : factory.at(pathArg.expression, intervalArg.expression));
   }
 
   private Result visitDefCall(@NotNull CoreDefCallExpression defCall1, ParamType param) {
@@ -296,16 +323,15 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   }
 
   @Override
-  public Result visitTypeCoerce(@NotNull CoreTypeCoerceExpression expr, ParamType param) {
+  public Result visitTypeConstructor(@NotNull CoreTypeConstructorExpression expr, ParamType param) {
     CoreExpression otherExpr = param.other.getUnderlyingExpression();
-    if (!(otherExpr instanceof CoreTypeCoerceExpression)) {
-      return visit(expr, param);
-    }
-    CoreTypeCoerceExpression other = (CoreTypeCoerceExpression) otherExpr;
-    if (expr.isFromLeftToRight() != other.isFromLeftToRight()) {
-      return visit(expr, param);
-    }
-    return expr.getArgument().accept(this, new ParamType(() -> new Result(null), other.getArgument()));
+    return otherExpr instanceof CoreTypeConstructorExpression ? expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CoreTypeConstructorExpression) otherExpr).getArgument())) : visit(expr, param);
+  }
+
+  @Override
+  public Result visitTypeDestructor(@NotNull CoreTypeDestructorExpression expr, ParamType param) {
+    CoreExpression otherExpr = param.other.getUnderlyingExpression();
+    return otherExpr instanceof CoreTypeDestructorExpression ? expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CoreTypeDestructorExpression) otherExpr).getArgument())) : visit(expr, param);
   }
 
   @Override
@@ -314,7 +340,8 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
     if (!(otherExpr instanceof CoreNewExpression)) {
       return visit(expr, param);
     }
-    return visitClassCall(expr.getClassCall(), new ParamType(() -> new Result(null), ((CoreNewExpression) otherExpr).getClassCall()));
+    Result result = visitClassCall(expr.getClassCall(), new ParamType(() -> new Result(null), ((CoreNewExpression) otherExpr).getClassCall()));
+    return result == null || result.expression == null ? result : new Result(factory.newExpr(result.expression));
   }
 
   @Override

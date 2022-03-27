@@ -6,8 +6,9 @@ import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.expr.*;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.lib.util.Pair;
+import org.arend.ext.util.Pair;
 import org.arend.lib.util.Values;
 import org.jetbrains.annotations.Nullable;
 
@@ -55,15 +56,16 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
   }
 
   private int addTerm(CoreExpression term, VarId parentVar, Queue<Pair<CoreExpression, Integer>> termsToSplit) {
+    var normTerm = term.normalize(NormalizationMode.WHNF);
     int numOfTerms = terms.getValues().size();
-    int termInd = terms.addValue(term);
+    int termInd = terms.addValue(normTerm);
 
     if (parentVar != null) {
       initAppExprVar(new VarId(termInd, -1), parentVar);
     }
 
     if (terms.getValues().size() != numOfTerms) {
-      termsToSplit.add(new Pair<>(term, termInd));
+      termsToSplit.add(new Pair<>(normTerm, termInd));
     }
 
     return termInd;
@@ -349,7 +351,14 @@ public class CongruenceClosure<V extends CoreExpression> implements BinaryRelati
     VarId var2 = new VarId(splitIntoSubterms(value2), -1);
 
     EqProofOrElement eqProof = checkEquality(var1, var2);
-    if (eqProof.eqProofOrElement != null) return eqProof.eqProofOrElement;
+    if (eqProof.eqProofOrElement != null) {
+      if (!eqProof.isElement) {
+        return eqProof.eqProofOrElement;
+      }
+      ConcreteFactory factory = equivalenceClosure.factory;
+      //return factory.app(equivalenceClosure.refl, Collections.singletonList(factory.arg(eqProof.eqProofOrElement, false)));
+      return equivalenceClosure.refl;
+    }
 
     if (congrTable.get(varHashCode(var1)).contains(var2)) {
       if (areCongruent(var1, var2, false)) {

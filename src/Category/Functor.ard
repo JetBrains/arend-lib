@@ -1,6 +1,7 @@
 \import Algebra.Meta
 \import Category
 \import Equiv \hiding (Map)
+\import Function.Meta
 \import Logic
 \import Logic.Meta
 \import Meta
@@ -12,7 +13,7 @@
   | Func-id {X : C} : Func (id X) = id (F X)
   | Func-o {X Y Z : C} {g : Hom Y Z} {f : Hom X Y} : Func (g ∘ f) = Func g ∘ Func f
 
-  \func op : Functor (opP C) (opP D) F \cowith
+  \func op : Functor C.op D.op F \cowith
     | Func f => Func f
     | Func-id => Func-id
     | Func-o => Func-o
@@ -53,6 +54,9 @@
   \func op : NatTrans G.op F.op \cowith
     | trans => trans
     | natural f => inv (natural f)
+
+  \lemma iso (e : \Pi {X : C} -> Iso (trans X)) : NatTrans G F (\lam X => e.inv) \cowith
+    | natural f => e.isMono $ rewrite (inv o-assoc, e.f_inv, id-left, inv o-assoc, natural f, o-assoc, e.f_inv, id-right) idp
 }
 
 \instance FunctorPrecat {C D : Precat} : Precat (Functor C D)
@@ -87,6 +91,27 @@
       | inv => e.inv X
       | inv_f => path (\lam i => trans {e.inv_f @ i} X)
       | f_inv => path (\lam i => trans {e.f_inv @ i} X)
+  }
+
+\instance FamPrecat {J : \Type} (D : Precat) : Precat (J -> D)
+  | Hom F G => \Pi {j : J} -> Hom (F j) (G j)
+  | id F {j} => id (F j)
+  | o g f {j} => g ∘ f
+  | id-left => ext (\lam {j} => id-left)
+  | id-right => ext (\lam {j} => id-right)
+  | o-assoc => ext (\lam {j} => o-assoc)
+
+\instance FamCat {J : \Type} (D : Cat) : Cat (J -> D)
+  | Precat => FamPrecat D
+  | univalence e => (ext (\lam j => (D.univalence (mapIso e j)).1), simp_coe (\lam {j} => (univalence (mapIso e j)).2))
+  \where {
+    \func mapIso {J : \Type} {D : Precat} (e : Iso {FamPrecat {J} D}) (j : J) : Iso {D} \cowith
+      | dom => e.dom j
+      | cod => e.cod j
+      | f => e.f
+      | inv => e.inv
+      | inv_f => path (e.inv_f @ __)
+      | f_inv => path (e.f_inv @ __)
   }
 
 \class FaithfulFunctor \extends Functor {

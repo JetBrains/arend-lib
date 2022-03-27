@@ -108,7 +108,7 @@ public class EqualitySolver extends BaseEqualitySolver {
   }
 
   private void initializeAlgebraSolver(TypedExpression instance, CoreClassCallExpression classCall) {
-    algebraSolver = classCall.getDefinition().isSubClassOf(meta.Semiring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Semiring)) || classCall.getDefinition().isSubClassOf(meta.BoundedDistributiveLattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.BoundedDistributiveLattice))
+    algebraSolver = meta.Semiring != null && classCall.getDefinition().isSubClassOf(meta.Semiring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Semiring)) || meta.BoundedDistributiveLattice != null && classCall.getDefinition().isSubClassOf(meta.BoundedDistributiveLattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.BoundedDistributiveLattice))
       ? new RingSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass, useHypotheses)
       : new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass, useHypotheses);
   }

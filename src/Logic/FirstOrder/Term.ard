@@ -1,0 +1,26 @@
+\import Data.Array
+\import Logic.Meta
+\import Paths
+\import Paths.Meta
+
+\class TermSig
+  | \coerce Sort : \Set
+  | Symb : Sort -> \Set
+  | domain {s : Sort} : Symb s -> Array Sort
+
+\data Term {S : TermSig} (V : S -> \Set) (s : S)
+  | var (V s)
+  | apply (f : Symb s) (DArray (\lam j => Term V (domain f j)))
+
+\func subst {S : TermSig} {U V : S -> \Set} {s : S} (t : Term U s) (rho : \Pi {s : S} -> U s -> Term V s) : Term V s \elim t
+  | var v => rho v
+  | apply f ts => apply f (\lam j => subst (ts j) rho)
+
+\lemma subst-assoc {S : TermSig} {U V W : S -> \Set} {s : S} (t : Term U s) (rho : \Pi {s : S} -> U s -> Term V s) (tau : \Pi {s : S} -> V s -> Term W s)
+  : subst (subst t rho) tau = subst t (\lam u => subst (rho u) tau) \elim t
+  | var u => idp
+  | apply f d => pmap (apply f) (exts (\lam j => subst-assoc (d j) rho tau))
+
+\lemma subst_var {S : TermSig} {V : S -> \Set} {s : S} (t : Term V s) : subst t var = t \elim t
+  | var v => idp
+  | apply f d => pmap (apply f) (exts (\lam j => subst_var (d j)))

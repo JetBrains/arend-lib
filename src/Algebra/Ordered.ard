@@ -5,6 +5,7 @@
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Data.Or
+\import Function.Meta
 \import Logic
 \import Meta
 \import Order.LinearOrder
@@ -13,9 +14,6 @@
 \import Paths.Meta
 
 \open Monoid(Inv)
-\open StrictPoset.Reasoning
-\open LinearOrder (trichotomy)
-\open AddGroup \hiding (cancel-left,cancel-right)
 
 \class OrderedAddMonoid \extends StrictPoset, AddMonoid {
   | <_+-left (z : E) {x y : E} : x < y -> x + z < y + z
@@ -53,11 +51,17 @@
   \lemma toNeg {x y : E} (x<y : x < y) : isNeg (x - y)
     => transport isPos (inv (negative_+ _ _ *> pmap (`- x) (negative-isInv y))) x<y
 
-  \lemma positive_negative {x : E} (x>0 : isPos x) : isNeg (negative x)
+  \lemma positive_negative' {x : E} (x>0 : isPos x) : isNeg (negative x)
     => transport isPos (inv (negative-isInv x)) x>0
 
-  \lemma negative_positive {x : E} (-x<0 : isNeg (negative x)) : isPos x
+  \lemma positive_negative {x : E} (x>0 : x > 0) : negative x < 0
+    => transport isPos (unfold (-) $ rewrite (negative-isInv,negative_zro) (zro-right *> inv zro-left)) x>0
+
+  \lemma negative_positive' {x : E} (-x<0 : isNeg (negative x)) : isPos x
     => transport isPos (negative-isInv x) -x<0
+
+  \lemma negative_positive {x : E} (x<0 : x < 0) : negative x > 0
+    => transport isPos (unfold (-) $ rewrite negative_zro (zro-left *> inv zro-right)) x<0
 } \where {
   \lemma diff_+ {A : AddGroup} {x y z : A} : (z - y) + (y - x) = z - x =>
     (z - y) + (y - x)          ==< +-assoc >==
@@ -110,6 +114,12 @@
     => \case <_*-cancel-left _ _ _ __ \with {
       | byLeft (x>0,_) => x<=0 x>0
       | byRight (_,z<y) => y<=z z<y
+    }
+
+  \lemma inv-positive (t : Inv {\this}) (p : t > 0) : t.inv > 0
+    => \case <_*-cancel-left t 0 t.inv (transport2 (<) (inv zro_*-right) (inv t.inv-right) zro<ide) \with {
+      | byLeft q => q.2
+      | byRight q => absurd (<-irreflexive (<-transitive p q.1))
     }
 
   \class Dec \extends LinearlyOrderedSemiring, LinearOrder.Dec {
@@ -174,7 +184,7 @@
 
   | negative_*-cancel {x y : E} : isNeg (x * y) -> (\Sigma (isPos x) (isNeg y)) || (\Sigma (isNeg x) (isPos y))
   | negative_*-cancel {x} {y} x*y<0 => ||.map (\lam t => (t.1, t.2))
-                                              (\lam t => (t.1, negative_positive t.2))
+                                              (\lam t => (t.1, negative_positive' t.2))
                                               (positive_*-cancel (transport isPos (inv (Ring.negative_*-right x y)) x*y<0))
 
   | positive_negative_* {x y : E} : isPos x -> isNeg y -> isNeg (x * y)
@@ -283,12 +293,22 @@
       | byLeft (x>0, _) => x>0
       | byRight (_, -y>0) => absurd (zro/>0 (transport isPos negative-right (positive_+ y>0 -y>0)))
     }
-} \where {
-  \open OrderedAddGroup(isNeg,toNeg,fromNeg,negative_positive)
 
+  \func denseOrder (t : Inv (1 + 1)) : UnboundedDenseLinearOrder \cowith
+    | LinearOrder => \this
+    | isDense {x} {z} x<z =>
+      \have | t>0 : t.inv > 0 => inv-positive t $ <-transitive zro<ide $ transport (`< _) zro-left (<_+-left 1 zro<ide)
+            | x2<x+z : x * (1 + 1) < x + z => rewrite (ldistr,ide-right) (<_+-right x x<z)
+            | x+z<z2 : x + z < z * (1 + 1) => rewrite (ldistr,ide-right) (<_+-left z x<z)
+      \in inP ((x + z) * t.inv,
+               transport (`< _) (*-assoc *> pmap (x *) t.inv-right *> ide-right) $ <_*_positive-left x2<x+z t>0,
+               transport (_ <)  (*-assoc *> pmap (z *) t.inv-right *> ide-right) $ <_*_positive-left x+z<z2 t>0)
+    | withoutUpperBound x => inP (x + 1, transport (`< _) zro-right $ <_+-right x zro<ide)
+    | withoutLowerBound x => inP (x - 1, transport (_ <) zro-right (<_+-right x (positive_negative zro<ide)))
+} \where {
   -- TODO: \use \level instead of \truncated
   \truncated \data Tri {A : OrderedAddGroup} (x : A) : \Prop
-    | triZro (x = 0)
+    | triZro (x = zro)
     | triPos (isPos x)
     | triNeg (isNeg x)
 

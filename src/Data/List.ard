@@ -2,10 +2,8 @@
 \import Algebra.Monoid
 \import Data.Or
 \import Function.Meta
-\import Logic
 \import Logic.Meta
 \import Meta
-\import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -117,13 +115,13 @@
         => aux a1 (a1 :: l1) l2 s
         \where
           \lemma aux {A : Dec} (a' : A) {a : A} (l1 l2 : List A) (s : Sorted (l1 ++ a :: l2)) : headDef a' (l1 ++ a :: l2) <= a \elim l1, s
-            | nil, sorted-cons _ s => <=-reflexive
+            | nil, sorted-cons _ s => <=-refl
             | :: a1 l1, sorted-cons a1<=h s => <=-transitive a1<=h (aux a1 l1 l2 s)
 
       \lemma headSorted {A : Dec} {l1 l2 : List A} (s : Sorted (l1 ++ l2)) : Sorted l1 \elim l1, s
         | nil, _ => sorted-nil
         | :: a l1, sorted-cons e s => sorted-cons (\case \elim l1, \elim e \with {
-          | nil, _ => <=-reflexive
+          | nil, _ => <=-refl
           | :: a1 l1, e => e
         }) (headSorted s)
 
@@ -154,7 +152,7 @@
       | :: a xs => insert-sorted a (sort-sorted xs)
       \where {
         \lemma insert-sorted {A : Dec} (a : A) {xs : List A} (s : Sorted xs) : Sorted (sort.insert a xs) \elim xs, s
-          | nil, _ => sorted-cons <=-reflexive sorted-nil
+          | nil, _ => sorted-cons <=-refl sorted-nil
           | :: a1 xs, sorted-cons p s1 \as s2 => mcases \with {
             | inl a1<a => sorted-cons (\case \elim xs, \elim p \with {
               | nil, _ => <=-less a1<a
@@ -184,23 +182,10 @@
             | less a<a' => aux a<a' l
             | equals a=a' => rewrite a=a' idp
             | greater a>a' => inv (aux a>a' l)
-          }
-          \where {
+          } \where {
             \lemma aux {A : Dec} {a a' : A} (a<a' : a < a') (l : List A) : insert a (insert a' l) = insert a' (insert a l) \elim l
-              | nil => mcases contradiction \with {
-                | inl _, inr _ => idp
-                | inr _, inl _ => idp
-              }
-              | :: a1 l => mcases {2} \with {
-                | inl a1<a => rewrite (dec<_reduce (<-transitive a1<a a<a'), dec<_reduce a1<a) $ pmap (a1 ::) (aux a<a' l)
-                | inr a<=a1 => run {
-                  rewrite (dec<_reduce a<a'),
-                  mcases \with {
-                    | inl a1<a' => rewrite (dec<=_reduce a<=a1) idp
-                    | inr a'<=a1 => rewrite (dec<=_reduce (<=-less a<a')) idp
-                  }
-                }
-              }
+              | nil => mcases (idp <|> contradiction)
+              | :: a1 l => repeat mcases (idp <|> contradiction <|> pmap (a1 ::) (aux a<a' l))
           }
       }
   }
