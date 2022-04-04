@@ -127,17 +127,20 @@
 \class Product \plevels obj >= hom {J : \Type} {D : Precat \levels (obj,hom) _} (G : J -> D) (\classifying apex : D) {
   | proj (j : J) : Hom apex (G j)
   | tupleMap {Z : D} (f : \Pi (j : J) -> Hom Z (G j)) : Hom Z apex
-  | tupleBeta {Z : D} (f : \Pi (j : J) -> Hom Z (G j)) (j : J) : proj j ∘ tupleMap f = f j
+  | tupleBeta {Z : D} {f : \Pi (j : J) -> Hom Z (G j)} {j : J} : proj j ∘ tupleMap f = f j
   | tupleEq {Z : D} {h1 h2 : Hom Z apex} : (\Pi (j : J) -> proj j ∘ h1 = proj j ∘ h2) -> h1 = h2
 
   \lemma isProduct (Z : D) : Equiv (\lam (h : Hom Z apex) => proj __ ∘ h) => \new QEquiv {
     | ret => tupleMap
-    | ret_f h => tupleEq (tupleBeta _)
-    | f_sec f => ext (tupleBeta f)
+    | ret_f h => tupleEq (\lam j => tupleBeta)
+    | f_sec f => ext (\lam j => tupleBeta)
   }
 
   \lemma tupleMapComp {W Z : D} (f : \Pi (j : J) -> Hom Z (G j)) (h : Hom W Z) : tupleMap f ∘ h = tupleMap (f __ ∘ h)
-    => tupleEq (\lam j => inv o-assoc *> pmap (`∘ h) (tupleBeta f j) *> inv (tupleBeta _ j))
+    => tupleEq (\lam j => inv o-assoc *> pmap (`∘ h) tupleBeta *> inv tupleBeta)
+
+  \lemma tupleEta {Z : D} {f : Hom Z apex} : tupleMap (\lam j => proj j ∘ f) = f
+    => tupleEq (\lam j => tupleBeta)
 
   \func toLimit : Limit {DiscretePrecat J} {D} \cowith
     | G => functor G
@@ -162,7 +165,7 @@
 
   \use \coerce fromLimit {J : \Type} {D : Precat \levels (obj,hom) _} (L : Limit {DiscretePrecat J} {D}) : Product L.G L.apex L.coneMap \cowith
     | tupleMap c => L.limMap (cone c)
-    | tupleBeta {z} f => L.limBeta _
+    | tupleBeta => L.limBeta _ _
     | tupleEq {z} {h1} {h2} f => inv (Equiv.ret_f {L.isLimit z} h1) *> pmap (Equiv.ret {L.isLimit z}) (exts f) *> Equiv.ret_f {L.isLimit z} h2
     \where {
       \func cone {J : \Type} {D : Precat} {Z : D} {G : Functor (DiscretePrecat J) D} (c : \Pi (j : J) -> Hom Z (G j)) : Cone G Z \cowith
@@ -412,11 +415,11 @@
      \in \new Limit {
       | apex => eql.apex
       | coneMap j => X.proj j ∘ eql.eql
-      | coneCoh {j} {j'} h => inv o-assoc *> inv (pmap (`∘ eql.eql) (Y.tupleBeta _ _)) *> o-assoc *> pmap (Y.proj (j,j',h) ∘) eql.equal *> inv o-assoc *> pmap (`∘ eql.eql) (Y.tupleBeta _ _)
+      | coneCoh {j} {j'} h => inv o-assoc *> inv (pmap (`∘ eql.eql) Y.tupleBeta) *> o-assoc *> pmap (Y.proj (j,j',h) ∘) eql.equal *> inv o-assoc *> pmap (`∘ eql.eql) Y.tupleBeta
       | isLimit Z => \new QEquiv {
-        | ret (c : Cone) => eql.eqMap (X.tupleMap c.coneMap) (Y.tupleMapComp _ _ *> pmap Y.tupleMap (ext (\lam j => o-assoc *> pmap (_ ∘) (X.tupleBeta _ _) *> c.coneCoh j.3 *> inv (X.tupleBeta _ _))) *> inv (Y.tupleMapComp _ _))
-        | ret_f h => eql.eqMono (eql.eqBeta _ _ *> path (\lam i => X.tupleMap (\lam j => o-assoc {_} {_} {_} {_} {_} {X.proj j} @ i)) *> X.tupleEq (X.tupleBeta _))
-        | f_sec (c : Cone) => exts (\lam j => o-assoc *> pmap (_ ∘) (eql.eqBeta _ _) *> X.tupleBeta c.coneMap j)
+        | ret (c : Cone) => eql.eqMap (X.tupleMap c.coneMap) (Y.tupleMapComp _ _ *> pmap Y.tupleMap (ext (\lam j => o-assoc *> pmap (_ ∘) X.tupleBeta *> c.coneCoh j.3 *> inv X.tupleBeta)) *> inv (Y.tupleMapComp _ _))
+        | ret_f h => eql.eqMono (eql.eqBeta _ _ *> path (\lam i => X.tupleMap (\lam j => o-assoc {_} {_} {_} {_} {_} {X.proj j} @ i)) *> X.tupleEq (\lam j => X.tupleBeta))
+        | f_sec (c : Cone) => exts (\lam j => o-assoc *> pmap (_ ∘) (eql.eqBeta _ _) *> X.tupleBeta)
       }
     }
 
@@ -461,10 +464,10 @@
     => pair (f ∘ proj1) (f' ∘ proj2)
 
   \lemma beta1 {x y z : Ob} (f : Hom z x) (g : Hom z y) : proj1 ∘ pair f g = f
-    => tupleBeta {Bprod x y} _ 0
+    => tupleBeta {Bprod x y}
 
   \lemma beta2 {x y z : Ob} (f : Hom z x) (g : Hom z y) : proj2 ∘ pair f g = g
-    => tupleBeta {Bprod x y} _ 1
+    => tupleBeta {Bprod x y}
 
   \lemma pair-unique {x y z : Ob} {h1 h2 : Hom z (Bprod x y)} (p1 : proj1 ∘ h1 = proj1 ∘ h2) (p2 : proj2 ∘ h1 = proj2 ∘ h2) : h1 = h2
     => tupleEq (\case \elim __ \with {
@@ -501,7 +504,7 @@
       | 1 => pbProj2
     }
     | tupleMap f => pbMap (f 0) (f 1) $ tupleEq (\case __)
-    | tupleBeta f => \case \elim __ \with {
+    | tupleBeta {_} {_} {j} => \case \elim j \with {
       | 0 => pbBeta1
       | 1 => pbBeta2
     }
@@ -570,6 +573,15 @@
     | limit (G : Functor) => colimit G.op
     | colimit (G : Functor) => limit G.op
 }
+
+\func PreservesLimit {J C D : Precat} (G : Functor C D) (F : Functor J C)
+  => \Pi (L : Limit F) -> Limit { | Cone => Cone.map G L }
+
+\func ReflectsLimit {J C D : Precat} (G : Functor C D) (F : Functor J C)
+  => \Pi (c : Cone F) -> Limit { | Cone => Cone.map G c } -> Limit { | Cone => c }
+
+\func CreatesLimit {J C D : Precat} (G : Functor C D) (F : Functor J C)
+  => Limit (Comp G F) -> \Sigma (Limit F) (PreservesLimit G F) (ReflectsLimit G F)
 
 \func isRegularMono {C : Precat} {x y : C} (f : Hom x y) => TruncP (Equalizer { | D => C | X => y | apex => x | eql => f })
 

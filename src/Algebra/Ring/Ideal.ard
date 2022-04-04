@@ -9,6 +9,9 @@
 \import Arith.Nat
 \import Combinatorics.Binom
 \import Data.Array
+\import Data.Bool
+\import Data.Maybe
+\import Equiv
 \import Logic
 \import Logic.Meta
 \import Meta
@@ -60,11 +63,21 @@
     | :: a l => sub-+ (p 0) (bigSum l (\lam i => p (suc i)))
 } \where {
   \func closure {R : CRing} {J : \Set} (g : J -> R) : Ideal {R} \cowith
-    | S e => ∃ (l : Array (\Sigma R J)) (e = BigSum (map (\lam (c,j) => c * g j) l))
+    | S e => ∃ (l : Array (\Sigma R J)) (e = BigSum (map (\lam p => p.1 * g p.2) l))
     | sub-zero => inP (nil,idp)
     | sub-+ (inP (l,p)) (inP (l',p')) => inP (l ++ l', pmap2 (+) p p' *> inv (pmap BigSum (map_++ (later (\lam (c,j) => c * g j))) *> BigSum_++))
     | ideal-left {r} (inP (l,p)) => inP (map (\lam (c,j) => (r * c, j)) l, pmap (r *) p *> Ring.Big-ldistr *> path (\lam i => BigSum (map (\lam (c,j) => inv (R.*-assoc {r} {c} {g j}) @ i) l)))
 
   \lemma closure-superset {R : CRing} {J : \Set} {g : J -> R} (j : J) : closure g (g j)
     => inP ((1,j) :: nil, equation)
+
+  \func closure1 {R : CRing} (a : R) : Ideal {R}
+    => closure (\lam (_ : \Sigma) => a)
+
+  \lemma closure1-lem {R : CRing} {a b : R} : closure1 a b <-> ∃ (c : R) (b = a * c)
+    => (\lam (inP (l,b=sl)) => inP (BigSum (map __.1 l), b=sl *> inv (R.Big-rdistr {a} {map __.1 l})  *> *-comm), \lam (inP (c,b=ac)) => inP ((c,()) :: nil, b=ac *> *-comm *> inv zro-right))
+
+  -- TODO: It is probably a good idea to prove this for all finite sets, not only Bool, and then derive this as a special case.
+  \lemma closure2-lem {R : CRing} {a : R} (f : Bool -> R) : closure f a <-> ∃ (c d : R) (a = f true * c + f false * d)
+    => (\lam (inP (l,a=sl)) => inP (BigSum (filterMap (\lam p => if p.2 (just p.1) nothing) l), BigSum (filterMap (\lam p => if p.2 nothing (just p.1)) l), a=sl *> {?}), \lam (inP (c,d,p)) => inP ((c, true) :: (d, false) :: nil, p *> pmap2 (+) *-comm (*-comm *> inv zro-right)))
 }
