@@ -460,7 +460,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
     CoreParameterBuilder parameterBuilder = typechecker.newCoreParameterBuilder();
     for (CoreParameter bodyParameter : bodyParameters) {
-      parameterBuilder.addCopyLast(bodyParameter);
+      parameterBuilder.addCopyLast(bodyParameter, true);
     }
     CoreParameter additionalParameters = null;
     if (!additionalArgs.isEmpty()) {
