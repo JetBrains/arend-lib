@@ -623,6 +623,12 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           if (removedArgs.get(j) != null) {
             subst = factory.core(removedArgs.get(j));
           } else {
+            CoreBinding binding = parameter.getTypeExpr().findFreeBindings(matchedParams);
+            if (binding != null) {
+              errorPair = new Pair<>(parameter, binding);
+              if (needSubst) break;
+            }
+
             Integer index = data.argsReindexing.get(j);
             Pair<Integer, Integer> pair = index == null ? new Pair<>(i, k++) : findArgument(dataList, index);
             ArendRef ref = argRefs.get(new Pair<>(pair.proj1 + dataList.size() - resultDataList.size(), pair.proj2));
@@ -631,11 +637,6 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
               needSubst = true;
               if (errorPair != null) break;
             } else {
-              CoreBinding binding = parameter.getTypeExpr().findFreeBindings(matchedParams);
-              if (binding != null) {
-                errorPair = new Pair<>(parameter, binding);
-                if (needSubst) break;
-              }
               subst = factory.core(dataList.get(pair.proj1).matchedArgs.get(pair.proj2));
             }
             matchedParams.add(parameter.getBinding());
