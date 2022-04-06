@@ -1,5 +1,5 @@
 \import Algebra.Meta
-\import ARS.Relation
+\import Logic.Rewriting.ARS.Relation
 \import Data.List (!!, ++, ++_nil, ++-assoc, List, nil, ::)
 \import Data.Fin
 \import Data.Maybe
@@ -12,13 +12,13 @@
 \import Paths
 \import Paths.Meta
 \import Set
-\import TRS.HRS
-\import TRS.Linearity
-\import TRS.MetaContexts
-\import TRS.Substitutions
-\import TRS.Union
-\import TRS.Union.Colors
-\import TRS.Union.TopLevel
+\import Logic.Rewriting.TRS.HRS
+\import Logic.Rewriting.TRS.Linearity
+\import Logic.Rewriting.TRS.MetaContexts
+\import Logic.Rewriting.TRS.Substitutions
+\import Logic.Rewriting.TRS.Union
+\import Logic.Rewriting.TRS.Union.Colors
+\import Logic.Rewriting.TRS.Union.TopLevel
 \open TheoremContext
 
 \data TopLevelColoredReduction {tc : TheoremContext}
@@ -708,7 +708,6 @@
   \let | common-reduction i => unfold-bpr f.1 (arguments-A i) (arguments-B i) (tlcrs i).2
        | ind-last =>
          modular-induction
-             (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc)
              (\lam curmed => \Sigma (someColor : Maybe Color) (SwitchingReduction gc someColor (func f curmed) C))
              arguments-B
              (\lam i => (common-reduction i).1)
@@ -727,21 +726,19 @@
       (arguments-B midterms : \Pi (index : Index (domain f)) -> Term env (context ++ f env.!!domain index) (f env.!!sort index) mc)
       (delim : Index (domain f))
       (prev-rd-cl : Maybe Color)
-      (pred-rd-cwr : SwitchingReduction gc prev-rd-cl (func f (\new DArray { | at => modular-function
-          (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc)
-          arguments-B midterms delim })) C)
+      (pred-rd-cwr : SwitchingReduction gc prev-rd-cl (func f (\new DArray { | at => modular-function arguments-B midterms delim })) C)
       (point-rd-cl : Maybe Color)
       (point-coherence : (point-rd-cl = nothing) `Or` (point-rd-cl = just f.1))
       (point-rd-cwr : SwitchingReduction gc point-rd-cl (midterms delim) (arguments-B delim)) :
       \Sigma (someColor : Maybe Color)
-             (SwitchingReduction gc someColor (func f (\new DArray { | at => modular-function (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc) arguments-B midterms (suc delim) })) C)
+             (SwitchingReduction gc someColor (func f (\new DArray { | at => modular-function arguments-B midterms (suc delim) })) C)
     \elim prev-rd-cl, pred-rd-cwr, point-rd-cl, point-coherence, point-rd-cwr
       | nothing, cr-skip p, nothing, point-coherence, cr-skip p1
-      => (nothing, cr-skip (pmap (func f) (ext (inv (modular-function.modular-bridge (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc) arguments-B midterms delim (inv p1)))) *> p))
+      => (nothing, cr-skip (pmap (func f) (ext (inv (modular-function.modular-bridge arguments-B midterms delim (inv p1)))) *> p))
       | nothing, cr-skip p, just color, inl (), _
       | nothing, cr-skip idp, just color, inr b, cr-rewrite ind1~>ind' idp => (just gc, cr-rewrite (upgrade-iterated-reduction f (just-injective (inv b)) arguments-B midterms delim ind1~>ind') idp)
       | just color, cr-rewrite tlcr p, nothing, point-coherence, cr-skip p1
-      => (just color, cr-rewrite (rewrite (inv (modular-function.modular-bridge (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc) arguments-B midterms delim (inv p1))) tlcr) p)
+      => (just color, cr-rewrite (rewrite (inv (modular-function.modular-bridge arguments-B midterms delim (inv p1))) tlcr) p)
       | just color, cr-rewrite before~>C idpr, just color1, inl (), _
       | just color, cr-rewrite before~>C idp, just color1, inr b, cr-rewrite ind1~>ind' idp =>
         (just gc, cr-rewrite (Closure.compose (upgrade-iterated-reduction f (just-injective (inv b)) arguments-B midterms delim ind1~>ind') before~>C) idp)
@@ -755,32 +752,24 @@
       (index : Index (domain f))
       (rd : Closure (TopLevelColoredReduction gc) (arguments-B index) (arguments-A index))
       : Closure (TopLevelColoredReduction gc)
-        (func f (\new DArray { | at => modular-function (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc) arguments-A arguments-B (suc index) }))
-        (func f (modular-function (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc) arguments-A arguments-B index)) =>
-      \let | modular => modular-function
-          (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc)
-          arguments-A arguments-B index
+        (func f (\new DArray { | at => modular-function arguments-A arguments-B (suc index) }))
+        (func f (modular-function arguments-A arguments-B index)) =>
+      \let | modular => modular-function arguments-A arguments-B index
            | some' => insert-term f modular index (arguments-B index)
            | mapped => Closure.lift {_} {_}
                {TopLevelColoredReduction gc {mc} {context ++ f env.!!domain index} {f env.!!sort index}}
                {TopLevelColoredReduction gc {mc} {context} {s}}
                (insert-term f modular index)
-               (\lam rel => rewrite-with-parameter-f-colored idp eq index (rewrite pointed-function.at-index (rewrite pointed-function.at-index rel)) (\lam j j-not-index => rewrite (pointed-function.not-at-index _ modular index _ j j-not-index) (rewrite (pointed-function.not-at-index _ modular index _ j j-not-index) idp)))
+               (\lam rel => rewrite-with-parameter-f-colored idp eq index (rewrite pointed-function.at-index (rewrite pointed-function.at-index rel)) (\lam j j-not-index => rewrite (pointed-function.not-at-index modular index _ j j-not-index) (rewrite (pointed-function.not-at-index modular index _ j j-not-index) idp)))
                (arguments-B index) (arguments-A index)
                rd
-      \in rewrite (modular-to-pointed-forward (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc) arguments-A arguments-B) (rewrite {2} (modular-to-pointed (\lam index => Term env (context ++ f env.!!domain index) (f env.!!sort index) mc) arguments-A arguments-B) mapped)
+      \in rewrite (modular-to-pointed-forward arguments-A arguments-B) (rewrite {2} (modular-to-pointed arguments-A arguments-B) mapped)
 
     \func insert-term {env : FSignature} {context : List Sort} {s : Sort} {ms : MetaContext Sort} (f : symbol s)
                       (arguments : \Pi (index : Index (domain f)) -> Term env (context ++ (f FSignature.!!domain index)) (f FSignature.!!sort index) ms)
                       (index : Index (domain f))
                       (point : Term env (context ++ (f FSignature.!!domain index)) (f FSignature.!!sort index) ms)
-      : Term env context s ms =>
-      func f
-          (pointed-function
-              (\lam index => Term env (context ++ (f FSignature.!!domain index)) (f FSignature.!!sort index) ms)
-              arguments
-              index
-              point)
+      : Term env context s ms => func f (pointed-function arguments index point)
 
     \func unfold-bpr
       {tc : TheoremContext} {context : List Sort'} {s : Sort'} {mc : MetaContext Sort'}
