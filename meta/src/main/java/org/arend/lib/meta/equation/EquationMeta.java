@@ -22,22 +22,27 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 
 public class EquationMeta extends BaseMetaDefinition {
-  final StdExtension ext;
+  public final StdExtension ext;
 
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
   @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
   @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
 
-  @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition Monoid;
+  @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition Monoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition CMonoid;
-  @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition AddMonoid;
+  @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition AddMonoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition AbMonoid;
-  @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    CoreClassField mul;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    public CoreClassField mul;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.ide-left") public CoreClassField ideLeft;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.ide-right") public CoreClassField ideRight;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.+") public CoreClassField plus;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-right") public CoreClassField addMonZroRight;
+  @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-left") public CoreClassField addMonZroLeft;
+
+  @Dependency(module = "Algebra.Group", name = "Group.inverse") public CoreClassField inverse;
 
   @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")         CoreClassDefinition MSemilattice;
   @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")            CoreClassField meet;
@@ -110,14 +115,20 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver", name = "RingData.interpret")        CoreFunctionDefinition ringInterpret;
   @Dependency(module = "Algebra.Ring.Solver", name = "gensZeroToIdealZero")       CoreFunctionDefinition gensZeroToIdealZero;
 
+  @Dependency(module = "Algebra.Group")                                    public CoreClassDefinition AddGroup;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative")       public CoreClassField negative;
   @Dependency(module = "Algebra.Group", name = "AddGroup.fromZero")       public CoreFunctionDefinition fromZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.toZero")         public CoreFunctionDefinition toZero;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.negative-isInv")    public CoreFunctionDefinition negIsInv;
   @Dependency(module = "Algebra.Semiring")                                public CoreClassDefinition Semiring;
   @Dependency(module = "Algebra.Ring")                                    public CoreClassDefinition Ring;
   @Dependency(module = "Algebra.Semiring", name = "Semiring.natCoef")     public CoreClassField natCoef;
   @Dependency(module = "Algebra.Semiring", name = "Semiring.zro_*-right") public CoreClassField zeroMulRight;
+  @Dependency(module = "Algebra.Semiring", name = "Semiring.zro_*-left")  public CoreClassField zeroMulLeft;
   @Dependency(module = "Algebra.Ring", name = "Ring.intCoef")             public CoreFunctionDefinition intCoef;
+  @Dependency(module = "Algebra.Ring", name = "Ring.negative_*-left")     public CoreFunctionDefinition negMulLeft;
+  @Dependency(module = "Algebra.Ring", name = "Ring.negative_*-right")    public CoreFunctionDefinition negMulRight;
+
 
   @Dependency(module = "Equiv")                                  public CoreClassDefinition Equiv;
   @Dependency(module = "Equiv")                                  public CoreClassDefinition QEquiv;
