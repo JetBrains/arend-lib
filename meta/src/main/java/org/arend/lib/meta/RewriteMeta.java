@@ -63,16 +63,7 @@ public class RewriteMeta extends BaseMetaDefinition {
   }
 
   private EquationSolver.SubexprOccurrences matchSubexpr(CoreExpression subExpr, CoreExpression expr, ExpressionTypechecker tc, ConcreteReferenceExpression refExpr, List<Integer> occurrences, ConcreteFactory factory) {
-    /*
-    var solver = new EqualitySolver(ext.equationMeta, tc, factory, refExpr);
-    solver.setValuesType(expr.computeType());
-    solver.setUseHypotheses(false);
-    solver.initializeSolver(); /**/
     var result = solver.matchSubexpr(subExpr.computeTyped(), expr.computeTyped(), tc.getErrorReporter(), occurrences);
-    /*if (result.doesExist()) {
-      result.equalityProof = factory.core(solver.finalize(result.equalityProof));
-      result.exprWithOccurrences = factory.core(solver.finalize(result.exprWithOccurrences));
-    }/**/
     return result;
   }
 
@@ -83,7 +74,6 @@ public class RewriteMeta extends BaseMetaDefinition {
     private final CoreExpression subExprType;
     private final ConcreteFactory factory;
 
-    // private int occurCounter = 0;
     private List<Integer> occurrences;
     private final List<Pair<EquationSolver.SubexprOccurrences, CoreExpression>> foundOccurrences = new ArrayList<>();
     private final List<Integer> exactMatches = new ArrayList<>();
@@ -196,7 +186,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     }
   }
 
-  private static class EqProofConcrete {
+  public static class EqProofConcrete {
     public ConcreteExpression proof;
     public ConcreteExpression left;
     public ConcreteExpression right;
@@ -206,9 +196,13 @@ public class RewriteMeta extends BaseMetaDefinition {
       this.left = left;
       this.right = right;
     }
+
+    public EqProofConcrete inverse(ConcreteFactory factory, StdExtension ext) {
+      return new EqProofConcrete(factory.appBuilder(factory.ref(ext.inv.getRef())).app(proof).build(), right, left);
+    }
   }
 
-  private ConcreteExpression chainOfTransports(ConcreteExpression transport, CoreExpression type, List<EqProofConcrete> eqProofs, ConcreteExpression term, ConcreteFactory factory, ExpressionTypechecker typechecker) {
+  public static ConcreteExpression chainOfTransports(ConcreteExpression transport, CoreExpression type, List<EqProofConcrete> eqProofs, ConcreteExpression term, ConcreteFactory factory, StdExtension ext) {
     var result = term;
     var curType = type; //typechecker.typecheck(type, null);
     List<CoreBinding> paramList = new ArrayList<>();
@@ -428,7 +422,7 @@ public class RewriteMeta extends BaseMetaDefinition {
       return null;
     }
 
-    term = chainOfTransports(transport, checkedLam.getExpression(), eqProofs, term, factory, typechecker);
+    term = chainOfTransports(transport, checkedLam.getExpression(), eqProofs, term, factory, ext);
 
     if (term == null) return null;
 

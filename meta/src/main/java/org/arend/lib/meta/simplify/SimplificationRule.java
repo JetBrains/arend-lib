@@ -2,12 +2,22 @@ package org.arend.lib.meta.simplify;
 
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.typechecking.TypedExpression;
-import org.arend.lib.util.Pair;
+import org.arend.ext.util.Pair;
+import org.arend.lib.meta.RewriteMeta;
 
 public interface SimplificationRule {
+  /*class MaybeTypedConcreteExpr {
+    public ConcreteExpression expression;
+    public TypedExpression typed;
+
+    public MaybeTypedConcreteExpr(ConcreteExpression expression, TypedExpression typed) {
+      this.expression = expression;
+      this.typed = typed;
+    }
+  } */
+
   /**
-   * @param expression
-   * @return Pair (simplifiedExpr, p : simplifiedExpr = expression)
+   * @return Pair (simplifiedExpr, p : simplifiedExpr = expression). Null if expression cannot be simplified.
    */
-  Pair<ConcreteExpression, ConcreteExpression> apply(TypedExpression expression);
+  RewriteMeta.EqProofConcrete apply(TypedExpression expression);
 }

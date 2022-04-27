@@ -25,6 +25,7 @@ import org.arend.lib.meta.debug.PrintMeta;
 import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
+import org.arend.lib.meta.simplify.SimplifyMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -196,6 +197,11 @@ public class StdExtension implements ArendExtension {
                     "Similarly to `rewrite` this meta allows specification of occurrence numbers. \n" +
                     "Currently this meta supports noncommutative monoids and categories.",
             Precedence.DEFAULT, new RewriteMeta(this, false, true, true));
+    contributor.declare(paths, new LongName("simplify"),
+            "`simplify (t : Ts) : T` generates an element in `T` using an element `t` in a simplification `Ts` of `T`.\n" +
+                    "For example, `simplify idp : a = a * ide`. \n" +
+                    "Currently this meta eliminates multiplications by `ide` in noncommutative monoids.",
+            Precedence.DEFAULT, new SimplifyMeta(this));
     contributor.declare(paths, new LongName("simp_coe"),
       "Simplifies certain equalities. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
       "* If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right a = b'`, then the subgoal is `coe (B a) (f a) right = b`.\n" +
