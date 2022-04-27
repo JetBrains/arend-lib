@@ -1,0 +1,79 @@
+\import Category
+\import Category.Limit
+\import Equiv \hiding (Map)
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+
+\truncated \data Subobj {C : Precat} (obj : C) : \Set
+  | subobj (sub : C) (Mono {C} {sub} {obj})
+
+\instance SubobjPreorder {C : Precat} (obj : C) : Preorder (Subobj obj)
+  | <= (subobj s f) (subobj t g) => ∃ (h : Hom s t) (Mono.f {g} ∘ h = f)
+  | <=-refl {subobj s f} => inP (id s, id-right)
+  | <=-transitive {subobj s1 f1} {subobj s2 f2} {subobj s3 f3} (inP (f,s2f=s1)) (inP (g,s3g=s2)) => inP (g ∘ f, rewriteEq s3g=s2 s2f=s1)
+  \where {
+    \lemma extractMap {C : Precat} {obj s t : C} {f : Hom s obj} {g : Hom t obj} (gm : Mono g) (e : ∃ (h : Hom s t) (g ∘ h = f)) : \Sigma (h : Hom s t) (g ∘ h = f)
+      => TruncP.remove (\lam p q => ext $ gm.isMono $ p.2 *> inv q.2) e
+
+    \func antisymmetric {C : Precat} {obj s t : C} {f : Hom s obj} (fm : Mono f) {g : Hom t obj} (gm : Mono g) (e1 : ∃ (h : Hom s t) (g ∘ h = f)) (e2 : ∃ (h : Hom t s) (f ∘ h = g)) : Iso {C} {s} {t}
+      => \have | p1 => extractMap gm e1
+               | p2 => extractMap fm e2
+         \in \new Iso {
+           | f => p1.1
+           | inv => p2.1
+           | inv_f => fm.isMono $ rewriteEq p2.2 $ p1.2 *> inv id-right
+           | f_inv => gm.isMono $ rewriteEq p1.2 $ p2.2 *> inv id-right
+         }
+  }
+
+\truncated \data RegularSubobj {C : Precat} (obj : C) : \Set
+  | regSubobj {sub : C} (f : Hom sub obj) (isRegularMono f)
+
+\instance RegularSubobjPreorder {C : Precat} (obj : C) : Preorder (RegularSubobj obj)
+  | <= (regSubobj {s} f _) (regSubobj {t} g _) => ∃ (h : Hom s t) (g ∘ h = f)
+  | <=-refl {regSubobj {s} f _} => inP (id s, id-right)
+  | <=-transitive {regSubobj f1 _} {regSubobj f2 _} {regSubobj f3 _} (inP (f,s2f=s1)) (inP (g,s3g=s2)) => inP (g ∘ f, rewriteEq s3g=s2 s2f=s1)
+
+\lemma pullback_regularSubobj-isMeet {C : CartesianPrecat} (P : Pullback {C}) (fm : isRegularMono P.f) (gm : isRegularMono P.g)
+  : Preorder.IsMeet (regSubobj P.f fm) (regSubobj P.g gm) (regSubobj (P.f ∘ pbProj1) (pullback-isRegularMono P fm gm))
+  => {?}
+  \where {
+    \open CartesianPrecat
+
+    \lemma pullback-isRegularMono {C : CartesianPrecat} (P : Pullback {C}) (fm : isRegularMono P.f) (gm : isRegularMono P.g) : isRegularMono (P.f ∘ pbProj1) \elim fm, gm
+      | inP (fe : Equalizer) \as fm, inP (ge : Equalizer) \as gm => inP (\new Equalizer {
+        | Y => Bprod fe.Y ge.Y
+        | f => pair fe.f ge.f
+        | g => pair fe.g ge.g
+        | equal => pair-comp *> pmap2 pair (later $ rewriteEq fe.equal o-assoc) (later $ rewrite P.pbCoh $ rewriteEq ge.equal o-assoc) *> inv pair-comp
+        | isEqualizer => Equalizer.mono=>equalizer (Mono.comp (regularMono_Mono fm) (regularMono_Mono $ regularMono_pullback P gm)) (\lam {w} h p =>
+            \have | (inP (m1,q1)) => ESEquiv.isSurj {ESEquiv.fromEquiv $ fe.isEqualizer w} $ later (h, rewriteEqF (beta1 fe.f ge.f, beta1 fe.g ge.g) (pmap (proj1 ∘) p))
+                  | (inP (m2,q2)) => ESEquiv.isSurj {ESEquiv.fromEquiv $ ge.isEqualizer w} $ later (h, rewriteEqF (beta2 fe.f ge.f, beta2 fe.g ge.g) (pmap (proj2 ∘) p))
+                  | p1 => pmap __.1 q1
+                  | p2 => pmap __.1 q2
+            \in inP (pbMap m1 m2 (p1 *> inv p2), rewriteEq P.pbBeta1 p1))
+      })
+  }
+
+\func regularSubobj_meet-pullback {C : FinCompletePrecat} {x y z w : C} {f : Hom x z} (fm : isRegularMono f) {g : Hom y z} (gm : isRegularMono g) {h : Hom w z} (hm : isRegularMono h)
+                                  (m : Preorder.IsMeet (regSubobj f fm) (regSubobj g gm) (regSubobj h hm)) : Pullback f g w
+  => \have | m' => pullback_regularSubobj-isMeet (pullback f g) fm gm
+           | pm => pullback-isRegularMono (pullback f g) fm gm
+     \in Pullback.fromIso (pullback f g) $ antisymmetric (regularMono_Mono hm) (regularMono_Mono pm)
+          (m'.3 (regSubobj h hm) m.1 m.2) (m.3 (regSubobj _ pm) m'.1 m'.2)
+  \where {
+    \open SubobjPreorder
+    \open pullback_regularSubobj-isMeet
+
+    \sfunc exact {C : FinCompletePrecat} {x y z w : C} (f : Hom x z) (fm : isRegularMono f) (g : Hom y z) (gm : isRegularMono g) {p1 : Hom w x} {p2 : Hom w y} (coh : f ∘ p1 = g ∘ p2) (hm : isRegularMono (f ∘ p1))
+                 (m : Preorder.IsMeet (regSubobj f fm) (regSubobj g gm) (regSubobj (f ∘ p1) hm)) : Pullback f g w p1 p2
+      => \let | pb : Pullback => regularSubobj_meet-pullback fm gm hm m
+              | t1 : pb.pbProj1 = p1 => isMono {regularMono_Mono fm} $ inv o-assoc *> (extractMap _ _).2
+              | t2 : pb.pbProj2 = p2 => isMono {regularMono_Mono gm} $ inv o-assoc *> rewriteI (pbCoh {pullback f g}) ((extractMap _ _).2 *> coh)
+         \in transport2 (Pullback f g w __ __) t1 t2 pb
+  }

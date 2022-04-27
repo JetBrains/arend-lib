@@ -8,6 +8,7 @@
 \import Function.Meta
 \import Logic
 \import Meta
+\import Order.Lattice
 \import Order.LinearOrder
 \import Order.StrictOrder
 \import Paths
@@ -51,6 +52,12 @@
   \lemma toNeg {x y : E} (x<y : x < y) : isNeg (x - y)
     => transport isPos (inv (negative_+ _ _ *> pmap (`- x) (negative-isInv y))) x<y
 
+  \lemma pos_>0 {x : E} (p : isPos x) : x > 0
+    => unfold $ unfold $ unfold (-) $ rewrite (negative_zro,zro-right) p
+
+  \lemma >0_pos {x : E} (x>0 : x > 0) : isPos x
+    => (unfold, unfold, unfold (-), rewrite (negative_zro,zro-right)) at x>0 $ x>0
+
   \lemma positive_negative' {x : E} (x>0 : isPos x) : isNeg (negative x)
     => transport isPos (inv (negative-isInv x)) x>0
 
@@ -62,6 +69,9 @@
 
   \lemma negative_positive {x : E} (x<0 : x < 0) : negative x > 0
     => transport isPos (unfold (-) $ rewrite negative_zro (zro-left *> inv zro-right)) x<0
+
+  \lemma negative_< {x y : E} (x<y : x < y) : negative y < negative x
+    => unfold $ unfold (-) $ rewrite negative-isInv $ >0_pos $ rewriteF negative-left $ <_+-right (negative x) x<y
 } \where {
   \lemma diff_+ {A : AddGroup} {x y z : A} : (z - y) + (y - x) = z - x =>
     (z - y) + (y - x)          ==< +-assoc >==
@@ -294,6 +304,9 @@
       | byRight (_, -y>0) => absurd (zro/>0 (transport isPos negative-right (positive_+ y>0 -y>0)))
     }
 
+  \lemma negative_<= {x y : E} (x<=y : x <= y) : negative y <= negative x
+    => \lam -x<-y => x<=y $ repeat {2} (rewriteF negative-isInv) (negative_< -x<-y)
+
   \func denseOrder (t : Inv (1 + 1)) : UnboundedDenseLinearOrder \cowith
     | LinearOrder => \this
     | isDense {x} {z} x<z =>
@@ -344,13 +357,25 @@
       | triNeg x<0 => negative=>#0 x<0
     }
 
-    \default positive=>#0 {x} (x>0 : isPos x) : AddGroup.Dec.#0 x => \lam x=0 => zro/>0 (transport isPos x=0 x>0)
-    \default negative=>#0 {x} (x<0 : isNeg x) : AddGroup.Dec.#0 x => \lam x=0 => zro/>0 (transport isPos (pmap negative x=0 *> negative_zro) x<0)
-    \default #0=>eitherPosOrNeg {x} (x#0 : AddGroup.Dec.#0 x) : isPos x || isNeg x => \case +_trichotomy x \with {
-      | triZro x=0 => absurd (transport AddGroup.Dec.#0 x=0 x#0 idp)
+    \default positive=>#0 {x} (x>0 : isPos x) : x /= zro => \lam x=0 => zro/>0 (transport isPos x=0 x>0)
+    \default negative=>#0 {x} (x<0 : isNeg x) : x /= zro => \lam x=0 => zro/>0 (transport isPos (pmap negative x=0 *> negative_zro) x<0)
+    \default #0=>eitherPosOrNeg {x} (x#0 : x /= zro) : isPos x || isNeg x => \case +_trichotomy x \with {
+      | triZro x=0 => absurd (transport (`/= zro) x=0 x#0 idp)
       | triPos x>0 => byLeft x>0
       | triNeg x<0 => byRight x<0
     }
+
+    \lemma join_negative {x y : E} : negative x ∨ negative y = negative (x ∧ y)
+      => \case totality x y \with {
+        | byLeft x<=y => rewrite (meet_<= x<=y) $ join-comm *> join_<= (negative_<= x<=y)
+        | byRight y<=x => rewrite (meet-comm *> meet_<= y<=x) $ join_<= (negative_<= y<=x)
+      }
+
+    \lemma meet_negative {x y : E} : negative x ∧ negative y = negative (x ∨ y)
+      => \case totality x y \with {
+        | byLeft x<=y => rewrite (join_<= x<=y) $ meet-comm *> meet_<= (negative_<= x<=y)
+        | byRight y<=x => rewrite (join-comm *> join_<= y<=x) $ meet_<= (negative_<= y<=x)
+      }
   }
 }
 

@@ -3,13 +3,19 @@
 \import Algebra.Ring
 \import Algebra.Ring.Category
 \import Algebra.Ring.Ideal
+\import Algebra.Ring.Localization
 \import Algebra.Semiring
+\import Arith.Nat
+\import Category
+\import Category.Functor
 \import Category.Topos.Sheaf
 \import Data.Array
 \import Data.Bool
 \import Data.Maybe
-\import Data.Or
-\import Equiv
+\import Equiv \hiding (Map)
+\import Equiv.Fiber
+\import Function.Meta
+\import HLevel
 \import Logic
 \import Logic.Meta
 \import Meta
@@ -17,9 +23,13 @@
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
-\import Set.Fin
+\import Relation.Equivalence
+\import Set.Category
 \import Topology.Locale
-\open Monoid (Inv)
+\open Monoid
+\open Locale (SJoin)
+\open Bounded (bottom)
+\open Ideal
 
 \func SpecPres (R : CRing) : FramePres R \cowith
   | conj => *
@@ -30,9 +40,6 @@
         | nothing => (Empty, 0, absurd)
       })
   \where {
-    \open Ideal
-    \open Monoid(pow)
-
     \lemma cover_ideal {R : CRing} {x : R} {J : \Set} {g : J -> R} (c : Cover {SpecPres R} x g) : radical {closure g} x \elim c
       | cover-basic bc => FramePres.indexing-transport _ (later (\case \elim __ \with {
         | nothing => inP (1, inP (nil, zro_*-right))
@@ -40,35 +47,34 @@
       })) bc
       | cover-inj j idp => radical-superset (closure-superset j)
       | cover-trans {I} {f} c h => \case cover_ideal c \with {
-        | inP (n, inP (l,p)) => radical_pow (rewriteF (inv p) (bigSum {radical {closure g}} (map (\lam (c,i) => c * f i) l) (\lam i => ideal-left (cover_ideal (h (l i).2)))))
+        | inP (n, inP (l,p)) => radical_pow $ rewriteF (inv p) $ bigSum {radical {closure g}} (map (\lam (c,i) => c * f i) l) $ \lam i => ideal-left (cover_ideal (h (l i).2))
       }
       | cover-proj1 idp j idp => ideal-right (radical-superset (closure-superset j))
       | cover-idemp j p => radical_pow {_} {x} {2} (rewrite ide-left (later (rewriteI p (radical-superset (closure-superset j)))))
       | cover-comm idp j p => rewrite *-comm (rewriteI p (radical-superset (closure-superset j)))
       | cover-ldistr {a} {b} idp {f} c h => \case cover_ideal c \with {
         | inP (n, inP (l : Array, p)) => inP (suc n, inP (map (\lam (c,j) => (pow a n * b * c, j)) l,
-          rewrite (CMonoid.pow_*-comm, p, Ring.Big-ldistr)
-            (Ring.Big-rdistr *> path (\lam i => AddMonoid.BigSum (\new Array R l.len (\lam j =>
-              (equation {usingOnly (h (l j).2)} : (pow a n * ((l j).1 * f (l j).2)) * (a * b) = (pow a n * b * (l j).1) * g (l j).2) @ i))))
+          rewrite (CMonoid.pow_*-comm, p, Ring.Big-ldistr) $ Ring.Big-rdistr *> path (\lam i => AddMonoid.BigSum $ \new Array R l.len $ \lam j =>
+            (equation {usingOnly (h (l j).2)} : (pow a n * ((l j).1 * f (l j).2)) * (a * b) = (pow a n * b * (l j).1) * g (l j).2) i)
         ))
       }
 
     \lemma ideal_cover {R : CRing} {x : R} {J : \Set} {g : J -> R} (p : radical {closure g} x) : Cover {SpecPres R} x g \elim p
-      | inP (n, inP (l,p)) => cover-trans (cover_pow n) (\lam _ => rewrite p (cover-trans cover_bigSum (\lam i => Cover.cover-proj2 idp (l i).2 idp)))
+      | inP (n, inP (l,p)) => cover-trans (cover_pow n) $ \lam _ => rewrite p $ cover-trans cover_bigSum $ \lam i => Cover.cover-proj2 idp (l i).2 idp
 
-    \lemma cover_ide {R : CRing} {x : R} : Cover {SpecPres R} x {\Sigma} (\lam _ => 1)
+    \lemma cover_ide {R : CRing} {x : R} : Cover1 {SpecPres R} x 1
       => cover-proj1 (inv ide-left) () idp
 
-    \lemma cover_pow {R : CRing} {x : R} (n : Nat) : Cover {SpecPres R} x {\Sigma} (\lam _ => pow x n) \elim n
+    \lemma cover_pow {R : CRing} {x : R} (n : Nat) : Cover1 {SpecPres R} x (pow x n) \elim n
       | 0 => cover_ide
       | suc n => Cover.cover-prod (cover_pow n) (cover-inj () idp)
 
     \lemma cover_bigSum {R : CRing} {l : Array R} : Cover {SpecPres R} (AddMonoid.BigSum l) l \elim l
       | nil => cover-basic (inP (nothing, \new QEquiv absurd (\case __) (\case __) (\case __), idp, \case __))
-      | :: a l => cover-trans (cover-basic (FramePres.indexing-make (just (a, AddMonoid.BigSum l)))) (\case \elim __ \with {
+      | :: a l => cover-trans (cover-basic (FramePres.indexing-make (just (a, AddMonoid.BigSum l)))) $ \case \elim __ \with {
         | false => cover-trans cover_bigSum (\lam i => cover-inj (suc i) idp)
         | true => cover-inj 0 idp
-      })
+      }
   }
 
 \func Spec (R : CRing) : Locale
@@ -77,12 +83,109 @@
 \record RingedLocale (\coerce L : Locale) (R : VSheaf CRingCat L)
 
 \record LocallyRingedLocale \extends RingedLocale
-  | isNonTrivial (a : L) : 0 = {R.F a} 1 -> a <= L.bottom
-  | isLocallyRinged (a : L) (x : R.F a) : a <= L.SJoin (\lam b => \Sigma (p : b <= a) (Inv (R.F.Func p x) || Inv (R.F.Func p x + 1)))
+  | isNonTrivial (a : L) : 0 = {R.F a} 1 -> a <= bottom
+  | isLocallyRinged (a : L) (x : R.F a) : a <= SJoin (\lam b => \Sigma (p : b <= a) (Inv (R.F.Func p x) || Inv (R.F.Func p x + 1)))
 
-{- TODO
 \func affineRingedLocale (R : CRing) : LocallyRingedLocale (Spec R) \cowith
-  | R => {?} -- sheafOnPresentedFrame {SpecPres R} {CRingCat} {?}
-  | isNonTrivial => {?}
+  | R => sheafOnPresentedFrame {SpecPres R} {CRingBicat} $ sheaf-reflect CRingCat.forgetful (\lam H => (CRingBicat.createsLimits H (SetBicat.limit (Comp CRingCat.forgetful H))).3) (functor R) $
+          sheafOnSiteWithBasis _ $ later $ \lam x {J} g c => \case \elim c \with {
+            | inP (y, x<=y, f, c', q) => FramePres.indexing-transport (\lam {J} e h => \Pi (y : R) (g : J -> slicePrecat y) -> Cover1 y e -> (\Pi (j : J) -> Cover1 (conj y (h j)) (g j).1) -> Equiv {_} {MatchingFamily _ y g} (matchingFamily (Comp CRingCat.forgetful (functor R)) y g))
+                (hiding (c',x,J,g,x<=y,q) $ later $ \case \elim __ \with {
+                  | nothing => \lam z ef z<=0 _ => contr-equiv (LocRing.trivial {R} {_} {z} (\case SpecPres.cover_ideal z<=0 \with {
+                      | inP (n, inP p) => inP (n, p.2 *> R.BigSum_zro (\lam j => zro_*-right))
+                    }) $ later $ inP (1, ide-left)) emptyMatchingFamily
+                  | just (a,b) => \lam z g z<=a+b q =>
+                    \have | (inP (n,p)) => SpecPres.cover_ideal $ cover-trans1 (cover-prod (cover-inj () idp) z<=a+b) $ cover-trans (cover-ldistr idp (cover-basic $ FramePres.indexing-make $ just (a,b)) (\lam j => idp)) (\lam j => cover-trans1 (q j) $ cover-inj j idp)
+                          | (inP (c,d,z^n=g1c+g2d)) => (closure2-lem (\lam j => (g j).1)).1 p
+                    \in localization-lem g z^n=g1c+g2d
+                }) c' x g x<=y (q __).2
+          }
+  | isNonTrivial a => {?}
   | isLocallyRinged => {?}
--}
+  \where {
+    \open localization
+    \open MSubset(powers)
+    \open sheafOnSiteWithBasis
+    \open Cover
+
+    \func functor (R : CRing) => \new Functor (Precat.op {framePresSite (SpecPres R)}) CRingBicat {
+      | F a => LocRing (powers a)
+      | Func c => (functorial (SpecPres.cover_ideal c)).1
+      | Func-id {a} => locMap-epi _ {LocRing (powers a)} $ (functorial (SpecPres.cover_ideal (id {framePresSite $ SpecPres R} a))).2 *> inv id-left
+      | Func-o {a} {b} {c} {g} {f} => locMap-epi _ {LocRing (powers c)} $ (functorial (SpecPres.cover_ideal (f ∘ {framePresSite $ SpecPres R} g))).2 *>
+                                      inv (o-assoc *> pmap (_ RingCat.∘) (functorial (SpecPres.cover_ideal f)).2 *> (functorial (SpecPres.cover_ideal g)).2)
+    }
+
+    \lemma functorial {R : CRing} {a b : R} (r : radical {closure1 a} b)
+      : \Sigma (f : RingHom (LocRing (powers a)) (LocRing (powers b))) (f ∘ locMap = locMap)
+        \level \lam p q => ext (locMap-epi _ {LocRing (powers b)} (p.2 *> inv q.2)) \elim r
+      | inP (n,p) => \case closure1-lem.1 p \with {
+        | inP (c,b^n=ac) =>
+          \have a|b^n => \new LDiv a (pow b n) c (inv b^n=ac)
+          \in (pow-map b n ∘ div-map a|b^n, o-assoc *> rewrite (div-map_loc a|b^n) (pow-map_loc b n))
+      }
+
+    \lemma functorial-lem {R : CRing} {a b : R} {r : radical {closure1 a} b} {x : LocRing.SType (powers a)} (m : Nat) (p : pow a m = x.2) {n : Nat} {c : R} (q : pow b n = a * c)
+      : (functorial r).1 (in~ x) = in~ (x.1 * pow c m, pow b (n * m), inP (n * m, idp))
+      => localization.map-lemma (functorial r).1 (Inv.lmake (later $ in~ (pow c m, pow b (n * m), inP (n * m, idp))) $
+          transportInv (\lam (h : RingHom R (LocRing (powers b))) => _ * h x.2 = 1) (functorial r).2 $ path $ ~-equiv _ _ $ equation {usingOnly (R.pow_* {b} {n} {m}, pmap (pow __ m) q, R.pow_*-comm {a} {c} {m}, p)}) *>
+          transportInv (\lam (h : RingHom R (LocRing (powers b))) => h x.1 * _ = _) (functorial r).2 (path $ ~-equiv _ _ equation)
+
+    \lemma functorial-lem-div {R : CRing} {a b : R} (d : LDiv a b) {r : radical {closure1 a} b} {x : LocRing.SType (powers a)} (m : Nat) (p : pow a m = x.2)
+      : (functorial r).1 (in~ x) = in~ (x.1 * pow d.inv m, pow b m, inP (m, idp))
+      => functorial-lem m p {1} (ide-left *> inv d.inv-right) *> path (~-equiv _ _ $ later $ rewrite ide-left idp)
+
+    \lemma emptyMatchingFamily {C : SiteWithBasis} {F : Functor C.op SetCat} {x : C} {g : Empty -> slicePrecat x} : Contr (MatchingFamily F x g)
+      => \new Contr {
+        | center => \new MatchingFamily {
+          | family => \case __
+          | isMatching => \case __
+        }
+        | contraction mf => exts (\case __)
+      }
+
+    \lemma common-denom {R : CRing} {a b : R} (e1 : LocRing (powers a)) (e2 : LocRing (powers b))
+      : ∃ (x y : R) (m : Nat) (e1 = in~ (x, pow a m, inP (m,idp))) (e2 = in~ (y, pow b m, inP (m,idp))) \elim e1, e2
+      | in~ (x1, d1, inP (m1,a^m1=d1)), in~ (x2, d2, inP (m2,b^m2=d2)) => inP (x1 * pow a m2, x2 * pow b m1, m1 + m2,
+          path $ ~-equiv _ _ $ pmap (x1 *) (pow_+ *> *-comm *> pmap (_ *) a^m1=d1) *> inv *-assoc,
+          path $ ~-equiv _ _ $ pmap (x2 *) (pow_+ *> pmap (_ *) b^m2=d2) *> inv *-assoc)
+
+    \func pow-lin-comb {R : CRing} {a b c d e : R} {k : Nat} (p : pow e k = a * c + b * d) (n m : Nat) : \Sigma (t s : R) (l : Nat) (pow e l = t * pow a n + s * pow b m)
+      => {?}
+
+    \lemma localization-lem {R : CRing} {e : R} {c d : R} (g : Bool -> slicePrecat {framePresSite (SpecPres R)} e) {n : Nat} (p : pow e n = (g true).1 * c + (g false).1 * d)
+      : Equiv {_} {MatchingFamily _ _ _} (matchingFamily (Comp CRingCat.forgetful (functor R)) e g)
+      => contrFibers=>Equiv $ \lam (mf : MatchingFamily) =>
+           \have | (inP (n1,t1)) => SpecPres.cover_ideal (g true).2
+                 | (inP (c1,a^n1=e*c1)) => closure1-lem.1 t1
+                 | (inP (n2,t2)) => SpecPres.cover_ideal (g false).2
+                 | (inP (c2,b^n2=e*c2)) => closure1-lem.1 t2
+           \in isProp'=>isContr (\lam t1 t2 => ext $ \case \elim t1, \elim t2 \with {
+             | (in~ (y1, _, inP (m1, idp)), coh1), (in~ (y2, _, inP (m2, idp)), coh2) =>
+               \case LocRing.unequals _ $ inv (functorial-lem m1 idp a^n1=e*c1) *> path (\lam i => family {coh1 i} true) *> inv (path (\lam i => family {coh2 i} true)) *> functorial-lem m2 idp a^n1=e*c1,
+                     LocRing.unequals _ $ inv (functorial-lem m1 idp b^n2=e*c2) *> path (\lam i => family {coh1 i} false) *> inv (path (\lam i => family {coh2 i} false)) *> functorial-lem m2 idp b^n2=e*c2 \with {
+                 | inP (_, inP (k1, idp), q1), inP (_, inP (k2, idp), q2) =>
+                   \have (t,s,l,lc) => pow-lin-comb p (n1 * m1 + n1 * m2 + k1) (n2 * m1 + n2 * m2 + k2)
+                   \in LocRing.equals (powers e) (pow e l) (inP (l,idp)) $ run {
+                     repeat {4} (rewrite pow_+) at lc,
+                     \have u m : pow (g true).1 (n1 * m) = pow e m * pow c1 m => pow_* *> pmap (pow __ m) a^n1=e*c1 *> R.pow_*-comm,
+                     \have v m : pow (g false).1 (n2 * m) = pow e m * pow c2 m => pow_* *> pmap (pow __ m) b^n2=e*c2 *> R.pow_*-comm,
+                     equation {using (u m1, u m2, v m1, v m2)}
+                   }
+               }
+           })
+           (\let | a => (g true).1
+                 | b => (g false).1
+            \in \case common-denom (mf.family true) (mf.family false), mf.isMatching true false \with {
+              | inP (y1,y2,m,mf1=y1/a^m,mf2=y2/b^m), t =>
+                \let | (inP (_, inP (k', idp), coh')) => LocRing.unequals _ $ inv (pmap (functorial _).1 mf1=y1/a^m *> functorial-lem-div (\new LDiv a (a * b) b idp) m idp) *> t *> pmap (functorial _).1 mf2=y2/b^m *> functorial-lem-div (\new LDiv b (a * b) a *-comm) m idp
+                     | k => m + k'
+                \in
+                \have | coh : y1 * pow b m * pow a k * pow b k = y2 * pow a m * pow a k * pow b k => equation {using (R.pow_+ {a * b} {m} {k'}, R.pow_*-comm {a} {b} {k})}
+                      | (u,v,l,lc) => pow-lin-comb p (m + k) (m + k)
+                \in hiding (p,t,k',coh') $ inP (in~ (u * y1 * pow a k + v * y2 * pow b k, pow e l, inP (l, idp)), exts $ \case \elim __ \with {
+                      | true  => functorial-lem l idp a^n1=e*c1 *> LocRing.equals (powers a) (pow a k) (inP (k,idp)) (equation {using (R.pow_* {a} {n1} {l}, pmap (pow __ l) a^n1=e*c1, R.pow_*-comm {e} {c1} {l}, R.pow_+ {a} {m} {k}, R.pow_+ {b} {m} {k})}) *> inv mf1=y1/a^m
+                      | false => functorial-lem l idp b^n2=e*c2 *> LocRing.equals (powers b) (pow b k) (inP (k,idp)) (equation {using (R.pow_* {b} {n2} {l}, pmap (pow __ l) b^n2=e*c2, R.pow_*-comm {e} {c2} {l}, R.pow_+ {a} {m} {k}, R.pow_+ {b} {m} {k})}) *> inv mf2=y2/b^m
+                    })
+            })
+  }

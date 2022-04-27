@@ -132,7 +132,7 @@ public class StdExtension implements ArendExtension {
         "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
         Precedence.DEFAULT, new HidingMeta());
     contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
-    contributor.declare(meta, new LongName("at"), "`(f at x) r` replaces variable `x` with `f x` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
+    contributor.declare(meta, new LongName("at"), "`((f_1, ... f_n) at x) r` replaces variable `x` with `f_1 (... (f_n x) ...)` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
     casesMeta = new CasesMeta(this);
     contributor.declare(meta, new LongName("cases"),
       "`cases args default` works just like `mcases args default`, but does not search for \\case expressions or definition invocations.\n" +
@@ -169,7 +169,8 @@ public class StdExtension implements ArendExtension {
       "If the first argument is omitted, it unfold all fields.\n" +
       "If the expected type is unknown, it unfolds these function in the result type of `e`.",
       Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), true, false));
-    contributor.declare(meta, new LongName("unfold_let"), "unfolds \\let expressions", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldLetMeta(), true, false));
+    contributor.declare(meta, new LongName("unfold_let"), "Unfolds \\let expressions", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldLetMeta(), true, false));
+    contributor.declare(meta, new LongName("unfolds"), "Unfolds recursively top-level functions and fields", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldsMeta(), true, false));
     contributor.declare(meta, new LongName("<|>"), "`x <|> y` invokes `x` and if it fails, invokes `y`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 3, true), new OrElseMeta());
     contributor.declare(meta, new LongName("try"), "The same as {<|>}", Precedence.DEFAULT, new OrElseMeta());
     contributor.declare(meta, new LongName("mkcon"),
@@ -196,6 +197,7 @@ public class StdExtension implements ArendExtension {
                     "Similarly to `rewrite` this meta allows specification of occurrence numbers. \n" +
                     "Currently this meta supports noncommutative monoids and categories.",
             Precedence.DEFAULT, new RewriteMeta(this, false, true, true));
+    contributor.declare(paths, new LongName("rewriteEqF"), "The forward version of {rewriteEq}", Precedence.DEFAULT, new RewriteMeta(this, true, false, true));
     contributor.declare(paths, new LongName("simp_coe"),
       "Simplifies certain equalities. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
       "* If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right a = b'`, then the subgoal is `coe (B a) (f a) right = b`.\n" +

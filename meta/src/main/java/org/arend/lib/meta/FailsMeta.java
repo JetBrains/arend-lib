@@ -64,7 +64,7 @@ public class FailsMeta extends MetaInvocationMeta {
           }
           return typechecker.typecheck(makeResult(contextData.getReferenceExpression().getData()), null);
         }
-      }, contextData, Objects.requireNonNull(typechecker.typecheck(ext.factory.sigma(), null)).getExpression(), false);
+      }, contextData, Objects.requireNonNull(typechecker.typecheck(ext.factory.sigma(), null)).getExpression(), true);
     }
 
     errorReporter.report(new MetaDidNotFailError(result.getExpression(), contextData.getReferenceExpression()));

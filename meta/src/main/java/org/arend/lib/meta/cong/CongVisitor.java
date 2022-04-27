@@ -191,15 +191,10 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
     }
 
     CorePathExpression path2 = (CorePathExpression) other;
-    if (expr.getArgumentType() != null && path2.getArgumentType() != null) {
-      Result arg = expr.getArgumentType().accept(this, new ParamType(() -> new Result(null), path2.getArgumentType()));
-      if (arg == null) return null;
-      Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CorePathExpression) other).getArgument()));
-      return result == null ? null : new Result(arg.expression == null || result.expression == null ? null : factory.path(result.expression));
-    } else {
-      Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), path2.getArgument()));
-      return result == null || result.expression == null ? result : new Result(factory.path(result.expression));
-    }
+    Result arg = expr.getArgumentType().accept(this, new ParamType(() -> new Result(null), path2.getArgumentType()));
+    if (arg == null) return null;
+    Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CorePathExpression) other).getArgument()));
+    return result == null ? null : new Result(arg.expression == null || result.expression == null ? null : factory.path(result.expression));
   }
 
   @Override

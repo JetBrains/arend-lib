@@ -338,7 +338,12 @@ public class ExtMeta extends BaseMetaDefinition {
               CoreBinding binding = ((CoreReferenceExpression) e).getBinding();
               if (bindings.contains(binding)) {
                 if (!isProp) {
+                  if (propBindings.contains(binding)) {
+                    typechecker.getErrorReporter().report(new TypecheckingError("Non-propositional fields cannot depend on propositional ones", marker));
+                    return CoreExpression.FindAction.STOP;
+                  }
                   if (dependentBindings.contains(binding)) {
+                    typechecker.getErrorReporter().report(new TypecheckingError((type instanceof CoreSigmaExpression ? "\\Sigma types" : "Classes") + " with more than two levels of dependencies are not supported", marker));
                     return CoreExpression.FindAction.STOP;
                   }
                   dependentBindings.add(paramBinding);
@@ -347,7 +352,6 @@ public class ExtMeta extends BaseMetaDefinition {
               }
               return CoreExpression.FindAction.CONTINUE;
             })) {
-              typechecker.getErrorReporter().report(new TypecheckingError((type instanceof CoreSigmaExpression ? "\\Sigma types" : "Classes") + " with more than two levels of dependencies are not supported", marker));
               return null;
             }
           }
