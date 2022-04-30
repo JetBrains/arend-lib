@@ -18,6 +18,7 @@ import org.arend.lib.error.SimplifyError;
 import org.arend.lib.meta.RewriteMeta;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Function;
@@ -32,6 +33,16 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
   public SimplifyMeta(StdExtension ext) {
     this.ext = ext;
+  }
+
+  @Override
+  public boolean @Nullable [] argumentExplicitness() {
+    return new boolean[] { true };
+  }
+
+  @Override
+  public boolean requireExpectedType() {
+    return true;
   }
 
   private class SimplifyExpressionProcessor implements Function<CoreExpression, CoreExpression.FindAction> {
