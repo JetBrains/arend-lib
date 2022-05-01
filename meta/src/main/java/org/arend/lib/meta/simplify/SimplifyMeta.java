@@ -110,14 +110,14 @@ public class SimplifyMeta extends BaseMetaDefinition {
     return rules;
   }
 
-  private ConcreteExpression simplifyTypeOfExpression(CoreExpression expression, CoreExpression type) {
+  private ConcreteExpression simplifyTypeOfExpression(ConcreteExpression expression, CoreExpression type) {
     var processor = new SimplifyExpressionProcessor();
     typechecker.withCurrentState(tc -> type.processSubexpression(processor));
 
     var occurrences = processor.getSimplificationOccurrences().stream().map(x -> x.proj1).collect(Collectors.toList());
     var lamParams = new ArrayList<ConcreteParameter>();
 
-    if (occurrences.isEmpty()) return factory.core(expression.computeTyped());
+    if (occurrences.isEmpty()) return expression; //factory.core(expression.computeTyped());
 
     for (int i = 0; i < occurrences.size(); ++i) {
       var var = factory.local("y" + i);
@@ -150,7 +150,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
         TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {
-          errorReporter.report(new SimplifyError(occurrences, expression, type, refExpr));
+          errorReporter.report(new SimplifyError(occurrences, type, refExpr));
         }
         return result;
       }
@@ -163,7 +163,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
     }
     var proofs = processor.simplificationOccurrences.stream().map(x -> x.proj2.inverse(factory, ext)).collect(Collectors.toList());
     return RewriteMeta.chainOfTransports(factory.ref(ext.transport.getRef(), refExpr.getPLevels(), refExpr.getHLevels()),
-            checkedLam.getExpression(), proofs, factory.core(expression.computeTyped()), factory, ext);
+            checkedLam.getExpression(), proofs, expression, factory, ext);
   }
 
   @Override
@@ -174,12 +174,11 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
     if (args.isEmpty()) return null;
 
-    var expression = Utils.typecheckWithAdditionalArguments(args.get(0).getExpression(), typechecker, ext, 0, false);
+    //var expression = Utils.typecheckWithAdditionalArguments(args.get(0).getExpression(), typechecker, ext, 0, false);
+    var expression = args.get(0).getExpression();
 
-    if (expectedType == null) return expression;
-
-    if (expression == null) {
-      return null;
+    if (expectedType == null) {
+      return Utils.typecheckWithAdditionalArguments(args.get(0).getExpression(), typechecker, ext, 0, false);
     }
 
     this.typechecker = typechecker;
@@ -187,7 +186,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
     this.factory = ext.factory.withData(refExpr.getData());
     this.errorReporter = typechecker.getErrorReporter();
 
-    var transportedExpr = simplifyTypeOfExpression(expression.getExpression(), expectedType);
+    var transportedExpr = simplifyTypeOfExpression(expression, expectedType);
     return transportedExpr == null ? null : typechecker.typecheck(transportedExpr, expectedType);
   }
 }
