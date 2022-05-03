@@ -45,6 +45,11 @@ public class SimplifyMeta extends BaseMetaDefinition {
     return true;
   }
 
+  @Override
+  public int numberOfOptionalExplicitArguments() {
+    return 1;
+  }
+
   private class SimplifyExpressionProcessor implements Function<CoreExpression, CoreExpression.FindAction> {
 
     private final List<Pair<CoreExpression, RewriteMeta.EqProofConcrete>> simplificationOccurrences = new ArrayList<>();
@@ -183,18 +188,15 @@ public class SimplifyMeta extends BaseMetaDefinition {
     var expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().getUnderlyingExpression();
     List<? extends ConcreteArgument> args = contextData.getArguments();
 
-    if (args.isEmpty()) return null;
-
-    //var expression = Utils.typecheckWithAdditionalArguments(args.get(0).getExpression(), typechecker, ext, 0, false);
-    var expression = args.get(0).getExpression();
+    this.factory = ext.factory.withData(refExpr.getData());
+    var expression = args.isEmpty() ? factory.ref(ext.prelude.getIdp().getRef()) : args.get(0).getExpression();
 
     if (expectedType == null) {
-      return Utils.typecheckWithAdditionalArguments(args.get(0).getExpression(), typechecker, ext, 0, false);
+      return Utils.typecheckWithAdditionalArguments(expression, typechecker, ext, 0, false);
     }
 
     this.typechecker = typechecker;
     this.refExpr = refExpr;
-    this.factory = ext.factory.withData(refExpr.getData());
     this.errorReporter = typechecker.getErrorReporter();
 
     var transportedExpr = simplifyTypeOfExpression(expression, expectedType);
