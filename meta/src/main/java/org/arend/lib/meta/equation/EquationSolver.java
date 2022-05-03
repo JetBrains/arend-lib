@@ -43,7 +43,7 @@ public interface EquationSolver {
     public SubexprOccurrences() {
     }
 
-    public SubexprOccurrences(ArendRef occurrenceVar, ConcreteExpression exprWithOccurrences, ConcreteExpression exprWithSubExprInserted, ConcreteExpression equalityProof, int numOccurrences, int numOccurrencesSkipped) {
+    public SubexprOccurrences(ArendRef occurrenceVar, ConcreteExpression exprWithOccurrences, ConcreteExpression equalityProof, int numOccurrences, int numOccurrencesSkipped) {
       this.occurrenceVar = occurrenceVar;
       this.exprWithOccurrences = exprWithOccurrences;
       this.equalityProof = equalityProof;
