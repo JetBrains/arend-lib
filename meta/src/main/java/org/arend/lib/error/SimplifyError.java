@@ -16,11 +16,9 @@ import static org.arend.ext.prettyprinting.doc.DocFactory.termDoc;
 public class SimplifyError extends TypecheckingError {
   private final List<CoreExpression> subexprList;
   private final CoreExpression type;
-  private final CoreExpression expr;
 
-  public SimplifyError(List<CoreExpression> subexprList, CoreExpression expr, CoreExpression type, @Nullable ConcreteSourceNode cause) {
+  public SimplifyError(List<CoreExpression> subexprList, CoreExpression type, @Nullable ConcreteSourceNode cause) {
     super("Cannot simplify subexpressions", cause);
-    this.expr = expr;
     this.subexprList = subexprList;
     this.type = type;
   }
@@ -30,7 +28,7 @@ public class SimplifyError extends TypecheckingError {
     Doc subexprDoc = hang(text("Subexpressions:"), hList(subexprList.stream().map(x -> termLine(x, ppConfig)).collect(Collectors.toList())));
     return vList(
             subexprDoc,
-            hang(text("Expression:"), termDoc(expr, ppConfig)),
+         //   hang(text("Expression:"), termDoc(expr, ppConfig)),
             hang(text("Type:"), termDoc(type, ppConfig)));
   }
 
