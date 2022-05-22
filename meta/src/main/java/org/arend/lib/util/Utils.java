@@ -351,16 +351,16 @@ public class Utils {
     return result;
   }
 
-  public static ConcreteParameter expressionToParameter(ConcreteExpression expr, ExpressionResolver resolver, ConcreteFactory factory) {
+  public static ConcreteParameter expressionToParameter(ConcreteExpression expr, ExpressionResolver resolver, ConcreteFactory factory, boolean forSigma) {
     if (expr instanceof ConcreteTypedExpression) {
       ConcreteTypedExpression typedExpr = (ConcreteTypedExpression) expr;
       List<ArendRef> refs = getTuplesOfRefs(typedExpr.getExpression(), resolver);
       if (refs == null) {
         return null;
       }
-      return factory.param(refs, typedExpr.getType());
+      return forSigma ? factory.sigmaParam(SigmaFieldKind.ANY, refs, typedExpr.getType()) : factory.param(refs, typedExpr.getType());
     } else {
-      return factory.param(Collections.emptyList(), expr);
+      return forSigma ? factory.sigmaParam(SigmaFieldKind.ANY, Collections.emptyList(), expr) : factory.param(Collections.emptyList(), expr);
     }
   }
 }

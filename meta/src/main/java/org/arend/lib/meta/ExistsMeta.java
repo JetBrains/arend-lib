@@ -77,7 +77,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
               ConcreteParameter param = argFactory.param(Collections.singletonList(((ConcreteReferenceExpression) argument.getExpression()).getReferent()), argFactory.hole());
               parameters.add(argument.isExplicit() ? param : param.implicit());
             } else {
-              ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory);
+              ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory, false);
               if (param == null) {
                 return null;
               }
@@ -93,7 +93,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           parameters.add(argument.isExplicit() ? param : param.implicit());
         }
       } else if (argument.isExplicit()) {
-        ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory);
+        ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory, true);
         if (param == null) {
           return null;
         }
@@ -191,7 +191,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           for (i = j; i < sigmaRefs.size(); i += piParams.size()) {
             curRef.add(sigmaRefs.get(i));
           }
-          ConcreteParameter varParam = factory.param(param.isExplicit(), curRef, factory.withData(cType.getData()).core(piParam.getTypedType()));
+          ConcreteParameter varParam = produceParam(param.isExplicit(), curRef, factory.withData(cType.getData()).core(piParam.getTypedType()), null);
           sigmaParams.add(varParam);
           varParams.add(varParam);
           j++;
@@ -202,7 +202,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           for (CoreParameter piParam : piParams) {
             args.add(factory.arg(factory.ref(sigmaRefs.get(i++)), piParam.isExplicit()));
           }
-          sigmaParams.add(factory.param(true, factory.app(aType, args)));
+          sigmaParams.add(produceParam(true, null, factory.app(aType, args), null));
         }
 
         j = 0;
@@ -219,7 +219,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           refs.add(factory.local("j" + (arrayIndex == 0 ? "" : arrayIndex)));
           arrayIndex++;
         }
-        ConcreteParameter varParam = factory.withData(param.getData()).param(param.isExplicit(), refs, factory.app(factory.ref(ext.prelude.getFin().getRef()), true, Collections.singletonList(factory.app(factory.ref(ext.prelude.getArrayLength().getRef()), false, Collections.singletonList(aType)))));
+        ConcreteParameter varParam = produceParam(param.isExplicit(), refs, factory.app(factory.ref(ext.prelude.getFin().getRef()), true, Collections.singletonList(factory.app(factory.ref(ext.prelude.getArrayLength().getRef()), false, Collections.singletonList(aType)))), param.getData());
         varParams = Collections.singletonList(varParam);
         sigmaParams.add(varParam);
 
@@ -229,7 +229,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
       } else {
         refs = null;
         varParams = Collections.singletonList(factory.withData(param.getData()).param(param.isExplicit(), param.getRefList(), factory.withData(cType.getData()).core(typedType)));
-        sigmaParams.add(factory.param(param.isExplicit(), param.getRefList(), aType));
+        sigmaParams.add(produceParam(param.isExplicit(), param.getRefList(), aType, null));
 
         for (ArendRef ref : param.getRefList()) {
           arguments.add(ref == null ? null : factory.ref(ref));
@@ -264,6 +264,18 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
       ConcreteExpression codomain = sigmaParams.get(sigmaParams.size() - 1).getType();
       assert codomain != null;
       return factory.pi(sigmaParams.subList(0, sigmaParams.size() - 1), codomain);
+    }
+
+    private ConcreteParameter produceParam(boolean explicit, Collection<? extends ArendRef> refs, ConcreteExpression type, Object data) {
+      ConcreteFactory actualFactory = data == null ? factory : factory.withData(data);
+      if (kind != Kind.PI) {
+        return actualFactory.sigmaParam(SigmaFieldKind.ANY, refs == null ? List.of() : refs, type);
+      } else {
+        if (refs == null) {
+          return actualFactory.param(explicit, type);
+        }
+        return actualFactory.param(explicit, refs, type);
+      }
     }
   }
 
