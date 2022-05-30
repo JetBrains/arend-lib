@@ -269,7 +269,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
     private ConcreteParameter produceParam(boolean explicit, Collection<? extends ArendRef> refs, ConcreteExpression type, Object data) {
       ConcreteFactory actualFactory = data == null ? factory : factory.withData(data);
       if (kind != Kind.PI) {
-        return actualFactory.sigmaParam(SigmaFieldKind.ANY, refs == null ? List.of() : refs, type);
+        return refs == null ? actualFactory.sigmaParam(SigmaFieldKind.ANY, type) : actualFactory.sigmaParam(SigmaFieldKind.ANY, refs, type);
       } else {
         if (refs == null) {
           return actualFactory.param(explicit, type);

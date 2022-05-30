@@ -749,7 +749,7 @@ public class ExtMeta extends BaseMetaDefinition {
       ConcreteExpression left = factory.core(equality.getDefCallArguments().get(1).computeTyped());
       ConcreteExpression right = factory.core(equality.getDefCallArguments().get(2).computeTyped());
       if (((CoreUniverseExpression) normType).getSort().isProp()) {
-        TypedExpression expectedType = typechecker.typecheck(factory.sigma(Arrays.asList(factory.sigmaParam(SigmaFieldKind.ANY, List.of(), factory.arr(left, right)), factory.sigmaParam(SigmaFieldKind.ANY, List.of(), factory.arr(right, left)))), null);
+        TypedExpression expectedType = typechecker.typecheck(factory.sigma(Arrays.asList(factory.sigmaParam(SigmaFieldKind.ANY, factory.arr(left, right)), factory.sigmaParam(SigmaFieldKind.ANY, factory.arr(right, left)))), null);
         if (expectedType == null) return null;
         TypedExpression typedArg = typechecker.typecheck(arg, expectedType.getExpression());
         if (typedArg == null) return null;
