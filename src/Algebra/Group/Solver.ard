@@ -1,8 +1,9 @@
 \import Algebra.Group
 \import Algebra.Monoid
 \import Algebra.Pointed
-\import Category.Topos.Sheaf
 \import Data.Bool
+\import Data.List
+\import Data.Maybe
 \import Data.Or
 \import Paths
 
@@ -30,4 +31,69 @@
     | :inv t => negative {AbGroup.fromCGroup G} (interpretAdd t)
     | :* t (:inv s) => interpretAdd t - {AbGroup.fromCGroup G} interpretAdd s
     | :* t s => interpretAdd t + {AbGroup.fromCGroup G} interpretAdd s
+
+  -- \func liftSubexprRight (t s r : GroupTerm V) : Data.interpret (t :* (s :* r)) =
+
+  -- Data.interpret t = Data.interpret (t' :* var v) -> Data.interpret (:inv t) = Data.interpret (:inv t' :* :inv (var v))
+  \func moveLeafToTheTop (t : GroupTerm V) (pathToLeaf : List Bool) : Maybe (newTermData t) \elim t, pathToLeaf
+    | :ide, _ => nothing
+    | var v, _ => just (v, inl (inr idp))
+    | :inv t, pathToLeaf => \case moveLeafToTheTop t pathToLeaf \with {
+      | just (v, inl (inl p)) => {?}
+      | just (v, inl (inr p)) => {?}
+      | just (v, inr (t', inl p)) => {?}
+      | just (v, inr (t', inr p)) => {?}
+      | nothing => nothing
+    }
+    | :* t s, nil => nothing
+    | :* t s, :: goRight restOfPath => \case goRight \with {
+         | true => \case moveLeafToTheTop s restOfPath \with {
+           | just (v, inl (inl p)) => just (v, inr (t, inl (pmap (Data.interpret t *) p)))
+           | just (v, inl (inr p)) => just (v, inr (t, inr (pmap (Data.interpret t *) p)))
+           | just (v, inr (t', inl p)) => just (v, inr (t :* t', inl (pmap (Data.interpret t *) p *> inv *-assoc)))
+           | just (v, inr (t', inr p)) => just (v, inr (t :* t', inr (pmap (Data.interpret t *) p *> inv *-assoc)))
+           | nothing => nothing
+         }
+         | false => \case moveLeafToTheTop t restOfPath \with {
+           | just (v, inl (inl p)) => just (v, inr (s, inl (*-comm *> pmap (* {G} (Data.interpret s)) p)))
+           | just (v, inl (inr p)) => just (v, inr (s, inr (*-comm *> pmap (* {G} (Data.interpret s)) p)))
+           | just (v, inr (t', inl p)) => just (v, inr (t' :* s, inl (pmap (\lam x => x * Data.interpret s) p *> *-assoc *> pmap (Data.interpret t' *) *-comm *> inv *-assoc)))
+           | just (v, inr (t', inr p)) => just (v, inr (t' :* s, inr (pmap (\lam x => x * Data.interpret s) p *> *-assoc *> pmap (Data.interpret t' *) *-comm *> inv *-assoc)))
+           | nothing => nothing
+         }
+    }
+  \where {
+    \func newTermData (t : GroupTerm V) =>
+      \Sigma (v : V)
+        (((Data.interpret t = Data.interpret (:inv (var v))) `Or`
+          (Data.interpret t = Data.interpret (var v)))
+          `Or`
+        (\Sigma (t' : GroupTerm V)
+          ((Data.interpret t = Data.interpret (t' :* :inv (var v))) `Or`
+          (Data.interpret t = Data.interpret (t' :* var v)))))
+  }
+
+  \func moveLeafToTheTopVarCase (t : GroupTerm V) (pathToLeaf : List Bool) :
+    Maybe (\Sigma (v : V) (t' : GroupTerm V) (Data.interpret t = Data.interpret (t' :* var v)))
+    => \case moveLeafToTheTop t pathToLeaf \with {
+      | just (v, inr (t', inr p)) => just (v, t', p)
+      | _ => nothing
+    }
+
+  \func moveLeafToTheTopInvVarCase (t : GroupTerm V) (pathToLeaf : List Bool) :
+    Maybe (\Sigma (v : V) (t' : GroupTerm V) (Data.interpret t = Data.interpret (t' :* :inv (var v))))
+    => \case moveLeafToTheTop t pathToLeaf \with {
+      | just (v, inr (t', inl p)) => just (v, t', p)
+      | _ => nothing
+    }
+
+  \func performCancellation (t : GroupTerm V) (pathToVar pathToInvVar : List Bool) :
+    Maybe (\Sigma (t' : GroupTerm V) (Data.interpret t = Data.interpret t'))
+    => \case moveLeafToTheTopVarCase t pathToVar \with {
+      | just (v, t', p) => \case moveLeafToTheTopInvVarCase t' pathToInvVar \with {
+        | just (v', t'', p') => {?}
+        | nothing => nothing
+      }
+      | nothing => nothing
+    }
 }

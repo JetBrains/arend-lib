@@ -115,6 +115,11 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver", name = "RingData.interpret")        CoreFunctionDefinition ringInterpret;
   @Dependency(module = "Algebra.Ring.Solver", name = "gensZeroToIdealZero")       CoreFunctionDefinition gensZeroToIdealZero;
 
+  @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.var")  public CoreConstructor varGTerm;
+  @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:ide") public CoreConstructor ideGTerm;
+  @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:*")   public CoreConstructor mulGTerm;
+  @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:inv")  public CoreConstructor invGTerm;
+
   @Dependency(module = "Algebra.Group")                                    public CoreClassDefinition AddGroup;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative")       public CoreClassField negative;
   @Dependency(module = "Algebra.Group", name = "AddGroup.fromZero")       public CoreFunctionDefinition fromZero;
