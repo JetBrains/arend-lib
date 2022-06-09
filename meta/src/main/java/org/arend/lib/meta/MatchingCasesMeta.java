@@ -258,19 +258,19 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
     int additionalArgsIndex = args.get(0).isExplicit() ? 0 : args.get(1).isExplicit() ? 1 : 2;
     List<CasesMeta.ArgParameters> argParamsList = new ArrayList<>();
-    List<TypedExpression> additionalArgs = new ArrayList<>();
+    List<Pair<TypedExpression,CoreExpression>> additionalArgs = new ArrayList<>();
     for (ConcreteExpression additionalArg : Utils.getArgumentList(args.get(additionalArgsIndex).getExpression())) {
       CasesMeta.ArgParameters argParams = ext.casesMeta.new ArgParameters(additionalArg, errorReporter, false);
       TypedExpression typed = typechecker.typecheck(argParams.expression, null);
       if (typed == null) return null;
-      additionalArgs.add(typed);
+      additionalArgs.add(new Pair<>(typed, typed.getType().normalize(NormalizationMode.RNF)));
       argParamsList.add(argParams);
     }
 
     // Find subexpressions
     List<CoreExpression> expressionsToProcess = new ArrayList<>(additionalArgs.size() + 1);
-    for (TypedExpression additionalArg : additionalArgs) {
-      expressionsToProcess.add(additionalArg.getType());
+    for (var additionalArg : additionalArgs) {
+      expressionsToProcess.add(additionalArg.proj2);
     }
     expressionsToProcess.add(expectedType);
     int[] caseCount = { 0 };
@@ -472,9 +472,9 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           param = param.getNext();
         }
       }
-      for (TypedExpression additionalArg : additionalArgs) {
-        TypedExpression replaced = new ReplaceSubexpressionsMeta(additionalArg.getType(), substPairs).invoke(typechecker, marker);
-        CoreParameter newParam = parameterBuilder.addLast(true, null, replaced == null ? additionalArg.getType() : replaced.getExpression(), marker);
+      for (var additionalArg : additionalArgs) {
+        TypedExpression replaced = new ReplaceSubexpressionsMeta(additionalArg.proj2, substPairs).invoke(typechecker, marker);
+        CoreParameter newParam = parameterBuilder.addLast(true, null, replaced == null ? additionalArg.proj2 : replaced.getExpression(), marker);
         if (additionalParameters == null) {
           additionalParameters = newParam;
         }
@@ -488,7 +488,9 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       for (SubexpressionData data : dataList) {
         allMatchedArgs.addAll(data.matchedArgs);
       }
-      allMatchedArgs.addAll(additionalArgs);
+      for (var additionalArg : additionalArgs) {
+        allMatchedArgs.add(additionalArg.proj1);
+      }
 
       Map<CoreParameter, CoreParameter> addPathMap = new HashMap<>();
       CoreParameter param = caseParams;
@@ -1000,12 +1002,12 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
     for (int i = 0; i < additionalArgs.size(); i++) {
       ArendRef ref = argParamsList.get(i).name != null ? argParamsList.get(i).name : factory.local("arg" + (i + 1));
-      caseArgs.add(factory.caseArg(factory.core(additionalArgs.get(i)), ref, factory.meta("case_additional_arg_" + (i + 1), new ReplaceSubexpressionsMeta(additionalArgs.get(i).getType(), substPairs))));
+      caseArgs.add(factory.caseArg(factory.core(additionalArgs.get(i).proj1), ref, factory.meta("case_additional_arg_" + (i + 1), new ReplaceSubexpressionsMeta(additionalArgs.get(i).proj2, substPairs))));
       if (totalArgs < addPathList.size() && addPathList.get(totalArgs)) {
-        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, factory.core(additionalArgs.get(i)), factory.ref(ref))));
+        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, factory.core(additionalArgs.get(i).proj1), factory.ref(ref))));
       }
       totalArgs++;
-      substPairs.add(new Pair<>(additionalArgs.get(i), ref));
+      substPairs.add(new Pair<>(additionalArgs.get(i).proj1, ref));
     }
 
     for (int i = 0; i < dataList.size(); i++) {
