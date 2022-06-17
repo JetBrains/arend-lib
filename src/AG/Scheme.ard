@@ -1,5 +1,6 @@
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Sub
 \import Algebra.Ring
 \import Algebra.Ring.Category
 \import Algebra.Ring.Ideal
@@ -150,8 +151,17 @@
           path $ ~-equiv _ _ $ pmap (x1 *) (pow_+ *> *-comm *> pmap (_ *) a^m1=d1) *> inv *-assoc,
           path $ ~-equiv _ _ $ pmap (x2 *) (pow_+ *> pmap (_ *) b^m2=d2) *> inv *-assoc)
 
-    \func pow-lin-comb {R : CRing} {a b c d e : R} {k : Nat} (p : pow e k = a * c + b * d) (n m : Nat) : \Sigma (t s : R) (l : Nat) (pow e l = t * pow a n + s * pow b m)
-      => {?}
+    \func pow-lin-comb {R : CRing} {a b c d e : R} {k : Nat} (p : pow e k = a * c + b * d) (n m : Nat)
+      : ∃ (t s : R) (l : Nat) (pow e l = t * pow a n + s * pow b m) =>
+      \have | S => Ideal.closure (pow a n :: pow b m :: nil)
+            | I => Ideal.radical {S}
+            | (inP (l, q)) => run {
+              radical_pow {S}, transportInv I p, sub-+ {I}
+                  (ideal-right {I} (inP (n, (closureN-lem _).2 (inP (1 :: 0 :: nil, equation)))))
+                  (ideal-right {I} (inP (m, (closureN-lem _).2 (inP (0 :: 1 :: nil, equation)))))
+            }
+            | (inP (:: t (:: s nil), q')) => (closureN-lem _).1 q
+      \in inP (t, s, l, q' *> equation)
 
     \lemma localization-lem {R : CRing} {e : R} {c d : R} (g : Bool -> slicePrecat {framePresSite (SpecPres R)} e) {n : Nat} (p : pow e n = (g true).1 * c + (g false).1 * d)
       : Equiv {_} {MatchingFamily _ _ _} (matchingFamily (Comp CRingCat.forgetful (functor R)) e g)
@@ -165,7 +175,7 @@
                \case LocRing.unequals _ $ inv (functorial-lem m1 idp a^n1=e*c1) *> path (\lam i => family {coh1 i} true) *> inv (path (\lam i => family {coh2 i} true)) *> functorial-lem m2 idp a^n1=e*c1,
                      LocRing.unequals _ $ inv (functorial-lem m1 idp b^n2=e*c2) *> path (\lam i => family {coh1 i} false) *> inv (path (\lam i => family {coh2 i} false)) *> functorial-lem m2 idp b^n2=e*c2 \with {
                  | inP (_, inP (k1, idp), q1), inP (_, inP (k2, idp), q2) =>
-                   \have (t,s,l,lc) => pow-lin-comb p (n1 * m1 + n1 * m2 + k1) (n2 * m1 + n2 * m2 + k2)
+                   \have (inP (t,s,l,lc)) => pow-lin-comb p (n1 * m1 + n1 * m2 + k1) (n2 * m1 + n2 * m2 + k2)
                    \in LocRing.equals (powers e) (pow e l) (inP (l,idp)) $ run {
                      repeat {4} (rewrite pow_+) at lc,
                      \have u m : pow (g true).1 (n1 * m) = pow e m * pow c1 m => pow_* *> pmap (pow __ m) a^n1=e*c1 *> R.pow_*-comm,
@@ -182,7 +192,7 @@
                      | k => m + k'
                 \in
                 \have | coh : y1 * pow b m * pow a k * pow b k = y2 * pow a m * pow a k * pow b k => equation {using (R.pow_+ {a * b} {m} {k'}, R.pow_*-comm {a} {b} {k})}
-                      | (u,v,l,lc) => pow-lin-comb p (m + k) (m + k)
+                      | (inP (u,v,l,lc)) => pow-lin-comb p (m + k) (m + k)
                 \in hiding (p,t,k',coh') $ inP (in~ (u * y1 * pow a k + v * y2 * pow b k, pow e l, inP (l, idp)), exts $ \case \elim __ \with {
                       | true  => functorial-lem l idp a^n1=e*c1 *> LocRing.equals (powers a) (pow a k) (inP (k,idp)) (equation {using (R.pow_* {a} {n1} {l}, pmap (pow __ l) a^n1=e*c1, R.pow_*-comm {e} {c1} {l}, R.pow_+ {a} {m} {k}, R.pow_+ {b} {m} {k})}) *> inv mf1=y1/a^m
                       | false => functorial-lem l idp b^n2=e*c2 *> LocRing.equals (powers b) (pow b k) (inP (k,idp)) (equation {using (R.pow_* {b} {n2} {l}, pmap (pow __ l) b^n2=e*c2, R.pow_*-comm {e} {c2} {l}, R.pow_+ {a} {m} {k}, R.pow_+ {b} {m} {k})}) *> inv mf2=y2/b^m
