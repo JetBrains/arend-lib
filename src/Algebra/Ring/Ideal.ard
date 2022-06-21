@@ -1,8 +1,6 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Sub
-\import Algebra.Ordered
-\import Algebra.Pointed
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Arith.Int
@@ -10,15 +8,14 @@
 \import Combinatorics.Binom
 \import Data.Array
 \import Data.Bool
-\import Data.Maybe
 \import Equiv
 \import Logic
 \import Logic.Meta
 \import Meta
-\import Order.LinearOrder
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
+\import Set
 \open AddMonoid
 
 -- | Left ideal
@@ -77,7 +74,60 @@
   \lemma closure1-lem {R : CRing} {a b : R} : closure1 a b <-> ∃ (c : R) (b = a * c)
     => (\lam (inP (l,b=sl)) => inP (BigSum (map __.1 l), b=sl *> inv (R.Big-rdistr {a} {map __.1 l})  *> *-comm), \lam (inP (c,b=ac)) => inP ((c,()) :: nil, b=ac *> *-comm *> inv zro-right))
 
-  -- TODO: It is probably a good idea to prove this for all finite sets, not only Bool, and then derive this as a special case.
-  \lemma closure2-lem {R : CRing} {a : R} (f : Bool -> R) : closure f a <-> ∃ (c d : R) (a = f true * c + f false * d)
-    => (\lam (inP (l,a=sl)) => inP (BigSum (filterMap (\lam p => if p.2 (just p.1) nothing) l), BigSum (filterMap (\lam p => if p.2 nothing (just p.1)) l), a=sl *> {?}), \lam (inP (c,d,p)) => inP ((c, true) :: (d, false) :: nil, p *> pmap2 (+) *-comm (*-comm *> inv zro-right)))
+  \lemma closure2-lem {R : CRing} {a : R} (f : Bool -> R)
+    : closure f a <-> ∃ (c d : R) (a = f true * c + f false * d) =>
+    \let (g, h) => fin-closure-lem {2} (\new QEquiv {
+      | f => \case \elim __ \with {
+        | 0 => true | 1 => false
+      }
+      | ret => \case \elim __ \with {
+        | false => 1 | true => 0
+      }
+      | ret_f => cases __ \with {
+        | 0 => idp | 1 => idp
+      }
+      | f_sec => cases __ \with {
+        | false => idp | true => idp
+      }
+    }) f
+    \in (\lam s => TruncP.map (g s) (\lam (c, a=fc) => (c true, c false, equation)),
+         \lam (inP (c, d, a=fc)) => h (inP (if __ c d, a=fc *> equation)))
+
+  \lemma fin-closure-lem {n : Nat} {R : CRing} {D : \Set} (eq : Equiv {Fin n} {D}) {a : R} (f : D -> R)
+    : closure f a <-> ∃ (c : D -> R) (a = BigSum (\lam i => c (eq i) * f (eq i))) =>
+    \let (g, h) => closureN-lem (\lam i => f (eq i))
+    \in (
+      \lam (inP (l, a=fl)) =>
+          TruncP.map (g (inP (map (\lam (r, d) => (r, eq.ret d)) l,
+                              a=fl *> pmap BigSum (exts (idp, \lam j => pmap (_ * f __) (inv (eq.f_ret _)))))))
+              (\lam (c, a=fc) => (\lam d => c (eq.ret d),
+                                  a=fc *> pmap BigSum (exts (idp, \lam j => pmap (c __ * _) (inv (eq.ret_f _)))))),
+      \lam (inP (c, a=fc)) =>
+          TruncP.map (h (inP (\lam i => c (eq i), a=fc))) (\lam (l, a=fl) => (map (\lam (r, i) => (r, eq i)) l, a=fl)))
+
+  \lemma closureN-lem {R : CRing} {a : R} {n : Nat} (B : Array R n)
+    : closure B a <-> ∃ (c : Array R n) (a = BigSum (\lam i => c i * B i)) =>
+    (TruncP.map __ (\lam q =>
+        (\lam i => BigSum (map (\lam p => if (p.2 NatSemiring.== i) p.1 0) q.1),
+         q.2 *> pmap BigSum (exts (idp,
+                                   \lam k => inv (singleton-lem _ _ (q.1 k).2)
+                                     *> pmap BigSum (exts (idp, \lam h => unfold (==) (cases (NatSemiring.decideEq (q.1 k).2 h) \with {
+                                     | yes e => pmap (_ * B __) (fin_nat-inj e)
+                                     | no _ => inv zro_*-left
+                                   })))))
+                  *> R.BigSum_transpose (\lam i j => if ((q.1 i).2 NatSemiring.== j) (q.1 i).1 0 * B j)
+                       *> pmap BigSum (exts (idp, \lam j => inv R.BigSum_rdistr)))),
+     TruncP.map __ (\lam (c, a=Bc) => (\lam i => (c i, i), a=Bc)))
+    \where {
+      \lemma singleton-lem {R : Semiring} (a : R) (n : Nat) (i : Fin n)
+        : BigSum (\lam (j : Fin n) => if (i NatSemiring.== j) a 0) = a \elim n, i
+        | suc _, 0 => pmap (_ +) (R.BigSum_zro (\lam _ => idp)) *> zro-right
+        | suc n, suc i => zro-left *> pmap BigSum (exts (idp, \lam j => pmap (if __ _ _) suc-eq)) *> singleton-lem a n i
+
+      \lemma suc-eq {a b : Nat} : suc a == suc b = a == b =>
+        unfold (==) (cases (decideEq a b, decideEq (suc a) (suc b)) idp \with {
+          | yes e, no n => absurd (n (pmap suc e))
+          | no n, yes e => absurd (n (pmap pred e))
+        })
+    }
 }
