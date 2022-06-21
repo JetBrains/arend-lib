@@ -14,26 +14,25 @@ import org.arend.lib.meta.RewriteMeta;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.util.Values;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class AbGroupInverseRule implements SimplificationRule {
   private final Values<CoreExpression> values;
   private final ConcreteFactory factory;
   private final StdExtension ext;
-  private final ConcreteReferenceExpression refExpr;
   private final FunctionMatcher mulMatcher;
   private final FunctionMatcher ideMatcher;
   private final FunctionMatcher invMatcher;
-  // private FunctionMatcher minusMatcher = null;
+  private final boolean isAbelian;
 
-  public AbGroupInverseRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ExpressionTypechecker typechecker, ConcreteReferenceExpression refExpr, ConcreteFactory factory, boolean isCommutative) {
+  public AbGroupInverseRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker, boolean isAbelian) {
     this.values = new Values<>(typechecker, refExpr);
-    this.factory = factory;
+    this.factory = ext.factory;
     this.ext = ext;
-    this.refExpr = refExpr;
-    if (isCommutative) {
+    this.isAbelian = isAbelian;
+    if (isAbelian) {
       this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.plus, typechecker, factory, refExpr, ext, 2);
       this.invMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.negative, typechecker, factory, refExpr, ext, 1);
       this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.zro, typechecker, factory, refExpr, ext, 0);
@@ -92,74 +91,71 @@ public class AbGroupInverseRule implements SimplificationRule {
     return new VarTerm(index);
   }
 
-  private Pair<List<Boolean>, List<Boolean>> findCancellingVarTerms(Term term, Boolean curSign, List<Boolean> curPath, Map<Integer, Pair<List<Boolean>, Boolean>> varsToSignedPath) {
+  private void countVarOccurNums(Term term, Map<Integer, Pair<Integer, Integer>> indToVarOccurNums, boolean curSign) {
     if (term instanceof VarTerm) {
       var varTerm = (VarTerm)term;
-      var varSignedPath = varsToSignedPath.get(varTerm.index);
-      if (varSignedPath == null) {
-        varsToSignedPath.put(varTerm.index, new Pair<>(curPath, curSign));
-        return null;
+      var occurNums = indToVarOccurNums.get(varTerm.index);
+      if (occurNums == null) {
+        indToVarOccurNums.put(varTerm.index, curSign ? new Pair<>(0, 1) : new Pair<>(1, 0));
+        return;
       }
-      if (varSignedPath.proj2 == curSign) {
-        return null;
-      }
-      return new Pair<>(varSignedPath.proj1, curPath);
+      indToVarOccurNums.put(varTerm.index, curSign ? new Pair<>(occurNums.proj1, occurNums.proj2 + 1) : new Pair<>(occurNums.proj1 + 1, occurNums.proj2));
+    } else if (term instanceof InvTerm) {
+      var invTerm = (InvTerm)term;
+      countVarOccurNums(invTerm.arg, indToVarOccurNums, !curSign);
+    } else if (term instanceof MulTerm) {
+      var mulTerm = (MulTerm)term;
+      countVarOccurNums(mulTerm.left, indToVarOccurNums, curSign);
+      countVarOccurNums(mulTerm.right, indToVarOccurNums, curSign);
     }
-    if (term instanceof IdeTerm) {
-      return null;
-    }
-    if (term instanceof InvTerm) {
-      return findCancellingVarTerms(((InvTerm)term).arg, !curSign, curPath, varsToSignedPath);
-    }
-    var mulTerm = (MulTerm)term;
-    curPath.add(false);
-    var res = findCancellingVarTerms(mulTerm.left, curSign, curPath, varsToSignedPath);
-    if (res != null) {
-      return res;
-    }
-    curPath.set(curPath.size() - 1, !curPath.get(curPath.size() - 1));
-    res = findCancellingVarTerms(mulTerm.right, curSign, curPath, varsToSignedPath);
-    curPath.remove(curPath.size() - 1);
-    return res;
+  }
+  private Map<Integer, Integer> varsToRemove(Term term) {
+    var indToVarOccurNums = new TreeMap<Integer, Pair<Integer, Integer>>();
+    countVarOccurNums(term, indToVarOccurNums, false);
+    var result = new TreeMap<Integer, Integer>();
+    indToVarOccurNums.forEach((key, value) -> result.put(key, Math.min(value.proj1, value.proj2)));
+    return result;
   }
 
-  private Term moveLeafToTheTop(Term term, List<Boolean> path) {
-    if (term instanceof InvTerm) {
-      var invTerm = (InvTerm)term;
-      var newArg = moveLeafToTheTop(invTerm.arg, path);
-      if (newArg == null) return null;
-      if (newArg instanceof InvTerm) {
-        return ((InvTerm)newArg).arg;
-      }
-      if (newArg instanceof MulTerm) {
-        var leftMulArg = ((MulTerm)newArg).left;
-        var rightMulArg = ((MulTerm)newArg).right;
-        if (rightMulArg instanceof InvTerm) {
-          return new MulTerm(new InvTerm(leftMulArg), ((InvTerm)rightMulArg).arg);
-        }
-        return new MulTerm(new InvTerm(leftMulArg), new InvTerm(rightMulArg));
-      }
-    }
-    if (term instanceof MulTerm) {
-      if (path.isEmpty()) return null;
-      var mulTerm = (MulTerm)term;
-      if (path.get(0)) {
-        var newArg = moveLeafToTheTop(mulTerm.right, path.subList(1, path.size()));
-        if (newArg == null) return null;
-        if (newArg instanceof MulTerm) {
-          return new MulTerm(new MulTerm(mulTerm.left, ((MulTerm)newArg).left), ((MulTerm)newArg).right);
-        }
-        return new MulTerm(mulTerm.left, newArg);
-      }
-      var newArg = moveLeafToTheTop(mulTerm.left, path.subList(1, path.size()));
-      if (newArg == null) return null;
-      if (newArg instanceof MulTerm) {
-        return new MulTerm(new MulTerm(((MulTerm)newArg).left, mulTerm.right), ((MulTerm)newArg).right);
-      }
-      return new MulTerm(mulTerm.right, newArg);
-    }
+  private Term removeVars(Term term, Map<Integer, Pair<Integer, Integer>> numVarsToRemove, boolean curSign) {
     if (term instanceof VarTerm) {
-      return term;
+      var varTerm = (VarTerm) term;
+      var numsToRemove = numVarsToRemove.get(varTerm.index);
+      if (numsToRemove != null) {
+        if (curSign && numsToRemove.proj2 > 0) {
+          numVarsToRemove.put(varTerm.index, new Pair<>(numsToRemove.proj1, numsToRemove.proj2 - 1));
+          return new IdeTerm();
+        }
+        if (!curSign && numsToRemove.proj1 > 0) {
+          numVarsToRemove.put(varTerm.index, new Pair<>(numsToRemove.proj1 - 1, numsToRemove.proj2));
+          return new IdeTerm();
+        }
+      }
+    } else if (term instanceof InvTerm) {
+      var invTerm = (InvTerm) term;
+      return removeVars(invTerm.arg, numVarsToRemove, !curSign);
+    } else if (term instanceof MulTerm) {
+      var mulTerm = (MulTerm) term;
+      var newLeft = removeVars(mulTerm.left, numVarsToRemove, curSign);
+      var newRight = removeVars(mulTerm.right, numVarsToRemove, curSign);
+      return new MulTerm(newLeft, newRight);
+    }
+    return term;
+  }
+
+  private ConcreteExpression termToConcrete(Term term) {
+    if (term == null) return null;
+    if (term instanceof IdeTerm) {
+      return factory.ref(isAbelian ? ext.equationMeta.zro.getRef() : ext.equationMeta.ide.getRef());
+    } else if (term instanceof VarTerm) {
+      return factory.core(values.getValue(((VarTerm) term).index).computeTyped()); //factory.appBuilder(factory.ref(ext.equationMeta.varGTerm.getRef())).app(factory.number(((VarTerm) term).index)).build();
+    } else if (term instanceof InvTerm) {
+      return factory.appBuilder(isAbelian ? factory.ref(ext.equationMeta.negative.getRef()) : factory.ref(ext.equationMeta.inverse.getRef()))
+                      .app(termToConcrete(((InvTerm) term).arg)).build();
+    } else if (term instanceof MulTerm) {
+      return factory.appBuilder(isAbelian ? factory.ref(ext.equationMeta.plus.getRef()) : factory.ref(ext.equationMeta.mul.getRef()))
+              .app(termToConcrete(((MulTerm) term).left))
+              .app(termToConcrete(((MulTerm) term).right)).build();
     }
     return null;
   }
@@ -167,7 +163,17 @@ public class AbGroupInverseRule implements SimplificationRule {
   @Override
   public RewriteMeta.EqProofConcrete apply(TypedExpression expression) {
     var term = computeTerm(expression.getExpression());
-
-    return null;
+    var numVarsToRemove = new TreeMap<Integer, Pair<Integer, Integer>>();
+    varsToRemove(term).forEach((key, value) -> numVarsToRemove.put(key, new Pair<>(value, value)));
+    var newTerm = removeVars(term, numVarsToRemove, false);
+    var simplifyProof = factory.appBuilder(factory.ref(ext.equationMeta.simplifyCorrectAbInv.getRef())).app(factory.core(expression)).build();
+    var left = factory.core(expression);
+    var right = termToConcrete(newTerm);
+    if (isAbelian) {
+      simplifyProof = factory.appBuilder(factory.ref(ext.pmap.getRef()))
+              .app(factory.ref(ext.equationMeta.fromGroupToAddGroup.getRef()))
+              .app(simplifyProof).build();
+    }
+    return new RewriteMeta.EqProofConcrete(simplifyProof, left, right);
   }
 }

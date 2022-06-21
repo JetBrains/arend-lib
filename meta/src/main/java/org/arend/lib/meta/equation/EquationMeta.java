@@ -120,11 +120,18 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:*")   public CoreConstructor mulGTerm;
   @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:inv")  public CoreConstructor invGTerm;
 
-  @Dependency(module = "Algebra.Group")                                    public CoreClassDefinition AddGroup;
+  @Dependency(module = "Algebra.Group.Solver", name = "CData.simplify-correct")  public CoreFunctionDefinition simplifyCorrectAbInv;
+
+  @Dependency(module = "Algebra.Group")                   public CoreClassDefinition Group;
+  @Dependency(module = "Algebra.Group")                public CoreClassDefinition AddGroup;
+  @Dependency(module = "Algebra.Group")                public CoreClassDefinition AbGroup;
+  @Dependency(module = "Algebra.Group")                public CoreClassDefinition CGroup;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative")       public CoreClassField negative;
   @Dependency(module = "Algebra.Group", name = "AddGroup.fromZero")       public CoreFunctionDefinition fromZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.toZero")         public CoreFunctionDefinition toZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative-isInv")    public CoreFunctionDefinition negIsInv;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.fromGroup")     public CoreFunctionDefinition fromGroupToAddGroup;
+  @Dependency(module = "Algebra.Group", name = "Group.inverse-isInv")    public CoreFunctionDefinition invIsInv;
   @Dependency(module = "Algebra.Semiring")                                public CoreClassDefinition Semiring;
   @Dependency(module = "Algebra.Ring")                                    public CoreClassDefinition Ring;
   @Dependency(module = "Algebra.Semiring", name = "Semiring.natCoef")     public CoreClassField natCoef;
