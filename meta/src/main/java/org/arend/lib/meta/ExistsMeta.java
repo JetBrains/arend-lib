@@ -77,7 +77,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
               ConcreteParameter param = argFactory.param(Collections.singletonList(((ConcreteReferenceExpression) argument.getExpression()).getReferent()), argFactory.hole());
               parameters.add(argument.isExplicit() ? param : param.implicit());
             } else {
-              ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory, false);
+              ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory);
               if (param == null) {
                 return null;
               }
@@ -93,7 +93,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           parameters.add(argument.isExplicit() ? param : param.implicit());
         }
       } else if (argument.isExplicit()) {
-        ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory, true);
+        ConcreteParameter param = Utils.expressionToParameter(argument.getExpression(), resolver, argFactory);
         if (param == null) {
           return null;
         }
@@ -268,14 +268,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
 
     private ConcreteParameter produceParam(boolean explicit, Collection<? extends ArendRef> refs, ConcreteExpression type, Object data) {
       ConcreteFactory actualFactory = data == null ? factory : factory.withData(data);
-      if (kind != Kind.PI) {
-        return refs == null ? actualFactory.sigmaParam(SigmaFieldKind.ANY, type) : actualFactory.sigmaParam(SigmaFieldKind.ANY, refs, type);
-      } else {
-        if (refs == null) {
-          return actualFactory.param(explicit, type);
-        }
-        return actualFactory.param(explicit, refs, type);
-      }
+      return refs == null ? actualFactory.param(explicit, type) : actualFactory.param(explicit, refs, type);
     }
   }
 
