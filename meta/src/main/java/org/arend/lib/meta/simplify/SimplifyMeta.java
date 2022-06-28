@@ -71,6 +71,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
       boolean skip = false;
       boolean keepSimplifying = true;
       while (keepSimplifying) {
+        typechecker.checkCancelled();
         keepSimplifying = false;
         for (var rule : simplificationRules) {
           var simplificationRes = rule.apply(simplifiedExpr);
@@ -117,14 +118,17 @@ public class SimplifyMeta extends BaseMetaDefinition {
           if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Ring)) {
             rules.add(new MulOfNegativesRule(instance, classCall, ext, refExpr, typechecker));
           }
+
           if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AddGroup)) {
             rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, true));
           } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Group)) {
             rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, false));
-          }
-          if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AbGroup)) {
+          }/**/
+          if (classCall.getDefinition().isSubClassOf(ext.equationMeta.CGroup)) {
+            rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, false));
+          } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AbGroup)) {
             rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, true));
-          }
+          }/**/
         }
       }
     }

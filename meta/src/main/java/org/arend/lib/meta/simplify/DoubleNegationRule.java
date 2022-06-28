@@ -22,10 +22,10 @@ public class DoubleNegationRule extends LocalSimplificationRuleBase {
     super(instance, classCall, ext, refExpr, typechecker);
     if (isAdditive) {
       this.negativeMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.negative, typechecker, factory, refExpr, ext, 1);
-      this.negIsInv = ext.equationMeta.invIsInv;
+      this.negIsInv = ext.equationMeta.negIsInv;
     } else {
       this.negativeMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.inverse, typechecker, factory, refExpr, ext, 1);
-      this.negIsInv = ext.equationMeta.negIsInv;
+      this.negIsInv = ext.equationMeta.invIsInv;
     }
   }
 

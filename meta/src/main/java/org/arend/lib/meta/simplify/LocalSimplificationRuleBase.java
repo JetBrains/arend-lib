@@ -36,6 +36,7 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
     var simplifiedExpression = expression;
     RewriteMeta.EqProofConcrete simplificationProof = null;
     while (true) {
+      typechecker.checkCancelled();
       final RewriteMeta.EqProofConcrete[] simplificationRes = {null};
       TypedExpression finalSimplifiedExpression = simplifiedExpression;
       simplifiedExpression.getExpression().processSubexpression(subexpr -> {

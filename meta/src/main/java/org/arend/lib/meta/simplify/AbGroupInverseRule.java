@@ -25,14 +25,14 @@ public class AbGroupInverseRule implements SimplificationRule {
   private final FunctionMatcher mulMatcher;
   private final FunctionMatcher ideMatcher;
   private final FunctionMatcher invMatcher;
-  private final boolean isAbelian;
+  private final boolean isAdditive;
 
-  public AbGroupInverseRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker, boolean isAbelian) {
+  public AbGroupInverseRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker, boolean isAdditive) {
     this.values = new Values<>(typechecker, refExpr);
     this.factory = ext.factory;
     this.ext = ext;
-    this.isAbelian = isAbelian;
-    if (isAbelian) {
+    this.isAdditive = isAdditive;
+    if (isAdditive) {
       this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.plus, typechecker, factory, refExpr, ext, 2);
       this.invMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.negative, typechecker, factory, refExpr, ext, 1);
       this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.zro, typechecker, factory, refExpr, ext, 0);
@@ -143,19 +143,29 @@ public class AbGroupInverseRule implements SimplificationRule {
     return term;
   }
 
-  private ConcreteExpression termToConcrete(Term term) {
+  private Pair<ConcreteExpression, ConcreteExpression> termToConcrete(Term term) {
     if (term == null) return null;
     if (term instanceof IdeTerm) {
-      return factory.ref(isAbelian ? ext.equationMeta.zro.getRef() : ext.equationMeta.ide.getRef());
+      return new Pair<>(factory.ref(isAdditive ? ext.equationMeta.zro.getRef() : ext.equationMeta.ide.getRef()),
+              factory.ref(ext.equationMeta.ideGTerm.getRef()));
     } else if (term instanceof VarTerm) {
-      return factory.core(values.getValue(((VarTerm) term).index).computeTyped()); //factory.appBuilder(factory.ref(ext.equationMeta.varGTerm.getRef())).app(factory.number(((VarTerm) term).index)).build();
+      return new Pair<>(factory.core(values.getValue(((VarTerm) term).index).computeTyped()),
+              factory.appBuilder(factory.ref(ext.equationMeta.varGTerm.getRef())).app(factory.number(((VarTerm) term).index)).build());
     } else if (term instanceof InvTerm) {
-      return factory.appBuilder(isAbelian ? factory.ref(ext.equationMeta.negative.getRef()) : factory.ref(ext.equationMeta.inverse.getRef()))
-                      .app(termToConcrete(((InvTerm) term).arg)).build();
+      var arg = termToConcrete(((InvTerm) term).arg);
+      return new Pair<>(factory.appBuilder(isAdditive ? factory.ref(ext.equationMeta.negative.getRef()) : factory.ref(ext.equationMeta.inverse.getRef()))
+                      .app(arg.proj1).build(),
+              factory.appBuilder(factory.ref(ext.equationMeta.invGTerm.getRef()))
+                      .app(arg.proj2).build());
     } else if (term instanceof MulTerm) {
-      return factory.appBuilder(isAbelian ? factory.ref(ext.equationMeta.plus.getRef()) : factory.ref(ext.equationMeta.mul.getRef()))
-              .app(termToConcrete(((MulTerm) term).left))
-              .app(termToConcrete(((MulTerm) term).right)).build();
+      var left = termToConcrete(((MulTerm) term).left);
+      var right = termToConcrete(((MulTerm) term).right);
+      return new Pair<>(factory.appBuilder(isAdditive ? factory.ref(ext.equationMeta.plus.getRef()) : factory.ref(ext.equationMeta.mul.getRef()))
+              .app(left.proj1)
+              .app(right.proj1).build(),
+              factory.appBuilder(factory.ref(ext.equationMeta.mulGTerm.getRef()))
+                      .app(left.proj2)
+                      .app(right.proj2).build());
     }
     return null;
   }
@@ -163,17 +173,20 @@ public class AbGroupInverseRule implements SimplificationRule {
   @Override
   public RewriteMeta.EqProofConcrete apply(TypedExpression expression) {
     var term = computeTerm(expression.getExpression());
+    var concreteTerm = termToConcrete(term);
     var numVarsToRemove = new TreeMap<Integer, Pair<Integer, Integer>>();
     varsToRemove(term).forEach((key, value) -> numVarsToRemove.put(key, new Pair<>(value, value)));
+    if (numVarsToRemove.isEmpty()) return null;
     var newTerm = removeVars(term, numVarsToRemove, false);
-    var simplifyProof = factory.appBuilder(factory.ref(ext.equationMeta.simplifyCorrectAbInv.getRef())).app(factory.core(expression)).build();
+    var simplifyProof = factory.appBuilder(factory.ref(ext.equationMeta.simplifyCorrectAbInv.getRef()))
+            .app(concreteTerm.proj2).build();
     var left = factory.core(expression);
-    var right = termToConcrete(newTerm);
-    if (isAbelian) {
+    var right = termToConcrete(newTerm).proj1;
+    if (isAdditive) {
       simplifyProof = factory.appBuilder(factory.ref(ext.pmap.getRef()))
               .app(factory.ref(ext.equationMeta.fromGroupToAddGroup.getRef()))
               .app(simplifyProof).build();
     }
-    return new RewriteMeta.EqProofConcrete(simplifyProof, left, right);
+    return new RewriteMeta.EqProofConcrete(simplifyProof, left, right);/**/
   }
 }

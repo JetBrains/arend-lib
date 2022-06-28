@@ -6,12 +6,14 @@
 \import Arith.Nat
 \import Data.Bool
 \import Data.List
+\import Data.Or
 \import Function.Meta ($)
 \import Logic
 \import Meta
 \import Order.Lattice
 \import Order.Lexicographical
-\import Order.PartialOrder
+\import Order.LinearOrder
+\import Order.PartialOrder \hiding (ProductPoset)
 \import Paths
 \import Paths.Meta
 \import Set
@@ -53,9 +55,9 @@
   \func countVars (l : List (\Sigma (\Sigma Bool V) Nat)) : List (\Sigma V Nat) \elim l
     | nil => nil
     | :: _ nil => nil
-    | :: ((b,x),n) (:: ((c,y),m) l) => \case b, c, decideEq x y \with {
-      | false, true, yes _ => (x, n ∧ m) :: countVars l
-      | _, _, _ => countVars (((c,y),m) :: l)
+    | :: ((b,x),n) (:: ((c,y),m) l) => \case decideEq x y \with {
+      | yes _ => (x, n ∧ m) :: countVars l
+      | no _ => countVars (((c,y),m) :: l)
     }
 
   \func removeVars (t : GroupTerm V) (l : List (\Sigma V Nat)) : GroupTerm V \elim l
@@ -176,39 +178,56 @@
     })
     | :* t1 t2 => count_++ *> pmap2 (+) (toList-correct t1 p b) (toList-correct t2 p b)
 
-  \lemma group-correct (t : GroupTerm V) : All (\lam p => p.2 <= countVar t p.1.2 p.1.1) $ group $ RedBlack.sort $ toList t false
-    => rewrite RedBlack.sort=insert $ all-implies (group_count-lem (Insertion.sort-sorted (toList t false))) $ all-forall $
+  \lemma group-correct (t : GroupTerm V) : All (\lam p => p.2 <= countVar t p.1.2 p.1.1) $ group $ Insertion.sort $ toList t false
+    => all-implies (group_count-lem (Insertion.sort-sorted (toList t false))) $ all-forall $
          \lam p c => rewrite c $ Preorder.=_<= $ inv (count_perm (Insertion.sort-perm (toList t false)) p.1) *> toList-correct t p.1 false
 
   \lemma countVars-correct (t : GroupTerm V) {l : List (\Sigma (\Sigma Bool V) Nat)} (a : All (\lam p => p.2 <= countVar t p.1.2 p.1.1) l)
-    : All (\lam p => \Sigma (p.2 <= countVar t p.1 false) (p.2 <= countVar t p.1 true)) (countVars l) \elim l, a
-    | nil, all-nil => all-nil
-    | :: _ nil, _ => all-nil
-    | :: ((b,x),n) (:: ((c,y),m) l), all-cons p (all-cons p' a) => mcases (p,p') _ \with {
-      | false, true, yes e, p, p' => all-cons (meet-left <=∘ p, rewrite e $ meet-right <=∘ p') (countVars-correct t a)
-      | _, _, _, _, _ => countVars-correct t (all-cons p' a)
+                           (a' : AllC (\lam p1 p2 => p1.1.2 = p2.1.2 -> \Sigma (p1.1.1 = false) (p2.1.1 = true)) l)
+    : All (\lam p => \Sigma (p.2 <= countVar t p.1 false) (p.2 <= countVar t p.1 true)) (countVars l) \elim l, a, a'
+    | nil, all-nil, allC-nil => all-nil
+    | :: x nil, all-cons p a, allC-single => all-nil
+    | :: ((b,x),n) (:: ((c,y),m) l), all-cons p (all-cons p' a), allC-cons q a' => mcases \with {
+      | yes e => all-cons (meet-left <=∘ rewriteI (q e).1 p, rewrite e $ meet-right <=∘ rewriteI (q e).2 p') (countVars-correct t a (allC-tail a'))
+      | no _ => countVars-correct t (all-cons p' a) a'
     }
 
   \lemma countVars-ineq {l : List (\Sigma (\Sigma Bool V) Nat)} {x : V} (a : All (x /= __.1.2) l) : All (x /= __.1) (countVars l) \elim l, a
     | nil, all-nil => all-nil
     | :: y nil, all-cons p a => all-nil
     | :: y (:: z l), all-cons p (all-cons a1 a2) => mcases \with {
-      | false, true, yes e => all-cons p (countVars-ineq a2)
-      | _, _, _ => countVars-ineq (all-cons a1 a2)
+      | yes e => all-cons p (countVars-ineq a2)
+      | no _ => countVars-ineq (all-cons a1 a2)
     }
 
-  \lemma countVars-diff {l : List (\Sigma (\Sigma Bool V) Nat)} (a : All2 (__.1 /= __.1) l) : All2 (__.1 /= __.1) (countVars l) \elim l, a
-    | nil, all2-nil => all2-nil
-    | :: _ nil, a => all2-nil
-    | :: ((b,x),n) (:: ((c,y),m) l), all2-cons (all-cons _ a1) (all2-cons a2 a3) => mcases {_} (a1,a2) _ \with {
-      | false, true, yes e, a1, a2 =>
+  \lemma countVars-diff {l : List (\Sigma (\Sigma Bool V) Nat)} (a' : AllC (\lam p1 p2 => p1.1.2 = p2.1.2 -> \Sigma (p1.1.1 = false) (p2.1.1 = true)) l) (a : All2 (__.1 /= __.1) l)
+    : All2 (__.1 /= __.1) (countVars l) \elim l, a', a
+    | nil, allC-nil, all2-nil => all2-nil
+    | :: x nil, allC-single, all2-cons a a1 => all2-nil
+    | :: ((b,x),n) (:: ((c,y),m) l), allC-cons s a', all2-cons (all-cons _ a1) (all2-cons a2 a3) => mcases \with {
+      | yes e =>
         all2-cons (countVars-ineq $ all-implies a1 $ all-implies a2 $ all-forall $ \lam q c d e' => cases (q.1.1 arg addPath) \with {
-          | false, p => d $ ext (inv p, e')
-          | true, p => c $ ext (inv p, inv e *> e')
-        }) (countVars-diff a3)
-      | _, _, _, _, _ => countVars-diff (all2-cons a2 a3)
+          | false, p => d $ ext ((s e).1 *> inv p, e')
+          | true, p => c $ ext ((s e).2 *> inv p, inv e *> e')
+        }) (countVars-diff (allC-tail a') a3)
+      | no _ => countVars-diff a' (all2-cons a2 a3)
     }
+
+  \lemma sort-correct-lem {l : List (\Sigma (\Sigma Bool V) Nat)} (s : Sorted (map __.1 l)) (a : All2 (__.1 /= __.1) l)
+    : AllC (\lam p1 p2 => p1.1.2 = p2.1.2 -> \Sigma (p1.1.1 = false) (p2.1.1 = true)) l \elim l, s, a
+    | nil, _, _ => allC-nil
+    | :: x nil, _, _ => allC-single
+    | :: ((x,u),_) (:: ((y,v),_) l), sorted-cons x<=y s, all2-cons (all-cons p _) a2 => allC-cons (\lam e => \case LinearOrder.<=-dec x<=y \with {
+      | inl (byLeft x<y) => \case \elim x, \elim y, \elim x<y \with {
+        | false, true, BoolPoset.false<true => (idp,idp)
+      }
+      | inl (byRight (x=y,_)) => \case p $ ext (x=y,e)
+      | inr xu=yv => \case p xu=yv
+    }) (sort-correct-lem s a2)
+
+  \lemma sort-correct {l : List (\Sigma Bool V)} : AllC (\lam p1 p2 => p1.1.2 = p2.1.2 -> \Sigma (p1.1.1 = false) (p2.1.1 = true)) $ group $ Insertion.sort l
+    => sort-correct-lem (group-sorted (Insertion.sort-sorted l)) (group-diff (Insertion.sort-sorted l))
 
   \lemma simplify-correct (t : GroupTerm V) : interpret t = interpret (simplify t)
-    => inv $ removeVars-correct t (countVars-correct t $ group-correct t) $ countVars-diff $ group-diff $ transportInv Sorted (RedBlack.sort=insert _) (Insertion.sort-sorted (toList t false))
+    => inv $ unfold simplify (rewrite RedBlack.sort=insert $ removeVars-correct t (countVars-correct t (group-correct t) sort-correct) $ countVars-diff sort-correct $ group-diff $ Insertion.sort-sorted (toList t false))
 }
