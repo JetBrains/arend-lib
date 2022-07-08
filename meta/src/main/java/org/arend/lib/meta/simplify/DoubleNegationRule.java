@@ -26,7 +26,10 @@ public class DoubleNegationRule extends LocalSimplificationRuleBase {
     if (args != null) {
       args = negativeMatcher.match(args.get(0));
       if (args != null) {
-        var path = factory.appBuilder(factory.ref(ext.equationMeta.negIsInv.getRef())).app(factory.core(args.get(0).computeTyped())).build();
+        var path = factory.appBuilder(factory.ref(ext.equationMeta.negIsInv.getRef()))
+          .app(factory.hole(), false)
+          .app(factory.core(args.get(0).computeTyped()), false)
+          .build();
         return new Pair<>(args.get(0), path);
       }
     }

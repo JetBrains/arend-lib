@@ -36,7 +36,7 @@
   | <-irreflexive x<x => zro/>0 (transport isPos negative-right x<x)
   | <-transitive x<y y<z => transport isPos diff_+ (positive_+ y<z x<y)
   | <_+-left z {x} {y} x<y => transport isPos (inv (
-      (y + z) - (x + z)          ==< pmap ((y + z) +) (negative_+ x z) >==
+      (y + z) - (x + z)          ==< pmap ((y + z) +) negative_+ >==
       (y + z) + (negative z - x) ==< +-assoc >==
       y + (z + (negative z - x)) ==< inv (pmap (y +) +-assoc) >==
       y + ((z - z) - x)          ==< pmap (y + (__ - x)) negative-right >==
@@ -47,10 +47,10 @@
   | isNeg x => isPos (negative x)
 
   \lemma fromNeg {x y : E} (x-y<0 : isNeg (x - y)) : x < y
-    => transport isPos (negative_+ _ _ *> pmap (`- x) (negative-isInv y)) x-y<0
+    => transport isPos (negative_+ *> pmap (`- x) negative-isInv) x-y<0
 
   \lemma toNeg {x y : E} (x<y : x < y) : isNeg (x - y)
-    => transport isPos (inv (negative_+ _ _ *> pmap (`- x) (negative-isInv y))) x<y
+    => transport isPos (inv (negative_+ *> pmap (`- x) negative-isInv)) x<y
 
   \lemma pos_>0 {x : E} (p : isPos x) : x > 0
     => unfold $ unfold $ unfold (-) $ rewrite (negative_zro,zro-right) p
@@ -65,7 +65,7 @@
     => transport isPos (unfold (-) $ rewrite (negative-isInv,negative_zro) (zro-right *> inv zro-left)) x>0
 
   \lemma negative_positive' {x : E} (-x<0 : isNeg (negative x)) : isPos x
-    => transport isPos (negative-isInv x) -x<0
+    => transport isPos negative-isInv -x<0
 
   \lemma negative_positive {x : E} (x<0 : x < 0) : negative x > 0
     => transport isPos (unfold (-) $ rewrite negative_zro (zro-left *> inv zro-right)) x<0
@@ -206,20 +206,20 @@
   | negative_* {x y : E} : isNeg x -> isNeg y -> isPos (x * y)
   | negative_* {x} {y} x<0 y<0 => transport isPos (Ring.negative_* x y) (positive_* x<0 y<0)
 
-  | zro<ide => transport isPos (inv (minus_zro ide)) ide>zro
+  | zro<ide => transport isPos (inv minus_zro) ide>zro
 
   | <-comparison y {x} {z} x<z => \case <_+-comparison (z - y) (y - x) (transport isPos (inv OrderedAddGroup.diff_+) x<z) \with {
     | byLeft p => byRight p
     | byRight p => byLeft p
   }
-  | <-connectedness x/<y y/<x => fromZero _ _ (<_+-connectedness y/<x (\lam p => x/<y (fromNeg p)))
+  | <-connectedness x/<y y/<x => fromZero (<_+-connectedness y/<x (\lam p => x/<y (fromNeg p)))
 
   | <_*_positive-left {x} {y} {z} x<y z>0 =>
     transport isPos (rdistr *> pmap (y * z +) (Ring.negative_*-left x z))
-              (positive_* x<y (transport isPos (minus_zro z) z>0))
+              (positive_* x<y (transport isPos minus_zro z>0))
   | <_*_positive-right {x} {y} {z} x>0 y<z =>
     transport isPos (ldistr *> pmap (x * z +) (Ring.negative_*-right x y))
-              (positive_* (transport isPos (minus_zro x) x>0) y<z)
+              (positive_* (transport isPos minus_zro x>0) y<z)
   | <_*_negative-left {x} {y} {z} x<y z<0 =>
     transport isPos (rdistr *> pmap (x * z +) (Ring.negative_*-left y z))
               (negative_* (toNeg x<y) (transport isPos zro-left z<0))
@@ -239,13 +239,13 @@
   | <_*-cancel-left x y z x*y<x*z =>
     \have x*[z-y]>0 => transport isPos (inv (ldistr *> pmap (x * z +) (Ring.negative_*-right x y))) x*y<x*z
     \in \case positive_*-cancel x*[z-y]>0 \with {
-      | byLeft (x>0, z-y>0) => byLeft (transport isPos (inv (minus_zro x)) x>0, z-y>0)
+      | byLeft (x>0, z-y>0) => byLeft (transport isPos (inv minus_zro) x>0, z-y>0)
       | byRight (x<0, z-y<0) => byRight (transport isPos (inv zro-left) x<0, fromNeg z-y<0)
     }
   | <_*-cancel-right x y z x*z<y*z =>
     \have [y-x]*z>0 => transport isPos (inv (rdistr *> pmap (y * z +) (Ring.negative_*-left x z))) x*z<y*z
     \in \case positive_*-cancel [y-x]*z>0 \with {
-      | byLeft (y-x>0, z>0) => byLeft (transport isPos (inv (minus_zro z)) z>0, y-x>0)
+      | byLeft (y-x>0, z>0) => byLeft (transport isPos (inv minus_zro) z>0, y-x>0)
       | byRight (y-x<0, z<0) => byRight (transport isPos (inv zro-left) z<0, fromNeg y-x<0)
     }
 
@@ -253,9 +253,9 @@
     | byLeft zro>0 => zro/>0 zro>0
     | byRight zro>0 => zro/>0 (transport isPos negative_zro zro>0)
   }
-  | #0-+ x y x+y#0 => \case #0=>eitherPosOrNeg x+y#0 \with {
+  | #0-+ {x} {y} x+y#0 => \case #0=>eitherPosOrNeg x+y#0 \with {
     | byLeft x+y>0 => ||.map positive=>#0 positive=>#0 (<_+-comparison x y x+y>0)
-    | byRight x+y<0 => \case <_+-comparison (negative y) (negative x) (transport isPos (negative_+ x y) x+y<0) \with {
+    | byRight x+y<0 => \case <_+-comparison (negative y) (negative x) (transport isPos negative_+ x+y<0) \with {
       | byLeft y<0 => byRight (negative=>#0 y<0)
       | byRight x<0 => byLeft (negative=>#0 x<0)
     }
@@ -329,7 +329,7 @@
     \field +_trichotomy (x : E) : Tri x
 
     | trichotomy x y => \case +_trichotomy (x - y) \with {
-      | triZro x-y=0 => equals (fromZero x y x-y=0)
+      | triZro x-y=0 => equals (fromZero x-y=0)
       | triPos x-y>0 => greater x-y>0
       | triNeg x-y<0 => less (fromNeg x-y<0)
     }
@@ -351,7 +351,7 @@
       | triNeg x<0, triPos y>0 => absurd (zro/>0 (transport isPos negative-right (positive_+ x*y>0 (negative_positive_* x<0 y>0))))
       | triNeg x<0, triNeg y<0 => byRight (x<0, y<0)
     }
-    | nonEqualApart {x} x/=0 => \case +_trichotomy x \with {
+    | nonZeroApart {x} x/=0 => \case +_trichotomy x \with {
       | triZro x=0 => absurd (x/=0 x=0)
       | triPos x>0 => positive=>#0 x>0
       | triNeg x<0 => negative=>#0 x<0
@@ -396,7 +396,7 @@
       | byRight x<0, byLeft y>0 => absurd (zro/>0 (transport isPos negative-right (positive_+ x*y>0 (negative_positive_* x<0 y>0))))
       | byRight x<0, byRight y<0 => byRight (x<0, y<0)
     }
-  | negative=>#0 x<0 => transport #0 (negative-isInv _) (Ring.negative_inv (positive=>#0 x<0))
+  | negative=>#0 x<0 => transport #0 negative-isInv (Ring.negative_inv (positive=>#0 x<0))
 }
 
 \class DiscreteOrderedField \extends OrderedCRing.Dec, OrderedField, DiscreteField {

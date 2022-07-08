@@ -177,7 +177,7 @@ public class ExtMeta extends BaseMetaDefinition {
             }
           }
           CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), LevelSubstitution.EMPTY, substitution);
-          return result == null ? null : result.computeTyped();
+          return result == null ? null : result.computeTyped(true);
         }
       }));
     }

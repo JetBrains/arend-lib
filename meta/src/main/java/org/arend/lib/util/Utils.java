@@ -244,7 +244,7 @@ public class Utils {
   }
 
   public static boolean isProp(CoreExpression type) {
-    CoreExpression typeType = type.computeType().normalize(NormalizationMode.WHNF);
+    CoreExpression typeType = type.computeType(true).normalize(NormalizationMode.WHNF);
     return typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp();
   }
 

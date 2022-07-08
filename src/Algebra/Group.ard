@@ -1,5 +1,6 @@
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Function.Meta ($)
 \import Logic
 \import Paths
 \import Paths.Meta
@@ -31,7 +32,7 @@
       y                   `qed
 
   \lemma inverse-isInv (x : E) : inverse (inverse x) = x =>
-     AddGroup.negative-isInv {AddGroup.fromGroup \this} x
+     AddGroup.negative-isInv {AddGroup.fromGroup \this}
 
   \lemma inverse_* (x y : E) : inverse (x * y) = inverse y * inverse x => cancel-left (x * y) (
     (x * y) / (x * y)         ==< inverse-right >==
@@ -84,19 +85,19 @@
   \lemma cancel-right (z : E) {x y : E} (p : x + z = y + z) : x = y =>
     Group.cancel-right {toGroup \this} z p
 
-  \lemma negative-isInv (x : E) : negative (negative x) = x =>
+  \lemma negative-isInv {x : E} : negative (negative x) = x =>
     cancel-left (negative x) (negative-right *> inv negative-left)
 
-  \lemma negative_+ (x y : E) : negative (x + y) = negative y - x
+  \lemma negative_+ {x y : E} : negative (x + y) = negative y - x
     => Group.inverse_* {toGroup \this} x y
 
   \lemma negative_zro : negative zro = zro
     => inv zro-right *> negative-left
 
-  \lemma minus_zro (x : E) : x - zro = x
+  \lemma minus_zro {x : E} : x - zro = x
     => pmap (x +) negative_zro *> zro-right
 
-  \lemma fromZero (x y : E) (x-y=0 : x - y = zro) : x = y =>
+  \lemma fromZero {x y : E} (x-y=0 : x - y = zro) : x = y =>
     x                    ==< inv zro-right >==
     x + zro              ==< pmap (x +) (inv negative-left) >==
     x + (negative y + y) ==< inv +-assoc >==
@@ -104,7 +105,7 @@
     zro + y              ==< zro-left >==
     y                    `qed
 
-  \lemma toZero (x y : E) (x=y : x = y) : x - y = zro => rewriteI x=y negative-right
+  \lemma toZero {x y : E} (x=y : x = y) : x - y = zro => rewriteI x=y negative-right
 } \where {
     \use \coerce fromGroup (G : Group) => \new AddGroup G.E G.ide (G.*) G.ide-left G.ide-right G.*-assoc G.inverse G.inverse-left G.inverse-right
     \use \coerce toGroup (G : AddGroup) => \new Group G.E G.zro (G.+) G.zro-left G.zro-right G.+-assoc G.negative G.negative-left G.negative-right
@@ -117,35 +118,45 @@
     | \fix 8 #0 : E -> \Prop
     | #0-zro : Not (zro `#0)
     | #0-negative {x : E} : x `#0 -> negative x `#0
-    | #0-+ (x y : E) : (x + y) `#0 -> x `#0 || y `#0
+    | #0-+ {x y : E} : (x + y) `#0 -> x `#0 || y `#0
     | #0-tight {x : E} : Not (x `#0) -> x = zro
 
     | # x y => (x - y) `#0
     | #-irreflexive x-x#0 => #0-zro (transport #0 negative-right x-x#0)
-    | #-symmetric x-y#0 => transport #0 (negative_+ _ (negative _) *> pmap (`+ negative _) (negative-isInv _)) (#0-negative x-y#0)
+    | #-symmetric x-y#0 => transport #0 (negative_+ *> pmap (`+ negative _) negative-isInv) (#0-negative x-y#0)
     | #-comparison x y z x-z#0 =>
         \have s : (x - y) + (y - z) = x - z
                 => +-assoc *> pmap (x +) (inv +-assoc *> pmap (`- z) negative-left *> zro-left)
-        \in #0-+ (x - y) (y - z) (transport #0 (inv s) x-z#0)
-    | tightness {x} {y} x-y/#0 => fromZero x y (#0-tight x-y/#0)
+        \in #0-+ (transport #0 (inv s) x-z#0)
+    | tightness {x} {y} x-y/#0 => fromZero (#0-tight x-y/#0)
+
+    \lemma #0-negative-inv {x : E} (p : negative x `#0) : x `#0
+      => transport #0 negative-isInv (#0-negative p)
+
+    \lemma #0-+-left {x y : E} (x#0 : #0 x) : #0 (x + y) || #0 y
+      => ||.map (\lam r => r) #0-negative-inv $ #0-+ $ transportInv #0 (+-assoc *> pmap (x +) negative-right *> zro-right) x#0
+
+    \lemma #0-+-right {x y : E} (y#0 : #0 y) : #0 (x + y) || #0 x
+      => ||.rec' (\lam r => byRight (#0-negative-inv r)) byLeft $ #0-+ {_} {negative x} {x + y} $ transportInv #0 (inv +-assoc *> pmap (`+ y) negative-left *> zro-left) y#0
   }
 
   -- | An additive group with decidable equality.
   \class Dec \extends With#, DecSet {
-    | nonEqualApart {x : E} (x/=0 : x /= zro) : x `#0
-    | #0-negative {x} x#0 => nonEqualApart (\lam -x=0 => #0-zro (transport #0 (inv (negative-isInv x) *> pmap negative -x=0 *> negative_zro) x#0))
-    | #0-+ x y x+y#0 => \case decideEq y zro \with {
+    | nonZeroApart {x : E} (x/=0 : x /= zro) : x `#0
+    | #0-negative {x} x#0 => nonZeroApart (\lam -x=0 => #0-zro (transport #0 (inv negative-isInv *> pmap negative -x=0 *> negative_zro) x#0))
+    | #0-+ {x} {y} x+y#0 => \case decideEq y zro \with {
       | yes y=0 => byLeft (transport #0 (pmap (x +) y=0 *> zro-right) x+y#0)
-      | no y/=0 => byRight (nonEqualApart y/=0)
+      | no y/=0 => byRight (nonZeroApart y/=0)
     }
     | #0-tight {x} x/#0 => \case decideEq x zro \with {
       | yes x=0 => x=0
-      | no x/=0 => absurd (x/#0 (nonEqualApart x/=0))
+      | no x/=0 => absurd (x/#0 (nonZeroApart x/=0))
     }
+    | nonEqualApart p => nonZeroApart (\lam x-y=0 => p (fromZero x-y=0))
 
     \default #0 x : \Prop => x /= zro
     \default #0-zro (zro/=0 : #0 zro) : Empty => zro/=0 idp
-    \default nonEqualApart \as notEqualApartImpl {x} x#0 : #0 x => x#0
+    \default nonZeroApart \as notEqualApartImpl {x} x#0 : #0 x => x#0
   }
 }
 
