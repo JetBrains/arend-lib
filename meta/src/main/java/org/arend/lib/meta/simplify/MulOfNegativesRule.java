@@ -42,7 +42,10 @@ public class MulOfNegativesRule extends LocalSimplificationRuleBase {
       ConcreteExpression negPath = isNegOnTheLeft ? factory.ref(ext.equationMeta.negMulLeft.getRef()) : factory.ref(ext.equationMeta.negMulRight.getRef());
 
       if (firstValue != null) {
-        var subexprPath = factory.appBuilder(negPath).app(factory.core(firstValue.computeTyped())).app(factory.core(secondValue.computeTyped())).build();
+        var subexprPath = factory.appBuilder(negPath)
+                .app(factory.hole(), false)
+                .app(factory.core(firstValue.computeTyped()), false)
+                .app(factory.core(secondValue.computeTyped()), false).build();
         var newExpr = factory.appBuilder(factory.ref(ext.equationMeta.negative.getRef())).
                 app(factory.appBuilder(factory.ref(ext.equationMeta.mul.getRef())).app(factory.core(firstValue.computeTyped())).app(factory.core(secondValue.computeTyped())).build()).build();
         var checkedNewExpr = typechecker.typecheck(newExpr, subexpr.computeType());
