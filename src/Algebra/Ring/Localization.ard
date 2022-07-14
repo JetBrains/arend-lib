@@ -107,7 +107,7 @@
               | inP (0, p) => l.local x p
               | inP (suc n, byLeft x<-C) => inv-closure S l x (inP (n, x<-C))
               | inP (suc n, byRight (byLeft x=1)) => rewrite (pmap l.inL x=1 *> l.inL.func-ide) (\new Inv ide ide ide-left ide-left)
-              | inP (suc n, byRight (byRight (y, z, y<-C, z<-C, x=y*z))) => rewrite (pmap l.inL x=y*z *> l.inL.func-* y z) (Inv.product (inv-closure S l y (inP (n, y<-C))) (inv-closure S l z (inP (n, z<-C))))
+              | inP (suc n, byRight (byRight (y, z, y<-C, z<-C, x=y*z))) => rewrite (pmap l.inL x=y*z *> l.inL.func-*) (Inv.product (inv-closure S l y (inP (n, y<-C))) (inv-closure S l z (inP (n, z<-C))))
       }
 
     \func powers {M : Monoid} (a : M) : MSubset M \cowith
@@ -218,8 +218,8 @@
     \func locMap {R : CRing} {S : MSubset R} : RingHom R (LocRing S) \cowith
       | func x => in~ (x, ide, contains_ide)
       | func-ide => idp
-      | func-+ x y => path (~-equiv _ _ (path (\lam i => ((inv ide-right @ i) + (inv ide-right @ i)) * (ide-right @ i))))
-      | func-* x y => path (~-equiv _ _ (later simplify))
+      | func-+ => path (~-equiv _ _ (path (\lam i => ((inv ide-right @ i) + (inv ide-right @ i)) * (ide-right @ i))))
+      | func-* => path (~-equiv _ _ (later simplify))
 
     \lemma locMap-epi {R : CRing} (S : MSubset R) : isEpi locMap => \lam {Q} {g h : RingHom} q =>
       RingHom.equals $ \lam (in~ (r,s,p)) =>
@@ -228,9 +228,9 @@
               | m1 => transport (Inv {Q} __ (g (in~ (ide, s, p)))) (d s) (MonoidHom.presInv g (elem-inv S s p))
               | m2 => MonoidHom.presInv h (elem-inv S s p)
         \in g (in~ (r,s,p))                                             ==< pmap g j >==
-            g (in~ (r * ide, ide * s, contains_* ide s contains_ide p)) ==< g.func-* (in~ (r, ide, contains_ide)) (in~ (ide, s, p)) >==
+            g (in~ (r * ide, ide * s, contains_* ide s contains_ide p)) ==< g.func-* >==
             g (in~ (r, ide, contains_ide)) * g (in~ (ide, s, p))        ==< pmap2 (\lam t1 (t2 : Inv (h (in~ (s, ide, contains_ide)))) => t1 * t2.inv) (d r) (Inv.levelProp m1 m2) >==
-            h (in~ (r, ide, contains_ide)) * h (in~ (ide, s, p))        ==< inv (h.func-* (in~ (r, ide, contains_ide)) (in~ (ide, s, p)) ) >==
+            h (in~ (r, ide, contains_ide)) * h (in~ (ide, s, p))        ==< inv h.func-* >==
             h (in~ (r * ide, ide * s, contains_* ide s contains_ide p)) ==< inv (pmap h j) >==
             h (in~ (r,s,p))                                             `qed
 
@@ -240,10 +240,10 @@
           f r * Inv.inv {l s p}                                ==< pmap (`* Inv.inv {l s p}) (inv ide-right) >==
           (f r * ide) * Inv.inv {l s p}                        ==< pmap ((f r * __) * Inv.inv {l s p}) (inv (Inv.inv-right {l s' p'})) >==
           (f r * (f s' * Inv.inv {l s' p'})) * Inv.inv {l s p} ==< pmap (`* Inv.inv {l s p}) (inv *-assoc) >==
-          ((f r * f s') * Inv.inv {l s' p'}) * Inv.inv {l s p} ==< pmap ((__ * Inv.inv {l s' p'}) * Inv.inv {l s p}) (inv (f.func-* r s')) >==
+          ((f r * f s') * Inv.inv {l s' p'}) * Inv.inv {l s p} ==< pmap ((__ * Inv.inv {l s' p'}) * Inv.inv {l s p}) (inv f.func-*) >==
           (f (r * s') * Inv.inv {l s' p'}) * Inv.inv {l s p}   ==< *-assoc >==
           f (r * s') * (Inv.inv {l s' p'} * Inv.inv {l s p})   ==< pmap (f __ * (Inv.inv {l s' p'} * Inv.inv {l s p})) rs~rs' >==
-          f (r' * s) * (Inv.inv {l s' p'} * Inv.inv {l s p})   ==< pmap (`* (Inv.inv {l s' p'} * Inv.inv {l s p})) (f.func-* r' s) >==
+          f (r' * s) * (Inv.inv {l s' p'} * Inv.inv {l s p})   ==< pmap (`* (Inv.inv {l s' p'} * Inv.inv {l s p})) f.func-* >==
           (f r' * f s) * (Inv.inv {l s' p'} * Inv.inv {l s p}) ==< swap >==
           (f r' * Inv.inv {l s' p'}) * (f s * Inv.inv {l s p}) ==< pmap ((f r' * Inv.inv {l s' p'}) *) (Inv.inv-right {l s p}) >==
           (f r' * Inv.inv {l s' p'}) * ide                     ==< ide-right >==
@@ -256,17 +256,17 @@
           Inv.inv {l ide contains_ide} * ide   ==< pmap (Inv.inv {l ide contains_ide} *) (inv f.func-ide) >==
           Inv.inv {l ide contains_ide} * f ide ==< Inv.inv-left {l ide contains_ide} >==
           ide                                  `qed) *> ide-right *> f.func-ide
-      | func-+ (in~ (r1,s1,p1)) (in~ (r2,s2,p2)) =>
-          f (r1 * s2 + r2 * s1) * Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)}                                            ==< pmap2 (*) (f.func-+ _ _) (func-inv S f s1 s2 p1 p2 l) >==
-          (f (r1 * s2) + f (r2 * s1)) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1})                                             ==< pmap2 ((__ + __) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1})) (f.func-* r1 s2) (f.func-* r2 s1) >==
+      | func-+ {in~ (r1,s1,p1)} {in~ (r2,s2,p2)} =>
+          f (r1 * s2 + r2 * s1) * Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)}                                            ==< pmap2 (*) f.func-+ (func-inv S f s1 s2 p1 p2 l) >==
+          (f (r1 * s2) + f (r2 * s1)) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1})                                             ==< pmap2 ((__ + __) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1})) f.func-* f.func-* >==
           (f r1 * f s2 + f r2 * f s1) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1})                                             ==< rdistr >==
           (f r1 * f s2) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1}) + (f r2 * f s1) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1}) ==< pmap ((f r1 * f s2) * __ + (f r2 * f s1) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1})) *-comm >==
           (f r1 * f s2) * (Inv.inv {l s1 p1} * Inv.inv {l s2 p2}) + (f r2 * f s1) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1}) ==< pmap2 (+) swap swap >==
           (f r1 * Inv.inv {l s1 p1}) * (f s2 * Inv.inv {l s2 p2}) + (f r2 * Inv.inv {l s2 p2}) * (f s1 * Inv.inv {l s1 p1}) ==< pmap2 ((f r1 * Inv.inv {l s1 p1}) * __ + (f r2 * Inv.inv {l s2 p2}) * __) (Inv.inv-right {l s2 p2}) (Inv.inv-right {l s1 p1}) >==
           (f r1 * Inv.inv {l s1 p1}) * ide + (f r2 * Inv.inv {l s2 p2}) * ide                                               ==< pmap2 (+) ide-right ide-right >==
           f r1 * Inv.inv {l s1 p1} + f r2 * Inv.inv {l s2 p2}                                                               `qed
-      | func-* (in~ (r1,s1,p1)) (in~ (r2,s2,p2)) =>
-          f (r1 * r2) * Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)} ==< pmap2 (*) (f.func-* r1 r2) (func-inv S f s1 s2 p1 p2 l) >==
+      | func-* {in~ (r1,s1,p1)} {in~ (r2,s2,p2)} =>
+          f (r1 * r2) * Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)} ==< pmap2 (*) f.func-* (func-inv S f s1 s2 p1 p2 l) >==
           (f r1 * f r2) * (Inv.inv {l s2 p2} * Inv.inv {l s1 p1})      ==< pmap ((f r1 * f r2) *) *-comm >==
           (f r1 * f r2) * (Inv.inv {l s1 p1} * Inv.inv {l s2 p2})      ==< swap >==
           (f r1 * Inv.inv {l s1 p1}) * (f r2 * Inv.inv {l s2 p2})      `qed
@@ -276,8 +276,8 @@
           : Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)} = Inv.inv {l s2 p2} * Inv.inv {l s1 p1}
           => \have e => \new Inv (f s1 * f s2) {
                           | inv => Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)}
-                          | inv-left => pmap (Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)} *) (inv (f.func-* s1 s2)) *> Inv.inv-left {l (s1 * s2) (contains_* s1 s2 p1 p2)}
-                          | inv-right => pmap (`* Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)}) (inv (f.func-* s1 s2)) *> Inv.inv-right {l (s1 * s2) (contains_* s1 s2 p1 p2)}
+                          | inv-left => pmap (Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)} *) (inv f.func-*) *> Inv.inv-left {l (s1 * s2) (contains_* s1 s2 p1 p2)}
+                          | inv-right => pmap (`* Inv.inv {l (s1 * s2) (contains_* s1 s2 p1 p2)}) (inv f.func-*) *> Inv.inv-right {l (s1 * s2) (contains_* s1 s2 p1 p2)}
                         }
              \in pmap (\lam (t : Inv (f s1 * f s2)) => t.inv) (Inv.levelProp e (Inv.product.func (l s1 p1) (l s2 p2)))
 
@@ -292,9 +292,9 @@
         | in~ (x,y,c) => in~ (x, y, TruncP.map c (\lam p => (n * p.1, rewrite pow_* p.2)))
         | ~-equiv x y r i => ~-equiv _ _ (later r) i
       }
-      | func-+ (in~ x) (in~ y) => path (~-equiv _ _ idp)
+      | func-+ {in~ x} {in~ y} => path (~-equiv _ _ idp)
       | func-ide => path (~-equiv _ _ idp)
-      | func-* (in~ x) (in~ y) => path (~-equiv _ _ idp)
+      | func-* {in~ x} {in~ y} => path (~-equiv _ _ idp)
 
     \lemma pow-map_loc {R : CRing} (b : R) (n : Nat) : pow-map b n ∘ locMap = locMap
       => exts $ \lam x => path (~-equiv _ _ idp)
@@ -306,13 +306,13 @@
 
     \func div-map {R : CRing} {a b : R} (a|b : LDiv a b) : RingHom (LocRing (powers a)) (LocRing (powers b)) \cowith
       | func => aux-func a|b
-      | func-+ (in~ x) (in~ y) => \case (aux a|b x).2, (aux a|b y).2, (aux a|b _).2 \with {
+      | func-+ {in~ x} {in~ y} => \case (aux a|b x).2, (aux a|b y).2, (aux a|b _).2 \with {
         | inP ((n,a^n=x2),p1), inP ((m,a^m=y2),p2), inP ((k,a^k=x2y2),p3) => inv p3 *> path (~-equiv _ _ equation) *> pmap2 (+) p1 p2
       }
       | func-ide => \case (aux a|b _).2 \with {
         | inP ((n,a^n=1),p) => inv p *> path (~-equiv _ _ equation)
       }
-      | func-* (in~ x) (in~ y) => \case (aux a|b x).2, (aux a|b y).2, (aux a|b _).2 \with {
+      | func-* {in~ x} {in~ y} => \case (aux a|b x).2, (aux a|b y).2, (aux a|b _).2 \with {
         | inP ((n,a^n=x2),p1), inP ((m,a^m=y2),p2), inP ((k,a^k=x2y2),p3) => inv p3 *> path (~-equiv _ _ equation) *> pmap2 (*) p1 p2
       }
       \where {
@@ -330,7 +330,7 @@
 
     \lemma map-lemma {R S : CRing} {M : MSubset R} (f : RingHom (LocRing M) S) {x : LocRing.SType M} (i : Inv (f (inl~ (x.2, 1, contains_ide)))) : f (inl~ x) = f (inl~ (x.1, 1, contains_ide)) * i.inv
       => \have t : inl~ x = inl~ (x.1, 1, contains_ide) * inl~ (1, x.2, x.3) => path $ ~-equiv _ _ (inv *-assoc)
-         \in pmap f t *> f.func-* (inl~ (x.1, 1, contains_ide)) (inl~ (1, x.2, x.3)) *> pmap (_ *) (Inv.inv-isUnique (Inv.lmake (f $ inl~ (1, x.2, x.3)) $ inv (f.func-* _ _) *> pmap f (path $ ~-equiv _ _ *-assoc) *> f.func-ide) i idp)
+         \in pmap f t *> f.func-* *> pmap (_ *) (Inv.inv-isUnique (Inv.lmake (f $ inl~ (1, x.2, x.3)) $ inv f.func-* *> pmap f (path $ ~-equiv _ _ *-assoc) *> f.func-ide) i idp)
 
     \lemma powers-inv {R S : CRing} (f : RingHom R S) {a : R} (p : Inv (f a)) (x : R) (c : contains {powers a} x) : Inv (f x) \elim c
       | inP (0, idp) => \new Inv {
