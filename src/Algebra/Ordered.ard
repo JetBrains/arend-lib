@@ -52,22 +52,28 @@
   \lemma toNeg {x y : E} (x<y : x < y) : isNeg (x - y)
     => transport isPos (inv (negative_+ *> pmap (`- x) negative-isInv)) x<y
 
-  \lemma pos_>0 {x : E} (p : isPos x) : x > 0
+  \lemma pos_>0 {x : E} (p : isPos x) : x > zro
     => transportInv (\lam y => isPos (x + y)) negative_zro $ transportInv isPos zro-right p
 
-  \lemma >0_pos {x : E} (x>0 : x > 0) : isPos x
+  \lemma >0_pos {x : E} (x>0 : x > zro) : isPos x
     => transport isPos zro-right $ transport (\lam y => isPos (x + y)) negative_zro x>0
+
+  \lemma neg_<0 {x : E} (p : isNeg x) : x < zro
+    => rewriteF negative-isInv $ positive_negative $ pos_>0 p
+
+  \lemma <0_neg {x : E} (x<0 : x < zro) : isNeg x
+    => >0_pos (negative_positive x<0)
 
   \lemma positive_negative' {x : E} (x>0 : isPos x) : isNeg (negative x)
     => unfold (simplify x>0)
 
-  \lemma positive_negative {x : E} (x>0 : x > 0) : negative x < 0
+  \lemma positive_negative {x : E} (x>0 : x > zro) : negative x < zro
     => transport isPos (unfold (-) $ rewrite (negative-isInv,negative_zro) (zro-right *> inv zro-left)) x>0
 
   \lemma negative_positive' {x : E} (-x<0 : isNeg (negative x)) : isPos x
     => transport isPos negative-isInv -x<0
 
-  \lemma negative_positive {x : E} (x<0 : x < 0) : negative x > 0
+  \lemma negative_positive {x : E} (x<0 : x < zro) : negative x > zro
     => transport isPos (unfold (-) $ rewrite negative_zro (zro-left *> inv zro-right)) x<0
 
   \lemma negative_< {x y : E} (x<y : x < y) : negative y < negative x
@@ -321,50 +327,44 @@
     | withoutUpperBound x => inP (x + 1, transport (`< _) zro-right $ <_+-right x zro<ide)
     | withoutLowerBound x => inP (x - 1, transport (_ <) zro-right (<_+-right x (positive_negative zro<ide)))
 } \where {
-  -- TODO: \use \level instead of \truncated
-  \truncated \data Tri {A : OrderedAddGroup} (x : A) : \Prop
-    | triZro (x = zro)
-    | triPos (isPos x)
-    | triNeg (isNeg x)
-
   \class Dec \extends Domain.Dec, OrderedRing, LinearlyOrderedSemiring.Dec {
-    \field +_trichotomy (x : E) : Tri x
+    \field +_trichotomy (x : E) : Tri x zro
 
     | trichotomy x y => \case +_trichotomy (x - y) \with {
-      | triZro x-y=0 => equals (fromZero x-y=0)
-      | triPos x-y>0 => greater x-y>0
-      | triNeg x-y<0 => less (fromNeg x-y<0)
+      | less x-y<0 => less $ fromNeg $ <0_neg x-y<0
+      | equals x-y=0 => equals (fromZero x-y=0)
+      | greater x-y>0 => greater $ >0_pos x-y>0
     }
     | <_+-comparison x y x+y>0 => \case +_trichotomy x \with {
-      | triZro x=0 => byRight (transport isPos (pmap (`+ y) x=0 *> zro-left) x+y>0)
-      | triPos x>0 => byLeft x>0
-      | triNeg x<0 => byRight (transport isPos (inv +-assoc *> pmap (`+ y) negative-left *> zro-left) (positive_+ x<0 x+y>0))
+      | less x<0 => byRight $ transport isPos (inv +-assoc *> pmap (`+ y) negative-left *> zro-left) $ positive_+ (<0_neg x<0) x+y>0
+      | equals x=0 => byRight $ transport isPos (pmap (`+ y) x=0 *> zro-left) x+y>0
+      | greater x>0 => byLeft $ >0_pos x>0
     }
     | <_+-connectedness {x} x/>0 x/<0 => \case +_trichotomy x \with {
-      | triZro x=0 => x=0
-      | triPos x>0 => absurd (x/>0 x>0)
-      | triNeg x<0 => absurd (x/<0 x<0)
+      | less x<0 => absurd $ x/<0 $ <0_neg x<0
+      | equals x=0 => x=0
+      | greater x>0 => absurd $ x/>0 $ >0_pos x>0
     }
     | positive_*-cancel {x} {y} x*y>0 => \case +_trichotomy x, +_trichotomy y \with {
-      | triZro x=0, _ => absurd (zro/>0 (transport isPos (pmap (`* y) x=0 *> zro_*-left) x*y>0))
-      | _, triZro y=0 => absurd (zro/>0 (transport isPos (pmap (x *) y=0 *> zro_*-right) x*y>0))
-      | triPos x>0, triPos y>0 => byLeft (x>0, y>0)
-      | triPos x>0, triNeg y<0 => absurd (zro/>0 (transport isPos negative-right (positive_+ x*y>0 (positive_negative_* x>0 y<0))))
-      | triNeg x<0, triPos y>0 => absurd (zro/>0 (transport isPos negative-right (positive_+ x*y>0 (negative_positive_* x<0 y>0))))
-      | triNeg x<0, triNeg y<0 => byRight (x<0, y<0)
+      | equals x=0, _ => absurd (zro/>0 (transport isPos (pmap (`* y) x=0 *> zro_*-left) x*y>0))
+      | _, equals y=0 => absurd (zro/>0 (transport isPos (pmap (x *) y=0 *> zro_*-right) x*y>0))
+      | greater x>0, greater y>0 => byLeft (>0_pos x>0, >0_pos y>0)
+      | greater x>0, less y<0 => absurd $ zro/>0 $ transport isPos negative-right $ positive_+ x*y>0 $ positive_negative_* (>0_pos x>0) (<0_neg y<0)
+      | less x<0, greater y>0 => absurd $ zro/>0 $ transport isPos negative-right $ positive_+ x*y>0 $ negative_positive_* (<0_neg x<0) (>0_pos y>0)
+      | less x<0, less y<0 => byRight (<0_neg x<0, <0_neg y<0)
     }
     | nonZeroApart {x} x/=0 => \case +_trichotomy x \with {
-      | triZro x=0 => absurd (x/=0 x=0)
-      | triPos x>0 => positive=>#0 x>0
-      | triNeg x<0 => negative=>#0 x<0
+      | less x<0 => negative=>#0 (<0_neg x<0)
+      | equals x=0 => absurd (x/=0 x=0)
+      | greater x>0 => positive=>#0 (>0_pos x>0)
     }
 
     \default positive=>#0 {x} (x>0 : isPos x) : x /= zro => \lam x=0 => zro/>0 (transport isPos x=0 x>0)
     \default negative=>#0 {x} (x<0 : isNeg x) : x /= zro => \lam x=0 => zro/>0 (transport isPos (pmap negative x=0 *> negative_zro) x<0)
     \default #0=>eitherPosOrNeg {x} (x#0 : x /= zro) : isPos x || isNeg x => \case +_trichotomy x \with {
-      | triZro x=0 => absurd (transport (`/= zro) x=0 x#0 idp)
-      | triPos x>0 => byLeft x>0
-      | triNeg x<0 => byRight x<0
+      | less x<0 => byRight (<0_neg x<0)
+      | equals x=0 => absurd (transport (`/= zro) x=0 x#0 idp)
+      | greater x>0 => byLeft (>0_pos x>0)
     }
 
     \lemma join_negative {x y : E} : negative x ∨ negative y = negative (x ∧ y)
@@ -407,10 +407,10 @@
     | inr x-isInv => x-isInv
   }
   | +_trichotomy x => \case eitherZeroOrInv x \with {
-    | inl x=0 => OrderedRing.triZro x=0
+    | inl x=0 => equals x=0
     | inr x-isInv => \case #0=>eitherPosOrNeg x-isInv \with {
-      | byLeft x>0 => OrderedRing.triPos x>0
-      | byRight x<0 => OrderedRing.triNeg x<0
+      | byLeft x>0 => greater $ pos_>0 x>0
+      | byRight x<0 => less $ neg_<0 x<0
     }
   }
 }
