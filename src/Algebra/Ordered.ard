@@ -26,12 +26,13 @@
 \class OrderedAbMonoid \extends OrderedAddMonoid, AbMonoid
   | <_+-right z x<y => transport2 (<) +-comm +-comm (<_+-left z x<y)
 
-\class OrderedAddGroup \extends OrderedAddMonoid, AddGroup {
+\class PreorderedAddGroup \extends AddGroup
   | isPos : E -> \Prop
   | zro/>0 : Not (isPos zro)
   | positive_+ {x y : E} : isPos x -> isPos y -> isPos (x + y)
 
-  | < x y => isPos (y - x)
+\class OrderedAddGroup \extends OrderedAddMonoid, PreorderedAddGroup {
+  | < => <
   | <-irreflexive x<x => zro/>0 (transport isPos negative-right x<x)
   | <-transitive x<y y<z => transport isPos diff_+ (positive_+ y<z x<y)
   | <_+-left z {x} {y} x<y => transport isPos (inv (
@@ -52,10 +53,10 @@
     => transport isPos (inv (negative_+ *> pmap (`- x) negative-isInv)) x<y
 
   \lemma pos_>0 {x : E} (p : isPos x) : x > 0
-    => unfold $ unfold $ unfold (-) $ rewrite (negative_zro,zro-right) p
+    => transportInv (\lam y => isPos (x + y)) negative_zro $ transportInv isPos zro-right p
 
   \lemma >0_pos {x : E} (x>0 : x > 0) : isPos x
-    => (unfold, unfold, unfold (-), rewrite (negative_zro,zro-right)) at x>0 $ x>0
+    => transport isPos zro-right $ transport (\lam y => isPos (x + y)) negative_zro x>0
 
   \lemma positive_negative' {x : E} (x>0 : isPos x) : isNeg (negative x)
     => unfold (simplify x>0)
@@ -70,8 +71,10 @@
     => transport isPos (unfold (-) $ rewrite negative_zro (zro-left *> inv zro-right)) x<0
 
   \lemma negative_< {x y : E} (x<y : x < y) : negative y < negative x
-    => unfold $ unfold (-) $ rewrite negative-isInv $ >0_pos $ rewriteF negative-left $ <_+-right (negative x) x<y
+    => transportInv (\lam y => isPos (_ + y)) negative-isInv $ >0_pos $ rewriteF negative-left $ <_+-right (negative x) x<y
 } \where {
+  \type \infix 4 < {A : PreorderedAddGroup} (x y : A) => isPos (y - x)
+
   \lemma diff_+ {A : AddGroup} {x y z : A} : (z - y) + (y - x) = z - x =>
     (z - y) + (y - x)          ==< +-assoc >==
     z + (negative y + (y - x)) ==< inv (pmap (z +) +-assoc) >==
@@ -211,7 +214,7 @@
     | byLeft p => byRight p
     | byRight p => byLeft p
   }
-  | <-connectedness x/<y y/<x => fromZero (<_+-connectedness y/<x (\lam p => x/<y (fromNeg p)))
+  | <-connectedness x/<y y/<x => fromZero $ <_+-connectedness (y/<x __) $ \lam p => x/<y (fromNeg p)
 
   | <_*_positive-left {x} {y} {z} x<y z>0 =>
     transport isPos (rdistr *> pmap (y * z +) Ring.negative_*-left)
