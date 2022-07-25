@@ -24,16 +24,8 @@
   | euclideanMap : E -> Nat
   | divMod : E -> E -> \Sigma E E
   | isDivMod (x y : E) : y * (divMod x y).1 + (divMod x y).2 = x
-  | isEuclideanMap (x y : E) : Not (y = 0) -> Or ((divMod x y).2 = 0) (\Sigma (Not ((divMod x y).2 = 0)) (euclideanMap (divMod x y).2 < euclideanMap y))
-  | summandDiv {x y z d : E} (d/=0 : Not (d = 0)) (p : d * x + y = d * z) : LDiv d y
-
-  \func suc' (n : Nat) : Nat
-    | 0 => 1
-    | suc n => suc (suc n)
-
-  \lemma suc'=suc (n : Nat) : suc' n = suc n
-    | 0 => idp
-    | suc n => idp
+  | isEuclideanMap (x y : E) : y /= 0 -> (divMod x y).2 /= 0 -> euclideanMap (divMod x y).2 < euclideanMap y
+  | summandDiv {x y z d : E} (d/=0 : d /= 0) (p : d * x + y = d * z) : LDiv d y
 
   \func gcd (a b : E) => gcd-fueled (suc' (euclideanMap b)) a b
 
@@ -73,15 +65,15 @@
     | 0 => ide-left
     | suc s => mcases \with {
       | yes _ => ide-left
-      | no b/=0 => \case isEuclideanMap a b b/=0 \with {
-        | inl mod=0 => run {
+      | no b/=0 => \case decideEq (divMod a b).2 0 \with {
+        | yes mod=0 => run {
           unfold_let,
           rewrite (mod=0, reduce_zro, fueled_zro, zro-right, ide-left),
           *-comm *> inv (pmap (_ +) mod=0 *> zro-right) *> isDivMod a b
         }
-        | inr (_,q) => rdistr *> pmap2 (+)
-            (pmap (`* _) *-comm *> *-assoc *> *-comm *> pmap (`* _) (reduce*fueled-left s b (divMod a b).2 (<-transitive-left q (<_suc_<= b<=s))))
-            (reduce*fueled-right s b (divMod a b).2 (<-transitive-left q (<_suc_<= b<=s))) *> isDivMod a b
+        | no mod/=0 => rdistr *> pmap2 (+)
+            (pmap (`* _) *-comm *> *-assoc *> *-comm *> pmap (`* _) (reduce*fueled-left s b (divMod a b).2 (<-transitive-left (isEuclideanMap a b b/=0 mod/=0) (<_suc_<= b<=s))))
+            (reduce*fueled-right s b (divMod a b).2 (<-transitive-left (isEuclideanMap a b b/=0 mod/=0) (<_suc_<= b<=s))) *> isDivMod a b
       }
     }
 
@@ -89,9 +81,9 @@
     | 0 => \case b<=s
     | suc s => mcases \with {
       | yes b=0 => zro_*-left *> inv b=0
-      | no b/=0 => \case isEuclideanMap a b b/=0 \with {
-        | inl mod=0 => pmap2 ((reduce-fueled s b __).1 * gcd-fueled s b __) mod=0 mod=0 *> pmap2 (__.1 * __) (reduce_zro s b) (fueled_zro s b) *> ide-left
-        | inr (_,q) => reduce*fueled-left s b (divMod a b).2 (<-transitive-left q (<_suc_<= b<=s))
+      | no b/=0 => \case decideEq (divMod a b).2 0 \with {
+        | yes mod=0 => pmap2 ((reduce-fueled s b __).1 * gcd-fueled s b __) mod=0 mod=0 *> pmap2 (__.1 * __) (reduce_zro s b) (fueled_zro s b) *> ide-left
+        | no mod/=0 => reduce*fueled-left s b (divMod a b).2 (<-transitive-left (isEuclideanMap a b b/=0 mod/=0) (<_suc_<= b<=s))
       }
     }
 
@@ -123,6 +115,14 @@
       | yes _ => idp
       | no n => absurd (n idp)
     }
+} \where {
+  \func suc' (n : Nat) : Nat
+    | 0 => 1
+    | suc n => suc (suc n)
+
+  \lemma suc'=suc (n : Nat) : suc' n = suc n
+    | 0 => idp
+    | suc n => idp
 }
 
 \open EuclideanSemiringData
@@ -144,14 +144,11 @@
 
   \func bezout (a b : E) => bezout-fueled (suc' (euclideanMap b)) a b
 
-  \lemma ringLem {b1 b2 q r b : E} : b2 * (b * q + r) + (b1 - q * b2) * b = b1 * b + b2 * r
-    => equation
-
   \lemma bezoutIdentity-fueled (s : Nat) (a b : E) : (bezout-fueled s a b).1 * a + (bezout-fueled s a b).2 * b = gcd-fueled s a b \elim s
     | 0 => pmap2 (+) ide-left zro_*-left *> zro-right
     | suc s => mcases \with {
       | yes _ => pmap2 (+) ide-left zro_*-left *> zro-right
-      | no _ => unfold_let (pmap (_ * __ + _) (inv (isDivMod a b)) *> ringLem *> bezoutIdentity-fueled s b (divMod a b).2)
+      | no _ => pmap (_ * __ + _) (inv (isDivMod a b)) *> equation *> bezoutIdentity-fueled s b (divMod a b).2
     }
 
   \lemma bezoutIdentity (a b : E) : (bezout a b).1 * a + (bezout a b).2 * b = gcd a b
@@ -170,15 +167,12 @@
   | euclideanMap n => n
   | divMod => divMod
   | isDivMod => divModProp
-  | isEuclideanMap n m m/=0 => \case \elim m, m/=0 \with {
+  | isEuclideanMap n m m/=0 _ => \case \elim m, m/=0 \with {
     | 0, c => absurd (c idp)
-    | suc m, _ => \case NatSemiring.decideEq (n mod suc m) 0 \with {
-      | yes mod=0 => inl mod=0
-      | no mod/=0 => inr (mod/=0, fin_< (n mod suc m))
-    }
+    | suc m, _ => fin_< (n mod suc m)
   }
   | decideEq => NatSemiring.decideEq
-  | summandDiv {x y z d : Nat} (d/=0 : Not (d = 0)) (dx+y=dz : d * x + y = d * z) : Monoid.LDiv d y \elim d {
+  | summandDiv {x y z d : Nat} (d/=0 : d /= 0) (dx+y=dz : d * x + y = d * z) : Monoid.LDiv d y \elim d {
     | 0 => absurd (d/=0 idp)
     | suc _ \as d => \new Monoid.LDiv {
       | inv => div y d
@@ -207,20 +201,19 @@
     | pos (suc _ \as n), pos (suc _ \as m) => pmap pos (Nat.divModProp n m)
     | pos (suc _ \as n), neg (suc _ \as m) => pmap (_ * __ + _) ide-right *> pmap pos (Nat.divModProp n m)
     | neg (suc _ \as n), pos (suc _ \as m) => pmap neg (Nat.divModProp n m)
-    | neg (suc _ \as n), neg (suc _ \as m) => pmap (_ * __ + _) (Ring.negative_*-left (pos (n Nat.div m)) -1) *> pmap neg (Nat.divModProp n m)
+    | neg (suc _ \as n), neg (suc _ \as m) => pmap (_ * __ + _) (Ring.negative_*-left {_} {pos (n Nat.div m)}) *> pmap neg (Nat.divModProp n m)
   }
-  | isEuclideanMap x y y/=0 =>
-    \have |y|/=0 : Not (iabs y = 0) => \case \elim y, y/=0 \with {
+  | isEuclideanMap x y y/=0 r/=0 =>
+    \have |y|/=0 : iabs y /= 0 => \case \elim y, y/=0 \with {
       | 0, c => \lam _ => c idp
       | pos (suc _), c => \lam y=0 => c (pmap pos y=0)
       | neg (suc _), c => \lam y=0 => c (pmap neg y=0)
     }
-    \in \case isEuclideanMap (iabs x) (iabs y) |y|/=0, decideEq (signum x) 0 \with {
-      | _, yes x=0 => inl (rewrite x=0 idp)
-      | inl mod=0, no x/=0 => inl (pmap (pos __ * _) mod=0 *> zro_*-left)
-      | inr (mod/=0, q), no x/=0 =>
-        \have t : iabs (pos (iabs x Nat.mod iabs y) * signum x) = iabs x Nat.mod iabs y => iabs.*-comm *> pmap (_ *) (iabs.signum_/=0 (\lam x=0 => x/=0 (pmap signum x=0)))
-        \in inr (IntDomain.apartZeroProduct (\lam imod=0 => mod/=0 (pmap iabs imod=0)) x/=0, transport (`< iabs y) (inv t) q)
+    \in \case decideEq (signum x) 0 \with {
+      | yes x=0 => rewrite x=0 (nonZero>0 |y|/=0)
+      | no x/=0 =>
+        \have t : iabs (pos (iabs x Nat.mod iabs y) * signum x) = iabs x Nat.mod iabs y => iabs.*-comm *> pmap (_ *) (iabs.signum_/=0 (x/=0 $ pmap signum __))
+        \in transport (`< iabs y) (inv t) $ isEuclideanMap (iabs x) (iabs y) |y|/=0 $ \lam e => r/=0 $ pmap (pos __ * _) e *> zro_*-left
     }
   \where {
     \func modToNat (m : Int) (p : \Sigma Int Int) : \Sigma Int Nat \elim p
@@ -237,19 +230,19 @@
       => (natDivMod x y).2
 
     \lemma intMod<right (x : Int) (n : Nat) : iabs (IntEuclidean.divMod x (suc n)).2 < suc n
-      => \case IntEuclidean.isEuclideanMap x (suc n) (\case __) \with {
-           | inl mod=0 => rewrite mod=0 NatSemiring.zero<suc
-           | inr (_,r) => r
-         }
+      => \case decideEq (IntEuclidean.divMod x (suc n)).2 0 \with {
+        | yes e => rewrite e NatSemiring.zero<suc
+        | no e => IntEuclidean.isEuclideanMap x (suc n) (\case __) e
+      }
 
     \lemma natMod<right (x : Int) (n : Nat) : x mod suc n < suc n
       => \let (q,r) => IntEuclidean.divMod x (suc n)
          \in \case r \as r, idp : r = (IntEuclidean.divMod x (suc n)).2 \return (modToNat (suc n) (q,r)).2 < suc n \with {
                | pos m, p => transportInv (`< suc n) (pmap iabs p) (intMod<right x n)
-               | neg (suc m), p => <-transitive-right (pos<=pos.conv (transportInv (`<= pos n) (pos_iabs (<=-less (transportInv (`< suc n) (pmap iabs p) (intMod<right x n)))) (IntRing.<=_+ {pos n} {n} {neg m} {0} <=-refl signum.signum_neg/=1))) id<suc
+               | neg (suc m), p => <-transitive-right (pos<=pos.conv (transportInv (`<= pos n) (pos_iabs (<=-less (transportInv (`< suc n) (pmap iabs p) (intMod<right x n)))) (IntRing.<=_+ {pos n} {n} {neg m} {0} <=-refl (signum.signum_neg/=1 __)))) id<suc
              }
 
-    \lemma divModProp (x y : Int) (y/=0 : Not (y = 0)) : y * x div y + x mod y = x
+    \lemma divModProp (x y : Int) (y/=0 : y /= 0) : y * x div y + x mod y = x
       => \let (q,r) => IntEuclidean.divMod x y
          \in \case r \as r, idp : r = (IntEuclidean.divMod x y).2 \return y * (modToNat y (q,r)).1 + (modToNat y (q,r)).2 = x \with {
                | pos n, p => pmap (y * q + __) p *> IntEuclidean.isDivMod x y
@@ -261,7 +254,7 @@
                      }
                  \in pmap (_ +) (pos_iabs $ transportInv (`<= iabs y) (pmap iabs p) $ transportInv (`<= iabs y) t $ <=-less $ mod<right $ \lam |y|=0 => y/=0 $ iabs.equals0 |y|=0) *>
                      pmap (`+ _) ldistr *>
-                     pmap ((_ + __) + _) (Ring.negative_*-right _ _ *> pmap negative (inv iabs.signum_*)) *>
+                     pmap ((_ + __) + _) (Ring.negative_*-right *> pmap negative (inv iabs.signum_*)) *>
                      +-assoc *>
                      pmap (_ +) (inv (+-assoc {_} {_} {pos (iabs y)} {neg (suc n)}) *> pmap (`+ _) (IntRing.negative-right {iabs y})) *>
                      pmap (_ +) p *>
@@ -292,7 +285,7 @@
 \instance IntDomain : EuclideanDomain
   | CRing => IntRing
   | zro#ide => \case __
-  | apartZeroProduct {x y : Int} (x/=0 : Not (x = 0)) (y/=0 : Not (y = 0)) : Not (x * y = 0) \elim x, y {
+  | apartZeroProduct {x y : Int} (x/=0 : x /= 0) (y/=0 : y /= 0) : x * y /= 0 \elim x, y {
     | pos 0, _ => \lam _ => x/=0 idp
     | pos _, pos 0 => \lam _ => y/=0 idp
     | neg _, pos 0 => \lam _ => y/=0 idp

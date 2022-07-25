@@ -1,14 +1,13 @@
-\import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
-\import Algebra.Monoid.Solver
 \import Algebra.Ring
-\import Data.List
+\import Algebra.Semiring
+\import Function.Meta ($)
 \import Logic
-\import Meta
 \import Paths
 \import Paths.Meta
+\import Set
 
 {- | Domain is a ring with a tight apartness relation such that elements apart from {zro} are closed under finite products.
  -   Classically, this is equivalent to the usual definition since there is a unique apartness relation on a set assuming LEM.
@@ -17,22 +16,22 @@
   | zro#ide : ide `#0
   | apartZeroProduct {x y : E} : x `#0 -> y `#0 -> (x * y) `#0
 
-  \lemma nonZeroProduct (x y : E) (x/=0 : x /= zro) (y/=0 : y /= zro) : x * y /= zro => \lam x*y=0 =>
+  \lemma nonZeroProduct {x y : E} (x/=0 : x /= zro) (y/=0 : y /= zro) : x * y /= zro => \lam x*y=0 =>
     x/=0 (#0-tight (\lam x#0 =>
     y/=0 (#0-tight (\lam y#0 =>
         #0-zro (transport #0 x*y=0 (apartZeroProduct x#0 y#0))))))
 
-  \lemma nonZero-left {x y : E} (x/=0 : x /= zro) (x*y=0 : x * y = zro) : y = zro =>
-    separatedEq (nonZeroProduct x y x/=0 __ x*y=0)
+  \lemma nonZero-left {x y : E} (x/=0 : x /= zro) (x*y=0 : x * y = zro) : y = zro
+    => separatedEq (nonZeroProduct x/=0 __ x*y=0)
 
-  \lemma nonZero-right {x y : E} (y/=0 : y /= zro) (x*y=0 : x * y = zro) : x = zro =>
-    separatedEq (nonZeroProduct x y __ y/=0 x*y=0)
+  \lemma nonZero-right {x y : E} (y/=0 : y /= zro) (x*y=0 : x * y = zro) : x = zro
+    => separatedEq (nonZeroProduct __ y/=0 x*y=0)
 
-  \lemma nonZero-cancel-left {x y z : E} (x/=0 : x /= zro) (x*y=x*z : x * y = x * z) : y = z =>
-    AddGroup.fromZero y z (nonZero-left x/=0 (ldistr *> pmap (x * y +) (Ring.negative_*-right x z) *> AddGroup.toZero (x * y) (x * z) x*y=x*z))
+  \lemma nonZero-cancel-left {x y z : E} (x/=0 : x /= zro) (x*y=x*z : x * y = x * z) : y = z
+    => fromZero (nonZero-left x/=0 (ldistr *> pmap (x * y +) Ring.negative_*-right *> toZero x*y=x*z))
 
-  \lemma nonZero-cancel-right {x y z : E} (z/=0 : z /= zro) (x*z=y*z : x * z = y * z) : x = y =>
-    AddGroup.fromZero x y (nonZero-right z/=0 (rdistr *> pmap (x * z +) (Ring.negative_*-left y z) *> AddGroup.toZero (x * z) (y * z) x*z=y*z))
+  \lemma nonZero-cancel-right {x y z : E} (z/=0 : z /= zro) (x*z=y*z : x * z = y * z) : x = y
+    => fromZero (nonZero-right z/=0 (rdistr *> pmap (x * z +) Ring.negative_*-left *> toZero x*z=y*z))
 
   \func nonZeroMonoid : CancelMonoid \cowith
     | E => \Sigma (x : E) (x `#0)
@@ -41,8 +40,8 @@
     | ide-left => ext ide-left
     | ide-right => ext ide-right
     | *-assoc => ext *-assoc
-    | cancel-left x {y} {z} x*y=x*z => ext (nonZero-cancel-left (\lam x=0 => #0-zro (transport #0 x=0 x.2)) (pmap __.1 x*y=x*z))
-    | cancel-right z {x} {y} x*z=y*z => ext (nonZero-cancel-right (\lam z=0 => #0-zro (transport #0 z=0 z.2)) (pmap __.1 x*z=y*z))
+    | cancel-left x {y} {z} x*y=x*z => ext (nonZero-cancel-left (apartNonZero x.2) (pmap __.1 x*y=x*z))
+    | cancel-right z {x} {y} x*z=y*z => ext (nonZero-cancel-right (apartNonZero z.2) (pmap __.1 x*z=y*z))
 
   \lemma ldiv_nonZero {a b : E} (a#0 : a `#0) (b#0 : b `#0) (a|b : Monoid.LDiv a b) : Monoid.LDiv {nonZeroMonoid} (a,a#0) (b,b#0) \cowith
     | inv => (a|b.inv, #0-*-right (transportInv #0 a|b.inv-right b#0))
@@ -62,7 +61,16 @@
     | inv-left => pmap __.1 i.inv-left
     | inv-right => pmap __.1 i.inv-right
 } \where {
-  \class Dec \extends Domain, Ring.Dec
+  \class Dec \extends Domain, Ring.Dec, StrictDomain {
+    \default zro/=ide zro=ide => #0-zro (transportInv #0 zro=ide zro#ide)
+    \default zeroProduct {x} {y} xy=0 => \case decideEq x zro, decideEq y zro \with {
+      | yes x=0, _ => byLeft x=0
+      | _, yes y=0 => byRight y=0
+      | no x/=0, no y/=0 => absurd $ #0-zro $ transport #0 xy=0 $ apartZeroProduct (nonZeroApart x/=0) (nonZeroApart y/=0)
+    }
+    \default zro#ide => nonZeroApart (\lam x => zro/=ide (inv x))
+    \default apartZeroProduct x#0 y#0 => nonZeroApart (\lam xy=0 => ||.rec' (apartNonZero x#0) (apartNonZero y#0) (zeroProduct xy=0))
+  }
 }
 
 -- | An integral domain is a commutative domain.
@@ -82,5 +90,10 @@
 } \where {
   \open Monoid
 
-  \class Dec \extends Domain.Dec, IntegralDomain
+  \class Dec \extends Domain.Dec, StrictIntegralDomain
 }
+
+\class StrictDomain \extends Ring, NonZeroSemiring
+  | zeroProduct {x y : E} : x * y = zro -> (x = zro) || (y = zro)
+
+\class StrictIntegralDomain \extends StrictDomain, CRing

@@ -167,9 +167,7 @@ public class RingSolver extends BaseEqualitySolver {
   }
 
   private void toCommutativeNF(List<Monomial> nf) {
-    for (int i = 0; i < nf.size(); i++) {
-      nf.set(i, new Monomial(nf.get(i).coefficient, CountingSort.sort(nf.get(i).elements)));
-    }
+    nf.replaceAll(monomial -> new Monomial(monomial.coefficient, CountingSort.sort(monomial.elements)));
   }
 
   private ConcreteExpression nfToRingTerm(List<Monomial> nf) {
@@ -247,9 +245,7 @@ public class RingSolver extends BaseEqualitySolver {
   }
 
   private static void removeDuplicates(List<Monomial> list) {
-    for (int i = 0; i < list.size(); i++) {
-      list.set(i, new Monomial(list.get(i).coefficient, MonoidSolver.removeDuplicates(list.get(i).elements)));
-    }
+    list.replaceAll(monomial -> new Monomial(monomial.coefficient, MonoidSolver.removeDuplicates(monomial.elements)));
   }
 
   private static List<Monomial> latticeCollapse(List<Monomial> list) {
@@ -409,8 +405,8 @@ public class RingSolver extends BaseEqualitySolver {
         var axiomDiff = minusRingElement(axiom.lhsTerm.originalExpr, axiom.rhsTerm.originalExpr);
         var axDiffIsZero = factory.appBuilder(factory.ref(meta.toZero.getRef()))
           .app(factory.core(instance), false)
-          .app(axiom.lhsTerm.originalExpr)
-          .app(axiom.rhsTerm.originalExpr)
+          .app(axiom.lhsTerm.originalExpr, false)
+          .app(axiom.rhsTerm.originalExpr, false)
           .app(axiom.binding)
           .build();
         var coeffTerm = nfToRingTerm(polyToNF(idealCoeffs.get(i)));
@@ -467,8 +463,8 @@ public class RingSolver extends BaseEqualitySolver {
 
       return factory.appBuilder(factory.ref(meta.fromZero.getRef()))
         .app(factory.core(instance), false)
-        .app(term1.originalExpr)
-        .app(term2.originalExpr)
+        .app(term1.originalExpr, false)
+        .app(term2.originalExpr, false)
         .app(isZeroProof)
         .build();
     }

@@ -148,7 +148,7 @@ public class EqualitySolver extends BaseEqualitySolver {
     TypedExpression instance = typechecker.findInstance(new InstanceSearchParameters() {
       @Override
       public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
-        return classDefinition.isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid)) || classDefinition.isSubClassOf(meta.AddMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AddMonoid)) || classDefinition.isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
+        return (forcedClass == null || classDefinition.isSubClassOf(forcedClass)) && (classDefinition.isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid)) || classDefinition.isSubClassOf(meta.AddMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AddMonoid)) || classDefinition.isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice)));
       }
     }, type, null, refExpr);
     if (instance != null) {

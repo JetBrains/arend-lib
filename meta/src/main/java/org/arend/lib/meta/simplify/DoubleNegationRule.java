@@ -2,7 +2,6 @@ package org.arend.lib.meta.simplify;
 
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
-import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
@@ -35,7 +34,10 @@ public class DoubleNegationRule extends LocalSimplificationRuleBase {
     if (args != null) {
       args = negativeMatcher.match(args.get(0));
       if (args != null) {
-        var path = factory.appBuilder(factory.ref(negIsInv.getRef())).app(factory.core(args.get(0).computeTyped())).build();
+        var path = factory.appBuilder(factory.ref(negIsInv.getRef()))
+          .app(factory.hole(), false)
+          .app(factory.core(args.get(0).computeTyped()), false)
+          .build();
         return new Pair<>(args.get(0), path);
       }
     }
