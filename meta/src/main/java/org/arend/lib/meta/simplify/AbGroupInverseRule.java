@@ -36,7 +36,12 @@ public class AbGroupInverseRule implements SimplificationRule {
     this.values = new Values<>(typechecker, refExpr);
     this.factory = ext.factory;
     this.ext = ext;
-    this.instance = instance;
+    if (isAdditive) {
+      var convertedInst = typechecker.typecheck(factory.appBuilder(factory.ref(ext.equationMeta.fromAbGroupToCGroup.getRef())).app(factory.core(instance)).build(), null);
+      this.instance = convertedInst != null ? convertedInst : instance;
+    } else {
+      this.instance = instance;
+    }
     this.isAdditive = isAdditive;
     this.dataRef = factory.local("d");
     if (isAdditive) {
@@ -195,11 +200,11 @@ public class AbGroupInverseRule implements SimplificationRule {
             .app(concreteTerm.proj2).build();
     var left = factory.core(expression);
     var right = termToConcrete(newTerm).proj1;
-    if (isAdditive) {
+    /*if (isAdditive) {
       simplifyProof = factory.appBuilder(factory.ref(ext.pmap.getRef()))
               .app(factory.ref(ext.equationMeta.fromGroupToAddGroup.getRef()))
               .app(simplifyProof).build();
-    }
+    }/**/
     return new RewriteMeta.EqProofConcrete(simplifyProof, left, right);/**/
   }
 

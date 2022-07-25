@@ -133,6 +133,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Group", name = "AddGroup.toZero")         public CoreFunctionDefinition toZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative-isInv")    public CoreFunctionDefinition negIsInv;
   @Dependency(module = "Algebra.Group", name = "AddGroup.fromGroup")     public CoreFunctionDefinition fromGroupToAddGroup;
+  @Dependency(module = "Algebra.Group", name = "AbGroup.toCGroup")     public CoreFunctionDefinition fromAbGroupToCGroup;
   @Dependency(module = "Algebra.Group", name = "Group.inverse-isInv")    public CoreFunctionDefinition invIsInv;
   @Dependency(module = "Algebra.Group", name = "Group.inverse_ide")    public CoreFunctionDefinition invIde;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative_zro")    public CoreFunctionDefinition negativeZro;
