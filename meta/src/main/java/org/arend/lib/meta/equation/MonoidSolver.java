@@ -22,6 +22,9 @@ import org.arend.lib.context.ContextHelper;
 import org.arend.lib.error.AlgebraSolverError;
 import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
+import org.arend.lib.meta.equation.datafactory.CategoryDataFactory;
+import org.arend.lib.meta.equation.datafactory.DataFactory;
+import org.arend.lib.meta.equation.datafactory.MonoidDataFactory;
 import org.arend.lib.util.CountingSort;
 import org.arend.lib.util.Utils;
 import org.arend.lib.util.Values;
@@ -44,6 +47,7 @@ public class MonoidSolver extends BaseEqualitySolver {
   private Map<CoreBinding, List<RuleExt>> contextRules;
   private boolean isCommutative;
   private boolean isSemilattice;
+  private boolean isMultiplicative;
   private final boolean isCat;
   private final CoreClassField ide;
   private final Values<CoreExpression> obValues;
@@ -57,7 +61,7 @@ public class MonoidSolver extends BaseEqualitySolver {
 
     isCat = classCall == null;
     isSemilattice = !isCat && classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
-    boolean isMultiplicative = !isSemilattice && !isCat && classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid));
+    isMultiplicative = !isSemilattice && !isCat && classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid));
     isCommutative = !isCat && (isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid)) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AbMonoid)));
     ide = isSemilattice ? meta.top : isMultiplicative ? meta.ide : meta.zro;
     CoreClassField mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
@@ -855,60 +859,15 @@ public class MonoidSolver extends BaseEqualitySolver {
   }
 
   @Override
-  protected ConcreteExpression getDefaultValue() {
-    return factory.ref(ide.getRef());
-  }
-
-  @Override
-  protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
-    ConcreteExpression data = factory.ref((isSemilattice ? meta.LData : isCommutative ? meta.CData : meta.Data).getRef());
-    return isSemilattice
-      ? factory.classExt(data, Arrays.asList(factory.implementation(meta.SemilatticeDataCarrier.getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)))
-      : factory.app(data, Arrays.asList(factory.arg(instanceArg, false), factory.arg(dataArg, true)));
-  }
-
-  private ConcreteExpression makeLambda2() {
-    ArendRef lamParam1 = factory.local("i");
-    ArendRef lamParam2 = factory.local("j");
-    List<CoreExpression> valueList = obValues.getValues();
-    List<ConcreteClause> caseClauses = new ArrayList<>();
-    for (Map.Entry<Pair<Integer, Integer>, Map<Integer, Integer>> entry : homMap.entrySet()) {
-      caseClauses.add(factory.clause(Arrays.asList(factory.numberPattern(entry.getKey().proj1), factory.numberPattern(entry.getKey().proj2)), makeFin(entry.getValue().size())));
-    }
-    if (homMap.size() < valueList.size() * valueList.size()) {
-      caseClauses.add(factory.clause(Arrays.asList(factory.refPattern(null, null), factory.refPattern(null, null)), makeFin(0)));
-    }
-    return factory.lam(Arrays.asList(factory.param(lamParam1), factory.param(lamParam2)),
-      factory.caseExpr(false, Arrays.asList(factory.caseArg(factory.ref(lamParam1), null, null), factory.caseArg(factory.ref(lamParam2), null, null)), null, null, caseClauses));
-  }
-
-  private ConcreteExpression makeLambda3() {
-    ArendRef lamParam1 = factory.local("i");
-    ArendRef lamParam2 = factory.local("j");
-    ArendRef lamParam3 = factory.local("k");
-    List<ConcreteClause> caseClauses = new ArrayList<>();
-    for (Map.Entry<Pair<Integer, Integer>, Map<Integer, Integer>> entry : homMap.entrySet()) {
-      int i = 0;
-      for (Integer index : entry.getValue().keySet()) {
-        caseClauses.add(factory.clause(Arrays.asList(factory.numberPattern(entry.getKey().proj1), factory.numberPattern(entry.getKey().proj2), factory.numberPattern(i++)), factory.core(values.getValue(index).computeTyped())));
-      }
-    }
-    return factory.lam(Arrays.asList(factory.param(false, lamParam1), factory.param(false, lamParam2), factory.param(lamParam3)),
-      factory.caseExpr(false, Arrays.asList(factory.caseArg(factory.ref(lamParam1), null), factory.caseArg(factory.ref(lamParam2), null), factory.caseArg(factory.ref(lamParam3), null, null)), null, null, caseClauses));
-  }
-
-  @Override
   public TypedExpression finalize(ConcreteExpression result) {
+    DataFactory dataFactory;
+
     if (!isCat) {
-      return super.finalize(result);
+      dataFactory = new MonoidDataFactory(meta, dataRef, values, factory, instance, isSemilattice, isCommutative, isMultiplicative);
+    } else {
+      dataFactory = new CategoryDataFactory(meta, dataRef, values, obValues, homMap, factory, instance);
     }
 
-    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(factory.appBuilder(factory.ref(meta.HData.getRef()))
-      .app(factory.core(instance), false)
-      .app(makeLambda(obValues))
-      .app(makeLambda2())
-      .app(makeLambda3())
-      .build())));
-    return typechecker.typecheck(meta.ext.factory.letExpr(false, false, letClauses, result), null);
+    return typechecker.typecheck(dataFactory.wrapWithData(result), null);
   }
 }

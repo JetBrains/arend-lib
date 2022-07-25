@@ -127,45 +127,8 @@ public abstract class BaseEqualitySolver implements EquationSolver {
 
   public void setUseHypotheses(boolean useHypotheses) { this.useHypotheses = useHypotheses; }
 
-  // any value whatsoever
-  protected ConcreteExpression getDefaultValue() {
-    return null;
-  }
-
-  protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
-    return null;
-  }
-
-  protected ConcreteExpression makeFin(int n) {
-    return factory.app(factory.ref(meta.ext.prelude.getFin().getRef()), true, factory.number(n));
-  }
-
-  protected ConcreteExpression makeLambda(Values<CoreExpression> values) {
-    ArendRef lamParam = factory.local("j");
-    List<CoreExpression> valueList = values.getValues();
-    ConcreteClause[] caseClauses = new ConcreteClause[valueList.size()];
-    for (int i = 0; i < valueList.size(); i++) {
-      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(valueList.get(i).computeTyped()));
-    }
-    return factory.lam(singletonList(factory.param(singletonList(lamParam), makeFin(valueList.size()))),
-      factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
-  }
-
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
-    ArendRef lamParam = factory.local("n");
-    List<CoreExpression> valueList = values.getValues();
-    ConcreteClause[] caseClauses = new ConcreteClause[valueList.size() + 1];
-    for (int i = 0; i < valueList.size(); i++) {
-      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(null, valueList.get(i).computeTyped()));
-    }
-    caseClauses[valueList.size()] = factory.clause(singletonList(factory.refPattern(null, null)), getDefaultValue());
-
-    ConcreteExpression instanceArg = factory.core(instance);
-    ConcreteExpression dataArg = factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(meta.ext.prelude.getNat().getRef()))),
-      factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
-
-    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(getDataClass(instanceArg, dataArg))));
-    return typechecker.typecheck(meta.ext.factory.letExpr(false, false, letClauses, result), null);
+    return typechecker.typecheck(result, null);
   }
 }

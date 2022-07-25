@@ -12,7 +12,6 @@ import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 import org.arend.lib.meta.RewriteMeta;
-import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 
@@ -30,6 +29,9 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
     this.refExpr = refExpr;
     this.typechecker = typechecker;
   }
+
+  @Override
+  public ConcreteExpression finalizeEqProof(ConcreteExpression proof) { return proof; }
 
   @Override
   public RewriteMeta.EqProofConcrete apply(TypedExpression expression) {

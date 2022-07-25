@@ -19,6 +19,7 @@ import org.arend.lib.meta.closure.CongruenceClosure;
 import org.arend.lib.meta.cong.CongruenceMeta;
 import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
+import org.arend.lib.meta.equation.datafactory.RingDataFactory;
 import org.arend.lib.ring.Monomial;
 import org.arend.lib.util.CountingSort;
 import org.arend.lib.util.Utils;
@@ -70,14 +71,9 @@ public class RingSolver extends BaseEqualitySolver {
   }
 
   @Override
-  protected ConcreteExpression getDefaultValue() {
-    return factory.ref((isLattice ? meta.top : meta.ide).getRef());
-  }
-
-  @Override
-  protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
-    ConcreteExpression data = factory.ref((isLattice ? meta.LatticeData : (isRing ? (isCommutative ? meta.CRingData : meta.RingData) : (isCommutative ? meta.CSemiringData : meta.SemiringData))).getRef());
-    return factory.classExt(data, Arrays.asList(factory.implementation((isLattice ? meta.LatticeDataCarrier : meta.RingDataCarrier).getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)));
+  public TypedExpression finalize(ConcreteExpression result) {
+    RingDataFactory dataFactory = new RingDataFactory(meta, dataRef, values, factory, instance, isLattice, isRing, isCommutative);
+    return typechecker.typecheck(dataFactory.wrapWithData(result), null);
   }
 
   private static class CompiledTerm {

@@ -6,12 +6,15 @@ import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.ops.NormalizationMode;
+import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 import org.arend.lib.meta.RewriteMeta;
+import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
+import org.arend.lib.meta.equation.datafactory.GroupDataFactory;
 import org.arend.lib.util.Values;
 
 import java.util.List;
@@ -26,12 +29,16 @@ public class AbGroupInverseRule implements SimplificationRule {
   private final FunctionMatcher ideMatcher;
   private final FunctionMatcher invMatcher;
   private final boolean isAdditive;
+  private final TypedExpression instance;
+  protected final ArendRef dataRef;
 
   public AbGroupInverseRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker, boolean isAdditive) {
     this.values = new Values<>(typechecker, refExpr);
     this.factory = ext.factory;
     this.ext = ext;
+    this.instance = instance;
     this.isAdditive = isAdditive;
+    this.dataRef = factory.local("d");
     if (isAdditive) {
       this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.plus, typechecker, factory, refExpr, ext, 2);
       this.invMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.negative, typechecker, factory, refExpr, ext, 1);
@@ -113,7 +120,12 @@ public class AbGroupInverseRule implements SimplificationRule {
     var indToVarOccurNums = new TreeMap<Integer, Pair<Integer, Integer>>();
     countVarOccurNums(term, indToVarOccurNums, false);
     var result = new TreeMap<Integer, Integer>();
-    indToVarOccurNums.forEach((key, value) -> result.put(key, Math.min(value.proj1, value.proj2)));
+    for (var e : indToVarOccurNums.entrySet()) {
+      int numToRemove = Math.min(e.getValue().proj1, e.getValue().proj2);
+      if (numToRemove > 0) {
+        result.put(e.getKey(), numToRemove);
+      }
+    }
     return result;
   }
 
@@ -133,7 +145,7 @@ public class AbGroupInverseRule implements SimplificationRule {
       }
     } else if (term instanceof InvTerm) {
       var invTerm = (InvTerm) term;
-      return removeVars(invTerm.arg, numVarsToRemove, !curSign);
+      return new InvTerm(removeVars(invTerm.arg, numVarsToRemove, !curSign));
     } else if (term instanceof MulTerm) {
       var mulTerm = (MulTerm) term;
       var newLeft = removeVars(mulTerm.left, numVarsToRemove, curSign);
@@ -179,6 +191,7 @@ public class AbGroupInverseRule implements SimplificationRule {
     if (numVarsToRemove.isEmpty()) return null;
     var newTerm = removeVars(term, numVarsToRemove, false);
     var simplifyProof = factory.appBuilder(factory.ref(ext.equationMeta.simplifyCorrectAbInv.getRef()))
+            .app(factory.ref(dataRef), false)
             .app(concreteTerm.proj2).build();
     var left = factory.core(expression);
     var right = termToConcrete(newTerm).proj1;
@@ -188,5 +201,11 @@ public class AbGroupInverseRule implements SimplificationRule {
               .app(simplifyProof).build();
     }
     return new RewriteMeta.EqProofConcrete(simplifyProof, left, right);/**/
+  }
+
+  @Override
+  public ConcreteExpression finalizeEqProof(ConcreteExpression proof) {
+    var dataFactory = new GroupDataFactory(ext.equationMeta, dataRef, values, factory, instance, true, !isAdditive);
+    return dataFactory.wrapWithData(proof);
   }
 }

@@ -79,10 +79,11 @@ public class SimplifyMeta extends BaseMetaDefinition {
           if (simplificationRes == null) continue;
           keepSimplifying = true;
           right = simplificationRes.right;
+          var finalizedEqProof = rule.finalizeEqProof(simplificationRes.proof);
           if (path == null) {
-            path = simplificationRes.proof;
+            path = finalizedEqProof;
           } else {
-            path = factory.appBuilder(factory.ref(ext.concat.getRef())).app(path).app(simplificationRes.proof).build();
+            path = factory.appBuilder(factory.ref(ext.concat.getRef())).app(path).app(finalizedEqProof).build();
           }
           simplifiedExpr = typechecker.typecheck(simplificationRes.right, simplifiedExpr.getType());
           if (simplifiedExpr == null) return CoreExpression.FindAction.SKIP;
@@ -121,8 +122,10 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
           if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AddGroup)) {
             rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, true));
+            rules.add(new IdentityInverseRule(instance, classCall, ext, refExpr, typechecker, true));
           } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Group)) {
             rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, false));
+            rules.add(new IdentityInverseRule(instance, classCall, ext, refExpr, typechecker, false));
           }/**/
           if (classCall.getDefinition().isSubClassOf(ext.equationMeta.CGroup)) {
             rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, false));
