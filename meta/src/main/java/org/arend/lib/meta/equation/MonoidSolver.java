@@ -3,6 +3,7 @@ package org.arend.lib.meta.equation;
 import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.expr.ConcreteAppExpression;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
@@ -51,6 +52,7 @@ public class MonoidSolver extends BaseEqualitySolver {
   private final boolean isCat;
   private final CoreClassField ide;
   private final Values<CoreExpression> obValues;
+  protected final List<ConcreteLetClause> letClauses;
   private final Map<Pair<Integer,Integer>, Map<Integer,Integer>> homMap; // the key is the pair (domain,codomain), the value is a map from indices in `values` to indices specific to those objects.
   private final Map<Integer, Integer> domMap; // indices of morphisms in `values` to indices of domains.
   private final Map<Integer, Integer> codomMap; // indices of morphisms in `values` to indices of codomains.
@@ -59,6 +61,7 @@ public class MonoidSolver extends BaseEqualitySolver {
     super(meta, typechecker, factory, refExpr, instance, useHypotheses);
     this.equality = equality;
 
+    letClauses = new ArrayList<>();
     isCat = classCall == null;
     isSemilattice = !isCat && classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
     isMultiplicative = !isSemilattice && !isCat && classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid));
@@ -863,7 +866,7 @@ public class MonoidSolver extends BaseEqualitySolver {
     DataFactory dataFactory;
 
     if (!isCat) {
-      dataFactory = new MonoidDataFactory(meta, dataRef, values, factory, instance, isSemilattice, isCommutative, isMultiplicative);
+      dataFactory = new MonoidDataFactory(meta, dataRef, values, letClauses, factory, instance, isSemilattice, isCommutative, isMultiplicative);
     } else {
       dataFactory = new CategoryDataFactory(meta, dataRef, values, obValues, homMap, factory, instance);
     }

@@ -1,6 +1,7 @@
 package org.arend.lib.meta.equation.datafactory;
 
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.expr.CoreExpression;
@@ -10,14 +11,16 @@ import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.util.Values;
 
 import java.util.Arrays;
+import java.util.List;
 
 public class MonoidDataFactory extends DataFactoryBase {
   private final boolean isSemilattice;
   private final boolean isCommutative;
   private final CoreClassField ide;
 
-  public MonoidDataFactory(EquationMeta meta, ArendRef dataRef, Values<CoreExpression> values, ConcreteFactory factory, TypedExpression instance, boolean isSemilattice, boolean isCommutative, boolean isMultiplicative) {
+  public MonoidDataFactory(EquationMeta meta, ArendRef dataRef, Values<CoreExpression> values, List<ConcreteLetClause> letClauses, ConcreteFactory factory, TypedExpression instance, boolean isSemilattice, boolean isCommutative, boolean isMultiplicative) {
     super(meta, dataRef, values, factory, instance);
+    this.letClauses.addAll(letClauses);
     this.isSemilattice = isSemilattice;
     this.isCommutative = isCommutative;
     ide = isSemilattice ? meta.top : isMultiplicative ? meta.ide : meta.zro;

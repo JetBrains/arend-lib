@@ -33,7 +33,6 @@ public abstract class BaseEqualitySolver implements EquationSolver {
   protected final TypedExpression instance;
   protected final Values<CoreExpression> values;
   protected final ArendRef dataRef;
-  protected final List<ConcreteLetClause> letClauses;
   protected boolean useHypotheses;
 
   protected BaseEqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, TypedExpression instance, boolean useHypotheses) {
@@ -43,8 +42,6 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     this.refExpr = refExpr;
     this.instance = instance;
     dataRef = factory.local("d");
-    letClauses = new ArrayList<>();
-    letClauses.add(null);
     values = new Values<>(typechecker, refExpr);
     this.useHypotheses = useHypotheses;
   }
