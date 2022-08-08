@@ -219,7 +219,7 @@ public class SimpCoeMeta extends BaseMetaDefinition {
       ConcreteExpression concreteTransportLam = factory.core(transportLam.computeTyped());
       List<ConcreteParameter> sigmaParams = new ArrayList<>();
       for (int i = 0; i < sigmaParamTypes.size(); i++) {
-        sigmaParams.add(factory.param(true, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(SubstitutionMeta.makeLambda(sigmaParamTypes.get(i), transportLam.getParameters().getBinding(), factory), factory.ref(jLamRef2), proj(leftExpr, i, factory))), proj(factory.ref(jPiRef), i, factory)))));
+        sigmaParams.add(factory.sigmaParam(SigmaFieldKind.ANY, List.of(), factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(SubstitutionMeta.makeLambda(sigmaParamTypes.get(i), transportLam.getParameters().getBinding(), factory), factory.ref(jLamRef2), proj(leftExpr, i, factory))), proj(factory.ref(jPiRef), i, factory)))));
       }
       ConcreteExpression jCod = factory.appBuilder(factory.ref(ext.prelude.getEquality().getRef()))
         .app(factory.ref(typeRef), false)

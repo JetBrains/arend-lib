@@ -114,7 +114,7 @@
     | :: a l => mcases \with {
       | yes p => rewrite interpretNF.cons $
           inv +-assoc *>
-          pmap (`+ interpretNF l) (pmap (alg c * mData.interpretNF __ + _) p *> inv (pmap (`* _) (alg.func-+ c a.2) *> rdistr)) *>
+          pmap (`+ interpretNF l) (pmap (alg c * mData.interpretNF __ + _) p *> inv (pmap (`* _) alg.func-+ *> rdistr)) *>
           collapse1-consistent a.1 (c + a.2) l
       | no _ => repeat {2} (rewrite interpretNF.cons) (pmap (_ +) (collapse1-consistent a.1 a.2 l))
     }
@@ -242,15 +242,15 @@
   \where {
     \func natMap {R : Semiring} : SemiringHom NatSemiring R \cowith
       | func => natCoef
-      | func-+ (n m : Nat) : R.natCoef (n + m) = natCoef n + natCoef m \elim m {
+      | func-+ {n m : Nat} : R.natCoef (n + m) = natCoef n + natCoef m \elim m {
         | 0 => inv (pmap (natCoef n +) natCoefZero *> zro-right)
-        | suc m => natCoefSuc (n + m) *> pmap (`+ ide) (func-+ n m) *> +-assoc *> pmap (natCoef n +) (inv (natCoefSuc m))
+        | suc m => natCoefSuc (n + m) *> pmap (`+ ide) func-+ *> +-assoc *> pmap (natCoef n +) (inv (natCoefSuc m))
       }
       | func-zro => natCoefZero
       | func-ide => natCoefSuc 0 *> pmap (`+ ide) natCoefZero *> zro-left
-      | func-* (n m : Nat) : R.natCoef (n * m) = natCoef n * natCoef m \elim m {
+      | func-* {n m : Nat} : R.natCoef (n * m) = natCoef n * natCoef m \elim m {
         | 0 => natCoefZero *> inv (pmap (natCoef n *) natCoefZero *> zro_*-right)
-        | suc m => func-+ _ _ *> pmap (`+ natCoef n) (func-* n m) *> inv (pmap (natCoef n *) (natCoefSuc m) *> ldistr *> pmap (natCoef n * natCoef m +) ide-right)
+        | suc m => func-+ *> pmap (`+ natCoef n) func-* *> inv (pmap (natCoef n *) (natCoefSuc m) *> ldistr *> pmap (natCoef n * natCoef m +) ide-right)
       }
 
     \lemma natComm {R : Semiring} (n : Nat) (x : R) : natMap n * x = x * natMap n \elim n
@@ -269,7 +269,7 @@
       | false => bottom
       | true => top
     }
-    | func-+ x y => inv $ \case \elim x, \elim y \with {
+    | func-+ {x} {y} => inv $ \case \elim x, \elim y \with {
       | true, true => <=-antisymmetric top-univ join-left
       | true, false => R.zro-right
       | false, true => R.zro-left
@@ -277,7 +277,7 @@
     }
     | func-zro => idp
     | func-ide => idp
-    | func-* x y => inv $ \case \elim x, \elim y \with {
+    | func-* {x} {y} => inv $ \case \elim x, \elim y \with {
       | true, true => R.ide-left
       | true, false => R.ide-left
       | false, true => R.ide-right
@@ -408,7 +408,7 @@
 
   \lemma interpretNF_negate (l : List (\Sigma (List V) C)) : negative (interpretNF l) = interpretNF (negate l) \elim l
     | nil => negative_zro
-    | :: a l => repeat {2} (rewrite interpretNF.cons) (negative_+ _ _ *> +-comm *> pmap2 (+) (inv (pmap (`* _) (intMap.func-negative a.2) *> negative_*-left _ _)) (interpretNF_negate l))
+    | :: a l => repeat {2} (rewrite interpretNF.cons) (negative_+ *> +-comm *> pmap2 (+) (inv (pmap (`* _) intMap.func-negative *> negative_*-left)) (interpretNF_negate l))
 
   \func normalize' (t : RingTerm C V) : List (\Sigma (List V) C) \elim t
     | coef c => (nil, c) :: nil
@@ -463,18 +463,18 @@
 
   \func intMap {R : Ring} : RingHom IntRing R \cowith
     | func => intCoef
-    | func-+ (x y : Int) : R.intCoef (x + y) = intCoef x + intCoef y \with {
-      | pos n, pos m => natMap.func-+ n m
+    | func-+ {x y : Int} : R.intCoef (x + y) = intCoef x + intCoef y \elim x, y {
+      | pos n, pos m => natMap.func-+
       | pos n, neg (suc _ \as m) => intCoef_diff n m
       | neg (suc _ \as n), pos m => intCoef_diff m n *> +-comm
-      | neg (suc _ \as n), neg (suc _ \as m) => pmap negative (natMap.func-+ n m) *> negative_+ _ _ *> +-comm
+      | neg (suc _ \as n), neg (suc _ \as m) => pmap negative natMap.func-+ *> negative_+ *> +-comm
     }
     | func-ide => natMap.func-ide
-    | func-* (x y : Int) : R.intCoef (x * y) = intCoef x * intCoef y \with {
-      | pos n, pos m => natMap.func-* n m
-      | pos n, neg (suc _ \as m) => intCoef_neg _ *> pmap negative (natMap.func-* _ _) *> inv (negative_*-right _ _)
-      | neg (suc _ \as n), pos m => intCoef_neg _ *> pmap negative (natMap.func-* _ _) *> inv (negative_*-left _ _)
-      | neg (suc _ \as n), neg m => natMap.func-* n m *> inv (pmap (negative (natCoef n) *) (intCoef_neg m) *> negative_* _ _)
+    | func-* {x y : Int} : R.intCoef (x * y) = intCoef x * intCoef y \elim x, y {
+      | pos n, pos m => natMap.func-*
+      | pos n, neg (suc _ \as m) => intCoef_neg _ *> pmap negative natMap.func-* *> inv negative_*-right
+      | neg (suc _ \as n), pos m => intCoef_neg _ *> pmap negative natMap.func-* *> inv negative_*-left
+      | neg (suc _ \as n), neg m => natMap.func-* *> inv (pmap (negative (natCoef n) *) (intCoef_neg m) *> negative_*)
     }
 
   \lemma intCoef_diff {R : Ring} (n m : Nat) : R.intCoef (n Nat.- m) = intCoef n - intCoef m \elim n, m
@@ -482,12 +482,12 @@
     | 0, suc _ \as m => inv (pmap (__ - natCoef m) natCoefZero *> zro-left)
     | suc _ \as n, 0 => inv (pmap (natCoef n + negative __) natCoefZero *> pmap (natCoef n +) negative_zro *> zro-right)
     | suc n, suc m => intCoef_diff n m *>
-                      pmap (natCoef n +) (inv (pmap (ide +) (negative_+ _ _) *> inv +-assoc *> pmap (`- natCoef m) negative-right *> zro-left)) *>
+                      pmap (natCoef n +) (inv (pmap (ide +) negative_+ *> inv +-assoc *> pmap (`- natCoef m) negative-right *> zro-left)) *>
                       inv (pmap2 (__ + negative __) (natCoefSuc n) (natCoefSuc m) *> +-assoc)
 
   \lemma intComm {R : Ring} (n : Int) (x : R) : intMap n * x = x * intMap n \elim n
     | pos n => SemiringData.natComm n x
-    | neg n => rewrite intCoef_neg (negative_*-left _ _ *> pmap negative (SemiringData.natComm n x) *> inv (negative_*-right _ _))
+    | neg n => rewrite intCoef_neg (negative_*-left *> pmap negative (SemiringData.natComm n x) *> inv negative_*-right)
 
   \func negate {V : \Type} {C : Ring} (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l
     | nil => nil

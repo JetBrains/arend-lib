@@ -1,0 +1,540 @@
+\import Algebra.Algebra
+\import Algebra.Domain
+\import Algebra.Domain.Euclidean
+\import Algebra.Field
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Ring.QPoly
+\import Arith.Nat
+\import Data.List
+\import Data.Or
+\import Equiv
+\import Equiv.Fiber
+\import Equiv.Univalence
+\import Function
+\import Function.Meta \hiding (#)
+\import HLevel
+\import Logic
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set
+
+\data Poly (R : AddPointed)
+  | pzero
+  | padd (Poly R) R
+  | peq : padd pzero 0 = pzero
+  \where {
+    \open QPoly
+
+    \func toQPoly {R : AddPointed} (p : Poly R) : QPoly R \elim p
+      | pzero => in~ nil
+      | padd p e => qadd (toQPoly p) e
+      | peq => path (~-equiv _ _ idp)
+
+    \func fromList {R : AddPointed} (l : List R) : Poly R \elim l
+      | nil => pzero
+      | :: a l => padd (fromList l) a
+
+    \func cfunc {R : AddPointed} (l : List R) : toQPoly (fromList l) = in~ l \elim l
+      | nil => idp
+      | :: a l => pmap (qadd __ a) (cfunc l)
+
+    \func path-lem {R : AddPointed} {p : R.zro = R.zro} : inv (path peq) *> pmap2 padd idp p *> path peq = idp
+      => pmap (inv (path peq) *> pmap2 padd idp __ *> path peq) (Path.inProp _ idp) *> pmap (_ *>) (idp_*> _) *> inv_*> _
+
+    \func toQPoly-nil {R : AddPointed} {p : Poly R} : toQPoly p = in~ nil -> p = pzero \elim p
+      | pzero => \lam _ => idp
+      | padd p e => \lam s => \have t => qadd_nil s \in pmap2 padd (toQPoly-nil t.1) t.2 *> path peq
+      | peq => pathOver $ coe_pi *> ext (\lam s => coe_path (path peq) _ idp *> path-lem)
+
+    \func gfunc {R : AddPointed} (l : List R) (p : Poly R) : toQPoly p = in~ l -> p = fromList l \elim l, p
+      | nil, pzero => \lam _ => idp
+      | nil, padd p e => \lam s => pmap2 padd (toQPoly-nil (qadd_nil s).1) (qadd_nil s).2 *> path peq
+      | nil, peq => pathOver $ coe_pi *> ext (\lam _ => coe_path (path peq) _ idp *> path-lem)
+      | :: a l, pzero => \lam s => inv (path peq) *> pmap2 padd (gfunc l pzero (nil_cons s).2) (nil_cons s).1
+      | :: a l, padd p e => \lam s => pmap2 padd (gfunc l p (qadd_cons s).2) (qadd_cons {_} {e} {a} {toQPoly p} {l} s).1
+      | :: a l, peq => pathOver $ coe_pi *> ext (\lam s => coe_path (path peq) _ idp *> pmap (inv (path peq) *>) (pmap2 (\lam x => pmap2 padd (gfunc l pzero x)) propPath setPath))
+
+    \func toQPoly-equiv {R : AddPointed} : Equiv (toQPoly {R})
+      => contrFibers=>Equiv $ \case \elim __ \with {
+        | in~ l => \new Contr {
+          | center => (fromList l, cfunc l)
+          | contraction t => ext (inv (gfunc l t.1 t.2))
+        }
+      }
+
+    \use \level levelSet {R : AddPointed} : isSet (Poly R)
+      => transportInv isSet (Equiv-to-= toQPoly-equiv) (\lam _ _ _ _ => setPath)
+  }
+
+\func polyCoef {R : AddPointed} (p : Poly R) (n : Nat) : R \elim p, n
+  | pzero, _ => 0
+  | padd p e, 0 => e
+  | padd p e, suc n => polyCoef p n
+  | peq, 0 => idp
+  | peq, suc n => idp
+
+\func lastCoef {R : AddPointed} (p : Poly R) => polyCoef p 0
+
+\func polyShift {R : AddPointed} (p : Poly R) : Poly R \elim p
+  | pzero => pzero
+  | padd p e => p
+  | peq => idp
+
+\func monomial {R : AddPointed} (c : R) (n : Nat) : Poly R \elim n
+  | 0 => padd pzero c
+  | suc n => padd (monomial c n) 0
+
+\instance PolyRing (R : Ring) : Ring (Poly R)
+  | zro => pzero
+  | + (p q : Poly R) : Poly R \with {
+    | pzero, q => q
+    | padd p e, pzero => padd p e
+    | padd p e, padd q e' => padd (p + q) (e R.+ e')
+    | padd p e, peq => pmap2 padd zro-right R.zro-right
+    | peq, pzero => path peq
+    | peq, padd q e => pmap (padd q) R.zro-left
+  }
+  | zro-left => idp
+  | zro-right {p : Poly R} : p + pzero = p \elim p {
+    | pzero => idp
+    | padd p e => idp
+  }
+  | +-assoc {p q s : Poly R} : (p + q) + s = p + (q + s) \elim p, q, s {
+    | pzero, q, s => idp
+    | padd p e, pzero, s => idp
+    | padd p e, padd q e1, pzero => idp
+    | padd p e, padd q e1, padd s e2 => pmap2 padd +-assoc R.+-assoc
+  }
+  | +-comm {p q : Poly R} : p + q = q + p \elim p, q {
+    | pzero, pzero => idp
+    | pzero, padd q e => idp
+    | padd p e, pzero => idp
+    | padd p e, padd q e' => pmap2 padd +-comm R.+-comm
+  }
+  | ide => padd pzero 1
+  | * (p q : Poly R) : Poly R \elim p {
+    | pzero => pzero
+    | padd p e => padd (p * q) 0 + e *c q
+    | peq => pmap (_ +) zro_*c *> path peq
+  }
+  | ide-left => pmap2 (+) (path peq) ide_*c
+  | ide-right {p : Poly R} : p * padd pzero 1 = p \elim p {
+    | pzero => idp
+    | padd p e => pmap2 padd (zro-right *> ide-right) equation
+  }
+  | *-assoc {p q s : Poly R} : (p * q) * s = p * (q * s) \elim p {
+    | pzero => idp
+    | padd p e => rdistr *> +-assoc *> pmap2 (padd __ 0 +) *-assoc (pmap2 (+) zro_*c (inv *c-comm-left))
+  }
+  | ldistr {p q s : Poly R} : p * (q + s) = p * q + p * s \elim p {
+    | pzero => idp
+    | padd p e => pmap2 (+) (pmap2 padd ldistr (inv R.zro-left)) *c-ldistr
+        *> +-assoc *> pmap (_ +) (inv +-assoc *> pmap (`+ _) +-comm *> +-assoc) *> inv +-assoc
+  }
+  | rdistr {p q s : Poly R} : (p + q) * s = p * s + q * s \elim p, q, s {
+    | pzero, q, s => idp
+    | padd p e, pzero, s => inv zro-right
+    | padd p e, padd q e', s => pmap2 (+) (pmap2 padd rdistr (inv R.zro-left)) *c-rdistr
+        *> +-assoc *> pmap (_ +) (inv +-assoc *> pmap (`+ _) +-comm *> +-assoc) *> inv +-assoc
+  }
+  | negative (p : Poly R) : Poly R \with {
+    | pzero => pzero
+    | padd p e => padd (negative p) (R.negative e)
+    | peq => pmap (padd pzero) R.negative_zro *> path peq
+  }
+  | negative-left {p : Poly R} : negative p + p = pzero \elim p {
+    | pzero => idp
+    | padd p e => pmap2 padd negative-left R.negative-left *> path peq
+  }
+  | natCoef n => padd pzero (R.natCoef n)
+  | natCoefZero => pmap (padd pzero) R.natCoefZero *> peq
+  | natCoefSuc n => pmap (padd pzero) (R.natCoefSuc n)
+  \where {
+    \func \infixl 7 *c {R : Ring} (r : R) (p : Poly R) : Poly R \elim p
+      | pzero => pzero
+      | padd p e => padd (r *c p) (r R.* e)
+      | peq => pmap (padd pzero) R.zro_*-right *> path peq
+
+    \lemma zro_*c {R : Ring} {p : Poly R} : 0 *c p = pzero \elim p
+      | pzero => idp
+      | padd p e => pmap2 padd zro_*c R.zro_*-left *> path peq
+
+    \lemma ide_*c {R : Ring} {p : Poly R} : 1 *c p = p \elim p
+      | pzero => idp
+      | padd p e => pmap2 padd ide_*c R.ide-left
+
+    \lemma *c-rdistr {R : Ring} {e r : R} {p : Poly R} : (e R.+ r) *c p = e *c p + r *c p \elim p
+      | pzero => idp
+      | padd p e1 => pmap2 padd *c-rdistr R.rdistr
+
+    \lemma *c-ldistr {R : Ring} {c : R} {p q : Poly R} : c *c (p + q) = c *c p + c *c q \elim p, q
+      | pzero, q => idp
+      | padd p e, pzero => idp
+      | padd p e, padd q e' => pmap2 padd *c-ldistr R.ldistr
+
+    \lemma *c-assoc {R : Ring} {c e : R} {p : Poly R} : c R.* e *c p = c *c (e *c p) \elim p
+      | pzero => idp
+      | padd p e' => pmap2 padd *c-assoc R.*-assoc
+
+    \lemma *c-comm-left {R : Ring} {r : R} {p q : Poly R} : r *c (p * q) = (r *c p) * q \elim p
+      | pzero => idp
+      | padd p e => *c-ldistr *> pmap2 (+) (pmap2 padd *c-comm-left R.zro_*-right) (inv *c-assoc)
+
+    \lemma padd0_*-comm {R : Ring} {p q : Poly R} : p * padd q 0 = padd (p * q) 0 \elim p
+      | pzero => inv (path peq)
+      | padd p e => pmap2 (\lam x => padd (x + _)) padd0_*-comm equation
+
+    \lemma *c_* {R : Ring} {c : R} {p : Poly R} : c *c p = padd pzero c * p
+      => inv $ pmap (`+ _) peq
+  }
+
+\instance PolyAlgebra (R : CRing) : CAlgebra { | R => R }
+  | Ring => PolyRing R
+  | *c => *c
+  | *c-assoc => *c-assoc
+  | *c-ldistr => *c-ldistr
+  | *c-rdistr => *c-rdistr
+  | ide_*c => ide_*c
+  | *c-comm-left => *c-comm-left
+  | *c-comm-right {r : R} {p q : Poly R} : r *c (p * q) = p * (r *c q) \elim p {
+    | pzero => idp
+    | padd p e => *c-ldistr *> pmap2 (+) (pmap2 padd *c-comm-right R.zro_*-right) (inv *c-assoc *> pmap (`*c q) R.*-comm *> *c-assoc)
+  }
+  | *-comm {p q : Poly R} : p * q = q * p \elim p, q {
+    | pzero, pzero => idp
+    | pzero, padd q e => inv (path peq) *> pmap (padd __ 0) *-comm
+    | padd p e, pzero => pmap (padd __ 0) *-comm *> path peq
+    | padd p e, padd q e' => pmap2 (\lam x y => padd x (0 R.+ y)) (pmap (`+ _) *-comm *> +-assoc *> pmap2 (padd __ 0 +) (inv *-comm) +-comm *> inv +-assoc *> pmap (`+ _) *-comm) R.*-comm
+  }
+  \where \open PolyRing
+
+\instance PolyRingWith# (R : Ring.With#) : Ring.With#
+  | Ring => PolyRing R
+  | #0 (p : Poly R) : \Prop \with {
+    | pzero => Empty
+    | padd p e => #0 p || R.#0 e
+    | peq => ext (||.rec' absurd R.#0-zro, absurd)
+  }
+  | #0-zro => absurd
+  | #0-+ {p q : Poly R} (h : #0 (p + q)) : #0 p || #0 q \elim p, q, h {
+    | pzero, q, h => byRight h
+    | padd p e, pzero, h => byLeft h
+    | padd p e, padd q e', byLeft h => ||.map byLeft byLeft (#0-+ h)
+    | padd p e, padd q e', byRight h => ||.map byRight byRight (R.#0-+ h)
+  }
+  | #0-tight {p : Poly R} (h : Not (#0 p)) : p = pzero \elim p {
+    | pzero => idp
+    | padd p e => pmap2 padd (#0-tight (\lam x => h (byLeft x))) (R.#0-tight (\lam x => h (byRight x))) *> path peq
+  }
+  | #0-*-left {p q : Poly R} (h : #0 (p * q)) : #0 p \elim p {
+    | pzero => h
+    | padd p e => ||.rec' (||.map #0-*-left (\lam x => absurd (R.#0-zro x))) (\lam x => byRight (#0_*c-left x)) (#0-+ h)
+  }
+  | #0-*-right {p q : Poly R} (h : #0 (p * q)) : #0 q \elim p {
+    | pzero => absurd h
+    | padd p e => ||.rec' (||.rec' #0-*-right (\lam x => absurd (R.#0-zro x))) #0_*c-right (#0-+ h)
+  }
+  \where {
+    \open PolyRing
+
+    \lemma #0_*c-left {R : Ring.With#} {e : R} {p : Poly R} (h : #0 (e *c p)) : R.#0 e \elim p, h
+      | padd p e', byLeft h => #0_*c-left h
+      | padd p e', byRight h => R.#0-*-left h
+
+    \lemma #0_*c-right {R : Ring.With#} {e : R} {p : Poly R} (h : #0 (e *c p)) : #0 p \elim p, h
+      | padd p e', byLeft h => byLeft (#0_*c-right h)
+      | padd p e', byRight h => byRight (R.#0-*-right h)
+  }
+
+\instance PolyCRingWith# (R : CRing.With#) : CRing.With#
+  | Ring.With# => PolyRingWith# R
+  | *-comm => PolyAlgebra.*-comm
+
+\instance PolyDomain (R : Domain) : Domain
+  | Ring.With# => PolyRingWith# R
+  | zro#ide => byRight R.zro#ide
+  | apartZeroProduct {p q : Poly R} (p#0 : #0 p) (q#0 : #0 q) : #0 (p * q) \elim p, q {
+    | pzero, _ => absurd p#0
+    | _, pzero => absurd q#0
+    | padd p e, padd q e' => rewrite R.zro-left $ assuming
+        (\lam h => ||.rec' (\lam q#0' => \case AddGroup.With#.#0-+-left {PolyRingWith# R} (apartZeroProduct {R} {padd p e} p#0 q#0') \with {
+          | byLeft x => \have t : padd (p * q) 0 + p * padd pzero e' = p * padd q e' => pmap (`+ _) (inv padd0_*-comm) *> inv ldistr *> pmap2 (p * padd __ __) zro-right R.zro-left
+                        \in byLeft $ transport #0 (+-assoc *> pmap (_ +) +-comm *> inv +-assoc *> pmap (`+ _) t) x
+          | byRight x => h $ ||.rec' absurd (\lam x => x) (#0-*-right x)
+        }) h q#0) $
+        \lam e'#0 => assuming (\lam h => ||.rec' (\lam p#0' => \case AddGroup.With#.#0-+-left {PolyRingWith# R} (apartZeroProduct p#0' q#0) \with {
+          | byLeft x => byLeft x
+          | byRight x => h (#0_*c-left x)
+        }) h p#0) $ \lam e#0 => byRight (R.apartZeroProduct e#0 e'#0)
+  }
+  \where {
+    \open PolyRing
+    \open PolyRingWith#
+  }
+
+\instance PolyIntegralDomain (R : IntegralDomain) : IntegralDomain
+  | Domain => PolyDomain R
+  | *-comm => PolyAlgebra.*-comm
+
+\instance PolyStrictDomain (R : StrictDomain) : StrictDomain
+  | Ring => PolyRing R
+  | zro/=ide x => R.zro/=ide (pmap lastCoef x)
+  | zeroProduct {p q : Poly R} (pq=0 : p * q = pzero) : (p = pzero) || (q = pzero) \elim p, q {
+    | pzero, _ => byLeft idp
+    | _, pzero => byRight idp
+    | padd p e, padd q e' => \case R.zeroProduct $ inv R.zro-left *> pmap lastCoef pq=0 \with {
+      | byLeft e=0 => \case zeroProduct $ inv (pmap (_ +) zro_*c *> zro-right) *> rewriteF e=0 (pmap polyShift pq=0) \with {
+        | byLeft p=0 => byLeft (pmap2 padd p=0 e=0 *> path peq)
+        | byRight x => byRight x
+      }
+      | byRight e'=0 => \case zeroProduct {R} {padd p e} $ rewriteF (e'=0, padd0_*-comm) $ pmap polyShift pq=0 \with {
+        | byLeft x => byLeft x
+        | byRight q=0 => byRight (pmap2 padd q=0 e'=0 *> path peq)
+      }
+    }
+  }
+  \where \open PolyRing
+
+\instance PolyStrictIntegralDomain (R : StrictIntegralDomain) : StrictIntegralDomain
+  | StrictDomain => PolyStrictDomain R
+  | *-comm => PolyAlgebra.*-comm
+
+\instance PolyDecRing (R : Ring.Dec) : Ring.Dec
+  | Ring => PolyRing R
+  | decideEq (p q : Poly R) : Dec (p = q) \with {
+    | pzero, pzero => yes idp
+    | pzero, padd q a => \case decideEq pzero q, R.decideEq 0 a \with {
+      | yes e1, yes e2 => yes (inv peq *> pmap2 padd e1 e2)
+      | _, no n => no (\lam e => n (pmap lastCoef e))
+      | no n, _ => no (\lam e => n (pmap polyShift e))
+    }
+    | padd p a, pzero => \case decideEq p pzero, R.decideEq a 0 \with {
+      | yes e1, yes e2 => yes (pmap2 padd e1 e2 *> path peq)
+      | _, no n => no (\lam e => n (pmap lastCoef e))
+      | no n, _ => no (\lam e => n (pmap polyShift e))
+    }
+    | padd p a, padd q a' => \case decideEq p q, R.decideEq a a' \with {
+      | yes e1, yes e2 => yes (pmap2 padd e1 e2)
+      | _, no n => no (\lam e => n (pmap lastCoef e))
+      | no n, _ => no (\lam e => n (pmap polyShift e))
+    }
+  }
+
+\func degree {R : Ring.Dec} (p : Poly R) : Nat \elim p
+  | pzero => 0
+  | padd p _ => \case decideEq p 0 \with {
+    | yes _ => 0
+    | no _ => suc (degree p)
+  }
+  | peq => idp
+
+\func leadCoef {R : Ring.Dec} (p : Poly R) : R \elim p
+  | pzero => 0
+  | padd p e => \case decideEq p 0 \with {
+    | yes _ => e
+    | no _ => leadCoef p
+  }
+  | peq => idp
+
+\lemma leadCoef=0-lem {R : Ring.Dec} {p : Poly R} (s : leadCoef p = 0) : p = 0 \elim p
+  | pzero => idp
+  | padd p a => cases (decideEq p 0, s) \with {
+    | yes p=0, a=0 => pmap2 padd p=0 a=0 *> path peq
+    | no p/=0, s => absurd $ p/=0 (leadCoef=0-lem s)
+  }
+
+\lemma leadCoef_monomial {R : Ring.Dec} {a : R} {n : Nat} : leadCoef (monomial a n) = a \elim n
+  | 0 => idp
+  | suc n => mcases \with {
+    | yes e => inv (pmap leadCoef e) *> leadCoef_monomial
+    | no _ => leadCoef_monomial
+  }
+
+\lemma degree_monomial {R : Ring.Dec} {a : R} {n : Nat} (a/=0 : a /= 0) : degree (monomial a n) = n \elim n
+  | 0 => idp
+  | suc n => mcases \with {
+    | yes e => absurd $ a/=0 $ inv leadCoef_monomial *> pmap leadCoef e
+    | no _ => pmap suc (degree_monomial a/=0)
+  }
+
+\lemma degree=0-lem {R : Ring.Dec} {p : Poly R} (dp=0 : degree p = 0) : p = padd pzero (leadCoef p) \elim p
+  | pzero => inv peq
+  | padd p a => mcases \with {
+    | yes p=0 => pmap (padd __ a) p=0
+    | no p/=0 => \case rewriteF (decideEq/=_reduce p/=0) dp=0
+  }
+
+\instance PolyDecCRing (R : CRing.Dec) : CRing.Dec
+  | Ring.Dec => PolyDecRing R
+  | *-comm => PolyAlgebra.*-comm
+
+\instance PolyDecDomain (R : Domain.Dec) : Domain.Dec
+  | Domain => PolyDomain R
+  | decideEq => PolyDecRing.decideEq
+  | nonZeroApart {p : Poly R} (p/=0 : p /= 0) : #0 p \elim p {
+    | pzero => p/=0 idp
+    | padd p a => \case R.decideEq a 0 \with {
+      | yes a=0 => byLeft $ nonZeroApart $ \lam p=0 => p/=0 $ pmap2 padd p=0 a=0 *> path peq
+      | no n => byRight (R.nonZeroApart n)
+    }
+  }
+  \where \open PolyRingWith#
+
+\instance PolyDecIntegralDomain (R : IntegralDomain.Dec) : IntegralDomain.Dec
+  | Domain.Dec => PolyDecDomain R
+  | *-comm => PolyAlgebra.*-comm
+
+\lemma degree_padd {R : Ring.Dec} {p : Poly R} (a : R) (p/=0 : p /= 0) : degree (padd p a) = suc (degree p)
+  => rewrite (decideEq/=_reduce p/=0) idp
+
+\lemma degree_+ {R : Ring.Dec} {p q : Poly R} (q<p : degree q < degree p) : degree (p + q) = degree p \elim p, q
+  | pzero, pzero => idp
+  | pzero, padd q a => \case q<p
+  | padd p a, pzero => idp
+  | padd p a, padd q a' => cases (decideEq p 0, decideEq q 0, q<p) \with {
+    | no p/=0, yes q=0, NatSemiring.zero<suc => rewrite (q=0, PolyRing.zro-right, decideEq/=_reduce p/=0) idp
+    | no p/=0, no q/=0, NatSemiring.suc<suc q<p => mcases \with {
+      | yes p+q=0 => \case rewriteF (inv $ rewriteF p+q=0 (degree_+ q<p)) q<p
+      | no _ => pmap suc (degree_+ q<p)
+    }
+  }
+
+\lemma leadCoef_+ {R : Ring.Dec} {p q : Poly R} (q<p : degree q < degree p) : leadCoef (p + q) = leadCoef p \elim p, q
+  | pzero, pzero => idp
+  | pzero, padd q a => \case q<p
+  | padd p a, pzero => idp
+  | padd p a, padd q a' => cases (decideEq p 0, decideEq q 0, q<p) \with {
+    | no p/=0, yes q=0, NatSemiring.zero<suc => rewrite (q=0, PolyRing.zro-right, decideEq/=_reduce p/=0) idp
+    | no p/=0, no q/=0, NatSemiring.suc<suc q<p => mcases \with {
+      | yes p+q=0 => \case rewriteF (inv $ rewriteF p+q=0 (degree_+ q<p)) q<p
+      | no _ => leadCoef_+ q<p
+    }
+  }
+
+\lemma degree_*c {R : Domain.Dec} {c : R} {p : Poly R} (c/=0 : c /= 0) : degree (c PolyRing.*c p) = degree p \elim p
+  | pzero => idp
+  | padd p a => mcases {2} \with {
+    | yes p=0 => rewrite p=0 idp
+    | no p/=0 => rewrite (decideEq/=_reduce $ *c-nonZero c/=0 p/=0) $ pmap suc (degree_*c c/=0)
+  }
+  \where {
+    \lemma *c-nonZero {R : Domain.Dec} {c : R} {p : Poly R} (c/=0 : c /= 0) (p/=0 : p /= 0) : c PolyRing.*c p /= 0
+      => transportInv (`/= 0) PolyRing.*c_* $ Domain.nonZeroProduct {_} {padd pzero c} (\lam e => c/=0 $ pmap lastCoef e) p/=0
+  }
+
+\lemma degree_* {R : Domain.Dec} {p q : Poly R} (p/=0 : p /= 0) (q/=0 : q /= 0) : degree (p * q) = degree p + degree q \elim p
+  | pzero => absurd (p/=0 idp)
+  | padd p e => mcases \with {
+    | yes p=0 => rewrite p=0 $ pmap (\lam x => degree (x + _)) peq *> degree_*c (\lam e=0 => p/=0 $ pmap2 padd p=0 e=0 *> path peq)
+    | no p/=0' => degree_+ (later $ rewrite (decideEq/=_reduce $ Domain.nonZeroProduct p/=0' q/=0) (degree_< p/=0' q/=0)) *>
+        rewrite (decideEq/=_reduce $ Domain.nonZeroProduct p/=0' q/=0) (pmap suc (degree_* p/=0' q/=0))
+  }
+  \where
+    \lemma degree_< {R : Domain.Dec} {a : R} {p q : Poly R} (p/=0 : p /= 0) (q/=0 : q /= 0) : degree (a PolyRing.*c q) < suc (degree (p * q))
+      => \case decideEq a 0 \with {
+        | yes a=0 => rewrite (a=0,PolyRing.zro_*c) NatSemiring.zero<suc
+        | no a/=0 => rewrite (degree_*c a/=0, degree_* p/=0 q/=0) $ <-transitive-right (LinearlyOrderedSemiring.<=_+ zero<=_ <=-refl) id<suc
+      }
+
+\lemma leadCoef_*c {R : Domain.Dec} {a : R} {p : Poly R} : leadCoef (a PolyRing.*c p) = a * leadCoef p \elim p
+  | pzero => inv R.zro_*-right
+  | padd p e => mcases {2} \with {
+    | yes p=0 => rewrite p=0 idp
+    | no p/=0 => \case decideEq a 0 \with {
+      | yes a=0 => rewrite (a=0,PolyRing.zro_*c) (R.zro_*-left *> inv R.zro_*-left)
+      | no a/=0 => rewrite (decideEq/=_reduce $ degree_*c.*c-nonZero a/=0 p/=0) leadCoef_*c
+    }
+  }
+
+\lemma leadCoef_* {R : Domain.Dec} {p q : Poly R} : leadCoef (p * q) = leadCoef p * leadCoef q \elim p
+  | pzero => inv R.zro_*-left
+  | padd p e => mcases \with {
+    | yes p=0 => rewrite p=0 $ pmap (leadCoef $ __ + _) peq *> leadCoef_*c
+    | no p/=0 => \case decideEq q 0 \with {
+      | yes q=0 => rewrite (q=0, Ring.zro_*-right {PolyRing R}) (inv R.zro_*-right)
+      | no q/=0 => leadCoef_+ (later $ rewrite (decideEq/=_reduce $ Domain.nonZeroProduct p/=0 q/=0) (degree_*.degree_< p/=0 q/=0)) *> rewrite (decideEq/=_reduce $ Domain.nonZeroProduct p/=0 q/=0) leadCoef_*
+    }
+  }
+
+\instance PolyEuclideanRingData (R : DiscreteField) : EuclideanRingData (Poly R)
+  | CRing => PolyAlgebra R
+  | decideEq => PolyDecRing.decideEq
+  | euclideanMap => degree
+  | divMod p q => \case decideEq (degree q) 0 \with {
+    | yes _ => \case decideEq q 0 \with {
+      | yes _ => (0,p)
+      | no _ => (finv (leadCoef q) PolyRing.*c p, 0)
+    }
+    | no _ => divMod_fuel p q (EuclideanSemiringData.suc' (degree p))
+  }
+  | isDivMod p q => cases (decideEq (degree q) 0) \with {
+    | yes dq=0 => mcases \with {
+      | yes _ => pmap (`+ p) Ring.zro_*-right
+      | no q/=0 => zro-right *> pmap (`* _) (degree=0-lem dq=0) *> pmap (`+ _) peq *> inv PolyRing.*c-assoc *> pmap (PolyRing.`*c p) (R.id_finv (q/=0 $ leadCoef=0-lem __)) *> PolyRing.ide_*c
+    }
+    | no dq/=0 => divMod_fuel-correct p q dq/=0 $ rewrite EuclideanSemiringData.suc'=suc id<suc
+  }
+  | isEuclideanMap p q q/=0 => cases (decideEq (degree q) 0) \with {
+    | yes dq=0 => rewrite (decideEq/=_reduce q/=0) $ \lam r/=0 => absurd (r/=0 idp)
+    | no dq/=0 => \lam _ => divMod_fuel-rem-lem p q dq/=0
+  }
+  \where {
+    \func divMod_fuel {R : DiscreteField} (p q : Poly R) (n : Nat) : \Sigma (Poly R) (Poly R) \elim n
+      | 0 => (0,0)
+      | suc n => \case LinearOrder.dec<_<= (degree p) (degree q) \with {
+        | inl _ => (0,p)
+        | inr _ =>
+          \let | m => monomial (leadCoef p * finv (leadCoef q)) (degree p -' degree q)
+               | (d,r) => divMod_fuel (p - m * q) q n
+          \in (d + m, r)
+      }
+
+    \lemma divMod_fuel-correct {R : DiscreteField} (p q : Poly R) (dq/=0 : degree q /= 0) {n : Nat} (s : degree p < n) : q * (divMod_fuel p q n).1 + (divMod_fuel p q n).2 = p \elim n
+      | 0 => \case s
+      | suc n => mcases \with {
+        | inl p<q => pmap (`+ p) Ring.zro_*-right
+        | inr q<=p =>
+          \let | p/=0 : p /= 0 => dq/=0 $ <=_exists $ rewriteF __ q<=p
+               | q/=0 => dq/=0 $ pmap degree __
+               | lq/=0 => q/=0 $ leadCoef=0-lem __
+               | m => monomial (leadCoef p * finv (leadCoef q)) (degree p -' degree q)
+               | lm/=0 : leadCoef p * finv (leadCoef q) /= 0 => Domain.nonZeroProduct (p/=0 $ leadCoef=0-lem __) (R.inv-nonZero $ R.finv-Inv lq/=0)
+               | dp=dmq : degree p = degree (m * q) => inv $ degree_* (transportInv (`/= 0) (leadCoef_monomial {R}) lm/=0 $ pmap leadCoef __) q/=0 *> rewrite (degree_monomial lm/=0) (+-comm *> <=_exists q<=p)
+          \in equation {CRing} {usingOnly (divMod_fuel-correct (p - m * q) q dq/=0 $ <-transitive-left (diff-lem dp=dmq (inv $ leadCoef_* *> pmap (`* _) leadCoef_monomial *> *-assoc *> pmap (_ *) (R.finv_id lq/=0) *> ide-right) $ \lam dmq=0 => dq/=0 $ <=_exists $ transport (_ <=) (dp=dmq *> dmq=0) q<=p) (<_suc_<= s))}
+      }
+
+    \lemma divMod_fuel-rem-lem {R : DiscreteField} (p q : Poly R) (dq/=0 : degree q /= 0) {n : Nat} : degree (divMod_fuel p q n).2 < degree q \elim n
+      | 0 => nonZero>0 dq/=0
+      | suc n => mcases \with {
+        | inl p<q => p<q
+        | inr q<=p => divMod_fuel-rem-lem _ q dq/=0
+      }
+
+    \lemma diff-lem {R : Ring.Dec} {p q : Poly R} (s : degree p = degree q) (t : leadCoef p = leadCoef q) (dq/=0 : degree q /= 0) : degree (p - q) < degree p \elim p, q
+      | _, pzero => absurd (dq/=0 idp)
+      | pzero, padd q a => absurd (cases (decideEq q 0, s, t) \with {
+        | yes q=0, _, a=0 => dq/=0 $ rewrite (decideEq=_reduce q=0) idp
+      })
+      | padd p a, padd q a' => cases (decideEq p 0, decideEq q 0, s, t) \with {
+        | yes p=0, yes q=0, _, a=a' => absurd $ rewriteF (decideEq=_reduce q=0) dq/=0 idp
+        | no p/=0, no q/=0, s, t => mcases \with {
+          | yes _ => NatSemiring.zero<suc
+          | no p-q/=0 => NatSemiring.suc<suc $ diff-lem (pmap pred s) t $
+              \lam dq=0 => p-q/=0 $ AddGroup.toZero $ degree=0-lem (pmap pred s *> dq=0) *> pmap (padd pzero) t *> inv (degree=0-lem dq=0)
+        }
+      }
+  }
+
+\instance PolyEuclideanDomain (R : DiscreteField) : EuclideanDomain (Poly R)
+  | IntegralDomain.Dec => PolyDecIntegralDomain R
+  | isEuclidean => inP (PolyEuclideanRingData R)
