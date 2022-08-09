@@ -16,6 +16,8 @@ import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.SimplifyError;
 import org.arend.lib.meta.RewriteMeta;
+import org.arend.lib.meta.equation.EqualitySolver;
+import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -103,38 +105,40 @@ public class SimplifyMeta extends BaseMetaDefinition {
   private List<SimplificationRule> getSimplificationRulesForType(CoreExpression type) {
     var rules = new ArrayList<SimplificationRule>();
     type = type == null ? null : type.normalize(NormalizationMode.WHNF);
-    if (type instanceof CoreFieldCallExpression) {
-      if (((CoreFieldCallExpression) type).getDefinition() == ext.carrier) {
-        TypedExpression instance = ((CoreFieldCallExpression) type).getArgument().computeTyped();
-        CoreClassCallExpression classCall = instance.getType() instanceof CoreClassCallExpression ? (CoreClassCallExpression) instance.getType() : null;
-        if (classCall != null) {
-          if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Monoid)) {
-            rules.add(new MonoidIdentityRule(instance, classCall, ext, refExpr, typechecker, false));
-          } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AddMonoid)) {
-            rules.add(new MonoidIdentityRule(instance, classCall, ext, refExpr, typechecker, true));
-          }
-          if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Semiring)) {
-            rules.add(new MultiplicationByZeroRule(instance, classCall, ext, refExpr, typechecker));
-          }
-          if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Ring)) {
-            rules.add(new MulOfNegativesRule(instance, classCall, ext, refExpr, typechecker));
-          }
-
-          if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AddGroup)) {
-            rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, true));
-            rules.add(new IdentityInverseRule(instance, classCall, ext, refExpr, typechecker, true));
-          } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Group)) {
-            rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, false));
-            rules.add(new IdentityInverseRule(instance, classCall, ext, refExpr, typechecker, false));
-          }/**/
-          if (classCall.getDefinition().isSubClassOf(ext.equationMeta.CGroup)) {
-            rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, false));
-          } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AbGroup)) {
-            rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, true));
-          }/**/
+    var possibleClasses = new HashSet<>(Arrays.asList(ext.equationMeta.Monoid, ext.equationMeta.AddMonoid, ext.equationMeta.Semiring, ext.equationMeta.Ring, ext.equationMeta.AddGroup, ext.equationMeta.Group, ext.equationMeta.CGroup, ext.equationMeta.AbGroup));
+    var instanceClassCallPair = EqualitySolver.getInstanceClassCallPair(type, typechecker, ext.carrier, null, possibleClasses, refExpr);
+    if (instanceClassCallPair != null) {
+      TypedExpression instance = instanceClassCallPair.proj1;
+      CoreClassCallExpression classCall = instanceClassCallPair.proj2;
+      if (classCall != null) {
+        if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Monoid)) {
+          rules.add(new MonoidIdentityRule(instance, classCall, ext, refExpr, typechecker, false));
         }
+        if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AddMonoid)) {
+          rules.add(new MonoidIdentityRule(instance, classCall, ext, refExpr, typechecker, true));
+        }
+        if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Semiring)) {
+          rules.add(new MultiplicationByZeroRule(instance, classCall, ext, refExpr, typechecker));
+        }
+        if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Ring)) {
+          rules.add(new MulOfNegativesRule(instance, classCall, ext, refExpr, typechecker));
+        }
+
+        if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AddGroup)) {
+          rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, true));
+          rules.add(new IdentityInverseRule(instance, classCall, ext, refExpr, typechecker, true));
+        } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Group)) {
+          rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, false));
+          rules.add(new IdentityInverseRule(instance, classCall, ext, refExpr, typechecker, false));
+        }/**/
+        if (classCall.getDefinition().isSubClassOf(ext.equationMeta.CGroup)) {
+          rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, false));
+        } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AbGroup)) {
+          rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, true));
+        }/**/
       }
     }
+
     return rules;
   }
 
