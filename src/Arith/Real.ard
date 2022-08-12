@@ -1,0 +1,52 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Arith.Rat
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+
+\record LowerReal (L : Rat -> \Prop)
+  | L-inh : ∃ L
+  | L-closed {q r : Rat} : L q -> r < q -> L r
+  | L-rounded (q : Rat) : L q -> ∃ (r : L) (q < r)
+
+\record UpperReal (U : Rat -> \Prop)
+  | U-inh : ∃ U
+  | U-closed {q r : Rat} : U q -> q < r -> U r
+  | U-rounded (q : Rat) : U q -> ∃ (r : U) (r < q)
+
+\record Real \extends LowerReal, UpperReal {
+  | LU-disjoint (q r : Rat) : L q -> U r -> Empty
+  | LU-located (q r : Rat) : q < r -> L q || U r
+  | LU-focus (eps : Rat) : isPos eps -> ∃ (a : L) (U (a + eps))
+
+  \default LU-located q r q<r => \case LU-focus (r - q) q<r \with {
+    | inP (s,Ls,Us+r-q) => \case LinearOrder.trichotomy q s \with {
+      | less q<s => byLeft (L-closed Ls q<s)
+      | equals q=s => byLeft (transportInv L q=s Ls)
+      | greater s<q => byRight $ U-closed Us+r-q $ transport (_ <) (equation : q + (r - q) = r) (<_+-left (r - q) s<q)
+    }
+  }
+
+  \default L-inh => TruncP.map (LU-focus 1 idp) (\lam x => (x.1,x.2))
+
+  \default U-inh => TruncP.map (LU-focus 1 idp) (\lam x => (x.1 + 1, x.3))
+
+  \default LU-focus eps eps>0 => \case L-inh, U-inh \with {
+    | inP (q,Lq), inP (r,Ur) => \case focus-iter (ratio 3 2) {?} (\lam q r => \Sigma (q < r) (L q) (U r))
+  }
+} \where {
+  \func focus-iter (rat : Rat) (rat>=0 : 0 <= rat) (P : Rat -> Rat -> \Prop) (f : \Pi (q r : Rat) -> P q r -> ∃ (q' r' : P) ((r' - q') * rat <= r - q)) (n : Nat) (q r : Rat) (Pqr : P q r) : ∃ (q' r' : P) ((r' - q') * Monoid.pow rat n <= r - q) \elim n
+    | 0 => inP (q, r, Pqr, transportInv (`<= _) ide-right <=-refl)
+    | suc n => \case f q r Pqr \with {
+      | inP (q',r',Pq'r',c) => \case focus-iter rat rat>=0 P f n q' r' Pq'r' \with {
+        | inP (q'',r'',Pq''r'',d) => inP (q'', r'', Pq''r'', Preorder.=_<= (inv *-assoc) <=∘ RatField.<=_*_positive-left d rat>=0 <=∘ c)
+      }
+    }
+}
