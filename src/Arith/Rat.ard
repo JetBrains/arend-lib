@@ -11,6 +11,7 @@
 \import Arith.Fin
 \import Arith.Int
 \import Arith.Nat
+\import Data.Bool
 \import Data.Or
 \import Function.Meta ($)
 \import Logic
@@ -171,6 +172,9 @@
   | LinearOrder.Dec => RatField
   | UnboundedDenseLinearOrder => RatField.denseOrder $ DiscreteField.nonZero-Inv $ \lam p => \case pmap (Rat.nom {__}) $ inv (\peval _ RatField.+ _) *> p
 
+\func int_rat (x : Int)
+  => \new Rat x 1 (\case __) (natUnit (reduce*gcd-right (iabs x) 1))
+
 \func rat_floor (r : Rat) : Int
   | (pos n, d, _, _) => n Nat.div d
   | (neg (suc _ \as n), d, _, _) => \case n Nat.mod d \with {
@@ -178,26 +182,25 @@
     | suc _ => neg (n Nat.div d) - 1
   }
 
-\lemma rat_floor<id {r : Rat} : ratio (rat_floor r) 1 <= r \elim r
-  | (pos n, d, _, _) => transportInv (`<= _) rat.rat_1 $ RatField.<=-char $ pos<=pos div_*<=id
+\lemma rat_floor<id {r : Rat} : int_rat (rat_floor r) <= r \elim r
+  | (pos n, d, _, _) => RatField.<=-char $ pos<=pos div_*<=id
   | (neg (suc _ \as n), d, d/=0, c) => mcases {1} {arg addPath} \with {
     | 0, p => \have d=1 => nat_gcd-isUnique (div_gcd (mod_div p)) (EuclideanSemiringData.gcd-isGCD n d) *> c
-              \in Preorder.=_<= (rat.rat_1 *> ext (rewrite d=1 idp, inv d=1))
-    | suc _, _ => \lam c => (unfolds, rewriteF (\peval _ RatField.+ _), inv rat.signum_nom *>) at c $
+              \in Preorder.=_<= $ ext (rewrite d=1 idp, inv d=1)
+    | suc _, _ => \lam c => (unfolds, rewriteF (\peval _ RatField.+ _), inv rat.signum_nom *>, unfold) at c $
       \have | s : n Nat.- n Nat.div d * d = n Nat.mod d
                 => IntRing.cancel-right (n Nat.div d * d) $ IntRing.+-assoc {n} {neg _} *> pmap (pos n +) IntRing.minus__ *> pmap pos (inv (Nat.divModProp n d) *> pmap (`+ _) *-comm *> +-comm)
-            | t : n Nat.- suc (1 Nat.* n Nat.div d) Nat.* d = n Nat.mod d Nat.- d
-                => rewrite NatSemiring.ide-left $ pmap (n Nat.-) (rdistr {_} {1}) *> rewrite NatSemiring.ide-left (pmap (pos n +) (IntRing.negative_+ {d} {n Nat.div d * d}) *> inv (IntRing.+-assoc {n} {neg _}) *> pmap (`- pos d) s)
+            | t : n Nat.- suc (n Nat.div d) Nat.* d = n Nat.mod d Nat.- d
+                => pmap (n Nat.-) (rdistr {_} {1}) *> rewrite NatSemiring.ide-left (pmap (pos n +) (IntRing.negative_+ {d} {n Nat.div d * d}) *> inv (IntRing.+-assoc {n} {neg _}) *> pmap (`- pos d) s)
       \in \case (inv (pmap signum t *> signum.signum_- {n Nat.mod d} {d} *> pmap negative (pos<pos (mod<right d/=0))) *> c : neg 1 = 1)
   }
 
-\lemma rat_floor-univ {r : Rat} {x : Int} (x<=r : ratio x 1 <= r) : x <= rat_floor r \elim r, x
+\lemma rat_floor-univ {r : Rat} {x : Int} (x<=r : int_rat x <= r) : x <= rat_floor r \elim r, x
   | (pos _,_,_,_), neg (suc x) => neg<=pos
-  | (pos n, d, d/=0, _), pos x => pos<=pos $ transport (`<= _) (*_div=id d/=0) $
-                                    div-monotone $ pos<=pos.conv $ RatField.<=-char-conv $ transport (`<= _) rat.rat_1 x<=r
-  | (neg (suc _ \as n), d, _, _), pos x => \case pos/<=neg $ RatField.<=-char-conv $ transport (`<= _) rat.rat_1 x<=r
+  | (pos n, d, d/=0, _), pos x => pos<=pos $ transport (`<= _) (*_div=id d/=0) $ div-monotone $ pos<=pos.conv $ RatField.<=-char-conv x<=r
+  | (neg (suc _ \as n), d, _, _), pos x => \case pos/<=neg (RatField.<=-char-conv x<=r)
   | (neg (suc n' \as n), d, d/=0, _), neg (suc x' \as x) =>
-    \have t => neg<=neg.conv $ RatField.<=-char-conv $ transport (`<= _) (rat.rat_1 {neg x}) x<=r
+    \have t => neg<=neg.conv (RatField.<=-char-conv x<=r)
     \in mcases {1} {arg addPath} \with {
       | 0, p => neg<=neg $ transport (_ <=) (*_div=id d/=0) (div-monotone t)
       | suc u, s => neg<=neg $ \case LinearOrder.<=-dec (div-monotone t) \with {
@@ -208,3 +211,27 @@
           \in absurd $ <-irreflexive $ <-transitive-left (<-transitive-left id<suc $ LinearlyOrderedSemiring.<=_+ (<=-refl {_} {n}) (suc<=suc zero<=_)) w'
       }
     }
+
+\func rat_ceiling (r : Rat) : Int
+  => negative (rat_floor (negative r))
+
+\lemma rat_ceiling>id (r : Rat) : r <= int_rat (rat_ceiling r)
+  => transport (`<= _) RatField.negative-isInv $ RatField.negative_<= {_} {negative r} rat_floor<id
+
+\lemma rat_ceiling-univ {r : Rat} {x : Int} (r<=x : r <= int_rat x) : rat_ceiling r <= x
+  => transport (_ <=) IntRing.negative-isInv $ IntRing.negative_<= $ rat_floor-univ $ RatField.negative_<= {r} {int_rat x} r<=x
+
+\lemma rat_<=-dec {r q : Rat} {so : So (rat_<=_Bool r q)} : r <= q
+  => RatField.<=-char $ int_<=-dec {_} {_} {so}
+  \where
+    \func rat_<=_Bool (r q : Rat) : Bool
+      => int_<=-dec.int_<=_Bool (r.nom * q.denom) (q.nom * r.denom)
+
+\lemma rat_<-dec {r q : Rat} {so : So (rat_<_Bool r q)} : r < q
+  => \case LinearOrder.dec<_<= r q \with {
+    | inl r<q => r<q
+    | inr q<=r => absurd $ <-irreflexive $ <-transitive-left (int_<-dec {_} {_} {so}) (RatField.<=-char-conv q<=r)
+  }
+  \where
+    \func rat_<_Bool (r q : Rat) : Bool
+      => int_<=-dec.int_<=_Bool (isuc (r.nom * q.denom)) (q.nom * r.denom)

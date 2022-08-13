@@ -4,6 +4,7 @@
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Arith.Nat
+\import Data.Bool
 \import Data.Or
 \import Function.Meta
 \import Logic
@@ -306,6 +307,10 @@
       | neg (suc _) => \case |x|=0
   }
 
+\lemma id<isuc {x : Int} : x < isuc x \elim x
+  | pos n => pos<pos id<suc
+  | neg (suc n) => neg<neg id<suc
+
 \lemma pos_iabs {x y : Nat} (y<=x : y <= x) : pos (iabs (x Nat.- y)) = x Nat.- y
   => cases ((x Nat.- y) arg addPath) \with {
     | pos n, p => idp
@@ -333,6 +338,12 @@
     | less n<m => n<m
     | equals n=m => absurd (<-irreflexive (rewriteF (pmap iabs n=m) p))
     | greater m<n => absurd (signum.signum_neg/=1 (rewrite (neg_iabs (<=-less p)) m<n))
+  }
+
+\lemma neg<neg {n m : Nat} (p : n < m) : neg m < neg n
+  => \case LinearOrder.dec<_<= (neg m) (neg n) \with {
+    | inl q => q
+    | inr q => absurd $ <-irreflexive $ <-transitive-left p (neg<=neg.conv q)
   }
 
 \lemma pos<=pos {n m : Nat} (p : n <= m) : pos n <= pos m
@@ -373,3 +384,18 @@
        | pos n, p1 => inl (pmap pos p1)
        | neg (suc n), p1 => inr (pmap neg p1)
      }
+
+\lemma int_<=-dec {x y : Int} {so : So (int_<=_Bool x y)} : x <= y \elim x, y
+  | pos n, pos m => pos<=pos (nat_<=-dec {n} {m} {so})
+  | pos n, neg (suc m) => absurd so
+  | neg n, pos m => neg<=pos
+  | neg n, neg (suc m) => neg<=neg (nat_<=-dec {suc m} {n} {so})
+  \where
+    \func int_<=_Bool (x y : Int) : Bool
+      | pos n, pos m => nat_<=-dec.nat_<=_Bool n m
+      | pos n, neg (suc m) => false
+      | neg n, pos m => true
+      | neg n, neg (suc m) => nat_<=-dec.nat_<=_Bool (suc m) n
+
+\lemma int_<-dec {x y : Int} {so : So (int_<=-dec.int_<=_Bool (isuc x) y)} : x < y
+  => <-transitive-left id<isuc $ int_<=-dec {isuc x} {y} {so}
