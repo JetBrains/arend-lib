@@ -1,6 +1,7 @@
 \import Algebra.Monoid(Monoid)
 \import Algebra.Ordered(LinearlyOrderedCSemiring, LinearlyOrderedSemiring)
 \import Data.Or
+\import Function.Meta
 \import Logic
 \import Order.Lattice
 \import Order.LinearOrder
@@ -20,11 +21,11 @@
   | suc n, 0 => suc n
   | suc n, suc m => n -' m
 
-\lemma -'id (n : Nat) : n -' n = 0 \elim n
+\lemma -'id {n : Nat} : n -' n = 0 \elim n
   | 0 => idp
-  | suc n => -'id n
+  | suc n => -'id
 
-\func suc/=0 {n : Nat} (p : suc n = 0) {A : \Type} : A
+\func suc/=0 {n : Nat} (p : suc n = 0) : Empty
 
 -- # Properties of +, *, and <
 
@@ -123,10 +124,10 @@
     \lemma cancel-left (n : Nat) {m k : Nat} (p : n + m = n + k) : m = k
       => cancel-right n (+-comm *> p *> +-comm)
 
-    \lemma cancel_*-left {k : Nat} (k/=0 : k /= 0) {n m : Nat} (p : k * n = k * m) : n = m \elim k, n, m, p
-      | 0, _, _, _ => absurd (k/=0 idp)
-      | _, 0, 0, _ => idp
-      | k, suc n, suc m, p => pmap suc (cancel_*-left k/=0 (cancel-right k p))
+    \lemma cancel_*-left {k : Nat} (k/=0 : k /= 0) {n m : Nat} (p : k * n = k * m) : n = m \elim k, n, m
+      | 0, _, _ => absurd (k/=0 idp)
+      | _, 0, 0 => idp
+      | k, suc n, suc m => pmap suc (cancel_*-left k/=0 (cancel-right k p))
 
     \lemma cancel_*-right {n m k : Nat} (k/=0 : k /= 0) (p : n * k = m * k) : n = m
       => cancel_*-left k/=0 (*-comm *> p *> *-comm)
@@ -161,6 +162,24 @@
     | inr q => rewrite (pmap pred q, -'id) idp
   }
   | suc n, 0 => absurd (p zero<suc)
+
+\lemma -'<=id {n m : Nat} : n -' m <= n \elim n, m
+  | 0, _ => zero<=_
+  | suc n, 0 => <=-refl
+  | suc n, suc m => -'<=id <=∘ <=_+ <=-refl (zero<=_ {1})
+
+\lemma -'-monotone-left {n m k : Nat} (p : n <= m) : n -' k <= m -' k \elim n, m, k
+  | 0, _, _ => zero<=_
+  | suc n, 0, 0 => p
+  | suc n, 0, suc k => absurd $ suc/=0 (<=_exists p)
+  | suc n, suc m, 0 => p
+  | suc n, suc m, suc k => -'-monotone-left (suc<=suc.conv p)
+
+\lemma -'-monotone-right {n m k : Nat} (p : m <= n) : k -' n <= k -' m \elim n, m, k
+  | 0, _, _ => rewrite (<=_exists p) <=-refl
+  | suc n, m, 0 => zero<=_
+  | suc n, 0, suc k => -'<=id <=∘ <=_+ <=-refl (zero<=_ {1})
+  | suc n, suc m, suc k => -'-monotone-right (suc<=suc.conv p)
 
 \open LinearlyOrderedSemiring \hiding (Dec)
 
@@ -203,6 +222,9 @@
   | suc q, suc q' =>
     \have t => +-assoc *> pmap (_ +) +-comm *> inv +-assoc *> p *> +-assoc *> pmap (_ +) +-comm *> inv +-assoc
     \in mod-unique r<n r'<n (cancel-right n t)
+
+\lemma div-unique {n q r q' r' : Nat} (r<n : r < n) (r'<n : r' < n) (n/=0 : n /= 0) (p : n * q + r = n * q' + r') : q = q'
+  => cancel_*-left n/=0 $ cancel-right r' $ rewriteF (mod-unique r<n r'<n p) p
 
 \lemma mod<=left {n m : Nat} : n mod m <= n
   => transport (_ <=) (divModProp n m) (<=_+ zero<=_ <=-refl)
