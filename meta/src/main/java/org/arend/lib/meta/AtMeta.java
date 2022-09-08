@@ -7,10 +7,8 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.error.TypecheckingError;
-import org.arend.ext.typechecking.BaseMetaDefinition;
-import org.arend.ext.typechecking.ContextData;
-import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.ext.typechecking.TypedExpression;
+import org.arend.ext.reference.ExpressionResolver;
+import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -18,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-public class AtMeta extends BaseMetaDefinition {
+public class AtMeta extends BaseMetaDefinition implements MetaResolver {
   private final StdExtension ext;
 
   public AtMeta(StdExtension ext) {
@@ -36,6 +34,24 @@ public class AtMeta extends BaseMetaDefinition {
   }
 
   @Override
+  public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
+    return Utils.resolvePrefixAsInfix(this, resolver, contextData);
+  }
+
+  @Override
+  public @Nullable ConcreteExpression resolveInfix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData, @Nullable ConcreteExpression leftArg, @Nullable ConcreteExpression rightArg) {
+    if (leftArg == null || rightArg == null || !contextData.getArguments().isEmpty()) return null;
+
+    ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
+    ConcreteExpression cReplacement = resolver.resolve(rightArg);
+    for (ConcreteExpression function : Utils.getArgumentList(resolver.resolve(leftArg))) {
+      cReplacement = factory.app(function, true, cReplacement);
+    }
+
+    return factory.app(contextData.getReferenceExpression(), true, cReplacement, rightArg);
+  }
+
+  @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     CoreBinding binding = args.get(1).getExpression() instanceof ConcreteReferenceExpression ? typechecker.getFreeBinding(((ConcreteReferenceExpression) args.get(1).getExpression()).getReferent()) : null;
@@ -44,13 +60,7 @@ public class AtMeta extends BaseMetaDefinition {
       return null;
     }
 
-    ConcreteFactory factory = ext.factory.withData(contextData.getMarker().getData());
-    ConcreteExpression cReplacement = args.get(1).getExpression();
-    for (ConcreteExpression function : Utils.getArgumentList(args.get(0).getExpression())) {
-      cReplacement = factory.app(function, true, cReplacement);
-    }
-
-    TypedExpression replacement = typechecker.typecheck(cReplacement, null);
+    TypedExpression replacement = typechecker.typecheck(args.get(0).getExpression(), null);
     if (replacement == null) {
       return null;
     }

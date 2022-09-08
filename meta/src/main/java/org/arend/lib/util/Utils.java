@@ -17,10 +17,7 @@ import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.MetaRef;
-import org.arend.ext.typechecking.BaseMetaDefinition;
-import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.ext.typechecking.MetaDefinition;
-import org.arend.ext.typechecking.TypedExpression;
+import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 
 import java.math.BigInteger;
@@ -361,6 +358,22 @@ public class Utils {
       return factory.param(refs, typedExpr.getType());
     } else {
       return factory.param(Collections.emptyList(), expr);
+    }
+  }
+
+  public static ConcreteExpression resolvePrefixAsInfix(MetaResolver metaResolver, ExpressionResolver resolver, ContextData contextData) {
+    List<? extends ConcreteArgument> args = contextData.getArguments();
+    int implicitArgs = 0;
+    for (ConcreteArgument arg : args) {
+      if (!arg.isExplicit()) {
+        implicitArgs++;
+      }
+    }
+    if (args.size() <= implicitArgs + 2 && (args.size() <= implicitArgs || args.get(implicitArgs).isExplicit()) && (args.size() <= implicitArgs + 1 || args.get(implicitArgs + 1).isExplicit())) {
+      contextData.setArguments(args.subList(0, implicitArgs));
+      return metaResolver.resolveInfix(resolver, contextData, args.get(implicitArgs).getExpression(), args.get(implicitArgs + 1).getExpression());
+    } else {
+      return null;
     }
   }
 }
