@@ -43,18 +43,18 @@ public class ApplyMeta extends BaseMetaDefinition implements MetaResolver {
 
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
-    return Utils.resolvePrefixAsInfix(this, resolver, contextData);
+    return Utils.resolvePrefixAsInfix(this, resolver, contextData, ext.factory);
   }
 
   @Override
   public @Nullable ConcreteExpression resolveInfix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData, @Nullable ConcreteExpression leftArg, @Nullable ConcreteExpression rightArg) {
-    if (leftArg == null || rightArg == null) return null;
+    if (leftArg == null || rightArg == null) return Utils.normalResolve(resolver, contextData, leftArg, rightArg, ext.factory);
     List<ConcreteArgument> args = new ArrayList<>(contextData.getArguments().size() + 2);
     args.addAll(contextData.getArguments());
     args.add(ext.factory.arg(leftArg, true));
     args.add(ext.factory.arg(rightArg, true));
     ConcreteExpression result = make(args, ext.factory.withData(contextData.getReferenceExpression().getData()));
-    return result == null ? null : resolver.resolve(result);
+    return result == null ? Utils.normalResolve(resolver, contextData, leftArg, rightArg, ext.factory) : resolver.resolve(result);
   }
 
   @Override

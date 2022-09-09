@@ -361,7 +361,29 @@ public class Utils {
     }
   }
 
-  public static ConcreteExpression resolvePrefixAsInfix(MetaResolver metaResolver, ExpressionResolver resolver, ContextData contextData) {
+  public static ConcreteExpression normalResolve(ExpressionResolver resolver, ContextData contextData, ConcreteExpression leftArg, ConcreteExpression rightArg, ConcreteFactory factory) {
+    factory = factory.withData(contextData.getMarker());
+    List<ConcreteArgument> args = new ArrayList<>(contextData.getArguments().size());
+    for (ConcreteArgument argument : contextData.getArguments()) {
+      args.add(factory.arg(resolver.resolve(argument.getExpression()), argument.isExplicit()));
+    }
+    ConcreteExpression result = factory.app(contextData.getReferenceExpression(), args);
+    if (leftArg != null) {
+      result = factory.app(result, true, resolver.resolve(leftArg));
+    }
+    if (rightArg != null) {
+      rightArg = resolver.resolve(rightArg);
+      if (leftArg == null) {
+        ArendRef ref = factory.local("p0");
+        result = factory.lam(Collections.singletonList(factory.param(ref)), factory.app(result, true, factory.ref(ref), rightArg));
+      } else {
+        result = factory.app(result, true, rightArg);
+      }
+    }
+    return result;
+  }
+
+  public static ConcreteExpression resolvePrefixAsInfix(MetaResolver metaResolver, ExpressionResolver resolver, ContextData contextData, ConcreteFactory factory) {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     int implicitArgs = 0;
     for (ConcreteArgument arg : args) {
@@ -371,9 +393,9 @@ public class Utils {
     }
     if (args.size() <= implicitArgs + 2 && (args.size() <= implicitArgs || args.get(implicitArgs).isExplicit()) && (args.size() <= implicitArgs + 1 || args.get(implicitArgs + 1).isExplicit())) {
       contextData.setArguments(args.subList(0, implicitArgs));
-      return metaResolver.resolveInfix(resolver, contextData, args.get(implicitArgs).getExpression(), args.get(implicitArgs + 1).getExpression());
+      return metaResolver.resolveInfix(resolver, contextData, args.size() > implicitArgs ? args.get(implicitArgs).getExpression() : null, args.size() > implicitArgs + 1 ? args.get(implicitArgs + 1).getExpression() : null);
     } else {
-      return null;
+      return normalResolve(resolver, contextData, null, null, factory);
     }
   }
 }

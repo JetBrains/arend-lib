@@ -35,12 +35,12 @@ public class AtMeta extends BaseMetaDefinition implements MetaResolver {
 
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
-    return Utils.resolvePrefixAsInfix(this, resolver, contextData);
+    return Utils.resolvePrefixAsInfix(this, resolver, contextData, ext.factory);
   }
 
   @Override
   public @Nullable ConcreteExpression resolveInfix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData, @Nullable ConcreteExpression leftArg, @Nullable ConcreteExpression rightArg) {
-    if (leftArg == null || rightArg == null || !contextData.getArguments().isEmpty()) return null;
+    if (leftArg == null || rightArg == null || !contextData.getArguments().isEmpty()) return Utils.normalResolve(resolver, contextData, leftArg, rightArg, ext.factory);
 
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     ConcreteExpression cReplacement = resolver.resolve(rightArg);
