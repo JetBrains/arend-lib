@@ -4,17 +4,15 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.error.TypecheckingError;
-import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
-import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ApplyMeta extends BaseMetaDefinition implements MetaResolver {
+public class ApplyMeta extends BaseMetaDefinition /* implements MetaResolver */ {
   private final StdExtension ext;
 
   public ApplyMeta(StdExtension ext) {
@@ -41,6 +39,7 @@ public class ApplyMeta extends BaseMetaDefinition implements MetaResolver {
     return make(arguments, ext.factory);
   }
 
+  /*
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
     return Utils.resolvePrefixAsInfix(this, resolver, contextData, ext.factory);
@@ -56,6 +55,7 @@ public class ApplyMeta extends BaseMetaDefinition implements MetaResolver {
     ConcreteExpression result = make(args, ext.factory.withData(contextData.getReferenceExpression().getData()));
     return result == null ? Utils.normalResolve(resolver, contextData, leftArg, rightArg, ext.factory) : resolver.resolve(result);
   }
+  */
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
