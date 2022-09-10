@@ -78,7 +78,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition Data;
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition CData;
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition LData;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.f")                      CoreClassField DataFunction;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.vars")                   CoreClassField DataFunction;
   @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                     CoreClassField SemilatticeDataCarrier;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")         CoreFunctionDefinition termsEq;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")    CoreFunctionDefinition termsEqConv;

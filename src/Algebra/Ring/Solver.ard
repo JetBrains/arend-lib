@@ -1,5 +1,6 @@
 \import Algebra.Group
 \import Algebra.Group.Category
+\import Arith.Fin
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Solver
@@ -22,6 +23,7 @@
 \import Paths
 \import Paths.Meta
 \import Set \hiding (#)
+\open FinLinearOrder
 
 \data RingTerm (C V : \Type)
   | coef C
@@ -35,11 +37,11 @@
 \class AlgData {C : Semiring} {S : LinearOrder.Dec C} {R : Semiring} (alg : SemiringHom C R) \extends CData {
   | M => AbMonoid.toCMonoid R
   | alg-comm (x : C) (y : R) : alg x * y = y * alg x
-  | mData : Data f
+  | mData : Data vars
 
   \func interpret (t : RingTerm C V) : R \elim t
     | coef c => alg c
-    | var x => f x
+    | var x => vars x
     | :zro => 0
     | :ide => 1
     | :negative t => interpret t
@@ -196,7 +198,7 @@
 
 \class CAlgData \extends AlgData {
   \override R : CSemiring
-  \override mData : CData f
+  \override mData : CData vars
   | mData => \new CData
   | alg-comm x y => *-comm
 
@@ -285,12 +287,12 @@
     }
   }
 
-  \data ComparisonResult (l l' : List Nat)
+  \data ComparisonResult (l l' : List V)
     | lessOrEquals (mData.interpretNF l ∨ mData.interpretNF l' = mData.interpretNF l)
     | greater (mData.interpretNF l ∨ mData.interpretNF l' = mData.interpretNF l')
     | uncomparable
 
-  \func compare (l l' : List Nat) : ComparisonResult l l'
+  \func compare (l l' : List V) : ComparisonResult l l'
     | nil, _ => lessOrEquals (<=-antisymmetric top-univ join-left)
     | :: a l, nil => greater (<=-antisymmetric top-univ join-right)
     | :: a l, :: a' l' => \case trichotomy a a' \with {
@@ -299,8 +301,8 @@
         | _ => uncomparable
       }
       | equals a=a' => \case compare l l' \with {
-        | lessOrEquals p => lessOrEquals $ rewriteI a=a' $ repeat {2} (rewrite (Data.interpretNF.cons {mData})) (inv ldistr *> pmap (f a ∧) p)
-        | greater p => greater $ rewrite a=a' $ repeat {2} (rewrite (Data.interpretNF.cons {mData})) (inv ldistr *> pmap (f a' ∧) p)
+        | lessOrEquals p => lessOrEquals $ rewriteI a=a' $ repeat {2} (rewrite (Data.interpretNF.cons {mData})) (inv ldistr *> pmap (vars a ∧) p)
+        | greater p => greater $ rewrite a=a' $ repeat {2} (rewrite (Data.interpretNF.cons {mData})) (inv ldistr *> pmap (vars a' ∧) p)
         | uncomparable => uncomparable
       }
       | Order.LinearOrder.greater a>a' => \case compare (a :: l) l' \with {
@@ -352,7 +354,7 @@
         | nil => inv zro-right
         | :: a l => idp
 
-  \func lData => \new LData { | L => L | f => f }
+  \func lData => \new LData { | L => L | vars => vars }
 
   \func normalize (t : RingTerm C V) => sort (collapse (map (\lam l => LData.removeDuplicates {lData} (sort l)) (remove0 (normalize' t))))
 
@@ -399,7 +401,7 @@
 
   \func interpret (t : RingTerm C V) : R \elim t
     | coef c => alg c
-    | var x => f x
+    | var x => vars x
     | :zro => 0
     | :ide => 1
     | :negative t => negative (interpret t)
