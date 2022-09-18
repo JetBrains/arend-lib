@@ -51,7 +51,9 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Order.Lattice", name = "Bounded.JoinSemilattice.bottom")  CoreClassField bottom;
   @Dependency(module = "Order.Lattice", name = "Bounded.DistributiveLattice")     CoreClassDefinition BoundedDistributiveLattice;
 
+  @Dependency(module = "Algebra.Ordered")                                             public CoreClassDefinition LinearlyOrderedSemiring;
   @Dependency(module = "Order.LinearOrder")                                           public CoreClassDefinition LinearOrder;
+  @Dependency(module = "Order.PartialOrder", name = "Poset.<=")                       public CoreClassField lessOrEquals;
   @Dependency(module = "Order.StrictOrder", name = "StrictPoset.<")                   public CoreClassField less;
   @Dependency(module = "Order.LinearOrder", name = "BiorderedSet.<-transitive-left")  public CoreClassField lessTransitiveLeft;
 
@@ -100,13 +102,13 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition LatticeData;
   @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.L")                 CoreClassField LatticeDataCarrier;
 
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.var")              CoreConstructor varTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.coef")             CoreConstructor coefTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:ide")             CoreConstructor ideTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:zro")             CoreConstructor zroTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:negative")        CoreConstructor negativeTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:*")               CoreConstructor mulTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:+")               CoreConstructor addTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.var")              public CoreConstructor varTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.coef")             public CoreConstructor coefTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:ide")             public CoreConstructor ideTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:zro")             public CoreConstructor zroTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:negative")        public CoreConstructor negativeTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:*")               public CoreConstructor mulTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:+")               public CoreConstructor addTerm;
   @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.terms-equality")    CoreFunctionDefinition semiringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "RingData.terms-equality")   CoreFunctionDefinition ringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "CAlgData.terms-equality")   CoreFunctionDefinition commSemiringTermsEq;

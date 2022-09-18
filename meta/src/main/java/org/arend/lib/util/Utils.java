@@ -18,6 +18,7 @@ import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.MetaRef;
 import org.arend.ext.typechecking.*;
+import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 
 import java.math.BigInteger;
@@ -220,14 +221,41 @@ public class Utils {
   }
 
   public static TypedExpression findInstance(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
-    CoreExpression expr = classifyingExpr.normalize(NormalizationMode.WHNF);
-    if (expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == classifyingField) {
-      TypedExpression result = ((CoreFieldCallExpression) expr).getArgument().computeTyped();
+    if (classifyingExpr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) classifyingExpr).getDefinition() == classifyingField) {
+      TypedExpression result = ((CoreFieldCallExpression) classifyingExpr).getArgument().computeTyped();
       CoreExpression type = result.getType().normalize(NormalizationMode.WHNF);
       return type instanceof CoreClassCallExpression && parameters.testClass(((CoreClassCallExpression) type).getDefinition()) ? result : null;
     } else {
-      return typechecker.findInstance(parameters, expr, null, marker);
+      return typechecker.findInstance(parameters, classifyingExpr, null, marker);
     }
+  }
+
+  public static CoreClassCallExpression getClassCall(CoreExpression type) {
+    CoreExpression instanceType = type.normalize(NormalizationMode.WHNF);
+    return instanceType instanceof CoreClassCallExpression ? (CoreClassCallExpression) instanceType : null;
+  }
+
+  public static Pair<TypedExpression, CoreClassCallExpression> findInstanceWithClassCall(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
+    if (classifyingExpr instanceof CoreFieldCallExpression) {
+      if (((CoreFieldCallExpression) classifyingExpr).getDefinition() == classifyingField) {
+        TypedExpression instance = ((CoreFieldCallExpression) classifyingExpr).getArgument().computeTyped();
+        CoreClassCallExpression classCall = getClassCall(instance.getType());
+        if (classCall != null && parameters.testClass(classCall.getDefinition())) {
+          return new Pair<>(instance, classCall);
+        }
+      }
+      return null;
+    }
+
+    TypedExpression instance = typechecker.findInstance(parameters, classifyingExpr, null, marker);
+    if (instance != null) {
+      CoreClassCallExpression classCall = getClassCall(instance.getType());
+      if (classCall != null) {
+        return new Pair<>(instance, classCall);
+      }
+    }
+
+    return null;
   }
 
   public static boolean safeCompare(ExpressionTypechecker typechecker, UncheckedExpression expr1, UncheckedExpression expr2, CMP cmp, ConcreteSourceNode marker, boolean allowEquations, boolean normalize) {

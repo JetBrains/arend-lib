@@ -25,6 +25,7 @@ import org.arend.lib.meta.debug.PrintMeta;
 import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
+import org.arend.lib.meta.linear.LinearSolverMeta;
 import org.arend.lib.meta.simplify.SimplifyMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -62,6 +63,7 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Logic") public CoreFunctionDefinition propExt;
 
   public final EquationMeta equationMeta = new EquationMeta(this);
+  public final LinearSolverMeta linearSolverMeta = new LinearSolverMeta(this);
   public final ContradictionMeta contradictionMeta = new ContradictionMeta(this);
   public final ExtMeta extMeta = new ExtMeta(this, false);
   public final ExtMeta extsMeta = new ExtMeta(this, true);
@@ -113,6 +115,7 @@ public class StdExtension implements ArendExtension {
     provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalProduct"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalList"), CoreFunctionDefinition.class);
     provider.load(equationMeta);
+    provider.load(linearSolverMeta);
   }
 
   @Override
@@ -249,6 +252,7 @@ public class StdExtension implements ArendExtension {
         "In the former case, the meta will prove an equality in a type without using any additional structure on it.\n" +
         "In the latter case, the meta will prove an equality using only structure available in the specified class.",
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
+    contributor.declare(algebra, new LongName("linarith"), "Solve systems of linear equations", Precedence.DEFAULT, new DeferredMetaDefinition(linearSolverMeta, true));
     contributor.declare(algebra, new LongName("cong"),
         "Proves an equality by congruence closure of equalities in the context. E.g. derives f a = g b from f = g and a = b",
         Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this)));
