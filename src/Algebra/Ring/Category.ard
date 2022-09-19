@@ -2,8 +2,11 @@
 \import Algebra.Group.Category
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Algebra.Pointed
 \import Algebra.Ring
 \import Algebra.Semiring
+\import Arith.Int
+\import Arith.Nat
 \import Category
 \import Category.Adjoint
 \import Category.Functor
@@ -215,3 +218,52 @@
     \sfunc createsLimits {J : SmallPrecat} (F : Functor J CRingCat) : CreatesLimit CRingCat.forgetful F
       => {?}
   }
+
+\func natMap {R : Semiring} : SemiringHom NatSemiring R \cowith
+  | func => natCoef
+  | func-+ {n m : Nat} : R.natCoef (n + m) = natCoef n + natCoef m \elim m {
+    | 0 => inv (pmap (natCoef n +) natCoefZero *> zro-right)
+    | suc m => natCoefSuc (n + m) *> pmap (`+ ide) func-+ *> +-assoc *> pmap (natCoef n +) (inv (natCoefSuc m))
+  }
+  | func-zro => natCoefZero
+  | func-ide => natCoefSuc 0 *> pmap (`+ ide) natCoefZero *> zro-left
+  | func-* {n m : Nat} : R.natCoef (n * m) = natCoef n * natCoef m \elim m {
+    | 0 => natCoefZero *> inv (pmap (natCoef n *) natCoefZero *> zro_*-right)
+    | suc m => func-+ *> pmap (`+ natCoef n) func-* *> inv (pmap (natCoef n *) (natCoefSuc m) *> ldistr *> pmap (natCoef n * natCoef m +) ide-right)
+  }
+
+\lemma natComm {R : Semiring} (n : Nat) (x : R) : natMap n * x = x * natMap n \elim n
+  | 0 => pmap (`* x) natCoefZero *> zro_*-left *> inv (pmap (x *) natCoefZero *> zro_*-right)
+  | suc n => pmap (`* x) (natCoefSuc n) *> rdistr *> pmap (natCoef n * x +) ide-left *> pmap (`+ x) (natComm n x) *> inv (pmap (x *) (natCoefSuc n) *> ldistr *> pmap (x * natCoef n +) ide-right)
+
+\func intMap {R : Ring} : RingHom IntRing R \cowith
+  | func => intCoef
+  | func-+ {x y : Int} : R.intCoef (x + y) = intCoef x + intCoef y \elim x, y {
+    | pos n, pos m => natMap.func-+
+    | pos n, neg (suc _ \as m) => intCoef_diff n m
+    | neg (suc _ \as n), pos m => intCoef_diff m n *> +-comm
+    | neg (suc _ \as n), neg (suc _ \as m) => pmap negative natMap.func-+ *> negative_+ *> +-comm
+  }
+  | func-ide => natMap.func-ide
+  | func-* {x y : Int} : R.intCoef (x * y) = intCoef x * intCoef y \elim x, y {
+    | pos n, pos m => natMap.func-*
+    | pos n, neg (suc _ \as m) => intCoef_neg _ *> pmap negative natMap.func-* *> inv negative_*-right
+    | neg (suc _ \as n), pos m => intCoef_neg _ *> pmap negative natMap.func-* *> inv negative_*-left
+    | neg (suc _ \as n), neg m => natMap.func-* *> inv (pmap (negative (natCoef n) *) (intCoef_neg m) *> negative_*)
+  }
+  \where {
+    \open AddGroup(negative_zro,negative_+)
+    \open Ring
+
+    \lemma intCoef_diff {R : Ring} (n m : Nat) : R.intCoef (n Nat.- m) = intCoef n - intCoef m \elim n, m
+      | 0, 0 => inv (pmap (natCoef 0 + negative __) natCoefZero *> pmap (natCoef 0 +) negative_zro *> zro-right)
+      | 0, suc _ \as m => inv (pmap (__ - natCoef m) natCoefZero *> zro-left)
+      | suc _ \as n, 0 => inv (pmap (natCoef n + negative __) natCoefZero *> pmap (natCoef n +) negative_zro *> zro-right)
+      | suc n, suc m => intCoef_diff n m *>
+      pmap (natCoef n +) (inv (pmap (ide +) negative_+ *> inv +-assoc *> pmap (`- natCoef m) negative-right *> zro-left)) *>
+      inv (pmap2 (__ + negative __) (natCoefSuc n) (natCoefSuc m) *> +-assoc)
+  }
+
+\lemma intComm {R : Ring} (n : Int) (x : R) : intMap n * x = x * intMap n \elim n
+  | pos n => natComm n x
+  | neg n => rewrite Ring.intCoef_neg (Ring.negative_*-left *> pmap negative (natComm n x) *> inv Ring.negative_*-right)

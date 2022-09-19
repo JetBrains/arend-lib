@@ -44,6 +44,10 @@ public class TermCompiler {
     values = new Values<>(typechecker, marker);
   }
 
+  public Values<CoreExpression> getValues() {
+    return values;
+  }
+
   public int getNumberOfVariables() {
     return values.getValues().size();
   }
@@ -53,11 +57,12 @@ public class TermCompiler {
     BigInteger[] freeCoef = new BigInteger[] { BigInteger.ZERO };
     ConcreteExpression concrete = computeTerm(expression, coefficients, freeCoef);
     List<BigInteger> resultCoefs = new ArrayList<>(getNumberOfVariables());
+    resultCoefs.add(freeCoef[0]);
     for (int i = 0; i < getNumberOfVariables(); i++) {
       BigInteger coef = coefficients.get(i);
       resultCoefs.add(coef == null ? BigInteger.ZERO : coef);
     }
-    return new CompiledTerm(concrete, resultCoefs, freeCoef[0]);
+    return new CompiledTerm(concrete, resultCoefs);
   }
 
   private ConcreteExpression computeTerm(CoreExpression expression, Map<Integer, BigInteger> coefficients, BigInteger[] freeCoef) {

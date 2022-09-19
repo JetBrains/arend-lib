@@ -28,11 +28,6 @@ public abstract class DefImplInstanceSearchParameters implements InstanceSearchP
   }
 
   @Override
-  public boolean searchLocal() {
-    return false;
-  }
-
-  @Override
   public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
     relationFields = getRelationFields(classDefinition);
     return !relationFields.isEmpty();

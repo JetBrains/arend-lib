@@ -53,6 +53,7 @@ public class EquationMeta extends BaseMetaDefinition {
 
   @Dependency(module = "Algebra.Ordered")                                             public CoreClassDefinition LinearlyOrderedSemiring;
   @Dependency(module = "Order.LinearOrder")                                           public CoreClassDefinition LinearOrder;
+  @Dependency(module = "Order.LinearOrder", name = "LinearOrder.<=")                  public CoreFunctionDefinition linearOrederLeq;
   @Dependency(module = "Order.PartialOrder", name = "Poset.<=")                       public CoreClassField lessOrEquals;
   @Dependency(module = "Order.StrictOrder", name = "StrictPoset.<")                   public CoreClassField less;
   @Dependency(module = "Order.LinearOrder", name = "BiorderedSet.<-transitive-left")  public CoreClassField lessTransitiveLeft;
@@ -80,7 +81,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition Data;
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition CData;
   @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition LData;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.vars")                   CoreClassField DataFunction;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.vars")                   public CoreClassField DataFunction;
   @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                     CoreClassField SemilatticeDataCarrier;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")         CoreFunctionDefinition termsEq;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")    CoreFunctionDefinition termsEqConv;
@@ -95,10 +96,10 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "LData.terms-equality")        CoreFunctionDefinition semilatticeTermsEq;
 
   @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition SemiringData;
-  @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition RingData;
+  @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition RingData;
   @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition CSemiringData;
   @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition CRingData;
-  @Dependency(module = "Algebra.Ring.Solver", name = "SemiringData.R")                CoreClassField RingDataCarrier;
+  @Dependency(module = "Algebra.Ring.Solver", name = "SemiringData.R")                public CoreClassField RingDataCarrier;
   @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition LatticeData;
   @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.L")                 CoreClassField LatticeDataCarrier;
 

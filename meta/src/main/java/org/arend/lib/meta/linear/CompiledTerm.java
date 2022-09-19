@@ -8,11 +8,13 @@ import java.util.List;
 public class CompiledTerm {
   public final ConcreteExpression concrete;
   public final List<BigInteger> coefficients;
-  public final BigInteger freeCoef;
 
-  public CompiledTerm(ConcreteExpression concrete, List<BigInteger> coefficients, BigInteger freeCoef) {
+  public CompiledTerm(ConcreteExpression concrete, List<BigInteger> coefficients) {
     this.concrete = concrete;
     this.coefficients = coefficients;
-    this.freeCoef = freeCoef;
+  }
+
+  public BigInteger getCoef(int i) {
+    return i < coefficients.size() ? coefficients.get(i) : BigInteger.ZERO;
   }
 }

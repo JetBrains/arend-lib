@@ -1,5 +1,6 @@
 package org.arend.lib.meta.linear;
 
+import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteExpression;
@@ -75,6 +76,10 @@ public class LinearSolver {
       return null;
     }
 
+    if (relationData.defCall.getDefinition() == ext.equationMeta.linearOrederLeq) {
+      return new Equation<>(relationData.defCall.getDefCallArguments().get(0), Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr);
+    }
+
     var pair = instanceCache.computeIfAbsent(relationData.defCall.getDefinition(), def -> {
       DefImplInstanceSearchParameters parameters = new DefImplInstanceSearchParameters(def) {
         @Override
@@ -108,12 +113,115 @@ public class LinearSolver {
   }
 
   private List<BigInteger> solveEquations(List<? extends Equation<CompiledTerm>> equations, int var) {
+    if (equations.isEmpty()) {
+      return null;
+    }
+
+    if (var < 0) {
+      List<BigInteger> result = new ArrayList<>(equations.size());
+      boolean found = false;
+      for (Equation<CompiledTerm> equation : equations) {
+        if (!found && equation.operation == Equation.Operation.LESS) {
+          result.add(BigInteger.ONE);
+          found = true;
+        } else {
+          result.add(BigInteger.ZERO);
+        }
+      }
+      return found ? result : null;
+    }
+
+    Map<Integer, Integer> indexMap1 = new HashMap<>(); // maps an index in equations to an index in newEquations
+    Map<Integer, List<Pair<Integer, BigInteger>>> indexMap2 = new HashMap<>(); // maps an index in equations to a set of pairs of the form (an index in newEquations, a coefficient)
+    List<Equation<CompiledTerm>> newEquations = new ArrayList<>();
+    for (int j1 = 0; j1 < equations.size(); j1++) {
+      Equation<CompiledTerm> equation1 = equations.get(j1);
+      int cmp1 = equation1.lhsTerm.getCoef(var).compareTo(equation1.rhsTerm.getCoef(var));
+      if (cmp1 == 0) {
+        indexMap1.put(j1, newEquations.size());
+        newEquations.add(equation1);
+        continue;
+      }
+
+      for (int j2 = 0; j2 < j1; j2++) {
+        equation1 = equations.get(j1);
+        Equation<CompiledTerm> equation2 = equations.get(j2);
+        int cmp2 = equation2.lhsTerm.getCoef(var).compareTo(equation2.rhsTerm.getCoef(var));
+        if (cmp2 == 0) continue;
+
+        boolean swap = cmp1 > 0;
+        if (!(equation1.operation == Equation.Operation.EQUALS && equation2.operation == Equation.Operation.EQUALS)) {
+          if (equation1.operation != Equation.Operation.EQUALS && equation2.operation != Equation.Operation.EQUALS) {
+            if (!(cmp1 < 0 && cmp2 > 0 || cmp1 > 0 && cmp2 < 0)) {
+              continue;
+            }
+          } else if (equation2.operation != Equation.Operation.EQUALS) {
+            if (!(cmp1 < 0 && cmp2 > 0 || cmp1 > 0 && cmp2 < 0)) {
+              equation1 = new Equation<>(equation1.instance, Equation.Operation.EQUALS, equation1.rhsTerm, equation1.lhsTerm);
+              swap = !swap;
+            }
+          } else {
+            if (!(cmp1 < 0 && cmp2 > 0 || cmp1 > 0 && cmp2 < 0)) {
+              equation2 = new Equation<>(equation2.instance, Equation.Operation.EQUALS, equation2.rhsTerm, equation2.lhsTerm);
+            }
+          }
+          if (swap) {
+            Equation<CompiledTerm> tmp = equation1;
+            equation1 = equation2;
+            equation2 = tmp;
+          }
+        }
+
+        BigInteger c1 = equation1.rhsTerm.getCoef(var).subtract(equation1.lhsTerm.getCoef(var));
+        BigInteger c2 = equation2.lhsTerm.getCoef(var).subtract(equation2.rhsTerm.getCoef(var));
+        BigInteger gcd = c1.gcd(c2);
+        BigInteger d1 = c2.divide(gcd);
+        BigInteger d2 = c1.divide(gcd);
+        List<BigInteger> lhs = new ArrayList<>();
+        List<BigInteger> rhs = new ArrayList<>();
+        for (int i = 0; i < var; i++) {
+          lhs.add(d1.multiply(equation1.lhsTerm.getCoef(i)).add(d2.multiply(equation2.lhsTerm.getCoef(i))));
+          rhs.add(d1.multiply(equation1.rhsTerm.getCoef(i)).add(d2.multiply(equation2.rhsTerm.getCoef(i))));
+        }
+
+        indexMap2.computeIfAbsent(j1, k -> new ArrayList<>()).add(new Pair<>(newEquations.size(), swap ? d2 : d1));
+        indexMap2.computeIfAbsent(j2, k -> new ArrayList<>()).add(new Pair<>(newEquations.size(), swap ? d1 : d2));
+
+        newEquations.add(new Equation<>(null, equation1.operation == Equation.Operation.EQUALS && equation2.operation == Equation.Operation.EQUALS
+          ? Equation.Operation.EQUALS
+          : equation1.operation == Equation.Operation.LESS || equation2.operation == Equation.Operation.LESS
+            ? Equation.Operation.LESS
+            : Equation.Operation.LESS_OR_EQUALS,
+          new CompiledTerm(null, lhs), new CompiledTerm(null, rhs)));
+      }
+    }
+
+    List<BigInteger> solution = solveEquations(newEquations, var - 1);
+    if (solution == null) return null;
+    List<BigInteger> result = new ArrayList<>(equations.size());
+    for (int i = 0; i < equations.size(); i++) {
+      Integer j = indexMap1.get(i);
+      if (j != null) {
+        result.add(solution.get(j));
+      } else {
+        List<Pair<Integer, BigInteger>> list = indexMap2.get(i);
+        if (list != null) {
+          BigInteger s = BigInteger.ZERO;
+          for (Pair<Integer, BigInteger> pair : list) {
+            s = s.add(solution.get(pair.proj1).multiply(pair.proj2));
+          }
+          result.add(s);
+        } else {
+          result.add(BigInteger.ZERO);
+        }
+      }
+    }
+    return result;
   }
 
-  private TermCompiler makeTermCompiler(CoreExpression instance) {
-    TypedExpression typedInstance = instance.computeTyped();
-    CoreClassCallExpression classCall = Utils.getClassCall(typedInstance.getType());
-    return classCall == null ? null : new TermCompiler(classCall, typedInstance, ext, typechecker, marker);
+  private TermCompiler makeTermCompiler(TypedExpression instance) {
+    CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
+    return classCall == null ? null : new TermCompiler(classCall, instance, ext, typechecker, marker);
   }
 
   private static Hypothesis<CompiledTerm> compileHypothesis(TermCompiler compiler, Hypothesis<CoreExpression> hypothesis) {
@@ -165,6 +273,18 @@ public class LinearSolver {
     return factory.tuple(result, factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.prelude.getIdp().getRef()));
   }
 
+  private ConcreteExpression makeData(ConcreteExpression instanceArg, List<CoreExpression> valueList) {
+    ConcreteExpression varsArg = factory.ref(ext.prelude.getEmptyArray().getRef());
+    for (int i = valueList.size() - 1; i >= 0; i--) {
+      varsArg = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), varsArg);
+    }
+    return factory.newExpr(factory.classExt(factory.ref(ext.linearSolverMeta.SemiringData.getRef()), Arrays.asList(factory.implementation((ext.equationMeta.RingDataCarrier).getRef(), instanceArg), factory.implementation(ext.equationMeta.DataFunction.getRef(), varsArg))));
+  }
+
+  private Equation<CompiledTerm> makeZeroLessOne(CoreExpression instance) {
+    return new Equation<>(instance, Equation.Operation.LESS, new CompiledTerm(null, Collections.emptyList()), new CompiledTerm(null, Collections.singletonList(BigInteger.ONE)));
+  }
+
   public TypedExpression solve(CoreExpression expectedType, ConcreteExpression hint) {
     expectedType = expectedType.normalize(NormalizationMode.WHNF);
     Equation<CoreExpression> resultEquation;
@@ -189,28 +309,31 @@ public class LinearSolver {
           newRules.add(rule);
         }
       }
-      TermCompiler compiler = makeTermCompiler(resultEquation.instance);
+      TypedExpression instance = resultEquation.instance.computeTyped();
+      TermCompiler compiler = makeTermCompiler(instance);
       if (compiler != null) {
         CoreFunctionDefinition function;
         List<Hypothesis<CompiledTerm>> compiledRules = compileHypotheses(compiler, newRules);
-        List<List<Hypothesis<CompiledTerm>>> rulesSet = new ArrayList<>(2);
-        List<Hypothesis<CompiledTerm>> compiledRules1 = new ArrayList<>(compiledRules);
+        List<List<Equation<CompiledTerm>>> rulesSet = new ArrayList<>(2);
+        List<Equation<CompiledTerm>> compiledRules1 = new ArrayList<>();
         rulesSet.add(compiledRules1);
         CompiledTerm compiledResultLhs = compiler.compileTerm(resultEquation.lhsTerm);
         CompiledTerm compiledResultRhs = compiler.compileTerm(resultEquation.rhsTerm);
         switch (resultEquation.operation) {
           case LESS:
-            compiledRules1.add(0, new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS_OR_EQUALS, compiledResultRhs, compiledResultLhs));
+            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS_OR_EQUALS, compiledResultRhs, compiledResultLhs));
             function = ext.linearSolverMeta.solveLessHProblem;
             break;
           case LESS_OR_EQUALS:
-            compiledRules1.add(0, new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultRhs, compiledResultLhs));
+            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultRhs, compiledResultLhs));
             function = ext.linearSolverMeta.solveLeqHProblem;
             break;
           case EQUALS: {
-            List<Hypothesis<CompiledTerm>> compiledRules2 = new ArrayList<>(compiledRules);
-            compiledRules1.add(0, new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultLhs, compiledResultRhs));
-            compiledRules2.add(0, new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultRhs, compiledResultLhs));
+            List<Equation<CompiledTerm>> compiledRules2 = new ArrayList<>();
+            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultLhs, compiledResultRhs));
+            compiledRules2.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultRhs, compiledResultLhs));
+            compiledRules2.add(makeZeroLessOne(instance.getExpression()));
+            compiledRules2.addAll(compiledRules);
             rulesSet.add(compiledRules2);
             function = ext.linearSolverMeta.solveEqHProblem;
             break;
@@ -218,21 +341,23 @@ public class LinearSolver {
           default:
             throw new IllegalStateException();
         }
+        compiledRules1.add(makeZeroLessOne(instance.getExpression()));
+        compiledRules1.addAll(compiledRules);
         List<List<BigInteger>> solutions = new ArrayList<>(rulesSet.size());
-        for (List<Hypothesis<CompiledTerm>> equations : rulesSet) {
-          List<BigInteger> solution = solveEquations(equations, compiler.getNumberOfVariables() - 1);
+        for (List<Equation<CompiledTerm>> equations : rulesSet) {
+          List<BigInteger> solution = solveEquations(equations, compiler.getNumberOfVariables());
           if (solution != null) solutions.add(solution);
         }
         if (solutions.size() == rulesSet.size()) {
-          List<ConcreteExpression> args = new ArrayList<>(6);
-          args.add(equationsToConcrete(compiledRules));
-          args.add(compiledResultLhs.concrete);
-          args.add(compiledResultRhs.concrete);
+          ConcreteAppBuilder builder = factory.appBuilder(factory.ref(function.getRef()))
+            .app(makeData(factory.core(instance), compiler.getValues().getValues()), false)
+            .app(equationsToConcrete(compiledRules))
+            .app(compiledResultLhs.concrete)
+            .app(compiledResultRhs.concrete);
           for (List<BigInteger> solution : solutions) {
-            args.add(certificateToConcrete(solution));
+            builder.app(certificateToConcrete(solution));
           }
-          args.add(witnessesToConcrete(compiledRules));
-          return typechecker.typecheck(factory.app(factory.ref(function.getRef()), true, args), null);
+          return typechecker.typecheck(builder.app(witnessesToConcrete(compiledRules)).build(), null);
         }
       }
     } else {
@@ -253,12 +378,21 @@ public class LinearSolver {
         }
       }
       for (List<Hypothesis<CoreExpression>> equations : rulesSet) {
-        TermCompiler compiler = makeTermCompiler(equations.get(0).instance);
+        TypedExpression instance = equations.get(0).instance.computeTyped();
+        TermCompiler compiler = makeTermCompiler(instance);
         if (compiler == null) continue;
         List<Hypothesis<CompiledTerm>> compiledEquations = compileHypotheses(compiler, equations);
-        List<BigInteger> solution = solveEquations(compiledEquations, compiler.getNumberOfVariables() - 1);
+        List<Equation<CompiledTerm>> compiledEquations1 = new ArrayList<>(compiledEquations.size() + 1);
+        compiledEquations1.add(makeZeroLessOne(instance.getExpression()));
+        compiledEquations1.addAll(compiledEquations);
+        List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
         if (solution != null) {
-          return typechecker.typecheck(factory.app(factory.ref(ext.linearSolverMeta.solveContrHProblem.getRef()), true, equationsToConcrete(compiledEquations), certificateToConcrete(solution), witnessesToConcrete(compiledEquations)), null);
+          return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrHProblem.getRef()))
+            .app(makeData(factory.core(instance), compiler.getValues().getValues()), false)
+            .app(equationsToConcrete(compiledEquations))
+            .app(certificateToConcrete(solution))
+            .app(witnessesToConcrete(compiledEquations))
+            .build(), null);
         }
       }
     }

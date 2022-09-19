@@ -1,5 +1,6 @@
 package org.arend.lib.meta.linear;
 
+import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.dependency.Dependency;
@@ -21,6 +22,7 @@ public class LinearSolverMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Less")          CoreConstructor less;
   @Dependency(module = "Algebra.Linear.Solver", name = "Operation.LessOrEquals")  CoreConstructor lessOrEquals;
   @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Equals")        CoreConstructor equals;
+  @Dependency(module = "Algebra.Linear.Solver")                                   CoreClassDefinition SemiringData;
 
   public LinearSolverMeta(StdExtension ext) {
     this.ext = ext;
