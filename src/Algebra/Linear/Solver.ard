@@ -9,7 +9,6 @@
 \import Function.Meta
 \import Logic
 \import Logic.Meta
-\import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -34,15 +33,6 @@
 
   \func Problem => Array Equation
 
-  \func HData : Data \cowith
-    | C => C
-    | S => S
-    | R => R
-    | vars => 1 :: vars
-    | alg => alg
-    | alg-comm => alg-comm
-    | mData {}
-
   \func isConst (t : RingTerm C V) : Bool \elim t
     | coef c => true
     | var v => false
@@ -51,21 +41,6 @@
     | :negative t => isConst t
     | t :+ t1 => isConst t and isConst t1
     | t :* t1 => isConst t and isConst t1
-
-  \func hTerm (t : RingTerm C V) (mv : Bool) : RingTerm C HData.V \elim t
-    | coef c => if mv (coef c :* var {C} {HData.V} 0) (coef c)
-    | var v => var (suc v)
-    | :zro => if mv (:zro :* var {C} {HData.V} 0) :zro
-    | :ide => if mv (:ide :* var {C} {HData.V} 0) :ide
-    | :negative t => :negative (hTerm t mv)
-    | t :+ t1 => hTerm t mv :+ hTerm t1 mv
-    | t :* t1 => if (mv and isConst (t :* t1)) (hTerm t false :* hTerm t1 false :* var 0) (hTerm t false :* hTerm t1 false)
-
-  \func hEquation (e : Equation) : HData.Equation
-    => (hTerm e.1 true, e.2, hTerm e.3 true)
-
-  \func hProblem (p : Problem) : HData.Problem
-    => (:zro, Less, var 0) :: map hEquation p
 
   \func Cert (n : Nat) => Array Nat n
 
@@ -85,10 +60,6 @@
 
   \lemma interpretCert_certSum (l : Array (RingTerm C V)) {c : Cert l.len} : interpretCert l c = certSum l c
     => inv (normalize-consistent (cert-toTerm l c)) *> cert-toRingTerm-correct l c
-
-  \lemma interpretCert-correct (p : Problem) (c : Cert p.len) (h : interpretCert (map __.1 p) c = interpretCert (map __.3 p) c)
-    : certSum (map __.1 p) c = certSum (map __.3 p) c
-    => inv (interpretCert_certSum (map __.1 p)) *> h *> interpretCert_certSum (map __.3 p)
 
   \func isLess (o : Operation) : Bool
     | Less => true
@@ -119,10 +90,14 @@
                       \in inP (suc t.1, t.2, t.3)
     }
 
-  \func CorrectCert (p : Problem) => \Sigma (c : Cert p.len) (interpretCert (map __.1 p) c = interpretCert (map __.3 p) c) (hasNegative p c = true)
+  \func CorrectCert (p : Problem) => \Sigma (c : Cert p.len) (f : Nat) (interpretCert (map __.1 p) c = interpretCert (:ide :: map __.3 p) (f :: c)) (hasNegative p c or isSuc f = true)
+
+  \lemma certToLeq (p : Problem) (c : CorrectCert p) : certSum (map __.3 p) c.1 <= certSum (map __.1 p) c.1
+    => \have t => inv (interpretCert_certSum (map __.1 p)) *> c.3 *> interpretCert_certSum (:ide :: map __.3 p) {c.2 :: c.1}
+       \in transport2 (<=) zro-left (inv t) $ <=_+ (transport (`<= _) ide-right $ <=_*_positive-left natCoef-positive (LinearOrder.<_<= zro<ide)) <=-refl
 
   \lemma solveContrProblem (p : Problem) (c : CorrectCert p) (h : DArray (\lam j => interpretEq (p j))) : Empty
-    => Preorder.=_<= (inv $ interpretCert-correct p c.1 c.2) (aux p c.1 (hasNegative-correct p c.1 c.3) h)
+    => certToLeq p c (solveContrProblem.aux p c.1 (hasNegative-correct p c.1 c.4) h)
     \where {
       \lemma aux_<= (p : Problem) (c : Cert p.len) (h : ∀ (e : p) (interpretEq e))
         : certSum (map __.1 p) c <= certSum (map __.3 p) c \elim p, c
@@ -136,48 +111,12 @@
         | e :: p, k :: c, inP (suc j, cj>0, pj=less) => <=_+-left (<=_*_positive-right natCoef-positive (interpretEq_<= e (h 0))) (aux p c (inP (j, cj>0, pj=less)) (\lam j => h (suc j)))
     }
 
-  \lemma hTerm-correct {t : RingTerm C V} {b : Bool} : HData.interpret (hTerm t b) = interpret t \elim t
-    | coef c => cases b \with {
-      | false => idp
-      | true => ide-right
-    }
-    | var v => idp
-    | :zro => cases b \with {
-      | false => idp
-      | true => ide-right
-    }
-    | :ide => cases b \with {
-      | false => idp
-      | true => ide-right
-    }
-    | :negative t => hTerm-correct
-    | t :+ t1 => pmap2 (+) hTerm-correct hTerm-correct
-    | t :* t1 => cases (b and isConst (t :* t1)) \with {
-      | false => pmap2 (*) hTerm-correct hTerm-correct
-      | true => ide-right *> pmap2 (*) hTerm-correct hTerm-correct
-    }
-
-  \lemma hEquation-correct (e : Equation) (c : interpretEq e) : HData.interpretEq (hEquation e) \elim e
-    | (t1, Less, t2) => transport2 (<) (inv hTerm-correct) (inv hTerm-correct) c
-    | (t1, LessOrEquals, t2) => transport2 (<=) (inv hTerm-correct) (inv hTerm-correct) c
-    | (t1, Equals, t2) => transport2 (=) (inv hTerm-correct) (inv hTerm-correct) c
-
-  \lemma hProblem-correct (p : Problem) (h : DArray (\lam j => interpretEq (p j))) : DArray (\lam j => HData.interpretEq (hProblem p j))
-    => zro<ide :: \lam j => hEquation-correct (p j) (h j)
-
-  \lemma solveContrHProblem (p : Problem) (c : HData.CorrectCert (hProblem p)) (h : DArray (\lam j => interpretEq (p j))) : Empty
-    => HData.solveContrProblem (hProblem p) c (hProblem-correct p h)
-
   \lemma solve<=Problem (p : Problem) (t1 t2 : RingTerm C V) (c : CorrectCert (toContr p t1 t2))
                         (h : DArray (\lam j => interpretEq (p j))) : interpret t1 <= interpret t2
     => \lam e => solveContrProblem (toContr p t1 t2) c (e :: h)
     \where
       \func toContr (p : Problem) (t1 t2 : RingTerm C V) : Problem
         => (t2,Less,t1) :: p
-
-  \lemma solve<=HProblem (p : Problem) (t1 t2 : RingTerm C V) (c : HData.CorrectCert (solve<=Problem.toContr {HData} (hProblem p) (hTerm t1 true) (hTerm t2 true)))
-                         (h : DArray (\lam j => interpretEq (p j))) : interpret t1 <= interpret t2
-    => transport2 (<=) hTerm-correct hTerm-correct $ HData.solve<=Problem (hProblem p) (hTerm t1 true) (hTerm t2 true) c (hProblem-correct p h)
 
   \lemma solve=Problem (p : Problem) (t1 t2 : RingTerm C V) (c1 : CorrectCert (toContr1 p t1 t2)) (c2 : CorrectCert (toContr2 p t1 t2))
                        (h : DArray (\lam j => interpretEq (p j))) : interpret t1 = interpret t2
@@ -191,26 +130,15 @@
         => (t2,Less,t1) :: p
     }
 
-  \lemma solve=HProblem (p : Problem) (t1 t2 : RingTerm C V)
-                        (c1 : HData.CorrectCert (solve=Problem.toContr1 {HData} (hProblem p) (hTerm t1 true) (hTerm t2 true)))
-                        (c2 : HData.CorrectCert (solve=Problem.toContr2 {HData} (hProblem p) (hTerm t1 true) (hTerm t2 true)))
-                        (h : DArray (\lam j => interpretEq (p j))) : interpret t1 = interpret t2
-    => transport2 (=) hTerm-correct hTerm-correct $ HData.solve=Problem (hProblem p) (hTerm t1 true) (hTerm t2 true) c1 c2 (hProblem-correct p h)
-
   \lemma solve<Problem (p : Problem) (t1 t2 : RingTerm C V) (c : CorrectCert (toContr p t1 t2))
                        (h : DArray (\lam j => interpretEq (p j))) : interpret t1 < interpret t2
-    => \have | s1 => inv (interpretCert_certSum (map __.1 (toContr p t1 t2)) {c.1}) *> c.2 *> interpretCert_certSum (map __.3 (toContr p t1 t2)) {c.1}
-             | s2 => <_+-invert s1 $ solveContrProblem.aux p (\lam j => c.1 (suc j)) (hasNegative-correct p _ c.3) h
-       \in \case <_*-cancel-left (natCoef (c.1 0)) (interpret t1) (interpret t2) s2 \with {
+    => \have s => <_+-invert (certToLeq (toContr p t1 t2) c) $ solveContrProblem.aux p (\lam j => c.1 (suc j)) (hasNegative-correct p _ c.4) h
+       \in \case <_*-cancel-left (natCoef (c.1 0)) (interpret t1) (interpret t2) s \with {
          | byLeft r => r.2
          | byRight r => absurd $ <-irreflexive $ <-transitive-left r.1 natCoef-positive
        }
     \where
       \func toContr (p : Problem) (t1 t2 : RingTerm C V) : Problem => (t2,LessOrEquals,t1) :: p
-
-  \lemma solve<HProblem (p : Problem) (t1 t2 : RingTerm C V) (c : HData.CorrectCert (solve<Problem.toContr {HData} (hProblem p) (hTerm t1 true) (hTerm t2 true)))
-                        (h : DArray (\lam j => interpretEq (p j))) : interpret t1 < interpret t2
-    => transport2 (<) hTerm-correct hTerm-correct $ HData.solve<Problem (hProblem p) (hTerm t1 true) (hTerm t2 true) c (hProblem-correct p h)
 } \where \open LinearlyOrderedSemiring
 
 \class SemiringData \extends Data

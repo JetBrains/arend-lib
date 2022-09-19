@@ -267,10 +267,10 @@ public class LinearSolver {
 
   private ConcreteExpression certificateToConcrete(List<BigInteger> certificate) {
     ConcreteExpression result = factory.ref(ext.prelude.getEmptyArray().getRef());
-    for (int i = certificate.size() - 1; i >= 0; i--) {
+    for (int i = certificate.size() - 1; i >= 1; i--) {
       result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.number(certificate.get(i)), result);
     }
-    return factory.tuple(result, factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.prelude.getIdp().getRef()));
+    return factory.tuple(result, factory.number(certificate.get(0)), factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.prelude.getIdp().getRef()));
   }
 
   private ConcreteExpression makeData(ConcreteExpression instanceArg, List<CoreExpression> valueList) {
@@ -316,32 +316,32 @@ public class LinearSolver {
         List<Hypothesis<CompiledTerm>> compiledRules = compileHypotheses(compiler, newRules);
         List<List<Equation<CompiledTerm>>> rulesSet = new ArrayList<>(2);
         List<Equation<CompiledTerm>> compiledRules1 = new ArrayList<>();
+        compiledRules1.add(makeZeroLessOne(instance.getExpression()));
         rulesSet.add(compiledRules1);
         CompiledTerm compiledResultLhs = compiler.compileTerm(resultEquation.lhsTerm);
         CompiledTerm compiledResultRhs = compiler.compileTerm(resultEquation.rhsTerm);
         switch (resultEquation.operation) {
           case LESS:
             compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS_OR_EQUALS, compiledResultRhs, compiledResultLhs));
-            function = ext.linearSolverMeta.solveLessHProblem;
+            function = ext.linearSolverMeta.solveLessProblem;
             break;
           case LESS_OR_EQUALS:
             compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultRhs, compiledResultLhs));
-            function = ext.linearSolverMeta.solveLeqHProblem;
+            function = ext.linearSolverMeta.solveLeqProblem;
             break;
           case EQUALS: {
             List<Equation<CompiledTerm>> compiledRules2 = new ArrayList<>();
             compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultLhs, compiledResultRhs));
+            compiledRules2.add(compiledRules1.get(0));
             compiledRules2.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResultRhs, compiledResultLhs));
-            compiledRules2.add(makeZeroLessOne(instance.getExpression()));
             compiledRules2.addAll(compiledRules);
             rulesSet.add(compiledRules2);
-            function = ext.linearSolverMeta.solveEqHProblem;
+            function = ext.linearSolverMeta.solveEqProblem;
             break;
           }
           default:
             throw new IllegalStateException();
         }
-        compiledRules1.add(makeZeroLessOne(instance.getExpression()));
         compiledRules1.addAll(compiledRules);
         List<List<BigInteger>> solutions = new ArrayList<>(rulesSet.size());
         for (List<Equation<CompiledTerm>> equations : rulesSet) {
@@ -387,7 +387,7 @@ public class LinearSolver {
         compiledEquations1.addAll(compiledEquations);
         List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
         if (solution != null) {
-          return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrHProblem.getRef()))
+          return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
             .app(makeData(factory.core(instance), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledEquations))
             .app(certificateToConcrete(solution))

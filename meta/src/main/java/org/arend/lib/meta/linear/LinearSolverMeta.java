@@ -15,10 +15,10 @@ import org.jetbrains.annotations.Nullable;
 public class LinearSolverMeta extends BaseMetaDefinition {
   private final StdExtension ext;
 
-  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solveContrHProblem") CoreFunctionDefinition solveContrHProblem;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve<=HProblem")    CoreFunctionDefinition solveLeqHProblem;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve<HProblem")     CoreFunctionDefinition solveLessHProblem;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve=HProblem")     CoreFunctionDefinition solveEqHProblem;
+  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solveContrProblem")  CoreFunctionDefinition solveContrProblem;
+  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve<=Problem")     CoreFunctionDefinition solveLeqProblem;
+  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve<Problem")      CoreFunctionDefinition solveLessProblem;
+  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve=Problem")      CoreFunctionDefinition solveEqProblem;
   @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Less")          CoreConstructor less;
   @Dependency(module = "Algebra.Linear.Solver", name = "Operation.LessOrEquals")  CoreConstructor lessOrEquals;
   @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Equals")        CoreConstructor equals;
