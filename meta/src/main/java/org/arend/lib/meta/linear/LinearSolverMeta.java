@@ -15,14 +15,15 @@ import org.jetbrains.annotations.Nullable;
 public class LinearSolverMeta extends BaseMetaDefinition {
   private final StdExtension ext;
 
-  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solveContrProblem")  CoreFunctionDefinition solveContrProblem;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve<=Problem")     CoreFunctionDefinition solveLeqProblem;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve<Problem")      CoreFunctionDefinition solveLessProblem;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Data.solve=Problem")      CoreFunctionDefinition solveEqProblem;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Less")          CoreConstructor less;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Operation.LessOrEquals")  CoreConstructor lessOrEquals;
-  @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Equals")        CoreConstructor equals;
-  @Dependency(module = "Algebra.Linear.Solver")                                   CoreClassDefinition SemiringData;
+  @Dependency(module = "Algebra.Linear.Solver", name = "LinearData.solveContrProblem")  CoreFunctionDefinition solveContrProblem;
+  @Dependency(module = "Algebra.Linear.Solver", name = "LinearData.solve<=Problem")     CoreFunctionDefinition solveLeqProblem;
+  @Dependency(module = "Algebra.Linear.Solver", name = "LinearData.solve<Problem")      CoreFunctionDefinition solveLessProblem;
+  @Dependency(module = "Algebra.Linear.Solver", name = "LinearData.solve=Problem")      CoreFunctionDefinition solveEqProblem;
+  @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Less")                CoreConstructor less;
+  @Dependency(module = "Algebra.Linear.Solver", name = "Operation.LessOrEquals")        CoreConstructor lessOrEquals;
+  @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Equals")              CoreConstructor equals;
+  @Dependency(module = "Algebra.Linear.Solver")                                         CoreClassDefinition LinearSemiringData;
+  @Dependency(module = "Algebra.Linear.Solver")                                         CoreClassDefinition LinearRingData;
 
   public LinearSolverMeta(StdExtension ext) {
     this.ext = ext;

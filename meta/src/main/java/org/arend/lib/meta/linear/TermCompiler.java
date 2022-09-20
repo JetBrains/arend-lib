@@ -3,7 +3,9 @@ package org.arend.lib.meta.linear;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.CoreClassCallExpression;
+import org.arend.ext.core.expr.CoreConCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreIntegerExpression;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -11,7 +13,6 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
 import org.arend.lib.meta.equation.EquationMeta;
-import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.util.Values;
 
@@ -24,7 +25,6 @@ public class TermCompiler {
   private final FunctionMatcher addMatcher;
   private final FunctionMatcher mulMatcher;
   private final FunctionMatcher natCoefMatcher;
-  private final FunctionMatcher intCoefMatcher;
   private final FunctionMatcher negativeMatcher;
   private final ConcreteFactory factory;
   private final Values<CoreExpression> values;
@@ -33,13 +33,12 @@ public class TermCompiler {
   public TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
     meta = ext.equationMeta;
     factory = ext.factory.withData(marker);
-    boolean isRing = classCall.getDefinition().isSubClassOf(meta.Ring);
+    boolean isRing = classCall.getDefinition().isSubClassOf(meta.OrderedRing);
     zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.zro, typechecker, factory, marker, meta.ext, 0);
     ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.ide, typechecker, factory, marker, meta.ext, 0);
     addMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.plus, typechecker, factory, marker, meta.ext, 2);
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.mul, typechecker, factory, marker, meta.ext, 2);
     natCoefMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.natCoef, typechecker, factory, marker, meta.ext, 1);
-    intCoefMatcher = isRing ? new DefinitionFunctionMatcher(meta.intCoef, 1) : null;
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, marker, meta.ext, 1) : null;
     values = new Values<>(typechecker, marker);
   }
@@ -82,14 +81,38 @@ public class TermCompiler {
       return factory.ref(meta.ideTerm.getRef());
     }
 
-    List<CoreExpression> coefArgs = intCoefMatcher == null ? null : intCoefMatcher.match(expr);
-    if (coefArgs == null) {
-      coefArgs = natCoefMatcher == null ? null : natCoefMatcher.match(expr);
+    if (negativeMatcher != null) {
+      List<CoreExpression> negativeArgs = negativeMatcher.match(expr);
+      if (negativeArgs != null) {
+        Map<Integer, BigInteger> newCoefficients = new HashMap<>();
+        BigInteger[] newFreeCoef = new BigInteger[] { BigInteger.ZERO };
+        ConcreteExpression term = computeTerm(negativeArgs.get(0), newCoefficients, newFreeCoef);
+        for (Map.Entry<Integer, BigInteger> entry : newCoefficients.entrySet()) {
+          coefficients.compute(entry.getKey(), (k,v) -> v == null ? entry.getValue().negate() : v.subtract(entry.getValue()));
+        }
+        freeCoef[0] = freeCoef[0].subtract(newFreeCoef[0]);
+        return factory.app(factory.ref(meta.negativeTerm.getRef()), true, term);
+      }
+    }
+
+    boolean isNeg = false;
+    List<? extends CoreExpression> coefArgs = null;
+    if (expr instanceof CoreConCallExpression) {
+      CoreConstructor constructor = ((CoreConCallExpression) expr).getDefinition();
+      if (constructor == meta.ext.prelude.getPos() || constructor == meta.ext.prelude.getNeg()) {
+        coefArgs = ((CoreConCallExpression) expr).getDefCallArguments();
+        isNeg = constructor == meta.ext.prelude.getNeg();
+      }
+    }
+
+    if (coefArgs == null && natCoefMatcher != null) {
+      coefArgs = natCoefMatcher.match(expr);
     }
     if (coefArgs != null) {
       CoreExpression arg = coefArgs.get(0).normalize(NormalizationMode.WHNF);
       if (arg instanceof CoreIntegerExpression) {
         BigInteger coef = ((CoreIntegerExpression) arg).getBigInteger();
+        if (isNeg) coef = coef.negate();
         freeCoef[0] = freeCoef[0].add(coef);
         return factory.app(factory.ref(meta.coefTerm.getRef()), true, Collections.singletonList(factory.number(coef)));
       }

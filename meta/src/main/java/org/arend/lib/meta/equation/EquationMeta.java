@@ -52,6 +52,8 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Order.Lattice", name = "Bounded.DistributiveLattice")     CoreClassDefinition BoundedDistributiveLattice;
 
   @Dependency(module = "Algebra.Ordered")                                             public CoreClassDefinition LinearlyOrderedSemiring;
+  @Dependency(module = "Algebra.Ordered")                                             public CoreClassDefinition OrderedRing;
+  @Dependency(module = "Algebra.Ordered", name = "OrderedAddGroup.<")                 public CoreFunctionDefinition addGroupLess;
   @Dependency(module = "Order.LinearOrder")                                           public CoreClassDefinition LinearOrder;
   @Dependency(module = "Order.LinearOrder", name = "LinearOrder.<=")                  public CoreFunctionDefinition linearOrederLeq;
   @Dependency(module = "Order.PartialOrder", name = "Poset.<=")                       public CoreClassField lessOrEquals;
@@ -110,8 +112,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:negative")        public CoreConstructor negativeTerm;
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:*")               public CoreConstructor mulTerm;
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:+")               public CoreConstructor addTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.terms-equality")    CoreFunctionDefinition semiringTermsEq;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingData.terms-equality")   CoreFunctionDefinition ringTermsEq;
+  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.terms-equality")    CoreFunctionDefinition ringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "CAlgData.terms-equality")   CoreFunctionDefinition commSemiringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "CRingData.terms-equality")  CoreFunctionDefinition commRingTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.terms-equality")  CoreFunctionDefinition latticeTermsEq;

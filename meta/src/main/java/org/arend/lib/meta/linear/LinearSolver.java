@@ -80,6 +80,10 @@ public class LinearSolver {
       return new Equation<>(relationData.defCall.getDefCallArguments().get(0), Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr);
     }
 
+    if (relationData.defCall.getDefinition() == ext.equationMeta.addGroupLess) {
+      return new Equation<>(relationData.defCall.getDefCallArguments().get(0), Equation.Operation.LESS, relationData.leftExpr, relationData.rightExpr);
+    }
+
     var pair = instanceCache.computeIfAbsent(relationData.defCall.getDefinition(), def -> {
       DefImplInstanceSearchParameters parameters = new DefImplInstanceSearchParameters(def) {
         @Override
@@ -219,8 +223,7 @@ public class LinearSolver {
     return result;
   }
 
-  private TermCompiler makeTermCompiler(TypedExpression instance) {
-    CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
+  private TermCompiler makeTermCompiler(TypedExpression instance, CoreClassCallExpression classCall) {
     return classCall == null ? null : new TermCompiler(classCall, instance, ext, typechecker, marker);
   }
 
@@ -273,12 +276,13 @@ public class LinearSolver {
     return factory.tuple(result, factory.number(certificate.get(0)), factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.prelude.getIdp().getRef()));
   }
 
-  private ConcreteExpression makeData(ConcreteExpression instanceArg, List<CoreExpression> valueList) {
+  private ConcreteExpression makeData(CoreClassCallExpression classCall, ConcreteExpression instanceArg, List<CoreExpression> valueList) {
+    boolean isRing = classCall.getDefinition().isSubClassOf(ext.equationMeta.OrderedRing);
     ConcreteExpression varsArg = factory.ref(ext.prelude.getEmptyArray().getRef());
     for (int i = valueList.size() - 1; i >= 0; i--) {
       varsArg = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), varsArg);
     }
-    return factory.newExpr(factory.classExt(factory.ref(ext.linearSolverMeta.SemiringData.getRef()), Arrays.asList(factory.implementation((ext.equationMeta.RingDataCarrier).getRef(), instanceArg), factory.implementation(ext.equationMeta.DataFunction.getRef(), varsArg))));
+    return factory.newExpr(factory.classExt(factory.ref((isRing ? ext.linearSolverMeta.LinearRingData : ext.linearSolverMeta.LinearSemiringData).getRef()), Arrays.asList(factory.implementation((ext.equationMeta.RingDataCarrier).getRef(), instanceArg), factory.implementation(ext.equationMeta.DataFunction.getRef(), varsArg))));
   }
 
   private Equation<CompiledTerm> makeZeroLessOne(CoreExpression instance) {
@@ -310,7 +314,8 @@ public class LinearSolver {
         }
       }
       TypedExpression instance = resultEquation.instance.computeTyped();
-      TermCompiler compiler = makeTermCompiler(instance);
+      CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
+      TermCompiler compiler = makeTermCompiler(instance, classCall);
       if (compiler != null) {
         CoreFunctionDefinition function;
         List<Hypothesis<CompiledTerm>> compiledRules = compileHypotheses(compiler, newRules);
@@ -350,7 +355,7 @@ public class LinearSolver {
         }
         if (solutions.size() == rulesSet.size()) {
           ConcreteAppBuilder builder = factory.appBuilder(factory.ref(function.getRef()))
-            .app(makeData(factory.core(instance), compiler.getValues().getValues()), false)
+            .app(makeData(classCall, factory.core(instance), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledRules))
             .app(compiledResultLhs.concrete)
             .app(compiledResultRhs.concrete);
@@ -379,7 +384,8 @@ public class LinearSolver {
       }
       for (List<Hypothesis<CoreExpression>> equations : rulesSet) {
         TypedExpression instance = equations.get(0).instance.computeTyped();
-        TermCompiler compiler = makeTermCompiler(instance);
+        CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
+        TermCompiler compiler = makeTermCompiler(instance, classCall);
         if (compiler == null) continue;
         List<Hypothesis<CompiledTerm>> compiledEquations = compileHypotheses(compiler, equations);
         List<Equation<CompiledTerm>> compiledEquations1 = new ArrayList<>(compiledEquations.size() + 1);
@@ -388,7 +394,7 @@ public class LinearSolver {
         List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
         if (solution != null) {
           return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
-            .app(makeData(factory.core(instance), compiler.getValues().getValues()), false)
+            .app(makeData(classCall, factory.core(instance), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledEquations))
             .app(certificateToConcrete(solution))
             .app(witnessesToConcrete(compiledEquations))
