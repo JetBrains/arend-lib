@@ -93,22 +93,28 @@
   \func CorrectCert (p : Problem) => \Sigma (c : Cert p.len) (f : Nat) (interpretCert (map __.1 p) c = interpretCert (:ide :: map __.3 p) (f :: c)) (hasNegative p c or isSuc f = true)
 
   \lemma certToLeq (p : Problem) (c : CorrectCert p) : certSum (map __.3 p) c.1 <= certSum (map __.1 p) c.1
-    => \have t => inv (interpretCert_certSum (map __.1 p)) *> c.3 *> interpretCert_certSum (:ide :: map __.3 p) {c.2 :: c.1}
-       \in transport2 (<=) zro-left (inv t) $ <=_+ (transport (`<= _) ide-right $ <=_*_positive-left natCoef-positive (LinearOrder.<_<= zro<ide)) <=-refl
+    => transport2 (<=) zro-left (inv aux) $ <=_+ (transport (`<= _) ide-right $ <=_*_positive-left natCoef>=0 (LinearOrder.<_<= zro<ide)) <=-refl
+    \where \lemma aux => inv (interpretCert_certSum (map __.1 p)) *> c.3 *> interpretCert_certSum (:ide :: map __.3 p) {c.2 :: c.1}
+
+  \lemma certToLess (p : Problem) (c : CorrectCert p) (q : isSuc c.2 = true) : certSum (map __.3 p) c.1 < certSum (map __.1 p) c.1
+    => transport2 (<) zro-left (inv $ certToLeq.aux p c) $ <=_+-right (transport (`< _) ide-right $ <_*_positive-left (natCoef>0 (isSuc.correct q)) zro<ide) <=-refl
 
   \lemma solveContrProblem (p : Problem) (c : CorrectCert p) (h : DArray (\lam j => interpretEq (p j))) : Empty
-    => certToLeq p c (solveContrProblem.aux p c.1 (hasNegative-correct p c.1 c.4) h)
+    => \case or.toOr c.4 \with {
+      | byLeft q => certToLeq p c (aux p c.1 (hasNegative-correct p c.1 q) h)
+      | byRight q => <-irreflexive $ <-transitive-left (certToLess p c q) (aux_<= p c.1 h)
+    }
     \where {
       \lemma aux_<= (p : Problem) (c : Cert p.len) (h : ∀ (e : p) (interpretEq e))
         : certSum (map __.1 p) c <= certSum (map __.3 p) c \elim p, c
         | nil, nil => <=-refl
-        | e :: p, k :: c => <=_+ (<=_*_positive-right natCoef-positive (interpretEq_<= e (h 0))) (aux_<= p c (\lam j => h (suc j)))
+        | e :: p, k :: c => <=_+ (<=_*_positive-right natCoef>=0 (interpretEq_<= e (h 0))) (aux_<= p c (\lam j => h (suc j)))
 
       \lemma aux (p : Problem) (c : Cert p.len) (cc : ∃ (j : Fin p.len) (0 < c j) ((p j).2 = Less)) (h : ∀ (e : p) (interpretEq e))
         : certSum (map __.1 p) c < certSum (map __.3 p) c \elim p, c, cc
         | nil, nil, inP ((),_,_)
         | e :: p, k :: c, inP (0, k>0, p0=less) => <=_+-right (<_*_positive-right (transport (`< _) natCoefZero $ OrderedSemiring.natCoef_< k>0) (transport (\lam r => interpretEq (e.1,r,e.3)) p0=less (h 0))) (aux_<= p c (\lam j => h (suc j)))
-        | e :: p, k :: c, inP (suc j, cj>0, pj=less) => <=_+-left (<=_*_positive-right natCoef-positive (interpretEq_<= e (h 0))) (aux p c (inP (j, cj>0, pj=less)) (\lam j => h (suc j)))
+        | e :: p, k :: c, inP (suc j, cj>0, pj=less) => <=_+-left (<=_*_positive-right natCoef>=0 (interpretEq_<= e (h 0))) (aux p c (inP (j, cj>0, pj=less)) (\lam j => h (suc j)))
     }
 
   \lemma solve<=Problem (p : Problem) (t1 t2 : RingTerm C V) (c : CorrectCert (toContr p t1 t2))
@@ -132,10 +138,12 @@
 
   \lemma solve<Problem (p : Problem) (t1 t2 : RingTerm C V) (c : CorrectCert (toContr p t1 t2))
                        (h : DArray (\lam j => interpretEq (p j))) : interpret t1 < interpret t2
-    => \have s => <_+-invert (certToLeq (toContr p t1 t2) c) $ solveContrProblem.aux p (\lam j => c.1 (suc j)) (hasNegative-correct p _ c.4) h
-       \in \case <_*-cancel-left (natCoef (c.1 0)) (interpret t1) (interpret t2) s \with {
+    => \case <_*-cancel-left (natCoef (c.1 0)) (interpret t1) (interpret t2) (\case or.toOr c.4 \with {
+        | byLeft q => <_+-invert-right (certToLeq (toContr p t1 t2) c) $ solveContrProblem.aux p (\lam j => c.1 (suc j)) (hasNegative-correct p _ q) h
+        | byRight q => <_+-invert-left (certToLess (toContr p t1 t2) c q) (solveContrProblem.aux_<= p (tail c.1) h)
+      }) \with {
          | byLeft r => r.2
-         | byRight r => absurd $ <-irreflexive $ <-transitive-left r.1 natCoef-positive
+         | byRight r => absurd $ <-irreflexive $ <-transitive-left r.1 natCoef>=0
        }
     \where
       \func toContr (p : Problem) (t1 t2 : RingTerm C V) : Problem => (t2,LessOrEquals,t1) :: p
