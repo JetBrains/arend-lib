@@ -28,7 +28,7 @@ public class ContextHelper implements Context {
       assert expr != null;
       argument = ((ConcreteAppExpression) expr).getArguments().get(0).getExpression();
     } else {
-      argument = null;
+      argument = hint;
     }
   }
 
@@ -61,6 +61,6 @@ public class ContextHelper implements Context {
 
   @Override
   public List<CoreBinding> getAdditionalBindings(ExpressionTypechecker typechecker) {
-    return meta instanceof UsingMeta ? ((UsingMeta) meta).getNewBindings(argument, typechecker) : context.getAdditionalBindings(typechecker);
+    return (meta instanceof UsingMeta || meta == null) && argument != null ? UsingMeta.getNewBindings(argument, typechecker, meta == null || ((UsingMeta) meta).keepOldContext) : context.getAdditionalBindings(typechecker);
   }
 }

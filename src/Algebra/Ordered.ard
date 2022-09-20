@@ -4,6 +4,7 @@
 \import Algebra.Monoid
 \import Algebra.Ring
 \import Algebra.Semiring
+\import Arith.Nat
 \import Data.Or
 \import Function.Meta
 \import Logic
@@ -91,12 +92,18 @@
 
 \class OrderedAbGroup \extends OrderedAbMonoid, OrderedAddGroup, AbGroup
 
-\class OrderedSemiring \extends Semiring, OrderedAbMonoid
+\class OrderedSemiring \extends Semiring, OrderedAbMonoid {
   | zro<ide : zro < ide
   | <_*_positive-left {x y z : E} : x < y -> z > zro -> x * z < y * z
   | <_*_positive-right {x y z : E} : x > zro -> y < z -> x * y < x * z
   | <_*_negative-left {x y z : E} : x < y -> z < zro -> x * z > y * z
   | <_*_negative-right {x y z : E} : x < zro -> y < z -> x * y > x * z
+
+  \lemma natCoef_< {n m : Nat} (p : n NatSemiring.< m) : natCoef n < natCoef m \elim n, m, p
+    | 0, 1, NatSemiring.zero<suc => rewrite (natCoefZero,natCoefSuc,natCoefZero,zro-left) zro<ide
+    | 0, suc (suc m), NatSemiring.zero<suc => rewrite (natCoefZero,natCoefSuc) $ transport (`< _) (zro-right *> natCoefZero) $ <_+ (natCoef_< NatSemiring.zero<suc) zro<ide
+    | suc n, suc m, NatSemiring.suc<suc p => rewrite (natCoefSuc,natCoefSuc) $ <_+-left ide (natCoef_< p)
+}
 
 \class LinearlyOrderedSemiring \extends OrderedSemiring, LinearOrder {
   | <_+-cancel-left (x : E) {y z : E} : x + y < x + z -> y < z
@@ -109,6 +116,12 @@
       | byLeft b+d<b+c => c<=d (<_+-cancel-left b b+d<b+c)
       | byRight b+c<a+c => a<=b (<_+-cancel-right c b+c<a+c)
     }
+
+  \lemma <=_+-left {a b c d : E} (p : a <= c) (q : b < d) : a + b < c + d
+    => <-transitive-left (<_+-right a q) (<=_+ p <=-refl)
+
+  \lemma <=_+-right {a b c d : E} (p : a < c) (q : b <= d) : a + b < c + d
+    => <-transitive-left (<_+-left b p) (<=_+ <=-refl q)
 
   \lemma <=_*_positive-left {x y z : E} (x<=y : x <= y) (z>=0 : 0 <= z) : x * z <= y * z
     => \case <_*-cancel-right _ _ _ __ \with {
@@ -134,11 +147,28 @@
       | byRight (_,z<y) => y<=z z<y
     }
 
+  \lemma <_+-invert-right {a b c d : E} (p : b + d <= a + c) (q : c < d) : b < a
+    => <_+-cancel-right c $ <-transitive-left (<_+-right b q) p
+
+  \lemma <_+-invert-left {a b c d : E} (p : b + d < a + c) (q : c <= d) : b < a
+    => <_+-cancel-right c $ <-transitive-right (<=_+ <=-refl q) p
+
   \lemma inv-positive (t : Inv {\this}) (p : t > 0) : t.inv > 0
     => \case <_*-cancel-left t 0 t.inv (transport2 (<) (inv zro_*-right) (inv t.inv-right) zro<ide) \with {
       | byLeft q => q.2
       | byRight q => absurd (<-irreflexive (<-transitive p q.1))
     }
+
+  \lemma natCoef>=0 {n : Nat} : zro <= natCoef n \elim n
+    | 0 => rewrite natCoefZero <=-refl
+    | suc n => transport2 (<=) zro-left (inv (natCoefSuc n)) $ <=_+ natCoef>=0 (<_<= zro<ide)
+
+  \lemma natCoef>0 {n : Nat} (p : 0 NatSemiring.< n) : zro < natCoef n \elim n
+    | 0 => \case p
+    | suc n => rewrite natCoefSuc $ transport (`< _) zro-left $ <=_+-left natCoef>=0 zro<ide
+
+  \lemma natCoef_<= {n m : Nat} (p : n NatSemiring.<= m) : natCoef n <= natCoef m
+    => rewrite (inv (<=_exists p), natCoef_+) $ transport (`<= _) zro-right $ <=_+ <=-refl natCoef>=0
 
   \class Dec \extends LinearlyOrderedSemiring, LinearOrder.Dec {
     | <_+-cancel-left x {y} {z} x+y<x+z => \case trichotomy y z \with {

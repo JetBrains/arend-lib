@@ -4,10 +4,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.error.TypecheckingError;
-import org.arend.ext.typechecking.BaseMetaDefinition;
-import org.arend.ext.typechecking.ContextData;
-import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.ext.typechecking.TypedExpression;
+import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ApplyMeta extends BaseMetaDefinition {
+public class ApplyMeta extends BaseMetaDefinition /* implements MetaResolver */ {
   private final StdExtension ext;
 
   public ApplyMeta(StdExtension ext) {
@@ -41,6 +38,24 @@ public class ApplyMeta extends BaseMetaDefinition {
   public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
     return make(arguments, ext.factory);
   }
+
+  /*
+  @Override
+  public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
+    return Utils.resolvePrefixAsInfix(this, resolver, contextData, ext.factory);
+  }
+
+  @Override
+  public @Nullable ConcreteExpression resolveInfix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData, @Nullable ConcreteExpression leftArg, @Nullable ConcreteExpression rightArg) {
+    if (leftArg == null || rightArg == null) return Utils.normalResolve(resolver, contextData, leftArg, rightArg, ext.factory);
+    List<ConcreteArgument> args = new ArrayList<>(contextData.getArguments().size() + 2);
+    args.addAll(contextData.getArguments());
+    args.add(ext.factory.arg(leftArg, true));
+    args.add(ext.factory.arg(rightArg, true));
+    ConcreteExpression result = make(args, ext.factory.withData(contextData.getReferenceExpression().getData()));
+    return result == null ? Utils.normalResolve(resolver, contextData, leftArg, rightArg, ext.factory) : resolver.resolve(result);
+  }
+  */
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {

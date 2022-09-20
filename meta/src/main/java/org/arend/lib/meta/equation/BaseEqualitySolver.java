@@ -123,9 +123,9 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     return SubexprOccurrences.simpleSingletonOccur(factory, subExpr.getType(), eqProof);
   }
 
-  public boolean getUseHypotheses() { return useHypotheses; }
-
-  public void setUseHypotheses(boolean useHypotheses) { this.useHypotheses = useHypotheses; }
+  public void setUseHypotheses(boolean useHypotheses) {
+    this.useHypotheses = useHypotheses;
+  }
 
   // any value whatsoever
   protected ConcreteExpression getDefaultValue() {
@@ -153,17 +153,13 @@ public abstract class BaseEqualitySolver implements EquationSolver {
 
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
-    ArendRef lamParam = factory.local("n");
     List<CoreExpression> valueList = values.getValues();
-    ConcreteClause[] caseClauses = new ConcreteClause[valueList.size() + 1];
-    for (int i = 0; i < valueList.size(); i++) {
-      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(null, valueList.get(i).computeTyped()));
-    }
-    caseClauses[valueList.size()] = factory.clause(singletonList(factory.refPattern(null, null)), getDefaultValue());
 
     ConcreteExpression instanceArg = factory.core(instance);
-    ConcreteExpression dataArg = factory.lam(singletonList(factory.param(singletonList(lamParam), factory.ref(meta.ext.prelude.getNat().getRef()))),
-      factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
+    ConcreteExpression dataArg = factory.ref(meta.ext.prelude.getEmptyArray().getRef());
+    for (int i = valueList.size() - 1; i >= 0; i--) {
+      dataArg = factory.app(factory.ref(meta.ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), dataArg);
+    }
 
     letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(getDataClass(instanceArg, dataArg))));
     return typechecker.typecheck(meta.ext.factory.letExpr(false, false, letClauses, result), null);

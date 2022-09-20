@@ -1,0 +1,155 @@
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring.Solver
+\import Algebra.Semiring
+\import Arith.Nat
+\import Data.Array
+\import Data.Bool
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+
+\data Operation | Less | LessOrEquals | Equals
+
+\class LinearData \extends AlgData {
+  \override R : LinearlyOrderedSemiring
+
+  \func Equation => \Sigma (RingTerm C V) Operation (RingTerm C V)
+
+  \func interpretEq (e : Equation) : \Prop \elim e
+    | (t1, Less, t2) => interpret t1 < interpret t2
+    | (t1, LessOrEquals, t2) => interpret t1 <= interpret t2
+    | (t1, Equals, t2) => interpret t1 = interpret t2
+
+  \lemma interpretEq_<= (e : Equation) (h : interpretEq e) : interpret e.1 <= interpret e.3 \elim e
+    | (t1, Less, t2) => LinearOrder.<_<= h
+    | (t1, LessOrEquals, t2) => h
+    | (t1, Equals, t2) => Preorder.=_<= h
+
+  \func Problem => Array Equation
+
+  \func isConst (t : RingTerm C V) : Bool \elim t
+    | coef c => true
+    | var v => false
+    | :zro => true
+    | :ide => true
+    | :negative t => isConst t
+    | t :+ t1 => isConst t and isConst t1
+    | t :* t1 => isConst t and isConst t1
+
+  \func Cert (n : Nat) => Array Nat n
+
+  \func certSum (l : Array (RingTerm C V)) (c : Cert l.len)
+    => R.BigSum (\lam j => R.natCoef (c j) * interpret (l j))
+
+  \func cert-toTerm (l : Array (RingTerm C V)) (c : Cert l.len) : RingTerm C V \elim l, c
+    | nil, nil => :zro
+    | t :: l, k :: c => coef (natCoef k) :* t :+ cert-toTerm l c
+
+  \func interpretCert (l : Array (RingTerm C V)) (c : Cert l.len)
+    => interpretNF (normalize (cert-toTerm l c))
+
+  \lemma cert-toRingTerm-correct (l : Array (RingTerm C V)) (c : Cert l.len) : AlgData.interpret (cert-toTerm l c) = certSum l c \elim l, c
+    | nil, nil => idp
+    | t :: l, k :: c => pmap2 (+) (pmap (`* _) alg.func-natCoef) (cert-toRingTerm-correct l c)
+
+  \lemma interpretCert_certSum (l : Array (RingTerm C V)) {c : Cert l.len} : interpretCert l c = certSum l c
+    => inv (normalize-consistent (cert-toTerm l c)) *> cert-toRingTerm-correct l c
+
+  \func isLess (o : Operation) : Bool
+    | Less => true
+    | _ => false
+    \where
+      \lemma correct {o : Operation} (p : isLess o = true) : o = Less \elim o
+        | Less => idp
+        | LessOrEquals => \case p
+        | Equals => \case p
+
+  \func isSuc (n : Nat) : Bool
+    | suc _ => true
+    | 0 => false
+    \where
+      \lemma correct {n : Nat} (p : isSuc n = true) : 0 < n \elim n
+        | 0 => \case p
+        | suc n => NatSemiring.zero<suc
+
+  \func hasNegative (p : Problem) (c : Cert p.len) : Bool \elim p, c
+    | nil, nil => false
+    | e :: p, k :: c => isLess e.2 and isSuc k or hasNegative p c
+
+  \func hasNegative-correct (p : Problem) (c : Cert p.len) (q : hasNegative p c = true) : ∃ (j : Fin p.len) (0 < c j) ((p j).2 = Less) \elim p, c
+    | nil, nil => \case q
+    | e :: p, k :: c => \case or.toOr q \with {
+      | byLeft s => inP (0, isSuc.correct (and.toSigma s).2, isLess.correct (and.toSigma s).1)
+      | byRight q' => \have (inP t) => hasNegative-correct p c q'
+                      \in inP (suc t.1, t.2, t.3)
+    }
+
+  \func CorrectCert (p : Problem) => \Sigma (c : Cert p.len) (f : Nat) (interpretCert (map __.1 p) c = interpretCert (:ide :: map __.3 p) (f :: c)) (hasNegative p c or isSuc f = true)
+
+  \lemma certToLeq (p : Problem) (c : CorrectCert p) : certSum (map __.3 p) c.1 <= certSum (map __.1 p) c.1
+    => transport2 (<=) zro-left (inv aux) $ <=_+ (transport (`<= _) ide-right $ <=_*_positive-left natCoef>=0 (LinearOrder.<_<= zro<ide)) <=-refl
+    \where \lemma aux => inv (interpretCert_certSum (map __.1 p)) *> c.3 *> interpretCert_certSum (:ide :: map __.3 p) {c.2 :: c.1}
+
+  \lemma certToLess (p : Problem) (c : CorrectCert p) (q : isSuc c.2 = true) : certSum (map __.3 p) c.1 < certSum (map __.1 p) c.1
+    => transport2 (<) zro-left (inv $ certToLeq.aux p c) $ <=_+-right (transport (`< _) ide-right $ <_*_positive-left (natCoef>0 (isSuc.correct q)) zro<ide) <=-refl
+
+  \lemma solveContrProblem (p : Problem) (c : CorrectCert p) (h : DArray (\lam j => interpretEq (p j))) : Empty
+    => \case or.toOr c.4 \with {
+      | byLeft q => certToLeq p c (aux p c.1 (hasNegative-correct p c.1 q) h)
+      | byRight q => <-irreflexive $ <-transitive-left (certToLess p c q) (aux_<= p c.1 h)
+    }
+    \where {
+      \lemma aux_<= (p : Problem) (c : Cert p.len) (h : ∀ (e : p) (interpretEq e))
+        : certSum (map __.1 p) c <= certSum (map __.3 p) c \elim p, c
+        | nil, nil => <=-refl
+        | e :: p, k :: c => <=_+ (<=_*_positive-right natCoef>=0 (interpretEq_<= e (h 0))) (aux_<= p c (\lam j => h (suc j)))
+
+      \lemma aux (p : Problem) (c : Cert p.len) (cc : ∃ (j : Fin p.len) (0 < c j) ((p j).2 = Less)) (h : ∀ (e : p) (interpretEq e))
+        : certSum (map __.1 p) c < certSum (map __.3 p) c \elim p, c, cc
+        | nil, nil, inP ((),_,_)
+        | e :: p, k :: c, inP (0, k>0, p0=less) => <=_+-right (<_*_positive-right (transport (`< _) natCoefZero $ OrderedSemiring.natCoef_< k>0) (transport (\lam r => interpretEq (e.1,r,e.3)) p0=less (h 0))) (aux_<= p c (\lam j => h (suc j)))
+        | e :: p, k :: c, inP (suc j, cj>0, pj=less) => <=_+-left (<=_*_positive-right natCoef>=0 (interpretEq_<= e (h 0))) (aux p c (inP (j, cj>0, pj=less)) (\lam j => h (suc j)))
+    }
+
+  \lemma solve<=Problem (p : Problem) (t1 t2 : RingTerm C V) (c : CorrectCert (toContr p t1 t2))
+                        (h : DArray (\lam j => interpretEq (p j))) : interpret t1 <= interpret t2
+    => \lam e => solveContrProblem (toContr p t1 t2) c (e :: h)
+    \where
+      \func toContr (p : Problem) (t1 t2 : RingTerm C V) : Problem
+        => (t2,Less,t1) :: p
+
+  \lemma solve=Problem (p : Problem) (t1 t2 : RingTerm C V) (c1 : CorrectCert (toContr1 p t1 t2)) (c2 : CorrectCert (toContr2 p t1 t2))
+                       (h : DArray (\lam j => interpretEq (p j))) : interpret t1 = interpret t2
+    => <-connectedness (\lam e => solveContrProblem (toContr1 p t1 t2) c1 (e :: h))
+                       (\lam e => solveContrProblem (toContr2 p t1 t2) c2 (e :: h))
+    \where {
+      \func toContr1 (p : Problem) (t1 t2 : RingTerm C V) : Problem
+        => (t1,Less,t2) :: p
+
+      \func toContr2 (p : Problem) (t1 t2 : RingTerm C V) : Problem
+        => (t2,Less,t1) :: p
+    }
+
+  \lemma solve<Problem (p : Problem) (t1 t2 : RingTerm C V) (c : CorrectCert (toContr p t1 t2))
+                       (h : DArray (\lam j => interpretEq (p j))) : interpret t1 < interpret t2
+    => \case <_*-cancel-left (natCoef (c.1 0)) (interpret t1) (interpret t2) (\case or.toOr c.4 \with {
+        | byLeft q => <_+-invert-right (certToLeq (toContr p t1 t2) c) $ solveContrProblem.aux p (\lam j => c.1 (suc j)) (hasNegative-correct p _ q) h
+        | byRight q => <_+-invert-left (certToLess (toContr p t1 t2) c q) (solveContrProblem.aux_<= p (tail c.1) h)
+      }) \with {
+         | byLeft r => r.2
+         | byRight r => absurd $ <-irreflexive $ <-transitive-left r.1 natCoef>=0
+       }
+    \where
+      \func toContr (p : Problem) (t1 t2 : RingTerm C V) : Problem => (t2,LessOrEquals,t1) :: p
+} \where \open LinearlyOrderedSemiring
+
+\class LinearSemiringData \extends LinearData, SemiringData
+
+\class LinearRingData \extends LinearData, RingData {
+  \override R : OrderedRing
+}

@@ -17,10 +17,8 @@ import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.MetaRef;
-import org.arend.ext.typechecking.BaseMetaDefinition;
-import org.arend.ext.typechecking.ExpressionTypechecker;
-import org.arend.ext.typechecking.MetaDefinition;
-import org.arend.ext.typechecking.TypedExpression;
+import org.arend.ext.typechecking.*;
+import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 
 import java.math.BigInteger;
@@ -223,14 +221,41 @@ public class Utils {
   }
 
   public static TypedExpression findInstance(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
-    CoreExpression expr = classifyingExpr.normalize(NormalizationMode.WHNF);
-    if (expr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) expr).getDefinition() == classifyingField) {
-      TypedExpression result = ((CoreFieldCallExpression) expr).getArgument().computeTyped();
+    if (classifyingExpr instanceof CoreFieldCallExpression && ((CoreFieldCallExpression) classifyingExpr).getDefinition() == classifyingField) {
+      TypedExpression result = ((CoreFieldCallExpression) classifyingExpr).getArgument().computeTyped();
       CoreExpression type = result.getType().normalize(NormalizationMode.WHNF);
       return type instanceof CoreClassCallExpression && parameters.testClass(((CoreClassCallExpression) type).getDefinition()) ? result : null;
     } else {
-      return typechecker.findInstance(parameters, expr, null, marker);
+      return typechecker.findInstance(parameters, classifyingExpr, null, marker);
     }
+  }
+
+  public static CoreClassCallExpression getClassCall(CoreExpression type) {
+    CoreExpression instanceType = type.normalize(NormalizationMode.WHNF);
+    return instanceType instanceof CoreClassCallExpression ? (CoreClassCallExpression) instanceType : null;
+  }
+
+  public static Pair<TypedExpression, CoreClassCallExpression> findInstanceWithClassCall(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
+    if (classifyingExpr instanceof CoreFieldCallExpression) {
+      if (((CoreFieldCallExpression) classifyingExpr).getDefinition() == classifyingField) {
+        TypedExpression instance = ((CoreFieldCallExpression) classifyingExpr).getArgument().computeTyped();
+        CoreClassCallExpression classCall = getClassCall(instance.getType());
+        if (classCall != null && parameters.testClass(classCall.getDefinition())) {
+          return new Pair<>(instance, classCall);
+        }
+      }
+      return null;
+    }
+
+    TypedExpression instance = typechecker.findInstance(parameters, classifyingExpr, null, marker);
+    if (instance != null) {
+      CoreClassCallExpression classCall = getClassCall(instance.getType());
+      if (classCall != null) {
+        return new Pair<>(instance, classCall);
+      }
+    }
+
+    return null;
   }
 
   public static boolean safeCompare(ExpressionTypechecker typechecker, UncheckedExpression expr1, UncheckedExpression expr2, CMP cmp, ConcreteSourceNode marker, boolean allowEquations, boolean normalize) {
@@ -361,6 +386,44 @@ public class Utils {
       return factory.param(refs, typedExpr.getType());
     } else {
       return factory.param(Collections.emptyList(), expr);
+    }
+  }
+
+  public static ConcreteExpression normalResolve(ExpressionResolver resolver, ContextData contextData, ConcreteExpression leftArg, ConcreteExpression rightArg, ConcreteFactory factory) {
+    factory = factory.withData(contextData.getMarker());
+    List<ConcreteArgument> args = new ArrayList<>(contextData.getArguments().size());
+    for (ConcreteArgument argument : contextData.getArguments()) {
+      args.add(factory.arg(resolver.resolve(argument.getExpression()), argument.isExplicit()));
+    }
+    ConcreteExpression result = factory.app(contextData.getReferenceExpression(), args);
+    if (leftArg != null) {
+      result = factory.app(result, true, resolver.resolve(leftArg));
+    }
+    if (rightArg != null) {
+      rightArg = resolver.resolve(rightArg);
+      if (leftArg == null) {
+        ArendRef ref = factory.local("p0");
+        result = factory.lam(Collections.singletonList(factory.param(ref)), factory.app(result, true, factory.ref(ref), rightArg));
+      } else {
+        result = factory.app(result, true, rightArg);
+      }
+    }
+    return result;
+  }
+
+  public static ConcreteExpression resolvePrefixAsInfix(MetaResolver metaResolver, ExpressionResolver resolver, ContextData contextData, ConcreteFactory factory) {
+    List<? extends ConcreteArgument> args = contextData.getArguments();
+    int implicitArgs = 0;
+    for (ConcreteArgument arg : args) {
+      if (!arg.isExplicit()) {
+        implicitArgs++;
+      }
+    }
+    if (args.size() <= implicitArgs + 2 && (args.size() <= implicitArgs || args.get(implicitArgs).isExplicit()) && (args.size() <= implicitArgs + 1 || args.get(implicitArgs + 1).isExplicit())) {
+      contextData.setArguments(args.subList(0, implicitArgs));
+      return metaResolver.resolveInfix(resolver, contextData, args.size() > implicitArgs ? args.get(implicitArgs).getExpression() : null, args.size() > implicitArgs + 1 ? args.get(implicitArgs + 1).getExpression() : null);
+    } else {
+      return normalResolve(resolver, contextData, null, null, factory);
     }
   }
 }
