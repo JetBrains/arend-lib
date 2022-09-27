@@ -62,6 +62,11 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Logic") public CoreDataDefinition TruncP;
   @Dependency(module = "Logic") public CoreFunctionDefinition propExt;
 
+  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
+  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
+  @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
+  @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
+
   public final EquationMeta equationMeta = new EquationMeta(this);
   public final LinearSolverMeta linearSolverMeta = new LinearSolverMeta(this);
   public final ContradictionMeta contradictionMeta = new ContradictionMeta(this);
@@ -114,6 +119,8 @@ public class StdExtension implements ArendExtension {
     provider.getDefinition(ModulePath.fromString("Arith.Int"), new LongName("IntRing"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalProduct"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalList"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Algebra.Domain.Euclidean"), new LongName("NatEuclidean"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Algebra.Monoid.GCD"), LongName.fromString("DivQuotient.DivQuotientGCDMonoid"), CoreFunctionDefinition.class);
     provider.load(equationMeta);
     provider.load(linearSolverMeta);
   }

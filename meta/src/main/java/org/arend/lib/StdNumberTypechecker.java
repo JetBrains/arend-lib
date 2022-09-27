@@ -42,7 +42,7 @@ public class StdNumberTypechecker implements LiteralTypechecker {
         instance = null;
         generate = true;
       } else {
-        CoreClassDefinition classDef = number.equals(BigInteger.ZERO) ? ext.equationMeta.AddPointed : number.equals(BigInteger.ONE) ? ext.equationMeta.Pointed : number.signum() == -1 ? ext.equationMeta.Ring : ext.equationMeta.Semiring;
+        CoreClassDefinition classDef = number.equals(BigInteger.ZERO) ? ext.AddPointed : number.equals(BigInteger.ONE) ? ext.Pointed : number.signum() == -1 ? ext.equationMeta.Ring : ext.equationMeta.Semiring;
         instance = classDef == null ? null : Utils.findInstance(new SubclassSearchParameters(classDef), ext.carrier, expectedType, typechecker, contextData.getMarker());
         generate = instance != null;
       }
@@ -51,7 +51,7 @@ public class StdNumberTypechecker implements LiteralTypechecker {
         ConcreteExpression cExpr;
         ConcreteExpression cInstance = instance == null ? null : factory.core(null, instance);
         if (number.equals(BigInteger.ZERO) || number.equals(BigInteger.ONE)) {
-          cExpr = factory.ref((number.equals(BigInteger.ZERO) ? ext.equationMeta.zro : ext.equationMeta.ide).getRef());
+          cExpr = factory.ref((number.equals(BigInteger.ZERO) ? ext.zro : ext.ide).getRef());
           if (cInstance != null) {
             cExpr = factory.app(cExpr, false, Collections.singletonList(cInstance));
           }

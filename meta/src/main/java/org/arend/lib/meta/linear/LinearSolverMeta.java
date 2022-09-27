@@ -24,6 +24,7 @@ public class LinearSolverMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Linear.Solver", name = "Operation.Equals")              CoreConstructor equals;
   @Dependency(module = "Algebra.Linear.Solver")                                         CoreClassDefinition LinearSemiringData;
   @Dependency(module = "Algebra.Linear.Solver")                                         CoreClassDefinition LinearRingData;
+  @Dependency(module = "Algebra.Linear.Solver")                                         CoreClassDefinition LinearRatData;
 
   public LinearSolverMeta(StdExtension ext) {
     this.ext = ext;

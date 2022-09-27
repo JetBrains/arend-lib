@@ -2,7 +2,6 @@ package org.arend.lib.meta.simplify;
 
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
-import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -20,7 +19,7 @@ public class MultiplicationByZeroRule extends LocalSimplificationRuleBase {
   public MultiplicationByZeroRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker) {
     super(instance, classCall, ext, refExpr, typechecker);
     this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.mul, typechecker, factory, refExpr, ext, 2);
-    this.zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.zro, typechecker, factory, refExpr, ext, 0);
+    this.zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.zro, typechecker, factory, refExpr, ext, 0);
   }
 
   @Override

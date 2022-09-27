@@ -11,6 +11,7 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.ListErrorReporter;
 import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.util.Maybe;
@@ -23,11 +24,6 @@ import java.util.*;
 
 public class EquationMeta extends BaseMetaDefinition {
   public final StdExtension ext;
-
-  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
-  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
-  @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
-  @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
 
   @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition Monoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition CMonoid;
@@ -142,6 +138,10 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Equiv", name = "Map.B")                  CoreClassField equivRight;
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition idEquiv;
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition transEquiv;
+
+  @Dependency(module = "Arith.Rat", name = "Rat.nom")   public CoreClassField nom;
+  @Dependency(module = "Arith.Rat", name = "Rat.denom") public CoreClassField denom;
+  @Dependency(module = "Arith.Rat")                     public ArendRef RatField;
 
   public static class TransitivityInstanceCache {
     public final CoreFunctionDefinition instance;

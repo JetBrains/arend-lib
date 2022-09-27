@@ -12,6 +12,7 @@
 \import Arith.Int
 \import Arith.Nat
 \import Algebra.Semiring
+\import Arith.Rat
 \import Data.Bool
 \import Data.List
 \import Function.Meta
@@ -385,24 +386,35 @@
     => JoinSemilattice.join_<= (<=-transitive meet-right (JoinSemilattice.join_<=' p))
 }
 
-\class RingData \extends AlgData {
-  | C => IntRing
-  | S => IntRing
+\class BaseRingData \extends AlgData {
+  \override C : Ring
   \override R : Ring
-  | alg => intMap
-  | alg-comm => intComm
+  \override alg : RingHom C R
   \default mData => \new Data
   | pnegative => negative
   | negate => negate
   \default interpretNF_negate (l : List (\Sigma (List V) C)) : negative (interpretNF l) = interpretNF (negate l) \elim l {
     | nil => AddGroup.negative_zro
-    | :: a l => repeat {2} (rewrite BaseData.cons) (AddGroup.negative_+ *> +-comm *> pmap2 (+) (inv (pmap (`* _) intMap.func-negative *> Ring.negative_*-left)) (interpretNF_negate l))
+    | :: a l => repeat {2} (rewrite BaseData.cons) (AddGroup.negative_+ *> +-comm *> pmap2 (+) (inv (pmap (`* _) (AddGroupHom.func-negative {alg}) *> Ring.negative_*-left)) (interpretNF_negate l))
   }
 } \where {
-  \func negate {V : \Type} (l : List (\Sigma (List V) Int)) : List (\Sigma (List V) Int) \elim l
+  \func negate {C : Ring} {V : \Type} (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l
     | nil => nil
     | :: (m,c) l => (m, negative c) :: negate l
 }
+
+\class RingData \extends BaseRingData
+  | C => IntRing
+  | S => IntRing
+  | alg => intMap
+  | alg-comm => intComm
+
+\class RatData \extends BaseRingData
+  | C => RatField
+  | S => RatField
+  | R => RatField
+  | alg => RingCat.id RatField
+  | alg-comm x y => RatField.*-comm
 
 \class CRingData \extends CAlgData, RingData {
   \override R : CRing

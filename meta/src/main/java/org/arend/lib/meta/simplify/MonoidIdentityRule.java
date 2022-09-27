@@ -23,12 +23,12 @@ public class MonoidIdentityRule extends LocalSimplificationRuleBase {
     super(instance, classCall, ext, refExpr, typechecker);
     if (isCommutative) {
       this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.plus, typechecker, factory, refExpr, ext, 2);
-      this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.zro, typechecker, factory, refExpr, ext, 0);
+      this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.zro, typechecker, factory, refExpr, ext, 0);
       this.ideLeft = ext.equationMeta.addMonZroLeft;
       this.ideRight = ext.equationMeta.addMonZroRight;
     } else {
       this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.mul, typechecker, factory, refExpr, ext, 2);
-      this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.ide, typechecker, factory, refExpr, ext, 0);
+      this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.ide, typechecker, factory, refExpr, ext, 0);
       this.ideLeft = ext.equationMeta.ideLeft;
       this.ideRight = ext.equationMeta.ideRight;
     }
