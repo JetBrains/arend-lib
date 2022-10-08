@@ -154,7 +154,7 @@ public class RingSolver extends BaseEqualitySolver {
   private void typeToRule(CoreBinding binding, List<Equality> rules) {
     if (binding == null) return;
     CoreFunCallExpression eq = Utils.toEquality(binding.getTypeExpr(), null, null);
-    if (eq == null || !typechecker.compare(eq.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true)) return;
+    if (eq == null || !typechecker.compare(eq.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true, false)) return;
     CompiledTerm lhsTerm = compileTerm(eq.getDefCallArguments().get(1));
     CompiledTerm rhsTerm = compileTerm(eq.getDefCallArguments().get(2));
     if (isCommutative) {

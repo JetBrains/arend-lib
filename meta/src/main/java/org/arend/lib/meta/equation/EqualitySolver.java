@@ -101,7 +101,7 @@ public class EqualitySolver extends BaseEqualitySolver {
       ContextHelper helper = new ContextHelper(hint);
       for (CoreBinding binding : helper.getAllBindings(typechecker)) {
         CoreFunCallExpression equality = binding.getTypeExpr().normalize(NormalizationMode.WHNF).toEquality();
-        if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), valuesType, CMP.EQ, refExpr, false, true)) {
+        if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), valuesType, CMP.EQ, refExpr, false, true, false)) {
           closure.addRelation(equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2), factory.ref(binding));
         }
       }

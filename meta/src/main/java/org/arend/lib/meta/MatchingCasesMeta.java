@@ -547,7 +547,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             CoreExpression resultExpr = resultDataList.get(i).expression;
             boolean ok = expr == resultExpr;
             if (!ok) {
-              if (tc.compare(resultExpr.computeType(), exprType, CMP.EQ, marker, false, true) && tc.compare(resultExpr, expr, CMP.EQ, marker, false, true)) {
+              if (tc.compare(resultExpr.computeType(), exprType, CMP.EQ, marker, false, true, false) && tc.compare(resultExpr, expr, CMP.EQ, marker, false, true, true)) {
                 tc.updateSavedState();
                 ok = true;
               } else {
@@ -564,7 +564,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             List<TypedExpression> matchedArgs = dataList.get(i).matchedArgs;
             for (int j = 0; j < matchedArgs.size(); j++) {
               TypedExpression arg = matchedArgs.get(j);
-              if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true)) {
+              if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true, false) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true, true)) {
                 tc.updateSavedState();
                 var pair = new Pair<>(i, j);
                 indicesToAbstract.add(pair);
@@ -1029,7 +1029,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
               List<TypedExpression> matchedArgs = dataList.get(i1).matchedArgs;
               for (int j1 = 0; j1 < matchedArgs.size(); j1++) {
                 TypedExpression arg = matchedArgs.get(j1);
-                if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true)) {
+                if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true, false) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true, true)) {
                   tc.updateSavedState();
                   refs.add(refLists.get(i1).get(j1));
                   exprs.add(expr);

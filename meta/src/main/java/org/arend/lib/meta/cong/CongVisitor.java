@@ -69,7 +69,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   @Override
   protected Result visit(CoreExpression expr1, CongVisitor.ParamType param) {
     CoreExpression other = param.other.getUnderlyingExpression();
-    if (typechecker.compare(expr1, other, CMP.EQ, marker, false, true)) {
+    if (typechecker.compare(expr1, other, CMP.EQ, marker, false, true, true)) {
       return new Result(null);
     } else {
       if (index++ >= arguments.size()) {
@@ -357,7 +357,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
       expr2 = ((CoreAppExpression) expr2).getFunction();
     }
 
-    if (!typechecker.compare(expr1, expr2, CMP.EQ, marker, false, true)) {
+    if (!typechecker.compare(expr1, expr2, CMP.EQ, marker, false, true, true)) {
       return visit(expr, parameter);
     }
 
@@ -390,7 +390,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
       return visit(expr, parameter);
     }
     CoreArrayExpression array2 = (CoreArrayExpression) other;
-    if (!(expr.getElements().size() == array2.getElements().size() && (expr.getTail() == null) == (array2.getTail() == null) && typechecker.compare(expr.getElementsType(), array2.getElementsType(), CMP.EQ, marker, false, true))) {
+    if (!(expr.getElements().size() == array2.getElements().size() && (expr.getTail() == null) == (array2.getTail() == null) && typechecker.compare(expr.getElementsType(), array2.getElementsType(), CMP.EQ, marker, false, true, false))) {
       return visit(expr, parameter);
     }
 

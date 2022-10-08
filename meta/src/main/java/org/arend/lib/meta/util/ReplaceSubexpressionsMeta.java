@@ -38,7 +38,7 @@ public class ReplaceSubexpressionsMeta implements MetaDefinition {
               ok = true;
             }
           } else {
-            if (tc.compare(pair.proj1.getType(), expr.computeType(), CMP.LE, marker, false, true) && tc.compare(expr, pair.proj1.getExpression(), CMP.EQ, marker, false, true)) {
+            if (tc.compare(pair.proj1.getType(), expr.computeType(), CMP.LE, marker, false, true, false) && tc.compare(expr, pair.proj1.getExpression(), CMP.EQ, marker, false, true, true)) {
               tc.updateSavedState();
               ok = true;
             } else {
