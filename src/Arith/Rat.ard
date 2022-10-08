@@ -26,28 +26,35 @@
 \open EuclideanSemiringData
 \open Monoid(LDiv)
 
-\record Rat (nom : Int) (denom : Nat) (denom/=0 : Not (denom = 0)) (reduced : gcd (iabs nom) denom = 1)
+\data Rat
+  | rat (nom : Int) (denom : Nat) (denom /= 0) (gcd (iabs nom) denom = 1)
   \where {
     \func AltRat : CRing => LocRing subset
       \where \func subset : MSubset => localization-isOrderedField.positiveSubset IntRing
   }
 
+\func ratNom (x : Rat) : Int
+  | rat n _ _ _ => n
+
+\func ratDenom (x : Rat) : Nat
+  | rat _ d _ _ => d
+
+\func ratDenom/=0 (x : Rat) : ratDenom x /= 0
+  | rat _ _ p _ => p
+
+\func ratReduced (x : Rat) : gcd (iabs (ratNom x)) (ratDenom x) = 1
+  | rat _ _ _ p => p
+
 \open Rat(AltRat)
 
-\func rat (nom : Int) (denom : Nat) (denom/=0 : Not (denom = 0)) : Rat \elim nom
-  | 0 => \new Rat 0 1 (\case __) idp
+\func makeRat (nom : Int) (denom : Nat) (denom/=0 : Not (denom = 0)) : Rat \elim nom
+  | 0 => rat 0 1 (\case __) idp
   | pos (suc _ \as nom) =>
     \let! (a,b) => reduce nom denom
-    \in \new Rat a b {
-      | denom/=0 => reduce2/=0 nom denom denom/=0
-      | reduced => gcd_reduced nom denom denom/=0
-    }
+    \in rat a b (reduce2/=0 nom denom denom/=0) (gcd_reduced nom denom denom/=0)
   | neg (suc _ \as nom) =>
     \let! (a,b) => reduce nom denom
-    \in \new Rat (neg a) b {
-      | denom/=0 => reduce2/=0 nom denom denom/=0
-      | reduced => gcd_reduced nom denom denom/=0
-    }
+    \in rat (neg a) b (reduce2/=0 nom denom denom/=0) (gcd_reduced nom denom denom/=0)
   \where {
     \lemma reduce1/=0 {a b : Nat} : Not ((reduce (suc a) b).1 = 0)
       => NatSemiring.nonZero-div (\case __) (LDiv.swap (GCD.gcd|val1 {gcd-isGCD (suc a) b}))
@@ -61,32 +68,33 @@
     \lemma gcd_reduced (a b : Nat) (b/=0 : Not (b = 0)) : gcd (reduce a b).1 (reduce a b).2 = 1
       => nat_gcd-isUnique (gcd-isGCD (reduce a b).1 (reduce a b).2) $ gcd_reduced=1.aux (gcd-isGCD a b) $ NatSemiring.cancel_*-left $ \lam gcd=0 => b/=0 $ div0 $ transport (LDiv __ b) gcd=0 $ GCD.gcd|val2 {gcd-isGCD a b}
 
-    \lemma signum_nom {nom : Int} {denom : Nat} {denom/=0 : Not (denom = 0)} : signum (Rat.nom {rat nom denom denom/=0}) = signum nom \elim nom
+    \lemma signum_nom {nom : Int} {denom : Nat} {denom/=0 : Not (denom = 0)} : signum (ratNom (makeRat nom denom denom/=0)) = signum nom \elim nom
       | 0 => idp
       | pos (suc _) => signum.signum_pos reduce1/=0
       | neg (suc _) => signum.signum_neg reduce1/=0
 
-    \lemma rat_1 {a : Int} : rat a 1 (\case __) = \new Rat a 1 (\case __) (natUnit (reduce*gcd-right (iabs a) 1))
+    \lemma rat_1 {a : Int} : makeRat a 1 (\case __) = rat a 1 (\case __) (natUnit (reduce*gcd-right (iabs a) 1))
       => rat_alt-inj rat_alt_rat.alt
   }
 
 \func rat_alt (x : Rat) : AltRat
-  => in~ (x.nom, x.denom, signum.signum_pos x.denom/=0)
+  => in~ (ratNom x, ratDenom x, signum.signum_pos (ratDenom/=0 x))
 
 \lemma rat_alt-inj {x y : Rat} (p : rat_alt x = rat_alt y) : x = y
   => \have | x0*y1=y0*x1 => loc_unequals_domain (localization-isOrderedField.positiveSubset IntRing) (\lam x c x=0 => \case rewrite x=0 c) p
            | |x0|*y1=|y0|*x1 => inv iabs.*-comm *> pmap iabs x0*y1=y0*x1 *> iabs.*-comm
-           | sgn[x0]=sgn[y0] => inv ide-right *> inv (pmap (_ *) (signum.signum_pos y.denom/=0)) *> inv signum.*-comm *> pmap signum x0*y1=y0*x1 *> signum.*-comm *> pmap (_ *) (signum.signum_pos x.denom/=0) *> ide-right
-     \in ext (signum_iabs_eq sgn[x0]=sgn[y0] $
+           | sgn[x0]=sgn[y0] => inv ide-right *> inv (pmap (_ *) (signum.signum_pos $ ratDenom/=0 y)) *> inv signum.*-comm *> pmap signum x0*y1=y0*x1 *> signum.*-comm *> pmap (_ *) (signum.signum_pos $ ratDenom/=0 x) *> ide-right
+     \in {?} {- ext (signum_iabs_eq sgn[x0]=sgn[y0] $
         natAssociates-areEqual (nat_gcd_*_div (\new LDiv { | inv => y.denom | inv-right => |x0|*y1=|y0|*x1 *> *-comm }) x.reduced)
                                (nat_gcd_*_div (\new LDiv { | inv => x.denom | inv-right => inv |x0|*y1=|y0|*x1 *> *-comm }) y.reduced),
         natAssociates-areEqual (nat_gcd_*_div (\new LDiv { | inv => iabs y.nom | inv-right => *-comm *> inv |x0|*y1=|y0|*x1 }) (nat_gcd-comm x.denom (iabs x.nom) *> x.reduced))
                                (nat_gcd_*_div (\new LDiv { | inv => iabs x.nom | inv-right => *-comm *> |x0|*y1=|y0|*x1 }) (nat_gcd-comm y.denom (iabs y.nom) *> y.reduced)))
+ -}
 
-\lemma rat_alt_rat {nom : Int} {denom : Nat} {denom/=0 : Not (denom = 0)} {p : signum (pos denom) = 1} : rat_alt (rat nom denom denom/=0) = in~ (nom, denom, p)
+\lemma rat_alt_rat {nom : Int} {denom : Nat} {denom/=0 : Not (denom = 0)} {p : signum (pos denom) = 1} : rat_alt (makeRat nom denom denom/=0) = in~ (nom, denom, p)
   => LocRing.equals1 AltRat.subset aux
   \where {
-    \lemma aux {a : Int} {b : Nat} {b/=0 : Not (b = 0)} : Rat.nom {rat a b b/=0} * b = a * Rat.denom {rat a b b/=0} \elim a
+    \lemma aux {a : Int} {b : Nat} {b/=0 : Not (b = 0)} : ratNom (makeRat a b b/=0) * b = a * ratDenom (makeRat a b b/=0) \elim a
       | 0 => IntRing.zro_*-left {b}
       | pos (suc n) => unfold_let (pmap pos (aux2 b/=0))
       | neg (suc n) => unfold_let (IntRing.negative_*-left {(reduce (suc n) b).1} *> pmap neg (aux2 b/=0))
@@ -95,98 +103,104 @@
       => NatSemiring.cancel_*-left (Semiring.nonZero-div b/=0 (GCD.gcd|val2 {gcd-isGCD a b}))
           (inv *-assoc *> pmap (`* b) (LDiv.inv-right {GCD.gcd|val1 {gcd-isGCD a b}}) *> pmap (a *) (inv (LDiv.inv-right {GCD.gcd|val2 {gcd-isGCD a b}}) *> *-comm) *> inv *-assoc *> *-comm)
 
-    \lemma alt : rat_alt (rat nom denom denom/=0) = in~ (nom, denom, signum.signum_pos denom/=0)
+    \lemma alt : rat_alt (makeRat nom denom denom/=0) = in~ (nom, denom, signum.signum_pos denom/=0)
       => rat_alt_rat
   }
 
 \instance RatField : DiscreteOrderedField Rat
-  | zro => \new Rat 0 1 (\case __) idp
-  | + (x y : Rat) : Rat => \new rat (x.nom IntRing.* y.denom IntRing.+ y.nom IntRing.* x.denom) (x.denom Nat.* y.denom) (productNonZero x.denom/=0 y.denom/=0)
-  | zro-left {x : Rat} => rat_alt-inj $ rat_alt_rat *> AltRat.zro-left {rat_alt x}
-  | +-assoc {x y z : Rat} => rat_alt-inj $ rat_alt_rat *> pmap (__ AltRat.+ rat_alt z) rat_alt_rat *> AltRat.+-assoc {rat_alt x} {rat_alt y} {rat_alt z} *> inv (pmap (rat_alt x AltRat.+) rat_alt_rat) *> inv rat_alt_rat
-  | +-comm {x y : Rat} => rat_alt-inj $ rat_alt_rat *> AltRat.+-comm {rat_alt x} {rat_alt y} *> inv rat_alt_rat
-  | ide => \new Rat 1 1 (\case __) idp
-  | * (x y : Rat) : Rat => \new rat (x.nom IntRing.* y.nom) (x.denom Nat.* y.denom) (productNonZero x.denom/=0 y.denom/=0)
+  | zro => rat 0 1 (\case __) idp
+  | + (x y : Rat) : Rat \with {
+    | rat xNom xDenom xDenom/=0 _, rat yNom yDenom yDenom/=0 _ => makeRat (xNom IntRing.* yDenom IntRing.+ yNom IntRing.* xDenom) (xDenom Nat.* yDenom) (productNonZero xDenom/=0 yDenom/=0)
+  }
+  | zro-left {x : Rat} : rat 0 1 (\case __) idp + x = x \elim x {
+    | rat _ _ _ _ \as x => rat_alt-inj $ rat_alt_rat *> AltRat.zro-left {rat_alt x}
+  }
+  | +-assoc {x y z : Rat} : (x + y) + z = x + (y + z) \elim x, y, z {
+    rat xNom xDenom xDenom/=0 _ \as x, rat yNom yDenom yDenom/=0 _ \as y, rat zNom zDenom zDenom/=0 _ \as z => rat_alt-inj $ {?} -- rat_alt_rat *> pmap (__ AltRat.+ rat_alt z) rat_alt_rat *> AltRat.+-assoc {rat_alt x} {rat_alt y} {rat_alt z} *> inv (pmap (rat_alt x AltRat.+) rat_alt_rat) *> inv rat_alt_rat
+  }
+  | +-comm {x y : Rat} => {?} -- rat_alt-inj $ rat_alt_rat *> AltRat.+-comm {rat_alt x} {rat_alt y} *> inv rat_alt_rat
+  | ide => rat 1 1 (\case __) idp
+  | * (x y : Rat) : Rat => makeRat (ratNom x IntRing.* ratNom y) (ratDenom x Nat.* ratDenom y) (productNonZero (ratDenom/=0 x) (ratDenom/=0 y))
   | ide-left {x : Rat} => rat_alt-inj $ rat_alt_rat *> AltRat.ide-left {rat_alt x}
   | *-assoc {x y z : Rat} => rat_alt-inj $ rat_alt_rat *> pmap (__ AltRat.* rat_alt z) rat_alt_rat *> AltRat.*-assoc {rat_alt x} {rat_alt y} {rat_alt z} *> inv (pmap (rat_alt x AltRat.*) rat_alt_rat) *> inv rat_alt_rat
-  | ldistr {x y z : Rat} => rat_alt-inj $ rat_alt_rat *> pmap (rat_alt x AltRat.*) rat_alt_rat *> AltRat.ldistr {rat_alt x} {rat_alt y} {rat_alt z} *> inv (pmap2 (AltRat.+) rat_alt_rat rat_alt_rat) *> inv rat_alt_rat
-  | negative (x : Rat) : Rat => \new Rat (IntRing.negative x.nom) x.denom x.denom/=0 (rewrite iabs.negative-comm x.reduced)
-  | negative-left {x : Rat} => rat_alt-inj $ rat_alt_rat *> AltRat.negative-left {rat_alt x} *> LocRing.equals1 AltRat.subset idp
+  | ldistr {x y z : Rat} => {?} -- rat_alt-inj $ rat_alt_rat *> pmap (rat_alt x AltRat.*) rat_alt_rat *> AltRat.ldistr {rat_alt x} {rat_alt y} {rat_alt z} *> inv (pmap2 (AltRat.+) rat_alt_rat rat_alt_rat) *> inv rat_alt_rat
+  | negative (x : Rat) : Rat => rat (IntRing.negative (ratNom x)) (ratDenom x) (ratDenom/=0 x) (rewrite iabs.negative-comm (ratReduced x))
+  | negative-left {x : Rat} => {?} -- rat_alt-inj $ rat_alt_rat *> AltRat.negative-left {rat_alt x} *> LocRing.equals1 AltRat.subset idp
   | *-comm {x y : Rat} => rat_alt-inj $ rat_alt_rat *> AltRat.*-comm {rat_alt x} {rat_alt y} *> inv rat_alt_rat
-  | isPos (x : Rat) => isPos x.nom
+  | isPos x => isPos (ratNom x)
   | zro/>0 => \case __
-  | positive_+ {x y : Rat} x>0 y>0 => rat.signum_nom *> IntRing.positive_+ (IntRing.positive_* x>0 (signum.signum_pos y.denom/=0)) (IntRing.positive_* y>0 (signum.signum_pos x.denom/=0))
+  | positive_+ {x y : Rat} x>0 y>0 => {?} -- makeRat.signum_nom *> IntRing.positive_+ (IntRing.positive_* x>0 (signum.signum_pos (ratDenom/=0 y))) (IntRing.positive_* y>0 (signum.signum_pos (ratDenom/=0 x)))
   | ide>zro => idp
-  | positive_* x>0 y>0 => rat.signum_nom *> IntRing.positive_* x>0 y>0
+  | positive_* x>0 y>0 => makeRat.signum_nom *> IntRing.positive_* x>0 y>0
   | finv (x : Rat) : Rat \with {
-    | (0, _, _, _) => \new Rat 0 1 (\case __) idp
-    | (pos (suc n), b, b/=0, r) => \new Rat (pos b) (suc n) (\case __) (nat_gcd-comm b (suc n) *> r)
-    | (neg (suc n), b, b/=0, r) => \new Rat (neg b) (suc n) (\case __) (nat_gcd-comm b (suc n) *> r)
+    | rat 0 _ _ _ => rat 0 1 (\case __) idp
+    | rat (pos (suc n)) b b/=0 r => rat (pos b) (suc n) (\case __) (nat_gcd-comm b (suc n) *> r)
+    | rat (neg (suc n)) b b/=0 r => rat (neg b) (suc n) (\case __) (nat_gcd-comm b (suc n) *> r)
   }
   | finv_zro => idp
   | id_finv {x : Rat} x/=0 =>
-    \have t : x.nom IntRing.* Rat.nom {finv x} = x.denom Nat.* Rat.denom {finv x} => \case \elim x, \elim x/=0 \with {
-      | (0, b, _, r), x/=0 => absurd (x/=0 (rat_alt-inj (LocRing.equals1 AltRat.subset (Semiring.zro_*-left *> inv Semiring.zro_*-left))))
-      | (pos (suc n), b, b/=0, reduced), _ => pmap pos *-comm
-      | (neg (suc n), b, b/=0, reduced), _ => pmap pos *-comm
+    \have t : ratNom x IntRing.* ratNom (finv x) = ratDenom x Nat.* ratDenom (finv x) => \case \elim x, \elim x/=0 \with {
+      | rat 0 b _ r, x/=0 => absurd (x/=0 (rat_alt-inj (LocRing.equals1 AltRat.subset (Semiring.zro_*-left *> inv Semiring.zro_*-left))))
+      | rat (pos (suc n)) b b/=0 reduced, _ => pmap pos *-comm
+      | rat (neg (suc n)) b b/=0 reduced, _ => pmap pos *-comm
     }
     \in rat_alt-inj (rat_alt_rat.alt *> LocRing.equals1 AltRat.subset (ide-right *> t *> inv ide-left))
-  | decideEq (x y : Rat) => \case decideEq x.nom y.nom, decideEq x.denom y.denom \with {
-    | yes p, yes q => yes (ext (p,q))
-    | no p, _ => no $ \lam x=y => p $ pmap (Rat.nom {__}) x=y
-    | _, no q => no $ \lam x=y => q $ pmap (Rat.denom {__}) x=y
+  | decideEq (x y : Rat) => \case decideEq (ratNom x) (ratNom y), decideEq (ratDenom x) (ratDenom y) \with {
+    | yes p, yes q => yes {?} -- (ext (p,q))
+    | no p, _ => no $ \lam x=y => p $ pmap ratNom x=y
+    | _, no q => no $ \lam x=y => q $ pmap ratDenom x=y
   }
   | #0=>eitherPosOrNeg {x : Rat} (xInv : Monoid.Inv x) =>
-    \case IntRing.#0=>eitherPosOrNeg {x.nom} (\lam nom=0 => \case pmap (Rat.nom {__}) (inv (pmap (rat __ _ _) (pmap (IntRing.`* _) nom=0 *> zro_*-left)) *> xInv.inv-right)) \with {
+    \case IntRing.#0=>eitherPosOrNeg {ratNom x} (\lam nom=0 => \case pmap ratNom (inv (pmap (makeRat __ _ _) (pmap (IntRing.`* _) nom=0 *> zro_*-left)) *> xInv.inv-right)) \with {
       | byLeft p => byLeft p
       | byRight p => byRight p
     }
-  | natCoef n => \new Rat n 1 (\case __) idp
+  | natCoef n => rat n 1 (\case __) idp
   | natCoefZero => idp
-  | natCoefSuc n => ext (pmap (\lam t => pos (suc t)) (inv ide-left), idp)
+  | natCoefSuc n => {?} -- ext (pmap (\lam t => pos (suc t)) (inv ide-left), idp)
   \where {
     \lemma productNonZero {n m : Nat} (n/=0 : Not (n = 0)) (m/=0 : Not (m = 0)) : Not (n Nat.* m = 0)
       => \lam p => IntDomain.apartZeroProduct {pos n} {pos m} (\lam q => n/=0 (pmap iabs q)) (\lam q => m/=0 (pmap iabs q)) (pmap pos p)
 
     \open Arith.Rat(RatField)
 
-    \lemma <-char {q r : Rat} (p : q.nom IntRing.* r.denom < r.nom IntRing.* q.denom) : q < r
-      => unfolds $ unfold $ {?} -- rewrite IntRing.negative_*-left (rat.signum_nom *> p)
+    \lemma <-char {q r : Rat} (p : ratNom q IntRing.* ratDenom r < ratNom r IntRing.* ratDenom q) : q < r
+      => {?} -- unfolds $ unfold (-) $ unfold $ unfold (+) $ rewrite IntRing.negative_*-left (makeRat.signum_nom *> p)
 
-    \lemma <-char-conv {q r : Rat} (q<r : q < r) : q.nom IntRing.* r.denom < r.nom IntRing.* q.denom
-      => unfold (-) (rewrite IntRing.negative_*-left idp) *> inv rat.signum_nom *> q<r
+    \lemma <-char-conv {q r : Rat} (q<r : q < r) : ratNom q IntRing.* ratDenom r < ratNom r IntRing.* ratDenom q
+      => {?} -- unfold (-) (rewrite IntRing.negative_*-left idp) *> inv makeRat.signum_nom *> q<r
 
-    \lemma <=-char {q r : Rat} (p : q.nom IntRing.* r.denom <= r.nom IntRing.* q.denom) : q <= r
+    \lemma <=-char {q r : Rat} (p : ratNom q IntRing.* ratDenom r <= ratNom r IntRing.* ratDenom q) : q <= r
       => \lam r<q => p (<-char-conv r<q)
 
-    \lemma <=-char-conv {q r : Rat} (q<=r : q <= r) : q.nom IntRing.* r.denom <= r.nom IntRing.* q.denom
+    \lemma <=-char-conv {q r : Rat} (q<=r : q <= r) : ratNom q IntRing.* ratDenom r <= ratNom r IntRing.* ratDenom q
       => \lam p => q<=r (<-char p)
   }
 
 \func ratio (nom : Int) (denom : Nat) : Rat \elim denom
   | 0 => 0
-  | suc d \as denom => rat nom denom (\case __)
+  | suc d \as denom => makeRat nom denom (\case __)
 
 \instance RatDenseOrder : UnboundedDenseLinearOrder.Dec
   | LinearOrder.Dec => RatField
-  | UnboundedDenseLinearOrder => RatField.denseOrder $ DiscreteField.nonZero-Inv $ \lam p => \case pmap (Rat.nom {__}) p
+  | UnboundedDenseLinearOrder => RatField.denseOrder $ DiscreteField.nonZero-Inv $ \lam p => \case pmap ratNom p
 
 \func int_rat (x : Int)
-  => \new Rat x 1 (\case __) (natUnit (reduce*gcd-right (iabs x) 1))
+  => rat x 1 (\case __) (natUnit (reduce*gcd-right (iabs x) 1))
 
 \func rat_floor (r : Rat) : Int
-  | (pos n, d, _, _) => n Nat.div d
-  | (neg (suc _ \as n), d, _, _) => \case n Nat.mod d \with {
+  | rat (pos n) d _ _ => n Nat.div d
+  | rat (neg (suc _ \as n)) d _ _ => \case n Nat.mod d \with {
     | 0 => neg (n Nat.div d)
     | suc _ => neg (n Nat.div d) - 1
   }
 
 \lemma rat_floor<id {r : Rat} : int_rat (rat_floor r) <= r \elim r
-  | (pos n, d, _, _) => RatField.<=-char $ pos<=pos div_*<=id
-  | (neg (suc _ \as n), d, d/=0, c) => mcases {1} {arg addPath} \with {
+  | rat (pos n) d _ _ => RatField.<=-char $ pos<=pos div_*<=id
+  | rat (neg (suc _ \as n)) d d/=0 c => mcases {1} {arg addPath} \with {
     | 0, p => \have d=1 => nat_gcd-isUnique (div_gcd (mod_div p)) (EuclideanSemiringData.gcd-isGCD n d) *> c
-              \in Preorder.=_<= $ ext (rewrite d=1 idp, inv d=1)
-    | suc _, _ => \lam c => (unfolds, inv rat.signum_nom *>, unfold) at c $
+              \in Preorder.=_<= $ {?} -- ext (rewrite d=1 idp, inv d=1)
+    | suc _, _ => \lam c => (unfolds, inv makeRat.signum_nom *>, unfold) at c $
       \have | s : n Nat.- n Nat.div d * d = n Nat.mod d
                 => IntRing.cancel-right (n Nat.div d * d) $ IntRing.+-assoc {n} {neg _} *> pmap (pos n +) IntRing.minus__ *> pmap pos (inv (Nat.divModProp n d) *> pmap (`+ _) *-comm *> +-comm)
             | t : n Nat.- suc (n Nat.div d) Nat.* d = n Nat.mod d Nat.- d
@@ -195,10 +209,10 @@
   }
 
 \lemma rat_floor-univ {r : Rat} {x : Int} (x<=r : int_rat x <= r) : x <= rat_floor r \elim r, x
-  | (pos _,_,_,_), neg (suc x) => neg<=pos
-  | (pos n, d, d/=0, _), pos x => pos<=pos $ transport (`<= _) (*_div=id d/=0) $ div-monotone $ pos<=pos.conv $ RatField.<=-char-conv x<=r
-  | (neg (suc _ \as n), d, _, _), pos x => \case pos/<=neg (RatField.<=-char-conv x<=r)
-  | (neg (suc n' \as n), d, d/=0, _), neg (suc x' \as x) =>
+  | rat (pos _) _ _ _, neg (suc x) => neg<=pos
+  | rat (pos n) d d/=0 _, pos x => pos<=pos $ transport (`<= _) (*_div=id d/=0) $ div-monotone $ pos<=pos.conv $ RatField.<=-char-conv x<=r
+  | rat (neg (suc _ \as n)) d _ _, pos x => \case pos/<=neg (RatField.<=-char-conv x<=r)
+  | rat (neg (suc n' \as n)) d d/=0 _, neg (suc x' \as x) =>
     \have t => neg<=neg.conv (RatField.<=-char-conv x<=r)
     \in mcases {1} {arg addPath} \with {
       | 0, p => neg<=neg $ transport (_ <=) (*_div=id d/=0) (div-monotone t)
@@ -215,16 +229,16 @@
   => negative (rat_floor (negative r))
 
 \lemma rat_ceiling>id (r : Rat) : r <= int_rat (rat_ceiling r)
-  => transport (`<= _) RatField.negative-isInv $ RatField.negative_<= {_} {negative r} rat_floor<id
+  => {?} -- transport (`<= _) RatField.negative-isInv $ RatField.negative_<= {_} {negative r} rat_floor<id
 
 \lemma rat_ceiling-univ {r : Rat} {x : Int} (r<=x : r <= int_rat x) : rat_ceiling r <= x
-  => transport (_ <=) IntRing.negative-isInv $ IntRing.negative_<= $ rat_floor-univ $ RatField.negative_<= {r} {int_rat x} r<=x
+  => {?} -- transport (_ <=) IntRing.negative-isInv $ IntRing.negative_<= $ rat_floor-univ $ RatField.negative_<= {r} {int_rat x} r<=x
 
 \lemma rat_<=-dec {r q : Rat} {so : So (rat_<=_Bool r q)} : r <= q
   => RatField.<=-char $ int_<=-dec {_} {_} {so}
   \where
     \func rat_<=_Bool (r q : Rat) : Bool
-      => int_<=-dec.int_<=_Bool (r.nom * q.denom) (q.nom * r.denom)
+      => int_<=-dec.int_<=_Bool (ratNom r * ratDenom q) (ratNom q * ratDenom r)
 
 \lemma rat_<-dec {r q : Rat} {so : So (rat_<_Bool r q)} : r < q
   => \case LinearOrder.dec<_<= r q \with {
@@ -233,4 +247,4 @@
   }
   \where
     \func rat_<_Bool (r q : Rat) : Bool
-      => int_<=-dec.int_<=_Bool (isuc (r.nom * q.denom)) (q.nom * r.denom)
+      => int_<=-dec.int_<=_Bool (isuc (ratNom r * ratDenom q)) (ratNom q * ratDenom r)

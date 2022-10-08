@@ -216,11 +216,11 @@ public class TermCompiler {
       return factory.app(factory.ref(meta.mulTerm.getRef()), true, leftTerm, rightTerm);
     }
 
-    if (isRat && expr instanceof CoreNewExpression) {
-      CoreClassCallExpression classCall = ((CoreNewExpression) expr).getClassCall();
+    if (isRat && expr instanceof CoreConCallExpression) {
+      CoreConCallExpression conCall = (CoreConCallExpression) expr;
       TypedExpression typedExpr = expr.computeTyped();
-      CoreExpression nomExpr = classCall.getImplementation(meta.nom, typedExpr);
-      CoreExpression denomExpr = classCall.getImplementation(meta.denom, typedExpr);
+      CoreExpression nomExpr = conCall.getDefCallArguments().get(0);
+      CoreExpression denomExpr = conCall.getDefCallArguments().get(1);
       if (nomExpr != null && denomExpr != null) {
         BigInteger nom = getInt(nomExpr.normalize(NormalizationMode.WHNF));
         BigInteger denom = getInt(denomExpr.normalize(NormalizationMode.WHNF));
