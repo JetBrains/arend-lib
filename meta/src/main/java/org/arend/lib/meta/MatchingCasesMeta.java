@@ -432,6 +432,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     List<SubexpressionData> resultDataList = argsDataLists.remove(argsDataLists.size() - 1);
 
     int caseParam = additionalArgsIndex + 1;
+    List<? extends ConcreteClause> actualClauses = ((ConcreteCaseExpression) args.get(caseParam).getExpression()).getClauses();
     ConcreteExpression defaultExpr = caseParam + 1 < args.size() ? args.get(caseParam + 1).getExpression() : null;
 
     int numberOfParameters = 0;
@@ -440,6 +441,9 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     }
     if (numberOfParameters == 0) {
       if (defaultExpr != null) {
+        for (ConcreteClause clause : actualClauses) {
+          errorReporter.report(new RedundantClauseError(clause));
+        }
         return typechecker.typecheck(defaultExpr, expectedType);
       }
       errorReporter.report(new TypecheckingError("Cannot find matching subexpressions", marker));
@@ -513,7 +517,6 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       caseParams = caseParams.insertParameters(addPathMap);
     }
 
-    List<? extends ConcreteClause> actualClauses = ((ConcreteCaseExpression) args.get(caseParam).getExpression()).getClauses();
     List<List<CorePattern>> actualRows = new ArrayList<>();
     if (!actualClauses.isEmpty()) {
       boolean ok = true;
