@@ -4,7 +4,6 @@ import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.core.definition.*;
 import org.arend.ext.core.ops.NormalizationMode;
-import org.arend.ext.dependency.ArendReferenceProvider;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
@@ -126,7 +125,7 @@ public class StdExtension implements ArendExtension {
   }
 
   @Override
-  public void declareDefinitions(@NotNull ArendReferenceProvider provider, @NotNull DefinitionContributor contributor) {
+  public void declareDefinitions(@NotNull DefinitionContributor contributor) {
     ModulePath meta = new ModulePath("Meta");
     contributor.declare(meta, new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, laterMeta);
     contributor.declare(meta, new LongName("fails"),

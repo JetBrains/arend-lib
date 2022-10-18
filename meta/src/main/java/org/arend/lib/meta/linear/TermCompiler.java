@@ -44,7 +44,7 @@ public class TermCompiler {
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, marker, meta.ext, 1) : null;
     values = new Values<>(typechecker, marker);
     CoreExpression instanceNorm = instance.getExpression().normalize(NormalizationMode.WHNF);
-    isRat = instanceNorm instanceof CoreFunCallExpression && ((CoreFunCallExpression) instanceNorm).getDefinition().getRef() == ext.equationMeta.RatField;
+    isRat = instanceNorm instanceof CoreFunCallExpression && ((CoreFunCallExpression) instanceNorm).getDefinition() == ext.equationMeta.RatField;
   }
 
   public Values<CoreExpression> getValues() {

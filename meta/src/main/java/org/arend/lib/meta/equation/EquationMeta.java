@@ -11,7 +11,6 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.GeneralError;
 import org.arend.ext.error.ListErrorReporter;
 import org.arend.ext.error.TypecheckingError;
-import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.util.Maybe;
@@ -139,7 +138,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition idEquiv;
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition transEquiv;
 
-  @Dependency(module = "Arith.Rat")                     public ArendRef RatField;
+  @Dependency(module = "Arith.Rat")                     public CoreFunctionDefinition RatField;
 
   public static class TransitivityInstanceCache {
     public final CoreFunctionDefinition instance;
