@@ -103,17 +103,24 @@ public class LinearSolver {
 
   private static class Hypothesis<E> extends Equation<E> {
     public final ConcreteExpression binding;
+    private final BigInteger lcm;
 
-    private Hypothesis(ConcreteExpression binding, CoreExpression instance, Operation operation, E lhsTerm, E rhsTerm) {
+    private Hypothesis(ConcreteExpression binding, CoreExpression instance, Operation operation, E lhsTerm, E rhsTerm, BigInteger lcm) {
       super(instance, operation, lhsTerm, rhsTerm);
       this.binding = binding;
+      this.lcm = lcm;
+    }
+
+    @Override
+    public BigInteger getLCM() {
+      return lcm;
     }
   }
 
   private Hypothesis<CoreExpression> bindingToHypothesis(CoreBinding binding) {
     if (binding == null) return null;
     Equation<CoreExpression> equation = typeToEquation(binding.getTypeExpr().normalize(NormalizationMode.WHNF), false);
-    return equation == null ? null : new Hypothesis<>(factory.ref(binding), equation.instance, equation.operation, equation.lhsTerm, equation.rhsTerm);
+    return equation == null ? null : new Hypothesis<>(factory.ref(binding), equation.instance, equation.operation, equation.lhsTerm, equation.rhsTerm, BigInteger.ONE);
   }
 
   private List<BigInteger> solveEquations(List<? extends Equation<CompiledTerm>> equations, int var) {
@@ -228,8 +235,8 @@ public class LinearSolver {
   }
 
   private static Hypothesis<CompiledTerm> compileHypothesis(TermCompiler compiler, Hypothesis<CoreExpression> hypothesis) {
-    Pair<CompiledTerm, CompiledTerm> pair = compiler.compileTerms(hypothesis.lhsTerm, hypothesis.rhsTerm);
-    return new Hypothesis<>(hypothesis.binding, hypothesis.instance, hypothesis.operation, pair.proj1, pair.proj2);
+    CompiledTerms terms = compiler.compileTerms(hypothesis.lhsTerm, hypothesis.rhsTerm);
+    return new Hypothesis<>(hypothesis.binding, hypothesis.instance, hypothesis.operation, terms.term1, terms.term2, terms.lcm);
   }
 
   private static List<Hypothesis<CompiledTerm>> compileHypotheses(TermCompiler compiler, List<Hypothesis<CoreExpression>> equations) {
@@ -251,7 +258,7 @@ public class LinearSolver {
     return factory.tuple(equation.lhsTerm.concrete, factory.ref(constructor.getRef()), equation.rhsTerm.concrete);
   }
 
-  private ConcreteExpression equationsToConcrete(List<? extends Equation<CompiledTerm>> equations) {
+  private ConcreteExpression equationsToConcrete(List<? extends Hypothesis<CompiledTerm>> equations) {
     ConcreteExpression result = factory.ref(ext.prelude.getEmptyArray().getRef());
     for (int i = equations.size() - 1; i >= 0; i--) {
       result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, equationToConcrete(equations.get(i)), result);
@@ -269,10 +276,11 @@ public class LinearSolver {
     return result;
   }
 
-  private ConcreteExpression certificateToConcrete(List<BigInteger> certificate) {
+  private ConcreteExpression certificateToConcrete(List<BigInteger> certificate, List<Equation<CompiledTerm>> equations) {
+    assert certificate.size() == equations.size();
     ConcreteExpression result = factory.ref(ext.prelude.getEmptyArray().getRef());
     for (int i = certificate.size() - 1; i >= 1; i--) {
-      result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.number(certificate.get(i)), result);
+      result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.number(certificate.get(i).multiply(equations.get(i).getLCM())), result);
     }
     return factory.tuple(result, factory.number(certificate.get(0)), factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.prelude.getIdp().getRef()));
   }
@@ -324,21 +332,21 @@ public class LinearSolver {
         List<Equation<CompiledTerm>> compiledRules1 = new ArrayList<>();
         compiledRules1.add(makeZeroLessOne(instance.getExpression()));
         rulesSet.add(compiledRules1);
-        Pair<CompiledTerm, CompiledTerm> compiledResults = compiler.compileTerms(resultEquation.lhsTerm, resultEquation.rhsTerm);
+        CompiledTerms compiledResults = compiler.compileTerms(resultEquation.lhsTerm, resultEquation.rhsTerm);
         switch (resultEquation.operation) {
           case LESS:
-            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS_OR_EQUALS, compiledResults.proj2, compiledResults.proj1));
+            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS_OR_EQUALS, compiledResults.term2, compiledResults.term1, compiledResults.lcm));
             function = ext.linearSolverMeta.solveLessProblem;
             break;
           case LESS_OR_EQUALS:
-            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.proj2, compiledResults.proj1));
+            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.term2, compiledResults.term1, compiledResults.lcm));
             function = ext.linearSolverMeta.solveLeqProblem;
             break;
           case EQUALS: {
             List<Equation<CompiledTerm>> compiledRules2 = new ArrayList<>();
-            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.proj1, compiledResults.proj2));
+            compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.term1, compiledResults.term2, compiledResults.lcm));
             compiledRules2.add(compiledRules1.get(0));
-            compiledRules2.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.proj2, compiledResults.proj1));
+            compiledRules2.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.term2, compiledResults.term1, compiledResults.lcm));
             compiledRules2.addAll(compiledRules);
             rulesSet.add(compiledRules2);
             function = ext.linearSolverMeta.solveEqProblem;
@@ -357,10 +365,10 @@ public class LinearSolver {
           ConcreteAppBuilder builder = factory.appBuilder(factory.ref(function.getRef()))
             .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledRules))
-            .app(compiledResults.proj1.concrete)
-            .app(compiledResults.proj2.concrete);
-          for (List<BigInteger> solution : solutions) {
-            builder.app(certificateToConcrete(solution));
+            .app(compiledResults.term1.concrete)
+            .app(compiledResults.term2.concrete);
+          for (int i = 0; i < solutions.size(); i++) {
+            builder.app(certificateToConcrete(solutions.get(i), rulesSet.get(i)));
           }
           return typechecker.typecheck(builder.app(witnessesToConcrete(compiledRules)).build(), null);
         }
@@ -396,7 +404,7 @@ public class LinearSolver {
           return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
             .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledEquations))
-            .app(certificateToConcrete(solution))
+            .app(certificateToConcrete(solution, compiledEquations1))
             .app(witnessesToConcrete(compiledEquations))
             .build(), null);
         }

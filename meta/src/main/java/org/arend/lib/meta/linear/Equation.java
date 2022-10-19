@@ -2,6 +2,8 @@ package org.arend.lib.meta.linear;
 
 import org.arend.ext.core.expr.CoreExpression;
 
+import java.math.BigInteger;
+
 public class Equation<E> {
   public final CoreExpression instance;
   public final Operation operation;
@@ -15,5 +17,9 @@ public class Equation<E> {
     this.operation = operation;
     this.lhsTerm = lhsTerm;
     this.rhsTerm = rhsTerm;
+  }
+
+  public BigInteger getLCM() {
+    return BigInteger.ONE;
   }
 }

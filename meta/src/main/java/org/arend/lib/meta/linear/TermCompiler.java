@@ -68,7 +68,7 @@ public class TermCompiler {
   }
 
   @SuppressWarnings("unchecked")
-  public Pair<CompiledTerm, CompiledTerm> compileTerms(CoreExpression expr1, CoreExpression expr2) {
+  public CompiledTerms compileTerms(CoreExpression expr1, CoreExpression expr2) {
     Pair<ConcreteExpression, List<Ring>> pair1 = compileTerm(expr1);
     Pair<ConcreteExpression, List<Ring>> pair2 = compileTerm(expr2);
     if (isRat) {
@@ -89,7 +89,7 @@ public class TermCompiler {
       for (BigRational rat : list2) {
         coefs2.add(rat.nom.multiply(lcm.divide(rat.denom)));
       }
-      return new Pair<>(new CompiledTerm(pair1.proj1, coefs1), new CompiledTerm(pair2.proj1, coefs2));
+      return new CompiledTerms(new CompiledTerm(pair1.proj1, coefs1), new CompiledTerm(pair2.proj1, coefs2), lcm);
     } else {
       List<BigInteger> coefs1 = new ArrayList<>(pair1.proj2.size());
       for (Ring ring : pair1.proj2) {
@@ -99,7 +99,7 @@ public class TermCompiler {
       for (Ring ring : pair2.proj2) {
         coefs2.add(((IntRing) ring).number);
       }
-      return new Pair<>(new CompiledTerm(pair1.proj1, coefs1), new CompiledTerm(pair2.proj1, coefs2));
+      return new CompiledTerms(new CompiledTerm(pair1.proj1, coefs1), new CompiledTerm(pair2.proj1, coefs2), BigInteger.ONE);
     }
   }
 
