@@ -29,6 +29,9 @@
 \data Rat
   | rat (nom : Int) (denom : Nat) (\property denom/=0 : denom /= 0) (\property reduced : gcd (iabs nom) denom = 1)
   \where {
+    \use \coerce fromInt (x : Int)
+      => rat x 1 (\case __) (natUnit (reduce*gcd-right (iabs x) 1))
+
     \func AltRat : CRing => LocRing subset
       \where \func subset : MSubset => localization-isOrderedField.positiveSubset IntRing
 
@@ -204,9 +207,6 @@
   | LinearOrder.Dec => RatField
   | UnboundedDenseLinearOrder => RatField.denseOrder $ DiscreteField.nonZero-Inv $ \lam p => \case pmap ratNom p
 
-\func int_rat (x : Int)
-  => rat x 1 (\case __) (natUnit (reduce*gcd-right (iabs x) 1))
-
 \func rat_floor (r : Rat) : Int
   | rat (pos n) d _ _ => n Nat.div d
   | rat (neg (suc _ \as n)) d _ _ => \case n Nat.mod d \with {
@@ -214,7 +214,7 @@
     | suc _ => neg (n Nat.div d) - 1
   }
 
-\lemma rat_floor<id {r : Rat} : int_rat (rat_floor r) <= r \elim r
+\lemma rat_floor<id {r : Rat} : Rat.fromInt (rat_floor r) <= r \elim r
   | rat (pos n) d _ _ => RatField.<=-char $ pos<=pos div_*<=id
   | rat (neg (suc _ \as n)) d d/=0 c => mcases {1} {arg addPath} \with {
     | 0, p => \have d=1 => nat_gcd-isUnique (div_gcd (mod_div p)) (EuclideanSemiringData.gcd-isGCD n d) *> c
@@ -227,7 +227,7 @@
       \in \case (inv (pmap signum t *> signum.signum_- {n Nat.mod d} {d} *> pmap negative (pos<pos (mod<right d/=0))) *> c : neg 1 = 1)
   }
 
-\lemma rat_floor-univ {r : Rat} {x : Int} (x<=r : int_rat x <= r) : x <= rat_floor r \elim r, x
+\lemma rat_floor-univ {r : Rat} {x : Int} (x<=r : Rat.fromInt x <= r) : x <= rat_floor r \elim r, x
   | rat (pos _) _ _ _, neg (suc x) => neg<=pos
   | rat (pos n) d d/=0 _, pos x => pos<=pos $ transport (`<= _) (*_div=id d/=0) $ div-monotone $ pos<=pos.conv $ RatField.<=-char-conv x<=r
   | rat (neg (suc _ \as n)) d _ _, pos x => \case pos/<=neg (RatField.<=-char-conv x<=r)
@@ -247,11 +247,11 @@
 \func rat_ceiling (r : Rat) : Int
   => negative (rat_floor (negative r))
 
-\lemma rat_ceiling>id (r : Rat) : r <= int_rat (rat_ceiling r)
+\lemma rat_ceiling>id (r : Rat) : r <= rat_ceiling r
   => transport (`<= _) RatField.negative-isInv $ RatField.negative_<= {_} {negative r} rat_floor<id
 
-\lemma rat_ceiling-univ {r : Rat} {x : Int} (r<=x : r <= int_rat x) : rat_ceiling r <= x
-  => transport (_ <=) IntRing.negative-isInv $ IntRing.negative_<= $ rat_floor-univ $ RatField.negative_<= {r} {int_rat x} r<=x
+\lemma rat_ceiling-univ {r : Rat} {x : Int} (r<=x : r <= x) : rat_ceiling r <= x
+  => transport (_ <=) IntRing.negative-isInv $ IntRing.negative_<= $ rat_floor-univ $ RatField.negative_<= {r} {x} r<=x
 
 \lemma rat_<=-dec {r q : Rat} {so : So (rat_<=_Bool r q)} : r <= q
   => RatField.<=-char $ int_<=-dec {_} {_} {so}

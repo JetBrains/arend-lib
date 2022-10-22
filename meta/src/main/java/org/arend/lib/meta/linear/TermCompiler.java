@@ -4,6 +4,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -30,7 +31,9 @@ public class TermCompiler {
   private final ConcreteFactory factory;
   private final Values<CoreExpression> values;
   private final EquationMeta meta;
-  private final boolean isRat;
+  public final boolean isNat;
+  public final boolean isInt;
+  public final boolean isRat;
 
   public TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
     meta = ext.equationMeta;
@@ -44,15 +47,14 @@ public class TermCompiler {
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, marker, meta.ext, 1) : null;
     values = new Values<>(typechecker, marker);
     CoreExpression instanceNorm = instance.getExpression().normalize(NormalizationMode.WHNF);
-    isRat = instanceNorm instanceof CoreFunCallExpression && ((CoreFunCallExpression) instanceNorm).getDefinition() == ext.equationMeta.RatField;
+    CoreFunctionDefinition instanceDef = instanceNorm instanceof CoreFunCallExpression ? ((CoreFunCallExpression) instanceNorm).getDefinition() : null;
+    isNat = instanceDef == ext.equationMeta.NatSemiring;
+    isInt = instanceDef == ext.equationMeta.IntRing;
+    isRat = instanceDef == ext.equationMeta.RatField;
   }
 
   public Values<CoreExpression> getValues() {
     return values;
-  }
-
-  public boolean isRat() {
-    return isRat;
   }
 
   public Ring getZero() {

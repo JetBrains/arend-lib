@@ -4,31 +4,49 @@
 \import Algebra.Ordered
 \import Arith.Int
 \import Arith.Rat
+\import Data.Or
 \import Function.Meta
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
+\import Paths.Meta
+\open LinearOrder \hiding (<=)
 
-\record LowerReal (L : Rat -> \Prop)
+\record LowerReal (L : Rat -> \Prop) {
   | L-inh : ∃ L
   | L-closed {q r : Rat} : L q -> r < q -> L r
   | L-rounded (q : Rat) : L q -> ∃ (r : L) (q < r)
 
-\record UpperReal (U : Rat -> \Prop)
+  \lemma L_<= {q r : Rat} (Lq : L q) (p : r <= q) : L r
+    => \case <=-dec p \with {
+      | inl r<q => L-closed Lq r<q
+      | inr r=q => transportInv L r=q Lq
+    }
+}
+
+\record UpperReal (U : Rat -> \Prop) {
   | U-inh : ∃ U
   | U-closed {q r : Rat} : U q -> q < r -> U r
   | U-rounded (q : Rat) : U q -> ∃ (r : U) (r < q)
 
+  \lemma U_<= {q r : Rat} (Uq : U q) (p : q <= r) : U r
+    => \case <=-dec p \with {
+      | inl q<r => U-closed Uq q<r
+      | inr q=r => transport U q=r Uq
+    }
+}
+
 \record Real \extends LowerReal, UpperReal {
-  | LU-disjoint (q r : Rat) : L q -> U r -> Empty
+  | LU-disjoint {q : Rat} : L q -> U q -> Empty
   | LU-located (q r : Rat) : q < r -> L q || U r
   | LU-focus (eps : Rat) : isPos eps -> ∃ (a : L) (U (a + eps))
 
   \default LU-located q r q<r => \case LU-focus (r - q) q<r \with {
-    | inP (s,Ls,Us+r-q) => \case LinearOrder.trichotomy q s \with {
+    | inP (s,Ls,Us+r-q) => \case trichotomy q s \with {
       | less q<s => byLeft (L-closed Ls q<s)
       | equals q=s => byLeft (transportInv L q=s Ls)
       | greater s<q => byRight $ U-closed Us+r-q $ transport (_ <) (equation : q + (r - q) = r) (<_+-left (r - q) s<q)
@@ -39,16 +57,25 @@
 
   \default U-inh => TruncP.map (LU-focus 1 idp) (\lam x => (x.1 + 1, x.3))
 
-  \default LU-focus eps eps>0 => \case L-inh, U-inh \with {
+  \default LU-focus \as LU-focus-impl (eps : Rat) (eps>0 : isPos eps) : ∃ (a : L) (U (a + eps)) => \case L-inh, U-inh \with {
     | inP (q,Lq), inP (r,Ur) =>
-      \let m => (r - q) * RatField.finv 3
-      \in \case focus-iter (ratio 3 2) rat_<=-dec (\lam q r => \Sigma (L q) (U r)) (\lam q r (Lq,Ur) => \case LU-located (q + m) (r - m) {?} \with {
-        | byLeft Lq+m => inP (q + m, r, (Lq+m,Ur), {?})
-        | byRight Ur-m => inP (q, r - m, (Lq,Ur-m), {?})
+      \let m r q => (r - q) * RatField.finv 3
+      \in \case focus-iter (ratio 3 2) rat_<=-dec (\lam q r => \Sigma (L q) (U r)) (\lam q r (Lq,Ur) => \case LU-located (q + m r q) (r - m r q) (linarith (Real.LU-less Lq Ur)) \with {
+        | byLeft Lq+m => inP (q + m r q, r, (Lq+m,Ur), linarith)
+        | byRight Ur-m => inP (q, r - m r q, (Lq,Ur-m), linarith)
       }) (iabs $ rat_ceiling $ eps * RatField.finv (r - q)) q r (Lq,Ur) \with {
-        | inP (q',r',(Lq',Ur'),p) => inP (q', Lq', U-closed Ur' $ {?})
+        | inP (q',r',(Lq',Ur'),p) => inP (q', Lq', U-closed Ur' $
+          \have
+                | t : r' - q' < eps => {?}
+          \in {?})
       }
   }
+
+  \lemma LU-less {q r : Rat} (Lq : L q) (Ur : U r) : q < r
+    => \case dec<_<= q r \with {
+      | inl q<r => q<r
+      | inr r<=q => absurd $ LU-disjoint Lq (U_<= Ur r<=q)
+    }
 } \where {
   \func focus-iter (rat : Rat) (rat>=0 : 0 <= rat) (P : Rat -> Rat -> \Prop) (f : \Pi (q r : Rat) -> P q r -> ∃ (q' r' : P) ((r' - q') * rat <= r - q)) (n : Nat) (q r : Rat) (Pqr : P q r) : ∃ (q' r' : P) ((r' - q') * Monoid.pow rat n <= r - q) \elim n
     | 0 => inP (q, r, Pqr, transportInv (`<= _) ide-right <=-refl)
@@ -57,4 +84,10 @@
         | inP (q'',r'',Pq''r'',d) => inP (q'', r'', Pq''r'', Preorder.=_<= (inv *-assoc) <=∘ RatField.<=_*_positive-left d rat>=0 <=∘ c)
       }
     }
+
+  \lemma pow>id (n : Nat) : Monoid.pow (ratio 3 2) n > n \elim n
+    | 0 => RatField.zro<ide
+    | 1 => linarith
+    | 2 => linarith
+    | suc (suc (suc n)) => <-transitive-right (later linarith) (<_*_positive-left (pow>id (suc (suc n))) linarith)
 }

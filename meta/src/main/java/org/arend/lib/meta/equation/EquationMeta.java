@@ -24,6 +24,10 @@ import java.util.*;
 public class EquationMeta extends BaseMetaDefinition {
   public final StdExtension ext;
 
+  @Dependency(module = "Arith.Nat")                     public CoreFunctionDefinition NatSemiring;
+  @Dependency(module = "Arith.Int")                     public CoreFunctionDefinition IntRing;
+  @Dependency(module = "Arith.Nat", name = "zero<=_")   public CoreFunctionDefinition zeroLE_;
+
   @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition Monoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition CMonoid;
   @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition AddMonoid;

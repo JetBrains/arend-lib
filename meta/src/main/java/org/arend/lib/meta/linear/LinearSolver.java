@@ -239,12 +239,10 @@ public class LinearSolver {
     return new Hypothesis<>(hypothesis.binding, hypothesis.instance, hypothesis.operation, terms.term1, terms.term2, terms.lcm);
   }
 
-  private static List<Hypothesis<CompiledTerm>> compileHypotheses(TermCompiler compiler, List<Hypothesis<CoreExpression>> equations) {
-    List<Hypothesis<CompiledTerm>> result = new ArrayList<>(equations.size());
+  private static void compileHypotheses(TermCompiler compiler, List<Hypothesis<CoreExpression>> equations, List<Hypothesis<CompiledTerm>> result) {
     for (Hypothesis<CoreExpression> hypothesis : equations) {
       result.add(compileHypothesis(compiler, hypothesis));
     }
-    return result;
   }
 
   private ConcreteExpression equationToConcrete(Equation<CompiledTerm> equation) {
@@ -298,6 +296,17 @@ public class LinearSolver {
     return new Equation<>(instance, Equation.Operation.LESS, new CompiledTerm(null, Collections.emptyList()), new CompiledTerm(null, Collections.singletonList(BigInteger.ONE)));
   }
 
+  private void makeZeroLessVar(CoreExpression instance, int n, List<Hypothesis<CompiledTerm>> result) {
+    for (int i = 1; i < n; i++) {
+      List<BigInteger> coefs = new ArrayList<>(i + 1);
+      for (int j = 0; j < i; j++) {
+        coefs.add(BigInteger.ZERO);
+      }
+      coefs.add(BigInteger.ONE);
+      result.add(new Hypothesis<>(factory.ref(ext.equationMeta.zeroLE_.getRef()), instance, Equation.Operation.LESS_OR_EQUALS, new CompiledTerm(factory.ref(ext.equationMeta.zroTerm.getRef()), Collections.emptyList()), new CompiledTerm(factory.app(factory.ref(ext.equationMeta.varTerm.getRef()), true, factory.number(i - 1)), coefs), BigInteger.ONE));
+    }
+  }
+
   public TypedExpression solve(CoreExpression expectedType, ConcreteExpression hint) {
     expectedType = expectedType.normalize(NormalizationMode.WHNF);
     Equation<CoreExpression> resultEquation;
@@ -322,17 +331,22 @@ public class LinearSolver {
           newRules.add(rule);
         }
       }
+      rules = newRules;
       TypedExpression instance = resultEquation.instance.computeTyped();
       CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
       TermCompiler compiler = makeTermCompiler(instance, classCall);
       if (compiler != null) {
         CoreFunctionDefinition function;
-        List<Hypothesis<CompiledTerm>> compiledRules = compileHypotheses(compiler, newRules);
+        List<Hypothesis<CompiledTerm>> compiledRules = new ArrayList<>();
+        compileHypotheses(compiler, rules, compiledRules);
         List<List<Equation<CompiledTerm>>> rulesSet = new ArrayList<>(2);
         List<Equation<CompiledTerm>> compiledRules1 = new ArrayList<>();
         compiledRules1.add(makeZeroLessOne(instance.getExpression()));
         rulesSet.add(compiledRules1);
         CompiledTerms compiledResults = compiler.compileTerms(resultEquation.lhsTerm, resultEquation.rhsTerm);
+        if (compiler.isNat) {
+          makeZeroLessVar(instance.getExpression(), compiler.getNumberOfVariables() + 1, compiledRules);
+        }
         switch (resultEquation.operation) {
           case LESS:
             compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS_OR_EQUALS, compiledResults.term2, compiledResults.term1, compiledResults.lcm));
@@ -343,9 +357,8 @@ public class LinearSolver {
             function = ext.linearSolverMeta.solveLeqProblem;
             break;
           case EQUALS: {
-            List<Equation<CompiledTerm>> compiledRules2 = new ArrayList<>();
+            List<Equation<CompiledTerm>> compiledRules2 = new ArrayList<>(compiledRules1);
             compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.term1, compiledResults.term2, compiledResults.lcm));
-            compiledRules2.add(compiledRules1.get(0));
             compiledRules2.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.term2, compiledResults.term1, compiledResults.lcm));
             compiledRules2.addAll(compiledRules);
             rulesSet.add(compiledRules2);
@@ -363,7 +376,7 @@ public class LinearSolver {
         }
         if (solutions.size() == rulesSet.size()) {
           ConcreteAppBuilder builder = factory.appBuilder(factory.ref(function.getRef()))
-            .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
+            .app(makeData(classCall, factory.core(instance), compiler.isRat, compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledRules))
             .app(compiledResults.term1.concrete)
             .app(compiledResults.term2.concrete);
@@ -395,14 +408,18 @@ public class LinearSolver {
         CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
         TermCompiler compiler = makeTermCompiler(instance, classCall);
         if (compiler == null) continue;
-        List<Hypothesis<CompiledTerm>> compiledEquations = compileHypotheses(compiler, equations);
+        List<Hypothesis<CompiledTerm>> compiledEquations = new ArrayList<>();
+        compileHypotheses(compiler, equations, compiledEquations);
+        if (compiler.isNat) {
+          makeZeroLessVar(instance.getExpression(), compiler.getNumberOfVariables() + 1, compiledEquations);
+        }
         List<Equation<CompiledTerm>> compiledEquations1 = new ArrayList<>(compiledEquations.size() + 1);
         compiledEquations1.add(makeZeroLessOne(instance.getExpression()));
         compiledEquations1.addAll(compiledEquations);
         List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
         if (solution != null) {
           return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
-            .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
+            .app(makeData(classCall, factory.core(instance), compiler.isRat, compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledEquations))
             .app(certificateToConcrete(solution, compiledEquations1))
             .app(witnessesToConcrete(compiledEquations))
