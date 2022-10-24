@@ -4,7 +4,6 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.definition.CoreConstructor;
-import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -16,6 +15,7 @@ import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.ring.BigRational;
 import org.arend.lib.ring.IntRing;
 import org.arend.lib.ring.Ring;
+import org.arend.lib.util.Utils;
 import org.arend.lib.util.Values;
 
 import java.math.BigInteger;
@@ -31,11 +31,16 @@ public class TermCompiler {
   private final ConcreteFactory factory;
   private final Values<CoreExpression> values;
   private final EquationMeta meta;
-  public final boolean isNat;
-  public final boolean isInt;
-  public final boolean isRat;
+  private final Kind kind;
+  private boolean toInt;
+  private boolean toRat;
+  private final TermCompiler natTermCompiler;
+  private final ExpressionTypechecker typechecker;
+  public final Set<Integer> positiveVars;
 
-  public TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
+  public enum Kind { NAT, INT, RAT, NONE }
+
+  private TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, Kind kind, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker, Values<CoreExpression> values, Set<Integer> positiveVars) {
     meta = ext.equationMeta;
     factory = ext.factory.withData(marker);
     boolean isRing = classCall.getDefinition().isSubClassOf(meta.OrderedRing);
@@ -45,12 +50,34 @@ public class TermCompiler {
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.mul, typechecker, factory, marker, meta.ext, 2);
     natCoefMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.natCoef, typechecker, factory, marker, meta.ext, 1);
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, marker, meta.ext, 1) : null;
-    values = new Values<>(typechecker, marker);
-    CoreExpression instanceNorm = instance.getExpression().normalize(NormalizationMode.WHNF);
-    CoreFunctionDefinition instanceDef = instanceNorm instanceof CoreFunCallExpression ? ((CoreFunCallExpression) instanceNorm).getDefinition() : null;
-    isNat = instanceDef == ext.equationMeta.NatSemiring;
-    isInt = instanceDef == ext.equationMeta.IntRing;
-    isRat = instanceDef == ext.equationMeta.RatField;
+    this.values = values;
+    this.kind = kind;
+    TermCompiler natTermCompiler = null;
+    if (kind == Kind.INT) {
+      TypedExpression typed = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.ref(meta.ext.equationMeta.NatSemiring.getRef()), null));
+      if (typed != null) {
+        natTermCompiler = new TermCompiler((CoreClassCallExpression) meta.ext.equationMeta.NatSemiring.getResultType(), typed, Kind.NAT, ext, typechecker, marker, values, positiveVars);
+      }
+    }
+    this.natTermCompiler = natTermCompiler;
+    this.typechecker = typechecker;
+    this.positiveVars = positiveVars;
+  }
+
+  public TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, Kind kind, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
+    this(classCall, instance, kind, ext, typechecker, marker, new Values<>(typechecker, marker), new HashSet<>());
+  }
+
+  public boolean isNat() {
+    return kind == Kind.NAT;
+  }
+
+  public boolean isInt() {
+    return kind == Kind.INT;
+  }
+
+  public boolean isRat() {
+    return kind == Kind.RAT;
   }
 
   public Values<CoreExpression> getValues() {
@@ -58,11 +85,11 @@ public class TermCompiler {
   }
 
   public Ring getZero() {
-    return isRat ? BigRational.ZERO : IntRing.ZERO;
+    return kind == Kind.RAT ? BigRational.ZERO : IntRing.ZERO;
   }
 
   public Ring getOne() {
-    return isRat ? BigRational.ONE : IntRing.ONE;
+    return kind == Kind.RAT ? BigRational.ONE : IntRing.ONE;
   }
 
   public int getNumberOfVariables() {
@@ -73,7 +100,7 @@ public class TermCompiler {
   public CompiledTerms compileTerms(CoreExpression expr1, CoreExpression expr2) {
     Pair<ConcreteExpression, List<Ring>> pair1 = compileTerm(expr1);
     Pair<ConcreteExpression, List<Ring>> pair2 = compileTerm(expr2);
-    if (isRat) {
+    if (kind == Kind.RAT) {
       BigInteger lcm = BigInteger.ONE;
       List<BigRational> list1 = (List<BigRational>) (List<?>) pair1.proj2;
       List<BigRational> list2 = (List<BigRational>) (List<?>) pair2.proj2;
@@ -139,6 +166,10 @@ public class TermCompiler {
     return pair.proj1 ? number.negate() : number;
   }
 
+  private ConcreteExpression makeAddTerm(List<CoreExpression> args, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
+    return factory.app(factory.ref(meta.addTerm.getRef()), true, computeTerm(args.get(args.size() - 2), coefficients, freeCoef), computeTerm(args.get(args.size() - 1), coefficients, freeCoef));
+  }
+
   private ConcreteExpression computeTerm(CoreExpression expression, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
     CoreExpression expr = expression.normalize(NormalizationMode.WHNF);
 
@@ -148,7 +179,7 @@ public class TermCompiler {
 
     List<CoreExpression> addArgs = addMatcher.match(expr);
     if (addArgs != null) {
-      return factory.app(factory.ref(meta.addTerm.getRef()), true, computeTerm(addArgs.get(addArgs.size() - 2), coefficients, freeCoef), computeTerm(addArgs.get(addArgs.size() - 1), coefficients, freeCoef));
+      return makeAddTerm(addArgs, coefficients, freeCoef);
     }
 
     if (ideMatcher.match(expr) != null) {
@@ -162,6 +193,7 @@ public class TermCompiler {
         Map<Integer, Ring> newCoefficients = new HashMap<>();
         Ring[] newFreeCoef = new Ring[] { getZero() };
         ConcreteExpression term = computeTerm(negativeArgs.get(0), newCoefficients, newFreeCoef);
+        if (term == null) return null;
         for (Map.Entry<Integer, Ring> entry : newCoefficients.entrySet()) {
           coefficients.compute(entry.getKey(), (k,v) -> v == null ? entry.getValue().negate() : v.subtract(entry.getValue()));
         }
@@ -170,13 +202,9 @@ public class TermCompiler {
       }
     }
 
-    boolean isNeg = false;
-    List<? extends CoreExpression> coefArgs = null;
     Pair<Boolean, CoreExpression> pair = checkInt(expr);
-    if (pair != null) {
-      isNeg = pair.proj1;
-      coefArgs = Collections.singletonList(pair.proj2);
-    }
+    boolean isNeg = pair != null && pair.proj1;
+    List<? extends CoreExpression> coefArgs = pair == null ? null : Collections.singletonList(pair.proj2);
 
     if (coefArgs == null) {
       coefArgs = natCoefMatcher.match(expr);
@@ -186,8 +214,21 @@ public class TermCompiler {
       if (arg instanceof CoreIntegerExpression) {
         BigInteger coef = ((CoreIntegerExpression) arg).getBigInteger();
         if (isNeg) coef = coef.negate();
-        freeCoef[0] = freeCoef[0].add(isRat ? BigRational.makeInt(coef) : new IntRing(coef));
+        freeCoef[0] = freeCoef[0].add(kind == Kind.RAT ? BigRational.makeInt(coef) : new IntRing(coef));
         return factory.app(factory.ref(meta.coefTerm.getRef()), true, factory.number(coef));
+      } else if (natTermCompiler != null) {
+        natTermCompiler.toInt = true;
+        natTermCompiler.toRat = false;
+        Map<Integer, Ring> newCoefficients = new HashMap<>();
+        Ring[] newFreeCoef = new Ring[] { getZero() };
+        ConcreteExpression term = natTermCompiler.computeTerm(arg, newCoefficients, newFreeCoef);
+        if (term != null) {
+          for (Map.Entry<Integer, Ring> entry : newCoefficients.entrySet()) {
+            coefficients.compute(entry.getKey(), (k,v) -> v == null ? (isNeg ? entry.getValue().negate() : entry.getValue()) : isNeg ? v.subtract(entry.getValue()) : v.add(entry.getValue()));
+          }
+          freeCoef[0] = isNeg ? freeCoef[0].subtract(newFreeCoef[0]) : freeCoef[0].add(newFreeCoef[0]);
+          return isNeg ? factory.app(factory.ref(meta.negativeTerm.getRef()), true, term) : term;
+        }
       }
     }
 
@@ -198,6 +239,7 @@ public class TermCompiler {
       Ring[] freeCoef1 = new Ring[] { getZero() }, freeCoef2 = new Ring[] { getZero() };
       ConcreteExpression leftTerm = computeTerm(mulArgs.get(mulArgs.size() - 2), coefficients1, freeCoef1);
       ConcreteExpression rightTerm = computeTerm(mulArgs.get(mulArgs.size() - 1), coefficients2, freeCoef2);
+      if (leftTerm == null || rightTerm == null) return null;
       if (coefficients1.isEmpty() && coefficients2.isEmpty()) {
         freeCoef[0] = freeCoef[0].add(freeCoef1[0].multiply(freeCoef2[0]));
       } else if (coefficients1.isEmpty() || coefficients2.isEmpty()) {
@@ -218,7 +260,7 @@ public class TermCompiler {
       return factory.app(factory.ref(meta.mulTerm.getRef()), true, leftTerm, rightTerm);
     }
 
-    if (isRat && expr instanceof CoreConCallExpression) {
+    if (kind == Kind.RAT && expr instanceof CoreConCallExpression) {
       CoreConCallExpression conCall = (CoreConCallExpression) expr;
       TypedExpression typedExpr = expr.computeTyped();
       CoreExpression nomExpr = conCall.getDefCallArguments().get(0);
@@ -236,7 +278,18 @@ public class TermCompiler {
     }
 
     int index = values.addValue(expr);
+    if (toInt) {
+      expr = toPos(expr, typechecker, factory, meta.ext);
+      if (expr == null) return null;
+      positiveVars.add(index);
+    }
     coefficients.compute(index, (k,v) -> v == null ? getOne() : v.add(getOne()));
     return factory.app(factory.ref(meta.varTerm.getRef()), true, factory.number(index));
+  }
+
+  public static CoreExpression toPos(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory, StdExtension ext) {
+    TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(factory.ref(ext.prelude.getPos().getRef()), true, factory.core(expr.computeTyped())), null));
+    if (result == null) return null;
+    return result.getExpression();
   }
 }

@@ -230,8 +230,14 @@ public class LinearSolver {
     return result;
   }
 
+  private TermCompiler.Kind getTermCompilerKind(CoreExpression instance) {
+    CoreExpression instanceNorm = instance.normalize(NormalizationMode.WHNF);
+    CoreFunctionDefinition instanceDef = instanceNorm instanceof CoreFunCallExpression ? ((CoreFunCallExpression) instanceNorm).getDefinition() : null;
+    return instanceDef == ext.equationMeta.NatSemiring ? TermCompiler.Kind.NAT : instanceDef == ext.equationMeta.IntRing ? TermCompiler.Kind.INT : instanceDef == ext.equationMeta.RatField ? TermCompiler.Kind.RAT : TermCompiler.Kind.NONE;
+  }
+
   private TermCompiler makeTermCompiler(TypedExpression instance, CoreClassCallExpression classCall) {
-    return classCall == null ? null : new TermCompiler(classCall, instance, ext, typechecker, marker);
+    return classCall == null ? null : new TermCompiler(classCall, instance, getTermCompilerKind(instance.getExpression()), ext, typechecker, marker);
   }
 
   private static Hypothesis<CompiledTerm> compileHypothesis(TermCompiler compiler, Hypothesis<CoreExpression> hypothesis) {
@@ -296,15 +302,28 @@ public class LinearSolver {
     return new Equation<>(instance, Equation.Operation.LESS, new CompiledTerm(null, Collections.emptyList()), new CompiledTerm(null, Collections.singletonList(BigInteger.ONE)));
   }
 
-  private void makeZeroLessVar(CoreExpression instance, int n, List<Hypothesis<CompiledTerm>> result) {
-    for (int i = 1; i < n; i++) {
+  private void makeZeroLessVar(CoreExpression instance, TermCompiler compiler, List<Hypothesis<CompiledTerm>> result) {
+    for (int i = 1; i <= compiler.getNumberOfVariables() ; i++) {
+      if (!compiler.isNat() && !compiler.positiveVars.contains(i - 1)) {
+        continue;
+      }
       List<BigInteger> coefs = new ArrayList<>(i + 1);
       for (int j = 0; j < i; j++) {
         coefs.add(BigInteger.ZERO);
       }
       coefs.add(BigInteger.ONE);
-      result.add(new Hypothesis<>(factory.ref(ext.equationMeta.zeroLE_.getRef()), instance, Equation.Operation.LESS_OR_EQUALS, new CompiledTerm(factory.ref(ext.equationMeta.zroTerm.getRef()), Collections.emptyList()), new CompiledTerm(factory.app(factory.ref(ext.equationMeta.varTerm.getRef()), true, factory.number(i - 1)), coefs), BigInteger.ONE));
+      ConcreteExpression proof = factory.ref(ext.equationMeta.zeroLE_.getRef());
+      if (compiler.isInt()) {
+        proof = factory.app(factory.ref(ext.linearSolverMeta.posLEpos.getRef()), true, proof);
+      }
+      result.add(new Hypothesis<>(proof, instance, Equation.Operation.LESS_OR_EQUALS, new CompiledTerm(factory.ref(ext.equationMeta.zroTerm.getRef()), Collections.emptyList()), new CompiledTerm(factory.app(factory.ref(ext.equationMeta.varTerm.getRef()), true, factory.number(i - 1)), coefs), BigInteger.ONE));
     }
+  }
+
+  private Hypothesis<CoreExpression> natToIntHypothesis(Hypothesis<CoreExpression> rule, CoreExpression instance) {
+    CoreExpression newLHS = TermCompiler.toPos(rule.lhsTerm, typechecker, factory, ext);
+    CoreExpression newRHS = TermCompiler.toPos(rule.rhsTerm, typechecker, factory, ext);
+    return newLHS == null || newRHS == null ? null : new Hypothesis<>(factory.app(factory.ref(ext.linearSolverMeta.posLEpos.getRef()), true, rule.binding), instance, rule.operation, newLHS, newRHS, rule.lcm);
   }
 
   public TypedExpression solve(CoreExpression expectedType, ConcreteExpression hint) {
@@ -325,17 +344,22 @@ public class LinearSolver {
     }
 
     if (resultEquation != null) {
-      List<Hypothesis<CoreExpression>> newRules = new ArrayList<>();
-      for (Hypothesis<CoreExpression> rule : rules) {
-        if (rule.instance.compare(resultEquation.instance, CMP.EQ)) {
-          newRules.add(rule);
-        }
-      }
-      rules = newRules;
       TypedExpression instance = resultEquation.instance.computeTyped();
       CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
       TermCompiler compiler = makeTermCompiler(instance, classCall);
       if (compiler != null) {
+        List<Hypothesis<CoreExpression>> newRules = new ArrayList<>();
+        for (Hypothesis<CoreExpression> rule : rules) {
+          if (rule.instance.compare(resultEquation.instance, CMP.EQ)) {
+            newRules.add(rule);
+          } else if (compiler.isInt() && getTermCompilerKind(rule.instance) == TermCompiler.Kind.NAT) {
+            Hypothesis<CoreExpression> newRule = natToIntHypothesis(rule, resultEquation.instance);
+            if (newRule != null) {
+              newRules.add(newRule);
+            }
+          }
+        }
+        rules = newRules;
         CoreFunctionDefinition function;
         List<Hypothesis<CompiledTerm>> compiledRules = new ArrayList<>();
         compileHypotheses(compiler, rules, compiledRules);
@@ -344,8 +368,8 @@ public class LinearSolver {
         compiledRules1.add(makeZeroLessOne(instance.getExpression()));
         rulesSet.add(compiledRules1);
         CompiledTerms compiledResults = compiler.compileTerms(resultEquation.lhsTerm, resultEquation.rhsTerm);
-        if (compiler.isNat) {
-          makeZeroLessVar(instance.getExpression(), compiler.getNumberOfVariables() + 1, compiledRules);
+        if (compiler.isNat() || compiler.isInt()) {
+          makeZeroLessVar(instance.getExpression(), compiler, compiledRules);
         }
         switch (resultEquation.operation) {
           case LESS:
@@ -376,7 +400,7 @@ public class LinearSolver {
         }
         if (solutions.size() == rulesSet.size()) {
           ConcreteAppBuilder builder = factory.appBuilder(factory.ref(function.getRef()))
-            .app(makeData(classCall, factory.core(instance), compiler.isRat, compiler.getValues().getValues()), false)
+            .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledRules))
             .app(compiledResults.term1.concrete)
             .app(compiledResults.term2.concrete);
@@ -389,11 +413,31 @@ public class LinearSolver {
     } else {
       List<List<Hypothesis<CoreExpression>>> rulesSet = new ArrayList<>();
       for (Hypothesis<CoreExpression> rule : rules) {
+        TermCompiler.Kind kind = getTermCompilerKind(rule.instance);
         boolean found = false;
-        for (List<Hypothesis<CoreExpression>> newRules : rulesSet) {
+        for (int i = 0; i < rulesSet.size(); i++) {
+          List<Hypothesis<CoreExpression>> newRules = rulesSet.get(i);
           if (rule.instance.compare(newRules.get(0).instance, CMP.EQ)) {
             newRules.add(rule);
             found = true;
+            break;
+          } else if (kind == TermCompiler.Kind.INT && getTermCompilerKind(newRules.get(0).instance) == TermCompiler.Kind.NAT) {
+            found = true;
+            List<Hypothesis<CoreExpression>> newRules2 = new ArrayList<>(newRules.size() + 1);
+            boolean remove = true;
+            for (Hypothesis<CoreExpression> newRule : newRules) {
+              Hypothesis<CoreExpression> newRule2 = natToIntHypothesis(newRule, rule.instance);
+              if (newRule2 != null) {
+                newRules2.add(newRule2);
+              } else {
+                remove = false;
+              }
+            }
+            newRules2.add(rule);
+            rulesSet.add(newRules2);
+            if (remove) {
+              rulesSet.remove(i);
+            }
             break;
           }
         }
@@ -410,8 +454,8 @@ public class LinearSolver {
         if (compiler == null) continue;
         List<Hypothesis<CompiledTerm>> compiledEquations = new ArrayList<>();
         compileHypotheses(compiler, equations, compiledEquations);
-        if (compiler.isNat) {
-          makeZeroLessVar(instance.getExpression(), compiler.getNumberOfVariables() + 1, compiledEquations);
+        if (compiler.isNat() || compiler.isInt()) {
+          makeZeroLessVar(instance.getExpression(), compiler, compiledEquations);
         }
         List<Equation<CompiledTerm>> compiledEquations1 = new ArrayList<>(compiledEquations.size() + 1);
         compiledEquations1.add(makeZeroLessOne(instance.getExpression()));
@@ -419,7 +463,7 @@ public class LinearSolver {
         List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
         if (solution != null) {
           return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
-            .app(makeData(classCall, factory.core(instance), compiler.isRat, compiler.getValues().getValues()), false)
+            .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledEquations))
             .app(certificateToConcrete(solution, compiledEquations1))
             .app(witnessesToConcrete(compiledEquations))
