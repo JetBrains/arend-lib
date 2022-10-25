@@ -4,6 +4,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -32,15 +33,15 @@ public class TermCompiler {
   private final Values<CoreExpression> values;
   private final EquationMeta meta;
   private final Kind kind;
-  private boolean toInt;
-  private boolean toRat;
-  private final TermCompiler natTermCompiler;
+  private final boolean toInt;
+  private final boolean toRat;
+  private final TermCompiler subTermCompiler;
   private final ExpressionTypechecker typechecker;
   public final Set<Integer> positiveVars;
 
   public enum Kind { NAT, INT, RAT, NONE }
 
-  private TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, Kind kind, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker, Values<CoreExpression> values, Set<Integer> positiveVars) {
+  private TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, Kind kind, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker, Values<CoreExpression> values, Set<Integer> positiveVars, boolean toInt, boolean toRat) {
     meta = ext.equationMeta;
     factory = ext.factory.withData(marker);
     boolean isRing = classCall.getDefinition().isSubClassOf(meta.OrderedRing);
@@ -52,20 +53,27 @@ public class TermCompiler {
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, marker, meta.ext, 1) : null;
     this.values = values;
     this.kind = kind;
-    TermCompiler natTermCompiler = null;
-    if (kind == Kind.INT) {
-      TypedExpression typed = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.ref(meta.ext.equationMeta.NatSemiring.getRef()), null));
+    TermCompiler subTermCompiler = null;
+    if (kind == Kind.INT || kind == Kind.RAT) {
+      CoreFunctionDefinition subInstance = kind == Kind.INT ? meta.ext.equationMeta.NatSemiring : meta.ext.equationMeta.IntRing;
+      TypedExpression typed = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.ref(subInstance.getRef()), null));
       if (typed != null) {
-        natTermCompiler = new TermCompiler((CoreClassCallExpression) meta.ext.equationMeta.NatSemiring.getResultType(), typed, Kind.NAT, ext, typechecker, marker, values, positiveVars);
+        subTermCompiler = new TermCompiler((CoreClassCallExpression) subInstance.getResultType(), typed, kind == Kind.INT ? Kind.NAT : Kind.INT, ext, typechecker, marker, values, positiveVars, kind == Kind.INT, kind == Kind.RAT);
       }
     }
-    this.natTermCompiler = natTermCompiler;
+    this.toInt = toInt;
+    this.toRat = toRat;
+    this.subTermCompiler = subTermCompiler;
     this.typechecker = typechecker;
     this.positiveVars = positiveVars;
   }
 
   public TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, Kind kind, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
-    this(classCall, instance, kind, ext, typechecker, marker, new Values<>(typechecker, marker), new HashSet<>());
+    this(classCall, instance, kind, ext, typechecker, marker, new Values<>(typechecker, marker), new HashSet<>(), false, false);
+  }
+
+  public Kind getKind() {
+    return kind;
   }
 
   public boolean isNat() {
@@ -202,11 +210,37 @@ public class TermCompiler {
       }
     }
 
+    if (kind == Kind.RAT && expr instanceof CoreConCallExpression) {
+      CoreConCallExpression conCall = (CoreConCallExpression) expr;
+      TypedExpression typedExpr = expr.computeTyped();
+      CoreExpression nomExpr = conCall.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF);
+      CoreExpression denomExpr = conCall.getDefCallArguments().get(1).normalize(NormalizationMode.WHNF);
+      BigInteger nom = getInt(nomExpr);
+      BigInteger denom = getInt(denomExpr);
+      if (nom != null && denom != null) {
+        freeCoef[0] = freeCoef[0].add(BigRational.make(nom, denom));
+        return factory.app(factory.ref(meta.coefTerm.getRef()), true, factory.core(typedExpr));
+      }
+      if (denom != null && denom.equals(BigInteger.ONE) && subTermCompiler != null) {
+        Map<Integer, Ring> newCoefficients = new HashMap<>();
+        Ring[] newFreeCoef = new Ring[] { IntRing.ZERO };
+        ConcreteExpression term = subTermCompiler.computeTerm(nomExpr, newCoefficients, newFreeCoef);
+        if (term != null) {
+          for (Map.Entry<Integer, Ring> entry : newCoefficients.entrySet()) {
+            BigRational value = BigRational.makeInt(((IntRing) entry.getValue()).number);
+            coefficients.compute(entry.getKey(), (k,v) -> v == null ? value : v.add(value));
+          }
+          freeCoef[0] = freeCoef[0].add(BigRational.makeInt(((IntRing) newFreeCoef[0]).number));
+          return term;
+        }
+      }
+    }
+
     Pair<Boolean, CoreExpression> pair = checkInt(expr);
     boolean isNeg = pair != null && pair.proj1;
     List<? extends CoreExpression> coefArgs = pair == null ? null : Collections.singletonList(pair.proj2);
 
-    if (coefArgs == null) {
+    if (coefArgs == null && kind != Kind.RAT) {
       coefArgs = natCoefMatcher.match(expr);
     }
     if (coefArgs != null) {
@@ -214,14 +248,12 @@ public class TermCompiler {
       if (arg instanceof CoreIntegerExpression) {
         BigInteger coef = ((CoreIntegerExpression) arg).getBigInteger();
         if (isNeg) coef = coef.negate();
-        freeCoef[0] = freeCoef[0].add(kind == Kind.RAT ? BigRational.makeInt(coef) : new IntRing(coef));
+        freeCoef[0] = freeCoef[0].add(new IntRing(coef));
         return factory.app(factory.ref(meta.coefTerm.getRef()), true, factory.number(coef));
-      } else if (natTermCompiler != null) {
-        natTermCompiler.toInt = true;
-        natTermCompiler.toRat = false;
+      } else if (subTermCompiler != null) {
         Map<Integer, Ring> newCoefficients = new HashMap<>();
         Ring[] newFreeCoef = new Ring[] { getZero() };
-        ConcreteExpression term = natTermCompiler.computeTerm(arg, newCoefficients, newFreeCoef);
+        ConcreteExpression term = subTermCompiler.computeTerm(arg, newCoefficients, newFreeCoef);
         if (term != null) {
           for (Map.Entry<Integer, Ring> entry : newCoefficients.entrySet()) {
             coefficients.compute(entry.getKey(), (k,v) -> v == null ? (isNeg ? entry.getValue().negate() : entry.getValue()) : isNeg ? v.subtract(entry.getValue()) : v.add(entry.getValue()));
@@ -260,28 +292,14 @@ public class TermCompiler {
       return factory.app(factory.ref(meta.mulTerm.getRef()), true, leftTerm, rightTerm);
     }
 
-    if (kind == Kind.RAT && expr instanceof CoreConCallExpression) {
-      CoreConCallExpression conCall = (CoreConCallExpression) expr;
-      TypedExpression typedExpr = expr.computeTyped();
-      CoreExpression nomExpr = conCall.getDefCallArguments().get(0);
-      CoreExpression denomExpr = conCall.getDefCallArguments().get(1);
-      if (nomExpr != null && denomExpr != null) {
-        BigInteger nom = getInt(nomExpr.normalize(NormalizationMode.WHNF));
-        BigInteger denom = getInt(denomExpr.normalize(NormalizationMode.WHNF));
-        if (nom != null && denom != null) {
-          BigRational coef = BigRational.make(nom, denom);
-          if (isNeg) coef = coef.negate();
-          freeCoef[0] = freeCoef[0].add(coef);
-          return factory.app(factory.ref(meta.coefTerm.getRef()), true, factory.core(typedExpr));
-        }
-      }
-    }
-
     int index = values.addValue(expr);
     if (toInt) {
       expr = toPos(expr, typechecker, factory, meta.ext);
       if (expr == null) return null;
       positiveVars.add(index);
+    } else if (toRat) {
+      expr = toRat(expr, typechecker, factory, meta.ext);
+      if (expr == null) return null;
     }
     coefficients.compute(index, (k,v) -> v == null ? getOne() : v.add(getOne()));
     return factory.app(factory.ref(meta.varTerm.getRef()), true, factory.number(index));
@@ -289,6 +307,12 @@ public class TermCompiler {
 
   public static CoreExpression toPos(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory, StdExtension ext) {
     TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(factory.ref(ext.prelude.getPos().getRef()), true, factory.core(expr.computeTyped())), null));
+    if (result == null) return null;
+    return result.getExpression();
+  }
+
+  public static CoreExpression toRat(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory, StdExtension ext) {
+    TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(factory.ref(ext.equationMeta.fromInt.getRef()), true, factory.core(expr.computeTyped())), null));
     if (result == null) return null;
     return result.getExpression();
   }

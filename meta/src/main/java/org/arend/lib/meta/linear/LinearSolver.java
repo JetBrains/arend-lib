@@ -102,12 +102,12 @@ public class LinearSolver {
   }
 
   private static class Hypothesis<E> extends Equation<E> {
-    public final ConcreteExpression binding;
+    public final ConcreteExpression proof;
     private final BigInteger lcm;
 
-    private Hypothesis(ConcreteExpression binding, CoreExpression instance, Operation operation, E lhsTerm, E rhsTerm, BigInteger lcm) {
+    private Hypothesis(ConcreteExpression proof, CoreExpression instance, Operation operation, E lhsTerm, E rhsTerm, BigInteger lcm) {
       super(instance, operation, lhsTerm, rhsTerm);
-      this.binding = binding;
+      this.proof = proof;
       this.lcm = lcm;
     }
 
@@ -242,7 +242,7 @@ public class LinearSolver {
 
   private static Hypothesis<CompiledTerm> compileHypothesis(TermCompiler compiler, Hypothesis<CoreExpression> hypothesis) {
     CompiledTerms terms = compiler.compileTerms(hypothesis.lhsTerm, hypothesis.rhsTerm);
-    return new Hypothesis<>(hypothesis.binding, hypothesis.instance, hypothesis.operation, terms.term1, terms.term2, terms.lcm);
+    return new Hypothesis<>(hypothesis.proof, hypothesis.instance, hypothesis.operation, terms.term1, terms.term2, terms.lcm);
   }
 
   private static void compileHypotheses(TermCompiler compiler, List<Hypothesis<CoreExpression>> equations, List<Hypothesis<CompiledTerm>> result) {
@@ -273,8 +273,8 @@ public class LinearSolver {
   private ConcreteExpression witnessesToConcrete(List<? extends Hypothesis<CompiledTerm>> hypotheses) {
     ConcreteExpression result = factory.ref(ext.prelude.getEmptyArray().getRef());
     for (int i = hypotheses.size() - 1; i >= 0; i--) {
-      if (hypotheses.get(i).binding != null) {
-        result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, hypotheses.get(i).binding, result);
+      if (hypotheses.get(i).proof != null) {
+        result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, hypotheses.get(i).proof, result);
       }
     }
     return result;
@@ -313,8 +313,11 @@ public class LinearSolver {
       }
       coefs.add(BigInteger.ONE);
       ConcreteExpression proof = factory.ref(ext.equationMeta.zeroLE_.getRef());
-      if (compiler.isInt()) {
+      if (!compiler.isNat()) {
         proof = factory.app(factory.ref(ext.linearSolverMeta.posLEpos.getRef()), true, proof);
+      }
+      if (compiler.isRat()) {
+        proof = factory.app(factory.ref(ext.linearSolverMeta.fromIntLE.getRef()), true, proof);
       }
       result.add(new Hypothesis<>(proof, instance, Equation.Operation.LESS_OR_EQUALS, new CompiledTerm(factory.ref(ext.equationMeta.zroTerm.getRef()), Collections.emptyList()), new CompiledTerm(factory.app(factory.ref(ext.equationMeta.varTerm.getRef()), true, factory.number(i - 1)), coefs), BigInteger.ONE));
     }
@@ -323,7 +326,22 @@ public class LinearSolver {
   private Hypothesis<CoreExpression> natToIntHypothesis(Hypothesis<CoreExpression> rule, CoreExpression instance) {
     CoreExpression newLHS = TermCompiler.toPos(rule.lhsTerm, typechecker, factory, ext);
     CoreExpression newRHS = TermCompiler.toPos(rule.rhsTerm, typechecker, factory, ext);
-    return newLHS == null || newRHS == null ? null : new Hypothesis<>(factory.app(factory.ref(ext.linearSolverMeta.posLEpos.getRef()), true, rule.binding), instance, rule.operation, newLHS, newRHS, rule.lcm);
+    return newLHS == null || newRHS == null ? null : new Hypothesis<>(rule.operation == Equation.Operation.EQUALS ? factory.app(factory.ref(ext.pmap.getRef()), true, factory.ref(ext.prelude.getPos().getRef()), rule.proof) : factory.app(factory.ref(rule.operation == Equation.Operation.LESS ? ext.linearSolverMeta.posLpos.getRef() : ext.linearSolverMeta.posLEpos.getRef()), true, rule.proof), instance, rule.operation, newLHS, newRHS, rule.lcm);
+  }
+
+  private Hypothesis<CoreExpression> intToRatHypothesis(Hypothesis<CoreExpression> rule, CoreExpression instance) {
+    CoreExpression newLHS = TermCompiler.toRat(rule.lhsTerm, typechecker, factory, ext);
+    CoreExpression newRHS = TermCompiler.toRat(rule.rhsTerm, typechecker, factory, ext);
+    return newLHS == null || newRHS == null ? null : new Hypothesis<>(rule.operation == Equation.Operation.EQUALS ? factory.app(factory.ref(ext.pmap.getRef()), true, factory.ref(ext.equationMeta.fromInt.getRef()), rule.proof) : factory.app(factory.ref(rule.operation == Equation.Operation.LESS ? ext.linearSolverMeta.fromIntL.getRef() : ext.linearSolverMeta.fromIntLE.getRef()), true, rule.proof), instance, rule.operation, newLHS, newRHS, rule.lcm);
+  }
+
+  private Hypothesis<CoreExpression> convertHypothesis(Hypothesis<CoreExpression> rule, CoreExpression instance, TermCompiler.Kind from, TermCompiler.Kind to) {
+    if (from == TermCompiler.Kind.RAT || to == TermCompiler.Kind.NAT) return rule;
+    if (from == TermCompiler.Kind.NAT) {
+      rule = natToIntHypothesis(rule, instance);
+      if (rule == null) return null;
+    }
+    return to == TermCompiler.Kind.RAT ? intToRatHypothesis(rule, instance) : rule;
   }
 
   public TypedExpression solve(CoreExpression expectedType, ConcreteExpression hint) {
@@ -352,8 +370,8 @@ public class LinearSolver {
         for (Hypothesis<CoreExpression> rule : rules) {
           if (rule.instance.compare(resultEquation.instance, CMP.EQ)) {
             newRules.add(rule);
-          } else if (compiler.isInt() && getTermCompilerKind(rule.instance) == TermCompiler.Kind.NAT) {
-            Hypothesis<CoreExpression> newRule = natToIntHypothesis(rule, resultEquation.instance);
+          } else {
+            Hypothesis<CoreExpression> newRule = convertHypothesis(rule, resultEquation.instance, getTermCompilerKind(rule.instance), compiler.getKind());
             if (newRule != null) {
               newRules.add(newRule);
             }
@@ -368,7 +386,7 @@ public class LinearSolver {
         compiledRules1.add(makeZeroLessOne(instance.getExpression()));
         rulesSet.add(compiledRules1);
         CompiledTerms compiledResults = compiler.compileTerms(resultEquation.lhsTerm, resultEquation.rhsTerm);
-        if (compiler.isNat() || compiler.isInt()) {
+        if (compiler.isNat() || !compiler.positiveVars.isEmpty()) {
           makeZeroLessVar(instance.getExpression(), compiler, compiledRules);
         }
         switch (resultEquation.operation) {
@@ -421,24 +439,27 @@ public class LinearSolver {
             newRules.add(rule);
             found = true;
             break;
-          } else if (kind == TermCompiler.Kind.INT && getTermCompilerKind(newRules.get(0).instance) == TermCompiler.Kind.NAT) {
-            found = true;
-            List<Hypothesis<CoreExpression>> newRules2 = new ArrayList<>(newRules.size() + 1);
-            boolean remove = true;
-            for (Hypothesis<CoreExpression> newRule : newRules) {
-              Hypothesis<CoreExpression> newRule2 = natToIntHypothesis(newRule, rule.instance);
-              if (newRule2 != null) {
-                newRules2.add(newRule2);
-              } else {
-                remove = false;
+          } else if (kind != TermCompiler.Kind.NAT) {
+            TermCompiler.Kind newKind = getTermCompilerKind(newRules.get(0).instance);
+            if (newKind != TermCompiler.Kind.RAT) {
+              found = true;
+              List<Hypothesis<CoreExpression>> newRules2 = new ArrayList<>(newRules.size() + 1);
+              boolean remove = true;
+              for (Hypothesis<CoreExpression> newRule : newRules) {
+                Hypothesis<CoreExpression> newRule2 = convertHypothesis(newRule, rule.instance, newKind, kind);
+                if (newRule2 != null) {
+                  newRules2.add(newRule2);
+                } else {
+                  remove = false;
+                }
               }
+              newRules2.add(rule);
+              rulesSet.add(newRules2);
+              if (remove) {
+                rulesSet.remove(i);
+              }
+              break;
             }
-            newRules2.add(rule);
-            rulesSet.add(newRules2);
-            if (remove) {
-              rulesSet.remove(i);
-            }
-            break;
           }
         }
         if (!found) {

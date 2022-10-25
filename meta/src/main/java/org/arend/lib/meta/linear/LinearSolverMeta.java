@@ -26,6 +26,9 @@ public class LinearSolverMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Linear.Solver")                                         CoreClassDefinition LinearRingData;
   @Dependency(module = "Algebra.Linear.Solver")                                         CoreClassDefinition LinearRatData;
   @Dependency(module = "Arith.Int", name = "pos<=pos")                                  CoreFunctionDefinition posLEpos;
+  @Dependency(module = "Arith.Int", name = "pos<pos")                                   CoreFunctionDefinition posLpos;
+  @Dependency(module = "Arith.Rat", name = "fromInt_<=")                                CoreFunctionDefinition fromIntLE;
+  @Dependency(module = "Arith.Rat", name = "fromInt_<")                                 CoreFunctionDefinition fromIntL;
 
   public LinearSolverMeta(StdExtension ext) {
     this.ext = ext;

@@ -23,6 +23,7 @@ public class LinearSolverError extends TypecheckingError {
 
   @Override
   public Doc getBodyDoc(PrettyPrinterConfig ppConfig) {
+    if (equations.isEmpty()) return nullDoc();
     List<Doc> docs = new ArrayList<>(equations.size());
     for (Equation<CoreExpression> equation : equations) {
       String op;

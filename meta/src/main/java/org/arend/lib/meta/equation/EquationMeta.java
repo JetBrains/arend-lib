@@ -142,7 +142,8 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition idEquiv;
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition transEquiv;
 
-  @Dependency(module = "Arith.Rat")                     public CoreFunctionDefinition RatField;
+  @Dependency(module = "Arith.Rat", name = "Rat.fromInt") public CoreFunctionDefinition fromInt;
+  @Dependency(module = "Arith.Rat")                       public CoreFunctionDefinition RatField;
 
   public static class TransitivityInstanceCache {
     public final CoreFunctionDefinition instance;

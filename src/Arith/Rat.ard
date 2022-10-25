@@ -57,15 +57,28 @@
 
 \open Rat(AltRat)
 
-\func makeRat (nom : Int) (denom : Nat) (denom/=0 : Not (denom = 0)) : Rat \elim nom
-  | 0 => rat 0 1 (\case __) idp
-  | pos (suc _ \as nom) =>
-    \let! (a,b) => reduce nom denom
-    \in rat a b (reduce2/=0 nom denom denom/=0) (gcd_reduced nom denom denom/=0)
-  | neg (suc _ \as nom) =>
-    \let! (a,b) => reduce nom denom
-    \in rat (neg a) b (reduce2/=0 nom denom denom/=0) (gcd_reduced nom denom denom/=0)
+\func makeRat (nom : Int) (denom : Nat) (denom/=0 : denom /= 0) : Rat \elim denom
+  | 1 => nom
+  | denom => makeRat' nom denom denom/=0
   \where {
+    \func makeRat' (nom : Int) (denom : Nat) (denom/=0 : denom /= 0) : Rat \elim nom
+      | 0 => rat 0 1 (\case __) idp
+      | pos (suc _ \as nom) =>
+        \let! (a,b) => reduce nom denom
+        \in rat a b (reduce2/=0 nom denom denom/=0) (gcd_reduced nom denom denom/=0)
+      | neg (suc _ \as nom) =>
+        \let! (a,b) => reduce nom denom
+        \in rat (neg a) b (reduce2/=0 nom denom denom/=0) (gcd_reduced nom denom denom/=0)
+
+    \lemma simp {nom : Int} {denom : Nat} {denom/=0 : denom /= 0} : makeRat nom denom denom/=0 = makeRat' nom denom denom/=0 \elim denom
+      | 0 => idp
+      | 1 => \case \elim nom \with {
+        | 0 => idp
+        | pos (suc n) => Rat.ext (pmap (\lam x => pos (suc x)) (inv ide-left)) idp
+        | neg (suc n) => Rat.ext (pmap (\lam x => neg (suc x)) (inv ide-left)) idp
+      }
+      | suc (suc _) => idp
+
     \lemma reduce1/=0 {a b : Nat} : Not ((reduce (suc a) b).1 = 0)
       => NatSemiring.nonZero-div (\case __) (LDiv.swap (GCD.gcd|val1 {gcd-isGCD (suc a) b}))
 
@@ -78,10 +91,15 @@
     \lemma gcd_reduced (a b : Nat) (b/=0 : Not (b = 0)) : gcd (reduce a b).1 (reduce a b).2 = 1
       => nat_gcd-isUnique (gcd-isGCD (reduce a b).1 (reduce a b).2) $ gcd_reduced=1.aux (gcd-isGCD a b) $ NatSemiring.cancel_*-left $ \lam gcd=0 => b/=0 $ div0 $ transport (LDiv __ b) gcd=0 $ GCD.gcd|val2 {gcd-isGCD a b}
 
-    \lemma signum_nom {nom : Int} {denom : Nat} {denom/=0 : Not (denom = 0)} : signum (ratNom (makeRat nom denom denom/=0)) = signum nom \elim nom
-      | 0 => idp
-      | pos (suc _) => signum.signum_pos reduce1/=0
-      | neg (suc _) => signum.signum_neg reduce1/=0
+    \lemma signum_nom {nom : Int} {denom : Nat} {denom/=0 : Not (denom = 0)} : signum (ratNom (makeRat nom denom denom/=0)) = signum nom
+      => mcases {makeRat} \with {
+        | 1, _ => idp
+        | denom1, denom/=0' => \case \elim nom \with {
+          | 0 => idp
+          | pos (suc _) => signum.signum_pos reduce1/=0
+          | neg (suc _) => signum.signum_neg reduce1/=0
+        }
+      }
 
     \lemma eta {x : Rat} : makeRat (ratNom x) (ratDenom x) (ratDenom/=0 x) = x
       => rat_alt-inj rat_alt_makeRat.alt
@@ -103,10 +121,14 @@
 \lemma rat_alt_makeRat {nom : Int} {denom : Nat} {denom/=0 : Not (denom = 0)} {p : signum (pos denom) = 1} : rat_alt (makeRat nom denom denom/=0) = in~ (nom, denom, p)
   => LocRing.equals1 AltRat.subset aux
   \where {
-    \lemma aux {a : Int} {b : Nat} {b/=0 : Not (b = 0)} : ratNom (makeRat a b b/=0) * b = a * ratDenom (makeRat a b b/=0) \elim a
-      | 0 => IntRing.zro_*-left {b}
-      | pos (suc n) => unfold_let (pmap pos (aux2 b/=0))
-      | neg (suc n) => unfold_let (IntRing.negative_*-left {(reduce (suc n) b).1} *> pmap neg (aux2 b/=0))
+    \lemma aux {a : Int} {b : Nat} {b/=0 : Not (b = 0)} : ratNom (makeRat a b b/=0) * b = a * ratDenom (makeRat a b b/=0) \elim b
+      | 0 => absurd (b/=0 idp)
+      | 1 => idp
+      | suc (suc _) \as b => \case \elim a \with {
+        | 0 => IntRing.zro_*-left {b}
+        | pos (suc n) => unfold_let (pmap pos (aux2 b/=0))
+        | neg (suc n) => unfold_let (IntRing.negative_*-left {(reduce (suc n) b).1} *> pmap neg (aux2 b/=0))
+      }
 
     \lemma aux2 {a b : Nat} (b/=0 : Not (b = 0)) : (reduce a b).1 * b = a * (reduce a b).2
       => NatSemiring.cancel_*-left (Semiring.nonZero-div b/=0 (GCD.gcd|val2 {gcd-isGCD a b}))
@@ -163,11 +185,11 @@
   }
   | #0=>eitherPosOrNeg {x} xInv =>
     \case \elim x, \elim xInv \with {
-      | rat n1 d1 d1/=0 r1, (rat n2 d2 d2/=0 r2, il, _) => IntRing.#0=>eitherPosOrNeg {n1} (\lam n1=0 => \case rewriteF (n1=0,IntRing.zro_*-right) il)
+      | rat n1 d1 d1/=0 r1, (rat n2 d2 d2/=0 r2, il, _) => IntRing.#0=>eitherPosOrNeg {n1} $ \lam n1=0 => \case inv makeRat.simp *> rewriteF (n1=0,IntRing.zro_*-right) il
     }
   | natCoef n => rat n 1 (\case __) idp
   | natCoefZero => idp
-  | natCoefSuc n => Rat.ext (pmap (\lam t => pos (suc t)) (inv ide-left)) idp
+  | natCoefSuc n => idp
   \where {
     \lemma productNonZero {n m : Nat} (n/=0 : Not (n = 0)) (m/=0 : Not (m = 0)) : Not (n Nat.* m = 0)
       => \lam p => IntDomain.apartZeroProduct {pos n} {pos m} (\lam q => n/=0 (pmap iabs q)) (\lam q => m/=0 (pmap iabs q)) (pmap pos p)
@@ -198,6 +220,12 @@
     \lemma <=-char-conv {q r : Rat} (q<=r : q <= r) : ratNom q IntRing.* ratDenom r <= ratNom r IntRing.* ratDenom q
       => \lam p => q<=r (<-char p)
   }
+
+\lemma fromInt_<= {x y : Int} (p : x <= y) : x <= {RatField} y
+  => RatField.<=-char $ transport2 (<=) (inv ide-right) (inv ide-right) p
+
+\lemma fromInt_< {x y : Int} (p : x < y) : x < {RatField} y
+  => RatField.<-char $ transport2 (<) (inv ide-right) (inv ide-right) p
 
 \func ratio (nom : Int) (denom : Nat) : Rat \elim denom
   | 0 => 0
