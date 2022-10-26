@@ -3,9 +3,11 @@ package org.arend.lib.meta.linear;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
+import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
@@ -38,6 +40,8 @@ public class TermCompiler {
   private final TermCompiler subTermCompiler;
   private final ExpressionTypechecker typechecker;
   public final Set<Integer> positiveVars;
+  private final CoreExpression instance;
+  private final ConcreteSourceNode marker;
 
   public enum Kind { NAT, INT, RAT, NONE }
 
@@ -66,6 +70,8 @@ public class TermCompiler {
     this.subTermCompiler = subTermCompiler;
     this.typechecker = typechecker;
     this.positiveVars = positiveVars;
+    this.instance = instance.getExpression();
+    this.marker = marker;
   }
 
   public TermCompiler(CoreClassCallExpression classCall, TypedExpression instance, Kind kind, StdExtension ext, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
@@ -174,12 +180,90 @@ public class TermCompiler {
     return pair.proj1 ? number.negate() : number;
   }
 
-  private ConcreteExpression makeAddTerm(List<CoreExpression> args, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
-    return factory.app(factory.ref(meta.addTerm.getRef()), true, computeTerm(args.get(args.size() - 2), coefficients, freeCoef), computeTerm(args.get(args.size() - 1), coefficients, freeCoef));
+  private ConcreteExpression computeNegative(CoreExpression arg, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
+    Map<Integer, Ring> newCoefficients = new HashMap<>();
+    Ring[] newFreeCoef = new Ring[] { getZero() };
+    ConcreteExpression term = computeTerm(arg, newCoefficients, newFreeCoef);
+    if (term == null) return null;
+    for (Map.Entry<Integer, Ring> entry : newCoefficients.entrySet()) {
+      coefficients.compute(entry.getKey(), (k,v) -> v == null ? entry.getValue().negate() : v.subtract(entry.getValue()));
+    }
+    freeCoef[0] = freeCoef[0].subtract(newFreeCoef[0]);
+    return factory.app(factory.ref(meta.negativeTerm.getRef()), true, term);
+  }
+
+  private ConcreteExpression computePlus(CoreExpression arg1, CoreExpression arg2, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
+    return factory.app(factory.ref(meta.addTerm.getRef()), true, computeTerm(arg1, coefficients, freeCoef), computeTerm(arg2, coefficients, freeCoef));
+  }
+
+  private ConcreteExpression computeMul(CoreExpression arg1, CoreExpression arg2, CoreExpression expr, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
+    int valuesSize = values.getValues().size();
+    Map<Integer, Ring> coefficients1 = new HashMap<>(), coefficients2 = new HashMap<>();
+    Ring[] freeCoef1 = new Ring[] { getZero() }, freeCoef2 = new Ring[] { getZero() };
+    ConcreteExpression leftTerm = computeTerm(arg1, coefficients1, freeCoef1);
+    ConcreteExpression rightTerm = computeTerm(arg2, coefficients2, freeCoef2);
+    if (leftTerm == null || rightTerm == null) return null;
+    if (coefficients1.isEmpty() && coefficients2.isEmpty()) {
+      freeCoef[0] = freeCoef[0].add(freeCoef1[0].multiply(freeCoef2[0]));
+    } else if (coefficients1.isEmpty() || coefficients2.isEmpty()) {
+      Ring coef = coefficients1.isEmpty() ? freeCoef1[0] : freeCoef2[0];
+      for (Map.Entry<Integer, Ring> entry : coefficients1.entrySet()) {
+        Ring newCoef = entry.getValue().multiply(coef);
+        coefficients.compute(entry.getKey(), (k,v) -> v == null ? newCoef : v.add(newCoef));
+      }
+      for (Map.Entry<Integer, Ring> entry : coefficients2.entrySet()) {
+        Ring newCoef = entry.getValue().multiply(coef);
+        coefficients.compute(entry.getKey(), (k,v) -> v == null ? newCoef : v.add(newCoef));
+      }
+      freeCoef[0] = freeCoef[0].add(freeCoef1[0].multiply(freeCoef2[0]));
+    } else {
+      values.getValues().subList(valuesSize, values.getValues().size()).clear();
+      coefficients.compute(values.addValue(expr), (k,v) -> v == null ? getOne() : v.add(getOne()));
+    }
+    return factory.app(factory.ref(meta.mulTerm.getRef()), true, leftTerm, rightTerm);
   }
 
   private ConcreteExpression computeTerm(CoreExpression expression, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
-    CoreExpression expr = expression.normalize(NormalizationMode.WHNF);
+    CoreExpression expr = expression.getUnderlyingExpression();
+    if (expr instanceof CoreAppExpression || expr instanceof CoreFieldCallExpression) {
+      CoreFieldCallExpression fieldCall = null;
+      CoreExpression arg1 = null;
+      CoreExpression arg2 = null;
+      if (expr instanceof CoreFieldCallExpression) {
+        fieldCall = (CoreFieldCallExpression) expr;
+      } else {
+        CoreExpression fun = ((CoreAppExpression) expr).getFunction().getUnderlyingExpression();
+        if (fun instanceof CoreFieldCallExpression) {
+          fieldCall = (CoreFieldCallExpression) fun;
+          arg1 = ((CoreAppExpression) expr).getArgument();
+        } else if (fun instanceof CoreAppExpression) {
+          CoreExpression fun2 = ((CoreAppExpression) fun).getFunction().getUnderlyingExpression();
+          if (fun2 instanceof CoreFieldCallExpression) {
+            fieldCall = (CoreFieldCallExpression) fun2;
+            arg1 = ((CoreAppExpression) fun).getArgument();
+            arg2 = ((CoreAppExpression) expr).getArgument();
+          }
+        }
+      }
+      if (fieldCall != null) {
+        CoreClassField field = fieldCall.getDefinition();
+        if (((field == meta.ext.zro || field == meta.ext.ide) && arg1 == null || (field == meta.plus || field == meta.mul) && arg2 != null || field == meta.negative && arg1 != null && arg2 == null) && typechecker.compare(fieldCall.getArgument(), instance, CMP.EQ, marker, false, true, false)) {
+          if (field == meta.ext.zro) {
+            return factory.ref(meta.zroTerm.getRef());
+          } else if (field == meta.ext.ide) {
+            freeCoef[0] = freeCoef[0].add(getOne());
+            return factory.ref(meta.ideTerm.getRef());
+          } else if (field == meta.negative) {
+            return computeNegative(arg1, coefficients, freeCoef);
+          } else if (field == meta.plus) {
+            return computePlus(arg1, arg2, coefficients, freeCoef);
+          } else if (field == meta.mul) {
+            return computeMul(arg1, arg2, expr, coefficients, freeCoef);
+          }
+        }
+      }
+    }
+    expr = expr.normalize(NormalizationMode.WHNF);
 
     if (zroMatcher.match(expr) != null) {
       return factory.ref(meta.zroTerm.getRef());
@@ -187,7 +271,7 @@ public class TermCompiler {
 
     List<CoreExpression> addArgs = addMatcher.match(expr);
     if (addArgs != null) {
-      return makeAddTerm(addArgs, coefficients, freeCoef);
+      return computePlus(addArgs.get(addArgs.size() - 2), addArgs.get(addArgs.size() - 1), coefficients, freeCoef);
     }
 
     if (ideMatcher.match(expr) != null) {
@@ -198,15 +282,7 @@ public class TermCompiler {
     if (negativeMatcher != null) {
       List<CoreExpression> negativeArgs = negativeMatcher.match(expr);
       if (negativeArgs != null) {
-        Map<Integer, Ring> newCoefficients = new HashMap<>();
-        Ring[] newFreeCoef = new Ring[] { getZero() };
-        ConcreteExpression term = computeTerm(negativeArgs.get(0), newCoefficients, newFreeCoef);
-        if (term == null) return null;
-        for (Map.Entry<Integer, Ring> entry : newCoefficients.entrySet()) {
-          coefficients.compute(entry.getKey(), (k,v) -> v == null ? entry.getValue().negate() : v.subtract(entry.getValue()));
-        }
-        freeCoef[0] = freeCoef[0].subtract(newFreeCoef[0]);
-        return factory.app(factory.ref(meta.negativeTerm.getRef()), true, term);
+        return computeNegative(negativeArgs.get(0), coefficients, freeCoef);
       }
     }
 
@@ -266,30 +342,7 @@ public class TermCompiler {
 
     List<CoreExpression> mulArgs = mulMatcher.match(expr);
     if (mulArgs != null) {
-      int valuesSize = values.getValues().size();
-      Map<Integer, Ring> coefficients1 = new HashMap<>(), coefficients2 = new HashMap<>();
-      Ring[] freeCoef1 = new Ring[] { getZero() }, freeCoef2 = new Ring[] { getZero() };
-      ConcreteExpression leftTerm = computeTerm(mulArgs.get(mulArgs.size() - 2), coefficients1, freeCoef1);
-      ConcreteExpression rightTerm = computeTerm(mulArgs.get(mulArgs.size() - 1), coefficients2, freeCoef2);
-      if (leftTerm == null || rightTerm == null) return null;
-      if (coefficients1.isEmpty() && coefficients2.isEmpty()) {
-        freeCoef[0] = freeCoef[0].add(freeCoef1[0].multiply(freeCoef2[0]));
-      } else if (coefficients1.isEmpty() || coefficients2.isEmpty()) {
-        Ring coef = coefficients1.isEmpty() ? freeCoef1[0] : freeCoef2[0];
-        for (Map.Entry<Integer, Ring> entry : coefficients1.entrySet()) {
-          Ring newCoef = entry.getValue().multiply(coef);
-          coefficients.compute(entry.getKey(), (k,v) -> v == null ? newCoef : v.add(newCoef));
-        }
-        for (Map.Entry<Integer, Ring> entry : coefficients2.entrySet()) {
-          Ring newCoef = entry.getValue().multiply(coef);
-          coefficients.compute(entry.getKey(), (k,v) -> v == null ? newCoef : v.add(newCoef));
-        }
-        freeCoef[0] = freeCoef[0].add(freeCoef1[0].multiply(freeCoef2[0]));
-      } else {
-        values.getValues().subList(valuesSize, values.getValues().size()).clear();
-        coefficients.compute(values.addValue(expr), (k,v) -> v == null ? getOne() : v.add(getOne()));
-      }
-      return factory.app(factory.ref(meta.mulTerm.getRef()), true, leftTerm, rightTerm);
+      return computeMul(mulArgs.get(mulArgs.size() - 2), mulArgs.get(mulArgs.size() - 1), expr, coefficients, freeCoef);
     }
 
     int index = values.addValue(expr);
