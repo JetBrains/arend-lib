@@ -141,6 +141,7 @@
 \instance RatField : DiscreteOrderedField Rat
   | zro => rat 0 1 (\case __) idp
   | + (x y : Rat) : Rat \with {
+    | rat xNom 1 xDenom/=0 _, rat yNom 1 yDenom/=0 _ => makeRat (xNom IntRing.+ yNom) 1 (\case __)
     | rat xNom xDenom xDenom/=0 _, rat yNom yDenom yDenom/=0 _ => makeRat (xNom IntRing.* yDenom IntRing.+ yNom IntRing.* xDenom) (xDenom Nat.* yDenom) (productNonZero xDenom/=0 yDenom/=0)
   }
   | zro-left {x} => rat_alt-inj $ +_alt *> AltRat.zro-left {rat_alt x}
@@ -160,8 +161,9 @@
   | *-comm {x} {y} => rat_alt-inj $ *_alt *> AltRat.*-comm {rat_alt x} {rat_alt y} *> inv *_alt
   | isPos x => isPos (ratNom x)
   | zro/>0 => \case __
-  | positive_+ {x y : Rat} (x>0 : isPos (ratNom x)) (y>0 : isPos (ratNom y)) : isPos (ratNom (x + y)) \elim x, y {
-    rat xNom xDenom xDenom/=0 xReduced, rat yNom yDenom yDenom/=0 yReduced => makeRat.signum_nom *> IntRing.positive_+ (IntRing.positive_* x>0 (signum.signum_pos yDenom/=0)) (IntRing.positive_* y>0 (signum.signum_pos xDenom/=0))
+  | positive_+ {x} {y} => mcases {+} \with {
+    | rat xNom 1 xDenom/=0 reduced, rat yNom 1 yDenom/=0 reduced1 => positive_+
+    | rat xNom xDenom xDenom/=0 reduced, rat yNom yDenom yDenom/=0 reduced1 => \lam x>0 y>0 => makeRat.signum_nom *> IntRing.positive_+ (IntRing.positive_* x>0 (signum.signum_pos yDenom/=0)) (IntRing.positive_* y>0 (signum.signum_pos xDenom/=0))
   }
   | ide>zro => idp
   | positive_* {x} {y} => cases (x,y) (makeRat.signum_nom *> IntRing.positive_* __ __)
@@ -194,8 +196,17 @@
     \lemma productNonZero {n m : Nat} (n/=0 : Not (n = 0)) (m/=0 : Not (m = 0)) : Not (n Nat.* m = 0)
       => \lam p => IntDomain.apartZeroProduct {pos n} {pos m} (\lam q => n/=0 (pmap iabs q)) (\lam q => m/=0 (pmap iabs q)) (pmap pos p)
 
+    \func \infixl 6 +' (x y : Rat) : Rat
+      | rat xNom xDenom xDenom/=0 _, rat yNom yDenom yDenom/=0 _ => makeRat (xNom IntRing.* yDenom IntRing.+ yNom IntRing.* xDenom) (xDenom Nat.* yDenom) (productNonZero xDenom/=0 yDenom/=0)
+
+    \lemma +=+' {x y : Rat} : x + y = x +' y
+      => mcases {+} \with {
+        | rat xNom 1 xDenom/=0 reduced, rat yNom 1 yDenom/=0 reduced1 => Rat.ext (inv (pmap2 (IntRing.+) ide-right ide-right)) idp
+        | rat xNom xDenom xDenom/=0 reduced, rat yNom yDenom yDenom/=0 reduced1 => idp
+      }
+
     \lemma +_alt {x y : Rat} : rat_alt (x + y) = rat_alt x AltRat.+ rat_alt y \elim x, y
-      | rat nom1 denom1 denom1/=0 reduced1, rat nom2 denom2 denom2/=0 reduced2 => rat_alt_makeRat
+      | rat xNom xDenom xDenom/=0 reduced, rat yNom yDenom yDenom/=0 reduced1 => rewrite +=+' rat_alt_makeRat
 
     \lemma *_alt {x y : Rat} : rat_alt (x * y) = rat_alt x AltRat.* rat_alt y \elim x, y
       | rat nom1 denom1 denom1/=0 reduced1, rat nom2 denom2 denom2/=0 reduced2 => rat_alt_makeRat
@@ -209,10 +220,10 @@
     \open Arith.Rat(RatField)
 
     \lemma <-char {q r : Rat} (p : ratNom q IntRing.* ratDenom r < ratNom r IntRing.* ratDenom q) : q < r \elim q, r
-      | rat n1 d1 c1 r1, rat n2 d2 c2 r2 => unfolds $ unfold (-) $ unfold $ rewrite IntRing.negative_*-left (makeRat.signum_nom *> p)
+      | rat n1 d1 c1 r1, rat n2 d2 c2 r2 => unfolds $ unfold (-) $ unfold $ rewrite (+=+', IntRing.negative_*-left) (makeRat.signum_nom *> p)
 
     \lemma <-char-conv {q r : Rat} (q<r : q < r) : ratNom q IntRing.* ratDenom r < ratNom r IntRing.* ratDenom q \elim q, r
-      | rat n1 d1 c1 r1, rat n2 d2 c2 r2 => unfold (-) (rewrite IntRing.negative_*-left idp) *> inv makeRat.signum_nom *> q<r
+      | rat n1 d1 c1 r1, rat n2 d2 c2 r2 => unfold (-) (rewrite (+=+',IntRing.negative_*-left) (inv makeRat.signum_nom)) *> q<r
 
     \lemma <=-char {q r : Rat} (p : ratNom q IntRing.* ratDenom r <= ratNom r IntRing.* ratDenom q) : q <= r
       => \lam r<q => p (<-char-conv r<q)
@@ -247,7 +258,7 @@
   | rat (neg (suc _ \as n)) d d/=0 c => mcases {1} {arg addPath} \with {
     | 0, p => \have d=1 => nat_gcd-isUnique (div_gcd (mod_div p)) (EuclideanSemiringData.gcd-isGCD n d) *> c
               \in Preorder.=_<= $ Rat.ext (later $ rewrite d=1 idp) (inv d=1)
-    | suc _, _ => \lam c => (unfolds, inv makeRat.signum_nom *>, unfold) at c $
+    | suc _, _ => \lam c => (unfolds, rewriteF RatField.+=+', inv makeRat.signum_nom *>, unfold) at c $
       \have | s : n Nat.- n Nat.div d * d = n Nat.mod d
                 => IntRing.cancel-right (n Nat.div d * d) $ IntRing.+-assoc {n} {neg _} *> pmap (pos n +) IntRing.minus__ *> pmap pos (inv (Nat.divModProp n d) *> pmap (`+ _) *-comm *> +-comm)
             | t : n Nat.- suc (n Nat.div d) Nat.* d = n Nat.mod d Nat.- d
