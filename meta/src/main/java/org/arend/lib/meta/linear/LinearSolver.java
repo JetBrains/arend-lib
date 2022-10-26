@@ -160,27 +160,14 @@ public class LinearSolver {
         int cmp2 = equation2.lhsTerm.getCoef(var).compareTo(equation2.rhsTerm.getCoef(var));
         if (cmp2 == 0) continue;
 
+        if (!(cmp1 < 0 && cmp2 > 0 || cmp1 > 0 && cmp2 < 0)) {
+          continue;
+        }
         boolean swap = cmp1 > 0;
-        if (!(equation1.operation == Equation.Operation.EQUALS && equation2.operation == Equation.Operation.EQUALS)) {
-          if (equation1.operation != Equation.Operation.EQUALS && equation2.operation != Equation.Operation.EQUALS) {
-            if (!(cmp1 < 0 && cmp2 > 0 || cmp1 > 0 && cmp2 < 0)) {
-              continue;
-            }
-          } else if (equation2.operation != Equation.Operation.EQUALS) {
-            if (!(cmp1 < 0 && cmp2 > 0 || cmp1 > 0 && cmp2 < 0)) {
-              equation1 = new Equation<>(equation1.instance, Equation.Operation.EQUALS, equation1.rhsTerm, equation1.lhsTerm);
-              swap = !swap;
-            }
-          } else {
-            if (!(cmp1 < 0 && cmp2 > 0 || cmp1 > 0 && cmp2 < 0)) {
-              equation2 = new Equation<>(equation2.instance, Equation.Operation.EQUALS, equation2.rhsTerm, equation2.lhsTerm);
-            }
-          }
-          if (swap) {
-            Equation<CompiledTerm> tmp = equation1;
-            equation1 = equation2;
-            equation2 = tmp;
-          }
+        if (swap) {
+          Equation<CompiledTerm> tmp = equation1;
+          equation1 = equation2;
+          equation2 = tmp;
         }
 
         BigInteger c1 = equation1.rhsTerm.getCoef(var).subtract(equation1.lhsTerm.getCoef(var));
@@ -240,14 +227,15 @@ public class LinearSolver {
     return classCall == null ? null : new TermCompiler(classCall, instance, getTermCompilerKind(instance.getExpression()), ext, typechecker, marker);
   }
 
-  private static Hypothesis<CompiledTerm> compileHypothesis(TermCompiler compiler, Hypothesis<CoreExpression> hypothesis) {
-    CompiledTerms terms = compiler.compileTerms(hypothesis.lhsTerm, hypothesis.rhsTerm);
-    return new Hypothesis<>(hypothesis.proof, hypothesis.instance, hypothesis.operation, terms.term1, terms.term2, terms.lcm);
-  }
-
-  private static void compileHypotheses(TermCompiler compiler, List<Hypothesis<CoreExpression>> equations, List<Hypothesis<CompiledTerm>> result) {
+  private void compileHypotheses(TermCompiler compiler, List<Hypothesis<CoreExpression>> equations, List<Hypothesis<CompiledTerm>> result) {
     for (Hypothesis<CoreExpression> hypothesis : equations) {
-      result.add(compileHypothesis(compiler, hypothesis));
+      CompiledTerms terms = compiler.compileTerms(hypothesis.lhsTerm, hypothesis.rhsTerm);
+      if (hypothesis.operation == Equation.Operation.EQUALS) {
+        result.add(new Hypothesis<>(factory.app(factory.ref(ext.linearSolverMeta.eqToLeq.getRef()), true, hypothesis.proof), hypothesis.instance, Equation.Operation.LESS_OR_EQUALS, terms.term1, terms.term2, terms.lcm));
+        result.add(new Hypothesis<>(factory.app(factory.ref(ext.linearSolverMeta.eqToLeq.getRef()), true, factory.app(factory.ref(ext.inv.getRef()), true, hypothesis.proof)), hypothesis.instance, Equation.Operation.LESS_OR_EQUALS, terms.term2, terms.term1, terms.lcm));
+      } else {
+        result.add(new Hypothesis<>(hypothesis.proof, hypothesis.instance, hypothesis.operation, terms.term1, terms.term2, terms.lcm));
+      }
     }
   }
 
