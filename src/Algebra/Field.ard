@@ -24,25 +24,25 @@
 \class DiscreteField \extends Field, IntegralDomain.Dec {
   | finv : E -> E
   | finv_zro : finv 0 = 0
-  | id_finv {x : E} (x/=0 : x /= 0) : x * finv x = 1
+  | finv-right {x : E} (x/=0 : x /= 0) : x * finv x = 1
   \field eitherZeroOrInv (x : E) : (x = 0) `Or` Inv x
     \level Or.levelProp (\lam x=0 j => inv-nonZero j x=0)
 
-  \default finv \as finvImpl x => \case eitherZeroOrInv x \with {
+  \default finv \as finv-impl x => \case eitherZeroOrInv x \with {
     | inl _ => 0
     | inr (j : Inv) => j.inv
   }
-  \default finv_zro \as finv_zroImpl : finvImpl 0 = 0 => unfold finvImpl (mcases \with {
+  \default finv_zro \as finv_zroImpl : finv-impl 0 = 0 => unfold finv-impl (mcases \with {
     | inl _ => idp
     | inr (j : Inv) => absurd (zro/=ide (inv zro_*-left *> j.inv-right))
   })
-  \default id_finv \as id_finvImpl {x} x/=0 : x * finvImpl x = 1 => unfold finvImpl (mcases \with {
+  \default finv-right \as id_finvImpl {x} x/=0 : x * finv-impl x = 1 => unfold finv-impl (mcases \with {
     | inl x=0 => absurd (x/=0 x=0)
     | inr (j : Inv) => j.inv-right
   })
   \default eitherZeroOrInv x => \case decideEq x 0 \with {
     | yes x=0 => inl x=0
-    | no x/=0 => inr (Inv.rmake (finv x) (id_finv x/=0))
+    | no x/=0 => inr (Inv.rmake (finv x) (finv-right x/=0))
   }
 
   | locality x => \case eitherZeroOrInv x \with {
@@ -58,12 +58,29 @@
     | inr x#0 => x#0
   }
 
-  \lemma finv_id {x : E} (x/=0 : x /= 0) : finv x * x = 1
-    => *-comm *> id_finv x/=0
+  \lemma finv-left {x : E} (x/=0 : x /= 0) : finv x * x = 1
+    => *-comm *> finv-right x/=0
 
-  \lemma finv-Inv {x : E} (x/=0 : x /= 0) : Inv (finv x)
-    => Inv.lmake x (id_finv x/=0)
+  \lemma finv-Inv {x : E} (x/=0 : x /= 0) : Inv (finv x) x
+    => Inv.lmake x (finv-right x/=0)
 
-  \lemma nonZero-Inv {x : E} (x/=0 : x /= 0) : Inv x
-    => Inv.rmake (finv x) (id_finv x/=0)
+  \lemma nonZero-Inv {x : E} (x/=0 : x /= 0) : Inv x (finv x)
+    => Inv.rmake (finv x) (finv-right x/=0)
+
+  \lemma finv/=0 {x : E} (x/=0 : x /= 0) : finv x /= 0
+    => inv-nonZero (finv-Inv x/=0)
+
+  \lemma finv_* {x y : E} : finv (x * y) = finv y * finv x
+    => \case decideEq x 0, decideEq y 0 \with {
+      | yes x=0, _ => rewrite (x=0,zro_*-left,finv_zro) (inv zro_*-right)
+      | _, yes y=0 => rewrite (y=0,zro_*-right,finv_zro) (inv zro_*-left)
+      | no x/=0, no y/=0 => Inv.inv-isUnique (nonZero-Inv (nonZeroProduct x/=0 y/=0))
+          (Inv.lmake (finv y * finv x) (equation {usingOnly (finv-left x/=0, finv-left y/=0)})) idp
+    }
+
+  \lemma finv_finv {x : E} : finv (finv x) = x
+    => \case decideEq x 0 \with {
+      | yes x=0 => rewrite (x=0,finv_zro) finv_zro
+      | no x/=0 => Inv.inv-isUnique (nonZero-Inv (finv/=0 x/=0)) (Inv.lmake x (finv-right x/=0)) idp
+    }
 }
