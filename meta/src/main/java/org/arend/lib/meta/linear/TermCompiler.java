@@ -218,9 +218,23 @@ public class TermCompiler {
       freeCoef[0] = freeCoef[0].add(freeCoef1[0].multiply(freeCoef2[0]));
     } else {
       values.getValues().subList(valuesSize, values.getValues().size()).clear();
-      coefficients.compute(values.addValue(expr), (k,v) -> v == null ? getOne() : v.add(getOne()));
+      return computeVal(expr, coefficients);
     }
     return factory.app(factory.ref(meta.mulTerm.getRef()), true, leftTerm, rightTerm);
+  }
+
+  private ConcreteExpression computeVal(CoreExpression expr, Map<Integer, Ring> coefficients) {
+    int index = values.addValue(expr);
+    if (toInt) {
+      expr = toPos(expr, typechecker, factory, meta.ext);
+      if (expr == null) return null;
+      positiveVars.add(index);
+    } else if (toRat) {
+      expr = toRat(expr, typechecker, factory, meta.ext);
+      if (expr == null) return null;
+    }
+    coefficients.compute(index, (k,v) -> v == null ? getOne() : v.add(getOne()));
+    return factory.app(factory.ref(meta.varTerm.getRef()), true, factory.number(index));
   }
 
   private ConcreteExpression computeTerm(CoreExpression expression, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
@@ -345,17 +359,7 @@ public class TermCompiler {
       return computeMul(mulArgs.get(mulArgs.size() - 2), mulArgs.get(mulArgs.size() - 1), expr, coefficients, freeCoef);
     }
 
-    int index = values.addValue(expr);
-    if (toInt) {
-      expr = toPos(expr, typechecker, factory, meta.ext);
-      if (expr == null) return null;
-      positiveVars.add(index);
-    } else if (toRat) {
-      expr = toRat(expr, typechecker, factory, meta.ext);
-      if (expr == null) return null;
-    }
-    coefficients.compute(index, (k,v) -> v == null ? getOne() : v.add(getOne()));
-    return factory.app(factory.ref(meta.varTerm.getRef()), true, factory.number(index));
+    return computeVal(expr, coefficients);
   }
 
   public static CoreExpression toPos(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory, StdExtension ext) {
