@@ -1,6 +1,6 @@
 \import Algebra.Monoid
 \import Algebra.Pointed
-\import Arith.Nat
+\import Arith.Fin
 \import Data.List
 \import Function.Meta
 \import Meta
@@ -9,6 +9,7 @@
 \import Paths
 \import Paths.Meta
 \import Set \hiding (#)
+\open FinLinearOrder
 
 \data MonoidTerm (V : \Type)
   | var V
@@ -22,18 +23,20 @@
       | :ide => acc
       | :* t s => aux t (aux s acc)
 
-\class Data \noclassifying {M : Monoid} {V : \Set} (f : V -> M) {
+\class Data \noclassifying {M : Monoid} (vars : Array M) {
+  \func V => Fin vars.len
+
   \func interpret (t : MonoidTerm V) : M \elim t
-    | var x => f x
+    | var x => vars x
     | :ide => ide
     | :* t s => interpret t * interpret s
 
   \func interpretNF (l : List V) : M \elim l
     | nil => ide
-    | :: x nil => f x
-    | :: x l => f x * interpretNF l
+    | :: x nil => vars x
+    | :: x l => vars x * interpretNF l
     \where
-      \lemma cons (x : V) (l : List V) : interpretNF (x :: l) = f x * interpretNF l \elim l
+      \lemma cons (x : V) (l : List V) : interpretNF (x :: l) = vars x * interpretNF l \elim l
         | nil => inv ide-right
         | :: a l => idp
 
@@ -66,15 +69,14 @@
 }
 
 \class CData \extends Data {
-  | V => Nat
   \override M : CMonoid
 
-  \lemma sort-consistent (l : List Nat) : interpretNF l = interpretNF (sort l)
+  \lemma sort-consistent (l : List V) : interpretNF l = interpretNF (sort {FinLinearOrderInst} l)
     => rewrite sort=insert (perm-consistent (Insertion.sort-perm l))
 
-  \lemma perm-consistent {l l' : List Nat} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
+  \lemma perm-consistent {l l' : List V} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
     | nil, nil, perm-nil => idp
-    | :: a1 l1, :: a2 l2, perm-:: idp p => repeat {2} (rewrite interpretNF.cons) (pmap (f a1 *) (perm-consistent p))
+    | :: a1 l1, :: a2 l2, perm-:: idp p => repeat {2} (rewrite interpretNF.cons) (pmap (vars a1 *) (perm-consistent p))
     | :: a1 (:: a1' l1), :: a2 (:: a2' l2), perm-swap idp idp idp => repeat {2} (rewrite interpretNF.cons) (inv *-assoc *> pmap (`* interpretNF l1) *-comm *> *-assoc)
     | l1, l2, perm-trans p1 p2 => perm-consistent p1 *> perm-consistent p2
 
@@ -95,8 +97,8 @@
     | nil, l => idp
     | :: 0 is, nil => idp
     | :: (suc _) is, nil => idp
-    | :: 0 is, :: a l => repeat {2} (rewrite interpretNF.cons) (pmap (f a *) (replace-consistent-lem is l))
-    | :: (suc n) is, :: a l => interpretNF.cons a l *> pmap (f a *) (replace-consistent-lem (n :: is) l) *> inv (interpretNF.cons a _) *> perm-consistent Perm.perm-head
+    | :: 0 is, :: a l => repeat {2} (rewrite interpretNF.cons) (pmap (vars a *) (replace-consistent-lem is l))
+    | :: (suc n) is, :: a l => interpretNF.cons a l *> pmap (vars a *) (replace-consistent-lem (n :: is) l) *> inv (interpretNF.cons a _) *> perm-consistent Perm.perm-head
 } \where {
   \open Data
   \open Sort
@@ -118,7 +120,7 @@
 \class LData {L : Bounded.MeetSemilattice} \extends CData {
   | M => L
 
-  \func removeDuplicates (l : List Nat) : List Nat \elim l
+  \func removeDuplicates (l : List V) : List V \elim l
     | nil => nil
     | :: a nil => a :: nil
     | :: a (:: a' _ \as l) => \case decideEq a a' \with {
@@ -126,13 +128,13 @@
       | no _ =>  a :: removeDuplicates l
     }
 
-  \lemma removeDuplicates-consistent (l : List Nat) : interpretNF l = interpretNF (removeDuplicates l)
+  \lemma removeDuplicates-consistent (l : List V) : interpretNF l = interpretNF (removeDuplicates l)
     | nil => idp
     | :: a nil => idp
     | :: a (:: a1 l) => mcases \with {
       | yes p => rewrite (p, inv (removeDuplicates-consistent (a1 :: l)), interpretNF.cons) $
                   inv M.*-assoc *> pmap (`∧ interpretNF l) (<=-antisymmetric meet-left (meet-univ <=-refl <=-refl))
-      | no _ => rewrite {2} interpretNF.cons $ pmap (f a ∧) (removeDuplicates-consistent (a1 :: l))
+      | no _ => rewrite {2} interpretNF.cons $ pmap (vars a ∧) (removeDuplicates-consistent (a1 :: l))
     }
 
   \lemma normalize-consistent (t : MonoidTerm V) : interpret t = interpretNF (removeDuplicates (RedBlack.sort (normalize t)))

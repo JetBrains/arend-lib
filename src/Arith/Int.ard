@@ -1,8 +1,12 @@
+\import Algebra.Group
 \import Algebra.Monoid
 \import Algebra.Ordered
+\import Algebra.Ring
 \import Algebra.Semiring
 \import Arith.Nat
+\import Data.Bool
 \import Data.Or
+\import Function.Meta
 \import Logic
 \import Meta
 \import Order.LinearOrder
@@ -263,6 +267,9 @@
 
     \lemma signum_neg/=1 {n : Nat} (p : signum (neg n) = 1) : Empty \elim n, p
       | 0, ()
+
+    \lemma signum_- {x y : Int} : signum (x - y) = negative (signum (y - x))
+      => pmap signum (inv (ldistr *> +-comm *> pmap2 (+) (Ring.negative_ide-left *> AddGroup.negative-isInv) Ring.negative_ide-left)) *> *-comm *> Ring.negative_ide-left
   }
 
 \func iabs (x : Int) : Nat
@@ -298,7 +305,15 @@
       | 0 => idp
       | pos (suc _) => \case |x|=0
       | neg (suc _) => \case |x|=0
+
+    \lemma pos_iabs {x : Int} (x>0 : 0 < x) : pos (iabs x) = x \elim x
+      | pos n => idp
+      | neg (suc n) => \case x>0
   }
+
+\lemma id<isuc {x : Int} : x < isuc x \elim x
+  | pos n => pos<pos id<suc
+  | neg (suc n) => neg<neg id<suc
 
 \lemma pos_iabs {x y : Nat} (y<=x : y <= x) : pos (iabs (x Nat.- y)) = x Nat.- y
   => cases ((x Nat.- y) arg addPath) \with {
@@ -318,6 +333,10 @@
   | 0, suc i => \case <=_exists p
   | suc n, suc i => iabs_-_suc (suc<=suc.conv p)
 
+\lemma zro-id=neg {n : Nat} : 0 Nat.- n = neg n \elim n
+  | 0 => idp
+  | suc n => idp
+
 \lemma pos<pos {n m : Nat} (p : n < m) : pos n < pos m
   => \case trichotomy (pos n) (pos m) \with {
     | less n<m => n<m
@@ -325,11 +344,35 @@
     | greater m<n => absurd (signum.signum_neg/=1 (rewrite (neg_iabs (<=-less p)) m<n))
   }
 
+\lemma neg<neg {n m : Nat} (p : n < m) : neg m < neg n
+  => \case LinearOrder.dec<_<= (neg m) (neg n) \with {
+    | inl q => q
+    | inr q => absurd $ <-irreflexive $ <-transitive-left p (neg<=neg.conv q)
+  }
+
 \lemma pos<=pos {n m : Nat} (p : n <= m) : pos n <= pos m
   => \lam q => signum.signum_neg/=1 (rewrite (neg_iabs p) q)
   \where
     \lemma conv {n m : Nat} (p : pos n <= pos m) : n <= m
       => \lam m<n => p (pos<pos m<n)
+
+\lemma neg<=pos {n m : Nat} : neg n <= pos m
+  => \lam q => signum.signum_neg/=1 q
+
+\lemma pos/<=neg {n m : Nat} (p : pos n <= neg m) : m = 0 \elim m
+  | 0 => idp
+  | suc m => absurd (p idp)
+
+\lemma neg<=neg {n m : Nat} (p : n <= m) : neg m <= neg n \elim n, m
+  | 0, 0 => <=-refl
+  | 0, suc m => neg<=pos
+  | suc n, 0 => absurd $ p NatSemiring.zero<suc
+  | suc n, suc m => LinearlyOrderedSemiring.<=_+ {_} {neg 1} <=-refl $ neg<=neg (suc<=suc.conv p)
+  \where
+    \lemma conv {n m : Nat} (p : neg n <= neg m) : m <= n \elim n, m
+      | _, 0 => zero<=_
+      | 0, suc m => \case pos/<=neg p
+      | suc n, suc m => suc<=suc $ conv $ transport2 (<=) zro-id=neg zro-id=neg $ LinearlyOrderedSemiring.<=_+ (<=-refl {_} {pos 1}) p
 
 \lemma signum_iabs_eq {x y : Int} (p : signum x = signum y) (q : iabs x = iabs y) : x = y \elim x, y, p, q
   | 0, 0, _, _ => idp
@@ -345,3 +388,18 @@
        | pos n, p1 => inl (pmap pos p1)
        | neg (suc n), p1 => inr (pmap neg p1)
      }
+
+\lemma int_<=-dec {x y : Int} {so : So (int_<=_Bool x y)} : x <= y \elim x, y
+  | pos n, pos m => pos<=pos (nat_<=-dec {n} {m} {so})
+  | pos n, neg (suc m) => absurd so
+  | neg n, pos m => neg<=pos
+  | neg n, neg (suc m) => neg<=neg (nat_<=-dec {suc m} {n} {so})
+  \where
+    \func int_<=_Bool (x y : Int) : Bool
+      | pos n, pos m => nat_<=-dec.nat_<=_Bool n m
+      | pos n, neg (suc m) => false
+      | neg n, pos m => true
+      | neg n, neg (suc m) => nat_<=-dec.nat_<=_Bool (suc m) n
+
+\lemma int_<-dec {x y : Int} {so : So (int_<=-dec.int_<=_Bool (isuc x) y)} : x < y
+  => <-transitive-left id<isuc $ int_<=-dec {isuc x} {y} {so}

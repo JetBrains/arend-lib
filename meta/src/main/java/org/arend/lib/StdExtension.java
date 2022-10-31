@@ -4,7 +4,6 @@ import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.core.definition.*;
 import org.arend.ext.core.ops.NormalizationMode;
-import org.arend.ext.dependency.ArendReferenceProvider;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
@@ -25,6 +24,7 @@ import org.arend.lib.meta.debug.PrintMeta;
 import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
+import org.arend.lib.meta.linear.LinearSolverMeta;
 import org.arend.lib.meta.simplify.SimplifyMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -61,7 +61,13 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Logic") public CoreDataDefinition TruncP;
   @Dependency(module = "Logic") public CoreFunctionDefinition propExt;
 
+  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
+  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
+  @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
+  @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
+
   public final EquationMeta equationMeta = new EquationMeta(this);
+  public final LinearSolverMeta linearSolverMeta = new LinearSolverMeta(this);
   public final ContradictionMeta contradictionMeta = new ContradictionMeta(this);
   public final ExtMeta extMeta = new ExtMeta(this, false);
   public final ExtMeta extsMeta = new ExtMeta(this, true);
@@ -112,11 +118,14 @@ public class StdExtension implements ArendExtension {
     provider.getDefinition(ModulePath.fromString("Arith.Int"), new LongName("IntRing"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalProduct"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Order.Lexicographical"), new LongName("LexicographicalList"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Algebra.Domain.Euclidean"), new LongName("NatEuclidean"), CoreFunctionDefinition.class);
+    provider.getDefinition(ModulePath.fromString("Algebra.Monoid.GCD"), LongName.fromString("DivQuotient.DivQuotientGCDMonoid"), CoreFunctionDefinition.class);
     provider.load(equationMeta);
+    provider.load(linearSolverMeta);
   }
 
   @Override
-  public void declareDefinitions(@NotNull ArendReferenceProvider provider, @NotNull DefinitionContributor contributor) {
+  public void declareDefinitions(@NotNull DefinitionContributor contributor) {
     ModulePath meta = new ModulePath("Meta");
     contributor.declare(meta, new LongName("later"), "`later meta args` defers the invocation of `meta args`", Precedence.DEFAULT, laterMeta);
     contributor.declare(meta, new LongName("fails"),
@@ -249,6 +258,7 @@ public class StdExtension implements ArendExtension {
         "In the former case, the meta will prove an equality in a type without using any additional structure on it.\n" +
         "In the latter case, the meta will prove an equality using only structure available in the specified class.",
         Precedence.DEFAULT, new DeferredMetaDefinition(equationMeta, true));
+    contributor.declare(algebra, new LongName("linarith"), "Solve systems of linear equations", Precedence.DEFAULT, new DeferredMetaDefinition(linearSolverMeta, true));
     contributor.declare(algebra, new LongName("cong"),
         "Proves an equality by congruence closure of equalities in the context. E.g. derives f a = g b from f = g and a = b",
         Precedence.DEFAULT, new DeferredMetaDefinition(new CongruenceMeta(this)));

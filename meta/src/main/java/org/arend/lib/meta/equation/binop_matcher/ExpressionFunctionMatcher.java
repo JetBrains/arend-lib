@@ -40,7 +40,7 @@ public class ExpressionFunctionMatcher implements FunctionMatcher {
         concreteExprs.add(factory.core(varExpr.computeTyped()));
       }
       TypedExpression result = tc.typecheck(factory.app(factory.core(mulTyped), true, concreteExprs), null);
-      boolean ok = result != null && tc.compare(result.getExpression(), expr, CMP.EQ, marker, false, true);
+      boolean ok = result != null && tc.compare(result.getExpression(), expr, CMP.EQ, marker, false, true, false);
       if (ok) {
         for (CoreInferenceReferenceExpression varExpr : varExprs) {
           if (varExpr.getSubstExpression() == null) {

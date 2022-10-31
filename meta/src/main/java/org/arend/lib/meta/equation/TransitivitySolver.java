@@ -8,20 +8,16 @@ import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
-import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
-import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.key.FieldKey;
 import org.arend.lib.meta.closure.EquivalenceClosure;
 import org.arend.lib.meta.closure.ValuesRelationClosure;
-import org.arend.lib.util.Lazy;
-import org.arend.lib.util.Maybe;
-import org.arend.lib.util.Values;
+import org.arend.lib.util.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -51,134 +47,29 @@ public class TransitivitySolver implements EquationSolver {
     this.refExpr = refExpr;
   }
 
-  private static class RelationData {
-    final CoreDefCallExpression defCall;
-    final CoreExpression leftExpr;
-    final CoreExpression rightExpr;
-
-    private RelationData(CoreDefCallExpression defCall, CoreExpression leftExpr, CoreExpression rightExpr) {
-      this.defCall = defCall;
-      this.leftExpr = leftExpr;
-      this.rightExpr = rightExpr;
-    }
-  }
-
-  private RelationData getRelationData(CoreExpression type) {
-    if (type instanceof CoreDefCallExpression) {
-      CoreDefCallExpression defCall = (CoreDefCallExpression) type;
-      if (instanceDefinition != null && defCall.getDefinition() != instanceDefinition) {
-        return null;
-      }
-
-      if (defCall instanceof CoreClassCallExpression) {
-        var impls = ((CoreClassCallExpression) defCall).getImplementations();
-        if (impls.size() != 2) {
-          return null;
-        }
-        var it = impls.iterator();
-        return new RelationData(defCall, it.next().getValue(), it.next().getValue());
-      } else {
-        if (defCall.getDefCallArguments().size() < 2) {
-          return null;
-        }
-        return new RelationData(defCall, defCall.getDefCallArguments().get(defCall.getDefCallArguments().size() - 2), defCall.getDefCallArguments().get(defCall.getDefCallArguments().size() - 1));
-      }
-    }
-
-    if (!(type instanceof CoreAppExpression)) {
-      return null;
-    }
-
-    CoreAppExpression app2 = (CoreAppExpression) type;
-    CoreExpression fun2 = app2.getFunction().normalize(NormalizationMode.WHNF);
-    if (!(fun2 instanceof CoreAppExpression)) {
-      return null;
-    }
-
-    CoreAppExpression app1 = (CoreAppExpression) fun2;
-    CoreExpression fun1 = app1.getFunction().normalize(NormalizationMode.WHNF);
-    if (!(fun1 instanceof CoreFieldCallExpression) || instanceDefinition != null && ((CoreFieldCallExpression) fun1).getDefinition() != instanceDefinition) {
-      return null;
-    }
-
-    return new RelationData((CoreFieldCallExpression) fun1, app1.getArgument(), app2.getArgument());
-  }
-
-  private class MyInstanceSearchParameters implements InstanceSearchParameters {
-    private final CoreDefinition definition;
-    private final List<CoreClassField> relationFields = new ArrayList<>();
-    private CoreClassField relationField;
-
+  private class MyInstanceSearchParameters extends DefImplInstanceSearchParameters {
     private MyInstanceSearchParameters(CoreDefinition definition) {
-      this.definition = definition;
+      super(definition);
     }
 
     @Override
-    public boolean searchLocal() {
-      return false;
-    }
-
-    @Override
-    public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
-      relationFields.clear();
-      for (CoreClassField field : classDefinition.getFields()) {
+    protected List<CoreClassField> getRelationFields(CoreClassDefinition classDef) {
+      List<CoreClassField> relationFields = Collections.emptyList();
+      for (CoreClassField field : classDef.getFields()) {
         transFieldData = field.getUserData(meta.ext.transitivityKey);
         if (transFieldData != null) {
+          if (relationFields.isEmpty()) relationFields = new ArrayList<>();
           relationFields.add(field);
         }
       }
-      return !relationFields.isEmpty();
-    }
-
-    @Override
-    public boolean testGlobalInstance(@NotNull CoreFunctionDefinition instance) {
-      if (!(instance.getResultType() instanceof CoreClassCallExpression)) {
-        return false;
-      }
-
-      for (CoreClassField relationField : relationFields) {
-        CoreAbsExpression absImpl = ((CoreClassCallExpression) instance.getResultType()).getAbsImplementation(relationField);
-        if (absImpl == null) {
-          continue;
-        }
-        CoreExpression impl = absImpl.getExpression();
-        if (!(impl instanceof CoreLamExpression)) {
-          continue;
-        }
-
-        CoreParameter param1 = ((CoreLamExpression) impl).getParameters();
-        CoreParameter param2 = param1.getNext();
-        CoreExpression body = ((CoreLamExpression) impl).getBody();
-        if (!param2.hasNext()) {
-          if (!(body instanceof CoreLamExpression)) {
-            continue;
-          }
-          param2 = ((CoreLamExpression) body).getParameters();
-          body = ((CoreLamExpression) body).getBody();
-        }
-        if (param2.getNext().hasNext()) {
-          continue;
-        }
-
-        if (!(body instanceof CoreDefCallExpression)) {
-          continue;
-        }
-        CoreDefCallExpression defCall = (CoreDefCallExpression) body;
-        var args = defCall.getDefCallArguments();
-        if (defCall.getDefinition() == definition && args.size() >= 2 && args.get(args.size() - 2) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(args.size() - 2)).getBinding() == param1.getBinding() && args.get(args.size() - 1) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(args.size() - 1)).getBinding() == param2.getBinding()) {
-          this.relationField = relationField;
-          return true;
-        }
-      }
-
-      return false;
+      return relationFields;
     }
   }
 
   @Override
   public boolean isApplicable(CoreExpression type) {
-    RelationData relationData = getRelationData(type);
-    if (relationData == null) {
+    RelationData relationData = RelationData.getRelationData(type);
+    if (relationData == null || instanceDefinition != null && relationData.defCall.getDefinition() != instanceDefinition) {
       return false;
     }
 
@@ -222,9 +113,9 @@ public class TransitivitySolver implements EquationSolver {
         MyInstanceSearchParameters parameters = new MyInstanceSearchParameters(defCall.getDefinition());
         instance = typechecker.findInstance(parameters, null, null, refExpr);
         if (instance != null && instance.getExpression() instanceof CoreFunCallExpression) {
-          meta.transitivityInstanceCache.put(defCall.getDefinition(), new EquationMeta.TransitivityInstanceCache(((CoreFunCallExpression) instance.getExpression()).getDefinition(), parameters.relationField));
+          meta.transitivityInstanceCache.put(defCall.getDefinition(), new EquationMeta.TransitivityInstanceCache(((CoreFunCallExpression) instance.getExpression()).getDefinition(), parameters.getRelationField()));
         }
-        relationField = parameters.relationField;
+        relationField = parameters.getRelationField();
       }
 
       if (instance == null || !(instance.getType() instanceof CoreClassCallExpression)) {
@@ -320,8 +211,8 @@ public class TransitivitySolver implements EquationSolver {
     ValuesRelationClosure closure = new ValuesRelationClosure(values, new EquivalenceClosure<>(reflExpr, null, trans, factory));
     ContextHelper helper = new ContextHelper(hint);
     for (CoreBinding binding : helper.getAllBindings(typechecker)) {
-      RelationData relationData = getRelationData(binding.getTypeExpr().normalize(NormalizationMode.WHNF));
-      if (relationData != null) {
+      RelationData relationData = RelationData.getRelationData(binding.getTypeExpr().normalize(NormalizationMode.WHNF));
+      if (relationData != null && (instanceDefinition == null || relationData.defCall.getDefinition() == instanceDefinition)) {
         closure.addRelation(relationData.leftExpr, relationData.rightExpr, factory.ref(binding));
       }
     }

@@ -431,11 +431,21 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     }
     List<SubexpressionData> resultDataList = argsDataLists.remove(argsDataLists.size() - 1);
 
+    int caseParam = additionalArgsIndex + 1;
+    List<? extends ConcreteClause> actualClauses = ((ConcreteCaseExpression) args.get(caseParam).getExpression()).getClauses();
+    ConcreteExpression defaultExpr = caseParam + 1 < args.size() ? args.get(caseParam + 1).getExpression() : null;
+
     int numberOfParameters = 0;
     for (CoreParameter param : bodyParameters) {
       numberOfParameters += Utils.parametersSize(param);
     }
     if (numberOfParameters == 0) {
+      if (defaultExpr != null) {
+        for (ConcreteClause clause : actualClauses) {
+          errorReporter.report(new RedundantClauseError(clause));
+        }
+        return typechecker.typecheck(defaultExpr, expectedType);
+      }
       errorReporter.report(new TypecheckingError("Cannot find matching subexpressions", marker));
       return null;
     }
@@ -507,8 +517,6 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       caseParams = caseParams.insertParameters(addPathMap);
     }
 
-    int caseParam = additionalArgsIndex + 1;
-    List<? extends ConcreteClause> actualClauses = ((ConcreteCaseExpression) args.get(caseParam).getExpression()).getClauses();
     List<List<CorePattern>> actualRows = new ArrayList<>();
     if (!actualClauses.isEmpty()) {
       boolean ok = true;
@@ -547,7 +555,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             CoreExpression resultExpr = resultDataList.get(i).expression;
             boolean ok = expr == resultExpr;
             if (!ok) {
-              if (tc.compare(resultExpr.computeType(), exprType, CMP.EQ, marker, false, true) && tc.compare(resultExpr, expr, CMP.EQ, marker, false, true)) {
+              if (tc.compare(resultExpr.computeType(), exprType, CMP.EQ, marker, false, true, false) && tc.compare(resultExpr, expr, CMP.EQ, marker, false, true, true)) {
                 tc.updateSavedState();
                 ok = true;
               } else {
@@ -564,7 +572,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             List<TypedExpression> matchedArgs = dataList.get(i).matchedArgs;
             for (int j = 0; j < matchedArgs.size(); j++) {
               TypedExpression arg = matchedArgs.get(j);
-              if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true)) {
+              if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true, false) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true, true)) {
                 tc.updateSavedState();
                 var pair = new Pair<>(i, j);
                 indicesToAbstract.add(pair);
@@ -719,7 +727,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     }
 
     // If there is no default expression and not all rows are covered, report them and quit
-    if (caseParam + 1 >= args.size() && coveringRows.size() < requiredBlock.size()) {
+    if (defaultExpr == null && coveringRows.size() < requiredBlock.size()) {
       List<List<CorePattern>> missingRows = new ArrayList<>();
       for (int i = 0; i < requiredBlock.size(); i++) {
         if (!coveringRows.containsKey(i)) {
@@ -732,8 +740,8 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
 
     // Add not covered clauses to actual clauses
     if (coveringRows.size() == requiredBlock.size()) {
-      if (caseParam + 1 < args.size()) {
-        errorReporter.report(new IgnoredArgumentError(args.get(caseParam + 1).getExpression()));
+      if (defaultExpr != null) {
+        errorReporter.report(new IgnoredArgumentError(defaultExpr));
       }
     } else {
       for (int i = 0; i < requiredBlock.size(); i++) {
@@ -837,7 +845,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         ArendRef letRef = makeLet ? letRefs.get(pair.proj1) : null;
         ConcreteExpression cExpr = null;
         if (!makeLet || letRef == null) {
-          cExpr = pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1).getExpression() : args.get(caseParam + 1).getExpression();
+          cExpr = pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1).getExpression() : defaultExpr;
           if (cExpr == null) {
             errorReporter.report(new TypecheckingError("Clause must have a right hand side", actualClauses.get(pair.proj1)));
             return null;
@@ -926,7 +934,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
         resultClauses.add(factory.clause(cPatterns, rhs));
       } else {
-        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRow, ext.renamerFactory, factory, null, null), isAbsurd ? null : args.get(caseParam + 1).getExpression()));
+        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRow, ext.renamerFactory, factory, null, null), isAbsurd ? null : defaultExpr));
       }
     }
 
@@ -1029,7 +1037,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
               List<TypedExpression> matchedArgs = dataList.get(i1).matchedArgs;
               for (int j1 = 0; j1 < matchedArgs.size(); j1++) {
                 TypedExpression arg = matchedArgs.get(j1);
-                if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true)) {
+                if (tc.compare(arg.getType(), exprType, CMP.EQ, marker, false, true, false) && tc.compare(arg.getExpression(), expr, CMP.EQ, marker, false, true, true)) {
                   tc.updateSavedState();
                   refs.add(refLists.get(i1).get(j1));
                   exprs.add(expr);

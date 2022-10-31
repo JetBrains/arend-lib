@@ -112,7 +112,7 @@ public class RewriteMeta extends BaseMetaDefinition {
         }
         List<? extends CoreExpression> args2 = ((CoreFunCallExpression) expression).getDefCallArguments();
         for (int i = 0; i < args1.size(); i++) {
-          if (!typechecker.compare(args1.get(i), args2.get(i), CMP.EQ, refExpr, false, true)) {
+          if (!typechecker.compare(args1.get(i), args2.get(i), CMP.EQ, refExpr, false, true, true)) {
             ok = false;
             break;
           }
@@ -135,13 +135,13 @@ public class RewriteMeta extends BaseMetaDefinition {
               ok = ((CoreDefCallExpression) subExprTypeFixed).getDefinition() == ((CoreDefCallExpression) expressionTypeFixed).getDefinition();
             }
           } else {
-            ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true);
+            ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true, false);
           } /**/
         } else {
-          ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true);
+          ok = typechecker.compare(subExprType, expression.computeType(), CMP.LE, refExpr, false, true, false);
         }
         if (ok) {
-          ok = typechecker.compare(subExpr, expression, CMP.EQ, refExpr, false, true);
+          ok = typechecker.compare(subExpr, expression, CMP.EQ, refExpr, false, true, true);
           if (!ok) {
             if (useEqSolver) {
               subExprOccur = matchSubexpr(subExpr, expression, typechecker, refExpr, occurrences, factory);
