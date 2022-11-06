@@ -350,6 +350,15 @@ public class LinearSolver {
     return to == TermCompiler.Kind.RAT ? intToRatHypothesis(rule, instance) : rule;
   }
 
+  private void dropUnusedHypotheses(List<BigInteger> solution, List<?> list) {
+    assert solution.size() == list.size();
+    for (int i = solution.size() - 1; i >= 0; i--) {
+      if (solution.get(i).equals(BigInteger.ZERO)) {
+        list.remove(i);
+      }
+    }
+  }
+
   public TypedExpression solve(CoreExpression expectedType, ConcreteExpression hint) {
     expectedType = expectedType.normalize(NormalizationMode.WHNF);
     Equation<CoreExpression> resultEquation;
@@ -423,12 +432,24 @@ public class LinearSolver {
           if (solution != null) solutions.add(solution);
         }
         if (solutions.size() == rulesSet.size()) {
+          List<BigInteger> combinedSolutions = new ArrayList<>();
+          for (List<BigInteger> solution : solutions) {
+            for (int i = combinedSolutions.size() + 2; i < solution.size(); i++) {
+              combinedSolutions.add(BigInteger.ZERO);
+            }
+            for (int i = 0; i < solution.size() - 2; i++) {
+              combinedSolutions.set(i, combinedSolutions.get(i).max(solution.get(i + 2)));
+            }
+          }
+          dropUnusedHypotheses(combinedSolutions, compiledRules);
           ConcreteAppBuilder builder = factory.appBuilder(factory.ref(function.getRef()))
             .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledRules))
             .app(compiledResults.term1.concrete)
             .app(compiledResults.term2.concrete);
           for (int i = 0; i < solutions.size(); i++) {
+            dropUnusedHypotheses(combinedSolutions, solutions.get(i).subList(2, solutions.get(i).size()));
+            dropUnusedHypotheses(combinedSolutions, rulesSet.get(i).subList(2, rulesSet.get(i).size()));
             builder.app(certificateToConcrete(solutions.get(i), rulesSet.get(i)));
           }
           return typechecker.typecheck(builder.app(witnessesToConcrete(compiledRules)).build(), null);
@@ -489,6 +510,10 @@ public class LinearSolver {
         compiledEquations1.addAll(compiledEquations);
         List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
         if (solution != null) {
+          List<BigInteger> subList = solution.subList(1, solution.size());
+          dropUnusedHypotheses(subList, compiledEquations);
+          dropUnusedHypotheses(subList, compiledEquations1.subList(1, compiledEquations1.size()));
+          dropUnusedHypotheses(subList, subList);
           return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
             .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledEquations))
