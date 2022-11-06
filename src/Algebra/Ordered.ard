@@ -79,6 +79,15 @@
 
   \lemma negative_< {x y : E} (x<y : x < y) : negative y < negative x
     => transportInv (\lam y => isPos (_ + y)) negative-isInv $ >0_pos $ rewriteF negative-left $ <_+-right (negative x) x<y
+
+  \lemma negative_<-inv {x y : E} (p : negative x < negative y) : y < x
+    => transport2 (<) negative-isInv negative-isInv (negative_< p)
+
+  \lemma negative_<-left {x y : E} (p : negative x < y) : negative y < x
+    => transport (_ <) negative-isInv (negative_< p)
+
+  \lemma negative_<-right {x y : E} (p : x < negative y) : y < negative x
+    => transport (`< _) negative-isInv (negative_< p)
 } \where {
   \type \infix 4 < {A : PreorderedAddGroup} (x y : A) => isPos (y - x)
 
@@ -104,8 +113,17 @@
     | 0, suc (suc m), NatSemiring.zero<suc => rewrite (natCoefZero,natCoefSuc) $ transport (`< _) (zro-right *> natCoefZero) $ <_+ (natCoef_< NatSemiring.zero<suc) zro<ide
     | suc n, suc m, NatSemiring.suc<suc p => rewrite (natCoefSuc,natCoefSuc) $ <_+-left ide (natCoef_< p)
 
-  \lemma <_*_positive {x y : E} (x>0 : zro < x) (y>0 : zro < y) : zro < x * y
+  \lemma <_*_positive_positive {x y : E} (x>0 : 0 < x) (y>0 : 0 < y) : 0 < x * y
     => transport (`< _) zro_*-right (<_*_positive-right x>0 y>0)
+
+  \lemma <_*_negative_negative {x y : E} (x<0 : x < 0) (y<0 : y < 0) : 0 < x * y
+    => transport (`< _) zro_*-right (<_*_negative-right x<0 y<0)
+
+  \lemma <_*_positive_negative {x y : E} (x>0 : 0 < x) (y<0 : y < 0) : x * y < 0
+    => transport (< _) zro_*-right (<_*_positive-right x>0 y<0)
+
+  \lemma <_*_negative_positive {x y : E} (x<0 : x < 0) (y>0 : 0 < y) : x * y < 0
+    => transport (< _) zro_*-left (<_*_positive-left x<0 y>0)
 }
 
 \class LinearlyOrderedSemiring \extends OrderedSemiring, LinearOrder {
@@ -150,6 +168,18 @@
       | byRight (_,z<y) => y<=z z<y
     }
 
+  \lemma <=_*_positive_positive {x y : E} (x>=0 : 0 <= x) (y>=0 : 0 <= y) : 0 <= x * y
+    => transport (`<= _) zro_*-right (<=_*_positive-right x>=0 y>=0)
+
+  \lemma <=_*_negative_negative {x y : E} (x<=0 : x <= 0) (y<=0 : y <= 0) : 0 <= x * y
+    => transport (`<= _) zro_*-right (<=_*_negative-right x<=0 y<=0)
+
+  \lemma <=_*_positive_negative {x y : E} (x>=0 : 0 <= x) (y<=0 : y <= 0) : x * y <= 0
+    => transport (<= _) zro_*-right (<=_*_positive-right x>=0 y<=0)
+
+  \lemma <=_*_negative_positive {x y : E} (x<=0 : x <= 0) (y>=0 : 0 <= y) : x * y <= 0
+    => transport (<= _) zro_*-left (<=_*_positive-left x<=0 y>=0)
+
   \lemma <_+-invert-right {a b c d : E} (p : b + d <= a + c) (q : c < d) : b < a
     => <_+-cancel-right c $ <-transitive-left (<_+-right b q) p
 
@@ -161,6 +191,22 @@
       | byLeft q => q.2
       | byRight q => absurd (<-irreflexive (<-transitive p q.1))
     }
+
+  \func mid (t : Inv (1 + 1)) (a b : E) => (a + b) * t.inv
+
+  \lemma mid>left (t : Inv (1 + 1)) {a b : E} (p : a < b) : a < mid t a b
+    => \have | t>0 : t.inv > 0 => inv-positive t $ <-transitive zro<ide $ transport (`< _) zro-left (<_+-left 1 zro<ide)
+             | a2<a+b : a * (1 + 1) < a + b => rewrite (ldistr,ide-right) (<_+-right a p)
+       \in transport (`< _) (*-assoc *> pmap (a *) t.inv-right *> ide-right) $ <_*_positive-left a2<a+b t>0
+
+  \lemma mid<right (t : Inv (1 + 1)) {a b : E} (p : a < b) : mid t a b < b
+    => \have | t>0 : t.inv > 0 => inv-positive t $ <-transitive zro<ide $ transport (`< _) zro-left (<_+-left 1 zro<ide)
+             | a+b<b2 : a + b < b * (1 + 1) => rewrite (ldistr,ide-right) (<_+-left b p)
+       \in transport (_ <)  (*-assoc *> pmap (b *) t.inv-right *> ide-right) (<_*_positive-left a+b<b2 t>0)
+
+  \func denseOrder (t : Inv (1 + 1)) : DenseLinearOrder \cowith
+    | LinearOrder => \this
+    | isDense {x} {z} p => inP (mid t x z, mid>left t p, mid<right t p)
 
   \lemma natCoef>=0 {n : Nat} : zro <= natCoef n \elim n
     | 0 => rewrite natCoefZero <=-refl
@@ -361,16 +407,9 @@
     => \lam -x<-y => x<=y $ repeat {2} (rewriteF negative-isInv) (negative_< -x<-y)
 
   \func denseOrder (t : Inv (1 + 1)) : UnboundedDenseLinearOrder \cowith
-    | LinearOrder => \this
-    | isDense {x} {z} x<z =>
-      \have | t>0 : t.inv > 0 => inv-positive t $ <-transitive zro<ide $ transport (`< _) zro-left (<_+-left 1 zro<ide)
-            | x2<x+z : x * (1 + 1) < x + z => rewrite (ldistr,ide-right) (<_+-right x x<z)
-            | x+z<z2 : x + z < z * (1 + 1) => rewrite (ldistr,ide-right) (<_+-left z x<z)
-      \in inP ((x + z) * t.inv,
-               transport (`< _) (*-assoc *> pmap (x *) t.inv-right *> ide-right) $ <_*_positive-left x2<x+z t>0,
-               transport (_ <)  (*-assoc *> pmap (z *) t.inv-right *> ide-right) $ <_*_positive-left x+z<z2 t>0)
+    | DenseLinearOrder => LinearlyOrderedSemiring.denseOrder t
     | withoutUpperBound x => inP (x + 1, transport (`< _) zro-right $ <_+-right x zro<ide)
-    | withoutLowerBound x => inP (x - 1, transport (_ <) zro-right (<_+-right x (positive_negative zro<ide)))
+    | withoutLowerBound x => inP (x - 1, transport (_ <) zro-right $ <_+-right x (positive_negative zro<ide))
 } \where {
   \class Dec \extends Domain.Dec, OrderedRing, LinearlyOrderedSemiring.Dec {
     \field +_trichotomy (x : E) : Tri x zro
@@ -464,4 +503,7 @@
 
   \lemma <_rotate-right {x y z : E} (y>0 : 0 < y) (xy<z : x * y < z) : x < z * finv y
     => transport (`< _) (*-assoc *> pmap (x *) (finv-right (>_/= y>0)) *> ide-right) (<_*_positive-left xy<z (finv>0 y>0))
+
+  \lemma <_rotate-left {x y z : E} (y>0 : 0 < y) (p : x < y * z) : finv y * x < z
+    => transport (< _) (inv *-assoc *> pmap (`* z) (finv-left (>_/= y>0)) *> ide-left) (<_*_positive-right (finv>0 y>0) p)
 }
