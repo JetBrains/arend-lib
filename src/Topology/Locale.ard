@@ -138,6 +138,9 @@
   \lemma eval {x y : E} : (x --> y) ∧ x <= y
     => rewrite Join-rdistr (Join-univ __.2)
 
+  \lemma exponent_meet {x y z : E} : x --> y ∧ z = (x --> y) ∧ (x --> z)
+    => <=-antisymmetric (meet-univ (exponent_monotone <=-refl meet-left) (exponent_monotone <=-refl meet-right)) (exponent.1 (meet-univ (meet-monotone meet-left <=-refl <=∘ eval) (meet-monotone meet-right <=-refl <=∘ eval)))
+
   \lemma trueExponent {x y : E} (p : x <= y) : top <= x --> y
     => exponent.1 (meet-right <=∘ p)
 
@@ -201,6 +204,40 @@
 
   \lemma overt_cover (o : isOvert) {a : E} : a <= Join (\lam (_ : isPositive a) => a)
     => meet-univ <=-refl (o a) <=∘ Join-ldistr>= <=∘ Join-univ (\lam p => meet-left <=∘ Join-cond {_} {isPositive a} p)
+
+  \func restrict (a : E) : Locale \cowith
+    | E => \Sigma (b : E) (b <= a)
+    | <= p q => p.1 <= q.1
+    | <=-refl => <=-refl
+    | <=-transitive => <=∘
+    | <=-antisymmetric p q => ext (<=-antisymmetric p q)
+    | meet p q => (p.1 ∧ q.1, meet-left <=∘ p.2)
+    | meet-left => meet-left
+    | meet-right => meet-right
+    | meet-univ => meet-univ
+    | top => (a, <=-refl)
+    | top-univ {x} => x.2
+    | Join g => (Join (\lam j => (g j).1), Join-univ (\lam j => (g j).2))
+    | Join-cond j {_} => Join-cond j
+    | Join-univ => Join-univ
+    | Join-ldistr>= => Join-ldistr>=
+    \where {
+      \func map : FrameHom \this (restrict a) \cowith
+        | func b => (b ∧ a, meet-right)
+        | func-<= => meet-monotone __ <=-refl
+        | func-top => ext top-left
+        | func-top>= => meet-univ top-univ <=-refl
+        | func-meet => ext equation
+        | func-meet>= => =_<= equation
+        | func-Join => ext Join-rdistr
+        | func-Join>= => Join-rdistr>=
+
+      \func functor : Functor (restrict a) \this \cowith
+        | F x => x.1
+        | Func p => p
+        | Func-id => idp
+        | Func-o => idp
+    }
 }
 
 \record FrameHom \extends SetHom {
@@ -390,6 +427,12 @@
       \lemma surjective : isSurj map
         => \lam y => inP (y.1, ext $ <=-antisymmetric y.2 nucleus-unit)
     }
+
+  \func functor : Functor locale L \cowith
+    | F x => x.1
+    | Func p => p
+    | Func-id => idp
+    | Func-o => idp
 
   \lemma map_direct (x : locale) : map.direct x = x.1
     => <=-antisymmetric (Join-univ (\lam j => nucleus-unit <=∘ j.2)) (Join-cond (later (x.1, x.2)))

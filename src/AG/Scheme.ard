@@ -1,4 +1,5 @@
 \import Algebra.Group
+\import Algebra.Group.Category
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
@@ -86,12 +87,9 @@
   => PresentedFrame (SpecPres R)
 
 \record RingedLocale (\coerce L : Locale) (R : VSheaf CRingCat L)
-
-{-
-\record LocallyRingedLocale \extends RingedLocale
-  | isNonTrivial (a : L) : 0 = {R.F a} 1 -> a <= bottom
-  | isLocallyRinged (a : L) (x : R.F a) : a <= SJoin (\lam b => \Sigma (p : b <= a) (Inv (R.F.Func p x) || Inv (R.F.Func p x + 1)))
--}
+  \where {
+    \use \coerce fromSheaf {L : Locale} (S : VSheaf CRingCat L) => \new RingedLocale L S
+  }
 
 \record LocallyRingedLocale \extends RingedLocale
   | isNonTrivial (a : L) : 0 = {R.F a} 1 -> a <= bottom
@@ -102,12 +100,6 @@
   }
 
 \record RingedFramePres (\coerce P : FramePres) (R : VSheaf CRingCat (framePresSite P))
-
-{-
-\record LocallyRingedFramePres \extends RingedFramePres
-  | isNonTrivialPres (a : P) : 0 = {R.F a} 1 -> Cover a absurd
-  | isLocallyRingedPres (a : P) (x : R.F a) : FramePres.SCover a (\lam b => \Sigma (p : Cover1 b a) (Monoid.Inv (R.F.Func p x) || Monoid.Inv (R.F.Func p x + 1)))
--}
 
 \record LocallyRingedFramePres \extends RingedFramePres
   | isNonTrivialPres (a : P) : 0 = {R.F a} 1 -> Cover a absurd
@@ -144,7 +136,8 @@
       \lam t => cover-inj ((PresentedFrame.embed t.1, (\lam {z} c => U.2 z $ Cover.cover-trans1 c $ Cover.cover-trans1 t.2.1 $ cover-inj (a,Ua) idp, LocallyRingedFramePres.toPresented t.2.1 U Ua x t.2.2)), t.1, cover-inj () idp) idp
 
 \func affineRingedPres (R : CRing) : LocallyRingedFramePres (SpecPres R) \cowith
-  | R => sheaf-reflect CRingCat.forgetful (\lam H => (CRingBicat.createsLimits H (SetBicat.limit (Comp CRingCat.forgetful H))).3) (functor R) $
+  | R : VSheaf CRingCat (framePresSite (SpecPres R))
+    => sheaf-reflect CRingCat.forgetful (\lam H => (CRingBicat.createsLimits H (SetBicat.limit (Comp CRingCat.forgetful H))).3) (functor R) $
           sheafOnSiteWithBasis _ $ later $ \lam x {J} g c => \case \elim c \with {
             | inP (y, x<=y, f, c', q) => FramePres.indexing-transport (\lam {J} e h => \Pi (y : R) (g : J -> slicePrecat y) -> Cover1 y e -> (\Pi (j : J) -> Cover1 (conj y (h j)) (g j).1) -> Equiv {_} {MatchingFamily _ y g} (matchingFamily (Comp CRingCat.forgetful (functor R)) y g))
                 (hiding (c',x,J,g,x<=y,q) $ later $ \case \elim __ \with {
@@ -264,4 +257,13 @@
             })
   }
 
-\func affineRingedLocale (R : CRing) => ringedLocaleFromPres (affineRingedPres R)
+\func affineRingedLocale (R : CRing) => locallyRingedLocaleFromPres (affineRingedPres R)
+
+\record Scheme \extends LocallyRingedLocale
+  | isScheme : L.top <= SJoin (\lam U => ∃ (R' : CRing) (VSheaf.restrict U R = {RingedLocale} affineRingedLocale R'))
+  | isNonTrivial a p => meet-univ L.top-univ <=-refl <=∘ L.meet-monotone isScheme <=-refl <=∘ L.Join-rdistr>= <=∘ Join-univ (\lam (b, inP (R',q)) =>
+      \let t => transportInv (\lam (x : RingedLocale) => \Pi (a : x.L) -> 0 = {x.R.F a} 1 -> a <= bottom) q (isNonTrivial {affineRingedLocale R'})
+      \in t (b ∧ a, meet-left) (inv func-zro *> pmap (R.F.Func (meet-right {_} {b})) p *> func-ide) <=∘ Join-univ (\case __))
+  | isLocallyRinged a x => meet-univ L.top-univ <=-refl <=∘ L.meet-monotone isScheme <=-refl <=∘ L.Join-rdistr>= <=∘ Join-univ (\lam (b, inP (R',q)) =>
+      \let t => transportInv (\lam (x : RingedLocale) => \Pi (a : x.L) (y : x.R.F a) -> a <= SJoin (\lam b => \Sigma (p : b <= a) (LocallyRingedLocale.EitherInv _ p y))) q (isLocallyRinged {affineRingedLocale R'})
+      \in t (b ∧ a, meet-left) (R.F.Func meet-right x) <=∘ Join-univ (\lam ((c,c<=b),(c<=ba,e)) => Join-cond $ later (c, (c<=ba <=∘ meet-right, ||.map (transportInv (\lam (f : RingHom (R a) (R c)) => Inv (f x)) R.F.Func-o) (transportInv (\lam (f : RingHom (R a) (R c)) => Inv (f x + 1)) R.F.Func-o) e))))
