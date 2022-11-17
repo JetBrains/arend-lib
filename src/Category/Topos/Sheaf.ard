@@ -8,6 +8,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
@@ -68,6 +69,11 @@
   \func pullback {y : C} (h : Hom y x) : Sieve y \cowith
     | S g => S (h ∘ g)
     | isSieve g hfS => transport S o-assoc (isSieve g hfS)
+} \where {
+  \func map {C D : Precat} (F : Functor C D) (s : Sieve {C}) : Sieve {D} \cowith
+    | x => F s.x
+    | S {y} h => ∃ (z : C) (f : Hom y (F z)) (g : Hom z s.x) (h = F.Func g ∘ f) (s g)
+    | isSieve h (inP (w,k,g,p,sg)) => inP (w, k ∘ h, g, rewrite p o-assoc, sg)
 }
 
 \class Site \extends Precat \lp
@@ -131,6 +137,23 @@
           | f_sec c => exts $ \lam j => cong $ ext $ ext (ext idp, Path.inProp _ _)
         }
       }
+
+  \func direct_image {L L' : Locale} (f : FrameHom L' L) (S : VSheaf { | C => L }) : VSheaf S.D L'
+    => vsheafOnSiteWithBasis (Comp S f.functor.op) $ \lam x {J} g c z =>
+        transEquiv (vsheafMatchingFamily S (f x) {J} (\lam j => (f (g j).1, func-<= (g j).2)) (func-<= c <=∘ func-Join>=) z) $ later $
+          \have h j j' : Iso {_} {f ((g j).1 ∧ (g j').1)} {f (g j).1 ∧ f (g j').1} => rewrite f.func-meet idIso
+          \in \new QEquiv {
+            | f (m : MatchingFamily) => \new MatchingFamily {
+              | family => m.family
+              | isMatching j j' => pmap (`∘ _) Func-o *> o-assoc *> pmap (S.F.Func (Iso.f {h j j'}) ∘) (m.isMatching j j') *> inv (pmap (`∘ _) Func-o *> o-assoc)
+            }
+            | ret (m : MatchingFamily) => \new MatchingFamily {
+              | family => m.family
+              | isMatching j j' => pmap (`∘ _) Func-o *> o-assoc *> pmap (S.F.Func (Iso.inv {h j j'}) ∘) (m.isMatching j j') *> inv (pmap (`∘ _) Func-o *> o-assoc)
+            }
+            | ret_f m => idp
+            | f_sec m => idp
+          }
 }
 
 -- | Sheaves valued in sets
@@ -184,6 +207,29 @@
          path (\lam i => c.coneMap ((_, pbCoh @ i), pathInProp _ _ _ @ i)) *>
          inv (c.coneCoh {q'} {((pullback q.1.2 q'.1.2, q'.1.2 ∘ pbProj2), s.isSieve _ q'.2)} (pbProj2, idp))
   }
+
+\open vsheafOnSiteWithBasis
+
+\lemma vsheafMatchingFamily {C : SiteWithBasis} {D : Cat (\suc \lp)} (F : VSheaf D C) (x : C) {J : \Set} (g : J -> slicePrecat x) (c : isBasicCover x g) (z : D) : Equiv (matchingFamily F x g z)
+  => \have lim : Limit => F.isSheaf {x} {\new Sieve {
+                                          | S {y} k => ∃ (j : J) (h : Hom y (g j).1) (k = (g j).2 ∘ h)
+                                          | isSieve {z} {y} z->y {y->x} (inP (j,h,p)) => inP (j, h ∘ z->y, rewrite p o-assoc)
+                                        }} (inP (J, g, c, \lam j => inP (j, id _, inv id-right)))
+     \in \new ESEquiv {_} {MatchingFamily F x g z} {
+      | Embedding => Embedding.fromInjection $ \lam {f} {f'} p => lim.limUnique $ \lam (y, inP (j,h,q)) =>
+          \have t => pmap {MatchingFamily F x g z} {Hom z (F (g j).1)} (family {__} j) p
+          \in pmap (F.F.Func __ ∘ f) q *> pmap (`∘ f) Func-o *> o-assoc *> pmap (_ ∘) t *> inv o-assoc *> pmap (`∘ f') (inv Func-o) *> pmap (F.F.Func __ ∘ f') (inv q)
+      | isSurj (m : MatchingFamily) =>
+        \let | st (y : ObOver x) => \Sigma (h : Hom z (F y.1)) (∃ (j : J) (q : Hom y (g j)) (h = Func q.1 ∘ m.family j))
+             | mapUnique {j j' : J} {y : ObOver x} (f : Hom y (g j)) (f' : Hom y (g j')) : F.F.Func f.1 ∘ m.family j = F.F.Func f'.1 ∘ m.family j'
+               => pmap (F.F.Func __ ∘ _) (inv $ pbBeta1 {pullback (g j).2 (g j').2}) *> later (rewrite (F.F.Func-o,F.F.Func-o) $ o-assoc *> pmap (_ ∘) (m.isMatching j j') *> inv o-assoc) *> pmap (F.F.Func __ ∘ _) (pbBeta2 {pullback (g j).2 (g j').2} {y.1} {f.1} {f'.1} {f.2 *> inv f'.2})
+             | makeMap (k : \Sigma (y : ObOver x) (∃ (j : J) (h : Hom y.1 (g j).1) (y.2 = (g j).2 ∘ h))) : Hom z (F k.1.1)
+               => (TruncP.rec {_} {st k.1} (\lam (h, inP (j,q,p)) (h', inP (j',q',p')) => ext $ p *> mapUnique q q' *> inv p') k.2 (\lam s => (Func s.2 ∘ m.family s.1, inP (s.1, (s.2, inv s.3), idp)))).1
+        \in inP (lim.limMap $ \new Cone {
+                                | coneMap => makeMap
+                                | coneCoh {(y, inP s)} {(y', inP s')} h => pmap {st y} (F.F.Func h.1 ∘ __.1) TruncP.rec-eval *> inv o-assoc *> pmap (`∘ _) (inv Func-o) *> mapUnique (s.2 ∘ h.1, inv o-assoc *> pmap (`∘ h.1) (inv s.3) *> h.2) (s'.2, inv s'.3) *> pmap {st y'} __.1 (inv TruncP.rec-eval)
+                              }, exts $ \lam j => lim.limBeta _ (g j, inP (j, id _, inv id-right)) *> pmap {st (g j)} __.1 TruncP.rec-eval *> rewrite F.F.Func-id id-left)
+    }
 
 \lemma vsheafOnSiteWithBasis-equalizer {C : SiteWithBasis} {D : CompleteCat (\suc \lp)} (F : Functor C.op D)
   (p : \Pi (x : C) {J : \Set} (g : J -> slicePrecat x) (c : isBasicCover x g) -> Equalizer (leftMap x g) (rightMap x g) (F x) (eqMap x g))
