@@ -1,11 +1,8 @@
 \import Algebra.Meta
 \import Category.Functor
-\import Equiv(Embedding, Equiv, QEquiv, Retraction)
-\import Equiv.Fiber
+\import Equiv(Equiv, QEquiv, Retraction, transEquiv)
 \import Equiv.Path
-\import Equiv.Sigma
-\import Equiv.Univalence
-\import HLevel
+\import Function.Meta ($)
 \import Logic
 \import Meta
 \import Paths \using (inv \as pinv)
@@ -33,6 +30,9 @@
     | id-left => id-right
     | id-right => id-left
     | o-assoc => pinv o-assoc
+
+  \func idtoiso {a b : Ob} (p : a = b) : Iso {_} {a} {b} \elim p
+    | idp => idIso
 }
 
 \meta SmallPrecat => Precat \lp
@@ -115,23 +115,25 @@
   | inv_f => id-right
 
 \class Cat \extends Precat {
-  | univalence : \Pi (e : Iso) -> \Sigma (p : e.dom = e.cod) (transport (Hom e.dom) p (id e.dom) = e)
-    \level uni-isProp {\this}
+  | univalence {a b : Ob} : Equiv (idtoiso {_} {a} {b})
 
   \func op : Cat \cowith
     | Precat => Precat.op
-    | univalence (f : Iso) =>
-      \case f.cod \as cod, f.f \as ff : Hom cod f.dom, f.inv \as inv : Hom f.dom cod, f.inv_f \as f_inv : inv >> ff = id f.dom, f.f_inv \as inv_f : ff >> inv = id cod,
-            univalence (\new Iso inv ff f_inv inv_f) \return \Sigma (p : f.dom = cod) (transport (Hom {Precat.op} f.dom) p (id f.dom) = ff) \with {
-        | cod, ff, inv, f_inv, inv_f, (idp,idp) => (idp, pinv f_inv *> id-right)
-      }
+    | univalence => univalenceFromEquiv {Precat.op} (\lam {a} {b} => transEquiv univalence $ later $ \new QEquiv {
+      | f (e : Iso) => e.op.reverse
+      | ret (e : Iso) => e.op.reverse
+      | ret_f => idpe
+      | f_sec => idpe
+    }) (\lam {c} => idp)
 
-  \func iso-to-= (e : Iso {\this}) : e.dom = e.cod
-    => (univalence e).1
+  \func isotoid (e : Iso {\this}) : e.dom = e.cod
+    => univalence.ret e
 
-  \lemma transport_iso (e : Iso {\this}) {z : Ob} {f : Hom e.dom e.cod} (h : e.f = f) : transport (Hom e.dom) (iso-to-= e) (id e.dom) = f
-    => (univalence e).2 *> h
+  \lemma transport_iso (e : Iso {\this}) : transport (Hom e.dom) (isotoid e) (id e.dom) = e
+    => Jl (\lam b p => transport (Hom e.dom) p (id e.dom) = idtoiso p) idp (isotoid e) *> path (\lam i => Iso.f {univalence.f_ret e i})
 
+  \func univalenceToTransport (e : Iso {\this}) : \Sigma (p : e.dom = e.cod) (transport (Hom e.dom) p (id e.dom) = e)
+    => (isotoid e, transport_iso e)
 
   \lemma transport_Hom {x1 y1 x2 y2 : Ob} (p1 : x1 = y1) (p2 : x2 = y2) {g : Hom x1 x2} {f : Hom y1 y2}
                        (h : g >> transport (Hom x2) p2 (id x2) = transport (Hom x1) p1 (id x1) >> f)
@@ -147,32 +149,26 @@
 
   \lemma transport_Hom_iso (e1 e2 : Iso {\this}) {g : Hom e1.dom e2.dom} {f : Hom e1.cod e2.cod}
                            (h : g >> e2.f = e1.f >> f)
-    : coe (\lam i => Hom (iso-to-= e1 @ i) (iso-to-= e2 @ i)) g right = f
-    => transport_Hom (iso-to-= e1) (iso-to-= e2) (pmap (g >>) (univalence e2).2 *> h *> pmap (`>> f) (pinv (univalence e1).2))
+    : coe (\lam i => Hom (isotoid e1 @ i) (isotoid e2 @ i)) g right = f
+    => transport_Hom (isotoid e1) (isotoid e2) (pmap (g >>) (transport_iso e2) *> h *> pmap (`>> f) (pinv (transport_iso e1)))
 
-  \lemma transport_Hom_iso-left (e : Iso {\this}) {z : Ob} (g : Hom e.dom z) {f : Hom e.cod z} (h : g = e.f >> f) : transport (`Hom z) (iso-to-= e) g = f
-    => transport_Hom-left (iso-to-= e) (h *> pmap (`>> f) (pinv (univalence e).2))
+  \lemma transport_Hom_iso-left (e : Iso {\this}) {z : Ob} (g : Hom e.dom z) {f : Hom e.cod z} (h : g = e.f >> f) : transport (`Hom z) (isotoid e) g = f
+    => transport_Hom-left (isotoid e) (h *> pmap (`>> f) (pinv (transport_iso e)))
 
-  \lemma transport_Hom_iso-right (e : Iso {\this}) {z : Ob} (g : Hom z e.dom) {f : Hom z e.cod} (h : g >> e.f = f) : transport (Hom z) (iso-to-= e) g = f
-    => transport_Hom-right (iso-to-= e) (pmap (g >>) (univalence e).2 *> h)
+  \lemma transport_Hom_iso-right (e : Iso {\this}) {z : Ob} (g : Hom z e.dom) {f : Hom z e.cod} (h : g >> e.f = f) : transport (Hom z) (isotoid e) g = f
+    => transport_Hom-right (isotoid e) (pmap (g >>) (transport_iso e) *> h)
 } \where {
-  \func uni-isProp \hlevels {C : Precat} (F G : \Pi (f : Iso {C}) -> \Sigma (p : f.dom = f.cod) (transport (Hom f.dom) p (id f.dom) = f)) : F = G =>
-    \let | T {x y : C} (p : x = y) => transport (Iso {C} {x} {__}) p idIso
-         | Emb {x : C} => \new Embedding (\lam (e : Iso {C} {x} {x}) => e.f) (\lam (e e' : Iso {C} {x} {x}) => \new Retraction {
-           | sec => Iso.equals e e'
-           | f_sec => idpe
-         })
-         | Eq {x y : C} (e : Iso {C} {x} {y}) (p : x = y)
-         => Jl (\lam y' p' => \Pi (e' : Iso {C} {x} {y'}) -> Equiv {transport (Iso {C} {x} {__}) p' idIso = {Iso {C} {x} {y'}} e'} {transport (Hom x) p' (id x) = e'.f})
-               (\lam e' => Emb.pmap-isEquiv {idIso} {e'})
-               p e
-         | T-equiv {x y : C} : Equiv (T {x} {y}) => pathEquiv (Iso {C} {__} {__}) (\lam {x} {y} => \new Retraction {
-           | f => T {x} {y}
-           | sec (e : Iso) => (F e).1
-           | f_sec (e : Iso) => Equiv.ret {Eq e (F e).1} (F e).2
-         }) {x} {y}
-         | Fib-equiv {x y : C} (e : Iso {C} {x} {y}) => transport isProp (Equiv-to-= (sigma-right (Eq e))) (isContr=>isProp (Equiv=>contrFibers (T-equiv {x} {y}) e))
-    \in path (\lam i f => Fib-equiv f (F f) (G f) @ i)
+  \lemma univalenceFromEquiv {C : Precat} (e : \Pi {a b : C} -> Equiv {a = b} {Iso {C} {a} {b}}) (i : \Pi {a : C} -> e (idpe a) = idIso) {a b : C} : Equiv (idtoiso {C} {a} {b})
+    => \let t : e.f = idtoiso {C} {a} {b} => ext (\case \elim b, \elim __ \with {
+      | b, idp => i
+    }) \in transport (Equiv __) t e
+
+  \lemma makeUnivalence {C : Precat} (c : \Pi (e : Iso {C}) -> \Sigma (p : e.dom = e.cod) (transport (Hom e.dom) p (id e.dom) = e)) {a b : C} : Equiv (idtoiso {C} {a} {b})
+    => pathEquiv (\lam a b => Iso {C} {a} {b}) (\lam {a} {b} => \new Retraction {
+      | f => idtoiso
+      | sec e => (c e).1
+      | f_sec (e : Iso) => Iso.equals _ _ (Jl (\lam b p => Iso.f {idtoiso p} = transport (Hom e.dom) p (id e.dom)) idp (c e).1 *> (c e).2)
+    })
 
   \lemma transport_Hom_Func {C D E : Precat} {x1 y1 : C} (p1 : x1 = y1) {x2 y2 : D} (p2 : x2 = y2) (F : Functor C E) (G : Functor D E) {g : Hom (F x1) (G x2)} {f : Hom (F y1) (G y2)}
                             (h : transport (Hom (G x2)) (pmap G p2) (id (G x2)) ∘ g = f ∘ transport (Hom (F x1)) (pmap F p1) (id (F x1)))
@@ -184,13 +180,13 @@
     | idp => pinv (pmap (`∘ g) Func-id *> id-left)
 
   \lemma transport_Hom_Func_iso-right {C : Cat} {D : Precat} (e : Iso {C}) {z : D} (F : Functor C D) {g : Hom z (F e.dom)}
-    : transport (Hom z) (pmap F (iso-to-= e)) g = F.Func e.f ∘ g
-    => transport_Hom_Func-right (iso-to-= e) F *> cong (univalence e).2
+    : transport (Hom z) (pmap F (isotoid e)) g = F.Func e.f ∘ g
+    => transport_Hom_Func-right (isotoid e) F *> cong (transport_iso e)
 
   \lemma transport_Hom_Func_iso {C D : Cat} {E : Precat} (e1 : Iso {C}) (e2 : Iso {D}) (F : Functor C E) (G : Functor D E) {g : Hom (F e1.dom) (G e2.dom)} {f : Hom (F e1.cod) (G e2.cod)}
                                 (h : G.Func e2.f ∘ g = f ∘ F.Func e1.f)
-    : coe (\lam i => Hom (F (iso-to-= e1 @ i)) (G (iso-to-= e2 @ i))) g right = f
-    => transport_Hom_Func (iso-to-= e1) (iso-to-= e2) F G (pmap (`∘ g) (transport_Hom_Func_iso-right e2 G *> id-right) *> h *> pmap (f ∘) (pinv (transport_Hom_Func_iso-right e1 F *> id-right)))
+    : coe (\lam i => Hom (F (isotoid e1 @ i)) (G (isotoid e2 @ i))) g right = f
+    => transport_Hom_Func (isotoid e1) (isotoid e2) F G (pmap (`∘ g) (transport_Hom_Func_iso-right e2 G *> id-right) *> h *> pmap (f ∘) (pinv (transport_Hom_Func_iso-right e1 F *> id-right)))
 }
 
 \meta SmallCat => Cat \lp
@@ -213,7 +209,7 @@
            (st : \Pi {X : C} {S1 S2 : Str X} -> isHom S1 S2 (id X) -> isHom S2 S1 (id X) -> S1 = S2)
            {X Y : C} (e : Iso {C} {X} {Y}) (S1 : Str X) (S2 : Str Y) (p : isHom S1 S2 e) (q : isHom S2 S1 e.inv)
   : \Sigma (p : X = Y) (Path (\lam i => Str (p @ i)) S1 S2) (transport (Hom X) p (id X) = e)
-  => \case \elim Y, \elim e, \elim S2, p, q, univalence e \with {
+  => \case \elim Y, \elim e, \elim S2, p, q, Cat.univalenceToTransport e \with {
     | Y, e : Iso, S2, p, q, (idp,s) => (idp, st (transportInv (isHom S1 S2) s p) (transport (isHom S2 S1) (pinv id-right *> pmap (∘ e.inv) s *> e.inv_f) q), s)
   }
 
@@ -241,9 +237,9 @@
 
 \func sliceCat {C : Cat} (x : C) : Cat \cowith
   | Precat => slicePrecat x
-  | univalence (e : Iso) =>
+  | univalence => Cat.makeUnivalence $ \lam (e : Iso) =>
     \have e' => Functor.Func-iso {slicePrecat.forget x} e
-    \in (ext ((univalence e').1, Cat.transport_Hom_iso-left e' _ (pinv e.f.2)), simp_coe (Cat.transport_Hom_iso-right e' _ id-right))
+    \in (ext (Cat.isotoid e', Cat.transport_Hom_iso-left e' _ (pinv e.f.2)), simp_coe (Cat.transport_Hom_iso-right e' _ id-right))
 
 \func commaPrecat {C D E : Precat} (F : Functor C E) (G : Functor D E) : Precat \cowith
   | Ob => \Sigma (x : C) (y : D) (Hom (F x) (G y))
@@ -271,10 +267,10 @@
 
 \func commaCat {C D : Cat} {E : Precat} (F : Functor C E) (G : Functor D E) : Cat \cowith
   | Precat => commaPrecat F G
-  | univalence (e : Iso) =>
+  | univalence => Cat.makeUnivalence $ \lam (e : Iso) =>
     \have | e1 => Functor.Func-iso {commaPrecat.leftForget F G} e
           | e2 => Functor.Func-iso {commaPrecat.rightForget F G} e
-    \in (ext ((univalence e1).1, (univalence e2).1, Cat.transport_Hom_Func_iso e1 e2 F G (pinv e.f.3)), simp_coe (Cat.transport_Hom_iso-right e1 _ id-right, Cat.transport_Hom_iso-right e2 _ id-right))
+    \in (ext (Cat.isotoid e1, Cat.isotoid e2, Cat.transport_Hom_Func_iso e1 e2 F G (pinv e.f.3)), simp_coe (Cat.transport_Hom_iso-right e1 _ id-right, Cat.transport_Hom_iso-right e2 _ id-right))
 
 \class Graph (\coerce V : \Set) (E : V -> V -> \Set) {
   \data Paths (x y : V)
@@ -300,7 +296,7 @@
     | id-left => concat_idp
     | id-right => idp
     | o-assoc => pinv concat-assoc
-    | univalence => \case \elim __ \with {
+    | univalence => Cat.makeUnivalence $ later $ \case \elim __ \with {
       | (x, y, empty idp, _, _, _) => (idp,idp)
       | (x, y, cons e p, _, (), _)
     }

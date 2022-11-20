@@ -11,7 +11,6 @@ import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreLamExpression;
-import org.arend.ext.core.expr.CorePiExpression;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.error.TypeMismatchError;
@@ -48,6 +47,7 @@ public class SIPMeta extends BaseMetaDefinition {
   @Dependency(module = "Category")                            public CoreFunctionDefinition SIP_Set;
   @Dependency(module = "Set.Category")                        public CoreClassDefinition SetHom;
   @Dependency(module = "Set.Category", name = "SetHom.func")  public CoreClassField homFunc;
+  @Dependency(module = "Category", name = "Cat.makeUnivalence") public CoreFunctionDefinition makeUnivalence;
 
   public SIPMeta(StdExtension ext) {
     this.ext = ext;
@@ -66,13 +66,14 @@ public class SIPMeta extends BaseMetaDefinition {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     CoreExpression type = contextData.getExpectedType().normalize(NormalizationMode.WHNF);
-    if (!(type instanceof CorePiExpression)) {
-      typechecker.getErrorReporter().report(new TypeMismatchError(type, DocFactory.text("a pi type"), contextData.getMarker()));
+    if (!(type instanceof CoreClassCallExpression && ((CoreClassCallExpression) type).getDefinition() == ext.equationMeta.Equiv)) {
+      typechecker.getErrorReporter().report(new TypeMismatchError(type, DocFactory.text("an equivalence"), contextData.getMarker()));
       return null;
     }
 
-    CoreExpression paramType = ((CorePiExpression) type).getParameters().getTypeExpr().normalize(NormalizationMode.WHNF);
-    CoreExpression cat = paramType instanceof CoreClassCallExpression ? ((CoreClassCallExpression) paramType).getClosedImplementation(mapCat) : null;
+    CoreExpression isoArg = ((CoreClassCallExpression) type).getAbsImplementationHere(ext.equationMeta.equivRight);
+    if (isoArg != null) isoArg = isoArg.normalize(NormalizationMode.WHNF);
+    CoreExpression cat = isoArg instanceof CoreClassCallExpression ? ((CoreClassCallExpression) isoArg).getClosedImplementation(mapCat) : null;
     if (cat == null) {
       typechecker.getErrorReporter().report(new TypeMismatchError(type, DocFactory.text("Iso {_} -> _"), contextData.getMarker()));
       return null;
@@ -165,7 +166,7 @@ public class SIPMeta extends BaseMetaDefinition {
       eDom, eCod, eFunc, eInv)));
     ConcreteLetClause letClause = factory.letClause(pathRef, Collections.emptyList(), null, factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.newExpr(factory.classExt(factory.core(obTyped), obFields))))));
 
-    return typechecker.typecheck(factory.lam(Collections.singletonList(factory.param(isoRef)), factory.letExpr(true, false, Collections.singletonList(haveClause), factory.letExpr(false, false, Collections.singletonList(letClause), factory.tuple(factory.ref(pathRef), factory.app(factory.meta("exts", ext.extsMeta), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(extRef)),
+    return typechecker.typecheck(factory.appBuilder(factory.ref(makeUnivalence.getRef())).app(factory.thisExpr(), false).app(factory.lam(Collections.singletonList(factory.param(isoRef)), factory.letExpr(true, false, Collections.singletonList(haveClause), factory.letExpr(false, false, Collections.singletonList(letClause), factory.tuple(factory.ref(pathRef), factory.app(factory.meta("exts", ext.extsMeta), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(extRef)),
       factory.app(factory.ref(ext.concat.getRef()), true, Arrays.asList(
         factory.appBuilder(factory.ref(ext.Jl.getRef()))
           .app(factory.core(obTyped), false)
@@ -178,6 +179,6 @@ public class SIPMeta extends BaseMetaDefinition {
           .app(factory.ref(ext.prelude.getIdp().getRef()))
           .app(factory.ref(pathRef))
           .build(),
-        factory.app(factory.proj(factory.ref(sipRef), 2), true, Collections.singletonList(factory.ref(extRef)))))))))))), contextData.getExpectedType());
+        factory.app(factory.proj(factory.ref(sipRef), 2), true, Collections.singletonList(factory.ref(extRef))))))))))))).build(), contextData.getExpectedType());
   }
 }

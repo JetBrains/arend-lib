@@ -137,8 +137,8 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Equiv")                                  public CoreClassDefinition QEquiv;
   @Dependency(module = "Equiv.Univalence", name = "Equiv-to-=")  public CoreFunctionDefinition equivToEq;
   @Dependency(module = "Equiv.Univalence", name = "QEquiv-to-=") public CoreFunctionDefinition qEquivToEq;
-  @Dependency(module = "Equiv", name = "Map.A")                  CoreClassField equivLeft;
-  @Dependency(module = "Equiv", name = "Map.B")                  CoreClassField equivRight;
+  @Dependency(module = "Equiv", name = "Map.A")                  public CoreClassField equivLeft;
+  @Dependency(module = "Equiv", name = "Map.B")                  public CoreClassField equivRight;
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition idEquiv;
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition transEquiv;
 
