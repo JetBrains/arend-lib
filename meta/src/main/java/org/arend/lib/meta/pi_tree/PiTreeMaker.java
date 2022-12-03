@@ -189,7 +189,7 @@ public class PiTreeMaker {
       for (Integer index : tree.indices) {
         headArgs.add((isEven ? evenArgs : oddArgs).get(index));
       }
-      result = factory.app(useLet ? tree.getAltHead() : tree.head, true, headArgs);
+      result = factory.app(result, true, headArgs);
     }
 
     for (int i = tree.subtrees.size() - 1; i >= 0; i--) {
@@ -287,7 +287,7 @@ public class PiTreeMaker {
     return makeCoe(tree, topArgs, useLet, pathRefs, result);
   }
 
-  public ConcreteExpression makeArgType(PiTreeRoot tree, boolean useLet, List<ConcreteExpression> leftRefs, List<ConcreteExpression> rightRefs, List<PathExpression> pathRefs, ConcreteExpression leftFun, ConcreteExpression rightFun) {
+  public ConcreteExpression makeArgType(PiTreeRoot tree, boolean useLet, List<ConcreteExpression> leftRefs, List<ConcreteExpression> rightRefs, List<PathExpression> pathRefs, ConcreteExpression leftFun, ConcreteExpression rightFun, boolean genType) {
     leftRefs = new ArrayList<>(leftRefs);
     rightRefs = new ArrayList<>(rightRefs);
     List<ConcreteArgument> piRefs = new ArrayList<>(tree.subtrees.size());
@@ -305,6 +305,16 @@ public class PiTreeMaker {
     ConcreteExpression leftArg = etaExpand(tree, leftFun, piRefs, piRefs, true, useLet, pathRefs);
     index = 1;
     ConcreteExpression rightArg = etaExpand(tree, rightFun, piRefs, piRefs, false, useLet, pathRefs);
-    return factory.pi(piParams, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftArg, rightArg)));
+    List<ConcreteArgument> args = new ArrayList<>(3);
+    if (genType) {
+      List<ConcreteExpression> headArgs = new ArrayList<>();
+      for (Integer i : tree.indices) {
+        headArgs.add(rightRefs.get(i));
+      }
+      args.add(factory.arg(factory.app(useLet ? tree.getAltHead() : tree.head, true, headArgs), false));
+    }
+    args.add(factory.arg(leftArg, true));
+    args.add(factory.arg(rightArg, true));
+    return factory.pi(piParams, factory.app(factory.ref(ext.prelude.getEquality().getRef()), args));
   }
 }

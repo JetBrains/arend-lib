@@ -98,14 +98,17 @@
 \record Presheaf \extends VPresheaf
   | D => SetCat
 
-\func presheafCat (C : Precat) : Cat
-  => subCat {FunctorCat {C.op} {SetCat}} {Presheaf C} (\new Embedding {
+\instance VPresheafCat (D : Cat (\suc \lp)) (C : Precat) : Cat
+  => subCat {FunctorCat {C.op} {D}} {VPresheaf D C} (\new Embedding {
     | f P => P
     | isEmb _ _ => \new Retraction {
       | sec p => ext p
       | f_sec => idpe
     }
   })
+
+\instance PresheafCat (C : Precat) : Cat
+  => VPresheafCat SetCat C
 
 -- | Sheaves valued in {D}
 \class VSheaf \extends VPresheaf {
@@ -154,19 +157,36 @@
             | ret_f m => idp
             | f_sec m => idp
           }
+    \where {
+      \func map {L L' : Locale} {D : Cat (\suc \lp)} (f : FrameHom L' L) {S S' : VSheaf D L} (a : NatTrans S S') : NatTrans (direct_image f S) (direct_image f S') \cowith
+        | trans x => a (f x)
+        | natural g => a.natural (f.functor.Func g)
+    }
+
+  \func direct_image_id {L : Locale} (S : VSheaf { | C => L }) : direct_image (id L) S = {VSheaf S.D L} S
+    => ext $ ext (idp, ext $ \lam {X} {Y} h => pmap Func $ Path.inProp _ _)
+
+  \func transport_direct_image {L L' : Locale} (p : L = L') (S : VSheaf { | C => L }) : transport (VSheaf S.D) p S = direct_image (Iso.f {Precat.idtoiso p}) S \elim p
+    | idp => inv (direct_image_id S)
+
+  \func transport_direct_image-iso {L L' : Locale} (e : Iso {LocaleCat} {L} {L'}) (S : VSheaf { | C => L }) : transport (VSheaf S.D) (Cat.isotoid e) S = direct_image e.f S
+    => transport_direct_image (Cat.isotoid e) S *> path (\lam i => direct_image (Iso.f {univalence.f_ret e i}) S)
 }
 
 -- | Sheaves valued in sets
 \class Sheaf \extends Presheaf, VSheaf
 
-\func sheafCat (C : Site) : Cat
-  => subCat {presheafCat C} {Sheaf C} (\new Embedding {
+\instance VSheafCat (D : Cat (\suc \lp)) (C : Site) : Cat
+  => subCat {VPresheafCat D C} {VSheaf D C} (\new Embedding {
     | f P => P
     | isEmb _ _ => \new Retraction {
-      | sec p => ext Sheaf { | Presheaf => p }
+      | sec p => ext VSheaf { | VPresheaf => p }
       | f_sec => idpe
     }
   })
+
+\instance SheafCat (C : Site) : Cat
+  => VSheafCat SetCat C
 
 \lemma sheaf-preserve {C : Site} {D E : Cat (\suc \lp)} (G : Functor D E)
   (G-lim : \Pi {J : Precat} (H : Functor J D) -> PreservesLimit G H) (F : VSheaf D C) : VSheaf E C (Comp G F) \cowith

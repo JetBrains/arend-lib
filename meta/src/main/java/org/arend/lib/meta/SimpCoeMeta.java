@@ -162,7 +162,7 @@ public class SimpCoeMeta extends BaseMetaDefinition {
       ArendRef rightFunRef = factory.local("g");
       caseArgs.add(factory.caseArg(factory.core(eqRight.computeTyped()), rightFunRef, piTreeMaker.makeConcrete(piTree, true, rightRefs)));
       ConcreteExpression concreteValueArg = makeConcreteValueArg(transportValueArg, factory);
-      ConcreteExpression lastArgType = piTreeMaker.makeArgType(piTree, true, Collections.singletonList(transportLeftArg), rightRefs, pathRefs, concreteValueArg, factory.ref(rightFunRef));
+      ConcreteExpression lastArgType = piTreeMaker.makeArgType(piTree, true, Collections.singletonList(transportLeftArg), rightRefs, pathRefs, concreteValueArg, factory.ref(rightFunRef), true);
       ConcreteExpression caseResultType = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(piTreeMaker.makeCoe(piTree, true, pathRefs, concreteValueArg), factory.ref(rightFunRef)));
       caseArgs.add(factory.caseArg(arg == null ? argument : factory.core(arg), null, isForward ? caseResultType : lastArgType));
 

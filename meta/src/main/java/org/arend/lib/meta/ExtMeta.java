@@ -392,7 +392,7 @@ public class ExtMeta extends BaseMetaDefinition {
               if (piTree == null) return null;
               if (!piTree.subtrees.isEmpty()) {
                 piTreeData = new PiTreeData(piTreeMaker, piTree, leftProjs);
-                lastSigmaParam = piTreeMaker.makeArgType(piTreeData.tree, false, leftProjs, rightProjs, pathRefs, makeProj(factory, left, j, classFields), makeProj(factory, right, j, classFields));
+                lastSigmaParam = piTreeMaker.makeArgType(piTreeData.tree, false, leftProjs, rightProjs, pathRefs, makeProj(factory, left, j, classFields), makeProj(factory, right, j, classFields), false);
                 isPi = true;
               }
             } else if (withSimpCoe) {
@@ -630,7 +630,7 @@ public class ExtMeta extends BaseMetaDefinition {
                 ArendRef rightFunRef = factory.local("f");
                 ConcreteExpression leftFun = makeProj(factory, left, j, classFields);
                 caseArgs.add(factory.caseArg(makeProj(factory, right, j, classFields), rightFunRef, piTreeMaker.makeConcrete(piTree, true, rightRefs)));
-                caseArgs.add(factory.caseArg(proj, null, piTreeMaker.makeArgType(piTree, true, piTreeDataList.get(i).leftProjs, rightRefs, pathRefs, leftFun, factory.ref(rightFunRef))));
+                caseArgs.add(factory.caseArg(proj, null, piTreeMaker.makeArgType(piTree, true, piTreeDataList.get(i).leftProjs, rightRefs, pathRefs, leftFun, factory.ref(rightFunRef), false)));
 
                 casePatterns.add(factory.refPattern(null, null));
                 casePatterns.add(factory.refPattern(lastCaseRef, null));
