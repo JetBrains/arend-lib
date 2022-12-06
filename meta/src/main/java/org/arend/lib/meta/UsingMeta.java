@@ -29,7 +29,7 @@ public class UsingMeta extends BaseMetaDefinition {
     return new boolean[] { true, true };
   }
 
-  private void getNewBindings(ConcreteExpression argument, ExpressionTypechecker typechecker, List<CoreBinding> newBindings, Collection<CoreBinding> retainSet) {
+  private static void getNewBindings(ConcreteExpression argument, ExpressionTypechecker typechecker, List<CoreBinding> newBindings, Collection<CoreBinding> retainSet, boolean keepOldContext) {
     for (ConcreteExpression arg : Utils.getArgumentList(argument)) {
       if (arg instanceof ConcreteReferenceExpression) {
         CoreBinding binding = typechecker.getFreeBinding(((ConcreteReferenceExpression) arg).getReferent());
@@ -50,16 +50,16 @@ public class UsingMeta extends BaseMetaDefinition {
     }
   }
 
-  public List<CoreBinding> getNewBindings(ConcreteExpression argument, ExpressionTypechecker typechecker) {
+  public static List<CoreBinding> getNewBindings(ConcreteExpression argument, ExpressionTypechecker typechecker, boolean keepOldContext) {
     List<CoreBinding> result = new ArrayList<>();
-    getNewBindings(argument, typechecker, result, result);
+    getNewBindings(argument, typechecker, result, result, keepOldContext);
     return result;
   }
 
   public <T> T invokeMeta(ConcreteExpression argument, ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
     List<CoreBinding> newBindings = new ArrayList<>();
     Set<CoreBinding> retainSet = keepOldContext ? null : new HashSet<>();
-    getNewBindings(argument, typechecker, newBindings, retainSet);
+    getNewBindings(argument, typechecker, newBindings, retainSet, keepOldContext);
 
     FreeBindingsModifier modifier = new FreeBindingsModifier();
     if (retainSet != null) {

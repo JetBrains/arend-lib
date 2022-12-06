@@ -57,6 +57,7 @@ public abstract class DataFactoryBase implements DataFactory {
 
   @Override
   public ConcreteExpression wrapWithData(ConcreteExpression expression) {
+    /*
     ArendRef lamParam = factory.local("n");
     List<CoreExpression> valueList = values.getValues();
     ConcreteClause[] caseClauses = new ConcreteClause[valueList.size() + 1];
@@ -71,6 +72,16 @@ public abstract class DataFactoryBase implements DataFactory {
 
     letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(getDataClass(instanceArg, dataArg))));
     //return typechecker.typecheck(meta.ext.factory.letExpr(false, false, letClauses, expression), null);
+    return meta.ext.factory.letExpr(false, false, letClauses, expression); */
+    List<CoreExpression> valueList = values.getValues();
+
+    ConcreteExpression instanceArg = factory.core(instance);
+    ConcreteExpression dataArg = factory.ref(meta.ext.prelude.getEmptyArray().getRef());
+    for (int i = valueList.size() - 1; i >= 0; i--) {
+      dataArg = factory.app(factory.ref(meta.ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), dataArg);
+    }
+
+    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(getDataClass(instanceArg, dataArg))));
     return meta.ext.factory.letExpr(false, false, letClauses, expression);
   }
 }

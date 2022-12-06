@@ -17,7 +17,6 @@ import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.meta.closure.CongruenceClosure;
 import org.arend.lib.meta.cong.CongruenceMeta;
-import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.meta.equation.datafactory.RingDataFactory;
 import org.arend.lib.ring.Monomial;
@@ -46,7 +45,6 @@ public class RingSolver extends BaseEqualitySolver {
   private final FunctionMatcher mulMatcher;
   private final FunctionMatcher addMatcher;
   private final FunctionMatcher natCoefMatcher;
-  private final FunctionMatcher intCoefMatcher;
   private final FunctionMatcher negativeMatcher;
   private CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
@@ -57,12 +55,11 @@ public class RingSolver extends BaseEqualitySolver {
     isLattice = classCall.getDefinition().isSubClassOf(meta.BoundedDistributiveLattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.BoundedDistributiveLattice));
     isRing = !isLattice && classCall.getDefinition().isSubClassOf(meta.Ring) && (forcedClass == null || forcedClass.isSubClassOf(meta.Ring));
     isCommutative = isLattice || classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid));
-    zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.bottom : meta.zro, typechecker, factory, refExpr, meta.ext, 0);
-    ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.top : meta.ide, typechecker, factory, refExpr, meta.ext, 0);
+    zroMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.bottom : meta.ext.zro, typechecker, factory, refExpr, meta.ext, 0);
+    ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.top : meta.ext.ide, typechecker, factory, refExpr, meta.ext, 0);
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.meet : meta.mul, typechecker, factory, refExpr, meta.ext, 2);
     addMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.join : meta.plus, typechecker, factory, refExpr, meta.ext, 2);
     natCoefMatcher = isLattice ? null : FunctionMatcher.makeFieldMatcher(classCall, instance, meta.natCoef, typechecker, factory, refExpr, meta.ext, 1);
-    intCoefMatcher = isRing ? new DefinitionFunctionMatcher(meta.intCoef, 1) : null;
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, refExpr, meta.ext, 1) : null;
   }
 
@@ -135,10 +132,7 @@ public class RingSolver extends BaseEqualitySolver {
       }
     }
 
-    List<CoreExpression> coefArgs = intCoefMatcher == null ? null : intCoefMatcher.match(expr);
-    if (coefArgs == null) {
-      coefArgs = natCoefMatcher == null ? null : natCoefMatcher.match(expr);
-    }
+    List<CoreExpression> coefArgs = natCoefMatcher == null ? null : natCoefMatcher.match(expr);
     if (coefArgs != null) {
       CoreExpression arg = coefArgs.get(0).normalize(NormalizationMode.WHNF);
       if (arg instanceof CoreIntegerExpression) {
@@ -156,7 +150,7 @@ public class RingSolver extends BaseEqualitySolver {
   private void typeToRule(CoreBinding binding, List<Equality> rules) {
     if (binding == null) return;
     CoreFunCallExpression eq = Utils.toEquality(binding.getTypeExpr(), null, null);
-    if (eq == null || !typechecker.compare(eq.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true)) return;
+    if (eq == null || !typechecker.compare(eq.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true, false)) return;
     CompiledTerm lhsTerm = compileTerm(eq.getDefCallArguments().get(1));
     CompiledTerm rhsTerm = compileTerm(eq.getDefCallArguments().get(2));
     if (isCommutative) {
@@ -236,7 +230,7 @@ public class RingSolver extends BaseEqualitySolver {
       return null;
     }
 
-    return factory.appBuilder(factory.ref((isLattice ? meta.latticeTermsEq : (isRing ? (isCommutative ? meta.commRingTermsEq : meta.ringTermsEq) : (isCommutative ? meta.commSemiringTermsEq : meta.semiringTermsEq))).getRef()))
+    return factory.appBuilder(factory.ref((isLattice ? meta.latticeTermsEq : (isRing ? (isCommutative ? meta.commRingTermsEq : meta.ringTermsEq) : (isCommutative ? meta.commSemiringTermsEq : meta.ringTermsEq))).getRef()))
       .app(factory.ref(dataRef), false)
       .app(term1.concrete)
       .app(term2.concrete)
@@ -335,7 +329,7 @@ public class RingSolver extends BaseEqualitySolver {
 
       var zeroPlusZeroIsZeroProof = factory.appBuilder(factory.ref(meta.addMonZroRight.getRef()))
         .app(factory.core(instance), false)
-        .app(factory.ref(meta.zro.getRef()), false)
+        .app(factory.ref(meta.ext.zro.getRef()), false)
         .build();
 
       return factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(sumCongProof, zeroPlusZeroIsZeroProof));

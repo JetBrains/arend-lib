@@ -454,7 +454,7 @@ public class ExtMeta extends BaseMetaDefinition {
               }
               lastSigmaParam = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftExpr, makeProj(factory, right, i, classFields)));
             }
-            sigmaParams.add(factory.sigmaParam(SigmaFieldKind.ANY, Collections.singletonList(sigmaRef), lastSigmaParam));
+            sigmaParams.add(factory.param(Collections.singletonList(sigmaRef), lastSigmaParam));
           }
 
           ConcreteExpression sigmaRefExpr = factory.ref(sigmaRef);
@@ -749,7 +749,7 @@ public class ExtMeta extends BaseMetaDefinition {
       ConcreteExpression left = factory.core(equality.getDefCallArguments().get(1).computeTyped());
       ConcreteExpression right = factory.core(equality.getDefCallArguments().get(2).computeTyped());
       if (((CoreUniverseExpression) normType).getSort().isProp()) {
-        TypedExpression expectedType = typechecker.typecheck(factory.sigma(Arrays.asList(factory.sigmaParam(SigmaFieldKind.ANY, factory.arr(left, right)), factory.sigmaParam(SigmaFieldKind.ANY, factory.arr(right, left)))), null);
+        TypedExpression expectedType = typechecker.typecheck(factory.sigma(Arrays.asList(factory.param(true, factory.arr(left, right)), factory.param(true, factory.arr(right, left)))), null);
         if (expectedType == null) return null;
         TypedExpression typedArg = typechecker.typecheck(arg, expectedType.getExpression());
         if (typedArg == null) return null;

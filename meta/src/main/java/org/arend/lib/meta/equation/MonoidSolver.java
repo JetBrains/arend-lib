@@ -66,7 +66,7 @@ public class MonoidSolver extends BaseEqualitySolver {
     isSemilattice = !isCat && classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
     isMultiplicative = !isSemilattice && !isCat && classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid));
     isCommutative = !isCat && (isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid)) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AbMonoid)));
-    ide = isSemilattice ? meta.top : isMultiplicative ? meta.ide : meta.zro;
+    ide = isSemilattice ? meta.top : isMultiplicative ? meta.ext.ide : meta.ext.zro;
     CoreClassField mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
     mulMatcher = isCat ? new DefinitionFunctionMatcher(meta.ext.sipMeta.catComp, 5) : FunctionMatcher.makeFieldMatcher(classCall, instance, mul, typechecker, factory, refExpr, meta.ext, 2);
     ideMatcher = isCat ? new DefinitionFunctionMatcher(meta.ext.sipMeta.catId, 1) : FunctionMatcher.makeFieldMatcher(classCall, instance, ide, typechecker, factory, refExpr, meta.ext, 0);

@@ -16,6 +16,7 @@ import org.arend.ext.util.Pair;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.meta.closure.EquivalenceClosure;
 import org.arend.lib.meta.closure.ValuesRelationClosure;
+import org.arend.lib.util.Utils;
 import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,7 +29,6 @@ public class EqualitySolver extends BaseEqualitySolver {
   private Values<UncheckedExpression> values;
   private final CoreClassDefinition forcedClass;
   private final boolean useSolver;
-  private boolean useHypotheses = true;
 
   private EqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreClassDefinition forcedClass, boolean useSolver) {
     super(meta, typechecker, factory, refExpr, null);
@@ -67,7 +67,13 @@ public class EqualitySolver extends BaseEqualitySolver {
     valuesType = type;
   }
 
-  public void setUseHypotheses(boolean useHypotheses) { this.useHypotheses = useHypotheses; }
+  @Override
+  public void setUseHypotheses(boolean useHypotheses) {
+    super.setUseHypotheses(useHypotheses);
+    if (algebraSolver instanceof BaseEqualitySolver) {
+      ((BaseEqualitySolver) algebraSolver).setUseHypotheses(useHypotheses);
+    }
+  }
 
   @Override
   public boolean initializeSolver() {
@@ -96,17 +102,12 @@ public class EqualitySolver extends BaseEqualitySolver {
       ContextHelper helper = new ContextHelper(hint);
       for (CoreBinding binding : helper.getAllBindings(typechecker)) {
         CoreFunCallExpression equality = binding.getTypeExpr().normalize(NormalizationMode.WHNF).toEquality();
-        if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), valuesType, CMP.EQ, refExpr, false, true)) {
+        if (equality != null && typechecker.compare(equality.getDefCallArguments().get(0), valuesType, CMP.EQ, refExpr, false, true, false)) {
           closure.addRelation(equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2), factory.ref(binding));
         }
       }
     }
     return closure.checkRelation(leftExpr.getExpression(), rightExpr.getExpression());
-  }
-
-  private static CoreClassCallExpression getClassCall(CoreExpression type) {
-    CoreExpression instanceType = type.normalize(NormalizationMode.WHNF);
-    return instanceType instanceof CoreClassCallExpression ? (CoreClassCallExpression) instanceType : null;
   }
 
   private void initializeAlgebraSolver(TypedExpression instance, CoreClassCallExpression classCall) {
@@ -115,52 +116,12 @@ public class EqualitySolver extends BaseEqualitySolver {
       : new MonoidSolver(meta, typechecker, factory, refExpr, equality, instance, classCall, forcedClass, useHypotheses);
   }
 
-  public static Pair<TypedExpression, CoreClassCallExpression> getInstanceClassCallPair(CoreExpression type, ExpressionTypechecker typechecker, CoreClassField carrier, CoreClassDefinition forcedClass, Set<CoreClassDefinition> possibleClasses, ConcreteExpression refExpr) {
-    var instanceParams = new InstanceSearchParameters() {
-      @Override
-      public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
-        if (forcedClass != null && !classDefinition.isSubClassOf(forcedClass)) {
-          return false;
-        }
-        for (var clazz : possibleClasses) {
-          if (classDefinition.isSubClassOf(clazz) && (forcedClass == null || forcedClass.isSubClassOf(clazz))) {
-            return true;
-          }
-        }
-        return false;
-      }
-    };
-
-    if (type instanceof CoreFieldCallExpression) {
-      if (((CoreFieldCallExpression) type).getDefinition() == carrier) {
-        TypedExpression instance = ((CoreFieldCallExpression) type).getArgument().computeTyped();
-        CoreClassCallExpression classCall = getClassCall(instance.getType());
-        if (classCall != null && instanceParams.testClass(classCall.getDefinition())) {
-          return new Pair<>(instance, classCall);
-        }
-      }
-      return null;
-    }
-    TypedExpression instance = typechecker.findInstance(instanceParams, type, null, refExpr);
-    if (instance != null) {
-      CoreClassCallExpression classCall = getClassCall(instance.getType());
-      return new Pair<>(instance, classCall);
-    }
-    return null;
-  }
-
   private boolean initializeAlgebraSolver(CoreExpression type) {
     if (!useSolver) {
       return false;
     }
 
     type = type == null ? null : type.normalize(NormalizationMode.WHNF);
-    var possibleClasses = new HashSet<>(Arrays.asList(meta.Monoid, meta.AddMonoid, meta.MSemilattice));
-    var instanceClassCallPair = getInstanceClassCallPair(type, typechecker, meta.ext.carrier, forcedClass, possibleClasses, refExpr);
-    if (instanceClassCallPair != null) {
-      initializeAlgebraSolver(instanceClassCallPair.proj1, instanceClassCallPair.proj2);
-      return true;
-    }
 
     if (type instanceof CoreAppExpression) {
       CoreExpression typeFun = ((CoreAppExpression) type).getFunction().normalize(NormalizationMode.WHNF);
@@ -176,7 +137,27 @@ public class EqualitySolver extends BaseEqualitySolver {
       }
     }
 
-    return false;
+    var possibleClasses = new HashSet<>(Arrays.asList(meta.Monoid, meta.AddMonoid, meta.MSemilattice));
+    Pair<TypedExpression, CoreClassCallExpression> pair = Utils.findInstanceWithClassCall(new InstanceSearchParameters() {
+        @Override
+        public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
+          if (forcedClass != null && !classDefinition.isSubClassOf(forcedClass)) {
+            return false;
+          }
+          for (var clazz : possibleClasses) {
+            if (classDefinition.isSubClassOf(clazz) && (forcedClass == null || forcedClass.isSubClassOf(clazz))) {
+              return true;
+            }
+          }
+          return false;
+        }
+      }, meta.ext.carrier, type, typechecker, refExpr);
+    if (pair != null) {
+      initializeAlgebraSolver(pair.proj1, pair.proj2);
+      return true;
+    } else {
+      return false;
+    }
   }
 
   @Override

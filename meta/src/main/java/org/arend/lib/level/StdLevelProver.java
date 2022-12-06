@@ -68,7 +68,7 @@ public class StdLevelProver implements LevelProver {
       CoreFunCallExpression equality = codomain.toEquality();
       if (equality != null) {
         List<? extends CoreExpression> args = equality.getDefCallArguments();
-        if (args.get(1) instanceof CoreReferenceExpression && args.get(2) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(1)).getBinding() == parameters.get(0).getBinding() && ((CoreReferenceExpression) args.get(2)).getBinding() == parameters.get(1).getBinding() && typechecker.compare(args.get(0), type, CMP.EQ, marker, false, true)) {
+        if (args.get(1) instanceof CoreReferenceExpression && args.get(2) instanceof CoreReferenceExpression && ((CoreReferenceExpression) args.get(1)).getBinding() == parameters.get(0).getBinding() && ((CoreReferenceExpression) args.get(2)).getBinding() == parameters.get(1).getBinding() && typechecker.compare(args.get(0), type, CMP.EQ, marker, false, true, false)) {
           return factory.app(factory.ref(binding), true, Arrays.asList(leftExpr, rightExpr));
         }
       }

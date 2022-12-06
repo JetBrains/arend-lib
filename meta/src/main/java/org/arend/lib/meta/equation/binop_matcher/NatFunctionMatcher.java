@@ -32,11 +32,10 @@ public class NatFunctionMatcher implements FunctionMatcher {
       args.add(defCallArgs.get(1));
       return args;
     } else if (expr instanceof CoreConCallExpression && ((CoreConCallExpression) expr).getDefinition() == ext.prelude.getSuc()) {
-      List<? extends CoreExpression> defCallArgs = ((CoreConCallExpression) expr).getDefCallArguments();
-      List<CoreExpression> args = new ArrayList<>(2);
-      args.add(defCallArgs.get(0).normalize(NormalizationMode.WHNF));
       TypedExpression result = typechecker.typecheck(factory.number(1), null);
       if (result == null) return null;
+      List<CoreExpression> args = new ArrayList<>(2);
+      args.add(((CoreConCallExpression) expr).getDefCallArguments().get(0).normalize(NormalizationMode.WHNF));
       args.add(result.getExpression());
       return args;
     }

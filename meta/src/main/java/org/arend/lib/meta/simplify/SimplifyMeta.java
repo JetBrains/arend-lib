@@ -5,12 +5,14 @@ import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreErrorExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFieldCallExpression;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
@@ -106,7 +108,17 @@ public class SimplifyMeta extends BaseMetaDefinition {
     var rules = new ArrayList<SimplificationRule>();
     type = type == null ? null : type.normalize(NormalizationMode.WHNF);
     var possibleClasses = new HashSet<>(Arrays.asList(ext.equationMeta.Monoid, ext.equationMeta.AddMonoid, ext.equationMeta.Semiring, ext.equationMeta.Ring, ext.equationMeta.AddGroup, ext.equationMeta.Group, ext.equationMeta.CGroup, ext.equationMeta.AbGroup));
-    var instanceClassCallPair = EqualitySolver.getInstanceClassCallPair(type, typechecker, ext.carrier, null, possibleClasses, refExpr);
+    var instanceClassCallPair = Utils.findInstanceWithClassCall(new InstanceSearchParameters() {
+      @Override
+      public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
+        for (var clazz : possibleClasses) {
+          if (classDefinition.isSubClassOf(clazz)) {
+            return true;
+          }
+        }
+        return false;
+      }
+    }, ext.carrier, type, typechecker, refExpr);
     if (instanceClassCallPair != null) {
       TypedExpression instance = instanceClassCallPair.proj1;
       CoreClassCallExpression classCall = instanceClassCallPair.proj2;

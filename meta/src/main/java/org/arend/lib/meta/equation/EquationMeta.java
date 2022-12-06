@@ -24,10 +24,9 @@ import java.util.*;
 public class EquationMeta extends BaseMetaDefinition {
   public final StdExtension ext;
 
-  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
-  @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
-  @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
-  @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
+  @Dependency(module = "Arith.Nat")                     public CoreFunctionDefinition NatSemiring;
+  @Dependency(module = "Arith.Int")                     public CoreFunctionDefinition IntRing;
+  @Dependency(module = "Arith.Nat", name = "zero<=_")   public CoreFunctionDefinition zeroLE_;
 
   @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition Monoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition CMonoid;
@@ -43,6 +42,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-left") public CoreClassField addMonZroLeft;
 
   @Dependency(module = "Algebra.Group", name = "Group.inverse") public CoreClassField inverse;
+  @Dependency(module = "Algebra.Group", name = "Group.ide") public CoreClassField ide;
 
   @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")         CoreClassDefinition MSemilattice;
   @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")            CoreClassField meet;
@@ -51,7 +51,12 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Order.Lattice", name = "Bounded.JoinSemilattice.bottom")  CoreClassField bottom;
   @Dependency(module = "Order.Lattice", name = "Bounded.DistributiveLattice")     CoreClassDefinition BoundedDistributiveLattice;
 
+  @Dependency(module = "Algebra.Ordered")                                             public CoreClassDefinition LinearlyOrderedSemiring;
+  @Dependency(module = "Algebra.Ordered")                                             public CoreClassDefinition OrderedRing;
+  @Dependency(module = "Algebra.Ordered", name = "OrderedAddGroup.<")                 public CoreFunctionDefinition addGroupLess;
   @Dependency(module = "Order.LinearOrder")                                           public CoreClassDefinition LinearOrder;
+  @Dependency(module = "Order.LinearOrder", name = "LinearOrder.<=")                  public CoreFunctionDefinition linearOrederLeq;
+  @Dependency(module = "Order.PartialOrder", name = "Poset.<=")                       public CoreClassField lessOrEquals;
   @Dependency(module = "Order.StrictOrder", name = "StrictPoset.<")                   public CoreClassField less;
   @Dependency(module = "Order.LinearOrder", name = "BiorderedSet.<-transitive-left")  public CoreClassField lessTransitiveLeft;
 
@@ -78,8 +83,9 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver")                                       public CoreClassDefinition Data;
   @Dependency(module = "Algebra.Monoid.Solver")                                       public CoreClassDefinition CData;
   @Dependency(module = "Algebra.Monoid.Solver")                                       public CoreClassDefinition LData;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.f")                      public CoreClassField DataFunction;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "Data.vars")                   public CoreClassField DataFunction;
   @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                     public CoreClassField SemilatticeDataCarrier;
+
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")         CoreFunctionDefinition termsEq;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")    CoreFunctionDefinition termsEqConv;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")     CoreFunctionDefinition replaceDef;
@@ -100,15 +106,14 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition LatticeData;
   @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.L")                 public CoreClassField LatticeDataCarrier;
 
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.var")              CoreConstructor varTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.coef")             CoreConstructor coefTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:ide")             CoreConstructor ideTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:zro")             CoreConstructor zroTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:negative")        CoreConstructor negativeTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:*")               CoreConstructor mulTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:+")               CoreConstructor addTerm;
-  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.terms-equality")    CoreFunctionDefinition semiringTermsEq;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingData.terms-equality")   CoreFunctionDefinition ringTermsEq;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.var")              public CoreConstructor varTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.coef")             public CoreConstructor coefTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:ide")             public CoreConstructor ideTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:zro")             public CoreConstructor zroTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:negative")        public CoreConstructor negativeTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:*")               public CoreConstructor mulTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.:+")               public CoreConstructor addTerm;
+  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.terms-equality")    CoreFunctionDefinition ringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "CAlgData.terms-equality")   CoreFunctionDefinition commSemiringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "CRingData.terms-equality")  CoreFunctionDefinition commRingTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.terms-equality")  CoreFunctionDefinition latticeTermsEq;
@@ -129,6 +134,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Group")                public CoreClassDefinition AbGroup;
   @Dependency(module = "Algebra.Group")                public CoreClassDefinition CGroup;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative")       public CoreClassField negative;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.zro")            public CoreClassField zro;
   @Dependency(module = "Algebra.Group", name = "AddGroup.fromZero")       public CoreFunctionDefinition fromZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.toZero")         public CoreFunctionDefinition toZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative-isInv")    public CoreFunctionDefinition negIsInv;
@@ -155,6 +161,9 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Equiv", name = "Map.B")                  CoreClassField equivRight;
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition idEquiv;
   @Dependency(module = "Equiv")                                  CoreFunctionDefinition transEquiv;
+
+  @Dependency(module = "Arith.Rat", name = "Rat.fromInt") public CoreFunctionDefinition fromInt;
+  @Dependency(module = "Arith.Rat")                       public CoreFunctionDefinition RatField;
 
   public static class TransitivityInstanceCache {
     public final CoreFunctionDefinition instance;
@@ -233,11 +242,11 @@ public class EquationMeta extends BaseMetaDefinition {
     }
 
     CoreExpression leftExpr = solver.getLeftValue();
-    if (leftExpr != null && (values.isEmpty() || !(values.get(0) instanceof TypedExpression) || !Utils.safeCompare(typechecker, leftExpr, ((TypedExpression) values.get(0)).getExpression(), CMP.EQ, refExpr, false, true))) {
+    if (leftExpr != null && (values.isEmpty() || !(values.get(0) instanceof TypedExpression) || !Utils.safeCompare(typechecker, leftExpr, ((TypedExpression) values.get(0)).getExpression(), CMP.EQ, refExpr, false, true, true))) {
       values.add(0, leftExpr.computeTyped());
     }
     CoreExpression rightExpr = solver.getRightValue();
-    if (rightExpr != null && (values.isEmpty() || !(values.get(values.size() - 1) instanceof TypedExpression) || !Utils.safeCompare(typechecker, rightExpr, ((TypedExpression) values.get(values.size() - 1)).getExpression(), CMP.EQ, refExpr, false, true))) {
+    if (rightExpr != null && (values.isEmpty() || !(values.get(values.size() - 1) instanceof TypedExpression) || !Utils.safeCompare(typechecker, rightExpr, ((TypedExpression) values.get(values.size() - 1)).getExpression(), CMP.EQ, refExpr, false, true, true))) {
       values.add(rightExpr.computeTyped());
     }
 

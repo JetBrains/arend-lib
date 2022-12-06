@@ -120,9 +120,9 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     return SubexprOccurrences.simpleSingletonOccur(factory, subExpr.getType(), eqProof);
   }
 
-  public boolean getUseHypotheses() { return useHypotheses; }
-
-  public void setUseHypotheses(boolean useHypotheses) { this.useHypotheses = useHypotheses; }
+  public void setUseHypotheses(boolean useHypotheses) {
+    this.useHypotheses = useHypotheses;
+  }
 
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
