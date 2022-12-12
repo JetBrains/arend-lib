@@ -3,8 +3,10 @@ package org.arend.lib.meta.linear;
 import org.arend.ext.concrete.ConcreteAppBuilder;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.context.CoreBinding;
+import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.*;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
@@ -54,12 +56,30 @@ public class LinearSolver {
     typechecker.getErrorReporter().report(new TypeError("The expected type should be either an equation or the empty type", expectedType, marker));
   }
 
-  private Equation<CoreExpression> typeToEquation(CoreExpression type, boolean reportError) {
+  private Hypothesis<CoreExpression> typeToEquation(CoreExpression type, CoreBinding binding, boolean reportError) {
+    ConcreteExpression expr = binding == null ? null : factory.ref(binding);
+    if (expr != null && type instanceof CorePiExpression) {
+      ConcreteExpression newExpr = expr;
+      while (type instanceof CorePiExpression) {
+        List<ConcreteArgument> args = new ArrayList<>();
+        for (CoreParameter param = ((CorePiExpression) type).getParameters(); param.hasNext(); param = param.getNext()) {
+          args.add(factory.arg(factory.hole(), param.isExplicit()));
+        }
+        newExpr = factory.app(newExpr, args);
+        type = ((CorePiExpression) type).getCodomain().normalize(NormalizationMode.WHNF);
+      }
+      TypedExpression typedExpr = typechecker.typecheck(newExpr, null);
+      if (typedExpr != null) {
+        expr = factory.core(typedExpr);
+        type = typedExpr.getType();
+      }
+    }
+
     CoreFunCallExpression eq = type.toEquality();
     if (eq != null) {
       CoreExpression instance = findInstance(eq.getDefCallArguments().get(0), reportError);
       if (instance == null) return null;
-      return new Equation<>(instance, Equation.Operation.EQUALS, eq.getDefCallArguments().get(1), eq.getDefCallArguments().get(2));
+      return new Hypothesis<>(expr, instance, Equation.Operation.EQUALS, eq.getDefCallArguments().get(1), eq.getDefCallArguments().get(2), BigInteger.ONE);
     }
 
     RelationData relationData = RelationData.getRelationData(type.normalize(NormalizationMode.WHNF));
@@ -70,18 +90,18 @@ public class LinearSolver {
     if (relationData.defCall instanceof CoreFieldCallExpression) {
       CoreClassField field = ((CoreFieldCallExpression) relationData.defCall).getDefinition();
       if (field == ext.equationMeta.less || field == ext.equationMeta.lessOrEquals) {
-        return new Equation<>(((CoreFieldCallExpression) relationData.defCall).getArgument(), field == ext.equationMeta.less ? Equation.Operation.LESS : Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr);
+        return new Hypothesis<>(expr, ((CoreFieldCallExpression) relationData.defCall).getArgument(), field == ext.equationMeta.less ? Equation.Operation.LESS : Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
       }
       if (reportError) reportTypeError(type);
       return null;
     }
 
     if (relationData.defCall.getDefinition() == ext.equationMeta.linearOrederLeq) {
-      return new Equation<>(relationData.defCall.getDefCallArguments().get(0), Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr);
+      return new Hypothesis<>(expr, relationData.defCall.getDefCallArguments().get(0), Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
     }
 
     if (relationData.defCall.getDefinition() == ext.equationMeta.addGroupLess) {
-      return new Equation<>(relationData.defCall.getDefCallArguments().get(0), Equation.Operation.LESS, relationData.leftExpr, relationData.rightExpr);
+      return new Hypothesis<>(expr, relationData.defCall.getDefCallArguments().get(0), Equation.Operation.LESS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
     }
 
     var pair = instanceCache.computeIfAbsent(relationData.defCall.getDefinition(), def -> {
@@ -98,7 +118,7 @@ public class LinearSolver {
       if (reportError) reportTypeError(type);
       return null;
     }
-    return new Equation<>(pair.proj1.getExpression(), pair.proj2 == ext.equationMeta.less ? Equation.Operation.LESS : Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr);
+    return new Hypothesis<>(expr, pair.proj1.getExpression(), pair.proj2 == ext.equationMeta.less ? Equation.Operation.LESS : Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
   }
 
   private static class Hypothesis<E> extends Equation<E> {
@@ -118,9 +138,7 @@ public class LinearSolver {
   }
 
   private Hypothesis<CoreExpression> bindingToHypothesis(CoreBinding binding) {
-    if (binding == null) return null;
-    Equation<CoreExpression> equation = typeToEquation(binding.getTypeExpr().normalize(NormalizationMode.WHNF), false);
-    return equation == null ? null : new Hypothesis<>(factory.ref(binding), equation.instance, equation.operation, equation.lhsTerm, equation.rhsTerm, BigInteger.ONE);
+    return binding == null ? null : typeToEquation(binding.getTypeExpr().normalize(NormalizationMode.WHNF), binding, false);
   }
 
   private List<BigInteger> solveEquations(List<? extends Equation<CompiledTerm>> equations, int var) {
@@ -332,13 +350,22 @@ public class LinearSolver {
     return to == TermCompiler.Kind.RAT ? intToRatHypothesis(rule, instance) : rule;
   }
 
+  private void dropUnusedHypotheses(List<BigInteger> solution, List<?> list) {
+    assert solution.size() == list.size();
+    for (int i = solution.size() - 1; i >= 0; i--) {
+      if (solution.get(i).equals(BigInteger.ZERO)) {
+        list.remove(i);
+      }
+    }
+  }
+
   public TypedExpression solve(CoreExpression expectedType, ConcreteExpression hint) {
     expectedType = expectedType.normalize(NormalizationMode.WHNF);
     Equation<CoreExpression> resultEquation;
     if (expectedType instanceof CoreDataCallExpression && ((CoreDataCallExpression) expectedType).getDefinition() == ext.Empty) {
       resultEquation = null;
     } else {
-      resultEquation = typeToEquation(expectedType, true);
+      resultEquation = typeToEquation(expectedType, null, true);
       if (resultEquation == null) return null;
     }
 
@@ -405,12 +432,24 @@ public class LinearSolver {
           if (solution != null) solutions.add(solution);
         }
         if (solutions.size() == rulesSet.size()) {
+          List<BigInteger> combinedSolutions = new ArrayList<>();
+          for (List<BigInteger> solution : solutions) {
+            for (int i = combinedSolutions.size() + 2; i < solution.size(); i++) {
+              combinedSolutions.add(BigInteger.ZERO);
+            }
+            for (int i = 0; i < solution.size() - 2; i++) {
+              combinedSolutions.set(i, combinedSolutions.get(i).max(solution.get(i + 2)));
+            }
+          }
+          dropUnusedHypotheses(combinedSolutions, compiledRules);
           ConcreteAppBuilder builder = factory.appBuilder(factory.ref(function.getRef()))
             .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledRules))
             .app(compiledResults.term1.concrete)
             .app(compiledResults.term2.concrete);
           for (int i = 0; i < solutions.size(); i++) {
+            dropUnusedHypotheses(combinedSolutions, solutions.get(i).subList(2, solutions.get(i).size()));
+            dropUnusedHypotheses(combinedSolutions, rulesSet.get(i).subList(2, rulesSet.get(i).size()));
             builder.app(certificateToConcrete(solutions.get(i), rulesSet.get(i)));
           }
           return typechecker.typecheck(builder.app(witnessesToConcrete(compiledRules)).build(), null);
@@ -471,6 +510,10 @@ public class LinearSolver {
         compiledEquations1.addAll(compiledEquations);
         List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
         if (solution != null) {
+          List<BigInteger> subList = solution.subList(1, solution.size());
+          dropUnusedHypotheses(subList, compiledEquations);
+          dropUnusedHypotheses(subList, compiledEquations1.subList(1, compiledEquations1.size()));
+          dropUnusedHypotheses(subList, subList);
           return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
             .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
             .app(equationsToConcrete(compiledEquations))

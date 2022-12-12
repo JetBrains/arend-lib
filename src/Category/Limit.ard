@@ -45,26 +45,36 @@
   | coneCoh h => inv o-assoc *> pmap (`∘ f) (coneCoh h)
 
 \class Limit \extends Cone {
-  \field isLimit (z : D) : Equiv (conePullback \this z)
+  | isLimit (z : D) : Equiv (conePullback \this z)
+  | limMap {z : D} (c : Cone G z) : Hom z apex
+  | limBeta {z : D} (c : Cone G z) (j : J) : coneMap j ∘ limMap c = c.coneMap j
+  | limUnique {z : D} {f g : Hom z apex} (p : \Pi (j : J) -> coneMap j ∘ f = coneMap j ∘ g) : f = g
 
-  \func limMap {z : D} (c : Cone G z) : Hom z apex
+  \default limMap \as limMap-impl {z} c : Hom z apex
     => Equiv.ret {isLimit z} c
 
-  \lemma limBeta {z : D} (c : Cone G z) (j : J) : coneMap j ∘ limMap c = c.coneMap j
+  \default limBeta \as limBeta-impl {z} (c : Cone G z) j : coneMap j ∘ limMap-impl c = c.coneMap j
     => path (\lam i => coneMap {Equiv.f_ret {isLimit z} c @ i} j)
 
-  \lemma limUnique {z : D} {f g : Hom z apex} (p : \Pi (j : J) -> coneMap j ∘ f = coneMap j ∘ g) : f = g
-    => Equiv.isInj {isLimit z} (exts p)
+  \default limUnique {z} {f} {g} p => Equiv.isInj {isLimit z} (exts p)
+
+  \default isLimit z => \new QEquiv {
+    | ret => limMap
+    | ret_f f => limUnique (limBeta (conePullback _ z f))
+    | f_sec c => exts (limBeta c)
+  }
 
   \lemma limUniqueBeta {z : D} {c : Cone G z} {g : Hom z apex} (p : \Pi (j : J) -> c.coneMap j = coneMap j ∘ g) : limMap c = g
     => limUnique (\lam j => limBeta c j *> p j)
 } \where {
-  \lemma iso_lim {J : SmallPrecat} {D : Precat} {G : Functor J D} (c : Cone G) (L : Limit G) (f : Iso (L.limMap c)) : Limit { | Cone => c } \cowith
-    | isLimit z => \new QEquiv {
-      | ret c' => f.inv ∘ limMap c'
-      | ret_f h => inv $ f.adjoint $ inv $ limUniqueBeta $ \lam j => pmap (`∘ h) (inv (limBeta c j)) *> o-assoc
-      | f_sec c' => exts $ \lam j => unfold $ pmap (`∘ _) (inv (L.limBeta c j)) *> rewriteEq f.f_inv (rewriteEq (L.limBeta c' j) idp)
-    }
+  \use \level levelProp {J : SmallPrecat} {D : Precat} (G : Functor J D) (apex : D)
+                        (cm : \Pi (j : J) -> Hom apex (G j)) (L L' : Limit G apex cm) : L = L'
+    => exts (\lam c => L.limUnique (\lam j => L.limBeta c j *> inv (L'.limBeta c j)))
+
+  \lemma iso_lim {J : SmallPrecat} {D : Precat} {G : Functor J D} (c : Cone G) (L : Limit G) (e : Iso (L.limMap c)) : Limit { | Cone => c } \cowith
+    | limMap c' => e.inv ∘ limMap c'
+    | limBeta c' j => pmap (`∘ _) (inv (L.limBeta c j)) *> rewriteEq e.f_inv (rewriteEq (L.limBeta c' j) idp)
+    | limUnique {z} {f} {g} p => e.isMono $ L.limUnique (\lam j => inv o-assoc *> pmap (`∘ f) (L.limBeta c j) *> p j *> pmap (`∘ g) (inv (L.limBeta c j)) *> o-assoc)
 
   \lemma lim_iso {J : SmallPrecat} {D : Precat} {G : Functor J D} (L L' : Limit G) : Iso (L.limMap L') \cowith
     | inv => L'.limMap L
@@ -383,7 +393,7 @@
         | pbProj1 => L.coneMap 0
         | pbProj2 => L.coneMap 1
         | pbCoh => d.diagramCoh {0} {2} () *> inv (d.diagramCoh {1} {2} ())
-         | pbMap {w} p1 p2 c => Equiv.ret {L.isLimit w} (d' p1 p2 c)
+         | pbMap {w} p1 p2 c => L.limMap (d' p1 p2 c)
          | pbBeta1 {w} {p1} {p2} {c} => L.limBeta (d' p1 p2 c) 0
          | pbBeta2 {w} {p1} {p2} {c} => L.limBeta (d' p1 p2 c) 1
          | pbEta {w} {h1} {h2} p q => inv (Equiv.ret_f {L.isLimit w} h1) *> pmap (Equiv.ret {L.isLimit w}) (exts $ \case \elim __ \with {
@@ -535,12 +545,9 @@
         | coneMap j => E.eta-iso.inv ∘ E.Func (lim.coneMap j)
         | coneCoh h => rewrite (inv (pmap E.Func (lim.coneCoh h)), Func-o, inv o-assoc, inv o-assoc)
                                (pmap (`∘ _) (inv (NatTrans.natural {E.eta.iso E.eta-iso} (G.Func h))))
-        | isLimit z => TwoOutOfThree.rightFactor _ (Cone.mapEquiv E.reverse _) $ transport (QEquiv __) (ext $ \lam h => exts $ \lam j =>
-            pmap (_ ∘) (E.adjoint_epsilon h) *>
-            inv (pmap (`∘ _) (E.epsilon.natural _) *> o-assoc) *>
-            pmap (__ ∘ _ ∘ _) (Iso.adjoint' {E.LAdj.Func-iso E.eta-iso} (E.eta_epsilon-right _) *> id-left) *>
-            pmap (`∘ _) (inv Func-o) *>
-            inv Func-o) $ transEquiv (symQEquiv E.isAdjoint) (lim.isLimit (E.LAdj z))
+        | limMap c => E.isAdjoint $ lim.limMap (Cone.map E.LAdj c)
+        | limBeta c j => o-assoc *> pmap (_ ∘) (inv o-assoc *> pmap (`∘ _) (inv E.Func-o *> pmap E.Func (lim.limBeta (Cone.map E.LAdj c) j)) *> inv (E.eta.natural (coneMap j))) *> inv o-assoc *> pmap (`∘ _) E.eta-iso.inv_f *> id-left
+        | limUnique p => Equiv.isInj {symQEquiv E.eta_eps_equiv} $ lim.limUnique $ \lam j => inv o-assoc *> pmap (`∘ _) (inv (E.epsilon.natural _)) *> o-assoc *> pmap (_ ∘) (inv Func-o *> pmap E.LAdj.Func (E.eta-iso.reverse.isMono (inv o-assoc *> p j *> o-assoc)) *> Func-o) *> inv o-assoc *> pmap (`∘ _) (E.epsilon.natural _) *> o-assoc
       }
 }
 

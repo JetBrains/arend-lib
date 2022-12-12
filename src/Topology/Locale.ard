@@ -138,6 +138,9 @@
   \lemma eval {x y : E} : (x --> y) ∧ x <= y
     => rewrite Join-rdistr (Join-univ __.2)
 
+  \lemma exponent_meet {x y z : E} : x --> y ∧ z = (x --> y) ∧ (x --> z)
+    => <=-antisymmetric (meet-univ (exponent_monotone <=-refl meet-left) (exponent_monotone <=-refl meet-right)) (exponent.1 (meet-univ (meet-monotone meet-left <=-refl <=∘ eval) (meet-monotone meet-right <=-refl <=∘ eval)))
+
   \lemma trueExponent {x y : E} (p : x <= y) : top <= x --> y
     => exponent.1 (meet-right <=∘ p)
 
@@ -201,6 +204,40 @@
 
   \lemma overt_cover (o : isOvert) {a : E} : a <= Join (\lam (_ : isPositive a) => a)
     => meet-univ <=-refl (o a) <=∘ Join-ldistr>= <=∘ Join-univ (\lam p => meet-left <=∘ Join-cond {_} {isPositive a} p)
+
+  \func restrict (a : E) : Locale \cowith
+    | E => \Sigma (b : E) (b <= a)
+    | <= p q => p.1 <= q.1
+    | <=-refl => <=-refl
+    | <=-transitive => <=∘
+    | <=-antisymmetric p q => ext (<=-antisymmetric p q)
+    | meet p q => (p.1 ∧ q.1, meet-left <=∘ p.2)
+    | meet-left => meet-left
+    | meet-right => meet-right
+    | meet-univ => meet-univ
+    | top => (a, <=-refl)
+    | top-univ {x} => x.2
+    | Join g => (Join (\lam j => (g j).1), Join-univ (\lam j => (g j).2))
+    | Join-cond j {_} => Join-cond j
+    | Join-univ => Join-univ
+    | Join-ldistr>= => Join-ldistr>=
+    \where {
+      \func map : FrameHom \this (restrict a) \cowith
+        | func b => (b ∧ a, meet-right)
+        | func-<= => meet-monotone __ <=-refl
+        | func-top => ext top-left
+        | func-top>= => meet-univ top-univ <=-refl
+        | func-meet => ext equation
+        | func-meet>= => =_<= equation
+        | func-Join => ext Join-rdistr
+        | func-Join>= => Join-rdistr>=
+
+      \func functor : Functor (restrict a) \this \cowith
+        | F x => x.1
+        | Func p => p
+        | Func-id => idp
+        | Func-o => idp
+    }
 }
 
 \record FrameHom \extends SetHom {
@@ -334,6 +371,12 @@
     | ret_f x => ext (<=-antisymmetric x.2 direct-unit)
     | f_sec y => surjective-split s y
   }
+
+  \func functor : Functor Dom Cod \cowith
+    | F => func
+    | Func => func-<=
+    | Func-id => idp
+    | Func-o => idp
 } \where {
   \lemma direct_o {L M K : Locale} (f : FrameHom L M) (g : FrameHom M K) {x : K} : direct {g FrameCat.∘ f} x = f.direct (g.direct x)
     => <=-antisymmetric (direct-adjoint.1 $ direct-adjoint.1 $ direct-counit {g FrameCat.∘ f}) ((direct-adjoint {g FrameCat.∘ f}).1 $ func-<= direct-counit <=∘ direct-counit)
@@ -390,6 +433,12 @@
       \lemma surjective : isSurj map
         => \lam y => inP (y.1, ext $ <=-antisymmetric y.2 nucleus-unit)
     }
+
+  \func functor : Functor locale L \cowith
+    | F x => x.1
+    | Func p => p
+    | Func-id => idp
+    | Func-o => idp
 
   \lemma map_direct (x : locale) : map.direct x = x.1
     => <=-antisymmetric (Join-univ (\lam j => nucleus-unit <=∘ j.2)) (Join-cond (later (x.1, x.2)))
@@ -797,8 +846,11 @@
             | inP (x,q) => cover-inj ((x, \lam {z} t => U.2 z $ rewrite q at t $ cover-trans t $ \lam _ => cover-inj (y,yU) idp), y, rewrite q (cover-inj () idp)) idp
           })))
 
-    \lemma embed_<= {P : FramePres} {a b : P} (a<=b : Cover1 a b) : embed a <= embed b
+    \lemma Cover_embed {P : FramePres} {a b : P} (a<=b : Cover1 a b) : embed a <= embed b
       => Cover.cover-trans1 __ a<=b
+
+    \lemma embed_Cover {P : FramePres} {a b : P} (p : embed a <= embed b) : Cover1 a b
+      => p (cover-inj () idp)
 
     \lemma embed_meet {P : FramePres} {a b : P} : embed a ∧ embed b = embed (conj a b)
       => exts $ \lam e => ext (cover-trans __ $ \lam i => Cover.cover-conj1 i.3 i.4, Cover.cover-trans1 __ $ cover-inj (a, b, cover-inj () idp, cover-inj () idp) idp)
@@ -844,11 +896,9 @@
   | Cat => FrameUPresCat
   | colimit {J} G => \new Limit {
     | Cone => colimit-cone G
-    | isLimit Z => \new QEquiv {
-      | ret => colimit-univ G
-      | ret_f h => exts (\lam t => inv (colimit-univ-eq G h t))
-      | f_sec c => idp
-    }
+    | limMap => colimit-univ G
+    | limBeta c j => idp
+    | limUnique p => exts (colimit-univ-eq G (\lam {j} x => path (\lam i => p j i x)))
   }
   \where {
     \open FramePres
@@ -914,10 +964,12 @@
       | coneMap => colimitMap G
       | coneCoh h => exts (\lam x => path (finj-eq h x))
 
-    \lemma colimit-univ-eq {J : SmallPrecat} (G : Functor J FrameUPresCat) {Z : FrameUPres} (h : FrameUPresHom (colimit-obj G) Z) (t : FTerm G) : h t = colimit-univ G (conePullback {_} {_} {G.op} (colimit-cone G) Z h) t \elim t
-      | finj e => idp
-      | fconj t1 t2 => func-conj *> pmap2 conj (colimit-univ-eq G h t1) (colimit-univ-eq G h t2)
-      | funit => func-unit
+    \lemma colimit-univ-eq {J : SmallPrecat} (G : Functor J FrameUPresCat) {Z : FrameUPres} {f g : FrameUPresHom (colimit-obj G) Z}
+                           (p : \Pi {j : J} (x : G j) -> f (finj x) = g (finj x)) (t : FTerm G)
+      : f t = g t \elim t
+      | finj x => p x
+      | fconj t1 t2 => func-conj *> pmap2 conj (colimit-univ-eq G p t1) (colimit-univ-eq G p t2) *> inv func-conj
+      | funit => func-unit *> inv func-unit
   }
 
 \func FrameUnitalSubcat : FullyFaithfulFunctor FrameCat FrameUPresCat \cowith

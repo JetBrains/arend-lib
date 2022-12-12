@@ -1,6 +1,7 @@
 package org.arend.lib.meta;
 
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteCoclauses;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.error.NameResolverError;
@@ -12,7 +13,8 @@ import org.arend.lib.StdExtension;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ClassExtResolver extends ContextDataChecker implements MetaResolver {
   private final StdExtension ext;
@@ -33,22 +35,29 @@ public class ClassExtResolver extends ContextDataChecker implements MetaResolver
 
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
-    if (!checkArguments(contextData.getArguments(), resolver.getErrorReporter(), contextData.getMarker(), argumentExplicitness())) {
+    List<? extends ConcreteArgument> oldArgs = contextData.getArguments();
+    if (!checkArguments(oldArgs, resolver.getErrorReporter(), contextData.getMarker(), argumentExplicitness())) {
       return null;
     }
 
     ConcreteCoclauses coclauses = contextData.getCoclauses();
-    if (coclauses != null && contextData.getArguments().isEmpty()) {
+    if (coclauses != null && oldArgs.isEmpty()) {
       resolver.getErrorReporter().report(new NameResolverError("Expected a class name", coclauses));
       return null;
     }
 
-    if (contextData.getArguments().isEmpty()) {
+    if (oldArgs.isEmpty()) {
       return contextData.getReferenceExpression();
     }
 
     ConcreteFactory factory = ext.factory.withData(contextData.getReferenceExpression().getData());
-    ConcreteExpression arg = contextData.getArguments().get(0).getExpression();
-    return factory.app(contextData.getReferenceExpression(), true, Collections.singletonList(resolver.resolve(coclauses == null ? arg : factory.classExt(arg, coclauses.getCoclauseList()))));
+    List<ConcreteArgument> args = new ArrayList<>();
+    for (int i = 0; i < oldArgs.size() - 1; i++) {
+      ConcreteArgument oldArg = oldArgs.get(i);
+      args.add(factory.arg(resolver.resolve(oldArg.getExpression()), oldArg.isExplicit()));
+    }
+    ConcreteArgument arg = oldArgs.get(oldArgs.size() - 1);
+    args.add(factory.arg(resolver.resolve(coclauses == null ? arg.getExpression() : factory.classExt(arg.getExpression(), coclauses.getCoclauseList())), arg.isExplicit()));
+    return factory.app(contextData.getReferenceExpression(), args);
   }
 }

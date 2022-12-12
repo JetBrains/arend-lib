@@ -8,7 +8,7 @@ tasks.register<JavaExec>("cliCheck") {
     group = "verification"
     dependsOn(projectArend.task(":cli:jarDep"), tasks.named("classes"))
     main = "-jar"
-    val jarDepPath = projectArend.projectDir.resolve("cli/build/libs/cli-1.8.0-full.jar").absolutePath
+    val jarDepPath = projectArend.projectDir.resolve("cli/build/libs/cli-1.9.0-full.jar").absolutePath
     args(jarDepPath, "-tcr")
     workingDir(projectDir.parent)
 }
@@ -28,12 +28,12 @@ dependencies {
 
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 tasks.withType<Wrapper>().configureEach {
-    gradleVersion = "6.7"
+    gradleVersion = "7.6"
 }
 
 tasks.compileJava {

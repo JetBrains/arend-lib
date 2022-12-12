@@ -72,7 +72,8 @@ public class StdExtension implements ArendExtension {
   public final ExtMeta extMeta = new ExtMeta(this, false);
   public final ExtMeta extsMeta = new ExtMeta(this, true);
   public final LaterMeta laterMeta = new LaterMeta();
-  public final SimpCoeMeta simpCoeMeta = new SimpCoeMeta(this);
+  public final SimpCoeMeta simpCoeMeta = new SimpCoeMeta(this, false);
+  public final SimpCoeMeta simpCoeFMeta = new SimpCoeMeta(this, true);
   public final SIPMeta sipMeta = new SIPMeta(this);
   public CasesMeta casesMeta;
   public MetaRef constructorMetaRef;
@@ -112,6 +113,8 @@ public class StdExtension implements ArendExtension {
   public void load(@NotNull ArendDependencyProvider provider) {
     provider.load(this);
     provider.load(simpCoeMeta);
+    simpCoeFMeta.transport_path_pmap = provider.getDefinition(new ModulePath("Paths"), LongName.fromString("transport_path_pmap.conv"), CoreFunctionDefinition.class);
+    simpCoeFMeta.transport_path_pmap_right = provider.getDefinition(new ModulePath("Paths"), LongName.fromString("transport_path_pmap-right.conv"), CoreFunctionDefinition.class);
     provider.load(sipMeta);
     provider.getDefinition(ModulePath.fromString("Data.List"), new LongName("ListMonoid"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Arith.Nat"), new LongName("NatSemiring"), CoreFunctionDefinition.class);
@@ -214,7 +217,7 @@ public class StdExtension implements ArendExtension {
                     "Currently this meta eliminates multiplications by `ide` in noncommutative monoids.",
             Precedence.DEFAULT, new SimplifyMeta(this));
     contributor.declare(paths, new LongName("simp_coe"),
-      "Simplifies certain equalities. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
+      "Simplifies certain equalities. If the expected type is unknown or if the meta is applied to more than one argument, then it works like simp_coeF. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.\n" +
       "* If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right a = b'`, then the subgoal is `coe (B a) (f a) right = b`.\n" +
       "* If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right = g'`, then the subgoal is `\\Pi (a : A) -> coe (B a) (f a) right = g a`.\n" +
       "* If the goal is `coe (\\lam i => A i -> B i) f right = g'`, then the subgoal is `\\Pi (a : A left) -> coe B (f a) right = g (coe A a right)`.\n" +
@@ -225,6 +228,7 @@ public class StdExtension implements ArendExtension {
       "* All of the above cases also work for goals with {transport} instead of {coe} since the former evaluates to the latter.\n" +
       "* If the goal is `transport (\\lam x => f x = g x) p q = s`, then the subgoal is `q *> pmap g p = pmap f p *> s`. If `f` does not depend on `x`, then the right hand side of the subgoal is simply `s`.",
       Precedence.DEFAULT, null, null, simpCoeMeta, new ClassExtResolver(this));
+    contributor.declare(paths, new LongName("simp_coeF"), "Applies {simp_coe} to the argument type instead of goal", Precedence.DEFAULT, null, null, simpCoeFMeta);
     contributor.declare(paths, new LongName("ext"),
       "Proves goals of the form `a = {A} a'`. It expects (at most) one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'\n" +
       "* If the goal is `f = {\\Pi (x_1 : A_1) ... (x_n : A_n) -> B} g`, then the subgoal is `\\Pi (x_1 : A_1) ... (x_n : A_n) -> f x_1 ... x_n = g x_1 ... x_n`\n" +

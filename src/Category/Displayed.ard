@@ -1,0 +1,73 @@
+\import Category
+\import Category.Functor
+\import Equiv (Equiv, QEquiv, sigmaEquiv, transEquiv)
+\import Equiv.Sigma
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\class DPrecat {C : Precat} (DOb : C -> \hType obj)
+  | DHom {a b : C} : Hom a b -> DOb a -> DOb b -> \Set hom
+  | id^ {a : C} (x : DOb a) : DHom (id a) x x
+  | \fixl 8 o^ \alias \infixl 8 ∘^ {a b c : C} {g : Hom b c} {f : Hom a b} {x : DOb a} {y : DOb b} {z : DOb c} : DHom g y z -> DHom f x y -> DHom (g ∘ f) x z
+  | id^-left {a b : C} {f : Hom a b} {x : DOb a} {y : DOb b} {f^ : DHom f x y} : transport (DHom __ x y) id-left (id^ y ∘^ f^) = f^
+  | id^-right {a b : C} {f : Hom a b} {x : DOb a} {y : DOb b} {f^ : DHom f x y} : transport (DHom __ x y) id-right (f^ ∘^ id^ x) = f^
+  | o^-assoc {a b c d : C} {h : Hom c d} {g : Hom b c} {f : Hom a b} {x : DOb a} {y : DOb b} {z : DOb c} {w : DOb d} {h^ : DHom h z w} {g^ : DHom g y z} {f^ : DHom f x y} : transport (DHom __ x w) o-assoc ((h^ ∘^ g^) ∘^ f^) = h^ ∘^ (g^ ∘^ f^)
+
+\record DIso {D : DPrecat {}} (e : Iso {D.C}) {dom : D e.dom} {cod : D e.cod} (\coerce f : DHom e.f dom cod)
+  | inv^ : DHom e.inv cod dom
+  | inv^-left : transport (DHom __ dom dom) e.inv_f (inv^ ∘^ f) = id^ dom
+  | inv^-right : transport (DHom __ cod cod) e.f_inv (f ∘^ inv^) = id^ cod
+
+\func idIso^ {D : DPrecat {}} {a : D.C} {x : D a} : DIso idIso {x} {x} \cowith
+  | f => id^ x
+  | inv^ => id^ x
+  | inv^-left => rewrite (Path.inProp idIso.inv_f id-left) id^-left
+  | inv^-right => rewrite (Path.inProp idIso.inv_f id-right) id^-right
+
+\func totalPrecat (D : DPrecat {}) : Precat \cowith
+  | Ob => \Sigma (a : D.C) (D a)
+  | Hom (a,x) (b,y) => \Sigma (f : Hom a b) (DHom f x y)
+  | id (a,x) => (id a, id^ x)
+  | o (g,g^) (f,f^) => (g ∘ f, g^ ∘^ f^)
+  | id-left => ext (id-left, id^-left)
+  | id-right => ext (id-right, id^-right)
+  | o-assoc => ext (o-assoc, o^-assoc)
+  \where {
+    \func proj : Functor (totalPrecat D) D.C \cowith
+      | F x => x.1
+      | Func f => f.1
+      | Func-id => idp
+      | Func-o => idp
+  }
+
+\class DCat \extends DPrecat
+  | univalence^ {a : C} {x y : DOb a} : Equiv {x = y} {DIso idIso {x} {y}} idtoiso^
+  \where {
+    \func idtoiso^ {D : DPrecat {}} {a : D.C} {x y : DOb a} (q : x = y) : DIso idIso {x} {y} \elim q
+      | idp => idIso^
+
+    \func totalCat (D : DCat {}) (C-uni : \Pi {a b : D.C} -> Equiv (Precat.idtoiso {_} {a} {b})) : Cat \cowith
+      | Precat => totalPrecat D
+      | univalence => Cat.univalenceFromEquiv (later $ \lam {t} {s} => transEquiv (sigmaEquiv DOb t s) $ transEquiv (sigma-right eq-over) $ transEquiv (sigma-left {_} {_} {\lam e => DIso e {t.2} {s.2}} C-uni) (total-iso D)) (\lam {p} => idp)
+
+    \func total-iso (D : DCat {}) {x y : totalPrecat D} : QEquiv {\Sigma (e : Iso {_} {x.1} {y.1}) (DIso e {x.2} {y.2})} {Iso {totalPrecat D} {x} {y}} \cowith
+      | f p => \new Iso {
+        | f => (p.1, p.2)
+        | inv => (Iso.inv {p.1}, DIso.inv^ {p.2})
+        | inv_f => ext (Iso.inv_f {p.1}, DIso.inv^-left {p.2})
+        | f_inv => ext (Iso.f_inv {p.1}, DIso.inv^-right {p.2})
+      }
+      | ret (e : Iso) => (Functor.Func-iso {totalPrecat.proj D} e, \new DIso {
+        | f => e.f.2
+        | inv^ => e.inv.2
+        | inv^-left => rewrite (Path.inProp (SplitMono.inv_f {Functor.Func-iso {totalPrecat.proj D} e}) (pmap __.1 e.inv_f)) (Equiv.f {sigmaEquiv _ _ _} e.inv_f).2
+        | inv^-right => rewrite (Path.inProp (Iso.f_inv {Functor.Func-iso {totalPrecat.proj D} e}) (pmap __.1 e.f_inv)) (Equiv.f {sigmaEquiv _ _ _} e.f_inv).2
+      })
+      | ret_f p => idp
+      | f_sec e => idp
+
+    \func eq-over {D : DCat {}} {a b : D.C} {x : D a} {y : D b} (p : a = b) : Equiv {transport D p x = y} {DIso (Precat.idtoiso p) {x} {y}} \elim p
+      | idp => univalence^
+  }

@@ -1,6 +1,10 @@
+\import Algebra.Group
+\import Algebra.Group.Category
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Monoid.Sub
+\import Algebra.Pointed.Category
 \import Algebra.Ring
 \import Algebra.Ring.Category
 \import Algebra.Ring.Ideal
@@ -9,12 +13,15 @@
 \import Arith.Nat
 \import Category
 \import Category.Functor
+\import Category.Limit
 \import Category.Topos.Sheaf
 \import Data.Array
 \import Data.Bool
 \import Data.Maybe
 \import Equiv \hiding (Map)
 \import Equiv.Fiber
+\import Equiv.Path
+\import Equiv.Sigma
 \import Function.Meta
 \import HLevel
 \import Logic
@@ -82,13 +89,228 @@
   => PresentedFrame (SpecPres R)
 
 \record RingedLocale (\coerce L : Locale) (R : VSheaf CRingCat L)
+  \where {
+    \use \coerce fromSheaf {L : Locale} (S : VSheaf CRingCat L) => \new RingedLocale L S
+
+    {-
+    \func equality (L L' : RingedLocale) : Equiv {L = L'} {\Sigma (p : L.L = L'.L) (VSheaf.direct_image (Iso.f {Precat.idtoiso p}) L.R = L'.R)}
+      => pathEquiv _ $ later $ \lam {L : RingedLocale} {L' : RingedLocale} => \new Retraction {
+        | f => fromPath
+        | sec s => toPath s.1 s.2
+        | f_sec s => {?}
+      }
+      \where {
+        \func fromPath {L L' : RingedLocale} (p : L = L') : \Sigma (p : L.L = L'.L) (VSheaf.direct_image (Iso.f {Precat.idtoiso p}) L.R = L'.R) \elim p
+          | idp => (idp, VSheaf.direct_image_id L'.R)
+
+        \func toPath {L L' : RingedLocale} (p : L.L = L'.L) (q : VSheaf.direct_image (Iso.f {Precat.idtoiso p}) L.R = L'.R) : L = L'
+          => ext (p, VSheaf.transport_direct_image p L.R *> q)
+
+        \func from-to {LR : RingedLocale} {L' : Locale} {R' : VSheaf CRingCat L'} (p : LR.L = L') (q : VSheaf.direct_image (Iso.f {Precat.idtoiso p}) LR.R = R') : fromPath (toPath {LR} {\new RingedLocale L' R'} p q) = (p,q) \elim p, q
+          | idp, idp => unfold toPath {?}
+      }
+    -}
+    \func equality1 (L L' : RingedLocale) : Equiv {L = L'} {\Sigma (p : L.L = L'.L) (transport (VSheaf CRingCat) p L.R = L'.R)}
+      => pathEquiv _ $ later $ \lam {L : RingedLocale} {L' : RingedLocale} => \new Retraction {
+        | f => fromPath
+        | sec s => toPath s.1 s.2
+        | f_sec s => from-to {L} {L'.L} {L'.R} s.1 s.2
+      }
+      \where {
+        \func fromPath {L L' : RingedLocale} (p : L = L') : \Sigma (p : L.L = L'.L) (transport (VSheaf CRingCat) p L.R = L'.R) \elim p
+          | idp => (idp, idp)
+
+        \func toPath {L L' : RingedLocale} (p : L.L = L'.L) (q : transport (VSheaf CRingCat) p L.R = L'.R) : L = L'
+          => ext (p, q)
+
+        \func from-to {LR : RingedLocale} {L' : Locale} {R' : VSheaf CRingCat L'} (p : LR.L = L') (q : transport (VSheaf CRingCat) p LR.R = R') : fromPath (toPath {LR} {\new RingedLocale L' R'} p q) = (p,q) \elim p, q
+          | idp, idp => idp
+      }
+
+    \func equality2 (L L' : RingedLocale) : Equiv {L = L'} {\Sigma (p : L.L = L'.L) (VSheaf.direct_image (Iso.f {Precat.idtoiso p}) L.R = L'.R)}
+      => transEquiv (equality1 L L') $ sigma-right $ \lam p => pathConcatEquiv (VSheaf.transport_direct_image p L.R)
+
+    \func equality3 (L L' : RingedLocale) : Equiv {L = L'} {\Sigma (e : Iso {LocaleCat} {L.L} {L'.L}) (Iso {_} {VSheaf.direct_image e.f L.R} {L'.R})}
+      => equality2 L L' `transEquiv` sigma-left univalence `transEquiv` sigma-right (later (\lam e => univalence))
+  }
+
+\record RingedLocaleHom (Dom Cod : RingedLocale) (\coerce f : FrameHom Cod Dom) (f# : NatTrans Cod.R (VSheaf.direct_image f Dom.R))
+  \where {
+    \func fromHomEq {L M : Locale} {f g : FrameHom M L} (p : f = g) (a : M) : f a <= g a
+      => transport (\lam (h : FrameHom M L) => f a <= h a) p <=-refl
+
+    \lemma ext {L M : RingedLocale} (f g : RingedLocaleHom L M) (p : f.f = g.f) (q : \Pi (a : M) (x : M.R a) -> L.R.F.Func (fromHomEq p a) (g.f# a x) = f.f# a x) : f = g
+      => aux f.f# g.f# p q
+      \where {
+        \lemma aux {L M : RingedLocale} {f g : FrameHom M L} (f# : NatTrans M.R (VSheaf.direct_image f L.R)) (g# : NatTrans M.R (VSheaf.direct_image g L.R)) (p : f = g) (q : \Pi (a : M) (x : M.R a) -> L.R.F.Func (fromHomEq p a) (g# a x) = f# a x) : (\new RingedLocaleHom L M f f#) = (\new RingedLocaleHom L M g g#) \elim p
+          | idp => cong $ exts $ \lam a => exts (\lam x => inv (q a x) *> pmap (\lam (h : RingHom (L.R (f a)) (L.R (f a))) => h (g# a x)) (L.R.F.Func-id {f a}))
+      }
+  }
+
+\func RingedLocalePrecat : Precat RingedLocale \cowith
+  | Hom => RingedLocaleHom
+  | id (L : RingedLocale) : RingedLocaleHom L L \cowith {
+    | f => FrameCat.id L.L
+    | f# => \new NatTrans {
+      | trans x => Cat.id _
+      | natural p => ext $ pmap (\lam x => func {L.R.F.Func x}) (Path.inProp _ _)
+    }
+  }
+  | o {L M N : RingedLocale} (g : RingedLocaleHom M N) (f : RingedLocaleHom L M) : RingedLocaleHom L N \cowith {
+    | f => f.f FrameCat.∘ g.f
+    | f# => \new NatTrans {
+      | trans x => f.f#.trans (g x) ∘ g.f#.trans x
+      | natural {x} {y} p => exts $ \lam x => path (\lam i => f.f# (g y) (g.f#.natural p i x)) *> path (\lam i => f.f#.natural _ i _)
+    }
+  }
+  | id-left => idp
+  | id-right => idp
+  | o-assoc => idp
+  \where {
+    \func forget : Functor RingedLocalePrecat LocaleCat \cowith
+      | F L => L
+      | Func f => f
+      | Func-id => idp
+      | Func-o => idp
+
+    \func homMap {L M : RingedLocale} {f g : RingedLocaleHom M L} (p : f = g) (a : L) : RingHom (M.R (f a)) (M.R (g a))
+      => M.R.F.Func (Preorder.=_<= (inv (path (\lam i => p i a))))
+
+    \lemma homMap-lem {L M : RingedLocale} {f g : RingedLocaleHom M L} (p : f = g) (a : L) : transport (\lam (h : RingedLocaleHom M L) => RingHom (M.R (f a)) (M.R (h a))) p (RingCat.id _) = homMap p a \elim p
+      | idp => inv M.R.F.Func-id *> pmap M.R.F.Func (Path.inProp _ _)
+
+    \lemma homMap-lem2 {L M : RingedLocale} {f g : RingedLocaleHom M L} (p : f = g) (a : L) : homMap p a Cat.∘ homMap (inv p) a = CRingCat.id (M.R (g a)) \elim p
+      | idp => inv (pmap2 (Cat.∘) (homMap-lem idp a) (homMap-lem idp a)) *> id-left
+
+    \func homMap-natural {L M : RingedLocale} {f g : RingedLocaleHom M L} (p : f = g) : NatTrans (Comp M.R f.f.functor.op) (Comp M.R g.f.functor.op) \cowith
+      | trans => homMap p
+      | natural h => inv M.R.F.Func-o *> pmap M.R.F.Func (Path.inProp _ _) *> M.R.F.Func-o
+
+    \func natTrans-inv {L M : RingedLocale} {e : Iso {RingedLocalePrecat} {L} {M}} (f : NatTrans L.R (Comp M.R (Functor.op {FrameHom.functor {e.inv}})))
+      : NatTrans (Comp L.R (Functor.op {FrameHom.functor {e.f}})) M.R \cowith
+      | trans x => homMap e.f_inv x Cat.∘ f (e.f x)
+      | natural {a} {b} h =>
+        \let t : homMap e.f_inv b Cat.∘ M.R.F.Func (Func {Functor.op {FrameHom.functor {e.inv}}} (func-<= {e.f} h)) = M.R.F.Func h Cat.∘ homMap e.f_inv a
+               => pmap (_ Cat.∘ M.R.F.Func __) (Path.inProp _ _) *> natural {homMap-natural e.f_inv} h *> pmap (Cat.`∘ _) (pmap M.R.F.Func $ Path.inProp _ _)
+        \in unfold Func $ rewrite (Path.inProp (Func {Functor.op {FrameHom.functor {e.f}}} h) (func-<= {e.f} h)) $ o-assoc *> rewrite (f.natural (func-<= {e.f} h)) (inv o-assoc *> path (\lam i => t i Cat.∘ f (e.f a)) *> o-assoc)
+
+    \lemma homMap_o {L L' : RingedLocale} (f : RingedLocaleHom L L') (g : RingedLocaleHom L' L) (p : f RingedLocalePrecat.∘ g = id L') (q : g RingedLocalePrecat.∘ f = id L) (a : L')
+      : g.f# (f a) Cat.∘ f.f# a = homMap (inv p) a
+      => \have t => simp_coe (simp_coe $ pmapd (\lam (h : RingedLocaleHom L' L') => h.f#) p) a
+         \in transport-rotate (\lam (h : RingedLocaleHom L' L') => RingHom (L'.R a) (L'.R (h a))) p t *> homMap-lem (inv p) a
+
+    \lemma homMap_o-right {L L' : RingedLocale} (f : RingedLocaleHom L L') (g : RingedLocaleHom L' L) (p : f RingedLocalePrecat.∘ g = id L') (q : g RingedLocalePrecat.∘ f = id L) (a : L')
+      : f.f# a Cat.∘ homMap p a Cat.∘ g.f# (f a) = RingCat.id (L.R (f a))
+      => pmap (Cat.`∘ _) (f.f#.natural _) *> CRingCat.o-assoc {L.R (f a)} {L'.R (g (f a))} {L.R (f (g (f a)))} {L.R (f a)} *> rewrite (homMap_o g f q p (f a)) (inv L.R.F.Func-o *> pmap L.R.F.Func (Path.inProp _ _) *> L.R.F.Func-id)
+
+    \lemma homMap_o-left {L L' : RingedLocale} (f : RingedLocaleHom L L') (g : RingedLocaleHom L' L) (p : f RingedLocalePrecat.∘ g = id L') (q : g RingedLocalePrecat.∘ f = id L) (a : L')
+      : homMap p a Cat.∘ g.f# (f a) Cat.∘ f.f# a = RingCat.id (L'.R a)
+      => o-assoc *> rewrite (homMap_o f g p q a) (homMap-lem2 p a)
+
+    \func fromIso {L L' : RingedLocale} (e : Iso {RingedLocalePrecat} {L} {L'}) : Iso {VSheafCat CRingCat L'.L} {VSheaf.direct_image e.f L.R} {L'.R} \cowith
+      | f => natTrans-inv (RingedLocaleHom.f# {e.inv})
+      | inv => RingedLocaleHom.f# {e.f}
+      | inv_f => exts (homMap_o-right e.f e.inv e.f_inv e.inv_f)
+      | f_inv => exts (homMap_o-left e.f e.inv e.f_inv e.inv_f)
+
+    \func isotoid (e : Iso {RingedLocalePrecat}) : e.dom = e.cod
+      => ext (Cat.isotoid (RingedLocalePrecat.forget.Func-iso e), VSheaf.transport_direct_image-iso _ (RingedLocale.R {e.dom}) *> Cat.isotoid (RingedLocalePrecat.fromIso e))
+ }
+
+{-
+\instance RingedLocaleCat : Cat RingedLocale
+  | Precat => RingedLocalePrecat
+  | univalence =>
+    Cat.makeUnivalence $ \lam (e : Iso) => (isotoid e, transport_RingedLocaleHom (isotoid e) (id e.dom) *> ext (someLem6 e, simp_coe $ simp_coe $ someLem5 e)
+    )
+  \where {
+    \open RingedLocalePrecat
+
+    \lemma someLem2 (e : Iso {RingedLocalePrecat}) (a : e.dom) : e.f (transport (Locale.E {__}) (pmap (RingedLocale.L {__}) (isotoid e)) a) = a
+      => pmap e.f (someLem3 _ a) *> rewrite (Equiv.f_ret {LocaleCat.univalence {e.dom} {e.cod}} (Functor.Func-iso e)) (pmap (\lam (f : RingedLocaleHom e.dom e.dom) => f a) e.inv_f)
+
+    \lemma someLem3 {L M : Locale} (p : L = M) (a : L) : transport (\lam (X : Locale) => X.E) p a = Iso.inv {Precat.idtoiso p} a \elim p
+      | idp => idp
+
+    \lemma someLem5 {L M : RingedLocale} (e : Iso {RingedLocalePrecat} {L} {M}) (a : M) : transport (\lam (h : FrameHom M L) => RingHom (M.R a) (VSheaf.direct_image h (RingedLocale.R {e.dom}) a)) (someLem6 e) (RingedLocaleHom.f# {transportedRLHom (isotoid e) (id e.dom)} a) = RingedLocaleHom.f# {e} a
+      => simp_coe $ ext $ \lam y => simp_coe $ unfold someLem6 $ unfold_let $ transport_*> (\lam (h : FrameHom M L) => L.R (h a)) _ (someLem7 e) _ *> unfold {?}
+
+    \func someLem6 {L M : RingedLocale} (e : Iso {RingedLocalePrecat} {L} {M}) : transport (\lam (X : RingedLocale) => FrameHom X L) (isotoid e) (Cat.id L.L) = RingedLocaleHom.f {e.f}
+      => transport_FrameHom (isotoid e) _ *> someLem7 e -- exts (unfold $ \lam a => unfold {?}) -- simp_coe $ simp_coe $ \lam a => inv (whatev2 e a)
+
+    \lemma someLem7 {L M : RingedLocale} (e : Iso {RingedLocalePrecat} {L} {M}) : transportedFrameHom (isotoid e) (Cat.id L.L) = RingedLocaleHom.f {e.f}
+      => exts $ \lam a => unfold $ unfold {?}
+
+    \func transportedFrameHom {L M : RingedLocale} {N : Locale} (p : L = M) (f : FrameHom L N) : FrameHom M N \cowith
+      | func => transport (\lam (X : RingedLocale) => X -> N) p f -- \lam a => f (transport (\lam (X : RingedLocale) => X) (inv p) a)
+      | func-top>= => {?}
+      | func-meet => {?}
+      | func-Join>= => {?}
+
+    \lemma transport_FrameHom {L M : RingedLocale} {N : Locale} (p : L = M) (f : FrameHom L N) : transport (\lam (X : RingedLocale) => FrameHom X N) p f = transportedFrameHom p f \elim p
+      | idp => idp
+
+    \func transportedRLHom {L M N : RingedLocale} (p : L = M) (f : RingedLocaleHom N L) : RingedLocaleHom N M \cowith
+      | f => transport (FrameHom __ N) (pmap (RingedLocale.L {__}) p) f.f
+      | f# => Jl (\lam (X : RingedLocale) q => NatTrans X.R (VSheaf.direct_image (transport (FrameHom __ N) (pmap (RingedLocale.L {__}) q) f) N.R)) f.f# p
+
+    \func transportedRLHom' {L M N : RingedLocale} (e : Iso {RingedLocalePrecat} {L} {M}) (f : RingedLocaleHom N L) : RingedLocaleHom N M \cowith
+      | f => f.f FrameCat.∘ e.f
+      | f# => NatTrans.Comp-left f.f# (Functor.op {FrameHom.functor {e.f}}) Cat.∘ RingedLocaleHom.f# {e.f}
+
+    \lemma transport_RingedLocaleHom {L M N : RingedLocale} (p : L = M) (f : RingedLocaleHom N L)
+      : transport (RingedLocaleHom N) p f = transportedRLHom p f \elim p
+      | idp => idp
+  }
+-}
 
 \record LocallyRingedLocale \extends RingedLocale
   | isNonTrivial (a : L) : 0 = {R.F a} 1 -> a <= bottom
-  | isLocallyRinged (a : L) (x : R.F a) : a <= SJoin (\lam b => \Sigma (p : b <= a) (Inv (R.F.Func p x) || Inv (R.F.Func p x + 1)))
+  | isLocallyRinged (a : L) (x : R.F a) : a <= SJoin (\lam b => \Sigma (p : b <= a) (EitherInv \this p x))
+  \where {
+    \func EitherInv (L : RingedLocale) {a b : L} (p : b <= a) (x : R.F a)
+      => Inv (R.F.Func p x) || Inv (R.F.Func p x + 1)
+  }
 
-\func affineRingedLocale (R : CRing) : LocallyRingedLocale (Spec R) \cowith
-  | R => sheafOnPresentedFrame {SpecPres R} {CRingBicat} $ sheaf-reflect CRingCat.forgetful (\lam H => (CRingBicat.createsLimits H (SetBicat.limit (Comp CRingCat.forgetful H))).3) (functor R) $
+\record RingedFramePres (\coerce P : FramePres) (R : VSheaf CRingCat (framePresSite P))
+
+\record LocallyRingedFramePres \extends RingedFramePres
+  | isNonTrivialPres (a : P) : 0 = {R.F a} 1 -> Cover a absurd
+  | isLocallyRingedPres (a : P) (x : R.F a) : FramePres.SCover a (\lam b => \Sigma (p : Cover1 b a) (Inv (R.F.Func p x) || Inv (R.F.Func p x + 1)))
+  \where {
+    \func EitherInv (P : RingedFramePres) {a b : P} (p : Cover1 b a) (x : R.F a)
+      => Inv (R.F.Func p x) || Inv (R.F.Func p x + 1)
+
+    \open sheafOnPresentedFrame
+    \open PresentedFrame
+
+    \lemma limInv {P : FramePres} (F : VSheaf CRingBicat (framePresSite P)) (b : P) {y : extend.lim F (embed b)} (yi : Inv (y.1 (b, <=-refl))) : Inv y
+      => Inv.lmake {extend.lim F (embed b)} (\lam j => F.F.Func (embed_Cover j.2) yi.inv, \lam h => inv (pmap (__ yi.inv) $ Func-o {Comp CRingCat.forgetful F})) $
+          exts $ \lam j => pmap (_ *) (element-lem j) *> inv func-* *> pmap (F.F.Func (embed_Cover j.2)) yi.inv-left *> func-ide
+      \where
+        \lemma element-lem (j : \Sigma (x : P) (embed x <= embed b)) : y.1 j = F.F.Func (embed_Cover j.2) (y.1 (b, <=-refl))
+          => inv $ path (\lam i => func {coneCoh {extend.lim F (embed b)} (embed_Cover j.2) i} y)
+
+    \func toPresented {P : RingedFramePres} {a b : P} (p : Cover1 b a) (U : PresentedFrame P) (Ua : U.1 a) (x : extend.lim {P} {CRingBicat} P.R U)
+      (e : EitherInv P p (x.1 (a, \lam {z} c => U.2 z $ Cover.cover-trans1 c $ cover-inj (a,Ua) idp)))
+      : LocallyRingedLocale.EitherInv (ringedLocaleFromPres P) {U} {embed b} (\lam {z} c => U.2 z $ Cover.cover-trans1 c $ Cover.cover-trans1 p $ cover-inj (a,Ua) idp) x \elim e
+      | byLeft i => byLeft $ limInv P.R b $ transport Inv (x.2 p) i
+      | byRight i => byRight $ limInv P.R b $ transport Inv (pmap (`+ 1) (x.2 p)) i
+  }
+
+\func ringedLocaleFromPres (P : RingedFramePres) : RingedLocale \cowith
+  | L => PresentedFrame P
+  | R => sheafOnPresentedFrame {P} {CRingBicat} P.R
+
+\func locallyRingedLocaleFromPres (P : LocallyRingedFramePres) : LocallyRingedLocale \cowith
+  | RingedLocale => ringedLocaleFromPres P
+  | isNonTrivial U t {x} Ux => cover-trans (isNonTrivialPres x $ pmap (__.1 (x, \lam {y} c => U.2 y $ Cover.cover-trans1 c $ cover-inj (x,Ux) idp)) t) (\case __)
+  | isLocallyRinged U x {a} Ua => cover-trans (isLocallyRingedPres a (x.1 (a, \lam {z} c => U.2 z $ Cover.cover-trans1 c $ cover-inj (a,Ua) idp))) $
+      \lam t => cover-inj ((PresentedFrame.embed t.1, (\lam {z} c => U.2 z $ Cover.cover-trans1 c $ Cover.cover-trans1 t.2.1 $ cover-inj (a,Ua) idp, LocallyRingedFramePres.toPresented t.2.1 U Ua x t.2.2)), t.1, cover-inj () idp) idp
+
+\func affineRingedPres (R : CRing) : LocallyRingedFramePres (SpecPres R) \cowith
+  | R : VSheaf CRingCat (framePresSite (SpecPres R))
+    => sheaf-reflect CRingCat.forgetful (\lam H => (CRingBicat.createsLimits H (SetBicat.limit (Comp CRingCat.forgetful H))).3) (functor R) $
           sheafOnSiteWithBasis _ $ later $ \lam x {J} g c => \case \elim c \with {
             | inP (y, x<=y, f, c', q) => FramePres.indexing-transport (\lam {J} e h => \Pi (y : R) (g : J -> slicePrecat y) -> Cover1 y e -> (\Pi (j : J) -> Cover1 (conj y (h j)) (g j).1) -> Equiv {_} {MatchingFamily _ y g} (matchingFamily (Comp CRingCat.forgetful (functor R)) y g))
                 (hiding (c',x,J,g,x<=y,q) $ later $ \case \elim __ \with {
@@ -101,8 +323,16 @@
                     \in localization-lem g z^n=g1c+g2d
                 }) c' x g x<=y (q __).2
           }
-  | isNonTrivial a => {?}
-  | isLocallyRinged => {?}
+  | isNonTrivialPres a => \lam p => SpecPres.ideal_cover $ \case LocRing.unequals (powers a) p \with {
+    | inP (c, inP (n,a^n=c), zro=c) => inP (n, inP (nil, equation))
+  }
+  | isLocallyRingedPres => \lam a (in~ (y,c,inP (n,a^n=c))) => cover-trans1 (SpecPres.cover_pow (suc n)) $
+      transport (Cover __ _) (equation : a * negative y + a * (y + pow a n) = pow a (suc n)) $
+      cover-trans (cover-basic $ FramePres.indexing-make $ just (a * negative y, a * (y + pow a n))) $ later $
+        \case \elim __ \with {
+          | true =>  cover-inj (_, (cover-proj1 idp () idp, byLeft  $ transportInv Inv                     (functorial-lem-div (\new LDiv { | inv => negative y  | inv-right => idp }) n a^n=c) $ Inv.lmake (inl~ (negative $ pow a (suc n), a * negative y, later $ inP (1, ide-left))) $ LocRing.equals1 _ $ later $ rewrite CMonoid.pow_*-comm equation)) idp
+          | false => cover-inj (_, (cover-proj1 idp () idp, byRight $ transportInv (\lam x => Inv (x + 1)) (functorial-lem-div (\new LDiv { | inv => y + pow a n | inv-right => idp }) n a^n=c) $ Inv.lmake (inl~ (pow a (suc n), a * (y + pow a n), later $ inP (1, ide-left)))         $ LocRing.equals1 _ $ later $ rewrite CMonoid.pow_*-comm equation)) idp
+        }
   \where {
     \open localization
     \open MSubset(powers)
@@ -198,4 +428,50 @@
                       | false => functorial-lem l idp b^n2=e*c2 *> LocRing.equals-lem (powers b) (pow b k) (inP (k,idp)) (equation {using (R.pow_* {b} {n2} {l}, pmap (pow __ l) b^n2=e*c2, R.pow_*-comm {e} {c2} {l}, R.pow_+ {a} {m} {k}, R.pow_+ {b} {m} {k})}) *> inv mf2=y2/b^m
                     })
             })
+  }
+
+\func affineRingedLocale (R : CRing) => locallyRingedLocaleFromPres (affineRingedPres R)
+
+\record Scheme \extends LocallyRingedLocale
+  | isScheme : L.top <= SJoin (\lam U => ∃ (R' : CRing) (VSheaf.restrict U R = {RingedLocale} affineRingedLocale R'))
+  | isNonTrivial a p => meet-univ L.top-univ <=-refl <=∘ L.meet-monotone isScheme <=-refl <=∘ L.Join-rdistr>= <=∘ Join-univ (\lam (b, inP (R',q)) =>
+      \let t => transportInv (\lam (x : RingedLocale) => \Pi (a : x.L) -> 0 = {x.R.F a} 1 -> a <= bottom) q (isNonTrivial {affineRingedLocale R'})
+      \in t (b ∧ a, meet-left) (inv func-zro *> pmap (R.F.Func (meet-right {_} {b})) p *> func-ide) <=∘ Join-univ (\case __))
+  | isLocallyRinged a x => meet-univ L.top-univ <=-refl <=∘ L.meet-monotone isScheme <=-refl <=∘ L.Join-rdistr>= <=∘ Join-univ (\lam (b, inP (R',q)) =>
+      \let t => transportInv (\lam (x : RingedLocale) => \Pi (a : x.L) (y : x.R.F a) -> a <= SJoin (\lam b => \Sigma (p : b <= a) (LocallyRingedLocale.EitherInv _ p y))) q (isLocallyRinged {affineRingedLocale R'})
+      \in t (b ∧ a, meet-left) (R.F.Func meet-right x) <=∘ Join-univ (\lam ((c,c<=b),(c<=ba,e)) => Join-cond $ later (c, (c<=ba <=∘ meet-right, ||.map (transportInv (\lam (f : RingHom (R a) (R c)) => Inv (f x)) R.F.Func-o) (transportInv (\lam (f : RingHom (R a) (R c)) => Inv (f x + 1)) R.F.Func-o) e))))
+
+\func affineScheme (R : CRing) : Scheme \cowith
+  | RingedLocale => affineRingedLocale R
+  | isScheme {x} _ => cover-inj (((\lam _ => \Sigma, \lam _ _ => ()), inP (R, RingedLocalePrecat.isotoid $ restrict_iso (RingedLocale.R {affineRingedLocale R}))), x, ()) idp
+  \where {
+    \func locale_iso {L : Locale} : Iso {LocaleCat} {L.restrict L.top} {L} \cowith
+      | f => Locale.restrict.map L.top
+      | inv => \new FrameHom {
+        | func x => x.1
+        | func-top => idp
+        | func-meet => idp
+        | func-Join => idp
+      }
+      | inv_f => exts $ \lam p => ext L.top-right
+      | f_inv => exts $ \lam x => L.top-right
+
+    \func restrict_map {L : Locale} (a : L) (S : VSheaf CRingCat L) : RingedLocaleHom (\new RingedLocale (L.restrict a) (VSheaf.restrict a S)) (\new RingedLocale L S) \cowith
+      | f => Locale.restrict.map a
+      | f# => \new NatTrans {
+        | trans b => S.F.Func meet-left
+        | natural h => inv S.F.Func-o *> pmap S.F.Func (Path.inProp _ _) *> S.F.Func-o
+      }
+
+    \func restrict_iso {L : Locale} (S : VSheaf CRingCat L) : Iso {RingedLocalePrecat} {VSheaf.restrict L.top S} {S} \cowith
+      | f => restrict_map L.top S
+      | inv : RingedLocaleHom => \new RingedLocaleHom S (VSheaf.restrict L.top S) {
+        | f => locale_iso.inv
+        | f# => \new NatTrans {
+          | trans p => id _
+          | natural h => id-left *> pmap S.F.Func (Path.inProp _ _) *> Paths.inv id-right
+        }
+      }
+      | inv_f => RingedLocaleHom.ext (inv RingedLocalePrecat.∘ restrict_map L.top S) _ locale_iso.inv_f $ \lam p x => pmap (S.F.Func __ x) (Path.inProp _ _)
+      | f_inv => RingedLocaleHom.ext (restrict_map L.top S RingedLocalePrecat.∘ inv) _ locale_iso.f_inv $ \lam a x => pmap (S.F.Func __ x) (Path.inProp _ _)
   }
