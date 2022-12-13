@@ -32,6 +32,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.function.BiFunction;
 
 public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
   private final StdExtension ext;
@@ -39,13 +40,14 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
   final ArendRef argRef;
   final ArendRef nameRef;
   final ArendRef addPathRef;
+  final ArendRef asRef;
 
   public CasesMeta(StdExtension ext) {
     this.ext = ext;
     parameter = new NamedParameter(ext.factory);
     argRef = ext.factory.global("arg", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 0, true));
 
-    nameRef = parameter.add("name", (resolver, args) -> {
+    BiFunction<ExpressionResolver, List<ConcreteArgument>, ConcreteExpression> handler = (resolver, args) -> {
       if (args.size() == 1 && args.get(0).isExplicit() && args.get(0).getExpression() instanceof ConcreteReferenceExpression) {
         ConcreteFactory factory = ext.factory.withData(args.get(0).getExpression().getData());
         ArendRef ref = factory.localDeclaration(((ConcreteReferenceExpression) args.get(0).getExpression()).getReferent());
@@ -55,8 +57,10 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         resolver.getErrorReporter().report(new NameResolverError("Expected an identifier", args.get(0).getExpression()));
         return null;
       }
-    });
+    };
 
+    nameRef = parameter.add("name", handler);
+    asRef = parameter.add("as", handler);
     addPathRef = parameter.addFlag("addPath");
   }
 
@@ -79,14 +83,19 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     return expression instanceof ConcreteReferenceExpression ? resolver.useRefs(Collections.singletonList(argRef), true).resolve(expression) : null;
   }
 
+  private ConcreteExpression getArgArgument(ConcreteExpression expr) {
+    return expr instanceof ConcreteAppExpression && ((ConcreteAppExpression) expr).getFunction() instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) ((ConcreteAppExpression) expr).getFunction()).getReferent() == argRef && ((ConcreteAppExpression) expr).getArguments().size() == 2 ? ((ConcreteAppExpression) expr).getArguments().get(1).getExpression() : null;
+  }
+
   public ConcreteExpression resolveArgument(ExpressionResolver resolver, ConcreteExpression argument) {
     if (argument instanceof ConcreteTupleExpression) {
       List<ConcreteExpression> newFields = new ArrayList<>();
       for (ConcreteExpression field : ((ConcreteTupleExpression) argument).getFields()) {
         ConcreteExpression newField = resolveArgument1(resolver, field);
         newFields.add(newField);
-        if (newField instanceof ConcreteAppExpression && ((ConcreteAppExpression) newField).getFunction() instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) ((ConcreteAppExpression) newField).getFunction()).getReferent() == argRef) {
-          ConcreteExpression name = parameter.getValue(((ConcreteAppExpression) newField).getArguments().get(1).getExpression(), nameRef);
+        ConcreteExpression argArgument = getArgArgument(newField);
+        if (argArgument != null) {
+          ConcreteExpression name = parameter.getValue(argArgument, nameRef);
           if (name instanceof ConcreteReferenceExpression) {
             resolver = resolver.useRefs(Collections.singletonList(((ConcreteReferenceExpression) name).getReferent()), true);
           }
@@ -142,6 +151,35 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     return addType(resolver.resolve(argument), type, null);
   }
 
+  public ConcreteExpression resolveDefaultClause(ExpressionResolver resolver, ConcreteExpression defaultClause, ConcreteExpression caseArgsExpr) {
+    List<ConcreteExpression> asRefs = new ArrayList<>();
+    List<? extends ConcreteExpression> caseArgs = caseArgsExpr instanceof ConcreteTupleExpression ? ((ConcreteTupleExpression) caseArgsExpr).getFields() : Collections.singletonList(caseArgsExpr);
+    for (ConcreteExpression caseArg : caseArgs) {
+      ConcreteExpression argArgument = getArgArgument(caseArg);
+      if (argArgument != null) {
+        ConcreteExpression value = parameter.getValue(argArgument, asRef);
+        if (value != null) {
+          asRefs.add(value);
+        }
+      }
+    }
+    if (defaultClause == null) {
+      for (ConcreteExpression ref : asRefs) {
+        resolver.getErrorReporter().report(new NameResolverError(GeneralError.Level.WARNING_UNUSED, "Parameter is ignored", ref));
+      }
+      return null;
+    }
+    List<ArendRef> refs = new ArrayList<>();
+    for (ConcreteExpression ref : asRefs) {
+      if (ref instanceof ConcreteReferenceExpression) {
+        refs.add(((ConcreteReferenceExpression) ref).getReferent());
+      } else {
+        resolver.getErrorReporter().report(new NameResolverError("Expected a name", ref));
+      }
+    }
+    return (refs.isEmpty() ? resolver : resolver.useRefs(refs, true)).resolve(defaultClause);
+  }
+
   @Override
   public @Nullable ConcreteExpression resolvePrefix(@NotNull ExpressionResolver resolver, @NotNull ContextData contextData) {
     List<? extends ConcreteArgument> args = contextData.getArguments();
@@ -150,12 +188,15 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       return null;
     }
 
+    ConcreteExpression caseArgs = resolveArgument(resolver, args.get(0).getExpression());
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     ConcreteAppBuilder builder = factory.appBuilder(contextData.getReferenceExpression())
-      .app(resolveArgument(resolver, args.get(0).getExpression()), args.get(0).isExplicit())
+      .app(caseArgs, args.get(0).isExplicit())
       .app(resolver.resolve(factory.caseExpr(false, Collections.emptyList(), null, null, contextData.getClauses() == null ? Collections.emptyList() : contextData.getClauses().getClauseList())));
     if (args.size() > 1) {
-      builder.app(resolver.resolve(args.get(1).getExpression()));
+      builder.app(resolveDefaultClause(resolver, args.get(1).getExpression(), caseArgs));
+    } else {
+      resolveDefaultClause(resolver, null, args.get(0).getExpression());
     }
     return builder.build();
   }
@@ -164,6 +205,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     public final ConcreteExpression expression;
     public final ConcreteExpression type;
     public final boolean addPath;
+    public final ArendRef as;
     public final ArendRef name;
 
     public ArgParameters(ConcreteExpression expr, ErrorReporter errorReporter, boolean allowType) {
@@ -175,6 +217,8 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         ConcreteExpression nameExpr = params.get(nameRef);
         name = nameExpr instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) nameExpr).getReferent() : null;
         addPath = flags.contains(addPathRef);
+        ConcreteExpression asExpr = params.get(asRef);
+        as = asExpr instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) asExpr).getReferent() : null;
         expression = parameters.get(0).getExpression();
         type = allowType && parameters.size() > 2 ? parameters.get(2).getExpression() : null;
         if (!allowType && parameters.size() > 2) {
@@ -183,6 +227,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
       } else {
         name = null;
         addPath = false;
+        as = null;
         if (allowType && expr instanceof ConcreteTypedExpression) {
           expression = ((ConcreteTypedExpression) expr).getExpression();
           type = ((ConcreteTypedExpression) expr).getType();
@@ -190,6 +235,13 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
           expression = expr;
           type = null;
         }
+      }
+    }
+
+    public void addAsRef(List<ArendRef> refs) {
+      refs.add(as);
+      if (addPath) {
+        refs.add(as);
       }
     }
   }
@@ -263,11 +315,6 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         return null;
       }
 
-      int numberOfAddPaths = 0;
-      for (ArgParameters argParams : argParametersList) {
-        if (argParams.addPath) numberOfAddPaths++;
-      }
-
       CoreParameter parameter = parameters;
       for (int j = 0; j < typedArgs.size(); j++) {
         CoreExpression type = typedArgs.get(j).getType().normalize(NormalizationMode.WHNF);
@@ -333,7 +380,11 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
 
         for (List<ArendPattern> patternList : patternLists) {
           if (PatternUtils.computeCovering(actualRows, patternList) == null) {
-            newClauses.add(factory.clause(PatternUtils.toConcrete(patternList, ext.renamerFactory, factory, null, null), defaultExpr));
+            List<ArendRef> asRefs = new ArrayList<>();
+            for (ArgParameters argParameters : argParametersList) {
+              argParameters.addAsRef(asRefs);
+            }
+            newClauses.add(factory.clause(PatternUtils.toConcrete(patternList, asRefs, ext.renamerFactory, factory, null, null), defaultExpr));
           }
         }
       }
