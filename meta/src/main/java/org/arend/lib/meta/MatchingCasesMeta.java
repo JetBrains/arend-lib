@@ -72,8 +72,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       } else {
         if (args.get(0).getExpression() instanceof ConcreteAppExpression) {
           paramsIndex = 0;
-        } else if (args.get(0).getExpression() instanceof ConcreteTupleExpression) {
-          ConcreteTupleExpression tupleExpr = (ConcreteTupleExpression) args.get(0).getExpression();
+        } else if (args.get(0).getExpression() instanceof ConcreteTupleExpression tupleExpr) {
           if (!tupleExpr.getFields().isEmpty() && tupleExpr.getFields().get(0) instanceof ConcreteAppExpression) {
             paramsIndex = 0;
           }
@@ -114,10 +113,13 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       builder.app(factory.tuple(fields), false);
     }
 
-    builder.app(caseArgsIndex == -1 ? factory.tuple() : ext.casesMeta.resolveArgument(resolver, args.get(caseArgsIndex).getExpression()));
+    ConcreteExpression caseArgs = caseArgsIndex == -1 ? factory.tuple() : ext.casesMeta.resolveArgument(resolver, args.get(caseArgsIndex).getExpression());
+    builder.app(caseArgs);
     builder.app(resolver.resolve(factory.caseExpr(false, Collections.emptyList(), null, null, contextData.getClauses() == null ? Collections.emptyList() : contextData.getClauses().getClauseList())));
     if (defaultIndex != -1) {
-      builder.app(resolver.resolve(args.get(defaultIndex).getExpression()));
+      builder.app(ext.casesMeta.resolveDefaultClause(resolver, args.get(defaultIndex).getExpression(), caseArgs));
+    } else {
+      ext.casesMeta.resolveDefaultClause(resolver, null, caseArgs);
     }
     return builder.build();
   }
@@ -134,33 +136,27 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
     return result;
   }
 
-  private static class SubexpressionData {
-    final CoreElimBody body;
-    final LevelSubstitution levelSubst; // the level arguments of the defCall
-    final CoreExpression expression; // an occurrence of \case expressions or defCalls
-    final List<TypedExpression> matchedArgs; // arguments of @expression which will be actually matched
-    final List<TypedExpression> removedArgs; // arguments of @expression with arguments that belong to matchedArgs replaced with null
-    final Map<Integer, Integer> argsReindexing; // if argsReindexing.get(i) != null, then it is the index (in the list of all arguments of all \case expressions and defCalls) of an argument equivalent to the i-th argument of @expression
-
-    private SubexpressionData(CoreElimBody body, LevelSubstitution levelSubst, CoreExpression expression, List<TypedExpression> matchedArgs, List<TypedExpression> removedArgs, Map<Integer, Integer> argsReindexing) {
-      this.body = body;
-      this.levelSubst = levelSubst;
-      this.expression = expression;
-      this.matchedArgs = matchedArgs;
-      this.removedArgs = removedArgs;
-      this.argsReindexing = argsReindexing;
-    }
+  /**
+   * @param levelSubst     the level arguments of the defCall
+   * @param expression     an occurrence of \case expressions or defCalls
+   * @param matchedArgs    arguments of @expression which will be actually matched
+   * @param removedArgs    arguments of @expression with arguments that belong to matchedArgs replaced with null
+   * @param argsReindexing if argsReindexing.get(i) != null, then it is the index (in the list of all arguments of all \case expressions and defCalls) of an argument equivalent to the i-th argument of @expression
+   */
+  private record SubexpressionData(CoreElimBody body, LevelSubstitution levelSubst, CoreExpression expression,
+                                   List<TypedExpression> matchedArgs, List<TypedExpression> removedArgs,
+                                   Map<Integer, Integer> argsReindexing) {
 
     List<? extends CoreExpression> getOriginalArgs() {
-      if (expression instanceof CoreFunCallExpression) {
-        return ((CoreFunCallExpression) expression).getDefCallArguments();
-      } else if (expression instanceof CoreCaseExpression) {
-        return ((CoreCaseExpression) expression).getArguments();
-      } else {
-        throw new IllegalStateException();
+        if (expression instanceof CoreFunCallExpression) {
+          return ((CoreFunCallExpression) expression).getDefCallArguments();
+        } else if (expression instanceof CoreCaseExpression) {
+          return ((CoreCaseExpression) expression).getArguments();
+        } else {
+          throw new IllegalStateException();
+        }
       }
     }
-  }
 
   @Override
   public boolean requireExpectedType() {
@@ -283,8 +279,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         CoreElimBody body = null;
         LevelSubstitution levelSubst = LevelSubstitution.EMPTY;
         CoreParameter parameters = null;
-        if (expr instanceof CoreCaseExpression && (caseOccurrences == null || caseOccurrences.remove(++caseCount[0]))) {
-          CoreCaseExpression caseExpr = (CoreCaseExpression) expr;
+        if (expr instanceof CoreCaseExpression caseExpr && (caseOccurrences == null || caseOccurrences.remove(++caseCount[0]))) {
           if (caseExpr.isSCase()) {
             isSCase[0] = true;
           }
@@ -607,8 +602,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         CoreExpression resultType;
         CoreParameter parameter;
         LevelSubstitution levelSubst;
-        if (expr instanceof CoreFunCallExpression) {
-          CoreFunCallExpression funCall = (CoreFunCallExpression) expr;
+        if (expr instanceof CoreFunCallExpression funCall) {
           parameter = funCall.getDefinition().getParameters();
           resultType = funCall.getDefinition().getResultType();
           levelSubst = funCall.getLevels().makeSubstitution(funCall.getDefinition());
@@ -921,7 +915,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
 
         Map<CoreBinding, ArendRef> bindings = new HashMap<>();
-        List<ConcretePattern> cPatterns = PatternUtils.toConcrete(refinedRows.get(i), ext.renamerFactory, factory, bindings, null);
+        List<ConcretePattern> cPatterns = PatternUtils.toConcrete(refinedRows.get(i), null, ext.renamerFactory, factory, bindings, null);
         CoreParameter param = lamParams;
         ConcreteExpression rhs = makeLet ? factory.ref(letRef) : cExpr;
         if (param != null) {
@@ -934,7 +928,15 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
         resultClauses.add(factory.clause(cPatterns, rhs));
       } else {
-        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRow, ext.renamerFactory, factory, null, null), isAbsurd ? null : defaultExpr));
+        assert actualRow.size() >= argParamsList.size();
+        List<ArendRef> asRefs = new ArrayList<>();
+        for (int j = argParamsList.size(); j < actualRow.size(); j++) {
+          asRefs.add(null);
+        }
+        for (CasesMeta.ArgParameters argParameters : argParamsList) {
+          argParameters.addAsRef(asRefs);
+        }
+        resultClauses.add(pair.proj1 < actualClauses.size() ? actualClauses.get(pair.proj1) : factory.clause(PatternUtils.toConcrete(actualRow, asRefs, ext.renamerFactory, factory, null, null), isAbsurd ? null : defaultExpr));
       }
     }
 

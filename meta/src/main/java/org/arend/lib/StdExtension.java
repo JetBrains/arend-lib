@@ -154,8 +154,9 @@ public class StdExtension implements ArendExtension {
         `cases args default` works just like `mcases args default`, but does not search for \\case expressions or definition invocations.
         Each argument has a set of parameters that can be configured.
         Parameters are specified after keyword 'arg' which is written after the argument.
-        Available parameters are 'addPath' and 'name'.
-        The latter can be used to specify the name of the argument which can be used in types of subsequent arguments.
+        Available parameters are 'addPath', 'name', and 'as'.
+        Parameter 'name' can be used to specify the name of the argument which can be used in types of subsequent arguments.
+        Parameter 'as' can be used to specify an \\as-name that will be added to corresponding patterns in each clause.
         The type of an argument is specified as either `e : E` or `e arg parameters : E`.
         The flag 'addPath' indicates that argument `idp` with type `e = x` should be added after the current one, where `e` is the current argument and `x` is its name.
         That is, `cases (e arg addPath)` is equivalent to `cases (e arg (name = x), idp : e = x)`.

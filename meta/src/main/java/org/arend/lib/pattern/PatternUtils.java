@@ -42,7 +42,7 @@ public class PatternUtils {
       return factory.refPattern(ref, null);
     }
 
-    List<ConcretePattern> subpatterns = toConcrete(pattern.getSubPatterns(), renamer, factory, bindings, pattern.getParameters());
+    List<ConcretePattern> subpatterns = toConcrete(pattern.getSubPatterns(), null, renamer, factory, bindings, pattern.getParameters());
     CoreDefinition def = pattern.getConstructor();
     return def == null ? factory.tuplePattern(subpatterns) : factory.conPattern(def.getRef(), subpatterns);
   }
@@ -52,10 +52,21 @@ public class PatternUtils {
     return isExplicit ? result : result.implicit();
   }
 
-  public static List<ConcretePattern> toConcrete(Collection<? extends CorePattern> patterns, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings, CoreParameter parameters) {
+  public static List<ConcretePattern> toConcrete(List<? extends CorePattern> patterns, List<? extends ArendRef> asRefs, VariableRenamerFactory renamer, ConcreteFactory factory, Map<CoreBinding, ArendRef> bindings, CoreParameter parameters) {
+    assert asRefs == null || patterns.size() == asRefs.size();
     List<ConcretePattern> result = new ArrayList<>(patterns.size());
-    for (CorePattern pattern : patterns) {
-      result.add(toConcrete(pattern, renamer, factory, bindings, parameters == null || !parameters.hasNext() || parameters.isExplicit()));
+    for (int i = 0; i < patterns.size(); i++) {
+      ArendRef asRef = asRefs != null ? asRefs.get(i) : null;
+      CoreBinding binding = patterns.get(i).getBinding();
+      boolean setMap = binding != null && bindings == null && asRef != null;
+      if (setMap) {
+        bindings = Collections.singletonMap(binding, asRef);
+      }
+      ConcretePattern pattern = toConcrete(patterns.get(i), renamer, factory, bindings, parameters == null || !parameters.hasNext() || parameters.isExplicit());
+      result.add(asRef != null && binding == null ? pattern.as(asRefs.get(i), null) : pattern);
+      if (setMap) {
+        bindings = null;
+      }
       if (parameters != null && parameters.hasNext()) parameters = parameters.getNext();
     }
     return result;
