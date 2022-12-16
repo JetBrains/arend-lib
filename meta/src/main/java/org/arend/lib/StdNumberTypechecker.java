@@ -50,8 +50,8 @@ public class StdNumberTypechecker implements LiteralTypechecker {
         ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
         ConcreteExpression cExpr;
         ConcreteExpression cInstance = instance == null ? null : factory.core(null, instance);
-        if (number.equals(BigInteger.ZERO) || number.equals(BigInteger.ONE)) {
-          cExpr = factory.ref((number.equals(BigInteger.ZERO) ? ext.zro : ext.ide).getRef());
+        if (number.equals(BigInteger.ZERO) || number.equals(BigInteger.ONE) || number.equals(BigInteger.ONE.negate())) {
+          cExpr = number.equals(BigInteger.ZERO) ? factory.ref(ext.zro.getRef()) : number.equals(BigInteger.ONE) ? factory.ref(ext.ide.getRef()) : factory.app(factory.ref(ext.equationMeta.negative.getRef()), true, factory.ref(ext.ide.getRef()));
           if (cInstance != null) {
             cExpr = factory.app(cExpr, false, Collections.singletonList(cInstance));
           }

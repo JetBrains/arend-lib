@@ -1,0 +1,36 @@
+\import Algebra.Monoid
+\import Algebra.Ring.Graded
+\import Algebra.Ring.Ideal
+\import Data.Array
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\open GradedCRing
+\open AddMonoid
+
+\record HomogenIdeal \extends Ideal {
+  \override S : GradedCRing
+  | isHomogenIdeal {l : Array S} : isHomogenArray l -> contains (AddMonoid.BigSum l) -> ∀ (x : l) (contains x)
+} \where {
+  \func hasHomogenGen {R : GradedCRing} (I : Ideal R)
+    => \Sigma (U : R -> \Prop) (\Pi (x : R) -> U x -> ∃ (n : Nat) (isHomogen x n)) (\Pi (x : R) -> I x <-> Ideal.sclosure U x)
+
+  -- | A homogeneous ideal has a set of homogeneous generators
+  \func toGen (I : HomogenIdeal) : hasHomogenGen I
+    => \let U x => ∃ (l : Array S) (isHomogenArray l) (i : Fin l.len) (l i = x) (I (BigSum l))
+       \in (U, \lam x => TruncP.map __ $ \lam (l,f,n,p,c) => (n, rewriteI p (f n)),
+            \lam x => (\lam Ix => TruncP.map (homogen-decomp x) $ \lam (l,f,p) => (mkArray $ \lam j => later (1, (l j, inP (l, f, j, idp, rewrite p Ix))), inv p *> pmap BigSum (exts (idp, \lam j => inv ide-left))),
+                       Ideal.sclosure-univ $ later $ \lam y (inP (l,f,i,p,c)) => transport I p (isHomogenIdeal f c i)))
+
+  -- | If an ideal has a set of homogeneous generators, then it is homogeneous
+  \func fromGen {R : GradedCRing} (I : Ideal R) (h : TruncP (hasHomogenGen I)) : HomogenIdeal \cowith
+    | Ideal => I
+    | isHomogenIdeal {l} lh s j => {?}
+}
+
+\func irrelevantIdeal (R : GradedCRing) : HomogenIdeal R
+  => HomogenIdeal.fromGen (Ideal.sclosure (\lam x => ∃ (n : Nat) (isHomogen x (suc n)))) $
+      inP (\lam x => ∃ (n : Nat) (isHomogen x (suc n)), \lam x => TruncP.map __ $ \lam (n,h) => (suc n, h), \lam x => (\lam c => c, \lam c => c))

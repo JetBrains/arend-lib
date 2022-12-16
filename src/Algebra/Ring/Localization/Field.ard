@@ -1,6 +1,7 @@
 \import Algebra.Field
 \import Algebra.Group
 \import Algebra.Monoid
+\import Algebra.Monoid.Sub
 \import Algebra.Ordered
 \import Algebra.Pointed
 \import Algebra.Ring
@@ -15,7 +16,7 @@
 \open Monoid \hiding (equals)
 \open LocRing
 
-\lemma localization-inv {R : CRing} (S : MSubset R) (a : SType S) (r : R) (p : contains (a.1 * r)) : Inv (inl~ a) (in~ (a.2 * r, a.1 * r, p))
+\lemma localization-inv {R : CRing} (S : SubMonoid R) (a : SType S) (r : R) (p : S (a.1 * r)) : Inv (inl~ a) (in~ (a.2 * r, a.1 * r, p))
   => Inv.lmake {LocRing S} (in~ (a.2 * r, a.1 * r, p))
                (path (~-equiv {SType S} _ _ (
                  ((a.2 * r) * a.1) * ide ==< ide-right >==
@@ -27,14 +28,14 @@
                  (a.1 * r) * a.2         ==< inv ide-left >==
                  ide * ((a.1 * r) * a.2) `qed)))
   \where {
-    \lemma converse (j : Inv (inl~ a)) : TruncP (\Sigma (r : R) (contains (a.1 * r)))
+    \lemma converse (j : Inv (inl~ a)) : TruncP (\Sigma (r : R) (S (a.1 * r)))
       => \let | (in~ b \as i) => j.inv
               | p : inl~ a * i = ide => j.inv-right
               | (inP (c,cs,q)) => unequals S p
-         \in inP (b.1 * (ide * c), rewriteEq q (contains_* _ _ (contains_* _ _ contains_ide (contains_* _ _ a.3 b.3)) cs))
+         \in inP (b.1 * (ide * c), rewriteEq q (contains_* (contains_* S.contains_ide (contains_* a.3 b.3)) cs))
   }
 
-\lemma localization-zro {R : CRing} (S : MSubset R) (a : SType S) (s : R) (c : contains s) (p : a.1 * s = zro) : inl~ a = zro
+\lemma localization-zro {R : CRing} (S : SubMonoid R) (a : SType S) (s : R) (c : S s) (p : a.1 * s = zro) : inl~ a = zro
   => equals-lem S s c (
     (a.1 * ide) * s   ==< pmap (`* s) ide-right >==
     a.1 * s           ==< p >==
@@ -42,9 +43,9 @@
     zro * s           ==< inv (pmap (`* s) Ring.zro_*-left) >==
     (zro * a.2) * s `qed)
 
-\lemma localization-nonTrivial {R : CRing} (S : MSubset R) (p : Not (S.contains zro)) : 0 /= {LocRing S} 1
+\lemma localization-nonTrivial {R : CRing} (S : SubMonoid R) (p : Not (S zro)) : 0 /= {LocRing S} 1
   => \case unequals S __ \with {
-    | inP (c, s, q) => p (transport contains (
+    | inP (c, s, q) => p (transport S (
       c               ==< inv ide-left >==
       ide * c         ==< inv (pmap (`* c) ide-left) >==
       (ide * ide) * c ==< inv q >==
@@ -53,26 +54,26 @@
       zro             `qed) s)
   }
 
-\lemma localization-isLocal {R : CRing} (S : MSubset R) (nt : Not (S.contains zro))
-                            (loc : \Pi (x y : R) -> contains y -> (\Sigma (r : R) (contains (x * r))) || (\Sigma (r : R) (contains ((x + y) * r))))
+\lemma localization-isLocal {R : CRing} (S : SubMonoid R) (nt : Not (S zro))
+                            (loc : \Pi (x y : R) -> S y -> (\Sigma (r : R) (S (x * r))) || (\Sigma (r : R) (S ((x + y) * r))))
   : LocalCRing { | CRing => LocRing S } \cowith
   | zro/=ide => localization-nonTrivial S nt
   | locality (in~ x) => \case loc x.1 x.2 x.3 \with {
     | byLeft (r,c) => byLeft (localization-inv S x r c)
-    | byRight (r,c) => byRight (localization-inv S (x.1 * ide + ide * x.2, x.2 * ide, contains_* x.2 ide x.3 contains_ide) r (simplify c))
+    | byRight (r,c) => byRight (localization-inv S (x.1 * ide + ide * x.2, x.2 * ide, contains_* x.3 S.contains_ide) r (simplify c))
   }
 
-\lemma localization-isField {R : CRing} (S : MSubset R) (nt : Not (S.contains zro))
-                            (loc : \Pi (x y : R) -> contains y -> (\Sigma (r : R) (contains (x * r))) || (\Sigma (r : R) (contains ((x + y) * r))))
-                            (fp : \Pi (x : R) -> (\Pi (r : R) -> Not (contains (x * r))) -> TruncP (\Sigma (s : R) (contains s) (x * s = zro)))
+\lemma localization-isField {R : CRing} (S : SubMonoid R) (nt : Not (S zro))
+                            (loc : \Pi (x y : R) -> S y -> (\Sigma (r : R) (S (x * r))) || (\Sigma (r : R) (S ((x + y) * r))))
+                            (fp : \Pi (x : R) -> (\Pi (r : R) -> Not (S (x * r))) -> TruncP (\Sigma (s : R) (S s) (x * s = zro)))
   : Field { | CRing => LocRing S } \cowith
   | LocalCRing => localization-isLocal S nt loc
   | #0-tight {in~ x} x-ni => \case fp x.1 (\lam r c[x*r] => x-ni (localization-inv S x r c[x*r])) \with {
     | inP (s,c,p) => localization-zro S x s c p
   }
 
-\func localization-isDiscreteField {R : CRing} (S : MSubset R) (nt : Not (S.contains zro))
-                                    (fp : \Pi (x : R) -> (\Sigma (s : R) (contains s) (x * s = zro)) `Or` (\Sigma (r : R) (contains (x * r))))
+\func localization-isDiscreteField {R : CRing} (S : SubMonoid R) (nt : Not (S zro))
+                                    (fp : \Pi (x : R) -> (\Sigma (s : R) (S s) (x * s = zro)) `Or` (\Sigma (r : R) (S (x * r))))
   : DiscreteField { | CRing => LocRing S } \cowith
   | zro/=ide => localization-nonTrivial S nt
   | eitherZeroOrInv (in~ x) => \case fp x.1 \with {
@@ -100,10 +101,10 @@
     | inP (r, x*r>0) => ||.map __.1 __.1 (positive_*-cancel x*r>0)
   }
   \where {
-    \func positiveSubset (R : OrderedCRing) : MSubset R \cowith
+    \func positiveSubset (R : OrderedCRing) : SubMonoid R \cowith
       | contains => isPos
       | contains_ide => ide>zro
-      | contains_* _ _ => positive_*
+      | contains_* => positive_*
 
     \func isPositive {R : OrderedCRing} (x : Type (positiveSubset R)) : \Prop \elim x
       | in~ x => isPos x.1

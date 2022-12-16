@@ -1,0 +1,71 @@
+\import Algebra.Meta
+\import Algebra.Ring
+\import Arith.Nat
+\import Data.Or
+\import Function.Meta ($)
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set
+\import Set.Fin
+
+\class GradedCRing \extends CRing {
+  | isHomogen : E -> Nat -> \Prop
+  | homogen-zro {n : Nat} : isHomogen 0 n
+  | homogen-negative_ide : isHomogen -1 0
+  | homogen-+ {n : Nat} {a b : E} : isHomogen a n -> isHomogen b n -> isHomogen (a + b) n
+  | homogen-* {n m : Nat} {a b : E} : isHomogen a n -> isHomogen b m -> isHomogen (a * b) (n Nat.+ m)
+  | homogen-decomp (x : E) : ∃ (l : Array E) (\Pi (n : Fin l.len) -> isHomogen (l n) n) (BigSum l = x)
+  | homogen-unique (l : Array E) : (\Pi (n : Fin l.len) -> isHomogen (l n) n) -> BigSum l = 0 -> ∀ (x : l) (x = 0)
+
+  \func isHomogenArray (l : Array E) => \Pi (n : Fin l.len) -> isHomogen (l n) n
+
+  \lemma homogen-ide : isHomogen 1 0
+    => transport (isHomogen __ 0) equation (homogen-* homogen-negative_ide homogen-negative_ide)
+
+  \lemma homogen-negative {n : Nat} {x : E} (xh : isHomogen x n) : isHomogen (negative x) n
+    => transport (isHomogen __ n) equation (homogen-* homogen-negative_ide xh)
+
+  \lemma homogen-pow {a : E} {n m : Nat} (ah : isHomogen a n) : isHomogen (pow a m) (n Nat.* m) \elim m
+    | 0 => homogen-ide
+    | suc m => homogen-* (homogen-pow ah) ah
+
+  \lemma homogen-BigSum {l : Array E} {n : Nat} (p : ∀ (a : l) (isHomogen a n)) : isHomogen (BigSum l) n \elim l
+    | nil => homogen-zro
+    | a :: l => homogen-+ (p 0) (homogen-BigSum (\lam j => p (suc j)))
+
+  \func degree-unique {a : E} {n m : Nat} (ahn : isHomogen a n) (ahm : isHomogen a m) : Or (a = 0) (n = m)
+    => \case decideEq n m \with {
+      | yes e => inr e
+      | no q => inl $ rewriteF (decideEq=_reduce $ inv $ fin-inc-left.char_nat {suc m} n) $
+          \let l => \new Array E (suc n Nat.+ suc m) (\lam j => \case decideEq n j, decideEq m j \with {
+            | yes _, _ => a
+            | no _, yes _ => negative a
+            | no _, no _ => 0
+          })
+          \in homogen-unique l (\lam j => mcases \with {
+            | yes p, d => rewriteI p ahn
+            | no n1, yes p => rewriteI p (homogen-negative ahm)
+            | no n1, no n2 => homogen-zro
+          }) (sum-lem2 {_} {l} (fin-inc-left {suc n} {suc m} n) (fin-inc-right {suc n} {suc m} m)
+                (\lam p => q $ inv (fin-inc-left.char_nat {suc m} n) *> p *> fin-inc-right.char_nat {suc n} m)
+                (\lam k p1 p2 => rewrite (decideEq/=_reduce $ \lam p => p1 $ fin_nat-inj $ inv $ fin-inc-left.char_nat {suc m} n *> p, decideEq/=_reduce $ \lam p => p2 $ fin_nat-inj $ inv $ fin-inc-right.char_nat {suc n} m *> p) idp)
+              *> rewrite (decideEq=_reduce $ inv $ fin-inc-left.char_nat {suc m} n, decideEq=_reduce $ inv $ fin-inc-right.char_nat {suc n} m, decideEq/=_reduce $ \lam p => q $ p *> fin-inc-right.char_nat {suc n} m) negative-right) (fin-inc-left {suc n} {suc m} n)
+    } \where {
+      \lemma fin-ineq {n : Nat} {i j : Fin n} (d : i /= j) : suc i /= suc j
+        => \lam p => fin_nat-ineq d $ path (\lam i => pred (p i))
+
+      \lemma sum-lem1 {l : Array E} (i : Fin l.len) (c : \Pi (k : Fin l.len) -> k /= i -> l k = 0) : BigSum l = l i \elim l, i
+        | a :: l, 0 => pmap (a +) (BigSum_zro $ \lam j => c (suc j) (\case __)) *> zro-right
+        | a :: l, suc i => pmap (`+ _) (c 0 $ \case __) *> zro-left *> sum-lem1 i (\lam k d => c (suc k) (fin-ineq d))
+
+      \lemma sum-lem2 {l : Array E} (i j : Fin l.len) (i/=j : i /= j) (c : \Pi (k : Fin l.len) -> k /= i -> k /= j -> l k = 0) : BigSum l = l i + l j \elim l, i, j
+        | nil, i, _ => \case i
+        | a :: l, 0, 0 => \case i/=j idp
+        | a :: l, 0, suc j => pmap (a +) (sum-lem1 j (\lam k d => c (suc k) (\case __) (fin-ineq d)))
+        | a :: l, suc i, 0 => pmap (a +) (sum-lem1 i $ \lam k d => c (suc k) (fin-ineq d) (\case __)) *> +-comm
+        | a :: l, suc i, suc j => pmap (`+ _) (c 0 (\case __) (\case __)) *> zro-left *> sum-lem2 i j (\lam p => i/=j $ \lam i => suc (p i)) (\lam k d1 d2 => c (suc k) (fin-ineq d1) (fin-ineq d2))
+  }
+}

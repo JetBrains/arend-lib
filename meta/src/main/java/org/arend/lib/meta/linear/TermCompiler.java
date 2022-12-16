@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 import org.arend.lib.meta.equation.EquationMeta;
+import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.ring.BigRational;
 import org.arend.lib.ring.IntRing;
@@ -31,6 +32,7 @@ public class TermCompiler {
   private final FunctionMatcher mulMatcher;
   private final FunctionMatcher natCoefMatcher;
   private final FunctionMatcher negativeMatcher;
+  private final FunctionMatcher minusMatcher;
   private final ConcreteFactory factory;
   private final Values<CoreExpression> values;
   private final EquationMeta meta;
@@ -55,6 +57,7 @@ public class TermCompiler {
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.mul, typechecker, factory, marker, meta.ext, 2);
     natCoefMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.natCoef, typechecker, factory, marker, meta.ext, 1);
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, marker, meta.ext, 1) : null;
+    minusMatcher = toInt ? new DefinitionFunctionMatcher(ext.prelude.getMinus(), 2) : null;
     this.values = values;
     this.kind = kind;
     TermCompiler subTermCompiler = null;
@@ -196,6 +199,12 @@ public class TermCompiler {
     return factory.app(factory.ref(meta.addTerm.getRef()), true, computeTerm(arg1, coefficients, freeCoef), computeTerm(arg2, coefficients, freeCoef));
   }
 
+  private ConcreteExpression computeMinus(CoreExpression arg1, CoreExpression arg2, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
+    ConcreteExpression cArg1 = computeTerm(arg1, coefficients, freeCoef);
+    ConcreteExpression cArg2 = computeNegative(arg2, coefficients, freeCoef);
+    return factory.app(factory.ref(meta.addTerm.getRef()), true, cArg1, cArg2);
+  }
+
   private ConcreteExpression computeMul(CoreExpression arg1, CoreExpression arg2, CoreExpression expr, Map<Integer, Ring> coefficients, Ring[] freeCoef) {
     int valuesSize = values.getValues().size();
     Map<Integer, Ring> coefficients1 = new HashMap<>(), coefficients2 = new HashMap<>();
@@ -224,14 +233,16 @@ public class TermCompiler {
   }
 
   private ConcreteExpression computeVal(CoreExpression expr, Map<Integer, Ring> coefficients) {
-    int index = values.addValue(expr);
     if (toInt) {
       expr = toPos(expr, typechecker, factory, meta.ext);
       if (expr == null) return null;
-      positiveVars.add(index);
     } else if (toRat) {
       expr = toRat(expr, typechecker, factory, meta.ext);
       if (expr == null) return null;
+    }
+    int index = values.addValue(expr);
+    if (toInt) {
+      positiveVars.add(index);
     }
     coefficients.compute(index, (k,v) -> v == null ? getOne() : v.add(getOne()));
     return factory.app(factory.ref(meta.varTerm.getRef()), true, factory.number(index));
@@ -293,6 +304,13 @@ public class TermCompiler {
       return factory.ref(meta.ideTerm.getRef());
     }
 
+    if (subTermCompiler != null && subTermCompiler.minusMatcher != null) {
+      List<CoreExpression> minusArgs = subTermCompiler.minusMatcher.match(expr);
+      if (minusArgs != null) {
+        return subTermCompiler.computeMinus(minusArgs.get(0), minusArgs.get(1), coefficients, freeCoef);
+      }
+    }
+
     if (negativeMatcher != null) {
       List<CoreExpression> negativeArgs = negativeMatcher.match(expr);
       if (negativeArgs != null) {
@@ -300,8 +318,7 @@ public class TermCompiler {
       }
     }
 
-    if (kind == Kind.RAT && expr instanceof CoreConCallExpression) {
-      CoreConCallExpression conCall = (CoreConCallExpression) expr;
+    if (kind == Kind.RAT && expr instanceof CoreConCallExpression conCall) {
       TypedExpression typedExpr = expr.computeTyped();
       CoreExpression nomExpr = conCall.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF);
       CoreExpression denomExpr = conCall.getDefCallArguments().get(1).normalize(NormalizationMode.WHNF);
