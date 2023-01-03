@@ -45,9 +45,9 @@
   \func rp-correctness-both-inside (t : GroupTerm V) (fstLeafToRemoveInd : Nat) (p : interpret (get-leaf t fstLeafToRemoveInd) = inverse (interpret $ get-leaf t (suc fstLeafToRemoveInd)))
                                    (lb : 1 <= fstLeafToRemoveInd) (ub : fstLeafToRemoveInd < count-leaves t) : interpret (remove-pair t fstLeafToRemoveInd).1 = interpret t \elim t
     | l :* r => mcases {1} \with {
-      | less q => mcases {1} \with {
-        | true => {?}
-        | false => {?}
+      | less q => mcases {1} {arg addPath} \with {
+        | true, w => {?}
+        | false, w => {?}
       }
       | equals q => {?}
       | greater q => {?}
@@ -102,52 +102,66 @@
                                 | abs : 0 >= 1 => rewriteF (NatSemiring.cancel-left (count-leaves ll) {count-leaves lr} {0} ll+lr-eq-ll) (rp-returns-true-lemma'' lr 0 p_lr)
                                 | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
                                 \in contradiction
-    | l, rl :* rr \as r => {?}
-    {- cases lo (\let | p_l => (rp-returns-true-lemma''' l r fstLeafToRemoveInd p).1
-                                                     | abs : 0 >= 1 => rp-returns-true-lemma'' l fstLeafToRemoveInd p_l
-                                                     | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
-                                                \in contradiction) \with { -}
-    | :inv lo \as l, :inv ro \as r => cases (lo, p) (\let | p_l => (rp-returns-true-lemma''' (:inv lo) r fstLeafToRemoveInd p).1
-                                                          | abs : 0 >= {NatSemiring} 1 => rp-returns-true-lemma'' (:inv lo) fstLeafToRemoveInd p_l
-                                                          | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
-                                                     \in contradiction) \with {
-      | var x \as lo, p => cases ro (\let | p_l => (rp-returns-true-lemma''' (:inv lo) r fstLeafToRemoveInd p).1
-                                | abs : 0 >= {NatSemiring} 1 => rp-returns-true-lemma'' l fstLeafToRemoveInd p_l
+    -- in this case we have 0 = count-leaves rl, but count-leaves rl >= 1
+    | l, rl :* rr \as r => \let | p_r => (rp-returns-true-lemma''' l r fstLeafToRemoveInd p).2
+                                | p_rl => (rp-returns-true-lemma''' rl rr 0 p_r).1
+                                | rl-eq-zero => inv (rp-returns-true-lemma''' rl rr 0 p_r).3
+                                | abs : 0 >= 1 => rewriteF rl-eq-zero (rp-returns-true-lemma'' rl 0 p_rl)
                                 | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
-                           \in contradiction) \with {
-        | var y => (inv-var-leaf x, inv-var-leaf y, idp, idp)
+                           \in contradiction
+    | :inv lo \as l, :inv ro \as r => cases (lo arg (as = lo'), p arg (as = p')) (left-leaf-contradiction (:inv lo') r fstLeafToRemoveInd p') \with {
+      | var x \as lo, p => cases (ro arg (as = ro'), p arg (as = p')) (right-leaf-contradiction (:inv lo) (:inv ro') fstLeafToRemoveInd p') \with {
+        | var y, p => (inv-var-leaf x, inv-var-leaf y, idp, idp)
       }
-      | l' :* r' \as lo, p => \let | p_l => (rp-returns-true-lemma''' l r fstLeafToRemoveInd p).1
-                         | abs : 0 >= {NatSemiring} 1 => rp-returns-true-lemma'' (:inv lo) fstLeafToRemoveInd p_l
-                         | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
-                    \in contradiction
-      | :inv _ \as lo, p => \let | p_l => (rp-returns-true-lemma''' (:inv lo) r fstLeafToRemoveInd p).1
-                          | abs : 0 >= {NatSemiring} 1 => rp-returns-true-lemma'' (:inv lo) fstLeafToRemoveInd p_l
-                          | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
-                     \in contradiction
-      | :ide \as lo, p => \let | p_l => (rp-returns-true-lemma''' (:inv :ide) r fstLeafToRemoveInd p).1
-                        | abs : 0 >= {NatSemiring} 1 => rp-returns-true-lemma'' (:inv :ide) fstLeafToRemoveInd p_l
-                        | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
-                   \in contradiction {- -}
     }
-    | :inv lo \as l, var y \as r => {?}
-    | var x \as l, :inv ro \as r => {?}
-    | var x \as l, var y \as r => {?}
-    | :ide, _ => {?}
-    | _, :ide => {?}
+    | :inv lo \as l, var y \as r => cases (lo arg (as = lo'), p arg (as = p')) (left-leaf-contradiction (:inv lo') r fstLeafToRemoveInd p') \with {
+      | var x \as lo, p => (inv-var-leaf x, var-leaf y, idp, idp)
+    }
+    | var x \as l, :inv ro \as r => cases (ro arg (as = ro'), p arg (as = p')) (right-leaf-contradiction l (:inv ro') fstLeafToRemoveInd p') \with {
+      | var y, p => (var-leaf x, inv-var-leaf y, idp, idp)
+    }
+    | var x \as l, var y \as r => (var-leaf x, var-leaf y, idp, idp)
+    | :ide, r => left-leaf-contradiction :ide r fstLeafToRemoveInd p
+    | l, :ide => right-leaf-contradiction l :ide fstLeafToRemoveInd p
 
   \where {
-    \meta left-inv-contradiction l r ind p => \let | p_l => (rp-returns-true-lemma''' l r ind p).1
-                                                   | abs : 0 >= 1 => rp-returns-true-lemma'' l ind p_l
+    \meta left-leaf-contradiction l r ind p => \let | p_l => (rp-returns-true-lemma''' l r ind p).1
+                                                   | abs : 0 >= {NatSemiring} 1 => rp-returns-true-lemma'' l ind p_l
                                                    | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs \in contradiction
+    \meta right-leaf-contradiction l r ind p => \let | p_r => (rp-returns-true-lemma''' l r ind p).2
+                                                     | abs : 0 >= {NatSemiring} 1 => rp-returns-true-lemma'' r 0 p_r
+                                                     | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
+                                                \in contradiction
   }
 
 
   \func rp-returns-true-lemma (t : GroupTerm V) (fstLeafToRemoveInd : Nat) (p : (remove-pair t fstLeafToRemoveInd).2 = true)
-                              (lb : 1 <= fstLeafToRemoveInd) (ub : fstLeafToRemoveInd < count-leaves t)
+                              (lb : 1 <= {NatSemiring} fstLeafToRemoveInd) (ub : fstLeafToRemoveInd < count-leaves t)
     : interpret t = (interpret $ get-leaf t fstLeafToRemoveInd) * (interpret $ get-leaf t (suc fstLeafToRemoveInd)) \elim t
-    | l :* r => mcases \with {
-      | _, inl q => {?}
+    | l :* r => \let | ind<=1 : fstLeafToRemoveInd <= 1 => <_suc_<= {fstLeafToRemoveInd} {1} (rewriteI (count-leaves-lemma l r fstLeafToRemoveInd p) ub)
+                     | ind=1 => <=-antisymmetric ind<=1 lb
+                     | gl => get-leaf-lemma l r (rewriteI ind=1 p) \in rewrite (ind=1, gl.1, gl.2) idp
+    | var v => contradiction
+    | :inv t => cases (t arg (as = t), ub arg (as = ub)) \with { -- (contradiction {usingOnly (lb, ub)}) \with {
+       | var w \as t, ub => contradiction
+     -- | l :* r \as t, ub => contradiction
+    }
+    \where {
+      \func get-leaf-lemma (l r : GroupTerm V) (p : (remove-pair (l :* r) 1).2 = true)
+        : \Sigma (get-leaf (l :* r) 1 = l) (get-leaf (l :* r) 2 = r)
+        => \let | lr-are-leaves => rp-returns-true-lemma' l r 1 p
+                | l' => lr-are-leaves.1 | r' => lr-are-leaves.2 | ql => lr-are-leaves.3 | qr => lr-are-leaves.4 \in
+           cases (l' arg (as = l'), r' arg (as = r'), ql arg (as = ql), qr arg (as = qr))
+               (\let | gl1 : get-leaf (l :* r) 1 = l => rewrite ql idp
+                     | gl2 : get-leaf (l :* r) 2 = r => rewrite (ql, qr) idp
+                 \in (gl1, gl2)) \with { }
+
+      \func count-leaves-lemma (l r : GroupTerm V) (fstLeafToRemoveInd : Nat) (p : (remove-pair (l :* r) fstLeafToRemoveInd).2 = true)
+        : count-leaves (l :* r) = 2
+        => \let | lr-are-leaves => rp-returns-true-lemma' l r fstLeafToRemoveInd p
+                | l' => lr-are-leaves.1 | r' => lr-are-leaves.2 | ql => lr-are-leaves.3 | qr => lr-are-leaves.4 \in
+          cases (l' arg (as = l'), r' arg (as = r'), ql arg (as = ql), qr arg (as = qr))
+                 (rewrite (ql, qr) idp) \with {}
     }
   --(\Sigma (l : Leaf) (t = Leaf.leaf-to-term l)) `Or` (\Sigma (l r : Leaf) (t = Leaf.leaf-to-term l :* Leaf.leaf-to-term r)) \elim t
 

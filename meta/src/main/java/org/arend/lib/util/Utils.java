@@ -203,21 +203,23 @@ public class Utils {
 
   private static class MyException extends RuntimeException {}
 
+  public static <T> T tryWithSavedState(ExpressionTypechecker tc, Function<ExpressionTypechecker, T> action) {
+    try {
+      ErrorReporter errorReporter = tc.getErrorReporter();
+      return tc.withErrorReporter(error -> {
+        if (error.level == GeneralError.Level.ERROR) {
+          throw new MyException();
+        }
+        errorReporter.report(error);
+      }, action);
+    } catch (MyException e) {
+      tc.loadSavedState();
+      return null;
+    }
+  }
+
   public static <T> T tryTypecheck(ExpressionTypechecker typechecker, Function<ExpressionTypechecker, T> action) {
-    return typechecker.withCurrentState(tc -> {
-      try {
-        ErrorReporter errorReporter = tc.getErrorReporter();
-        return tc.withErrorReporter(error -> {
-          if (error.level == GeneralError.Level.ERROR) {
-            throw new MyException();
-          }
-          errorReporter.report(error);
-        }, action);
-      } catch (MyException e) {
-        tc.loadSavedState();
-        return null;
-      }
-    });
+    return typechecker.withCurrentState(tc -> tryWithSavedState(tc, action));
   }
 
   public static TypedExpression findInstance(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker) {
@@ -377,8 +379,7 @@ public class Utils {
   }
 
   public static ConcreteParameter expressionToParameter(ConcreteExpression expr, ExpressionResolver resolver, ConcreteFactory factory) {
-    if (expr instanceof ConcreteTypedExpression) {
-      ConcreteTypedExpression typedExpr = (ConcreteTypedExpression) expr;
+    if (expr instanceof ConcreteTypedExpression typedExpr) {
       List<ArendRef> refs = getTuplesOfRefs(typedExpr.getExpression(), resolver);
       if (refs == null) {
         return null;
