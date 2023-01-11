@@ -1,11 +1,16 @@
+\import Algebra.Group
 \import Algebra.Meta
+\import Algebra.Pointed
 \import Algebra.Ring
 \import Arith.Nat
+\import Data.Array
 \import Data.Or
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -35,6 +40,38 @@
   \lemma homogen-BigSum {l : Array E} {n : Nat} (p : ∀ (a : l) (isHomogen a n)) : isHomogen (BigSum l) n \elim l
     | nil => homogen-zro
     | a :: l => homogen-+ (p 0) (homogen-BigSum (\lam j => p (suc j)))
+
+  \lemma homogen-similar {l l' : Array E} (lh : isHomogenArray l) (l'h : isHomogenArray l') (p : BigSum l = BigSum l') : Similar l l'
+    => diff=0->similar $ homogen-unique (diff l l') (diff-homogen l l' 0 lh l'h) (diff-sum l l' *> toZero p)
+    \where {
+      \func diff (l l' : Array E) : Array E \elim l, l'
+        | nil, l' => map negative l'
+        | a :: l, nil => a :: l
+        | a :: l, a' :: l' => a - a' :: diff l l'
+
+      \lemma diff=0->similar {l l' : Array E} (p : \Pi (j : Fin (DArray.len {diff l l'})) -> diff l l' j = 0) : Similar l l' \elim l, l'
+        | nil, nil => nil-nil-similar
+        | nil, a :: l' => nil-::-similar (inv negative-isInv *> pmap negative (p 0) *> negative_zro) $ diff=0->similar $ \lam j => p (suc j)
+        | a :: nil, nil => ::-nil-similar (p 0) nil-nil-similar
+        | a :: a' :: l, nil => ::-nil-similar (p 0) $ diff=0->similar $ \lam j => p (suc j)
+        | a :: l, a' :: l' => ::-::-similar (fromZero $ p 0) $ diff=0->similar $ \lam j => p (suc j)
+
+      \lemma diff-sum (l l' : Array E) : BigSum (diff l l') = BigSum l - BigSum l' \elim l, l'
+        | nil, l' => inv $ zro-left *> BigSum_negative
+        | a :: l, nil => inv $ pmap (_ +) negative_zro *> zro-right
+        | a :: l, a' :: l' => equation {usingOnly (diff-sum l l')}
+
+      \lemma diff-homogen (l l' : Array E) (k : Nat)
+                          (lh : \Pi (j : Fin l.len) -> isHomogen (l j) (k Nat.+ j))
+                          (l'h : \Pi (j : Fin l'.len) -> isHomogen (l' j) (k Nat.+ j))
+                          (j : Fin (DArray.len {diff l l'})) : isHomogen (diff l l' j) (k Nat.+ j) \elim l, l', j
+        | nil, a :: l', 0 => homogen-negative (l'h 0)
+        | nil, a :: l', suc j => homogen-negative (l'h (suc j))
+        | a :: l, nil, 0 => lh 0
+        | a :: a' :: l, nil, suc j => diff-homogen (a' :: l) nil (suc k) (\lam j => lh (suc j)) (\case __) j
+        | a :: l, a' :: l', 0 => homogen-+ (lh 0) (homogen-negative (l'h 0))
+        | a :: l, a' :: l', suc j => diff-homogen l l' (suc k) (\lam j => lh (suc j)) (\lam j => l'h (suc j)) j
+    }
 
   \func degree-unique {a : E} {n m : Nat} (ahn : isHomogen a n) (ahm : isHomogen a m) : Or (a = 0) (n = m)
     => \case decideEq n m \with {
@@ -68,4 +105,10 @@
         | a :: l, suc i, 0 => pmap (a +) (sum-lem1 i $ \lam k d => c (suc k) (fin-ineq d) (\case __)) *> +-comm
         | a :: l, suc i, suc j => pmap (`+ _) (c 0 (\case __) (\case __)) *> zro-left *> sum-lem2 i j (\lam p => i/=j $ \lam i => suc (p i)) (\lam k d1 d2 => c (suc k) (fin-ineq d1) (fin-ineq d2))
   }
+} \where {
+  \data Similar {A : AddPointed} (l l' : Array A) \elim l, l'
+    | nil, nil => nil-nil-similar
+    | nil, a :: l' => nil-::-similar (a = 0) (Similar nil l')
+    | a :: l, nil => ::-nil-similar (a = 0) (Similar l nil)
+    | a :: l, a' :: l' => ::-::-similar (a = a') (Similar l l')
 }
