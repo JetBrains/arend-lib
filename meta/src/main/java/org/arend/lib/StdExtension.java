@@ -191,8 +191,10 @@ public class StdExtension implements ArendExtension {
         """, Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldMeta(this), true, false));
     contributor.declare(meta, new LongName("unfold_let"), "Unfolds \\let expressions", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldLetMeta(), true, false));
     contributor.declare(meta, new LongName("unfolds"), "Unfolds recursively top-level functions and fields", Precedence.DEFAULT, new DeferredMetaDefinition(new UnfoldsMeta(), true, false));
-    contributor.declare(meta, new LongName("<|>"), "`x <|> y` invokes `x` and if it fails, invokes `y`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 3, true), new OrElseMeta());
-    contributor.declare(meta, new LongName("try"), "The same as {<|>}", Precedence.DEFAULT, new OrElseMeta());
+    contributor.declare(meta, new LongName("<|>"),
+      "`x <|> y` invokes `x` and if it fails, invokes `y`\n" +
+      "Also, `(x <|> y) z_1 ... z_n` is equivalent to `x z_1 ... z_n <|> z_1 ... z_n`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 3, true), new OrElseMeta(this));
+    contributor.declare(meta, new LongName("try"), "The same as {<|>}", Precedence.DEFAULT, new OrElseMeta(this));
     contributor.declare(meta, new LongName("mkcon"),
       "Inserts data type arguments in constructor invocation.\n" +
       "If constructor `con` has 3 data type arguments, then `mkcon con args` is equivalent to `con {_} {_} {_} args`", Precedence.DEFAULT, new MakeConstructorMeta(this));

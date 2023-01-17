@@ -204,7 +204,9 @@ public class Utils {
   private static class MyException extends RuntimeException {}
 
   public static <T> T tryWithSavedState(ExpressionTypechecker tc, Function<ExpressionTypechecker, T> action) {
+    boolean allowed = tc.deferredMetasAllowed();
     try {
+      tc.allowDeferredMetas(false);
       ErrorReporter errorReporter = tc.getErrorReporter();
       return tc.withErrorReporter(error -> {
         if (error.level == GeneralError.Level.ERROR) {
@@ -215,6 +217,8 @@ public class Utils {
     } catch (MyException e) {
       tc.loadSavedState();
       return null;
+    } finally {
+      tc.allowDeferredMetas(allowed);
     }
   }
 
