@@ -45,13 +45,100 @@
   \func rp-correctness-both-inside (t : GroupTerm V) (fstLeafToRemoveInd : Nat) (p : interpret (get-leaf t fstLeafToRemoveInd) = inverse (interpret $ get-leaf t (suc fstLeafToRemoveInd)))
                                    (lb : 1 <= fstLeafToRemoveInd) (ub : fstLeafToRemoveInd < count-leaves t) : interpret (remove-pair t fstLeafToRemoveInd).1 = interpret t \elim t
     | l :* r => mcases {1} \with {
-      | less q => mcases {1} {arg addPath} \with {
-        | true, w => {?}
-        | false, w => {?}
+      | less q => \let | pl : interpret (get-leaf l fstLeafToRemoveInd) = inverse (interpret $ get-leaf l (suc fstLeafToRemoveInd))
+                        => rewriteF (LinearOrder.dec<_reduce (<-transitive q id<suc), LinearOrder.dec<_reduce (NatSemiring.suc<suc q)) p \in
+        mcases {1} {arg addPath} \with {
+          | true, w => \let | l-is-product => rp-returns-true-lemma l fstLeafToRemoveInd w lb q
+                            | l-is-ide : interpret l = ide => rewriteF (pl, inverse-left) l-is-product \in rewrite (l-is-ide, ide-left) idp
+          | false, w => \let rp-cor-l => rp-correctness-both-inside l fstLeafToRemoveInd pl lb q \in rewrite rp-cor-l idp
       }
       | equals q => {?}
       | greater q => {?}
     }
+
+  \func rp-correctness-one-inside-right (t : GroupTerm V) (nf-pf : isInNF t) (fstLeafToRemoveInd : Nat) (p : fstLeafToRemoveInd = count-leaves t)
+    : interpret t = interpret (remove-pair t fstLeafToRemoveInd).1 * interpret (get-leaf t fstLeafToRemoveInd) \elim t
+    | l :* r \as t => mcases {1} \with {
+      | less q => \let ind<leaves-t : fstLeafToRemoveInd < count-leaves t => <=_+-right q zero<=_ \in
+                 absurd $ <-irreflexive {_} {fstLeafToRemoveInd} (rewriteF (inv p) ind<leaves-t)
+      | equals q => \let res-l => remove-pair l fstLeafToRemoveInd | res-r => remove-pair r 0
+                         | leaves-r-is-0 : count-leaves r = 0 => NatSemiring.cancel-left (count-leaves l) (inv p *> q)
+                         | leaves-rp-r-0 : count-leaves (remove-pair r 0).1 = 0 => <=-antisymmetric (rewriteF leaves-r-is-0 (rp-count-leaves-lemma r 0)) zero<=_ \in
+              mcases {1} {arg addPath, arg addPath} \with {
+                | true, w1, true, w2 => \let | abs : 0 >= {NatSemiring} 1 => rewriteF leaves-r-is-0 (rp-returns-true-lemma'' r 0 w2)
+                                             | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
+                                        \in contradiction
+                | true, w1, false, w2 => \let | interp-r-ide => get-leaf-zro-leaves-lemma r leaves-r-is-0 nf-pf.2
+                                              | interp-rp-r-ide => get-leaf-zro-leaves-lemma (remove-pair r 0).1 leaves-rp-r-0 nf-pf.2 \in
+                                        rewrite (interp-r-ide, q, LinearOrder.dec<_reduce id<suc) (rp-correctness-one-inside-right l nf-pf.1 fstLeafToRemoveInd q)
+                | false, w1, true, w2 => {?}
+                | false, w1, false, w2 => {?}
+              }
+      | greater q => {?}
+    }
+
+  \func isInNF (t : GroupTerm V) : \Prop \elim t
+    | l :* r => \Sigma (isInNF l) (isInNF r)
+    | var v => \Sigma
+    | :ide => \Sigma
+    | :inv t => cases t Empty \with {
+      | var v => \Sigma
+    }
+
+  \func rp-preserves-nf (t : GroupTerm V) (nf-pf : isInNF t) (fstLeafToRemoveInd : Nat)
+    : isInNF (remove-pair t fstLeafToRemoveInd).1 \elim t
+    | l :* r => mcases {1} \with {
+      | less _x => mcases {1} \with { | true => nf-pf.2 | false => (rp-preserves-nf l nf-pf.1 fstLeafToRemoveInd, nf-pf.2) }
+      | equals p => mcases {1} \with {
+        | true, true => ()
+        | true, false => rp-preserves-nf r nf-pf.2 0
+        | false, true => rp-preserves-nf l nf-pf.1 fstLeafToRemoveInd
+        | false, false => (rp-preserves-nf l nf-pf.1 fstLeafToRemoveInd, rp-preserves-nf r nf-pf.2 0)
+      }
+      | greater _x => mcases {1} \with { | true => nf-pf.1 | false => (nf-pf.1, rp-preserves-nf r nf-pf.2 (fstLeafToRemoveInd -' count-leaves l)) }
+    }
+    | var v => ()
+    | :ide => ()
+    | :inv t => cases (t arg (as = t), nf-pf arg (as = nf-pf)) nf-pf \with { | var v, _ => () }
+
+
+  \func rp-count-leaves-lemma (t : GroupTerm V) (fstLeafToRemoveInd : Nat) : count-leaves (remove-pair t fstLeafToRemoveInd).1 <= count-leaves t \elim t
+    | l :* r \as t => mcases {1} \with {
+      | less q => mcases {1} \with {
+        | true => <=_+ zero<=_ <=-refl
+        | false => <=_+ (rp-count-leaves-lemma l fstLeafToRemoveInd) <=-refl
+      }
+      | equals q => mcases {1} \with {
+        | true, true => zero<=_
+        | true, false => <=_+ zero<=_ (rp-count-leaves-lemma r 0)
+        | false, true => <=_+ (rp-count-leaves-lemma l fstLeafToRemoveInd) zero<=_
+        | false, false => <=_+ (rp-count-leaves-lemma l fstLeafToRemoveInd) (rp-count-leaves-lemma r 0)
+      }
+      | greater q => mcases {1} \with {
+        | true => <=_+ <=-refl zero<=_
+        | false => <=_+ <=-refl (rp-count-leaves-lemma r (fstLeafToRemoveInd -' count-leaves l))
+      }
+    }
+    | var v => zero<=_
+    | :ide => zero<=_
+    | :inv t => cases t zero<=_
+
+
+  \func get-leaf-zro-leaves-lemma (t : GroupTerm V) (p : count-leaves t = 0) (nf-pf : isInNF t)
+    : interpret t = ide \elim t
+    | l :* r => \let | leaves-l-is-0 : count-leaves l = 0 =>
+                       <=-antisymmetric (rewriteF p (<=_+ (<=-refl {_} {count-leaves l}) (zero<=_ {count-leaves r}))) zero<=_
+                     | leaves-r-is-0 : count-leaves r = 0 =>
+                       <=-antisymmetric (rewriteF p (<=_+ (zero<=_ {count-leaves l}) (<=-refl {_} {count-leaves r}) )) zero<=_ \in
+                rewrite (get-leaf-zro-leaves-lemma l leaves-l-is-0 nf-pf.1, get-leaf-zro-leaves-lemma r leaves-r-is-0 nf-pf.2) ide-left
+      {-\case \elim ind \with {
+        | 0 \as ind => get-leaf-zro-leaves-lemma l ind leaves-l-is-0
+        | suc n \as ind => rewrite (leaves-l-is-0, LinearOrder.dec<=_reduce (suc<=suc $ zero<=_)) (get-leaf-zro-leaves-lemma r ind leaves-r-is-0)
+      }-}
+    | :ide => idp
+    | :inv t => {?} -- cases (t arg (as = t), p arg (as = p), nf-pf arg (as = nf-pf)) (absurd nf-pf) \with {
+      -- | var x, p, nf-pf => contradiction
+    --}
 
   \data Leaf
     | var-leaf (v : V)
@@ -134,7 +221,6 @@
                                                 \in contradiction
   }
 
-
   \func rp-returns-true-lemma (t : GroupTerm V) (fstLeafToRemoveInd : Nat) (p : (remove-pair t fstLeafToRemoveInd).2 = true)
                               (lb : 1 <= {NatSemiring} fstLeafToRemoveInd) (ub : fstLeafToRemoveInd < count-leaves t)
     : interpret t = (interpret $ get-leaf t fstLeafToRemoveInd) * (interpret $ get-leaf t (suc fstLeafToRemoveInd)) \elim t
@@ -144,7 +230,6 @@
     | var v => contradiction
     | :inv t => cases (t arg (as = t), ub arg (as = ub)) \with { -- (contradiction {usingOnly (lb, ub)}) \with {
        | var w \as t, ub => contradiction
-     -- | l :* r \as t, ub => contradiction
     }
     \where {
       \func get-leaf-lemma (l r : GroupTerm V) (p : (remove-pair (l :* r) 1).2 = true)
@@ -162,7 +247,27 @@
                 | l' => lr-are-leaves.1 | r' => lr-are-leaves.2 | ql => lr-are-leaves.3 | qr => lr-are-leaves.4 \in
           cases (l' arg (as = l'), r' arg (as = r'), ql arg (as = ql), qr arg (as = qr))
                  (rewrite (ql, qr) idp) \with {}
+  }
+
+  \func rp-returns-true-lemma-right (t : GroupTerm V) (fstLeafToRemoveInd : Nat) (p : (remove-pair t fstLeafToRemoveInd).2 = true)
+                                    (ind-right : fstLeafToRemoveInd = count-leaves t)
+    : interpret t = (interpret $ get-leaf t fstLeafToRemoveInd) \elim t
+    | l :* r \as t => \let | p_l => (rp-returns-true-lemma''' l r fstLeafToRemoveInd p).1
+                           | p_r => (rp-returns-true-lemma''' l r fstLeafToRemoveInd p).2
+                           | rmInd-eq-l => (rp-returns-true-lemma''' l r fstLeafToRemoveInd p).3
+                           | t-eq-l => inv ind-right *> rmInd-eq-l
+                           | abs : 0 >= 1 => rewriteF (NatSemiring.cancel-left (count-leaves l) {count-leaves r} {0} t-eq-l) (rp-returns-true-lemma'' r 0 p_r)
+                           | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs
+                      \in contradiction
+    | var v => rewrite ind-right idp
+    | :ide => idp
+    | :inv t => cases (t arg (as = t), ind-right arg (as = ind-right), p arg (as = p))
+        (\let | abs : 0 >= {NatSemiring} 1 => rp-returns-true-lemma'' (:inv t) fstLeafToRemoveInd p
+              | abs' : 0 = 1 => <=-antisymmetric zero<=_ abs \in contradiction) \with {
+      | var v, ind-right, p => rewrite ind-right idp
     }
+
+
   --(\Sigma (l : Leaf) (t = Leaf.leaf-to-term l)) `Or` (\Sigma (l r : Leaf) (t = Leaf.leaf-to-term l :* Leaf.leaf-to-term r)) \elim t
 
 
