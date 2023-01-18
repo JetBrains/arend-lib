@@ -1,16 +1,27 @@
 \import AG.Scheme
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Sub
+\import Algebra.Pointed
+\import Algebra.Ring.Category
 \import Algebra.Ring.Graded
+\import Algebra.Ring.Graded.Localization
 \import Algebra.Ring.Ideal
+\import Algebra.Ring.Localization
+\import Algebra.Ring.Sub
+\import Algebra.Semiring
 \import Arith.Int
 \import Arith.Nat
+\import Category
+\import Category.Functor
+\import Category.Topos.Sheaf
 \import Data.Array
 \import Data.Bool
 \import Data.Maybe
 \import Data.Or
 \import Equiv \hiding (Map)
 \import Function.Meta
+\import HLevel
 \import Logic
 \import Logic.Meta
 \import Meta
@@ -19,10 +30,13 @@
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
+\import Set.Category
 \import Set.Fin
 \import Topology.Locale
 \open Ideal
 \open AddMonoid
+\open Monoid(pow)
 
 \func ProjPres (R : GradedCRing) : FramePres (Carrier R) \cowith
   | conj => h*
@@ -66,7 +80,7 @@
         | inl x=0 => cover_zro x=0
         | inr de => Cover.cover-trans1 (cover-idemp {ProjPres R} {x} {\Sigma} {\lam _ => h* x x} () idp) $
           \let | c : Carrier R => (b * a.1 * b, n + a.2 + n, homogen-* (homogen-* bh a.3) bh)
-               | xx=ac : h* x x = h* a c => ext (equation, pmap suc $ pmap2 (+) (pmap pred de) (pmap pred de) *> +-assoc *> pmap (a.2 +) (inv +-assoc))
+               | xx=ac : h* x x = h* a c => ext (equation, linarith)
           \in rewrite xx=ac $ mkcon Cover.cover-proj1 {a} {c} idp j q
       }
 
@@ -132,3 +146,100 @@
   }
 
 \func Proj (R : GradedCRing) => PresentedFrame (ProjPres R)
+
+\func projRingedPres (R : GradedCRing) : Scheme (Proj R) \cowith
+  | R => sheafOnPresentedFrame {_} {CRingBicat} $ sheaf-reflect CRingCat.forgetful CRingCat.forgetful.reflectsLimit functor {?}
+  | isScheme => {?}
+  \where {
+    \open SubMonoid
+    \open Monoid
+    \open HomogenLocRing
+    \open CMonoid
+    \open functorial
+
+    \func functor => \new Functor (Precat.op {framePresSite (ProjPres R)}) CRingBicat {
+      | F a => HomogenLocRing (powers a.1)
+      | Func {a} {b} c => (functorial a.3 b.3 suc/=0 (ProjPres.cover_spec c)).1
+      | Func-id {a} => \case (functorial a.3 a.3 suc/=0 (ProjPres.cover_spec (cover-inj () idp))).2 \with {
+        | inP (t,p) => inv p *> exts (\lam e => \case (smap a.3 a.3 t.1 t.2 t.3 t.4 t.5 t.6 e).2 \with {
+          | inP (s,q) => inv q *> ext (~-pequiv (rewrite (pow_*,t.5,pow_*-comm) equation) *> inv (pmap __.1 s.4))
+        })
+      }
+      | Func-o {a} {b} {c} {g} {f} => \case (functorial a.3 c.3 suc/=0 (ProjPres.cover_spec (g ∘ {Precat.op {framePresSite (ProjPres R)}} f))).2, (functorial b.3 c.3 suc/=0 (ProjPres.cover_spec g)).2, (functorial a.3 b.3 suc/=0 (ProjPres.cover_spec f)).2 \with {
+        | inP (t1,p1), inP (t2,p2), inP (t3,p3) => inv p1 *> exts (\lam e => unfold $ unfold $
+          \case (smap a.3 c.3 t1.1 t1.2 t1.3 t1.4 t1.5 t1.6 e).2, (smap b.3 c.3 t2.1 t2.2 t2.3 t2.4 t2.5 t2.6 (smap a.3 b.3 t3.1 t3.2 t3.3 t3.4 t3.5 t3.6 e).1).2, (smap a.3 b.3 t3.1 t3.2 t3.3 t3.4 t3.5 t3.6 e).2 \with {
+            | inP (s1,q1), inP (s2,q2), inP (s3,q3) => inv q1 *> unfold sfunc (unfold fromSType $ ext $ \case LocRing.unequals (powers a.1) $ pmap __.1 $ inv s1.4 *> s3.4, LocRing.unequals (powers b.1) $ pmap __.1 $ q3 *> s2.4 \with {
+              | inP (_, inP (m1, idp), d1), inP (_, inP (m2, idp), d2) => LocRing.equals-lem (powers c.1) (pow c.1 (t1.1 * (s3.2 + m1) + t2.1 * (t3.1 * s3.2 + m2))) (inP (_, idp)) $
+                  later $ repeat (rewrite pow_* <|> rewrite pow_*-comm <|> rewrite pow_+ <|> rewrite t1.5 <|> rewrite t2.5 <|> rewrite t3.5) $ rewrite (pow_*,t3.5,pow_*-comm) at d2 $ equation
+            }) *> q2
+          }
+        ) *> pmap2 (∘) p2 p3
+      }
+    }
+
+    \lemma functorial {R : GradedCRing} {a b : R} {ad bd : Nat} (ah : isHomogen a ad) (bh : isHomogen b bd) (bd/=0 : bd /= 0) (r : Cover1 {SpecPres R} b a)
+      : \Sigma (f : RingHom (HomogenLocRing (powers a)) (HomogenLocRing (powers b))) (∃ (t : \Sigma (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (pow b n = a * c) (bd * n = ad + cd)) (shom t.1 t.2 t.3 t.4 t.5 t.6 = f))
+        \level TruncP.rec-set.level _ shom-coh
+      => \have | (inP (n,c)) => SpecPres.cover_ideal r
+               | (inP (c,b^n=ac)) => closure1-lem.1 c
+               | (inP (c,cd,ch,b^n=ac)) => R.homogen-factor b^n=ac (R.homogen-pow bh) ah
+         \in \case R.degree-unique (R.homogen-pow bh) (rewrite b^n=ac $ homogen-* ah ch) \with {
+               | inl b^n=0 =>
+                   \have c : Contr => RingHom.contr-isTerm $ SubRing.comm-isContr $ LocRing.nilpotent-contr (powers b) b (inP (1, ide-left)) n b^n=0
+                   \in (c.center, inP ((n + ad, 0, bd * (n + ad) -' ad, homogen-zro, pow_+ *> later (rewrite b^n=0 zro_*-left) *> inv zro_*-right,
+                     unpos $ inv $ pmap (pos ad +) (-'=- $ transportInv (ad <=) ldistr $ NatSemiring.<=_+ zero<=_ $ \case \elim bd, \elim bd/=0 \with {
+                       | 0, bd/=0 => absurd (bd/=0 idp)
+                       | suc bd, _ => later $ rewrite NatSemiring.*-comm $ NatSemiring.<=_+ zero<=_ <=-refl
+                     }) *> equation), inv (c.contraction _)))
+               | inr bd*n=ad+cd => (shom n c cd ch b^n=ac bd*n=ad+cd, inP ((n, c, cd, ch, b^n=ac, bd*n=ad+cd), idp))
+             }
+      \where {
+        \func sfunc (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (bd*n=ad+cd : bd * n = ad + cd) (k : Nat) {y : R} (yh : isHomogen y (ad * k)) : HomogenLocRing (powers b)
+          => fromSType (y * pow c k, pow b (n * k), later $ inP (n * k, idp)) {bd * (n * k)} (rewrite (inv *-assoc, bd*n=ad+cd, rdistr) $ homogen-* yh (R.homogen-pow ch)) (R.homogen-pow bh)
+
+        \lemma shom-coh (t s : \Sigma (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (pow b n = a * c) (bd * n = ad + cd))
+          : shom t.1 t.2 t.3 t.4 t.5 t.6 = {RingHom (HomogenLocRing (powers a)) (HomogenLocRing (powers b))} shom s.1 s.2 s.3 s.4 s.5 s.6
+          => exts $ \lam e => unfold $ \case (smap t.1 t.2 t.3 t.4 t.5 t.6 e).2, (smap s.1 s.2 s.3 s.4 s.5 s.6 e).2 \with {
+            | inP (u,p), inP (v,q) => \case LocRing.unequals (powers a) $ pmap __.1 $ inv u.4 *> v.4 \with {
+              | inP (_, inP (w, idp), d) => inv p *> ext (LocRing.equals-lem (powers b) (pow b (t.1 * w)) (inP (t.1 * w, idp)) $
+                  later $ rewrite (pow_*,pow_*,pow_*,t.5,s.5,pow_*-comm,pow_*-comm,pow_*-comm) equation) *> q
+            }
+          }
+
+        \lemma smap (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (p : pow b n = a * c) (bd*n=ad+cd : bd * n = ad + cd) (x : HomogenLocRing (powers a))
+          : \Sigma (z : HomogenLocRing (powers b)) (∃ (t : \Sigma (y : R) (k : Nat) (yh : isHomogen y (ad * k)) (x = fromSType (y, pow a k, later $ inP (k,idp)) yh (R.homogen-pow ah))) (sfunc n c cd ch bd*n=ad+cd t.2 t.3 = z))
+          => TruncP.rec-set (\case x.2 \with {
+            | inP ((y1, _, inP (k, idp)),x=[y],yd,y1h,y2h) => later $ inP $ \case R.degree-unique y2h (R.homogen-pow ah) \with {
+              | inl a^k=0 => (0, 0, homogen-zro, ext $ isContr=>isProp (LocRing.nilpotent-contr (powers a) a (inP (1,ide-left)) k a^k=0) _ _)
+              | inr yd=ad*k => (y1, k, rewriteF yd=ad*k y1h, ext x=[y])
+            }
+          }) (\lam t => sfunc n c cd ch bd*n=ad+cd t.2 {t.1} t.3) $ \lam q1 q2 => ext $
+                \case LocRing.unequals (powers a) $ pmap __.1 $ inv q1.4 *> q2.4 \with {
+                  | inP (_, inP (s, idp), e) => LocRing.equals-lem (powers b) (pow b (n * s)) (inP (n * s, idp)) $
+                      later $ rewrite (pow_*,pow_*,pow_*,p,pow_*-comm,pow_*-comm,pow_*-comm) equation
+                }
+
+        \func shom (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (p : pow b n = a * c) (bd*n=ad+cd : bd * n = ad + cd) : RingHom (HomogenLocRing (powers a)) (HomogenLocRing (powers b)) \cowith
+          | func x => (smap n c cd ch p bd*n=ad+cd x).1
+          | func-+ {x} {y} => \case (smap n c cd ch p bd*n=ad+cd x).2, (smap n c cd ch p bd*n=ad+cd y).2, (smap n c cd ch p bd*n=ad+cd (x + y)).2 \with {
+            | inP (t1,q1), inP (t2,q2), inP (t3,q3) => inv q3 *> ext (
+              \case LocRing.unequals (powers a) $ pmap __.1 $ inv t3.4 *> pmap2 (+) t1.4 t2.4 \with {
+                | inP (_, inP (s, idp), e) => LocRing.equals-lem (powers b) (pow b (n * s)) (inP (n * s, idp)) $
+                    later $ rewrite (pow_*,pow_*,pow_*,pow_*,p,pow_*-comm,pow_*-comm,pow_*-comm,pow_*-comm) equation
+              }) *> pmap2 (+) q1 q2
+          }
+          | func-ide => \case (smap n c cd ch p bd*n=ad+cd ide).2 \with {
+            | inP (t,q) => inv q *> ext (\case LocRing.unequals (powers a) $ pmap __.1 $ t.4 \with {
+              | inP (_, inP (s, idp), e) => LocRing.equals-lem (powers b) (pow b (n * s)) (inP (n * s, idp)) $
+                  later $ rewrite (pow_*,pow_*,p,pow_*-comm,pow_*-comm) equation
+            })
+          }
+          | func-* {x} {y} =>\case (smap n c cd ch p bd*n=ad+cd x).2, (smap n c cd ch p bd*n=ad+cd y).2, (smap n c cd ch p bd*n=ad+cd (x * y)).2 \with {
+            | inP (t1,q1), inP (t2,q2), inP (t3,q3) => inv q3 *> ext (
+              \case LocRing.unequals (powers a) $ pmap __.1 $ inv t3.4 *> pmap2 (*) t1.4 t2.4 \with {
+                | inP (_, inP (s, idp), e) => LocRing.equals-lem (powers b) (pow b (n * s)) (inP (n * s, idp)) $
+                    later $ rewrite (pow_*,pow_*,pow_*,pow_*,p,pow_*-comm,pow_*-comm,pow_*-comm,pow_*-comm) equation
+              }) *> pmap2 (*) q1 q2
+          }
+      }
+  }

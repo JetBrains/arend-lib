@@ -243,7 +243,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     List<? extends ConcreteArgument> args = contextData.getArguments();
     int currentArg = 0;
     ConcreteExpression occurrencesArg = args.get(0).isExplicit() ? null : args.get(currentArg++).getExpression();
-    List<? extends ConcreteExpression> args0 = Utils.getArgumentList(args.get(currentArg++).getExpression());
+    List<? extends ConcreteExpression> args0 = new ArrayList<>(Utils.getArgumentList(args.get(currentArg++).getExpression()));
     if (args0.isEmpty()) {
       return typechecker.typecheck(args.get(currentArg).getExpression(), contextData.getExpectedType());
     }

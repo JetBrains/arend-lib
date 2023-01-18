@@ -44,10 +44,10 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Group", name = "Group.inverse") public CoreClassField inverse;
 
   @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")         CoreClassDefinition MSemilattice;
-  @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")            CoreClassField meet;
-  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top")     CoreClassField top;
-  @Dependency(module = "Order.Lattice", name = "JoinSemilattice.join")            CoreClassField join;
-  @Dependency(module = "Order.Lattice", name = "Bounded.JoinSemilattice.bottom")  CoreClassField bottom;
+  @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")            public CoreClassField meet;
+  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top")     public CoreClassField top;
+  @Dependency(module = "Order.Lattice", name = "JoinSemilattice.join")            public CoreClassField join;
+  @Dependency(module = "Order.Lattice", name = "Bounded.JoinSemilattice.bottom")  public CoreClassField bottom;
   @Dependency(module = "Order.Lattice", name = "Bounded.DistributiveLattice")     CoreClassDefinition BoundedDistributiveLattice;
 
   @Dependency(module = "Algebra.Ordered")                                             public CoreClassDefinition LinearlyOrderedSemiring;
@@ -180,8 +180,7 @@ public class EquationMeta extends BaseMetaDefinition {
         solver = new EqualitySolver(this, typechecker, factory, refExpr, false);
       } else if (arg instanceof ConcreteReferenceExpression) {
         CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) arg).getReferent());
-        if (def instanceof CoreClassDefinition) {
-          CoreClassDefinition classDef = (CoreClassDefinition) def;
+        if (def instanceof CoreClassDefinition classDef) {
           if ((classDef.isSubClassOf(Monoid) || classDef.isSubClassOf(AddMonoid) || classDef.isSubClassOf(MSemilattice))) {
             argIndex = 1;
             solver = new EqualitySolver(this, typechecker, factory, refExpr, classDef);
@@ -247,15 +246,12 @@ public class EquationMeta extends BaseMetaDefinition {
     for (int i = 0; i < values.size(); i++) {
       if (values.get(i) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
         hasMissingProofs = true;
-      } else if (values.get(i) instanceof ConcreteExpression) {
-        ConcreteExpression expr = (ConcreteExpression) values.get(i);
-        if (solver.isHint(expr instanceof ConcreteGoalExpression ? ((ConcreteGoalExpression) expr).getExpression() : expr)) {
-          if (i > 0 && values.get(i - 1) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
-            hasMissingProofs = true;
-          } else {
-            errorReporter.report(new TypecheckingError("Hints must be between explicit arguments", (ConcreteExpression) values.get(i)));
-            values.remove(i--);
-          }
+      } else if (values.get(i) instanceof ConcreteExpression expr && solver.isHint(expr instanceof ConcreteGoalExpression ? ((ConcreteGoalExpression) expr).getExpression() : expr)) {
+        if (i > 0 && values.get(i - 1) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
+          hasMissingProofs = true;
+        } else {
+          errorReporter.report(new TypecheckingError("Hints must be between explicit arguments", (ConcreteExpression) values.get(i)));
+          values.remove(i--);
         }
       }
     }

@@ -20,6 +20,8 @@ import org.arend.lib.StdExtension;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.error.LinearSolverError;
 import org.arend.lib.error.TypeError;
+import org.arend.lib.meta.solver.BaseTermCompiler;
+import org.arend.lib.meta.solver.RingKind;
 import org.arend.lib.util.DefImplInstanceSearchParameters;
 import org.arend.lib.util.RelationData;
 import org.arend.lib.util.Utils;
@@ -235,14 +237,8 @@ public class LinearSolver {
     return result;
   }
 
-  private TermCompiler.Kind getTermCompilerKind(CoreExpression instance) {
-    CoreExpression instanceNorm = instance.normalize(NormalizationMode.WHNF);
-    CoreFunctionDefinition instanceDef = instanceNorm instanceof CoreFunCallExpression ? ((CoreFunCallExpression) instanceNorm).getDefinition() : null;
-    return instanceDef == ext.equationMeta.NatSemiring ? TermCompiler.Kind.NAT : instanceDef == ext.equationMeta.IntRing ? TermCompiler.Kind.INT : instanceDef == ext.equationMeta.RatField ? TermCompiler.Kind.RAT : TermCompiler.Kind.NONE;
-  }
-
   private TermCompiler makeTermCompiler(TypedExpression instance, CoreClassCallExpression classCall) {
-    return classCall == null ? null : new TermCompiler(classCall, instance, getTermCompilerKind(instance.getExpression()), ext, typechecker, marker);
+    return classCall == null ? null : new TermCompiler(classCall, instance, ext, typechecker, marker);
   }
 
   private void compileHypotheses(TermCompiler compiler, List<Hypothesis<CoreExpression>> equations, List<Hypothesis<CompiledTerm>> result) {
@@ -258,13 +254,11 @@ public class LinearSolver {
   }
 
   private ConcreteExpression equationToConcrete(Equation<CompiledTerm> equation) {
-    CoreConstructor constructor;
-    switch (equation.operation) {
-      case LESS: constructor = ext.linearSolverMeta.less; break;
-      case LESS_OR_EQUALS: constructor = ext.linearSolverMeta.lessOrEquals; break;
-      case EQUALS: constructor = ext.linearSolverMeta.equals; break;
-      default: throw new IllegalStateException();
-    }
+    CoreConstructor constructor = switch (equation.operation) {
+      case LESS -> ext.linearSolverMeta.less;
+      case LESS_OR_EQUALS -> ext.linearSolverMeta.lessOrEquals;
+      case EQUALS -> ext.linearSolverMeta.equals;
+    };
     return factory.tuple(equation.lhsTerm.concrete, factory.ref(constructor.getRef()), equation.rhsTerm.concrete);
   }
 
@@ -341,13 +335,13 @@ public class LinearSolver {
     return newLHS == null || newRHS == null ? null : new Hypothesis<>(rule.operation == Equation.Operation.EQUALS ? factory.app(factory.ref(ext.pmap.getRef()), true, factory.ref(ext.equationMeta.fromInt.getRef()), rule.proof) : factory.app(factory.ref(rule.operation == Equation.Operation.LESS ? ext.linearSolverMeta.fromIntL.getRef() : ext.linearSolverMeta.fromIntLE.getRef()), true, rule.proof), instance, rule.operation, newLHS, newRHS, rule.lcm);
   }
 
-  private Hypothesis<CoreExpression> convertHypothesis(Hypothesis<CoreExpression> rule, CoreExpression instance, TermCompiler.Kind from, TermCompiler.Kind to) {
-    if (from == TermCompiler.Kind.RAT || to == TermCompiler.Kind.NAT) return rule;
-    if (from == TermCompiler.Kind.NAT) {
+  private Hypothesis<CoreExpression> convertHypothesis(Hypothesis<CoreExpression> rule, CoreExpression instance, RingKind from, RingKind to) {
+    if (from == RingKind.RAT || to == RingKind.NAT) return rule;
+    if (from == RingKind.NAT) {
       rule = natToIntHypothesis(rule, instance);
       if (rule == null) return null;
     }
-    return to == TermCompiler.Kind.RAT ? intToRatHypothesis(rule, instance) : rule;
+    return to == RingKind.RAT ? intToRatHypothesis(rule, instance) : rule;
   }
 
   private void dropUnusedHypotheses(List<BigInteger> solution, List<?> list) {
@@ -386,7 +380,7 @@ public class LinearSolver {
           if (rule.instance.compare(resultEquation.instance, CMP.EQ)) {
             newRules.add(rule);
           } else {
-            Hypothesis<CoreExpression> newRule = convertHypothesis(rule, resultEquation.instance, getTermCompilerKind(rule.instance), compiler.getKind());
+            Hypothesis<CoreExpression> newRule = convertHypothesis(rule, resultEquation.instance, BaseTermCompiler.getTermCompilerKind(rule.instance, ext.equationMeta), compiler.getKind());
             if (newRule != null) {
               newRules.add(newRule);
             }
@@ -405,25 +399,23 @@ public class LinearSolver {
           makeZeroLessVar(instance.getExpression(), compiler, compiledRules);
         }
         switch (resultEquation.operation) {
-          case LESS:
+          case LESS -> {
             compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS_OR_EQUALS, compiledResults.term2, compiledResults.term1, compiledResults.lcm));
             function = ext.linearSolverMeta.solveLessProblem;
-            break;
-          case LESS_OR_EQUALS:
+          }
+          case LESS_OR_EQUALS -> {
             compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.term2, compiledResults.term1, compiledResults.lcm));
             function = ext.linearSolverMeta.solveLeqProblem;
-            break;
-          case EQUALS: {
+          }
+          case EQUALS -> {
             List<Equation<CompiledTerm>> compiledRules2 = new ArrayList<>(compiledRules1);
             compiledRules1.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.term1, compiledResults.term2, compiledResults.lcm));
             compiledRules2.add(new Hypothesis<>(null, resultEquation.instance, Equation.Operation.LESS, compiledResults.term2, compiledResults.term1, compiledResults.lcm));
             compiledRules2.addAll(compiledRules);
             rulesSet.add(compiledRules2);
             function = ext.linearSolverMeta.solveEqProblem;
-            break;
           }
-          default:
-            throw new IllegalStateException();
+          default -> throw new IllegalStateException();
         }
         compiledRules1.addAll(compiledRules);
         List<List<BigInteger>> solutions = new ArrayList<>(rulesSet.size());
@@ -458,7 +450,7 @@ public class LinearSolver {
     } else {
       List<List<Hypothesis<CoreExpression>>> rulesSet = new ArrayList<>();
       for (Hypothesis<CoreExpression> rule : rules) {
-        TermCompiler.Kind kind = getTermCompilerKind(rule.instance);
+        RingKind kind = BaseTermCompiler.getTermCompilerKind(rule.instance, ext.equationMeta);
         boolean found = false;
         for (int i = 0; i < rulesSet.size(); i++) {
           List<Hypothesis<CoreExpression>> newRules = rulesSet.get(i);
@@ -466,9 +458,9 @@ public class LinearSolver {
             newRules.add(rule);
             found = true;
             break;
-          } else if (kind != TermCompiler.Kind.NAT) {
-            TermCompiler.Kind newKind = getTermCompilerKind(newRules.get(0).instance);
-            if (newKind != TermCompiler.Kind.RAT) {
+          } else if (kind != RingKind.NAT) {
+            RingKind newKind = BaseTermCompiler.getTermCompilerKind(newRules.get(0).instance, ext.equationMeta);
+            if (newKind != RingKind.RAT) {
               found = true;
               List<Hypothesis<CoreExpression>> newRules2 = new ArrayList<>(newRules.size() + 1);
               boolean remove = true;
