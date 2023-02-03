@@ -75,11 +75,7 @@
     => \case decideEq n m \with {
       | yes e => inr e
       | no q => inl $ rewriteF (decideEq=_reduce $ inv $ fin-inc-left.char_nat {suc m} n) $
-          \let l => \new Array E (suc n Nat.+ suc m) (\lam j => \case decideEq n j, decideEq m j \with {
-            | yes _, _ => a
-            | no _, yes _ => negative a
-            | no _, no _ => 0
-          })
+          \let l => array2 n m a (negative a)
           \in homogen-unique l (\lam j => mcases \with {
             | yes p, d => rewriteI p ahn
             | no n1, yes p => rewriteI p (homogen-negative ahm)
@@ -89,7 +85,13 @@
                 (\lam k p1 p2 => rewrite (decideEq/=_reduce $ \lam p => p1 $ fin_nat-inj $ inv $ fin-inc-left.char_nat {suc m} n *> p, decideEq/=_reduce $ \lam p => p2 $ fin_nat-inj $ inv $ fin-inc-right.char_nat {suc n} m *> p) idp)
               *> rewrite (decideEq=_reduce $ inv $ fin-inc-left.char_nat {suc m} n, decideEq=_reduce $ inv $ fin-inc-right.char_nat {suc n} m, decideEq/=_reduce $ \lam p => q $ p *> fin-inc-right.char_nat {suc n} m) negative-right) (fin-inc-left {suc n} {suc m} n)
     } \where {
-      \lemma fin-ineq {n : Nat} {i j : Fin n} (d : i /= j) : suc i /= suc j
+      \func array2 (n m : Nat) (a b : E) => \new Array E (suc n Nat.+ suc m) $ \lam j => \case decideEq n j, decideEq m j \with {
+        | yes _, _ => a
+        | no _, yes _ => b
+        | no _, no _ => 0
+      }
+
+    \lemma fin-ineq {n : Nat} {i j : Fin n} (d : i /= j) : suc i /= suc j
         => \lam p => fin_nat-ineq d $ path (\lam i => pred (p i))
 
       \lemma sum-lem1 {l : Array E} (i : Fin l.len) (c : \Pi (k : Fin l.len) -> k /= i -> l k = 0) : BigSum l = l i \elim l, i
@@ -103,6 +105,36 @@
         | a :: l, suc i, 0 => pmap (a +) (sum-lem1 i $ \lam k d => c (suc k) (fin-ineq d) (\case __)) *> +-comm
         | a :: l, suc i, suc j => pmap (`+ _) (c 0 (\case __) (\case __)) *> zro-left *> sum-lem2 i j (\lam p => i/=j $ \lam i => suc (p i)) (\lam k d1 d2 => c (suc k) (fin-ineq d1) (fin-ineq d2))
   }
+
+  \func degree-unique2 {a b c : E} {n m k : Nat} (p : a = b + c) (ah : isHomogen a n) (bh : isHomogen b m) (ch : isHomogen c k) : Or (Or (b = 0) (c = 0)) (m = k)
+    => \case decideEq m k \with {
+      | yes m=k => inr m=k
+      | no m/=k => \let | l => degree-unique.array2 m k b c
+                        | s => homogen-similar {_} {l} {replicate n zro ++ a :: nil} (\lam j => mcases \with {
+                            | yes e, d => rewriteI e bh
+                            | no _, yes e => rewriteI e ch
+                            | no n1, no n2 => homogen-zro
+                          }) (homogen-++ (\lam j => homogen-zro) $ later $ \lam (0) => ah) $
+                          degree-unique.sum-lem2 {_} {l} (fin-inc-left {suc m} {suc k} m) (fin-inc-right {suc m} {suc k} k)
+                              (\lam p => m/=k $ inv (fin-inc-left.char_nat {suc k} m) *> p *> fin-inc-right.char_nat {suc m} k)
+                              (\lam l p1 p2 => rewrite (decideEq/=_reduce $ \lam p => p1 $ fin_nat-inj $ inv $ fin-inc-left.char_nat {suc k} m *> p, decideEq/=_reduce $ \lam p => p2 $ fin_nat-inj $ inv $ fin-inc-right.char_nat {suc m} k *> p) idp)
+                          *> rewrite (decideEq=_reduce $ inv $ fin-inc-left.char_nat {suc k} m, decideEq=_reduce $ inv $ fin-inc-right.char_nat {suc m} k, decideEq/=_reduce $ \lam p => m/=k $ p *> fin-inc-right.char_nat {suc m} k) (inv p) *> inv (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> zro-left *> zro-right)
+                   \in \case decideEq n m \with {
+                     | yes n=m => cases (decideEq m (fin-inc-right {suc m} k), decideEq k (fin-inc-right {suc m} k), similar-unique l a n s (fin-inc-right {suc m} {suc k} k) $ \lam p => m/=k $ inv n=m *> p *> fin-inc-right.char_nat {suc m} k) \with {
+                         | yes e, _, t => inl (inl t)
+                         | no n1, yes e, t => inl (inr t)
+                         | no _, no c, t => absurd $ c $ inv $ fin-inc-right.char_nat {suc m} k
+                       }
+                     | no n/=m => inl $ inl $ rewriteF (decideEq=_reduce $ inv $ fin-inc-left.char_nat {suc k} m) $ similar-unique l a n s (fin-inc-left {suc m} {suc k} m) $ \lam p => n/=m $ p *> fin-inc-left.char_nat {suc k} m
+                   }
+    }
+    \where {
+      \lemma similar-unique (l : Array E) (a : E) (n : Nat) (s : Similar l (replicate n zro ++ a :: nil)) (j : Fin l.len) (n/=j : n /= j) : l j = 0 \elim l, n, s, j
+        | a' :: l, 0, ::-::-similar p s, 0 => absurd (n/=j idp)
+        | a' :: l, 0, ::-::-similar p s, suc j => similar-nil s j
+        | a' :: l, suc n, ::-::-similar p s, 0 => p
+        | a' :: l, suc n, ::-::-similar p s, suc j => similar-unique l a n s j $ \lam q => n/=j (pmap suc q)
+    }
 
   \lemma homogen-++ {l l' : Array E} (lh : isHomogenArray l) (l'h : \Pi (j : Fin l'.len) -> isHomogen (l' j) (l.len Nat.+ j)) : isHomogenArray (l ++ l')
     => aux 0 lh l'h
@@ -121,7 +153,7 @@
     => TruncP.map (homogen-decomp c) $ \lam (l,lh,+l=c) => aux n m 0 lh $ homogen-similar
          (homogen-++ (\lam j => homogen-zro) $ later $ \lam (0) => bh)
          (homogen-++ (\lam j => homogen-zro) $ later $ \lam j => homogen-* ah (lh j))
-         (BigSum_++ *> pmap (`+ _) BigSum_replicate *> later (simplify $ simplify $ zro-left *> zro-right *>
+         (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> later (simplify $ zro-left *> zro-right *>
            b=ac *> pmap (a *) (inv +l=c) *> BigSum-ldistr *> inv zro-left) *> inv (BigSum_++ *> pmap (`+ _) BigSum_replicate))
     \where {
       \func aux {a b : E} (s t n : Nat) {l : Array E} (lh : \Pi (j : Fin l.len) -> isHomogen (l j) (n Nat.+ j)) (p : Similar (replicate s zro ++ b :: nil) (replicate t zro ++ map (a *) l))
@@ -133,10 +165,76 @@
         | suc s, 0, c :: l, ::-::-similar _ q => aux s 0 (suc n) (\lam j => lh (suc j)) q
         | suc s, suc t, l, ::-::-similar _ q => aux s t n lh q
     }
+
+  \lemma homogen-factor2 {a1 a2 b c d : E} (b=ac : b = a1 * c + a2 * d) {n m1 m2 : Nat} (bh : isHomogen b n) (a1h : isHomogen a1 m1) (a2h : isHomogen a2 m2)
+    : ∃ (c' d' : E) (k1 k2 : Nat) (isHomogen c' k1) (isHomogen d' k2) (b = a1 * c' + a2 * d')
+    => \case homogen-decomp c, homogen-decomp d \with {
+      | inP (l1,l1h,+l1=c1), inP (l2,l2h,+l2=c2) => inP $ aux n m1 m2 0 0 l1h l2h $ homogen-similar
+          (homogen-++ (\lam j => homogen-zro) $ later $ \lam (0) => bh)
+          (homogen-sum 0 (homogen-++ (\lam j => homogen-zro) (\lam j => later $ homogen-* a1h (l1h j))) (homogen-++ (\lam j => homogen-zro) (\lam j => later $ homogen-* a2h (l2h j))))
+          $ BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> zro-left *> zro-right *> b=ac *>
+            inv (BigSum_sum *> pmap2 (+) (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> zro-left) (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> zro-left) *> pmap2 (+) (inv BigSum-ldistr *> pmap (a1 *) +l1=c1) (inv BigSum-ldistr *> pmap (a2 *) +l2=c2))
+    }
+    \where {
+      \func sum (l l' : Array E) : Array E \elim l, l'
+        | nil, l' => l'
+        | a :: l, nil => a :: l
+        | a :: l, a' :: l' => a + a' :: sum l l'
+
+      \lemma sum_nil {l : Array E} : sum l nil = l \elim l
+        | nil => idp
+        | a :: l => idp
+
+      \lemma BigSum_sum {l l' : Array E} : BigSum (sum l l') = BigSum l + BigSum l' \elim l, l'
+        | nil, nil => inv zro-left
+        | nil, a :: l => inv zro-left
+        | a :: l, nil => inv zro-right
+        | a :: l, a' :: l' => pmap (_ +) BigSum_sum *> equation
+
+      \lemma homogen-sum {l l' : Array E} (n : Nat)
+                         (lh : \Pi (j : Fin l.len) -> isHomogen (l j) (n Nat.+ j))
+                         (l'h : \Pi (j : Fin l'.len) -> isHomogen (l' j) (n Nat.+ j))
+                         (j : Fin (DArray.len {sum l l'}))
+        : isHomogen (sum l l' j) (n Nat.+ j) \elim l, l', j
+        | nil, a :: l, 0 => l'h 0
+        | nil, a :: l, suc j => l'h (suc j)
+        | a :: l, nil, 0 => lh 0
+        | a :: l, nil, suc j => lh (suc j)
+        | a :: l, a' :: l', 0 => homogen-+ (lh 0) (l'h 0)
+        | a :: l, a' :: l', suc j => homogen-sum (suc n) (\lam j => lh (suc j)) (\lam j => l'h (suc j)) j
+
+      \func aux {a1 a2 b : E} (s t1 t2 n1 n2 : Nat) {l1 l2 : Array E}
+                (l1h : \Pi (j : Fin l1.len) -> isHomogen (l1 j) (n1 Nat.+ j))
+                (l2h : \Pi (j : Fin l2.len) -> isHomogen (l2 j) (n2 Nat.+ j))
+                (p : Similar (replicate s zro ++ b :: nil) (sum (replicate t1 zro ++ map (a1 *) l1) (replicate t2 zro ++ map (a2 *) l2)))
+        : \Sigma (c1 c2 : E) (k1 k2 : Nat) (isHomogen c1 k1) (isHomogen c2 k2) (b = a1 * c1 + a2 * c2) \elim s, t1, t2, l1, l2, p
+        | 0, 0, 0, nil, nil, ::-nil-similar p _ => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> inv (pmap2 (+) zro_*-right zro_*-right *> zro-left))
+        | 0, 0, 0, nil, c2 :: l2, ::-::-similar p q => (0, c2, 0, n2, homogen-zro, l2h 0, p *> inv (pmap (`+ _) zro_*-right *> zro-left))
+        | 0, 0, 0, c1 :: l1, nil, ::-::-similar p q => (c1, 0, n1, 0, l1h 0, homogen-zro, p *> inv (pmap (_ +) zro_*-right *> zro-right))
+        | 0, 0, 0, c1 :: l1, c2 :: l2, ::-::-similar p _ => (c1, c2, n1, n2, l1h 0, l2h 0, p)
+        | 0, 0, suc t2, nil, _, ::-::-similar p _ => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> inv (pmap2 (+) zro_*-right zro_*-right *> zro-left))
+        | 0, 0, suc t2, c1 :: l1, _, ::-::-similar p q => (c1, 0, n1, 0, l1h 0, homogen-zro, p *> inv (pmap (_ +) zro_*-right))
+        | 0, suc t1, 0, _, nil, ::-::-similar p q => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> inv (pmap2 (+) zro_*-right zro_*-right *> zro-left))
+        | 0, suc t1, 0, _, c2 :: l2, ::-::-similar p q => (0, c2, 0, n2, homogen-zro, l2h 0, p *> inv (pmap (`+ _) zro_*-right))
+        | 0, suc t1, suc t2, l1, l2, ::-::-similar p q => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> inv (pmap2 (+) zro_*-right zro_*-right))
+        | suc s, 0, 0, nil, nil, ::-nil-similar _ q => aux s 0 0 n1 n2 l1h l2h q
+        | suc s, 0, 0, nil, c2 :: l2, ::-::-similar _ q => aux s 0 0 n1 (suc n2) l1h (\lam j => l2h (suc j)) q
+        | suc s, 0, 0, c1 :: l1, nil, ::-::-similar _ q => aux s 0 0 (suc n1) n2 (\lam j => l1h (suc j)) l2h (rewrite sum_nil q)
+        | suc s, 0, 0, c1 :: l1, c2 :: l2, ::-::-similar _ q => aux s 0 0 (suc n1) (suc n2) (\lam j => l1h (suc j)) (\lam j => l2h (suc j)) q
+        | suc s, 0, suc t2, nil, l2, ::-::-similar _ q => aux s 0 t2 n1 n2 l1h l2h q
+        | suc s, 0, suc t2, c1 :: l1, l2, ::-::-similar _ q => aux s 0 t2 (suc n1) n2 (\lam j => l1h (suc j)) l2h q
+        | suc s, suc t1, 0, l1, nil, ::-::-similar _ q => aux s t1 0 n1 n2 l1h l2h (rewrite sum_nil q)
+        | suc s, suc t1, 0, l1, c2 :: l2, ::-::-similar _ q => aux s t1 0 n1 (suc n2) l1h (\lam j => l2h (suc j)) q
+        | suc s, suc t1, suc t2, l1, l2, ::-::-similar _ q => aux s t1 t2 n1 n2 l1h l2h q
+    }
 } \where {
   \data Similar {A : AddPointed} (l l' : Array A) \elim l, l'
     | nil, nil => nil-nil-similar
     | nil, a :: l' => nil-::-similar (a = 0) (Similar nil l')
     | a :: l, nil => ::-nil-similar (a = 0) (Similar l nil)
     | a :: l, a' :: l' => ::-::-similar (a = a') (Similar l l')
+
+  \lemma similar-nil {A : AddPointed} {l : Array A} (s : Similar l nil) (j : Fin l.len) : l j = 0 \elim l, s, j
+    | a :: l, ::-nil-similar p s, 0 => p
+    | a :: l, ::-nil-similar p s, suc j => similar-nil s j
 }

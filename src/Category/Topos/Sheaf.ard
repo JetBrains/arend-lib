@@ -8,7 +8,6 @@
 \import Logic
 \import Logic.Meta
 \import Meta
-\import Order.Lattice
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
@@ -80,16 +79,34 @@
   | isCover (x : Ob) : Sieve x -> \Prop
   | cover-stable {x y : Ob} (h : Hom x y) {s : Sieve y} (c : isCover y s) : isCover x (s.pullback h)
 
+\record SitePrehom \extends Functor \lp {
+  \override C : Site
+  \override D : Site
+  | F-cover {x : C} {s : Sieve x} : isCover x s -> isCover (F x) (Sieve.map \this s)
+}
+
 \func inducedSite {C : SmallPrecat} {D : Site} (F : Functor C D) : Site \cowith
   | Precat => C
   | isCover x s => ∃ (s' : Sieve (F x)) (isCover (F x) s') (\Pi {y : C} (h : Hom y x) -> s h = s' (F.Func h))
   | cover-stable h {s} (inP (s' : Sieve, c, p)) => inP (s'.pullback (F.Func h), cover-stable (F.Func h) c, \lam g => p (h ∘ g) *> pmap (s' __) Func-o)
 
-\class SiteWithBasis \extends Site, PrecatWithPullbacks (\lp,\lp)
+\class SiteWithBasis \extends Site, PrecatWithPullbacks (\lp,\lp) {
   | isBasicCover (x : Ob) {J : \Set} (g : J -> slicePrecat x) : \Prop
   | basicCover-stable {x y : Ob} (f : Hom x y) {J : \Set} {g : J -> slicePrecat y} : isBasicCover y g -> isBasicCover x (\lam j => pullbackFunctor f (g j))
   | isCover x s => ∃ (J : \Set) (g : J -> slicePrecat x) (isBasicCover x g) (\Pi (j : J) -> s (g j).2)
   | cover-stable h {s} (inP (J,g,c,d)) => inP (J, \lam j => pullbackFunctor h (g j), basicCover-stable h c, \lam j => transportInv (s {_}) (Pullback.pbCoh {pullback h (g j).2}) (isSieve _ (d j)))
+
+  \lemma genSieve (a : Ob) {J : \Set} (g : J -> slicePrecat a) : Sieve a (\lam {b} f => ∃ (j : J) (h : Hom b (g j).1) ((g j).2 ∘ h = f)) \cowith
+    | isSieve {z} {y} f (inP (j,h,s)) => inP (j, h ∘ f, inv o-assoc *> pmap (`∘ f) s)
+}
+
+\record SiteWithBasisPrehom \extends Functor \lp {
+  \override C : SiteWithBasis
+  \override D : SiteWithBasis
+  | F-basicCover {x : C} {J : \Set} {g : J -> slicePrecat x} : isBasicCover x g -> isBasicCover (F x) (\lam j => (F (g j).1, Func (g j).2))
+  | F-pullback {x y z : C} {f : Hom x z} {g : Hom y z} : Iso {D} {F (pullback f g)} {pullback (Func f) (Func g)} $
+      pbMap (Func pbProj1) (Func pbProj2) $ inv Func-o *> pmap Func pbCoh *> Func-o
+}
 
 -- | Presheaves valued in {D}
 \record VPresheaf (D : Cat (\suc \lp)) (C : SmallPrecat) (\coerce F : Functor C.op D)
@@ -141,36 +158,58 @@
         }
       }
 
-  \func direct_image {L L' : Locale} (f : FrameHom L' L) (S : VSheaf { | C => L }) : VSheaf S.D L'
-    => vsheafOnSiteWithBasis (Comp S f.functor.op) $ \lam x {J} g c z =>
-        transEquiv (vsheafMatchingFamily S (f x) {J} (\lam j => (f (g j).1, func-<= (g j).2)) (func-<= c <=∘ func-Join>=) z) $ later $
-          \have h j j' : Iso {_} {f ((g j).1 ∧ (g j').1)} {f (g j).1 ∧ f (g j').1} => rewrite f.func-meet idIso
-          \in \new QEquiv {
-            | f (m : MatchingFamily) => \new MatchingFamily {
-              | family => m.family
-              | isMatching j j' => pmap (`∘ _) Func-o *> o-assoc *> pmap (S.F.Func (Iso.f {h j j'}) ∘) (m.isMatching j j') *> inv (pmap (`∘ _) Func-o *> o-assoc)
-            }
-            | ret (m : MatchingFamily) => \new MatchingFamily {
-              | family => m.family
-              | isMatching j j' => pmap (`∘ _) Func-o *> o-assoc *> pmap (S.F.Func (Iso.inv {h j j'}) ∘) (m.isMatching j j') *> inv (pmap (`∘ _) Func-o *> o-assoc)
-            }
-            | ret_f m => idp
-            | f_sec m => idp
-          }
+  \lemma direct_image {C C' : SiteWithBasis} (f : SiteWithBasisPrehom C C') (S : VSheaf { | C => C' }) : VSheaf S.D C (Comp S f.op)
+    => vsheafOnSiteWithBasis (Comp S f.op) $ \lam x {J} g c z =>
+         transEquiv (vsheafMatchingFamily S (f x) {J} (\lam j => (f (g j).1, f.Func (g j).2)) (f.F-basicCover c) z) $ later $ \new QEquiv {
+           | f (m : MatchingFamily) => \new MatchingFamily {
+             | family => m.family
+             | isMatching j j' =>
+                \have e : Iso => f.F-pullback
+                \in isMono {Iso.reverse {S.F.Func-iso e.op}} $ inv o-assoc *> pmap (`∘ _) (inv Func-o *> pmap Func (unfold $ inv $ e.adjoint' pbBeta1)) *> m.isMatching j j' *> pmap (`∘ _) (pmap Func (unfold $ e.adjoint' pbBeta2) *> Func-o) *> o-assoc
+           }
+           | ret (m : MatchingFamily) => \new MatchingFamily {
+             | family => m.family
+             | isMatching j j' => isMono {S.F.Func-iso $ Iso.op {f.F-pullback}} $ inv o-assoc *> pmap (`∘ _) (inv Func-o *> pmap Func pbBeta1) *> m.isMatching j j' *> pmap (`∘ _) (pmap Func (inv pbBeta2) *> Func-o) *> o-assoc
+           }
+           | ret_f => idpe
+           | f_sec => idpe
+         }
+
+  \lemma direct_image_framePres {P P' : FramePres} (f : FramePresPrehom P P') (S : VSheaf { | C => framePresSite P' }) : VSheaf S.D (framePresSite P) (Comp S f.functor.op)
+    => direct_image (\new SiteWithBasisPrehom {
+      | Functor => f.functor
+      | F-basicCover => TruncP.map __ $ \lam t => (f t.1, Cover.map t.2, \lam j => f (t.3 j), f.func-cover t.4, \lam j => (Cover.map (t.5 j).1, rewriteI f.func-conj $ Cover.map (t.5 j).2))
+      | F-pullback => \new Iso {
+        | inv => rewriteI f.func-conj $ cover-inj () idp
+        | inv_f => idp
+        | f_inv => idp
+      }
+    }) S
+
+  \lemma direct_image_locale {L L' : Locale} (f : FrameHom L' L) (S : VSheaf { | C => L }) : VSheaf S.D L' (Comp S f.functor.op)
+    => direct_image (\new SiteWithBasisPrehom {
+      | Functor => f.functor
+      | F-basicCover => func-<= __ <=∘ func-Join>=
+      | F-pullback => \new Iso {
+        | inv => func-meet>=
+        | inv_f => idp
+        | f_inv => idp
+      }
+    }) S
     \where {
-      \func map {L L' : Locale} {D : Cat (\suc \lp)} (f : FrameHom L' L) {S S' : VSheaf D L} (a : NatTrans S S') : NatTrans (direct_image f S) (direct_image f S') \cowith
+      \func map {L L' : Locale} {D : Cat (\suc \lp)} (f : FrameHom L' L) {S S' : VSheaf D L} (a : NatTrans S S') : NatTrans (direct_image_locale f S) (direct_image_locale f S') \cowith
         | trans x => a (f x)
         | natural g => a.natural (f.functor.Func g)
     }
 
-  \func direct_image_id {L : Locale} (S : VSheaf { | C => L }) : direct_image (id L) S = {VSheaf S.D L} S
+  \func direct_image_id {L : Locale} (S : VSheaf { | C => L }) : direct_image_locale (id L) S = {VSheaf S.D L} S
     => ext $ ext (idp, ext $ \lam {X} {Y} h => pmap Func $ Path.inProp _ _)
 
-  \func transport_direct_image {L L' : Locale} (p : L = L') (S : VSheaf { | C => L }) : transport (VSheaf S.D) p S = direct_image (Iso.f {Precat.idtoiso p}) S \elim p
+  \func transport_direct_image {L L' : Locale} (p : L = L') (S : VSheaf { | C => L }) : transport (VSheaf S.D) p S = direct_image_locale (Iso.f {Precat.idtoiso p}) S \elim p
     | idp => inv (direct_image_id S)
 
-  \func transport_direct_image-iso {L L' : Locale} (e : Iso {LocaleCat} {L} {L'}) (S : VSheaf { | C => L }) : transport (VSheaf S.D) (Cat.isotoid e) S = direct_image e.f S
-    => transport_direct_image (Cat.isotoid e) S *> path (\lam i => direct_image (Iso.f {univalence.f_ret e i}) S)
+  \func transport_direct_image-iso {L L' : Locale} (e : Iso {LocaleCat} {L} {L'}) (S : VSheaf { | C => L }) : transport (VSheaf S.D) (Cat.isotoid e) S = direct_image_locale e.f S
+    => transport_direct_image (Cat.isotoid e) S *> path (\lam i => direct_image_locale (Iso.f {univalence.f_ret e i}) S)
 }
 
 -- | Sheaves valued in sets
