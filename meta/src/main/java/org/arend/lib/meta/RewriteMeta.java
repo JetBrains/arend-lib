@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.*;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 
+import org.arend.lib.error.TypeError;
 import org.arend.lib.meta.equation.EqualitySolver;
 import org.arend.lib.meta.equation.EquationSolver;
 import org.arend.lib.meta.util.SubstitutionMeta;
@@ -63,8 +64,7 @@ public class RewriteMeta extends BaseMetaDefinition {
   }
 
   private EquationSolver.SubexprOccurrences matchSubexpr(CoreExpression subExpr, CoreExpression expr, ExpressionTypechecker tc, ConcreteReferenceExpression refExpr, List<Integer> occurrences, ConcreteFactory factory) {
-    var result = solver.matchSubexpr(subExpr.computeTyped(), expr.computeTyped(), tc.getErrorReporter(), occurrences);
-    return result;
+    return solver.matchSubexpr(subExpr.computeTyped(), expr.computeTyped(), tc.getErrorReporter(), occurrences);
   }
 
   private class RewriteExpressionProcessor implements Function<CoreExpression, CoreExpression.FindAction> {
@@ -414,7 +414,7 @@ public class RewriteMeta extends BaseMetaDefinition {
 
         TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {
-          errorReporter.report(new SubexprError(occurrences, value, null, normType, refExpr));
+          errorReporter.report(typeWithOccur == null ? new SubexprError(occurrences, value, null, normType, refExpr) : new TypeError("Cannot substitute a variable. The resulting type is invalid", typeWithOccur, refExpr));
         }
         return result;
       }
