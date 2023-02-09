@@ -227,12 +227,22 @@
       | var-leaf _ => false
       | inv-var-leaf _ => true
 
+    \func val (l : Leaf) : V \elim l
+      | var-leaf v => v
+      | inv-var-leaf v => v
+
     \func toLeaf (t : GroupTerm V) : Maybe Leaf \elim t
       | l :* r => nothing
       | var v => just $ var-leaf v
       | :ide => nothing
       | :inv (var v) => just $ inv-var-leaf v
       | :inv _ => nothing
+
+    \func toLeafToTerm-isInv (t : GroupTerm V) (l : Leaf) (p : toLeaf t = just l) : t = leaf-to-term l \elim t
+      | var v => rewrite (inv $ just-injective p) idp
+      | :ide => contradiction
+      | :inv (var v) => rewrite (inv $ just-injective p) idp
+      | l :* r => contradiction
   }
 
   \func rp-returns-true-lemma''' (l r : GroupTerm V) (fstLeafToRemoveInd : Nat)
@@ -443,12 +453,20 @@
         \elim ind
           | 0 => nothing
           | suc ind \as suc-ind => cases ((Leaf.toLeaf $ get-leaf t suc-ind) arg addPath, (Leaf.toLeaf $ get-leaf t (suc suc-ind)) arg addPath) \with {
-            | just leaf, p, just suc-leaf, q => \case decideEq (Leaf.isInv leaf) (not $ Leaf.isInv suc-leaf) \with {
-              | yes e => {?}
+            | just leaf, p, just suc-leaf, q => \case decideEq (Leaf.isInv leaf, Leaf.val leaf) (not $ Leaf.isInv suc-leaf, Leaf.val suc-leaf) \with {
+              | yes e => just (suc-ind,
+                               rewrite (Leaf.toLeafToTerm-isInv (get-leaf t suc-ind) leaf p, Leaf.toLeafToTerm-isInv (get-leaf t (suc suc-ind)) suc-leaf q) (leaf-isInv-lemma leaf suc-leaf (pmap __.1 e) (pmap __.2 e)))
               | no n => find-fstLeafToRemoveInd-rec t ind
             }
             | _, _, _, _ => nothing
           }
+
+      \func leaf-isInv-lemma (l l' : Leaf) (p : Leaf.isInv l = not (Leaf.isInv l')) (q : Leaf.val l = Leaf.val l')
+        : interpret (Leaf.leaf-to-term l) = inverse (interpret (Leaf.leaf-to-term l')) \elim l, l'
+        | var-leaf v, var-leaf v1 => contradiction
+        | var-leaf v, inv-var-leaf v1 => rewrite (q, Group.inverse-isInv) idp
+        | inv-var-leaf v, var-leaf v1 => rewrite q idp
+        | inv-var-leaf v, inv-var-leaf v1 => contradiction
     }
 
   \func find-pair-to-remove (t : GroupTerm V) (lastVisitedLeaf : Maybe Leaf)
