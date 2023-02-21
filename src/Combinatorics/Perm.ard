@@ -1,0 +1,162 @@
+\import Algebra.Group
+\import Algebra.Monoid
+\import Arith.Fin
+\import Data.Array
+\import Equiv
+\import Function
+\import Function.Meta ($)
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set
+\open FinLinearOrder (FinLinearOrderInst)
+
+\instance SymmetricGroup (A : \Set) : Group (Equiv {A} {A})
+  | ide => idEquiv
+  | * => transEquiv
+  | ide-left => Equiv.equals idp
+  | ide-right => Equiv.equals idp
+  | *-assoc => Equiv.equals idp
+  | inverse e => symQEquiv e
+  | inverse-left {e : Equiv} => Equiv.equals (ext e.f_ret)
+  | inverse-right {e : Equiv} => Equiv.equals (ext e.ret_f)
+
+\func cycle-perm {A : DecSet} (l : Array A) : SymmetricGroup A
+  => \new QEquiv {
+    | f => cycle l
+    | ret => cycle (reverse-cycle l)
+    | ret_f => {?}
+    | f_sec => {?}
+  }
+  \where {
+    \func cycle (l : Array A) (x : A) : A \elim l
+      | nil => x
+      | a :: l => cycle-tail (a :: l) a x
+
+    \func cycle-tail (l : Array A) (a : A) (x : A) : A \elim l
+      | nil => x
+      | a' :: nil => \case decideEq x a' \with {
+        | yes _ => a
+        | no _ => x
+      }
+      | a1 :: (a2 :: _ \as l) => \case decideEq x a1 \with {
+        | yes _ => a2
+        | no _ => cycle-tail l a x
+      }
+
+    \lemma cycle-tail-iter (l : Array A) (a x : A) : iterl (cycle l) l.len x = x \elim l
+      | nil => idp
+      | a' :: nil => mcases \with {
+        | yes p => inv p
+        | no n => idp
+      }
+      | a1 :: a2 :: l => cases (decideEq x a1) \with {
+        | yes e => {?}
+        | no n => {?}
+      }
+
+    \func reverse-cycle (l : Array A) : Array A \elim l
+      | nil => nil
+      | a :: l => a :: reverse l
+
+    \lemma cycle-lem' {l : Array A} {a a' x : A} (diff : All2 (/=) (a :: a' :: l)) (c : cycle (a :: reverse (a' :: l)) x /= a)
+      : cycle-tail (a' :: l) a (cycle (a :: reverse (a' :: l)) x) = x \elim l
+      | nil => cases (decideEq x a, c) \with {
+        | yes e, _ => rewrite (decideEq=_reduce (idpe a')) (inv e)
+        | no q, c => cases (decideEq x a', c) \with {
+          | yes e, c => mcases \with {
+            | yes p => p *> inv e
+            | no s => absurd (c idp)
+          }
+          | no s, _ => rewrite (decideEq/=_reduce s) idp
+        }
+      }
+      | a1 :: l => mcases \with {
+        | yes p => {?}
+        | no n => {?}
+      }
+
+    \lemma cycle-lem {l : Array A} {a x : A} (diff : All2 (/=) (a :: l)) : cycle (a :: l) (cycle (a :: reverse l) x) = x \elim l
+      | nil => cases (decideEq x a) \with {
+        | yes e => mcases (inv e)
+        | no q => rewrite (decideEq/=_reduce q) idp
+      }
+      | a' :: l => mcases \with {
+        | yes e => \let t => inv e *> pmap (\lam z => cycle (a :: z) x) reverse-cons \in cycle-tail-lem (reverse l) (\case \elim diff \with {
+          | all2-cons (all-cons c d) (all2-cons e diff) => all2-cons (all-cons c $ all-reverse d) $ all2-cons (all-reverse e) (all2-reverse (\lam q p => q (inv p)) diff)
+        }) t
+        | no q => {?} -- pmap (\lam z => cycle-tail (a' :: l) a (cycle-tail (a :: z) a x)) reverse-cons *> {?}
+      }
+
+    \lemma cycle-tail-lem (l : Array A) {a a' x : A} (diff : All2 (/=) (a :: a' :: l)) (p : a = cycle-tail (a :: l ++ a' :: nil) a x) : a' = x \elim l
+      | nil => cases (decideEq x a, p) \with {
+        | yes e, p => inv (e *> p)
+        | no t, p => cases (decideEq x a', p) \with {
+          | yes e, p => inv e
+          | no _, s => absurd $ t (inv s)
+        }
+      }
+      | a2 :: l => cases (decideEq x a, p) \with {
+        | yes _, a=a2 => \case \elim diff \with {
+          | all2-cons (all-cons _ (all-cons a/=a2 _)) _ => absurd (a/=a2 a=a2)
+        }
+        | no x/=a, p => cycle-tail-lem2 (skip3 diff) x/=a p
+      }
+
+    \func skip3 {a1 a2 a3 : A} {l : Array A} (diff : All2 (/=) (a1 :: a2 :: a3 :: l)) : All2 (/=) (a1 :: a2 :: l) \elim diff
+      | all2-cons (all-cons a/=a' (all-cons _ c)) (all2-cons (all-cons _ d) (all2-cons _ e)) => all2-cons (all-cons a/=a' c) (all2-cons d e)
+
+    \lemma cycle-tail-lem2 {l : Array A} {a a1 a' x : A} (diff : All2 (/=) (a :: a' :: l)) (x/=a : x /= a) (p : a = cycle-tail (a1 :: l ++ a' :: nil) a x) : a' = x \elim l
+      | nil => cases (decideEq x a1, p) \with {
+        | yes _, a=a' => \case \elim diff \with {
+          | all2-cons (all-cons a/=a' _) _ => absurd (a/=a' a=a')
+        }
+        | no n, p => cases (decideEq x a', p) \with {
+          | yes e, _ => inv e
+          | no q, a=x => absurd (x/=a (inv a=x))
+        }
+      }
+      | a2 :: l => cases (decideEq x a1, p) \with {
+        | yes _, a=a2 => \case \elim diff \with {
+          | all2-cons (all-cons _ (all-cons a/=a2 _)) _ => absurd (a/=a2 a=a2)
+        }
+        | no q, p => cycle-tail-lem2 (skip3 diff) x/=a p
+      }
+  }
+
+\func transposition {A : DecSet} (a a' : A) : SymmetricGroup A
+  => \new QEquiv {
+    | f => transpose
+    | ret => transpose
+    | ret_f => transpose-isInv
+    | f_sec => transpose-isInv
+  }
+  \where {
+    \func transpose (x : A) : A
+      => \case decideEq x a, decideEq x a' \with {
+        | yes _, _ => a'
+        | _, yes _ => a
+        | no _, no _ => x
+      }
+
+    \lemma transpose-isInv (x : A) : transpose (transpose x) = x
+      => unfold transpose (cases (decideEq x a, decideEq x a') \with {
+        | yes e, yes e' => rewrite (decideEq=_reduce (inv e' *> e), decideEq=_reduce (idpe a')) (inv e')
+        | yes e, no q => rewrite (decideEq=_reduce (idpe a')) $ cases (decideEq a' a) \with {
+          | yes e' => e' *> inv e
+          | no _ => inv e
+        }
+        | no n, yes e => rewrite (decideEq=_reduce (idpe a)) $ cases (decideEq a a') (inv e)
+        | no q, no q' => rewrite (decideEq/=_reduce q, decideEq/=_reduce q') idp
+      })
+  }
+
+\func transposition-generates (n : Nat) : Monoid.AGenerates {SymmetricGroup (Fin n)} {?}
+  => \lam e => {?}
+  \where {
+    \func array (n : Nat) : Array (SymmetricGroup (Fin n)) \elim n
+      | 0 => nil
+      | suc n => \new Array _ n $ \lam j => transposition (j : Fin (suc n)) (suc j)
+  }
