@@ -2,10 +2,16 @@
 \import Algebra.Pointed
 \import Arith.Nat
 \import Data.Array
+\import Equiv
+\import Equiv.Univalence
+\import Function.Meta
 \import HLevel
+\import Logic
+\import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Set.Fin
 
 \class Monoid \extends Pointed {
   | \infixl 7 * : E -> E -> E
@@ -28,6 +34,14 @@
   \lemma pow_ide {n : Nat} : pow ide n = ide \elim n
     | 0 => idp
     | suc n => ide-right *> pow_ide
+
+  \func BigProduct (l : Array E) => Big (*) ide l
+
+  \type Generates (P : E -> \Prop)
+    => \Pi (x : E) -> ∃ (l : Array E) (∀ (y : l) (P y)) (x = BigProduct l)
+
+  \type AGenerates (l : Array E)
+    => Generates (\lam x => ∃ (y : l) (x = y))
 } \where {
   \func equals {M N : Monoid} (p : M = {\Set} N) (q : \let f x => coe (p @) x right \in \Pi (x y : M) -> f (x * y) = f x * f y) : M = N
     => exts (p, ide-equality , q)
@@ -275,6 +289,9 @@
   \lemma BigSum_zro {l : Array E} (p : \Pi (j : Fin l.len) -> l j = zro) : BigSum l = zro \elim l
     | nil => idp
     | :: a arr => pmap2 (+) (p 0) (BigSum_zro (\lam j => p (suc j))) *> zro-left
+
+  \func FinSum {n : Nat} (x : Fin n -> E) : E
+    => BigSum x
 } \where {
     \use \coerce fromMonoid (M : Monoid) => \new AddMonoid M.E M.ide (M.*) M.ide-left M.ide-right M.*-assoc
     \use \coerce toMonoid (M : AddMonoid) => \new Monoid M.E M.zro (M.+) M.zro-left M.zro-right M.+-assoc
@@ -306,6 +323,21 @@
     : BigSum (\lam i => BigSum (f i)) = BigSum (\lam j => BigSum (f __ j)) \elim n
     | 0 => BigSum_zro (\lam _ => idp)
     | suc _ => BigSum_+ *> pmap (_ +) (BigSum_transpose _)
+
+  \sfunc FinSetSum {A : FinSet} (x : A -> E) : E
+    => char-pair.1
+    \where {
+      \lemma equiv-invariant {n : Nat} (e : Equiv {Fin n} {Fin n}) (x : Fin n -> E) : FinSum x = FinSum (\lam j => x (e j)) \elim n
+        | 0 => idp
+        | suc n => {?}
+
+      \lemma char-pair =>
+        TruncP.rec-set {Equiv {Fin A.finCard} {A}} (TruncP.map A.finEq $ \lam p => =-to-Equiv (inv p)) (\lam e => FinSum (\lam j => x (e j))) $
+          \lam (e : Equiv) e' => equiv-invariant (transEquiv e' (symQEquiv e)) _ *> pmap FinSum (ext $ \lam j => pmap x (e.f_ret _))
+
+      \lemma char : ∃ (e : Equiv {Fin A.finCard} {A}) (FinSum (\lam j => x (e j)) = FinSetSum x)
+        => rewrite (\peval FinSetSum x) char-pair.2
+    }
 }
   \where {
     \use \coerce fromCMonoid (M : CMonoid) => \new AbMonoid M.E M.ide (M.*) M.ide-left M.ide-right M.*-assoc M.*-comm

@@ -2,8 +2,8 @@
 \import Algebra.Monoid
 \import Arith.Fin
 \import Data.Array
+\import Data.Fin (fsuc, fzero)
 \import Equiv
-\import Function
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
@@ -11,6 +11,7 @@
 \import Paths
 \import Paths.Meta
 \import Set
+\import Set.Fin
 \open FinLinearOrder (FinLinearOrderInst)
 
 \instance SymmetricGroup (A : \Set) : Group (Equiv {A} {A})
@@ -23,6 +24,7 @@
   | inverse-left {e : Equiv} => Equiv.equals (ext e.f_ret)
   | inverse-right {e : Equiv} => Equiv.equals (ext e.ret_f)
 
+{-
 \func cycle-perm {A : DecSet} (l : Array A) : SymmetricGroup A
   => \new QEquiv {
     | f => cycle l
@@ -125,6 +127,7 @@
         | no q, p => cycle-tail-lem2 (skip3 diff) x/=a p
       }
   }
+-}
 
 \func transposition {A : DecSet} (a a' : A) : SymmetricGroup A
   => \new QEquiv {
@@ -151,12 +154,113 @@
         | no n, yes e => rewrite (decideEq=_reduce (idpe a)) $ cases (decideEq a a') (inv e)
         | no q, no q' => rewrite (decideEq/=_reduce q, decideEq/=_reduce q') idp
       })
+
+    \lemma transpose-left : transpose a = a'
+      => unfold transpose (rewrite (decideEq=_reduce (idpe a)) $ cases (decideEq a a') idp)
+
+    \lemma transpose-right : transpose a' = a
+      => unfold transpose (rewrite (decideEq=_reduce (idpe a')) $ cases (decideEq a' a) \with {
+        | yes e => e
+        | no n => idp
+      })
+
+    \lemma transpose-inv-left {x : A} (p : transpose x = a) : x = a'
+      => unfold transpose at p $ cases (decideEq x a, decideEq x a', p) \with {
+        | yes e, yes e', p => e'
+        | yes e, no q, p => e *> inv p
+        | no q, yes e, p => e
+        | no q, no q', p => absurd (q p)
+      }
+
+    \lemma transpose-inv-right {x : A} (p : transpose x = a') : x = a
+      => unfold transpose at p $ cases (decideEq x a, decideEq x a', p) \with {
+        | yes e, yes e', p => e
+        | yes e, no q, p => e
+        | no q, yes e, p => e *> inv p
+        | no q, no q', p => absurd (q' p)
+      }
+
+    \lemma transpose-inv-other {x : A} (p : transpose x /= a) (q : transpose x /= a') : transpose x = x
+      => unfold transpose (mcases \with {
+        | yes p1, d => absurd $ q $ rewrite p1 transpose-left
+        | d, yes p1 => absurd $ p $ rewrite p1 transpose-right
+        | no n, no n1 => idp
+      })
   }
 
-\func transposition-generates (n : Nat) : Monoid.AGenerates {SymmetricGroup (Fin n)} {?}
-  => \lam e => {?}
+\lemma transposition-generates (n : Nat) : Monoid.Generates {SymmetricGroup (Fin n)} (\lam e => ∃ (x y : Fin n) (e = transposition x y)) \elim n
+  | 0 => \lam e => inP (nil, \case __ \with {}, Equiv.equals $ ext $ \case __)
+  | suc n => \lam (e : Equiv) =>
+      \let | e' => transEquiv (transposition fzero (e.ret 0)) e
+           | e'0=0 : e' 0 = 0 => unfold $ unfold $ unfold transposition.transpose $ rewrite (decideEq=_reduce (idpe (0 : Fin (suc n)))) $ cases (decideEq fzero (e.ret 0)) (e.f_ret 0)
+      \in TruncP.map (transposition-generates n $ reduce-equiv e' e'0=0) $
+      \lam t => (transposition fzero (e.ret 0) :: map lift-equiv t.1, \case \elim __ \with {
+        | 0 => inP (0, e.ret 0, idp)
+        | suc j => TruncP.map (t.2 j) $ \lam p => (suc p.1, suc p.2, rewrite p.3 $ Equiv.equals {Fin (suc n)} {Fin (suc n)} $ ext $ lift_transposition p.1 p.2)
+      }, Equiv.equals $ ext $ \lam j =>
+        \let x => transposition.transpose fzero (e.ret 0) j
+        \in pmap e (later $ cases (decideEq x fzero, decideEq x (e.ret 0)) \with {
+          | yes e1, yes e2 => transposition.transpose-inv-left _ _ e1
+          | yes e1, no n1 => transposition.transpose-inv-left _ _ e1
+          | no n1, yes e1 => transposition.transpose-inv-right _ _ e1
+          | no n1, no n2 => inv (transposition.transpose-inv-other _ _ n1 n2)
+        }) *> pmap {Equiv {Fin (suc n)} {Fin (suc n)}} (__ x) (inv (lift_reduce (transEquiv (transposition fzero (e.ret 0)) e) {e'0=0}) *> pmap lift-equiv t.3 *> inv (lift_product t.1)) )
   \where {
-    \func array (n : Nat) : Array (SymmetricGroup (Fin n)) \elim n
-      | 0 => nil
-      | suc n => \new Array _ n $ \lam j => transposition (j : Fin (suc n)) (suc j)
+    \func reduce {n : Nat} (x : Fin (suc n)) (x/=0 : x /= 0) : Fin n \elim x
+      | 0 => absurd (x/=0 idp)
+      | suc x => x
+
+    \lemma suc_reduce {n : Nat} {x : Fin (suc n)} {x/=0 : x /= 0} : suc (reduce x x/=0) = x \elim x
+      | 0 => absurd (x/=0 idp)
+      | suc x => idp
+
+    \lemma reduce-lem {n : Nat} {x y : Fin (suc n)} {x/=0 : x /= 0} (p : x = y) : reduce x x/=0 = reduce y (\lam y=0 => x/=0 (p *> y=0)) \elim p
+      | idp => idp
+
+    \func reduce-equiv {n : Nat} (e : Equiv {Fin (suc n)} {Fin (suc n)}) (p : e 0 = 0) : Equiv {Fin n} {Fin n}
+      => \new QEquiv {
+        | f j => reduce (e (suc j)) $ \lam q => \case e.isInj (q *> inv p)
+        | ret j => reduce (e.ret (suc j)) $ \lam q => \case inv p *> e.adjointInv (inv q)
+        | ret_f j => reduce-lem (pmap e.ret suc_reduce) *> reduce-lem (e.ret_f _)
+        | f_sec j => reduce-lem (pmap e suc_reduce) *> reduce-lem (e.f_ret _)
+      }
+
+    \func lift {n : Nat} (e : Fin n -> Fin n) (x : Fin (suc n)) : Fin (suc n) \elim x
+      | 0 => 0
+      | suc x => suc (e x)
+
+    \lemma lift-equiv {n : Nat} (e : Equiv {Fin n} {Fin n}) : Equiv {Fin (suc n)} {Fin (suc n)} (lift e)
+      => \new QEquiv {
+        | f => lift e
+        | ret => lift e.ret
+        | ret_f => \case \elim __ \with {
+          | 0 => idp
+          | suc j => pmap fsuc (e.ret_f j)
+        }
+        | f_sec => \case \elim __ \with {
+          | 0 => idp
+          | suc j => pmap fsuc (e.f_ret j)
+        }
+      }
+
+    \lemma lift_transposition {n : Nat} (x y : Fin n) (j : Fin (suc n))
+      : lift (transposition x y) j = transposition.transpose (suc x) (suc y) j \elim j
+      | 0 => idp
+      | suc j => unfold $ unfold transposition.transpose $ cases (decideEq j x, decideEq j y) \with {
+        | yes e, yes e' => rewrite (decideEq=_reduce (pmap fsuc e), decideEq=_reduce (pmap fsuc e')) idp
+        | yes e, no q => rewrite (decideEq=_reduce (pmap fsuc e), decideEq/=_reduce (\lam p => q (FinSet.suc-isInj p))) idp
+        | no q, yes e => rewrite (decideEq/=_reduce (\lam p => q (FinSet.suc-isInj p)), decideEq=_reduce (pmap fsuc e)) idp
+        | no q, no q' => rewrite (decideEq/=_reduce (\lam p => q (FinSet.suc-isInj p)), decideEq/=_reduce (\lam p => q' (FinSet.suc-isInj p))) idp
+      }
+
+    \lemma lift_product {n : Nat} (l : Array (Equiv {Fin n} {Fin n}))
+      : Monoid.BigProduct {SymmetricGroup (Fin (suc n))} (map lift-equiv l) = lift-equiv (Monoid.BigProduct l) \elim l
+      | nil => Equiv.equals $ ext $ \lam j => cases j idp
+      | e :: l => unfold Monoid.BigProduct $ rewrite (lift_product l) $ Equiv.equals $ ext $ \lam j => cases j idp
+
+    \lemma lift_reduce {n : Nat} (e : Equiv {Fin (suc n)} {Fin (suc n)}) {e0=0 : e 0 = 0} : lift-equiv (reduce-equiv e e0=0) = e
+      => Equiv.equals {Fin (suc n)} {Fin (suc n)} $ ext $ \case \elim __ \with {
+        | 0 => inv e0=0
+        | suc j => suc_reduce
+      }
   }

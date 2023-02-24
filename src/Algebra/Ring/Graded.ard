@@ -1,7 +1,10 @@
 \import Algebra.Group
 \import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
 \import Algebra.Pointed
 \import Algebra.Ring
+\import Arith.Int
 \import Arith.Nat
 \import Data.Array
 \import Data.Or
@@ -9,6 +12,10 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -227,6 +234,77 @@
         | suc s, suc t1, 0, l1, c2 :: l2, ::-::-similar _ q => aux s t1 0 n1 (suc n2) l1h (\lam j => l2h (suc j)) q
         | suc s, suc t1, suc t2, l1, l2, ::-::-similar _ q => aux s t1 t2 n1 n2 l1h l2h q
     }
+
+  \lemma homogen-bigSum (l : Array (\Sigma E (y : E) (n : Nat) (isHomogen y n))) {b : E} {k : Nat} (bh : isHomogen b k) (p : b = BigSum (map (\lam p => p.1 * p.2) l))
+    : ∃ (l' : Array (\Sigma (a : E) (m : Nat) (isHomogen a m)) l.len) (b = BigSum (mkArray (\lam j => (l' j).1 * (l j).2)))
+    => \have lem {n m k : Nat} (p : m <= n) (q : n < m NatSemiring.+ k) : n -' m < k => pos<pos.conv $ transportInv (`< _) (-'=- p) linarith
+       \in TruncP.map (FinSet.finiteAC (\lam j => homogen-decomp (l j).1)) $ \lam f => (\new Array { | at j => later $ \case LinearOrder.dec<_<= k (l j).3, LinearOrder.dec<_<= k ((l j).3 NatSemiring.+ DArray.len {(f j).1}) \with {
+        | inl p, _ => (0, 0, homogen-zro)
+        | _, inr p => (0, 0, homogen-zro)
+        | inr p, inl q =>
+          \let index => toFin {k -' (l j).3} (lem p q)
+          \in ((f j).1 index, index, (f j).2 index)
+      } }, unfold_let $ p *> {?}
+                      {- \let | la => \new Array E (NatSemiring.BigSum $ mkArray $ \lam j => (l j).3 NatSemiring.+ DArray.len {(f j).1}) $ \lam j =>
+                                                                                                                                            BigSum $ mkArray $ \lam i => \case LinearOrder.dec<_<= j (l i).3, LinearOrder.dec<_<= j ((l i).3 NatSemiring.+ DArray.len {(f i).1}) \with {
+                                                                                                                                              | inl p, _ => zro
+                                                                                                                                              | _, inr p => zro
+                                                                                                                                              | inr p, inl q => (f i).1 (toFin {j -' (l i).3} (lem p q)) * (l i).2
+                                                                                                                                            }
+                           | hs => homogen-similar {_} {la} {replicate k zro ++ b :: nil} (\lam j => homogen-BigSum $ \lam i => later $ mcases \with {
+                             | inl _, _ => homogen-zro
+                             | _, inr _ => homogen-zro
+                             | inr p, inl q => transport (isHomogen _) (unpos (transportInv (\lam x => x IntRing.+ pos (l i).3 = pos j) (-'=- p) equation) : j -' (l i).3 NatSemiring.+ (l i).3 = j) $ homogen-* (rewriteI (toFin=id (lem p q)) ((f i).2 _)) (l i).4
+                           }) (homogen-++ (\lam n => homogen-zro) $ later $ \lam (0) => bh) $ {?} *> inv (BigSum_++ *> pmap2 (+) BigSum_replicate0 zro-right *> zro-left *> p)
+                      \in {?} -}
+      {- pmap BigSum (array-length-eq {_} {_} {map (\lam p => p.1 * p.2) l} $
+      \let | la => \new Array E (NatSemiring.BigSum $ mkArray $ \lam j => (l j).3 NatSemiring.+ DArray.len {(f j).1}) $ \lam j =>
+              BigSum $ mkArray $ \lam i => \case LinearOrder.dec<_<= j (l i).3, LinearOrder.dec<_<= j ((l i).3 NatSemiring.+ DArray.len {(f i).1}) \with {
+                | inl p, _ => zro
+                | _, inr p => zro
+                | inr p, inl q => (f i).1 (toFin {j -' (l i).3} (lem p q)) * (l i).2
+              }
+           | hs => homogen-similar {_} {la} {replicate k zro ++ b :: nil} (\lam j => homogen-BigSum $ \lam i => later $ mcases \with {
+             | inl _, _ => homogen-zro
+             | _, inr _ => homogen-zro
+             | inr p, inl q => transport (isHomogen _) (unpos (transportInv (\lam x => x IntRing.+ pos (l i).3 = pos j) (-'=- p) equation) : j -' (l i).3 NatSemiring.+ (l i).3 = j) $ homogen-* (rewriteI (toFin=id (lem p q)) ((f i).2 _)) (l i).4
+           }) (homogen-++ (\lam n => homogen-zro) $ later $ \lam (0) => bh) $ {?} *> inv (BigSum_++ *> pmap2 (+) BigSum_replicate0 zro-right *> zro-left *> p)
+      \in \lam j => later $ mcases \with {
+        | inl p, _ => {?}
+        | _, inr p => {?}
+        | inr p, inl q => pmap (`* _) {?}
+      }) -})
+  \where {
+    \lemma diff-lem {n m k : Nat} (p : m <= n) (q : n < m NatSemiring.+ k) : n -' m < k
+      => pos<pos.conv $ transportInv (`< _) (-'=- p) linarith
+
+    \func array (n : Nat) (m : Fin n -> Nat) (g : \Pi (j : Fin n) -> Fin (m j) -> E) (d : Fin n -> Nat)
+      => \new Array E (Big (∨) 0 (\lam j => suc (d j NatSemiring.+ m j))) $ \lam k =>
+                                                                                BigSum $ \lam j => \case LinearOrder.dec<_<= k (d j), LinearOrder.dec<_<= k (d j NatSemiring.+ m j) \with {
+        | inl p, _ => zro
+        | _, inr p => zro
+        | inr p, inl q => g j (toFin {k -' d j} (diff-lem p q))
+      }
+
+    \lemma array-lem (n : Nat) (m : Fin (suc n) -> Nat) (g : \Pi (j : Fin (suc n)) -> Fin (m j) -> E) (d : Fin (suc n) -> Nat)
+      : Similar (array (suc n) m g d)
+          (BigSum (\lam j => \case LinearOrder.dec<_<= 0 (d j), LinearOrder.dec<_<= 0 (d j NatSemiring.+ m j) \with {
+            | inl p, _ => zro
+            | _, inr p => zro
+            | inr p, inl q => g j (toFin {0 -' d j} (diff-lem p q))
+          }) :: array n (\lam j => m (suc j)) (\lam j i => g (suc j) i) (\lam j => d (suc j)))
+      => {?}
+
+    \lemma array-sum (n : Nat) (m : Fin n -> Nat) (g : \Pi (j : Fin n) -> Fin (m j) -> E) (d : Fin n -> Nat) : Similar (array n m g d) (\lam j => BigSum (g j)) \elim n
+      | 0 => nil-nil-similar
+      | suc n => {?}
+
+    \lemma array-less (n : Nat) (m : Fin n -> Nat) (g : \Pi (j : Fin n) -> Fin (m j) -> E) (d : Fin n -> Nat) (t : Nat) (j : Fin n) (p : t < d j) (b : E) (s : Similar (array n m g d) (replicate t zro ++ b :: nil))
+      : BigSum (g j) = 0
+      => \have | el1 : BigSum (g j) = array n m g d (toFin {d j} $ \box <-transitive-left (<-transitive-left id<suc $ suc<=suc $ LinearlyOrderedSemiring.<=_+ <=-refl zero<=_) (NatSemiring.join1_<=_Big j))
+                  => {?}
+         \in {?}
+  }
 } \where {
   \data Similar {A : AddPointed} (l l' : Array A) \elim l, l'
     | nil, nil => nil-nil-similar
@@ -237,4 +315,10 @@
   \lemma similar-nil {A : AddPointed} {l : Array A} (s : Similar l nil) (j : Fin l.len) : l j = 0 \elim l, s, j
     | a :: l, ::-nil-similar p s, 0 => p
     | a :: l, ::-nil-similar p s, suc j => similar-nil s j
+
+  \lemma similar-sum {A : AddMonoid} {l l' : Array A} (s : Similar l l') : BigSum l = BigSum l' \elim l, l', s
+    | nil, nil, nil-nil-similar => idp
+    | nil, a :: l', nil-::-similar p s => inv zro-left *> pmap2 (+) (inv p) (similar-sum s)
+    | a :: l, nil, ::-nil-similar p s => pmap2 (+) p (similar-sum s) *> zro-left
+    | a :: l, a' :: l', ::-::-similar p s => pmap2 (+) p (similar-sum s)
 }
