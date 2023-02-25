@@ -1,8 +1,6 @@
 package org.arend.lib.meta;
 
-import org.arend.ext.concrete.expr.ConcreteArgument;
-import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.context.CoreEvaluatingBinding;
 import org.arend.ext.core.definition.CoreClassField;
@@ -73,6 +71,9 @@ public class UnfoldMeta extends BaseMetaDefinition {
       firstArgList = Utils.getArgumentList(contextData.getArguments().get(0).getExpression());
       for (ConcreteExpression expr : firstArgList) {
         Variable var = null;
+        if (expr instanceof ConcreteAppExpression appExpr && appExpr.getArguments().size() == 1 && appExpr.getArguments().get(0).getExpression() instanceof ConcreteThisExpression) {
+          expr = appExpr.getFunction();
+        }
         if (expr instanceof ConcreteReferenceExpression) {
           CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) expr).getReferent());
           if (def instanceof CoreFunctionDefinition || def instanceof CoreClassField) {
