@@ -378,6 +378,16 @@ public class PatternUtils {
     for (int i = 0; i < actualRows.size(); i++) {
       Map<CoreBinding, CorePattern> subst = new HashMap<>();
       if (unify(actualRows.get(i), row, null, subst)) {
+        boolean allVars = true;
+        for (CorePattern pattern : subst.values()) {
+          if (pattern.getBinding() == null) {
+            allVars = false;
+            break;
+          }
+        }
+        if (allVars) {
+          return Collections.singletonList(i);
+        }
         if (coveringIndex == -1) {
           coveringIndex = i;
         }
@@ -394,6 +404,7 @@ public class PatternUtils {
       return Collections.singletonList(coveringIndex);
     }
 
+    // TODO: I think this part is wrong. For example, it implies that { (con, y), (x, con) } covers (x, y), which is not true.
     Set<Integer> coveringIndices = new HashSet<>();
     for (Map.Entry<CoreBinding, List<Pair<Integer, CorePattern>>> entry : substs.entrySet()) {
       if (!checkCoverage(entry.getValue(), entry.getKey().getTypeExpr(), coveringIndices)) {
