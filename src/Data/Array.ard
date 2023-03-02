@@ -1,6 +1,7 @@
 \import Data.Bool
 \import Data.Maybe
 \import Data.Or
+\import Function.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
@@ -82,10 +83,6 @@
     | true, q, suc i => filter-sat p l i
   }
 
-\func fold {A B : \Type} (f : A -> B -> B) (b : B) (l : Array A) : B \elim l
-  | nil => b
-  | :: a l => f a (fold f b l)
-
 \func filter-index {A : \Type} (p : A -> Bool) (l : Array A) (i : Fin l.len) (px : p (l i) = true) : Index (l i) (filter p l) \elim l, i
   | nil, ()
   | :: a l, 0 => rewrite px (0, idp)
@@ -121,3 +118,57 @@
 
 \func replicate {A : \Type} (n : Nat) (a : A)
   => \new Array A n (\lam _ => a)
+
+\func reverse {A : \Type} (l : Array A) : Array A
+  => aux nil l
+  \where {
+    \func aux {A : \Type} (acc l : Array A) : Array A \elim l
+      | nil => acc
+      | a :: l => aux (a :: acc) l
+  }
+
+\func reverse-cons {A : \Type} {a : A} {l : Array A} : reverse (a :: l) = reverse l ++ a :: nil
+  => aux nil
+  \where {
+    \func aux {A : \Type} (acc : Array A) {a : A} {l : Array A} : reverse.aux (acc ++ a :: nil) l = reverse.aux acc l ++ a :: nil \elim l
+      | nil => idp
+      | a' :: l => aux (a' :: acc)
+  }
+
+\data All {A : \Type} (P : A -> \Type) (l : Array A) \elim l
+  | nil => all-nil
+  | a :: l => all-cons (P a) (All P l)
+
+\func all_++ {A : \Type} {P : A -> \Type} {l l' : Array A} (all1 : All P l) (all2 : All P l') : All P (l ++ l') \elim l, all1
+  | nil, _ => all2
+  | a :: l, all-cons c all1 => all-cons c (all_++ all1 all2)
+
+\func all-reverse {A : \Type} {P : A -> \Type} {l : Array A} (all : All P l) : All P (reverse l)
+  => aux all all-nil
+  \where {
+    \func aux {l : Array A} (all : All P l) {acc : Array A} (all-acc : All P acc) : All P (reverse.aux acc l) \elim l, all
+      | nil, _ => all-acc
+      | a :: l, all-cons c all => aux all (all-cons c all-acc)
+  }
+
+\func all-left {A : \Type} {P : A -> \Type} {l l' : Array A} (all : All P (l ++ l')) : All P l \elim l, all
+  | nil, _ => all-nil
+  | a :: l, all-cons c d => all-cons c (all-left d)
+
+\func all-right {A : \Type} {P : A -> \Type} {l l' : Array A} (all : All P (l ++ l')) : All P l' \elim l, all
+  | nil, all => all
+  | a :: l, all-cons _ all => all-right all
+
+\data All2 {A : \Type} (P : A -> A -> \Type) (l : Array A) \elim l
+  | nil => all2-nil
+  | a :: l => all2-cons (All (P a) l) (All2 P l)
+
+\func all2_++ {A : \Type} {P : A -> A -> \Type} (sym : \Pi {a a' : A} -> P a a' -> P a' a) {l : Array A} {a : A} (all : All2 P (a :: l)) : All2 P (l ++ a :: nil) \elim l, all
+  | nil, all => all
+  | a' :: l, all2-cons c all => \case \elim c, \elim all \with {
+    | all-cons p c, all2-cons d all => all2-cons (all_++ d $ all-cons {A} {P a'} {_} {a} {nil} (sym p) all-nil) $ all2_++ sym (all2-cons c all)
+  }
+
+\func all2-reverse {A : \Type} {P : A -> A -> \Type} (sym : \Pi {a a' : A} -> P a a' -> P a' a) {l : Array A} (all : All2 P l) : All2 P (reverse l) \elim l, all
+  | nil, _ => all2-nil
+  | a :: l, all2-cons c all => rewrite reverse-cons $ all2_++ sym $ all2-cons (all-reverse c) (all2-reverse sym all)
