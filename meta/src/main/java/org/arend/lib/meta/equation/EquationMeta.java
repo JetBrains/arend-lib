@@ -129,6 +129,8 @@ public class EquationMeta extends BaseMetaDefinition {
 
   @Dependency(module = "Algebra.Group.Solver", name = "CData.simplify-correct")  public CoreFunctionDefinition simplifyCorrectAbInv;
 
+  @Dependency(module = "Algebra.Group.Solver", name = "NatData.simplify-correct")  public CoreFunctionDefinition simplifyCorrectInv;
+
   @Dependency(module = "Algebra.Group")                   public CoreClassDefinition Group;
   @Dependency(module = "Algebra.Group")                public CoreClassDefinition AddGroup;
   @Dependency(module = "Algebra.Group")                public CoreClassDefinition AbGroup;
@@ -138,7 +140,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Group", name = "AddGroup.fromZero")       public CoreFunctionDefinition fromZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.toZero")         public CoreFunctionDefinition toZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative-isInv")    public CoreFunctionDefinition negIsInv;
-  @Dependency(module = "Algebra.Group", name = "AddGroup.fromGroup")     public CoreFunctionDefinition fromGroupToAddGroup;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.toGroup")     public CoreFunctionDefinition fromAddGroupToGroup;
   @Dependency(module = "Algebra.Group", name = "AbGroup.toCGroup")     public CoreFunctionDefinition fromAbGroupToCGroup;
   @Dependency(module = "Algebra.Group", name = "Group.inverse-isInv")    public CoreFunctionDefinition invIsInv;
   @Dependency(module = "Algebra.Group", name = "Group.inverse_ide")    public CoreFunctionDefinition invIde;

@@ -21,38 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class AbGroupInverseRule implements SimplificationRule {
-  private final Values<CoreExpression> values;
-  private final ConcreteFactory factory;
-  private final StdExtension ext;
-  private final FunctionMatcher mulMatcher;
-  private final FunctionMatcher ideMatcher;
-  private final FunctionMatcher invMatcher;
-  private final boolean isAdditive;
-  private final TypedExpression instance;
-  protected final ArendRef dataRef;
-
+public class AbGroupInverseRule extends GroupRuleBase {
   public AbGroupInverseRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker, boolean isAdditive) {
-    this.values = new Values<>(typechecker, refExpr);
-    this.factory = ext.factory;
-    this.ext = ext;
-    if (isAdditive) {
-      var convertedInst = typechecker.typecheck(factory.appBuilder(factory.ref(ext.equationMeta.fromAbGroupToCGroup.getRef())).app(factory.core(instance)).build(), null);
-      this.instance = convertedInst != null ? convertedInst : instance;
-    } else {
-      this.instance = instance;
-    }
-    this.isAdditive = isAdditive;
-    this.dataRef = factory.local("d");
-    if (isAdditive) {
-      this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.plus, typechecker, factory, refExpr, ext, 2);
-      this.invMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.negative, typechecker, factory, refExpr, ext, 1);
-      this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.zro, typechecker, factory, refExpr, ext, 0);
-    } else {
-      this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.mul, typechecker, factory, refExpr, ext, 2);
-      this.invMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.inverse, typechecker, factory, refExpr, ext, 1);
-      this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.ide, typechecker, factory, refExpr, ext, 0);
-    }
+    super(instance, classCall, ext, refExpr, typechecker, isAdditive, true);
   }
 
   private interface Term {
@@ -104,19 +75,16 @@ public class AbGroupInverseRule implements SimplificationRule {
   }
 
   private void countVarOccurNums(Term term, Map<Integer, Pair<Integer, Integer>> indToVarOccurNums, boolean curSign) {
-    if (term instanceof VarTerm) {
-      var varTerm = (VarTerm)term;
+    if (term instanceof VarTerm varTerm) {
       var occurNums = indToVarOccurNums.get(varTerm.index);
       if (occurNums == null) {
         indToVarOccurNums.put(varTerm.index, curSign ? new Pair<>(0, 1) : new Pair<>(1, 0));
         return;
       }
       indToVarOccurNums.put(varTerm.index, curSign ? new Pair<>(occurNums.proj1, occurNums.proj2 + 1) : new Pair<>(occurNums.proj1 + 1, occurNums.proj2));
-    } else if (term instanceof InvTerm) {
-      var invTerm = (InvTerm)term;
+    } else if (term instanceof InvTerm invTerm) {
       countVarOccurNums(invTerm.arg, indToVarOccurNums, !curSign);
-    } else if (term instanceof MulTerm) {
-      var mulTerm = (MulTerm)term;
+    } else if (term instanceof MulTerm mulTerm) {
       countVarOccurNums(mulTerm.left, indToVarOccurNums, curSign);
       countVarOccurNums(mulTerm.right, indToVarOccurNums, curSign);
     }
@@ -206,11 +174,5 @@ public class AbGroupInverseRule implements SimplificationRule {
               .app(simplifyProof).build();
     }/**/
     return new RewriteMeta.EqProofConcrete(simplifyProof, left, right);/**/
-  }
-
-  @Override
-  public ConcreteExpression finalizeEqProof(ConcreteExpression proof) {
-    var dataFactory = new GroupDataFactory(ext.equationMeta, dataRef, values, factory, instance, true, !isAdditive);
-    return dataFactory.wrapWithData(proof);
   }
 }

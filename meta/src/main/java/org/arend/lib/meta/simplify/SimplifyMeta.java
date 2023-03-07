@@ -143,10 +143,15 @@ public class SimplifyMeta extends BaseMetaDefinition {
           rules.add(new DoubleNegationRule(instance, classCall, ext, refExpr, typechecker, false));
           rules.add(new IdentityInverseRule(instance, classCall, ext, refExpr, typechecker, false));
         }/**/
+
         if (classCall.getDefinition().isSubClassOf(ext.equationMeta.CGroup)) {
           rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, false));
         } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AbGroup)) {
           rules.add(new AbGroupInverseRule(instance, classCall, ext, refExpr, typechecker, true));
+        } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.Group)) {
+          rules.add(new GroupInverseRule(instance, classCall, ext, refExpr, typechecker, false));
+        } else if (classCall.getDefinition().isSubClassOf(ext.equationMeta.AddGroup)) {
+          rules.add(new GroupInverseRule(instance, classCall, ext, refExpr, typechecker, true));
         }/**/
       }
     }

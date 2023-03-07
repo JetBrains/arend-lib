@@ -446,20 +446,25 @@
     | var v => contradiction
     | :inv t => cases (t arg (as = t)) \with {} -}
 
-  \func find-fstLeafToRemoveInd (t : GroupTerm V) : Maybe (\Sigma (ind : Nat) (interpret (get-leaf t ind) = inverse (interpret (get-leaf t (suc ind)))))
+  \func find-fstLeafToRemoveInd (t : GroupTerm V) : Maybe (\Sigma (ind : Nat) (interpret (get-leaf t ind) = inverse (interpret (get-leaf t (suc ind)))) (1 <= ind) (ind < count-leaves t))
     => find-fstLeafToRemoveInd-rec t (count-leaves t)
     \where {
-      \func find-fstLeafToRemoveInd-rec (t : GroupTerm V) (ind : Nat) : Maybe (\Sigma (ind' : Nat) (interpret (get-leaf t ind') = inverse (interpret (get-leaf t (suc ind')))))
+      \func find-fstLeafToRemoveInd-rec (t : GroupTerm V) (ind : Nat)
+        : Maybe (\Sigma (ind' : Nat) (interpret (get-leaf t ind') = inverse (interpret (get-leaf t (suc ind')))) (1 <= ind') (ind' < count-leaves t))
         \elim ind
           | 0 => nothing
-          | suc ind \as suc-ind => cases ((Leaf.toLeaf $ get-leaf t suc-ind) arg addPath, (Leaf.toLeaf $ get-leaf t (suc suc-ind)) arg addPath) \with {
-            | just leaf, p, just suc-leaf, q => \case decideEq (Leaf.isInv leaf, Leaf.val leaf) (not $ Leaf.isInv suc-leaf, Leaf.val suc-leaf) \with {
-              | yes e => just (suc-ind,
-                               rewrite (Leaf.toLeafToTerm-isInv (get-leaf t suc-ind) leaf p, Leaf.toLeafToTerm-isInv (get-leaf t (suc suc-ind)) suc-leaf q) (leaf-isInv-lemma leaf suc-leaf (pmap __.1 e) (pmap __.2 e)))
-              | no n => find-fstLeafToRemoveInd-rec t ind
+          | suc ind \as suc-ind => \case LinearOrder.dec<_<= suc-ind (count-leaves t) \with {
+          | inl w => cases ((Leaf.toLeaf $ get-leaf t suc-ind) arg addPath, (Leaf.toLeaf $ get-leaf t (suc suc-ind)) arg addPath) \with {
+              | just leaf, p, just suc-leaf, q => \case decideEq (Leaf.isInv leaf, Leaf.val leaf) (not $ Leaf.isInv suc-leaf, Leaf.val suc-leaf) \with {
+                | yes e => just (suc-ind,
+                                 rewrite (Leaf.toLeafToTerm-isInv (get-leaf t suc-ind) leaf p, Leaf.toLeafToTerm-isInv (get-leaf t (suc suc-ind)) suc-leaf q) (leaf-isInv-lemma leaf suc-leaf (pmap __.1 e) (pmap __.2 e)),
+                                 <=_+ zero<=_ <=-refl, w)
+                | no n => find-fstLeafToRemoveInd-rec t ind
+              }
+              | _, _, _, _ => nothing
             }
-            | _, _, _, _ => nothing
-          }
+          | inr _ => find-fstLeafToRemoveInd-rec t ind
+       }
 
       \func leaf-isInv-lemma (l l' : Leaf) (p : Leaf.isInv l = not (Leaf.isInv l')) (q : Leaf.val l = Leaf.val l')
         : interpret (Leaf.leaf-to-term l) = inverse (interpret (Leaf.leaf-to-term l')) \elim l, l'
@@ -492,15 +497,15 @@
 
   \func simplify (t : GroupTerm V) : GroupTerm V
      => \case find-fstLeafToRemoveInd t, isInNF-dec t \with {
-          | just (ind, p), just q => (remove-pair t ind).1
+          | just (ind, p, _, _), just q => (remove-pair t ind).1
           | _, _ => t
        }
 
-  -- \let find-pair-res => find-pair-to-remove t 0 0 false \in
-  \func simplify-correct (t : GroupTerm V) : interpret (simplify t) = interpret t
-     => mcases {1} \with {
-
-       }
+  \func simplify-correct (t : GroupTerm V) :  interpret t = interpret (simplify t)
+     => unfold simplify (mcases {1} \with {
+       | just (ind, p, lb, ub), just q => inv $ rp-correctness-both-inside t q ind p lb ub
+       | _, _ => idp
+     })
 }
 
 \class CData \extends NatData {
