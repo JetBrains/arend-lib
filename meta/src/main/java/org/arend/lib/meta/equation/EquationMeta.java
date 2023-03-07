@@ -120,7 +120,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver", name = "RingData.interpret")        CoreFunctionDefinition ringInterpret;
   @Dependency(module = "Algebra.Ring.Solver", name = "gensZeroToIdealZero")       CoreFunctionDefinition gensZeroToIdealZero;
 
-  @Dependency(module = "Algebra.Group.Solver", name = "Data")           public CoreClassDefinition GroupData;
+  @Dependency(module = "Algebra.Group.Solver", name = "NatData")           public CoreClassDefinition GroupData;
   @Dependency(module = "Algebra.Group.Solver", name = "CData")           public CoreClassDefinition CGroupData;
   @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.var")  public CoreConstructor varGTerm;
   @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:ide") public CoreConstructor ideGTerm;

@@ -156,19 +156,13 @@ public class GroupInverseRule extends GroupRuleBase {
     var left = factory.core(expression);
     var right = CompiledTerm.termToConcrete(newTerm, x -> {
       if (x == mulMatcher) {
-        return factory.ref(ext.equationMeta.mulGTerm.getRef());
+        return isAdditive ? factory.ref(ext.equationMeta.plus.getRef()) : factory.ref(ext.equationMeta.mul.getRef());
       }
       if (x == invMatcher) {
-        return factory.ref(ext.equationMeta.invGTerm.getRef());
+        return isAdditive ? factory.ref(ext.equationMeta.negative.getRef()) : factory.ref(ext.equationMeta.inverse.getRef());
       }
-      return factory.ref(ext.equationMeta.ideGTerm.getRef());
+      return factory.ref(isAdditive ? ext.equationMeta.zro.getRef() : ext.equationMeta.ide.getRef());
     }, ind -> factory.core(values.getValue(ind).computeTyped()), factory);
     return new RewriteMeta.EqProofConcrete(simplifyProof, left, right);
-  }
-
-  @Override
-  public ConcreteExpression finalizeEqProof(ConcreteExpression proof) {
-    var dataFactory = new GroupDataFactory(ext.equationMeta, dataRef, values, factory, instance, true, !isAdditive);
-    return dataFactory.wrapWithData(proof);
   }
 }
