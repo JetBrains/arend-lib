@@ -1,5 +1,6 @@
 \import Data.Bool
 \import Data.Maybe
+\import Data.Or
 \import Meta
 \import Paths
 \import Paths.Meta
@@ -16,6 +17,40 @@
 \func \infixr 5 ++ {A : \Type} (xs ys : Array A) : Array A \elim xs
   | nil => ys
   | :: a xs => a :: xs ++ ys
+  \where {
+    \func index-left {A : \Type} {l m : Array A} (i : Fin l.len) : Fin (DArray.len {l ++ m}) \elim l, i
+      | a :: l, 0 => 0
+      | a :: l, suc i => suc (index-left i)
+
+    \func ++_index-left {A : \Type} {l m : Array A} (i : Fin l.len) : (l ++ m) (index-left i) = l i \elim l, i
+      | a :: l, 0 => idp
+      | a :: l, suc i => ++_index-left i
+
+    \lemma index-left-nat {A : \Type} {l m : Array A} {i : Fin l.len} : index-left {A} {l} {m} i = {Nat} i \elim l, i
+      | a :: l, 0 => idp
+      | a :: l, suc i => pmap suc index-left-nat
+
+    \func index-right {A : \Type} {l m : Array A} (i : Fin m.len) : Fin (DArray.len {l ++ m}) \elim l
+      | nil => i
+      | a :: l => suc (index-right i)
+
+    \func ++_index-right {A : \Type} {l m : Array A} {i : Fin m.len} : (l ++ m) (index-right i) = m i \elim l
+      | nil => idp
+      | a :: l => ++_index-right
+
+    \lemma index-right-nat {A : \Type} {l m : Array A} {i : Fin m.len} : index-right {A} {l} i = {Nat} l.len Nat.+ i \elim l
+      | nil => idp
+      | a :: l => pmap suc index-right-nat
+
+    \func split-index {A : \Type} {l m : Array A} (i : Fin (DArray.len {l ++ m}))
+      : Or (\Sigma (j : Fin l.len) (i = index-left j)) (\Sigma (j : Fin m.len) (i = index-right j)) \elim l, i
+      | nil, i => inr (i,idp)
+      | a :: l, 0 => inl (0,idp)
+      | a :: l, suc i => \case split-index i \with {
+        | inl r => inl (suc r.1, \lam i => suc (r.2 i))
+        | inr r => inr (r.1, \lam i => suc (r.2 i))
+      }
+  }
 
 \func map_++ {A B : \Type} (f : A -> B) {l l' : Array A} : map f (l ++ l') = map f l ++ map f l' \elim l
   | nil => idp
@@ -83,3 +118,6 @@
 \func indexed' (l : DArray) : Array (\Sigma (j : Fin l.len) (l.A j)) \cowith
   | len => l.len
   | at j => (j, l j)
+
+\func replicate {A : \Type} (n : Nat) (a : A)
+  => \new Array A n (\lam _ => a)

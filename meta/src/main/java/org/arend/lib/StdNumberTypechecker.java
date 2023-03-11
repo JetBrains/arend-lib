@@ -32,6 +32,10 @@ public class StdNumberTypechecker implements LiteralTypechecker {
     return null;
   }
 
+  private ConcreteExpression applyInstance(ConcreteExpression instance, ConcreteExpression expr, ConcreteFactory factory) {
+    return instance == null ? expr : factory.app(expr, false, Collections.singletonList(instance));
+  }
+
   @Override
   public @Nullable TypedExpression typecheckNumber(@NotNull BigInteger number, @NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     CoreExpression expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().normalize(NormalizationMode.WHNF);
@@ -50,11 +54,8 @@ public class StdNumberTypechecker implements LiteralTypechecker {
         ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
         ConcreteExpression cExpr;
         ConcreteExpression cInstance = instance == null ? null : factory.core(null, instance);
-        if (number.equals(BigInteger.ZERO) || number.equals(BigInteger.ONE)) {
-          cExpr = factory.ref((number.equals(BigInteger.ZERO) ? ext.zro : ext.ide).getRef());
-          if (cInstance != null) {
-            cExpr = factory.app(cExpr, false, Collections.singletonList(cInstance));
-          }
+        if (number.equals(BigInteger.ZERO) || number.equals(BigInteger.ONE) || number.equals(BigInteger.ONE.negate())) {
+          cExpr = number.equals(BigInteger.ZERO) ? applyInstance(cInstance, factory.ref(ext.zro.getRef()), factory) : number.equals(BigInteger.ONE) ? applyInstance(cInstance, factory.ref(ext.ide.getRef()), factory) : factory.app(applyInstance(cInstance, factory.ref(ext.equationMeta.negative.getRef()), factory), true, factory.ref(ext.ide.getRef()));
         } else {
           ConcreteAppBuilder builder = factory.appBuilder(factory.ref((number.signum() == -1 ? ext.equationMeta.intCoef : ext.equationMeta.natCoef).getRef()));
           if (cInstance != null) {

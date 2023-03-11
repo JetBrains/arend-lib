@@ -1,0 +1,352 @@
+\import AG.Scheme
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Monoid.Sub
+\import Algebra.Pointed
+\import Algebra.Ring.Category
+\import Algebra.Ring.Graded
+\import Algebra.Ring.Graded.Localization
+\import Algebra.Ring.Ideal
+\import Algebra.Ring.Localization
+\import Algebra.Ring.Sub
+\import Algebra.Semiring
+\import Arith.Int
+\import Arith.Nat
+\import Category
+\import Category.Functor
+\import Category.Topos.Sheaf
+\import Category.Topos.Sheaf.Sub
+\import Data.Array
+\import Data.Bool
+\import Data.Maybe
+\import Data.Or
+\import Equiv \hiding (Map)
+\import Function.Meta
+\import HLevel
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set.Category
+\import Set.Fin
+\import Topology.Locale
+\open Ideal
+\open AddMonoid
+\open Monoid(pow)
+
+\func ProjPres (R : GradedCRing) : FramePres (Carrier R) \cowith
+  | conj => h*
+  | BasicCover => FramePres.Indexing {Or (\Sigma (n : Nat) (a b : R) (isHomogen a (suc n)) (isHomogen b (suc n))) Nat} $ later $
+      \case \elim __ \with {
+        | inl (n,a,b,ah,bh) => (Bool, (a + b, n, homogen-+ ah bh), if {Carrier R} __ (a,n,ah) (b,n,bh))
+        | inr n => (Empty, (0, n, homogen-zro), absurd)
+      }
+  \where {
+    \func Carrier (R : GradedCRing) => \Sigma (a : R) (n : Nat) (isHomogen a (suc n))
+      \where {
+        \func ext {R : GradedCRing} (x y : Carrier R) (p : x.1 = y.1) : Or (x = y) (x.1 = 0)
+          => \case y.1 \as a, \elim p : x.1 = a, y.3 \as y3 : isHomogen a (suc y.2) \return Or (x = (a,y.2,y3)) (x.1 = 0)\with {
+            | _, idp, y3 => \case R.degree-unique x.3 y3 \with {
+              | inl x=0 => inr x=0
+              | inr q => inl $ Paths.Meta.ext (idp, pmap pred q)
+            }
+          }
+      }
+
+    \func h* {R : GradedCRing} (x y : Carrier R) : Carrier R
+      => (x.1 * y.1, suc (x.2 Nat.+ y.2), homogen-* x.3 y.3)
+
+    \lemma cover_spec {R : GradedCRing} {x : Carrier R} {J : \Set} {g : J -> Carrier R} (c : Cover {ProjPres R} x g) : Cover {SpecPres R} x.1 (\lam j => (g j).1) \elim c
+      | cover-basic bc => FramePres.indexing-transport _ (later (\case \elim __ \with {
+        | inl (n,a,b,ah,bh) => cover-basic $ inP (just (a,b), idEquiv, idp, cases __ idp)
+        | inr n => cover-basic $ inP (nothing, idEquiv, idp, \case __)
+      })) bc
+      | cover-inj j p => cover-inj j (pmap __.1 p)
+      | cover-trans c h => cover-trans (cover_spec c) $ \lam i => cover_spec (h i)
+      | Cover.cover-proj1 idp j idp => Cover.cover-proj1 idp j idp
+      | cover-idemp j p => cover-idemp j (pmap __.1 p)
+      | cover-comm idp j q => cover-comm idp j (pmap __.1 q)
+      | cover-ldistr idp c h => cover-ldistr idp (cover_spec c) (\lam j => pmap __.1 (h j))
+
+    \lemma cover_factor {R : GradedCRing} {x y : Carrier R} (c : Cover1 {ProjPres R} x y) : ∃ (n : Nat) (c : R) (pow x.1 n = y.1 * c)
+      => \case SpecPres.cover_ideal $ ProjPres.cover_spec c \with {
+        | inP (n,d) => \case closure1-lem.1 d \with {
+          | inP (c,p) => inP (n,c,p)
+        }
+      }
+
+    \lemma cover_zro {R : GradedCRing} {x : Carrier R} (p : x.1 = 0) {J : \Set} {g : J -> Carrier R} : Cover {ProjPres R} x g
+      => cover-trans (cover-basic {_} {x} {Empty} {absurd} $ later $ inP (inr x.2, idEquiv, ext (inv p, idp), \case __)) (\case __)
+
+    \lemma cover-proj1 {R : GradedCRing} {x : Carrier R} {J : \Set} {g : J -> Carrier R} {a : Carrier R} {b : R} {n : Nat} (bh : isHomogen b n) (p : x.1 = a.1 * b) (j : J) (q : g j = a) : Cover {ProjPres R} x g
+      => \case R.degree-unique {_} {_} {suc a.2 + n} x.3 $ rewrite p $ homogen-* a.3 bh \with {
+        | inl x=0 => cover_zro x=0
+        | inr de => Cover.cover-trans1 (cover-idemp {ProjPres R} {x} {\Sigma} {\lam _ => h* x x} () idp) $
+          \let | c : Carrier R => (b * a.1 * b, n + a.2 + n, homogen-* (homogen-* bh a.3) bh)
+               | xx=ac : h* x x = h* a c => ext (equation, linarith)
+          \in rewrite xx=ac $ mkcon Cover.cover-proj1 {a} {c} idp j q
+      }
+
+    \lemma cover-proj2 {R : GradedCRing} {x : Carrier R} {J : \Set} {g : J -> Carrier R} {a : R} {n : Nat} (ah : isHomogen a n) {b : Carrier R} (p : x.1 = a * b.1) (j : J) (q : g j = b) : Cover {ProjPres R} x g
+      => cover-proj1 ah (p *> *-comm) j q
+
+    \func toSpec (R : GradedCRing) : FramePresPrehom (ProjPres R) (SpecPres R) \cowith
+      | func a => a.1
+      | func-conj => idp
+      | func-cover => FramePres.indexing-transport _ $ later $ \case \elim __ \with {
+        | inl t => inP (just (t.2,t.3), idEquiv, idp, cases __ idp)
+        | inr n => inP (nothing, idEquiv, idp, \case \elim __)
+      }
+
+    \lemma ideal_cover {R : GradedCRing} {x : Carrier R} {J : \Set} {g : J -> Carrier R} (c : Ideal.radical {closure (\lam j => (g j).1)} x.1) : Cover {ProjPres R} x g \elim c
+      | inP (0, inP (l,p)) => \case homogen-bigSum {R} {0} (mkArray $ \lam i => ((l i).1, g (l i).2)) (rewriteI p R.homogen-ide) \with {
+        | inP (l', q) =>
+          \have t => R.BigSum_zro {mkArray (\lam j => (l' j).1 * (g (l j).2).1)} $ \lam j =>
+                       \case R.degree-unique (l' j).4 (R.homogen-* (l' j).3 (g (l j).2).3) \with {
+                         | inl p => p
+                         | inr ()
+                       }
+          \in cover_zro equation
+      }
+      | inP (suc n, inP (l : Array, p)) => \case homogen-bigSum (mkArray $ \lam i => ((l i).1, g (l i).2)) $ rewriteI p $ R.homogen-pow {x.1} {suc x.2} {suc n} x.3 \with {
+        | inP (l',q) => Cover.cover-trans1 (cover_hpow n) $
+          \let l'' => mkArray $ \lam j => (l' j).1 * (g (l j).2).1
+          \in rewrite (hpow-lem (R.homogen-BigSum {l''} $ \lam j => (l' j).4) (hpow_pow *> p *> q) hpow-degree) $
+              cover-trans (cover_bigSum {R} {l''} _) $ \lam j => cover-proj2 (l' j).3 idp (l j).2 idp
+      }
+      \where {
+        \func hpow {R : GradedCRing} (x : Carrier R) (n : Nat) : Carrier R \elim n
+          | 0 => x
+          | suc n => h* (hpow x n) x
+
+        \lemma hpow_pow {R : GradedCRing} {x : Carrier R} {n : Nat} : (hpow x n).1 = Monoid.pow x.1 (suc n) \elim n
+          | 0 => inv ide-left
+          | suc n => pmap (`* x.1) hpow_pow
+
+        \lemma hpow-degree {R : GradedCRing} {x : Carrier R} {n : Nat} : (hpow x n).2 = suc x.2 * n + x.2 \elim n
+          | 0 => idp
+          | suc n => pmap (\lam y => suc (y + x.2)) hpow-degree
+
+        \lemma hpow-lem {R : GradedCRing} {x : Carrier R} {n : Nat} {a : R} {m : Nat} (ah : isHomogen a (suc m)) (p : (hpow x n).1 = a) (q : (hpow x n).2 = m) : hpow x n = (a, m, ah)
+          => ext (p,q)
+
+        \lemma cover_hpow {R : GradedCRing} {x : Carrier R} (n : Nat) : Cover1 {ProjPres R} x (hpow x n) \elim n
+          | 0 => cover-inj () idp
+          | suc n => Cover.cover-prod (cover_hpow n) (cover-inj () idp)
+
+        \lemma homogen-bigSum {R : GradedCRing} {n : Nat} (l : Array (\Sigma R (Carrier R))) (lh : isHomogen (BigSum $ map (\lam p => p.1 * p.2.1) l) n)
+          : ∃ (l' : DArray {l.len} (\lam j => \Sigma (a : R) (m : Nat) (isHomogen a m) (isHomogen (a * (l j).2.1) n))) (BigSum (map (\lam p => p.1 * p.2.1) l) = BigSum (mkArray (\lam j => (l' j).1 * (l j).2.1)))
+          => \have | lem1 {n m : Nat} (p : suc m <= n) : suc (n -' suc m Nat.+ m) = n => pmap iabs $ transportInv (\lam x => x + m + 1 = n) (-'=- p) linarith
+                   | lem2 {n m k : Nat} (p : m <= n) (q : n < m + k) : n -' m < k => pos<pos.conv $ transportInv (`< _) (-'=- p) linarith
+             \in TruncP.map (FinSet.finiteAC (\lam j => homogen-decomp (l j).1)) $ \lam f => (\new DArray { | at j => later $ \case LinearOrder.dec<_<= n (suc (l j).2.2), LinearOrder.dec<_<= n (suc (l j).2.2 + DArray.len {(f j).1}) \with {
+               | inl p, _ => (0, 0, homogen-zro, rewrite R.zro_*-left homogen-zro)
+               | _, inr p => (0, 0, homogen-zro, rewrite R.zro_*-left homogen-zro)
+               | inr p, inl q =>
+                 \let index => toFin {n -' suc (l j).2.2} (lem2 p q)
+                 \in ((f j).1 index, index, (f j).2 index, transport (\lam x => R.isHomogen _ x) (lem1 p) $ homogen-* (transport (isHomogen ((f j).1 index)) (toFin=id _) ((f j).2 index)) (l j).2.3)
+             } }, unfold_let {?})
+
+        \lemma cover_bigSum {R : GradedCRing} {l : Array R} {n : Nat} (p : \Pi (j : Fin l.len) -> isHomogen (l j) (suc n))
+          : Cover {ProjPres R} (BigSum l, n, R.homogen-BigSum p) (mkArray $ later $ \lam j => (l j, n, p j)) \elim l
+          | nil => cover-basic $ inP (inr n, \new QEquiv (\case __) (\case __) (\case __) (\case __), ext (idp,idp), \case __)
+          | a :: l => cover-trans (cover-basic $ FramePres.indexing-make $ later $ inl (n, a, BigSum l, p 0, R.homogen-BigSum (\lam j => p (suc j)))) $ later $ \case \elim __ \with {
+            | false => cover-trans (cover_bigSum (\lam j => p (suc j))) (\lam i => cover-inj (suc i) idp)
+            | true => cover-inj 0 idp
+          }
+      }
+  }
+
+\func Proj (R : GradedCRing) => PresentedFrame (ProjPres R)
+
+\func projRingedPres (R : GradedCRing) : Scheme (Proj R) \cowith
+  | R => sheafOnPresentedFrame {_} {CRingBicat} $ sheaf-reflect CRingCat.forgetful CRingCat.forgetful.reflectsLimit functor $
+           subSheafWithBasis {_} {\new Presheaf _ (Comp CRingCat.forgetful functor)} {\new Sheaf { | VSheaf => VSheaf.direct_image_framePres (ProjPres.toSpec R) (sheaf-preserve CRingCat.forgetful CRingCat.forgetful.preservesLimit affineRingedPres.R) }} natTrans natTrans-isEmb subSheaf-lem
+  | isScheme => {?}
+  \where {
+    \open SubMonoid
+    \open Monoid
+    \open HomogenLocRing
+    \open CMonoid
+    \open functorial
+
+    \func functor => \new Functor (Precat.op {framePresSite (ProjPres R)}) CRingBicat {
+      | F a => HomogenLocRing (powers a.1)
+      | Func {a} {b} c => (functorial a.3 b.3 suc/=0 (ProjPres.cover_spec c)).1
+      | Func-id {a} => \case (functorial a.3 a.3 suc/=0 (ProjPres.cover_spec (cover-inj () idp))).2 \with {
+        | inP (t,p) => inv p *> exts (\lam e => \case (smap a.3 a.3 t.1 t.2 t.3 t.4 t.5 t.6 e).2 \with {
+          | inP (s,q) => inv q *> ext (~-pequiv (rewrite (pow_*,t.5,pow_*-comm) equation) *> inv (pmap __.1 s.4))
+        })
+      }
+      | Func-o {a} {b} {c} {g} {f} => \case (functorial a.3 c.3 suc/=0 (ProjPres.cover_spec (g ∘ {Precat.op {framePresSite (ProjPres R)}} f))).2, (functorial b.3 c.3 suc/=0 (ProjPres.cover_spec g)).2, (functorial a.3 b.3 suc/=0 (ProjPres.cover_spec f)).2 \with {
+        | inP (t1,p1), inP (t2,p2), inP (t3,p3) => inv p1 *> exts (\lam e =>
+          \case (smap a.3 c.3 t1.1 t1.2 t1.3 t1.4 t1.5 t1.6 e).2, (smap b.3 c.3 t2.1 t2.2 t2.3 t2.4 t2.5 t2.6 (smap a.3 b.3 t3.1 t3.2 t3.3 t3.4 t3.5 t3.6 e).1).2, (smap a.3 b.3 t3.1 t3.2 t3.3 t3.4 t3.5 t3.6 e).2 \with {
+            | inP (s1,q1), inP (s2,q2), inP (s3,q3) => inv q1 *> ext (\case LocRing.unequals (powers a.1) $ pmap __.1 $ inv s1.4 *> s3.4, LocRing.unequals (powers b.1) $ pmap __.1 $ q3 *> s2.4 \with {
+              | inP (_, inP (m1, idp), d1), inP (_, inP (m2, idp), d2) => LocRing.equals-lem (powers c.1) (pow c.1 (t1.1 * (s3.2 + m1) + t2.1 * (t3.1 * s3.2 + m2))) (inP (_, idp)) $
+                  later $ repeat (rewrite pow_* <|> rewrite pow_*-comm <|> rewrite pow_+ <|> rewrite t1.5 <|> rewrite t2.5 <|> rewrite t3.5) $ rewrite (pow_*,t3.5,pow_*-comm) at d2 $ equation
+            }) *> q2
+          }
+        ) *> pmap2 (∘) p2 p3
+      }
+    }
+
+    \func natTrans : NatTrans (Comp CRingCat.forgetful functor) (Comp (Comp CRingCat.forgetful affineRingedPres.R) (Functor.op {FramePresPrehom.functor {ProjPres.toSpec R}})) \cowith
+      | trans _ t => t.1
+      | natural {a} {b} => unfold $ \lam c => ext $ \case \elim __ \with {
+        | (x, inP u) \as e =>
+          \have | (inP (t,p)) => (functorial a.3 b.3 suc/=0 (ProjPres.cover_spec c)).2
+                | (inP (s,q)) => (smap a.3 b.3 t.1 t.2 t.3 t.4 t.5 t.6 e).2
+                | (inP (n,a^n=u12)) => u.1.3
+                | (inP (_, inP (m, idp), d)) => LocRing.unequals (powers a.1) $ inv u.2 *> pmap __.1 s.4
+          \in rewriteI (p, q, inv u.2) $ LocRing.equals-lem (powers b.1) (pow b.1 (t.1 * m)) (inP (_, idp)) (later $ rewrite (pow_*,pow_*,pow_*,t.5,pow_*-comm,pow_*-comm,pow_*-comm) equation) *> inv (affineRingedPres.functorial-lem {R} {a.1} {b.1} {inP (t.1, closure1-lem.2 $ inP (t.2,t.5))} n a^n=u12 t.5)
+      }
+
+    \lemma natTrans-isEmb (a : ProjPres R) {x y : HomogenLocRing (powers a.1)} (p : x.1 = y.1) : x = y
+      => ext p
+
+    \lemma subSheaf-lem {a : framePresSite (ProjPres R)} {J : \Set} {g : J -> slicePrecat {framePresSite (ProjPres R)} a} (c : isBasicCover a g) (x : LocRing (powers a.1))
+                        (h : \Pi (j : J) -> \Sigma (y : HomogenLocRing (powers (g j).1.1)) (y.1 = (affineRingedPres.functorial (SpecPres.cover_ideal (Cover.map {ProjPres.toSpec R} (g j).2))).1 x))
+                        : ∃ (y : HomogenLocRing (powers a.1)) (y.1 = x) \elim x
+      | in~ ((d1, d2, inP (n,idp)) \as d) => fromSubRing d $ \case \elim c \with {
+        | inP (c, a<c, f, inP (inl s, e, u, v), t) => \case ProjPres.cover_factor (g (e true)).2, ProjPres.cover_factor (g (e false)).2 \with {
+          | inP (k0,b0,g0^k0=a*b0), inP (k1,b1,g1^k1=a*b1) => \case ProjPres.cover_factor (transportInv (Cover1 a) u a<c) \with {
+            | inP (q,z,a^q=[s2+s3]*z) => \case ProjPres.cover_factor (t (e true)).2, ProjPres.cover_factor (t (e false)).2 \with {
+              | inP (l0,e0,q0), inP (l1,e1,q1) => \case radical2-lem {a.1} {a.1 * (f (e true)).1} {a.1 * (f (e false)).1} (inP (suc q, (closure2-lem (if __ _ _)).2 $ inP (z, z, equation {using (pmap __.1 (v true), pmap __.1 (v false))}))) l0 l1 \with {
+                | inP (u,ac) => \case (closure2-lem (if __ _ _)).1 ac \with {
+                  | inP (c0,c1,q) => sheaf-lem {a} {(g (e true)).1} {(g (e false)).1} {b0} {b1} {e0 * c0} {e1 * c1} {k0} {k1} {u}
+                      g0^k0=a*b0 g1^k1=a*b1 (rewriteF (q0,q1,*-assoc,*-assoc) q) d1 n
+                      (transport (subRing (powers (g (e true)).1.1)) ((h (e true)).2 *> affineRingedPres.functorial-lem n idp g0^k0=a*b0) (h (e true)).1.2)
+                      (transport (subRing (powers (g (e false)).1.1)) ((h (e false)).2 *> affineRingedPres.functorial-lem n idp g1^k1=a*b1) (h (e false)).1.2)
+                }
+              }
+            }
+          }
+        }
+        | inP (c, a<c, f, inP (inr _, _, u, _), t) => \case SpecPres.cover_ideal $ ProjPres.cover_spec (transportInv (Cover1 a) u a<c) \with {
+          | inP (n, inP t) =>
+            \have c : Contr => LocRing.nilpotent-contr (powers a.1) a.1 (inP (1, ide-left)) n $ t.2 *> path (\lam i => BigSum (map (\lam p => R.zro_*-right {p.1} i) t.1)) *> R.BigSum_replicate0
+            \in inP ((0, 1, inP (0, idp)), inv (c.contraction _) *> c.contraction _, 0, homogen-zro, R.homogen-ide)
+        }
+      }
+
+    \lemma functorial {R : GradedCRing} {a b : R} {ad bd : Nat} (ah : isHomogen a ad) (bh : isHomogen b bd) (bd/=0 : bd /= 0) (r : Cover1 {SpecPres R} b a)
+      : \Sigma (f : RingHom (HomogenLocRing (powers a)) (HomogenLocRing (powers b))) (∃ (t : \Sigma (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (pow b n = a * c) (bd * n = ad + cd)) (shom t.1 t.2 t.3 t.4 t.5 t.6 = f))
+        \level TruncP.rec-set.level _ shom-coh
+      => \have | (inP (n,c)) => SpecPres.cover_ideal r
+               | (inP (c,b^n=ac)) => closure1-lem.1 c
+               | (inP (c,cd,ch,b^n=ac)) => R.homogen-factor b^n=ac (R.homogen-pow bh) ah
+         \in \case R.degree-unique (R.homogen-pow bh) (rewrite b^n=ac $ homogen-* ah ch) \with {
+               | inl b^n=0 =>
+                   \have c : Contr => RingHom.contr-isTerm $ SubRing.comm-isContr $ LocRing.nilpotent-contr (powers b) b (inP (1, ide-left)) n b^n=0
+                   \in (c.center, inP ((n + ad, 0, bd * (n + ad) -' ad, homogen-zro, pow_+ *> later (rewrite b^n=0 zro_*-left) *> inv zro_*-right,
+                     unpos $ inv $ pmap (pos ad +) (-'=- $ transportInv (ad <=) ldistr $ NatSemiring.<=_+ zero<=_ $ \case \elim bd, \elim bd/=0 \with {
+                       | 0, bd/=0 => absurd (bd/=0 idp)
+                       | suc bd, _ => later $ rewrite NatSemiring.*-comm $ NatSemiring.<=_+ zero<=_ <=-refl
+                     }) *> equation), inv (c.contraction _)))
+               | inr bd*n=ad+cd => (shom n c cd ch b^n=ac bd*n=ad+cd, inP ((n, c, cd, ch, b^n=ac, bd*n=ad+cd), idp))
+             }
+      \where {
+        \func sfunc (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (bd*n=ad+cd : bd * n = ad + cd) (k : Nat) {y : R} (yh : isHomogen y (ad * k)) : HomogenLocRing (powers b)
+          => fromSType (y * pow c k, pow b (n * k), later $ inP (n * k, idp)) {bd * (n * k)} (rewrite (inv *-assoc, bd*n=ad+cd, rdistr) $ homogen-* yh (R.homogen-pow ch)) (R.homogen-pow bh)
+
+        \lemma shom-coh (t s : \Sigma (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (pow b n = a * c) (bd * n = ad + cd))
+          : shom t.1 t.2 t.3 t.4 t.5 t.6 = {RingHom (HomogenLocRing (powers a)) (HomogenLocRing (powers b))} shom s.1 s.2 s.3 s.4 s.5 s.6
+          => exts $ \lam e => \case (smap t.1 t.2 t.3 t.4 t.5 t.6 e).2, (smap s.1 s.2 s.3 s.4 s.5 s.6 e).2 \with {
+            | inP (u,p), inP (v,q) => \case LocRing.unequals (powers a) $ pmap __.1 $ inv u.4 *> v.4 \with {
+              | inP (_, inP (w, idp), d) => inv p *> ext (LocRing.equals-lem (powers b) (pow b (t.1 * w)) (inP (t.1 * w, idp)) $
+                  later $ rewrite (pow_*,pow_*,pow_*,t.5,s.5,pow_*-comm,pow_*-comm,pow_*-comm) equation) *> q
+            }
+          }
+
+        \lemma smap (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (p : pow b n = a * c) (bd*n=ad+cd : bd * n = ad + cd) (x : HomogenLocRing (powers a))
+          : \Sigma (z : HomogenLocRing (powers b)) (∃ (t : \Sigma (y : R) (k : Nat) (yh : isHomogen y (ad * k)) (x = fromSType (y, pow a k, later $ inP (k,idp)) yh (R.homogen-pow ah))) (sfunc n c cd ch bd*n=ad+cd t.2 t.3 = z))
+          => TruncP.rec-set (\case x.2 \with {
+            | inP ((y1, _, inP (k, idp)),x=[y],yd,y1h,y2h) => later $ inP $ \case R.degree-unique y2h (R.homogen-pow ah) \with {
+              | inl a^k=0 => (0, 0, homogen-zro, ext $ isContr=>isProp (LocRing.nilpotent-contr (powers a) a (inP (1,ide-left)) k a^k=0) _ _)
+              | inr yd=ad*k => (y1, k, rewriteF yd=ad*k y1h, ext x=[y])
+            }
+          }) (\lam t => sfunc n c cd ch bd*n=ad+cd t.2 {t.1} t.3) $ \lam q1 q2 => ext $
+                \case LocRing.unequals (powers a) $ pmap __.1 $ inv q1.4 *> q2.4 \with {
+                  | inP (_, inP (s, idp), e) => LocRing.equals-lem (powers b) (pow b (n * s)) (inP (n * s, idp)) $
+                      later $ rewrite (pow_*,pow_*,pow_*,p,pow_*-comm,pow_*-comm,pow_*-comm) equation
+                }
+
+        \func shom (n : Nat) (c : R) (cd : Nat) (ch : isHomogen c cd) (p : pow b n = a * c) (bd*n=ad+cd : bd * n = ad + cd) : RingHom (HomogenLocRing (powers a)) (HomogenLocRing (powers b)) \cowith
+          | func x => (smap n c cd ch p bd*n=ad+cd x).1
+          | func-+ {x} {y} => \case (smap n c cd ch p bd*n=ad+cd x).2, (smap n c cd ch p bd*n=ad+cd y).2, (smap n c cd ch p bd*n=ad+cd (x + y)).2 \with {
+            | inP (t1,q1), inP (t2,q2), inP (t3,q3) => inv q3 *> ext (
+              \case LocRing.unequals (powers a) $ pmap __.1 $ inv t3.4 *> pmap2 (+) t1.4 t2.4 \with {
+                | inP (_, inP (s, idp), e) => LocRing.equals-lem (powers b) (pow b (n * s)) (inP (n * s, idp)) $
+                    later $ rewrite (pow_*,pow_*,pow_*,pow_*,p,pow_*-comm,pow_*-comm,pow_*-comm,pow_*-comm) equation
+              }) *> pmap2 (+) q1 q2
+          }
+          | func-ide => \case (smap n c cd ch p bd*n=ad+cd ide).2 \with {
+            | inP (t,q) => inv q *> ext (\case LocRing.unequals (powers a) $ pmap __.1 $ t.4 \with {
+              | inP (_, inP (s, idp), e) => LocRing.equals-lem (powers b) (pow b (n * s)) (inP (n * s, idp)) $
+                  later $ rewrite (pow_*,pow_*,p,pow_*-comm,pow_*-comm) equation
+            })
+          }
+          | func-* {x} {y} =>\case (smap n c cd ch p bd*n=ad+cd x).2, (smap n c cd ch p bd*n=ad+cd y).2, (smap n c cd ch p bd*n=ad+cd (x * y)).2 \with {
+            | inP (t1,q1), inP (t2,q2), inP (t3,q3) => inv q3 *> ext (
+              \case LocRing.unequals (powers a) $ pmap __.1 $ inv t3.4 *> pmap2 (*) t1.4 t2.4 \with {
+                | inP (_, inP (s, idp), e) => LocRing.equals-lem (powers b) (pow b (n * s)) (inP (n * s, idp)) $
+                    later $ rewrite (pow_*,pow_*,pow_*,pow_*,p,pow_*-comm,pow_*-comm,pow_*-comm,pow_*-comm) equation
+              }) *> pmap2 (*) q1 q2
+          }
+      }
+
+    \lemma fromSubRing {a : R} (d : LocRing.SType (powers a)) (s : subRing (powers a) (inl~ d))
+      : ∃ (\Sigma (y : \Sigma (x : LocRing (powers a)) (subRing (powers a) x)) (y.1 = inl~ d)) \elim s
+      | inP (y,p,n,y1h,y2h) => inP ((inl~ y, inP (y, idp, n, y1h, y2h)), inv p)
+
+    \lemma toSubRing {a : R} (d : LocRing.SType (powers a)) (s : \Sigma (y : \Sigma (x : LocRing (powers a)) (subRing (powers a) x)) (y.1 = inl~ d))
+      : subRing (powers a) (inl~ d) \elim s
+      | ((x, inP s), p) => inP (s.1, inv p *> s.2, s.3, s.4, s.5)
+
+    \lemma sheaf-lem {a g0 g1 : ProjPres.Carrier R} {b0 b1 c0 c1 : R} {k0 k1 u : Nat} (p0 : pow g0.1 k0 = a.1 * b0) (p1 : pow g1.1 k1 = a.1 * b1) (q : pow a.1 u = g0.1 * c0 + g1.1 * c1) (d : R) (n : Nat)
+                     (s0 : subRing (powers g0.1) (inl~ (d R.* pow b0 n, pow g0.1 (k0 * n), later $ inP (k0 * n, idp))))
+                     (s1 : subRing (powers g1.1) (inl~ (d R.* pow b1 n, pow g1.1 (k1 * n), later $ inP (k1 * n, idp))))
+                     : subRing (powers a.1) (inl~ (d, pow a.1 n, later $ inP (n, idp))) \elim s0, s1
+      | inP ((y0, _, inP (l0, idp)), q0, n0, y0h, g0^l0h), inP ((y1, _, inP (l1, idp)), q1, n1, y1h, g1^l1h) =>
+        \have | (inP (_, inP (m0, idp), dy0p)) => LocRing.unequals (powers g0.1) q0
+              | (inP (_, inP (m1, idp), dy1p)) => LocRing.unequals (powers g1.1) q1
+              | (inP (u,t)) => radical2-lem {a.1} {g0.1} {g1.1} (inP (u, (closure2-lem (if __ g0.1 g1.1)).2 $ inP (c0,c1,q))) (k0 * n + l0 + m0) (k1 * n + l1 + m1)
+              | (inP (e0,e1,ap)) => (closure2-lem (if __ _ _)).1 t
+              | (inP (e0',e1',e0'd,e1'd,e0'h,e1'h,ap')) => R.homogen-factor2 ap (R.homogen-pow a.3) (R.homogen-pow g0.3) (R.homogen-pow g1.3)
+              | hh (g : ProjPres.Carrier R) (k l m : Nat) (b e y : R) (ed : Nat) (eh : isHomogen e ed) (yh : isHomogen y (suc g.2 * l)) (p : pow g.1 k = a.1 * b) (dyp : d * pow b n * pow g.1 l * pow g.1 m = y * pow g.1 (k * n) * pow g.1 m) (ap : pow a.1 u = pow g.1 (k * n + l + m) * e) : isHomogen (d * pow a.1 u) (suc a.2 * (u + n))
+                   => \case R.degree-unique {_} {suc a.2 * u} {suc g.2 * (k * n + l + m) + ed} (R.homogen-pow a.3) $ rewrite ap $ homogen-* (R.homogen-pow g.3) eh \with {
+                        | inl a^u=0 => rewrite (a^u=0,zro_*-right) homogen-zro
+                        | inr q =>
+                          \have s : d * (pow g.1 (k * n + l + m) * e) = pow g.1 (k * n) * y * pow g.1 m * e * pow a.1 n => rewrite (pow_+,pow_+,pow_*,p,pow_*-comm) $ equation *> pmap (\lam x => x * e * pow a.1 n) dyp *> rewrite (pow_*,p,pow_*-comm) equation
+                          \in rewrite (ap,s,ldistr,q,ldistr,ldistr) $ homogen-* (homogen-* (homogen-* (homogen-* (R.homogen-pow g.3) yh) (R.homogen-pow g.3)) eh) (R.homogen-pow a.3)
+                      }
+              | h : isHomogen (d * pow a.1 u) (suc a.2 * (u + n)) =>
+                \case R.degree-unique g0^l0h (R.homogen-pow g0.3), R.degree-unique g1^l1h (R.homogen-pow g1.3) \with {
+                  | inl g0^l0=0, inl g1^l1=0 => rewrite (ap',pow_+,pow_+,pow_+,pow_+,g0^l0=0,g1^l1=0,zro_*-right,zro_*-right,zro_*-left,zro_*-left,zro_*-left,zro_*-left,zro-left,zro_*-right) homogen-zro
+                  | inl g0^l0=0, inr n1=d1d*l1 => hh g1 k1 l1 m1 b1 e1' y1 e1'd e1'h (rewriteF n1=d1d*l1 y1h) p1 dy1p $ rewriteF (pow_+,pow_+,g0^l0=0,zro_*-right,zro_*-left,zro_*-left,zro-left) ap'
+                  | inr n0=g0d*l0, inl g1^l1=0 => hh g0 k0 l0 m0 b0 e0' y0 e0'd e0'h (rewriteF n0=g0d*l0 y0h) p0 dy0p $ rewriteF (g1^l1=0,zro_*-right,zro_*-left,zro_*-left,zro-right) $ rewriteF {3} (pow_+,pow_+) ap'
+                  | inr n0=g0d*l0, inr n1=d1d*l1 => \case R.degree-unique2 ap' (R.homogen-pow a.3) (homogen-* (R.homogen-pow g0.3) e0'h) (homogen-* (R.homogen-pow g1.3) e1'h) \with {
+                    | inl (inl p) => hh g1 k1 l1 m1 b1 e1' y1 e1'd e1'h (rewriteF n1=d1d*l1 y1h) p1 dy1p $ rewriteF (p,zro-left) ap'
+                    | inl (inr p) => hh g0 k0 l0 m0 b0 e0' y0 e0'd e0'h (rewriteF n0=g0d*l0 y0h) p0 dy0p $ rewriteF (p,zro-right) ap'
+                    | inr p => \case R.degree-unique (R.homogen-pow a.3) $ rewrite ap' $ homogen-+ (homogen-* (R.homogen-pow g0.3) e0'h) $ rewrite p $ homogen-* (R.homogen-pow g1.3) e1'h \with {
+                      | inl a^u=0 => rewrite (a^u=0,zro_*-right) homogen-zro
+                      | inr q =>
+                        \have s : d * (pow g0.1 (k0 * n + l0 + m0) * e0' + pow g1.1 (k1 * n + l1 + m1) * e1') = y0 * pow g0.1 (k0 * n + m0) * e0' * pow a.1 n + y1 * pow g1.1 (k1 * n + m1) * e1' * pow a.1 n
+                                => repeat (rewrite pow_+) $ rewrite (pow_*,pow_*,p0,p1,pow_*-comm,pow_*-comm) $ equation {usingOnly (rewriteF (pow_*,p0,pow_*-comm) dy0p, rewriteF (pow_*,p1,pow_*-comm) dy1p)}
+                        \in rewrite (ap',s,ldistr) $ homogen-+ (homogen-* (rewrite q $ homogen-* (rewrite (NatSemiring.+-comm {k0 * n} {l0}, NatSemiring.+-assoc, NatSemiring.ldistr) $ homogen-* (rewriteF n0=g0d*l0 y0h) $ R.homogen-pow g0.3) e0'h) $ R.homogen-pow a.3) (homogen-* (rewrite (q *> p) $ homogen-* (rewrite (NatSemiring.+-comm {k1 * n} {l1}, NatSemiring.+-assoc, NatSemiring.ldistr) $ homogen-* (rewriteF n1=d1d*l1 y1h) $ R.homogen-pow g1.3) e1'h) $ R.homogen-pow a.3)
+                    }
+                  }
+                }
+        \in inP ((d * pow a.1 u, pow a.1 (u + n), inP (u + n, idp)), ~-pequiv $ pmap (d *) pow_+ *> inv *-assoc, suc a.2 * (u + n), h, R.homogen-pow a.3)
+
+    \lemma radical2-lem {a b c : R} (s : radical {Ideal.closure (if __ b c)} a) (n k : Nat) : radical a
+      => Ideal.radical-univ {Ideal.closure (if __ (pow b n) (pow c k))} (\lam {x} e => \case (closure2-lem (if __ b c)).1 e \with {
+        | inP (u,v,x=bu+cv) => transportInv radical x=bu+cv $ contains_+
+            (ideal-right $ inP (n, later $ inP ((1,true) :: nil, inv $ zro-right *> ide-left)))
+            (ideal-right $ inP (k, later $ inP ((1,false) :: nil, inv $ zro-right *> ide-left)))
+      }) s
+  }

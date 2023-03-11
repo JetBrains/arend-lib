@@ -42,11 +42,10 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-left") public CoreClassField addMonZroLeft;
 
   @Dependency(module = "Algebra.Group", name = "Group.inverse") public CoreClassField inverse;
-  @Dependency(module = "Algebra.Group", name = "Group.ide") public CoreClassField ide;
 
   @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")         CoreClassDefinition MSemilattice;
   @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")            CoreClassField meet;
-  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top")     public CoreClassField top;
+  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top")     CoreClassField top;
   @Dependency(module = "Order.Lattice", name = "JoinSemilattice.join")            CoreClassField join;
   @Dependency(module = "Order.Lattice", name = "Bounded.JoinSemilattice.bottom")  CoreClassField bottom;
   @Dependency(module = "Order.Lattice", name = "Bounded.DistributiveLattice")     CoreClassDefinition BoundedDistributiveLattice;
@@ -136,15 +135,9 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Group")                public CoreClassDefinition AbGroup;
   @Dependency(module = "Algebra.Group")                public CoreClassDefinition CGroup;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative")       public CoreClassField negative;
-  @Dependency(module = "Algebra.Group", name = "AddGroup.zro")            public CoreClassField zro;
   @Dependency(module = "Algebra.Group", name = "AddGroup.fromZero")       public CoreFunctionDefinition fromZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.toZero")         public CoreFunctionDefinition toZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative-isInv")    public CoreFunctionDefinition negIsInv;
-  @Dependency(module = "Algebra.Group", name = "AddGroup.toGroup")     public CoreFunctionDefinition fromAddGroupToGroup;
-  @Dependency(module = "Algebra.Group", name = "AbGroup.toCGroup")     public CoreFunctionDefinition fromAbGroupToCGroup;
-  @Dependency(module = "Algebra.Group", name = "Group.inverse-isInv")    public CoreFunctionDefinition invIsInv;
-  @Dependency(module = "Algebra.Group", name = "Group.inverse_ide")    public CoreFunctionDefinition invIde;
-  @Dependency(module = "Algebra.Group", name = "AddGroup.negative_zro")    public CoreFunctionDefinition negativeZro;
   @Dependency(module = "Algebra.Semiring")                                public CoreClassDefinition Semiring;
   @Dependency(module = "Algebra.Ring")                                    public CoreClassDefinition Ring;
   @Dependency(module = "Algebra.Semiring", name = "Semiring.natCoef")     public CoreClassField natCoef;
@@ -202,8 +195,7 @@ public class EquationMeta extends BaseMetaDefinition {
         solver = new EqualitySolver(this, typechecker, factory, refExpr, false);
       } else if (arg instanceof ConcreteReferenceExpression) {
         CoreDefinition def = ext.definitionProvider.getCoreDefinition(((ConcreteReferenceExpression) arg).getReferent());
-        if (def instanceof CoreClassDefinition) {
-          CoreClassDefinition classDef = (CoreClassDefinition) def;
+        if (def instanceof CoreClassDefinition classDef) {
           if ((classDef.isSubClassOf(Monoid) || classDef.isSubClassOf(AddMonoid) || classDef.isSubClassOf(MSemilattice))) {
             argIndex = 1;
             solver = new EqualitySolver(this, typechecker, factory, refExpr, classDef);
@@ -269,15 +261,12 @@ public class EquationMeta extends BaseMetaDefinition {
     for (int i = 0; i < values.size(); i++) {
       if (values.get(i) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
         hasMissingProofs = true;
-      } else if (values.get(i) instanceof ConcreteExpression) {
-        ConcreteExpression expr = (ConcreteExpression) values.get(i);
-        if (solver.isHint(expr instanceof ConcreteGoalExpression ? ((ConcreteGoalExpression) expr).getExpression() : expr)) {
-          if (i > 0 && values.get(i - 1) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
-            hasMissingProofs = true;
-          } else {
-            errorReporter.report(new TypecheckingError("Hints must be between explicit arguments", (ConcreteExpression) values.get(i)));
-            values.remove(i--);
-          }
+      } else if (values.get(i) instanceof ConcreteExpression expr && solver.isHint(expr instanceof ConcreteGoalExpression ? ((ConcreteGoalExpression) expr).getExpression() : expr)) {
+        if (i > 0 && values.get(i - 1) instanceof TypedExpression && i + 1 < values.size() && values.get(i + 1) instanceof TypedExpression) {
+          hasMissingProofs = true;
+        } else {
+          errorReporter.report(new TypecheckingError("Hints must be between explicit arguments", (ConcreteExpression) values.get(i)));
+          values.remove(i--);
         }
       }
     }

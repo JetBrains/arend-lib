@@ -1,7 +1,7 @@
 package org.arend.lib.error;
 
 import org.arend.ext.concrete.ConcreteSourceNode;
-import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.expr.UncheckedExpression;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.prettyprinting.PrettyPrinterConfig;
 import org.arend.ext.prettyprinting.doc.Doc;
@@ -9,9 +9,9 @@ import org.arend.ext.prettyprinting.doc.DocFactory;
 import org.jetbrains.annotations.Nullable;
 
 public class TypeError extends TypecheckingError {
-  public final CoreExpression type;
+  public final UncheckedExpression type;
 
-  public TypeError(String message, CoreExpression type, @Nullable ConcreteSourceNode cause) {
+  public TypeError(String message, UncheckedExpression type, @Nullable ConcreteSourceNode cause) {
     super(message, cause);
     this.type = type;
   }

@@ -399,16 +399,16 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     if (type instanceof CoreDataCallExpression && ((CoreDataCallExpression) type).getDefinition() == ext.prelude.getPath()) {
       return Collections.singletonList(new ArendPattern(parameter.getBinding(), null, Collections.emptyList(), parameter, ext.renamerFactory));
     }
-    List<CoreConstructor> constructors = type instanceof CoreDataCallExpression ? ((CoreDataCallExpression) type).computeMatchedConstructors() : null;
+    List<CoreExpression.ConstructorWithDataArguments> constructors = type instanceof CoreDataCallExpression ? type.computeMatchedConstructorsWithDataArguments() : null;
     if (constructors == null) return null;
 
     List<ArendPattern> patterns = new ArrayList<>(constructors.size());
-    for (CoreConstructor constructor : constructors) {
+    for (CoreExpression.ConstructorWithDataArguments constructor : constructors) {
       List<ArendPattern> subpatterns = new ArrayList<>();
       for (CoreParameter param = constructor.getParameters(); param.hasNext(); param = param.getNext()) {
         subpatterns.add(new ArendPattern(param.getBinding(), null, Collections.emptyList(), param, ext.renamerFactory));
       }
-      patterns.add(new ArendPattern(null, constructor, subpatterns, null, ext.renamerFactory));
+      patterns.add(new ArendPattern(null, constructor.getConstructor(), subpatterns, null, ext.renamerFactory));
     }
     return patterns;
   }

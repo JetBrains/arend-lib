@@ -1,9 +1,78 @@
 \import Algebra.Monoid
+\import Algebra.Pointed.Sub
+\import Algebra.Ring.Localization
+\import Arith.Nat
+\import Function
+\import Logic
+\import Logic.Meta
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set
 
-\record SubMonoid {E : Monoid} (\coerce S : E -> \Prop)
-  | sub-id : S 1
-  | sub-* {x y : E} : S x -> S y -> S (x * y)
+\class SubMonoid \extends SubPointed {
+  \override S : Monoid
+  | contains_* {x y : S} : contains x -> contains y -> contains (x * y)
 
-\record AddSubMonoid {E : AddMonoid} (\coerce S : E -> \Prop)
-  | sub-zero : S 0
-  | sub-+ {x y : E} : S x -> S y -> S (x + y)
+  \func struct : Monoid \cowith
+    | Pointed => SubPointed.struct
+    | * x y => (x.1 * y.1, contains_* x.2 y.2)
+    | ide-left => ext ide-left
+    | ide-right => ext ide-right
+    | *-assoc => ext *-assoc
+
+  \lemma contains_pow {x : S} (s : contains x) {n : Nat} : contains (Monoid.pow x n) \elim n
+    | 0 => contains_ide
+    | suc n => contains_* (contains_pow s) s
+} \where {
+  \func cStruct {A : CMonoid} (S : SubMonoid A) : CMonoid \cowith
+    | Monoid => S.struct
+    | *-comm => ext *-comm
+
+  \func closure {M : Monoid} (S : SubSet M) : SubMonoid M \cowith
+    | contains x => ∃ (n : Nat) (contains {iterr apl n S} x)
+    | contains_ide => inP (1, byRight (byLeft idp))
+    | contains_* {x} {y} (inP (n,xr)) (inP (m,yr)) => inP (suc (n ∨ m), byRight (byRight (x, y, apl-inc join-left x xr, apl-inc join-right y yr, idp)))
+    \where {
+      \lemma ext {M : Monoid} (S : SubSet M) : S <= closure S
+        => \lam x x<-S => inP (0, x<-S)
+
+      \lemma univ (S' : SubMonoid M) (p : S <= S') (x : M) (q : contains {closure S} x) : S' x \elim q
+        | inP (0, x<-S) => p x x<-S
+        | inP (suc n, byLeft x<-C) => univ S' p x (inP (n, x<-C))
+        | inP (suc n, byRight (byLeft x=1)) => transport S' (inv x=1) S'.contains_ide
+        | inP (suc n, byRight (byRight (y, z, y<-C, z<-C, x=y*z))) => transport S' (inv x=y*z) (S'.contains_* (univ S' p y (inP (n, y<-C))) (univ S' p z (inP (n, z<-C))))
+
+      \func apl {M : Monoid} (S : SubSet M) : SubSet M \cowith
+        | contains x => S x || (x = 1) || (\Sigma (y z : M) (S y) (S z) (x = y * z))
+
+      \lemma apl-inc {n m : Nat} (q : n <= m) (x : M) (p : contains {iterr apl n S} x) : contains {iterr apl m S} x
+        => rewriteI (<=_exists q) (alt n (m -' n) x p)
+        \where
+          \lemma alt (n m : Nat) (x : M) (p : contains {iterr apl n S} x) : contains {iterr apl (n + m) S} x \elim m
+            | 0 => p
+            | suc m => byLeft (alt n m x p)
+    }
+
+  \func powers {M : Monoid} (a : M) : SubMonoid M \cowith
+    | contains x => ∃ (n : Nat) (M.pow a n = x)
+    | contains_ide => inP (0, idp)
+    | contains_* (inP (n,a^n=x)) (inP (m,a^m=y)) => inP (n Nat.+ m, M.pow_+ *> pmap2 (*) a^n=x a^m=y)
+}
+
+\class SubAddMonoid \extends SubAddPointed {
+  \override S : AddMonoid
+  | contains_+ {x y : S} : contains x -> contains y -> contains (x + y)
+
+  \func struct : AddMonoid \cowith
+    | AddPointed => SubAddPointed.struct
+    | + x y => (x.1 + y.1, contains_+ x.2 y.2)
+    | zro-left => ext zro-left
+    | zro-right => ext zro-right
+    | +-assoc => ext +-assoc
+} \where {
+  \func abStruct {A : AbMonoid} (S : SubAddMonoid A) : AbMonoid \cowith
+    | AddMonoid => S.struct
+    | +-comm => ext +-comm
+}

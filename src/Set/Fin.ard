@@ -5,6 +5,7 @@
 \import Data.Or
 \import Equiv
 \import Equiv.Univalence
+\import Function.Meta ($)
 \import Logic
 \import Logic.Classical
 \import Logic.Meta
@@ -22,7 +23,7 @@
   | finCard : Nat
   | finEq : TruncP (E = {\Set} Fin finCard)
 
-  | choice B => \case finEq \with {
+  | choice {B} => \case finEq \with {
     | inP p => rewriteF (inv p) (finiteAC {finCard}) {B}
   }
   \where {
@@ -38,6 +39,21 @@
           | 0 => a0
           | suc i => aS i
         })
+      }
+
+    \func search {n : Nat} (A : Fin n -> \Prop) (d : \Pi (j : Fin n) -> Dec (A j))
+      : Or (\Sigma (j0 : Fin n) (A j0) (\Pi (j : Fin n) -> A j -> (j0 : Nat) <= j)) (\Pi (j : Fin n) -> Not (A j)) \elim n
+      | 0 => inr (\case __)
+      | suc n => \case d 0, search _ (\lam j => d (suc j)) \with {
+        | yes e, _ => inl (0, e, \lam j _ => zero<=_)
+        | no e, inl (j0,Aj0,u) => inl (suc j0, Aj0, \case \elim __ \with {
+          | 0 => \lam A0 => absurd (e A0)
+          | suc j => \lam Aj+1 => suc<=suc (u j Aj+1)
+        })
+        | no e, inr f => inr $ \case \elim __ \with {
+          | 0 => e
+          | suc j => f j
+        }
       }
 
     \func pred {n : Nat} (x : Fin (suc (suc n))) : Fin (suc n) \elim x
@@ -83,6 +99,28 @@
 
 \func fin-inc {n m : Nat} (p : n <= m) (i : Fin n) : Fin m
   => toFin (<-transitive-left (fin_< i) p)
+
+\func fin-inc-left {n m : Nat} (i : Fin n) : Fin (n + m)
+  => fin-inc (<=_+ <=-refl zero<=_) i
+  \where {
+    \lemma char {n m : Nat} (i : Fin n) : fin-inc-left {n} {m} i = {Nat} i \elim n
+      | 0 => \case i
+      | suc n => mod_< $ <-transitive-left (fin_< i) $ suc<=suc $ <=_+ <=-refl zero<=_
+
+    \lemma char_nat {n : Nat} (i : Nat) : fin-inc-left {suc i} {n} i = {Nat} i \elim i
+      | i => char {suc i} i *> mod_< id<suc
+  }
+
+\func fin-inc-right {n m : Nat} (i : Fin m) : Fin (n + m)
+  => fin-inc (<=_+ zero<=_ <=-refl) i
+  \where {
+    \lemma char {n m : Nat} (i : Fin m) : fin-inc-right {n} i = {Nat} i \elim m
+      | 0 => \case i
+      | suc m => mod_< $ <-transitive-left (fin_< i) $ suc<=suc $ <=_+ zero<=_ <=-refl
+
+    \lemma char_nat {n : Nat} (i : Nat) : fin-inc-right {n} {suc i} i = {Nat} i \elim i
+      | i => char i *> mod_< id<suc
+  }
 
 \func fin-raise {n k : Nat} (i : Fin n) : Fin (k + n) \elim k
   | 0 => i
@@ -149,7 +187,7 @@
   \where {
     \func aux {n m : Nat} : QEquiv {Or (Fin n) (Fin m)} {Fin (n + m)} \cowith
       | f (e : Or (Fin n) (Fin m)) : Fin (n + m) \with {
-        | inl s => fin-inc (<=_+ <=-refl zero<=_) s
+        | inl s => fin-inc-left s
         | inr t => fin-raise t
       }
       | ret (i : Fin (n + m)) : Or (Fin n) (Fin m) \elim n, i {
