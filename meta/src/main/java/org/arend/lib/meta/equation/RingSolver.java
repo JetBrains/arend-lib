@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.meta.closure.CongruenceClosure;
 import org.arend.lib.meta.cong.CongruenceMeta;
+import org.arend.lib.meta.equation.datafactory.RingDataFactory;
 import org.arend.lib.ring.Monomial;
 import org.arend.lib.util.CountingSort;
 import org.arend.lib.util.Utils;
@@ -34,7 +35,7 @@ import static java.util.Collections.singletonList;
 public class RingSolver extends BaseEqualitySolver {
   private final boolean isCommutative;
   private final TermCompiler termCompiler;
-  private CompiledTerm lastCompiled;
+  private TermCompiler.CompiledTerm lastCompiled;
   private TypedExpression lastTerm;
 
   protected RingSolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, CoreFunCallExpression equality, TypedExpression instance, CoreClassCallExpression classCall, CoreClassDefinition forcedClass, boolean useHypotheses) {
@@ -46,7 +47,7 @@ public class RingSolver extends BaseEqualitySolver {
 
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
-    RingDataFactory dataFactory = new RingDataFactory(meta, dataRef, values, factory, instance, isLattice, isRing, isCommutative);
+    RingDataFactory dataFactory = new RingDataFactory(meta, dataRef, values, factory, instance, termCompiler.isLattice, termCompiler.isRing, isCommutative);
     return typechecker.typecheck(dataFactory.wrapWithData(result), null);
   }
 

@@ -33,21 +33,28 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition AddMonoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition AbMonoid;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    public CoreClassField mul;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.ide") public CoreClassField ide;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.ide-left") public CoreClassField ideLeft;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.ide-right") public CoreClassField ideRight;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.+") public CoreClassField plus;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-right") public CoreClassField addMonZroRight;
+  @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro") public CoreClassField zro;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-left") public CoreClassField addMonZroLeft;
-
+  @Dependency(module = "Algebra.Group", name = "Group.inverse-isInv")    public CoreFunctionDefinition invIsInv;
+  @Dependency(module = "Algebra.Group", name = "Group.inverse_ide")    public CoreFunctionDefinition invIde;
   @Dependency(module = "Algebra.Group", name = "Group.inverse") public CoreClassField inverse;
 
+  @Dependency(module = "Algebra.Group", name = "AddGroup.toGroup")     public CoreFunctionDefinition fromAddGroupToGroup;
+  @Dependency(module = "Algebra.Group", name = "AbGroup.toCGroup")     public CoreFunctionDefinition fromAbGroupToCGroup;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.negative_zro")    public CoreFunctionDefinition negativeZro;
+
   @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")         CoreClassDefinition MSemilattice;
-  @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")            CoreClassField meet;
-  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top")     CoreClassField top;
-  @Dependency(module = "Order.Lattice", name = "JoinSemilattice.join")            CoreClassField join;
-  @Dependency(module = "Order.Lattice", name = "Bounded.JoinSemilattice.bottom")  CoreClassField bottom;
+  @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")            public CoreClassField meet;
+  @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice.top")     public CoreClassField top;
+  @Dependency(module = "Order.Lattice", name = "JoinSemilattice.join")            public CoreClassField join;
+  @Dependency(module = "Order.Lattice", name = "Bounded.JoinSemilattice.bottom")  public CoreClassField bottom;
   @Dependency(module = "Order.Lattice", name = "Bounded.DistributiveLattice")     CoreClassDefinition BoundedDistributiveLattice;
 
   @Dependency(module = "Algebra.Ordered")                                             public CoreClassDefinition LinearlyOrderedSemiring;
