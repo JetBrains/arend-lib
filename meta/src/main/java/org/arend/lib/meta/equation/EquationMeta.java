@@ -45,6 +45,8 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Group", name = "Group.inverse-isInv")    public CoreFunctionDefinition invIsInv;
   @Dependency(module = "Algebra.Group", name = "Group.inverse_ide")    public CoreFunctionDefinition invIde;
   @Dependency(module = "Algebra.Group", name = "Group.inverse") public CoreClassField inverse;
+  @Dependency(module = "Algebra.Group", name = "Group.inverse_*") public CoreFunctionDefinition inverseMul;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.negative_+") public CoreFunctionDefinition negativePlus;
 
   @Dependency(module = "Algebra.Group", name = "AddGroup.toGroup")     public CoreFunctionDefinition fromAddGroupToGroup;
   @Dependency(module = "Algebra.Group", name = "AbGroup.toCGroup")     public CoreFunctionDefinition fromAbGroupToCGroup;

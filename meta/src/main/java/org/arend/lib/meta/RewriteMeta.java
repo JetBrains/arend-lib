@@ -117,7 +117,7 @@ public class RewriteMeta extends BaseMetaDefinition {
             break;
           }
         }
-        if (ok) { exactMatch = true; }
+        exactMatch = true;
       } else {
         if (useEqSolver) {
           var subExprTypeFixed = subExprType;

@@ -15,8 +15,12 @@ import org.arend.lib.meta.RewriteMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.meta.equation.datafactory.GroupDataFactory;
+import org.arend.lib.meta.equation.term.CompiledTerm;
+import org.arend.lib.meta.equation.term.CompositeTerm;
+import org.arend.lib.meta.equation.term.VarTerm;
 import org.arend.lib.util.Values;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -26,55 +30,9 @@ public class AbGroupInverseRule extends GroupRuleBase {
     super(instance, classCall, ext, refExpr, typechecker, isAdditive, true);
   }
 
-  private interface Term {
-  }
 
-  private static class MulTerm implements Term {
-    public Term left, right;
-    public MulTerm(Term left, Term right) { this.left = left; this.right = right; }
 
-    /*@Override
-    public ConcreteExpression getConcrete() {
-      var leftConcrete = left.getConcrete();
-      var rightConcrete = right.getConcrete();
-      return factory.appBuilder();
-    }*/
-  }
-
-  private static class InvTerm implements Term {
-    public Term arg;
-    public InvTerm(Term arg) { this.arg = arg; }
-  }
-
-  private static class VarTerm implements Term {
-    public int index;
-    public VarTerm(int index) { this.index = index; }
-  }
-
-  private static class IdeTerm implements Term { }
-
-  private Term computeTerm(CoreExpression expression) {
-    CoreExpression expr = expression.normalize(NormalizationMode.WHNF);
-
-    List<CoreExpression> args = mulMatcher.match(expr);
-    if (args != null) {
-      return new MulTerm(computeTerm(args.get(0)), computeTerm(args.get(1)));
-    }
-
-    args = invMatcher.match(expr);
-    if (args != null) {
-      return new InvTerm(computeTerm(args.get(0)));
-    }
-
-    if (ideMatcher.match(expr) != null) {
-      return new IdeTerm();
-    }
-
-    int index = values.addValue(expr);
-    return new VarTerm(index);
-  }
-
-  private void countVarOccurNums(Term term, Map<Integer, Pair<Integer, Integer>> indToVarOccurNums, boolean curSign) {
+  private void countVarOccurNums(CompiledTerm term, Map<Integer, Pair<Integer, Integer>> indToVarOccurNums, boolean curSign) {
     if (term instanceof VarTerm varTerm) {
       var occurNums = indToVarOccurNums.get(varTerm.index);
       if (occurNums == null) {
@@ -82,14 +40,17 @@ public class AbGroupInverseRule extends GroupRuleBase {
         return;
       }
       indToVarOccurNums.put(varTerm.index, curSign ? new Pair<>(occurNums.proj1, occurNums.proj2 + 1) : new Pair<>(occurNums.proj1 + 1, occurNums.proj2));
-    } else if (term instanceof InvTerm invTerm) {
-      countVarOccurNums(invTerm.arg, indToVarOccurNums, !curSign);
-    } else if (term instanceof MulTerm mulTerm) {
-      countVarOccurNums(mulTerm.left, indToVarOccurNums, curSign);
-      countVarOccurNums(mulTerm.right, indToVarOccurNums, curSign);
+    } else if (term instanceof CompositeTerm compTerm) {
+      if (compTerm.matcher == invMatcher) {
+        countVarOccurNums(compTerm.subterms.get(0), indToVarOccurNums, !curSign);
+      } else if (compTerm.matcher == mulMatcher) {
+        countVarOccurNums(compTerm.subterms.get(0), indToVarOccurNums, curSign);
+        countVarOccurNums(compTerm.subterms.get(1), indToVarOccurNums, curSign);
+      }
     }
   }
-  private Map<Integer, Integer> varsToRemove(Term term) {
+
+  private Map<Integer, Integer> varsToRemove(CompiledTerm term) {
     var indToVarOccurNums = new TreeMap<Integer, Pair<Integer, Integer>>();
     countVarOccurNums(term, indToVarOccurNums, false);
     var result = new TreeMap<Integer, Integer>();
@@ -102,77 +63,67 @@ public class AbGroupInverseRule extends GroupRuleBase {
     return result;
   }
 
-  private Term removeVars(Term term, Map<Integer, Pair<Integer, Integer>> numVarsToRemove, boolean curSign) {
-    if (term instanceof VarTerm) {
-      var varTerm = (VarTerm) term;
+  private CompiledTerm removeVars(CompiledTerm term, Map<Integer, Pair<Integer, Integer>> numVarsToRemove, boolean curSign) {
+    if (term instanceof VarTerm varTerm) {
       var numsToRemove = numVarsToRemove.get(varTerm.index);
       if (numsToRemove != null) {
         if (curSign && numsToRemove.proj2 > 0) {
           numVarsToRemove.put(varTerm.index, new Pair<>(numsToRemove.proj1, numsToRemove.proj2 - 1));
-          return new IdeTerm();
+          return new CompositeTerm(ideMatcher);
         }
         if (!curSign && numsToRemove.proj1 > 0) {
           numVarsToRemove.put(varTerm.index, new Pair<>(numsToRemove.proj1 - 1, numsToRemove.proj2));
-          return new IdeTerm();
+          return new CompositeTerm(ideMatcher);
         }
       }
-    } else if (term instanceof InvTerm) {
-      var invTerm = (InvTerm) term;
-      return new InvTerm(removeVars(invTerm.arg, numVarsToRemove, !curSign));
-    } else if (term instanceof MulTerm) {
-      var mulTerm = (MulTerm) term;
-      var newLeft = removeVars(mulTerm.left, numVarsToRemove, curSign);
-      var newRight = removeVars(mulTerm.right, numVarsToRemove, curSign);
-      return new MulTerm(newLeft, newRight);
+    } else if (term instanceof CompositeTerm compositeTerm) {
+      if (compositeTerm.matcher == invMatcher) {
+        var invTerm = new CompositeTerm(invMatcher);
+        invTerm.subterms.add(removeVars(compositeTerm.subterms.get(0), numVarsToRemove, !curSign));
+        return invTerm;
+      } else if (compositeTerm.matcher == mulMatcher) {
+        var mulTerm = new CompositeTerm(mulMatcher);
+        var newLeft = removeVars(compositeTerm.subterms.get(0), numVarsToRemove, curSign);
+        var newRight = removeVars(compositeTerm.subterms.get(1), numVarsToRemove, curSign);
+        mulTerm.subterms.add(newLeft);
+        mulTerm.subterms.add(newRight);
+        return mulTerm;
+      }
     }
     return term;
   }
 
-  private Pair<ConcreteExpression, ConcreteExpression> termToConcrete(Term term) {
-    if (term == null) return null;
-    if (term instanceof IdeTerm) {
-      return new Pair<>(factory.ref(isAdditive ? ext.equationMeta.zro.getRef() : ext.equationMeta.ide.getRef()),
-              factory.ref(ext.equationMeta.ideGTerm.getRef()));
-    } else if (term instanceof VarTerm) {
-      return new Pair<>(factory.core(values.getValue(((VarTerm) term).index).computeTyped()),
-              factory.appBuilder(factory.ref(ext.equationMeta.varGTerm.getRef())).app(factory.number(((VarTerm) term).index)).build());
-    } else if (term instanceof InvTerm) {
-      var arg = termToConcrete(((InvTerm) term).arg);
-      return new Pair<>(factory.appBuilder(isAdditive ? factory.ref(ext.equationMeta.negative.getRef()) : factory.ref(ext.equationMeta.inverse.getRef()))
-                      .app(arg.proj1).build(),
-              factory.appBuilder(factory.ref(ext.equationMeta.invGTerm.getRef()))
-                      .app(arg.proj2).build());
-    } else if (term instanceof MulTerm) {
-      var left = termToConcrete(((MulTerm) term).left);
-      var right = termToConcrete(((MulTerm) term).right);
-      return new Pair<>(factory.appBuilder(isAdditive ? factory.ref(ext.equationMeta.plus.getRef()) : factory.ref(ext.equationMeta.mul.getRef()))
-              .app(left.proj1)
-              .app(right.proj1).build(),
-              factory.appBuilder(factory.ref(ext.equationMeta.mulGTerm.getRef()))
-                      .app(left.proj2)
-                      .app(right.proj2).build());
-    }
-    return null;
-  }
-
   @Override
   public RewriteMeta.EqProofConcrete apply(TypedExpression expression) {
-    var term = computeTerm(expression.getExpression());
-    var concreteTerm = termToConcrete(term);
+    var term = CompiledTerm.compile(expression.getExpression(), Arrays.asList(ideMatcher, mulMatcher, invMatcher), values);
+    var concreteTerm = CompiledTerm.termToConcrete(term, x -> {
+      if (x == mulMatcher) {
+        return factory.ref(ext.equationMeta.mulGTerm.getRef());
+      }
+      if (x == invMatcher) {
+        return factory.ref(ext.equationMeta.invGTerm.getRef());
+      }
+      return factory.ref(ext.equationMeta.ideGTerm.getRef());
+    }, ind -> factory.appBuilder(factory.ref(ext.equationMeta.varGTerm.getRef())).app(factory.number(ind)).build(), factory);
+    if(concreteTerm == null) return null;
     var numVarsToRemove = new TreeMap<Integer, Pair<Integer, Integer>>();
     varsToRemove(term).forEach((key, value) -> numVarsToRemove.put(key, new Pair<>(value, value)));
     if (numVarsToRemove.isEmpty()) return null;
     var newTerm = removeVars(term, numVarsToRemove, false);
     var simplifyProof = factory.appBuilder(factory.ref(ext.equationMeta.simplifyCorrectAbInv.getRef()))
             .app(factory.ref(dataRef), false)
-            .app(concreteTerm.proj2).build();
+            .app(concreteTerm).build();
     var left = factory.core(expression);
-    var right = termToConcrete(newTerm).proj1;
-    /*if (isAdditive) {
-      simplifyProof = factory.appBuilder(factory.ref(ext.pmap.getRef()))
-              .app(factory.ref(ext.equationMeta.fromGroupToAddGroup.getRef()))
-              .app(simplifyProof).build();
-    }/**/
+    var right = CompiledTerm.termToConcrete(newTerm, x -> {
+      if (x == mulMatcher) {
+        return isAdditive ? factory.ref(ext.equationMeta.plus.getRef()) : factory.ref(ext.equationMeta.mul.getRef());
+      }
+      if (x == invMatcher) {
+        return isAdditive ? factory.ref(ext.equationMeta.negative.getRef()) : factory.ref(ext.equationMeta.inverse.getRef());
+      }
+      return factory.ref(isAdditive ? ext.equationMeta.zro.getRef() : ext.equationMeta.ide.getRef());
+    }, ind -> factory.core(values.getValue(ind).computeTyped()), factory);
+    if (right == null) return null;
     return new RewriteMeta.EqProofConcrete(simplifyProof, left, right);/**/
   }
 }
