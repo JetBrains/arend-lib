@@ -448,71 +448,81 @@ public class LinearSolver {
         }
       }
     } else {
-      List<List<Hypothesis<CoreExpression>>> rulesSet = new ArrayList<>();
-      for (Hypothesis<CoreExpression> rule : rules) {
-        RingKind kind = BaseTermCompiler.getTermCompilerKind(rule.instance, ext.equationMeta);
-        boolean found = false;
-        for (int i = 0; i < rulesSet.size(); i++) {
-          List<Hypothesis<CoreExpression>> newRules = rulesSet.get(i);
-          if (rule.instance.compare(newRules.get(0).instance, CMP.EQ)) {
-            newRules.add(rule);
-            found = true;
-            break;
-          } else if (kind != RingKind.NAT) {
-            RingKind newKind = BaseTermCompiler.getTermCompilerKind(newRules.get(0).instance, ext.equationMeta);
-            if (newKind != RingKind.RAT) {
+      List<Hypothesis<CoreExpression>> finalRules = rules;
+      boolean[] solutionFound = new boolean[] { false };
+      TypedExpression result = typechecker.withCurrentState(tc -> {
+        List<List<Hypothesis<CoreExpression>>> rulesSet = new ArrayList<>();
+        for (Hypothesis<CoreExpression> rule : finalRules) {
+          RingKind kind = BaseTermCompiler.getTermCompilerKind(rule.instance, ext.equationMeta);
+          boolean found = false;
+          for (int i = 0; i < rulesSet.size(); i++) {
+            List<Hypothesis<CoreExpression>> newRules = rulesSet.get(i);
+            Boolean compareResult = Utils.tryWithSavedState(tc, tc2 -> tc2.compare(rule.instance, newRules.get(0).instance, CMP.EQ, marker, false, true, false));
+            if (compareResult != null && compareResult) {
+              newRules.add(rule);
               found = true;
-              List<Hypothesis<CoreExpression>> newRules2 = new ArrayList<>(newRules.size() + 1);
-              boolean remove = true;
-              for (Hypothesis<CoreExpression> newRule : newRules) {
-                Hypothesis<CoreExpression> newRule2 = convertHypothesis(newRule, rule.instance, newKind, kind);
-                if (newRule2 != null) {
-                  newRules2.add(newRule2);
-                } else {
-                  remove = false;
-                }
-              }
-              newRules2.add(rule);
-              rulesSet.add(newRules2);
-              if (remove) {
-                rulesSet.remove(i);
-              }
               break;
+            } else if (kind != RingKind.NAT) {
+              RingKind newKind = BaseTermCompiler.getTermCompilerKind(newRules.get(0).instance, ext.equationMeta);
+              if (newKind != RingKind.RAT) {
+                found = true;
+                List<Hypothesis<CoreExpression>> newRules2 = new ArrayList<>(newRules.size() + 1);
+                boolean remove = true;
+                for (Hypothesis<CoreExpression> newRule : newRules) {
+                  Hypothesis<CoreExpression> newRule2 = convertHypothesis(newRule, rule.instance, newKind, kind);
+                  if (newRule2 != null) {
+                    newRules2.add(newRule2);
+                  } else {
+                    remove = false;
+                  }
+                }
+                newRules2.add(rule);
+                rulesSet.add(newRules2);
+                if (remove) {
+                  rulesSet.remove(i);
+                }
+                break;
+              }
             }
           }
+          if (!found) {
+            List<Hypothesis<CoreExpression>> newRules = new ArrayList<>();
+            newRules.add(rule);
+            rulesSet.add(newRules);
+          }
         }
-        if (!found) {
-          List<Hypothesis<CoreExpression>> newRules = new ArrayList<>();
-          newRules.add(rule);
-          rulesSet.add(newRules);
+        for (List<Hypothesis<CoreExpression>> equations : rulesSet) {
+          TypedExpression instance = equations.get(0).instance.computeTyped();
+          CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
+          TermCompiler compiler = makeTermCompiler(instance, classCall);
+          if (compiler == null) continue;
+          List<Hypothesis<CompiledTerm>> compiledEquations = new ArrayList<>();
+          compileHypotheses(compiler, equations, compiledEquations);
+          if (compiler.isNat() || compiler.isInt()) {
+            makeZeroLessVar(instance.getExpression(), compiler, compiledEquations);
+          }
+          List<Equation<CompiledTerm>> compiledEquations1 = new ArrayList<>(compiledEquations.size() + 1);
+          compiledEquations1.add(makeZeroLessOne(instance.getExpression()));
+          compiledEquations1.addAll(compiledEquations);
+          List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
+          if (solution != null) {
+            List<BigInteger> subList = solution.subList(1, solution.size());
+            dropUnusedHypotheses(subList, compiledEquations);
+            dropUnusedHypotheses(subList, compiledEquations1.subList(1, compiledEquations1.size()));
+            dropUnusedHypotheses(subList, subList);
+            solutionFound[0] = true;
+            return tc.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
+              .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
+              .app(equationsToConcrete(compiledEquations))
+              .app(certificateToConcrete(solution, compiledEquations1))
+              .app(witnessesToConcrete(compiledEquations))
+              .build(), null);
+          }
         }
-      }
-      for (List<Hypothesis<CoreExpression>> equations : rulesSet) {
-        TypedExpression instance = equations.get(0).instance.computeTyped();
-        CoreClassCallExpression classCall = Utils.getClassCall(instance.getType());
-        TermCompiler compiler = makeTermCompiler(instance, classCall);
-        if (compiler == null) continue;
-        List<Hypothesis<CompiledTerm>> compiledEquations = new ArrayList<>();
-        compileHypotheses(compiler, equations, compiledEquations);
-        if (compiler.isNat() || compiler.isInt()) {
-          makeZeroLessVar(instance.getExpression(), compiler, compiledEquations);
-        }
-        List<Equation<CompiledTerm>> compiledEquations1 = new ArrayList<>(compiledEquations.size() + 1);
-        compiledEquations1.add(makeZeroLessOne(instance.getExpression()));
-        compiledEquations1.addAll(compiledEquations);
-        List<BigInteger> solution = solveEquations(compiledEquations1, compiler.getNumberOfVariables());
-        if (solution != null) {
-          List<BigInteger> subList = solution.subList(1, solution.size());
-          dropUnusedHypotheses(subList, compiledEquations);
-          dropUnusedHypotheses(subList, compiledEquations1.subList(1, compiledEquations1.size()));
-          dropUnusedHypotheses(subList, subList);
-          return typechecker.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
-            .app(makeData(classCall, factory.core(instance), compiler.isRat(), compiler.getValues().getValues()), false)
-            .app(equationsToConcrete(compiledEquations))
-            .app(certificateToConcrete(solution, compiledEquations1))
-            .app(witnessesToConcrete(compiledEquations))
-            .build(), null);
-        }
+        return null;
+      });
+      if (solutionFound[0]) {
+        return result;
       }
     }
 
