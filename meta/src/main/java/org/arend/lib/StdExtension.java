@@ -234,7 +234,7 @@ public class StdExtension implements ArendExtension {
         `simplify (t : Ts) : T` generates an element in `T` using an element `t` in a simplification `Ts` of `T`.
         For example, `simplify idp : a = a * ide`.
         Currently this meta eliminates multiplications by `ide` in noncommutative monoids.
-        """, Precedence.DEFAULT, new SimplifyMeta(this));
+        """, Precedence.DEFAULT, new DeferredMetaDefinition(new SimplifyMeta(this), true));
     contributor.declare(paths, new LongName("simp_coe"),
       """
         Simplifies certain equalities. If the expected type is unknown or if the meta is applied to more than one argument, then it works like simp_coeF. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.
