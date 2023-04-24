@@ -214,10 +214,10 @@ public class StdExtension implements ArendExtension {
         `rewrite {i_1, ... i_k} p t` replaces only occurrences with indices `i_1`, ... `i_k`. Here `i_j` is the number of occurrence after replacing all the previous occurrences.\s
         Also, `p` may be a function, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`.
         `rewrite (p_1, ... p_n) t` is equivalent to `rewrite p_1 (... rewrite p_n t ...)`
-        """, Precedence.DEFAULT, new RewriteMeta(this, false, true, false));
+        """, Precedence.DEFAULT, new RewriteMeta(this, false, false, false));
     contributor.declare(paths, new LongName("rewriteI"),
         "`rewriteI p` is equivalent to `rewrite (inv p)`",
-        Precedence.DEFAULT, new RewriteMeta(this, false, false, false));
+        Precedence.DEFAULT, new RewriteMeta(this, false, true, false));
     contributor.declare(paths, new LongName("rewriteF"),
         "`rewriteF (p : a = b) e` is similar to {rewrite}, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
         Precedence.DEFAULT, new RewriteMeta(this, true, false, false));

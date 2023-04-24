@@ -82,13 +82,16 @@ public class SimplifyMeta extends BaseMetaDefinition {
           skip = true;
           if (simplificationRes == null) continue;
           keepSimplifying = true;
-          right = simplificationRes.right;
           var finalizedEqProof = rule.finalizeEqProof(simplificationRes.proof);
           if (path == null) {
             path = finalizedEqProof;
           } else {
-            path = factory.appBuilder(factory.ref(ext.concat.getRef())).app(path).app(finalizedEqProof).build();
+            path = factory.appBuilder(factory.ref(ext.concat.getRef()))
+              // .app(factory.hole(), false)
+              //.app(factory.core(expression.computeTyped()), false).app(right, false).app(simplificationRes.right, false)
+              .app(path).app(finalizedEqProof).build();
           }
+          right = simplificationRes.right;
           simplifiedExpr = typechecker.typecheck(simplificationRes.right, simplifiedExpr.getType());
           if (simplifiedExpr == null) return CoreExpression.FindAction.SKIP;
         }

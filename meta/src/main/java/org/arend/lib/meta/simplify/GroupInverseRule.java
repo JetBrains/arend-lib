@@ -59,7 +59,7 @@ public class GroupInverseRule extends GroupRuleBase {
       if (lastLeaf != null && lastLeaf.isInv && varTerm.index == lastLeaf.var.index) {
         return new Pair<>(lastLeafInd - 1, null);
       }
-      return new Pair<>(null, new Pair<>(new Leaf(false, varTerm), lastLeafInd));
+      return new Pair<>(null, new Pair<>(new Leaf(false, varTerm), lastLeafInd - 1));
     }
     if (term instanceof CompositeTerm compositeTerm) {
       if (compositeTerm.matcher == mulMatcher) {
@@ -74,7 +74,7 @@ public class GroupInverseRule extends GroupRuleBase {
           if (lastLeaf != null && !lastLeaf.isInv && varTerm.index == lastLeaf.var.index) {
             return new Pair<>(lastLeafInd - 1, null);
           }
-          return new Pair<>(null, new Pair<>(new Leaf(true, varTerm), lastLeafInd));
+          return new Pair<>(null, new Pair<>(new Leaf(true, varTerm), lastLeafInd - 1));
         }
       }
     }
@@ -127,7 +127,7 @@ public class GroupInverseRule extends GroupRuleBase {
   private CompiledTerm simplify(CompiledTerm term) {
     if (!isInNF(term)) return null;
 
-    var leafToRemove = findFstLeafToRemove(term, null, countLeaves(term)).proj1;
+    var leafToRemove = findFstLeafToRemove(term, null, countLeaves(term) + 1).proj1;
     if (leafToRemove == null) return null;
 
     var newTerm = removePair(term, leafToRemove);
