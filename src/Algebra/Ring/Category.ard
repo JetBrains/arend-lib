@@ -102,6 +102,58 @@
       }
   }
 
+{-
+\class FinSignature {
+  | symb-count : Nat
+  | domain : Array Nat symb-count
+}
+
+\data Term {S : FinSignature} (V : \Set)
+  | var V
+  | apply (f : Fin symb-count) (Array (Term V) (domain f))
+
+\class FinTheory \extends FinSignature
+  | axioms : Array (\Sigma (n : Nat) (t s : Term (Fin n)))
+
+\func foo (n : Nat) => typecheck (number n)
+
+\func theory (T : FinTheory) (name : Ref) => func name `(Theory) $
+  coclause (``Sort, `(\Sigma)) ::
+  -- coclause (``Symb, app `(Fin) (number T.symb-count)) ::
+  -- coclause (``Symb, app `(Fin) (fieldCall ``symb-count `(T))) ::
+  coclause (``Symb, `(Fin T.symb-count)) ::
+  coclause (``domain, case (appHole :: nil) (map (\lam k => interr (app `(() ::)) k `(nil)) T.domain)) ::
+  coclause (``PredSymb, `(Empty)) ::
+  coclause (``predDomain, `(absurd)) ::
+  coclause (``axioms, app `(arraySubset {Sequent {\this}}) (map (\lam t => tuple (lambda ignored (app `(Fin) t.1), hole, `(nil), app (app `(equality) t.2) t.3)) T.axioms)) ::
+  nil
+
+-- refExpr QName
+
+\func theory (T : FinTheory) (name : Ref) =>
+  `(\instance $(name) : Theory
+      | Sort => \Sigma
+      --  | Symb _ => Fin $(reflect T.symb-count)
+      | Symb _ => Fin T.symb-count
+      | domain => $(case (appHole :: nil) (mkArray (\lam j => clause (patternNum j) (interr (app `(() ::)) (T.domain j) `(nil)))))
+      | PredSymb => Empty
+      | predDomain => absurd
+      | axioms => arraySubset {Sequent {\this}} $(map (\lam t => `(\lam _ => Fin $(t.1), _, nil, equality $(t.2) $(t.3))) T.axioms)
+  )`
+
+\meta theory (T : FinTheory) =>
+  \new Theory {
+    | Sort => \Sigma
+    | Symb _ => Fin T.symb-count
+    | domain => typecheck $ case (appHole :: nil) $ mkArray $ \lam j => clause (patternNum j) $ interr (app $ reflect $ () ::) (T.domain j) (reflect nil)
+    | PredSymb => Empty
+    | predDomain => absurd
+    | axioms => arraySubset {Sequent {\this}} $ typecheck $ map (\lam t => reflect (\lam _ => Fin (typecheck t.1), _, nil, equality (typecheck t.2) (typecheck t.3))) T.axioms
+  }
+
+\meta test => getExpectedType $ \lam et => {?}
+ -}
+
 \instance CRingBicat : BicompleteCat
   | Cat => CRingCat
   | limit => CompletePrecat.applyEquiv catEquiv

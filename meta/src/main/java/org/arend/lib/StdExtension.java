@@ -25,6 +25,7 @@ import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.linear.LinearSolverMeta;
+import org.arend.lib.meta.reflect.TypecheckMeta;
 import org.arend.lib.meta.simplify.SimplifyMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -40,6 +41,13 @@ public class StdExtension implements ArendExtension {
   public final IrreflexivityKey irreflexivityKey = new IrreflexivityKey("irreflexivity", this);
   public final TransitivityKey transitivityKey = new TransitivityKey("transitivity", this);
   public final ReflexivityKey reflexivityKey = new ReflexivityKey("reflexivity", this);
+
+  @Dependency(module = "Data.Bool", name = "true")  public CoreConstructor true_;
+  @Dependency(module = "Data.Bool", name = "false") public CoreConstructor false_;
+  @Dependency(module = "Data.Maybe")                public CoreConstructor just;
+  @Dependency(module = "Data.Maybe")                public CoreConstructor nothing;
+  @Dependency(module = "Data.Or")                   public CoreConstructor inl;
+  @Dependency(module = "Data.Or")                   public CoreConstructor inr;
 
   @Dependency(module = "Set")                     public CoreClassDefinition BaseSet;
   @Dependency(module = "Set", name = "BaseSet.E") public CoreClassField carrier;
@@ -75,6 +83,7 @@ public class StdExtension implements ArendExtension {
   public final SimpCoeMeta simpCoeMeta = new SimpCoeMeta(this, false);
   public final SimpCoeMeta simpCoeFMeta = new SimpCoeMeta(this, true);
   public final SIPMeta sipMeta = new SIPMeta(this);
+  public final TypecheckMeta tcMeta = new TypecheckMeta(this);
   public CasesMeta casesMeta;
   public MetaRef constructorMetaRef;
 
@@ -125,6 +134,7 @@ public class StdExtension implements ArendExtension {
     provider.getDefinition(ModulePath.fromString("Algebra.Monoid.GCD"), LongName.fromString("DivQuotient.DivQuotientGCDMonoid"), CoreFunctionDefinition.class);
     provider.load(equationMeta);
     provider.load(linearSolverMeta);
+    provider.load(tcMeta);
   }
 
   @Override
@@ -204,6 +214,7 @@ public class StdExtension implements ArendExtension {
         * `assumption` {n} returns the n-th variables from the context counting from the end.
         * `assumption` {n} a1 ... ak applies n-th variable from the context to arguments a1, ... ak.
         """, Precedence.DEFAULT, new AssumptionMeta(this));
+    contributor.declare(meta, new LongName("typecheck"), "Typechecks an expression of type `ConcreteExpr`", Precedence.DEFAULT, tcMeta);
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),

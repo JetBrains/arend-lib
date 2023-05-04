@@ -28,8 +28,8 @@ public class StdNumberTypechecker implements LiteralTypechecker {
   }
 
   @Override
-  public @Nullable TypedExpression typecheckString(@NotNull String unescapedString, @NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    return null;
+  public @Nullable TypedExpression typecheckString(@NotNull String string, @NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
+    return typechecker.checkString(string, contextData.getExpectedType(), contextData.getMarker());
   }
 
   private ConcreteExpression applyInstance(ConcreteExpression instance, ConcreteExpression expr, ConcreteFactory factory) {
