@@ -306,7 +306,10 @@ public class TypecheckBuilder {
       return factory.thisExpr();
     } else if (constructor == meta.sigmaExpr) {
       int size = localRefs.size();
-      List<ConcreteParameter> parameters = processArray(expr.getDefCallArguments().get(0), this::processParameter);
+      List<ConcreteParameter> parameters = processArray(expr.getDefCallArguments().get(0), e -> {
+        ConcreteExpression type = process(e);
+        return type == null ? null : factory.param(true, Collections.singletonList(addRef()), type);
+      });
       removeVars(size);
       return parameters == null ? null : factory.sigma(parameters);
     } else if (constructor == meta.holeExpr) {
