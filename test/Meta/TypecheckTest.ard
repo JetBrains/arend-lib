@@ -1,4 +1,6 @@
 \import Data.Bool
+\import Data.Maybe
+\import Data.Or
 \import Function.Meta
 \import Meta
 \import Meta.ConcreteExpr
@@ -40,3 +42,24 @@
 \lemma projTest3 (p : \Sigma Nat Nat) => fails $ typecheck (projExpr (localVar 0) 2)
 
 \func sigmaTest : typecheck (sigmaExpr $ defRef ``Nat :: appExpr (appExpr (defRef ``=) (localVar 0) true) (localVar 0) true :: nil) = (\Sigma (x : Nat) (x = x)) => idp
+
+\lemma caseTest (x y : Nat) : typecheck (caseExpr true ((inl (localVar 1, false), nothing) :: (inl (localVar 0, false), nothing) :: nil) nothing nothing $
+                                          (conPattern ``zero nil :: namePattern false nothing :: nil, just $ numberExpr 3) ::
+                                          (namePattern false nothing :: conPattern ``suc (namePattern true nothing :: nil) :: nil, just $ localVar 0) ::
+                                          (namePattern true nothing :: namePattern false nothing :: nil, just $ localVar 0) :: nil) =
+                                        (\case x, y \with { | 0, _ => 3 | _, suc y => y | x, _ => x }) => idp
+
+\lemma caseTest2 (x : Nat) : typecheck (caseExpr true ((inr 0, nothing) :: nil) nothing nothing $
+                                        (conPattern ``zero nil :: nil, just $ defRef ``idp) ::
+                                        (conPattern ``suc (namePattern false nothing :: nil) :: nil, just $ defRef ``idp) :: nil) = {x = x}
+                                       (\case \elim x \with { | 0 => idp | suc _ => idp }) => idp
+
+\lemma caseTest3 (x : Nat) : typecheck (caseExpr true ((inl (localVar 0, true), nothing) :: nil) (just $ appExpr (appExpr (defRef ``=) (localVar 0) true) (localVar 0) true) nothing $
+                                        (conPattern ``zero nil :: nil, just $ defRef ``idp) ::
+                                        (conPattern ``suc (namePattern false nothing :: nil) :: nil, just $ defRef ``idp) :: nil) =
+                                       (\case x \as x \return x = x \with { | 0 => idp | suc _ => idp }) => idp
+
+\lemma caseTest4 (b : Bool) : typecheck (caseExpr true ((inl (localVar 0, true), nothing) :: (inl (defRef ``idp, false), just (appExpr (appExpr (defRef ``=) (localVar 1) true) (localVar 0) true)) :: nil) nothing nothing $
+                                          (conPattern ``true nil :: namePattern true nothing :: nil, just $ appExpr (defRef ``inl) (localVar 0) true) ::
+                                          (conPattern ``false nil :: namePattern true nothing :: nil, just $ appExpr (defRef ``inr) (localVar 0) true) :: nil) = {Or (b = true) (b = false)}
+                                        (\case b \as x, idp : b = x \with { | true, p => inl p | false, p => inr p }) => idp

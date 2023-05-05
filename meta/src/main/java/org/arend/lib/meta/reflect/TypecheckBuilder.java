@@ -390,7 +390,6 @@ public class TypecheckBuilder {
             if (elimRef == null) return null;
           }
         }
-        removeVars(size);
         if (pair == null && elimRef == null) {
           TypecheckBuildError.report(errorReporter, "Invalid expression. Expected either 'inl' or 'inr'.", orExpr, marker);
           return null;
@@ -402,6 +401,7 @@ public class TypecheckBuilder {
       });
       Maybe<ConcreteExpression> type = processMaybe(expr.getDefCallArguments().get(2), this::process);
       Maybe<ConcreteExpression> typeLevel = processMaybe(expr.getDefCallArguments().get(3), this::process);
+      removeVars(size);
       List<ConcreteClause> clauses = processArray(expr.getDefCallArguments().get(4), e -> {
         List<? extends CoreExpression> fields = processTuple(e, 2);
         if (fields == null) return null;
