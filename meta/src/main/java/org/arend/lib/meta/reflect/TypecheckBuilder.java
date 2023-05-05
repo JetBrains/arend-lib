@@ -78,17 +78,19 @@ public class TypecheckBuilder {
     }
   }
 
-  private ArendRef getLocalRef(CoreExpression expr) {
+  private ArendRef getVarRef(CoreExpression expr, LevelType levelType) {
     Integer n = getSmallInteger(expr);
     if (n == null) return null;
-    if (n >= localRefs.size()) {
-      errorReporter.report(new TypecheckingError("Index too large: " + n + ", number of variables: " + localRefs.size(), marker));
+    ArendRef ref = typechecker.getLevelVariable(n, levelType == LevelType.PLEVEL);
+    if (ref == null) {
+      List<? extends ArendRef> refs = typechecker.getLevelVariables(levelType == LevelType.PLEVEL);
+      errorReporter.report(new TypecheckingError("Index too large: " + n + ", number of variables: " + refs.size(), marker));
       return null;
     }
-    return localRefs.get(localRefs.size() - 1 - n);
+    return ref;
   }
 
-  private ConcreteReferenceExpression getLocalRefExt(CoreExpression expr) {
+  private ConcreteReferenceExpression getLocalRef(CoreExpression expr) {
     Integer n = getSmallInteger(expr);
     if (n == null) return null;
     if (n >= localRefs.size()) {
@@ -288,9 +290,10 @@ public class TypecheckBuilder {
     } else if (constructor == meta.infLevel) {
       return factory.inf();
     } else if (constructor == meta.varLevel) {
-      ArendRef ref = getLocalRef(expr.getDefCallArguments().get(0));
       LevelType type = processLevelType(expr.getDefCallArguments().get(1));
-      return ref == null || type == null ? null : factory.varLevel(ref, type == LevelType.PLEVEL);
+      if (type == null) return null;
+      ArendRef ref = getVarRef(expr.getDefCallArguments().get(0), type);
+      return ref == null ? null : factory.varLevel(ref, type == LevelType.PLEVEL);
     } else {
       TypecheckBuildError.report(errorReporter, expr, marker);
       return null;
@@ -357,7 +360,7 @@ public class TypecheckBuilder {
       ConcreteExpression arg2 = process(expr.getDefCallArguments().get(1));
       return arg1 == null || arg2 == null ? null : factory.typed(arg1, arg2);
     } else if (constructor == meta.localVar) {
-      return getLocalRefExt(expr.getDefCallArguments().get(0));
+      return getLocalRef(expr.getDefCallArguments().get(0));
     } else if (constructor == meta.globalVar) {
       ArendRef ref = getRef(expr.getDefCallArguments().get(0));
       Maybe<List<ConcreteLevel>> pLevels = processMaybe(expr.getDefCallArguments().get(1), e -> processArray(e, this::processLevel));
@@ -380,7 +383,7 @@ public class TypecheckBuilder {
             Boolean asRef = processBool(fields2.get(1));
             pair = arg == null || asRef == null ? null : new Pair<>(arg, asRef);
           } else if (conCall.getDefinition() == meta.ext.inr) {
-            elimRef = getLocalRefExt(conCall.getDefCallArguments().get(0));
+            elimRef = getLocalRef(conCall.getDefCallArguments().get(0));
             if (elimRef == null) return null;
           }
         }
