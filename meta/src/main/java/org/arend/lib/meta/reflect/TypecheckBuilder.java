@@ -293,7 +293,7 @@ public class TypecheckBuilder {
       LevelType type = processLevelType(expr.getDefCallArguments().get(1));
       if (type == null) return null;
       ArendRef ref = getVarRef(expr.getDefCallArguments().get(0), type);
-      return ref == null ? null : factory.varLevel(ref, type == LevelType.PLEVEL);
+      return ref == null ? null : factory.varLevel(ref);
     } else {
       TypecheckBuildError.report(errorReporter, expr, marker);
       return null;
