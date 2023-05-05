@@ -100,7 +100,13 @@ public class TypecheckBuilder {
         errorReporter.report(new TypecheckingError("Index too large: " + n + ", number of variables: " + (localRefs.size() + context.size()), marker));
         return null;
       }
-      return factory.ref(context.get(context.size() - 1 - k));
+      CoreBinding binding = context.get(context.size() - 1 - k);
+      ArendRef thisRef = typechecker.getThisReference();
+      if (thisRef != null && binding == typechecker.getFreeBinding(thisRef)) {
+        errorReporter.report(new TypecheckingError("A reference to \\this binding", marker));
+        return null;
+      }
+      return factory.ref(binding);
     }
     return factory.ref(localRefs.get(localRefs.size() - 1 - n));
   }
@@ -303,7 +309,7 @@ public class TypecheckBuilder {
   private ConcreteExpression processConCall(CoreConCallExpression expr) {
     CoreConstructor constructor = expr.getDefinition();
     if (constructor == meta.thisExpr) {
-      return factory.thisExpr();
+      return factory.thisExpr(typechecker.getThisReference());
     } else if (constructor == meta.sigmaExpr) {
       int size = localRefs.size();
       List<ConcreteParameter> parameters = processArray(expr.getDefCallArguments().get(0), e -> {
