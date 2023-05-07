@@ -188,13 +188,12 @@ public class TypecheckBuilder {
   }
 
   private ConcreteParameter processParameter(CoreExpression expr) {
-    List<? extends CoreExpression> fields = processTuple(expr, 2);
+    List<? extends CoreExpression> fields = processTuple(expr, 3);
     if (fields == null) return null;
     Boolean isExplicit = processBool(fields.get(0));
-    if (isExplicit == null) return null;
-    ConcreteExpression type = process(fields.get(1));
-    if (type == null) return null;
-    return factory.param(isExplicit, Collections.singletonList(addRef()), type);
+    Boolean withVar = processBool(fields.get(1));
+    Maybe<ConcreteExpression> type = processMaybe(fields.get(2), this::process);
+    return isExplicit == null || withVar == null || type == null ? null : withVar ? (type.just == null ? factory.param(isExplicit, addRef()) : factory.param(isExplicit, Collections.singletonList(addRef()), type.just)) : (type.just == null ? factory.param(isExplicit, (ArendRef) null) : factory.param(isExplicit, type.just));
   }
 
   private void removeVars(int size) {
