@@ -30,6 +30,7 @@ public class TypecheckMeta extends BaseMetaDefinition {
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor numberExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor stringExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor qNameExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor wrapExpr;
 
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor stdLevel;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor maxLevel;

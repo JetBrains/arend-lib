@@ -133,14 +133,14 @@ public class TypecheckBuilder {
   }
 
   private <T> List<T> processArray(CoreExpression expr, Function<CoreExpression, T> elementProcessor) {
-    expr = expr.normalize(NormalizationMode.WHNF);
-    if (!(expr instanceof CoreArrayExpression array) || array.getTail() != null) {
+    List<? extends CoreExpression> elements = expr.getArrayElements();
+    if (elements == null) {
       TypecheckBuildError.report(errorReporter, "Invalid expression. Expected an array.", expr, marker);
       return null;
     }
 
-    List<T> result = new ArrayList<>(array.getElements().size());
-    for (CoreExpression element : array.getElements()) {
+    List<T> result = new ArrayList<>(elements.size());
+    for (CoreExpression element : elements) {
       T t = elementProcessor.apply(element);
       if (t == null) return null;
       result.add(t);
@@ -444,6 +444,8 @@ public class TypecheckBuilder {
     } else if (constructor == meta.qNameExpr) {
       CoreDefinition def = getQName(expr.getDefCallArguments().get(0));
       return def == null ? null : factory.qName(def.getRef());
+    } else if (constructor == meta.wrapExpr) {
+      return factory.core(expr.getDefCallArguments().get(1).computeTyped());
     } else {
       TypecheckBuildError.report(errorReporter, expr, marker);
       return null;
