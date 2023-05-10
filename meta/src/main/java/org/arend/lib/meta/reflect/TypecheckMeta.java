@@ -9,42 +9,42 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class TypecheckMeta extends BaseMetaDefinition {
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor thisExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor sigmaExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor holeExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor universeExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor tupleExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor classExtExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor evalExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor goalExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor letExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor piExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor typedExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor localVar;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor globalVar;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor caseExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor projExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor appExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor lamExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor boxExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor numberExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor stringExpr;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor qNameExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor thisExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor sigmaExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor holeExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor universeExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor tupleExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor classExtExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor evalExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor goalExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor letExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor piExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor typedExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor localVar;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor globalVar;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor caseExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor projExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor appExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor lamExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor boxExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor numberExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor stringExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor qNameExpr;
 
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor stdLevel;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor maxLevel;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor sucLevel;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor numberLevel;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor infLevel;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor varLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor stdLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor maxLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor sucLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor numberLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor infLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor varLevel;
 
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor pLevel;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor hLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor pLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor hLevel;
 
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor tuplePattern;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor namePattern;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor numberPattern;
-  @Dependency(module = "Meta.ConcreteExpr")   public CoreConstructor conPattern;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor tuplePattern;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor namePattern;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor numberPattern;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor conPattern;
 
   final StdExtension ext;
 

@@ -214,7 +214,9 @@ public class StdExtension implements ArendExtension {
         * `assumption` {n} returns the n-th variables from the context counting from the end.
         * `assumption` {n} a1 ... ak applies n-th variable from the context to arguments a1, ... ak.
         """, Precedence.DEFAULT, new AssumptionMeta(this));
-    contributor.declare(meta, new LongName("typecheck"), "Typechecks an expression of type `ConcreteExpr`", Precedence.DEFAULT, tcMeta);
+
+    ModulePath reflect = ModulePath.fromString("Reflect.Meta");
+    contributor.declare(reflect, new LongName("typecheck"), "Typechecks an expression of type `ConcreteExpr`", Precedence.DEFAULT, tcMeta);
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
