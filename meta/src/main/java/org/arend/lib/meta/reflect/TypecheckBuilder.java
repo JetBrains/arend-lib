@@ -4,6 +4,7 @@ import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.ConcreteCaseArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.concrete.level.ConcreteLevel;
 import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreConstructor;
