@@ -312,17 +312,20 @@ public class TypecheckBuilder {
     } else if (constructor == meta.sigmaExpr) {
       int size = localRefs.size();
       List<ConcreteParameter> parameters = processArray(expr.getDefCallArguments().get(0), e -> {
-        ConcreteExpression type = process(e);
-        return type == null ? null : factory.param(true, Collections.singletonList(addRef()), type);
+        List<? extends CoreExpression> fields = processTuple(e, 2);
+        if (fields == null) return null;
+        Boolean withVar = processBool(fields.get(0));
+        ConcreteExpression type = process(fields.get(1));
+        return withVar == null || type == null ? null : factory.param(true, Collections.singletonList(withVar ? addRef() : null), type);
       });
       removeVars(size);
       return parameters == null ? null : factory.sigma(parameters);
     } else if (constructor == meta.holeExpr) {
       return factory.hole();
     } else if (constructor == meta.universeExpr) {
-      ConcreteLevel pLevel = processLevel(expr.getDefCallArguments().get(0));
-      ConcreteLevel hLevel = processLevel(expr.getDefCallArguments().get(1));
-      return pLevel == null || hLevel == null ? null : factory.universe(pLevel, hLevel);
+      Maybe<ConcreteLevel> pLevel = processMaybe(expr.getDefCallArguments().get(0), this::processLevel);
+      Maybe<ConcreteLevel> hLevel = processMaybe(expr.getDefCallArguments().get(1), this::processLevel);
+      return pLevel == null || hLevel == null ? null : factory.universe(pLevel.just, hLevel.just);
     } else if (constructor == meta.tupleExpr) {
       List<ConcreteExpression> fields = processArray(expr.getDefCallArguments().get(0), this::process);
       return fields == null ? null : factory.tuple(fields);
