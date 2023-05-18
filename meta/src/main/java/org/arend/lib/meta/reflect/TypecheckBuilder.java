@@ -331,9 +331,8 @@ public class TypecheckBuilder {
       List<ConcreteExpression> fields = processArray(expr.getDefCallArguments().get(0), this::process);
       return fields == null ? null : factory.tuple(fields);
     } else if (constructor == meta.classExtExpr) {
-      Boolean isNew = processBool(expr.getDefCallArguments().get(0));
-      ConcreteExpression body = process(expr.getDefCallArguments().get(1));
-      List<ConcreteClassElement> elements = processArray(expr.getDefCallArguments().get(2), e -> {
+      ConcreteExpression body = process(expr.getDefCallArguments().get(0));
+      List<ConcreteClassElement> elements = processArray(expr.getDefCallArguments().get(1), e -> {
         List<? extends CoreExpression> fields = processTuple(e, 2);
         if (fields == null) return null;
         ArendRef ref = getRef(fields.get(0));
@@ -344,9 +343,11 @@ public class TypecheckBuilder {
         ConcreteExpression impl = process(fields.get(1));
         return ref == null || impl == null ? null : factory.implementation(ref, impl);
       });
-      if (isNew == null || body == null || elements == null) return null;
-      ConcreteExpression result = factory.classExt(body, elements);
-      return isNew ? factory.newExpr(result) : result;
+      if (body == null || elements == null) return null;
+      return factory.classExt(body, elements);
+    } else if (constructor == meta.newExpr) {
+      ConcreteExpression subExpr = process(expr.getDefCallArguments().get(0));
+      return subExpr == null ? null : factory.newExpr(subExpr);
     } else if (constructor == meta.evalExpr) {
       Boolean isPEval = processBool(expr.getDefCallArguments().get(0));
       ConcreteExpression arg = process(expr.getDefCallArguments().get(1));

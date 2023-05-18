@@ -23,7 +23,12 @@ public class ReflectMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    ConcreteExpression result = contextData.getArguments().get(0).getExpression().accept(new ReflectBuilder(typechecker, ext, contextData.getMarker()), null);
-    return result == null ? null : typechecker.typecheck(result, contextData.getExpectedType());
+    try {
+      ConcreteExpression result = contextData.getArguments().get(0).getExpression().accept(new ReflectBuilder(typechecker, ext, contextData.getMarker()), null);
+      return result == null ? null : typechecker.typecheck(result, contextData.getExpectedType());
+    } catch (ReflectionException e) {
+      typechecker.getErrorReporter().report(e.error);
+      return null;
+    }
   }
 }

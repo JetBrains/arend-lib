@@ -1,17 +1,22 @@
 package org.arend.lib.meta.reflect;
 
+import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.level.*;
 import org.arend.ext.concrete.expr.*;
+import org.arend.ext.concrete.pattern.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.error.FieldsImplementationError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.lib.StdExtension;
 
 import java.util.*;
+import java.util.function.Function;
 
 public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>, ConcreteLevelVisitor<Void, ConcreteExpression> {
   private final ConcreteFactory factory;
@@ -60,9 +65,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     return factory.app(factory.ref(ext.just.getRef()), true, listToArray(list));
   }
 
-  @Override
-  public ConcreteExpression visitReference(ConcreteReferenceExpression expr, Void params) {
-    ArendRef ref = expr.getReferent();
+  private Integer getLocalVar(ArendRef ref) {
     Integer n = localRefs.get(ref);
     if (n == null) {
       CoreBinding binding = typechecker.getFreeBinding(ref);
@@ -76,6 +79,13 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     } else {
       n = localRefs.size() - 1 - n;
     }
+    return n;
+  }
+
+  @Override
+  public ConcreteExpression visitReference(ConcreteReferenceExpression expr, Void params) {
+    ArendRef ref = expr.getReferent();
+    Integer n = getLocalVar(ref);
     return n != null ? factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(n)) : factory.app(factory.ref(ext.tcMeta.globalVar.getRef()), true, factory.qName(ref), levelsToExpression(expr.getPLevels()), levelsToExpression(expr.getHLevels()));
   }
 
@@ -90,30 +100,40 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     }
   }
 
-  private ConcreteExpression processParameters(List<? extends ConcreteParameter> params, ConcreteExpression body, CoreConstructor constructor) {
+  private void removeRef(ArendRef ref) {
+    if (ref != null) {
+      localRefs.remove(ref);
+    }
+  }
+
+  private <T> T processParameters(List<? extends ConcreteParameter> params, Function<List<ConcreteExpression>, T> body) {
     List<ConcreteExpression> parameters = new ArrayList<>();
     for (int i = params.size() - 1; i >= 0; i--) {
       ConcreteParameter param = params.get(i);
-      List<? extends ArendRef> refList = param.getRefList();
       ConcreteExpression type = param.getType();
-      for (int j = refList.size() - 1; j >= 0; j--) {
-        ArendRef ref = refList.get(j);
-        parameters.add(factory.tuple(makeBool(param.isExplicit()), makeBool(ref != null), type == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, type.accept(this, null))));
+      ConcreteExpression newType = type == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, type.accept(this, null));
+      for (ArendRef ref : param.getRefList()) {
+        parameters.add(factory.tuple(makeBool(param.isExplicit()), makeBool(ref != null), newType));
         addRef(ref);
       }
     }
-    ConcreteExpression result = body.accept(this, null);
-    for (int i = parameters.size() - 1; i >= 0; i--) {
-      result = factory.app(factory.ref(constructor.getRef()), true, parameters.get(i), result);
-    }
+    T result = body.apply(parameters);
     for (ConcreteParameter parameter : params) {
       for (ArendRef ref : parameter.getRefList()) {
-        if (ref != null) {
-          localRefs.remove(ref);
-        }
+        removeRef(ref);
       }
     }
     return result;
+  }
+
+  private ConcreteExpression processParameters(List<? extends ConcreteParameter> params, ConcreteExpression body, CoreConstructor constructor) {
+    return processParameters(params, parameters -> {
+      ConcreteExpression result = body.accept(this, null);
+      for (int i = parameters.size() - 1; i >= 0; i--) {
+        result = factory.app(factory.ref(constructor.getRef()), true, parameters.get(i), result);
+      }
+      return result;
+    });
   }
 
   @Override
@@ -128,6 +148,10 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   private ConcreteExpression levelToExpression(ConcreteLevel level) {
     return level == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, level.accept(this, null));
+  }
+
+  private ConcreteExpression exprToExpression(ConcreteExpression expr) {
+    return expr == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, expr.accept(this, null));
   }
 
   @Override
@@ -159,8 +183,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     List<ConcreteExpression> list = new ArrayList<>();
     for (ConcreteParameter param : expr.getParameters()) {
       if (param.getType() == null) {
-        typechecker.getErrorReporter().report(new TypecheckingError("Parameters in \\Sigma-types must have types", marker));
-        return null;
+        throw new ReflectionException(new TypecheckingError("Parameters in \\Sigma-types must have types", marker));
       }
       ConcreteExpression type = param.getType().accept(this, null);
       for (ArendRef ref : param.getRefList()) {
@@ -170,45 +193,140 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     }
     for (ConcreteParameter param : expr.getParameters()) {
       for (ArendRef ref : param.getRefList()) {
-        localRefs.remove(ref);
+        removeRef(ref);
       }
     }
     return factory.app(factory.ref(ext.tcMeta.sigmaExpr.getRef()), true, listToArray(list));
   }
 
+  private ConcreteExpression makePattern(ConcretePattern pattern) {
+    if (pattern instanceof ConcreteNumberPattern numPattern) {
+      return factory.app(factory.ref(ext.tcMeta.numberPattern.getRef()), true, factory.number(numPattern.getNumber()));
+    } else if (pattern instanceof ConcreteConstructorPattern conPattern) {
+      ArendRef ref = conPattern.getConstructor();
+      if (ref == null) {
+        throw new ReflectionException(new TypecheckingError("A constructor pattern without constructor: " + pattern, marker));
+      }
+      return factory.app(factory.ref(ext.tcMeta.conPattern.getRef()), true, factory.qName(ref), makePatterns(conPattern.getPatterns()));
+    } else if (pattern instanceof ConcreteTuplePattern tuplePattern) {
+      return factory.app(factory.ref(ext.tcMeta.tuplePattern.getRef()), true, makePatterns(tuplePattern.getPatterns()));
+    } else if (pattern instanceof ConcreteReferencePattern refPattern) {
+      ConcreteExpression type = exprToExpression(refPattern.getType());
+      ArendRef ref = refPattern.getRef();
+      addRef(ref);
+      return factory.app(factory.ref(ext.tcMeta.namePattern.getRef()), true, makeBool(ref != null), type);
+    } else {
+      throw new ReflectionException(new TypecheckingError("Unknown pattern: " + pattern, marker));
+    }
+  }
+
+  private ConcreteExpression makePatterns(List<? extends ConcretePattern> patterns) {
+    List<ConcreteExpression> result = new ArrayList<>();
+    for (ConcretePattern pattern : patterns) {
+      result.add(makePattern(pattern));
+    }
+    return listToArray(result);
+  }
+
+  private void freePatterns(List<? extends ConcretePattern> patterns) {
+    for (ConcretePattern pattern : patterns) {
+      if (pattern instanceof ConcreteReferencePattern refPattern) {
+        removeRef(refPattern.getRef());
+      }
+      freePatterns(pattern.getPatterns());
+    }
+  }
+
   @Override
   public ConcreteExpression visitCase(ConcreteCaseExpression expr, Void params) {
-    return null;
+    List<ConcreteExpression> args = new ArrayList<>();
+    for (ConcreteCaseArgument argument : expr.getArguments()) {
+      ConcreteExpression argExpr = argument.getExpression();
+      Integer var = null;
+      if (argument.isElim() && argExpr instanceof ConcreteReferenceExpression refExpr) {
+        var = getLocalVar(refExpr.getReferent());
+        if (var == null) {
+          throw new ReflectionException(new UnknownReferenceError(refExpr.getReferent(), marker));
+        }
+      }
+      ArendRef asRef = var == null ? argument.getAsRef() : null;
+      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(var))) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), makeBool(asRef != null))), exprToExpression(argument.getType())));
+      addRef(asRef);
+    }
+    ConcreteExpression resultType = exprToExpression(expr.getResultType());
+    ConcreteExpression resultTypeLevel = exprToExpression(expr.getResultTypeLevel());
+    for (ConcreteCaseArgument argument : expr.getArguments()) {
+      removeRef(argument.getAsRef());
+    }
+
+    List<ConcreteExpression> clauses = new ArrayList<>();
+    for (ConcreteClause clause : expr.getClauses()) {
+      ConcreteExpression patterns = makePatterns(clause.getPatterns());
+      clauses.add(factory.tuple(patterns, exprToExpression(clause.getExpression())));
+      freePatterns(clause.getPatterns());
+    }
+    return factory.app(factory.ref(ext.tcMeta.caseExpr.getRef()), true, makeBool(expr.isSCase()), listToArray(args), resultType, resultTypeLevel, listToArray(clauses));
   }
 
   @Override
   public ConcreteExpression visitEval(ConcreteEvalExpression expr, Void params) {
-    return null;
+    return factory.app(factory.ref(ext.tcMeta.evalExpr.getRef()), true, makeBool(expr.isPEval()), expr.getExpression().accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitBox(ConcreteBoxExpression expr, Void params) {
-    return null;
+    return factory.app(factory.ref(ext.tcMeta.boxExpr.getRef()), true, expr.getExpression().accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitProj(ConcreteProjExpression expr, Void params) {
-    return null;
+    return factory.app(factory.ref(ext.tcMeta.projExpr.getRef()), true, expr.getExpression().accept(this, null), factory.number(expr.getField()));
+  }
+
+  private ConcreteExpression coclauseToExpression(ConcreteCoclause coclause) {
+    ConcreteExpression impl = coclause.getImplementation();
+    if (impl == null) {
+      ArendRef classRef = coclause.getClassReference();
+      ConcreteCoclauses coclauses = coclause.getSubCoclauses();
+      if (classRef == null || coclauses == null) {
+        throw new ReflectionException(new FieldsImplementationError(false, null, Collections.singletonList(coclause.getImplementedRef()), marker));
+      }
+      impl = factory.newExpr(factory.classExt(factory.ref(classRef), coclauses.getCoclauseList()));
+    }
+    return factory.tuple(factory.qName(coclause.getImplementedRef()), impl.accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitClassExt(ConcreteClassExtExpression expr, Void params) {
-    return null;
+    List<ConcreteExpression> coclauses = new ArrayList<>();
+    for (ConcreteCoclause coclause : expr.getCoclauses().getCoclauseList()) {
+      coclauses.add(coclauseToExpression(coclause));
+    }
+    return factory.app(factory.ref(ext.tcMeta.classExtExpr.getRef()), true, expr.getBaseClassExpression().accept(this, null), listToArray(coclauses));
   }
 
   @Override
   public ConcreteExpression visitNew(ConcreteNewExpression expr, Void params) {
-    return null;
+    return factory.app(factory.ref(ext.tcMeta.newExpr.getRef()), true, expr.getExpression().accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitLet(ConcreteLetExpression expr, Void params) {
-    return null;
+    List<ConcreteExpression> clauses = new ArrayList<>();
+    for (ConcreteLetClause clause : expr.getClauses()) {
+      if (!(clause.getPattern() instanceof ConcreteReferencePattern refPattern)) {
+        throw new ReflectionException(new TypecheckingError("Patterns in \\let expressions are not supported", marker));
+      }
+      clauses.add(processParameters(clause.getParameters(), parameters -> factory.tuple(listToArray(parameters), exprToExpression(clause.getResultType()), clause.getTerm().accept(this, null))));
+      addRef(refPattern.getRef());
+    }
+    ConcreteExpression result = factory.app(factory.ref(ext.tcMeta.newExpr.getRef()), true, makeBool(expr.isHave()), makeBool(expr.isStrict()), listToArray(clauses), expr.getExpression().accept(this, null));
+    for (ConcreteLetClause clause : expr.getClauses()) {
+      if (clause.getPattern() instanceof ConcreteReferencePattern refPattern) {
+        removeRef(refPattern.getRef());
+      }
+    }
+    return result;
   }
 
   @Override
@@ -256,8 +374,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     int pIndex = typechecker.getLevelVariables(true).indexOf(expr.getReferent());
     int hIndex = pIndex == -1 ? typechecker.getLevelVariables(false).indexOf(expr.getReferent()) : -1;
     if (pIndex < 0 && hIndex < 0) {
-      typechecker.getErrorReporter().report(new UnknownReferenceError(expr.getReferent(), marker));
-      return null;
+      throw new ReflectionException(new UnknownReferenceError(expr.getReferent(), marker));
     }
     return factory.app(factory.ref(ext.tcMeta.varLevel.getRef()), true, factory.number(pIndex >= 0 ? pIndex : hIndex), factory.ref(pIndex >= 0 ? ext.tcMeta.pLevel.getRef() : ext.tcMeta.hLevel.getRef()));
   }

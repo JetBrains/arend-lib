@@ -15,6 +15,7 @@ public class TypecheckMeta extends BaseMetaDefinition {
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor universeExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor tupleExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor classExtExpr;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor newExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor evalExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor goalExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor letExpr;
