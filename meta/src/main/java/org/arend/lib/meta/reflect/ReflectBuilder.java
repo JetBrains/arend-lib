@@ -73,7 +73,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
         List<CoreBinding> context = typechecker.getFreeBindingsList();
         int index = context.lastIndexOf(binding);
         if (index >= 0) {
-          n = context.size() - 1 - index;
+          n = localRefs.size() + context.size() - 1 - index;
         }
       }
     } else {
@@ -108,8 +108,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   private <T> T processParameters(List<? extends ConcreteParameter> params, Function<List<ConcreteExpression>, T> body) {
     List<ConcreteExpression> parameters = new ArrayList<>();
-    for (int i = params.size() - 1; i >= 0; i--) {
-      ConcreteParameter param = params.get(i);
+    for (ConcreteParameter param : params) {
       ConcreteExpression type = param.getType();
       ConcreteExpression newType = type == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, type.accept(this, null));
       for (ArendRef ref : param.getRefList()) {
@@ -250,7 +249,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
         }
       }
       ArendRef asRef = var == null ? argument.getAsRef() : null;
-      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(var))) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), makeBool(asRef != null))), exprToExpression(argument.getType())));
+      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, factory.number(var)) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), makeBool(asRef != null))), exprToExpression(argument.getType())));
       addRef(asRef);
     }
     ConcreteExpression resultType = exprToExpression(expr.getResultType());
@@ -320,7 +319,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       clauses.add(processParameters(clause.getParameters(), parameters -> factory.tuple(listToArray(parameters), exprToExpression(clause.getResultType()), clause.getTerm().accept(this, null))));
       addRef(refPattern.getRef());
     }
-    ConcreteExpression result = factory.app(factory.ref(ext.tcMeta.newExpr.getRef()), true, makeBool(expr.isHave()), makeBool(expr.isStrict()), listToArray(clauses), expr.getExpression().accept(this, null));
+    ConcreteExpression result = factory.app(factory.ref(ext.tcMeta.letExpr.getRef()), true, makeBool(expr.isHave()), makeBool(expr.isStrict()), listToArray(clauses), expr.getExpression().accept(this, null));
     for (ConcreteLetClause clause : expr.getClauses()) {
       if (clause.getPattern() instanceof ConcreteReferencePattern refPattern) {
         removeRef(refPattern.getRef());
