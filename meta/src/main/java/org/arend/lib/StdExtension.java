@@ -25,6 +25,7 @@ import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.linear.LinearSolverMeta;
+import org.arend.lib.meta.reflect.QuoteMeta;
 import org.arend.lib.meta.reflect.ReflectMeta;
 import org.arend.lib.meta.reflect.TypecheckMeta;
 import org.arend.lib.meta.simplify.SimplifyMeta;
@@ -85,6 +86,7 @@ public class StdExtension implements ArendExtension {
   public final SimpCoeMeta simpCoeFMeta = new SimpCoeMeta(this, true);
   public final SIPMeta sipMeta = new SIPMeta(this);
   public final TypecheckMeta tcMeta = new TypecheckMeta(this);
+  public MetaRef quoteRef;
   public CasesMeta casesMeta;
   public MetaRef constructorMetaRef;
 
@@ -219,6 +221,7 @@ public class StdExtension implements ArendExtension {
     ModulePath reflect = ModulePath.fromString("Reflect.Meta");
     contributor.declare(reflect, new LongName("typecheck"), "Typechecks an expression of type `ConcreteExpr`", Precedence.DEFAULT, tcMeta);
     contributor.declare(reflect, new LongName("reflect"), "Converts an expression into an element of type `ConcreteExpr`", Precedence.DEFAULT, new ReflectMeta(this));
+    quoteRef = contributor.declare(reflect, new LongName("quote"), "This meta can be used only under {reflect} meta. Then it is reflected to `quoteExpr`.", Precedence.DEFAULT, new QuoteMeta());
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),

@@ -449,7 +449,7 @@ public class TypecheckBuilder {
     } else if (constructor == meta.qNameExpr) {
       CoreDefinition def = getQName(expr.getDefCallArguments().get(0));
       return def == null ? null : factory.qName(def.getRef());
-    } else if (constructor == meta.wrapExpr) {
+    } else if (constructor == meta.quoteExpr) {
       return factory.core(expr.getDefCallArguments().get(1).computeTyped());
     } else {
       TypecheckBuildError.report(errorReporter, expr, marker);

@@ -10,6 +10,7 @@ import org.arend.ext.concrete.pattern.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.error.FieldsImplementationError;
+import org.arend.ext.error.MissingArgumentsError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -22,14 +23,12 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   private final ConcreteFactory factory;
   private final ExpressionTypechecker typechecker;
   private final StdExtension ext;
-  private final ConcreteExpression marker;
   private final Map<ArendRef, Integer> localRefs = new HashMap<>();
 
   public ReflectBuilder(ExpressionTypechecker typechecker, StdExtension ext, ConcreteExpression marker) {
     this.factory = ext.factory.withData(marker);
     this.typechecker = typechecker;
     this.ext = ext;
-    this.marker = marker;
   }
 
   private ConcreteExpression makeBool(boolean b) {
@@ -38,6 +37,14 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitApp(ConcreteAppExpression expr, Void params) {
+    if (expr.getFunction() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.quoteRef) {
+      var args = expr.getArguments();
+      if (args.size() != 1 || !args.get(0).isExplicit()) {
+        throw new ReflectionException(new TypecheckingError("Expected exactly 1 explicit argument", refExpr));
+      }
+      return factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), true, args.get(0).getExpression());
+    }
+
     ConcreteExpression result = expr.getFunction().accept(this, null);
     for (ConcreteArgument argument : expr.getArguments()) {
       result = factory.app(factory.ref(ext.tcMeta.appExpr.getRef()), true, result, argument.getExpression().accept(this, null), makeBool(argument.isExplicit()));
@@ -85,6 +92,10 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   @Override
   public ConcreteExpression visitReference(ConcreteReferenceExpression expr, Void params) {
     ArendRef ref = expr.getReferent();
+    if (ref == ext.quoteRef) {
+      throw new ReflectionException(new MissingArgumentsError(1, expr));
+    }
+
     Integer n = getLocalVar(ref);
     return n != null ? factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(n)) : factory.app(factory.ref(ext.tcMeta.globalVar.getRef()), true, factory.qName(ref), levelsToExpression(expr.getPLevels()), levelsToExpression(expr.getHLevels()));
   }
@@ -182,7 +193,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     List<ConcreteExpression> list = new ArrayList<>();
     for (ConcreteParameter param : expr.getParameters()) {
       if (param.getType() == null) {
-        throw new ReflectionException(new TypecheckingError("Parameters in \\Sigma-types must have types", marker));
+        throw new ReflectionException(new TypecheckingError("Parameters in \\Sigma-types must have types", expr));
       }
       ConcreteExpression type = param.getType().accept(this, null);
       for (ArendRef ref : param.getRefList()) {
@@ -204,7 +215,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     } else if (pattern instanceof ConcreteConstructorPattern conPattern) {
       ArendRef ref = conPattern.getConstructor();
       if (ref == null) {
-        throw new ReflectionException(new TypecheckingError("A constructor pattern without constructor: " + pattern, marker));
+        throw new ReflectionException(new TypecheckingError("A constructor pattern without constructor", pattern));
       }
       return factory.app(factory.ref(ext.tcMeta.conPattern.getRef()), true, factory.qName(ref), makePatterns(conPattern.getPatterns()));
     } else if (pattern instanceof ConcreteTuplePattern tuplePattern) {
@@ -215,7 +226,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       addRef(ref);
       return factory.app(factory.ref(ext.tcMeta.namePattern.getRef()), true, makeBool(ref != null), type);
     } else {
-      throw new ReflectionException(new TypecheckingError("Unknown pattern: " + pattern, marker));
+      throw new ReflectionException(new TypecheckingError("Unknown pattern", pattern));
     }
   }
 
@@ -245,7 +256,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       if (argument.isElim() && argExpr instanceof ConcreteReferenceExpression refExpr) {
         var = getLocalVar(refExpr.getReferent());
         if (var == null) {
-          throw new ReflectionException(new UnknownReferenceError(refExpr.getReferent(), marker));
+          throw new ReflectionException(new UnknownReferenceError(refExpr.getReferent(), refExpr));
         }
       }
       ArendRef asRef = var == null ? argument.getAsRef() : null;
@@ -288,7 +299,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       ArendRef classRef = coclause.getClassReference();
       ConcreteCoclauses coclauses = coclause.getSubCoclauses();
       if (classRef == null || coclauses == null) {
-        throw new ReflectionException(new FieldsImplementationError(false, null, Collections.singletonList(coclause.getImplementedRef()), marker));
+        throw new ReflectionException(new FieldsImplementationError(false, null, Collections.singletonList(coclause.getImplementedRef()), coclause));
       }
       impl = factory.newExpr(factory.classExt(factory.ref(classRef), coclauses.getCoclauseList()));
     }
@@ -314,7 +325,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     List<ConcreteExpression> clauses = new ArrayList<>();
     for (ConcreteLetClause clause : expr.getClauses()) {
       if (!(clause.getPattern() instanceof ConcreteReferencePattern refPattern)) {
-        throw new ReflectionException(new TypecheckingError("Patterns in \\let expressions are not supported", marker));
+        throw new ReflectionException(new TypecheckingError("Patterns in \\let expressions are not supported", clause));
       }
       clauses.add(processParameters(clause.getParameters(), parameters -> factory.tuple(listToArray(parameters), exprToExpression(clause.getResultType()), clause.getTerm().accept(this, null))));
       addRef(refPattern.getRef());
@@ -373,7 +384,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     int pIndex = typechecker.getLevelVariables(true).indexOf(expr.getReferent());
     int hIndex = pIndex == -1 ? typechecker.getLevelVariables(false).indexOf(expr.getReferent()) : -1;
     if (pIndex < 0 && hIndex < 0) {
-      throw new ReflectionException(new UnknownReferenceError(expr.getReferent(), marker));
+      throw new ReflectionException(new UnknownReferenceError(expr.getReferent(), expr));
     }
     return factory.app(factory.ref(ext.tcMeta.varLevel.getRef()), true, factory.number(pIndex >= 0 ? pIndex : hIndex), factory.ref(pIndex >= 0 ? ext.tcMeta.pLevel.getRef() : ext.tcMeta.hLevel.getRef()));
   }
