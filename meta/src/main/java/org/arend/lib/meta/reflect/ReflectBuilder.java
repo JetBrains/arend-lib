@@ -25,13 +25,13 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   private final StdExtension ext;
   private final Map<ArendRef, Integer> localRefs = new HashMap<>();
 
-  public ReflectBuilder(ExpressionTypechecker typechecker, StdExtension ext, ConcreteExpression marker) {
-    this.factory = ext.factory.withData(marker);
+  public ReflectBuilder(ExpressionTypechecker typechecker, StdExtension ext, ConcreteFactory factory) {
+    this.factory = factory;
     this.typechecker = typechecker;
     this.ext = ext;
   }
 
-  private ConcreteExpression makeBool(boolean b) {
+  public ConcreteExpression makeBool(boolean b) {
     return factory.ref(b ? ext.true_.getRef() : ext.false_.getRef());
   }
 
@@ -52,7 +52,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     return result;
   }
 
-  private ConcreteExpression listToArray(List<? extends ConcreteExpression> list) {
+  public ConcreteExpression listToArray(List<? extends ConcreteExpression> list) {
     ConcreteExpression result = factory.ref(ext.prelude.getEmptyArray().getRef());
     for (int i = list.size() - 1; i >= 0; i--) {
       result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, list.get(i), result);
