@@ -68,8 +68,18 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
     @Override
     public CoreExpression.FindAction apply(CoreExpression expression) {
-      var simplificationRules = getSimplificationRulesForType(expression.computeType());
-      var simplifiedExpr = expression.computeTyped();
+      var simplificationRules = new TreeSet<SimplificationRule>((o1, o2) -> o1.equals(o2) ? 0 : o1.hashCode() - o2.hashCode()); //getSimplificationRulesForType(expression.computeType());
+      var simplifiedExpr = expression.normalize(NormalizationMode.WHNF).computeTyped();
+
+      simplificationRules.addAll(getSimplificationRulesForType(expression.computeType()));
+
+      if (simplificationRules.stream().anyMatch(rule -> rule instanceof LocalSimplificationRuleBase)) {
+        simplifiedExpr.getExpression().processSubexpression(subexpr -> {
+          simplificationRules.addAll(getSimplificationRulesForType(subexpr.computeType()));
+          return CoreExpression.FindAction.CONTINUE;
+        });
+      }
+
       ConcreteExpression right = null;
       ConcreteExpression path = null;
       boolean skip = false;
@@ -165,8 +175,9 @@ public class SimplifyMeta extends BaseMetaDefinition {
   }
 
   private ConcreteExpression simplifyTypeOfExpression(ConcreteExpression expression, CoreExpression type) {
+    CoreExpression normType = type.normalize(NormalizationMode.WHNF);
     var processor = new SimplifyExpressionProcessor();
-    typechecker.withCurrentState(tc -> type.processSubexpression(processor));
+    typechecker.withCurrentState(tc -> normType.processSubexpression(processor));
 
     var occurrences = processor.getSimplificationOccurrences().stream().map(x -> x.proj1).collect(Collectors.toList());
     var lamParams = new ArrayList<ConcreteParameter>();
@@ -196,7 +207,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
           indexOfSubExpr.put(occurrences.get(i), i);
         }
 
-        var typeWithOccur = type.replaceSubexpressions(expression -> {
+        var typeWithOccur = normType.replaceSubexpressions(expression -> {
           Integer occurInd = indexOfSubExpr.get(expression);
           if (occurInd == null) return null;
           return checkedVars.get(occurInd).getExpression();
@@ -204,7 +215,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
         TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {
-          errorReporter.report(new SimplifyError(occurrences, type, refExpr));
+          errorReporter.report(new SimplifyError(occurrences, normType, refExpr));
         }
         return result;
       }

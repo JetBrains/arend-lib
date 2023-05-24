@@ -93,6 +93,7 @@ public class GroupInverseRule extends GroupRuleBase {
         var right = compositeTerm.subterms.get(1);
         int numLeavesLeft = countLeaves(left);
         var result = new CompositeTerm();
+        result.matcher = mulMatcher;
         if (fstIndToRemove < numLeavesLeft) {
           var leftRes = removePair(compositeTerm.subterms.get(0), fstIndToRemove);
           if (leftRes == null) {
