@@ -5,6 +5,8 @@ import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.error.NameResolverError;
 import org.arend.ext.reference.ExpressionResolver;
+import org.arend.ext.reference.Fixity;
+import org.arend.ext.reference.ResolvedApplication;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.util.Utils;
@@ -31,19 +33,27 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
     return true;
   }
 
-  private ConcreteExpression getConcreteRepresentation(List<? extends ConcreteArgument> arguments, ConcreteSourceNode marker) {
+  private ConcreteExpression getConcreteRepresentation(List<? extends ConcreteArgument> arguments, ConcreteSourceNode marker, ExpressionResolver resolver) {
     List<? extends ConcreteExpression> args = Utils.getArgumentList(arguments.get(0).getExpression());
     ConcreteFactory factory = ext.factory.withData(marker);
     ConcreteExpression result = args.get(args.size() - 1);
     for (int i = args.size() - 2; i >= 0; i--) {
       ConcreteExpression arg = args.get(i);
-      if (arg instanceof ConcreteLetExpression && ((ConcreteLetExpression) arg).getExpression() instanceof ConcreteIncompleteExpression) {
-        ConcreteLetExpression let = (ConcreteLetExpression) arg;
+      if (arg instanceof ConcreteLetExpression let && ((ConcreteLetExpression) arg).getExpression() instanceof ConcreteIncompleteExpression) {
         result = factory.letExpr(let.isHave(), let.isStrict(), let.getClauses(), result);
       } else if (arg instanceof ConcreteLamExpression && ((ConcreteLamExpression) arg).getBody() instanceof ConcreteIncompleteExpression) {
         result = factory.lam(((ConcreteLamExpression) arg).getParameters(), result);
       } else {
-        result = factory.app(arg, true, Collections.singletonList(result));
+        ResolvedApplication resolvedApp = resolver == null ? null : resolver.resolveApplication(arg);
+        if (resolvedApp != null && resolvedApp.function() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.leftArrowRef && resolvedApp.leftElements() != null && resolvedApp.rightElements() != null) {
+          if (!(resolvedApp.leftElements().size() == 1 && resolvedApp.leftElements().get(0).isExplicit() && (resolvedApp.leftElements().get(0).fixity() == Fixity.UNKNOWN || resolvedApp.leftElements().get(0).fixity() == Fixity.NONFIX) && resolvedApp.leftElements().get(0).expression() instanceof ConcreteReferenceExpression leftExpr)) {
+            resolver.getErrorReporter().report(new NameResolverError("The left argument of '<-' must be a variable", resolvedApp.leftElements().size() == 1 ? resolvedApp.leftElements().get(0).expression() : resolvedApp.function()));
+            return null;
+          }
+          result = factory.lam(Collections.singletonList(factory.param(leftExpr.getReferent())), result);
+        } else {
+          result = factory.app(arg, true, Collections.singletonList(result));
+        }
       }
     }
     return result;
@@ -51,21 +61,7 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
 
   @Override
   public @Nullable ConcreteExpression getConcreteRepresentation(@NotNull List<? extends ConcreteArgument> arguments) {
-    return getConcreteRepresentation(arguments, null);
-  }
-
-  @Override
-  public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    if (contextData.getExpectedType() != null) {
-      return typechecker.defer(new MetaDefinition() {
-        @Override
-        public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-          return typechecker.typecheck(RunMeta.this.getConcreteRepresentation(contextData.getArguments(), contextData.getMarker()), contextData.getExpectedType());
-        }
-      }, contextData, contextData.getExpectedType(), false);
-    } else {
-      return typechecker.typecheck(getConcreteRepresentation(contextData.getArguments(), contextData.getMarker()), contextData.getExpectedType());
-    }
+    return getConcreteRepresentation(arguments, null, null);
   }
 
   @Override
@@ -81,6 +77,7 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
       return ext.factory.withData(contextData.getCoclauses().getData()).goal();
     }
 
-    return resolver.resolve(getConcreteRepresentation(contextData.getArguments(), contextData.getReferenceExpression()));
+    ConcreteExpression result = getConcreteRepresentation(contextData.getArguments(), contextData.getReferenceExpression(), resolver);
+    return result == null ? null : resolver.resolve(result);
   }
 }

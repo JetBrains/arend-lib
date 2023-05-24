@@ -26,7 +26,6 @@ import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.linear.LinearSolverMeta;
 import org.arend.lib.meta.reflect.GetArgsMeta;
-import org.arend.lib.meta.reflect.QuoteMeta;
 import org.arend.lib.meta.reflect.ReflectMeta;
 import org.arend.lib.meta.reflect.TypecheckMeta;
 import org.arend.lib.meta.simplify.SimplifyMeta;
@@ -90,6 +89,7 @@ public class StdExtension implements ArendExtension {
   public MetaRef quoteRef;
   public CasesMeta casesMeta;
   public MetaRef constructorMetaRef;
+  public MetaRef leftArrowRef;
 
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
   private final StdLevelProver levelProver = new StdLevelProver(this);
@@ -160,7 +160,13 @@ public class StdExtension implements ArendExtension {
     contributor.declare(meta, new LongName("hiding"),
         "`hiding (x_1, ... x_n) e` hides local variables `x_1`, ... `x_n` from the context before checking `e`",
         Precedence.DEFAULT, new HidingMeta());
-    contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
+    MetaRef runRef = contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
+    leftArrowRef = contributor.declare(meta, new LongName("<-"),
+        """
+            This meta can be used only under {run} meta.
+
+            `run { x <- a, b }` is equivalent to a (\\lam a => b).
+            """, new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 0, true), new InternalMeta(runRef));
     contributor.declare(meta, new LongName("at"), "`((f_1, ... f_n) at x) r` replaces variable `x` with `f_1 (... (f_n x) ...)` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
     casesMeta = new CasesMeta(this);
     contributor.declare(meta, new LongName("cases"),
@@ -221,8 +227,8 @@ public class StdExtension implements ArendExtension {
 
     ModulePath reflect = ModulePath.fromString("Reflect.Meta");
     contributor.declare(reflect, new LongName("typecheck"), "Typechecks an expression of type `ConcreteExpr`", Precedence.DEFAULT, tcMeta);
-    contributor.declare(reflect, new LongName("reflect"), "Converts an expression into an element of type `ConcreteExpr`", Precedence.DEFAULT, new ReflectMeta(this));
-    quoteRef = contributor.declare(reflect, new LongName("quote"), "This meta can be used only under {reflect} meta. Then it is reflected to `quoteExpr`.", Precedence.DEFAULT, new QuoteMeta());
+    MetaRef reflectRef = contributor.declare(reflect, new LongName("reflect"), "Converts an expression into an element of type `ConcreteExpr`", Precedence.DEFAULT, new ReflectMeta(this));
+    quoteRef = contributor.declare(reflect, new LongName("quote"), "This meta can be used only under {reflect} meta. Then it is reflected to `quoteExpr`.", Precedence.DEFAULT, new InternalMeta(reflectRef));
     contributor.declare(reflect, new LongName("getArgs"), "Returns the arguments in the CPS style", Precedence.DEFAULT, new GetArgsMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
