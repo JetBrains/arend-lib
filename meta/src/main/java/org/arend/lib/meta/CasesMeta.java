@@ -1,14 +1,10 @@
 package org.arend.lib.meta;
 
-import org.arend.ext.concrete.ConcreteAppBuilder;
-import org.arend.ext.concrete.ConcreteClause;
-import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcreteParameter;
+import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreExpressionPattern;
 import org.arend.ext.core.context.CoreEvaluatingBinding;
 import org.arend.ext.core.context.CoreParameter;
-import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.CoreDataCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreReferenceExpression;
@@ -37,24 +33,24 @@ import java.util.function.BiFunction;
 public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
   private final StdExtension ext;
   final NamedParameter parameter;
-  final ArendRef argRef;
+  public final ArendRef argRef;
   final ArendRef nameRef;
   final ArendRef addPathRef;
   final ArendRef asRef;
 
   public CasesMeta(StdExtension ext) {
     this.ext = ext;
-    parameter = new NamedParameter(ext.factory);
     argRef = ext.factory.global("arg", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 0, true));
+    parameter = new NamedParameter(ext.factory, ext);
 
-    BiFunction<ExpressionResolver, List<ConcreteArgument>, ConcreteExpression> handler = (resolver, args) -> {
-      if (args.size() == 1 && args.get(0).isExplicit() && args.get(0).getExpression() instanceof ConcreteReferenceExpression) {
-        ConcreteFactory factory = ext.factory.withData(args.get(0).getExpression().getData());
-        ArendRef ref = factory.localDeclaration(((ConcreteReferenceExpression) args.get(0).getExpression()).getReferent());
+    BiFunction<ExpressionResolver, ConcreteExpression, ConcreteExpression> handler = (resolver, arg) -> {
+      if (arg instanceof ConcreteReferenceExpression refExpr) {
+        ConcreteFactory factory = ext.factory.withData(arg.getData());
+        ArendRef ref = factory.localDeclaration(refExpr.getReferent());
         resolver.registerDeclaration(ref);
         return factory.ref(ref);
       } else {
-        resolver.getErrorReporter().report(new NameResolverError("Expected an identifier", args.get(0).getExpression()));
+        resolver.getErrorReporter().report(new NameResolverError("Expected an identifier", arg));
         return null;
       }
     };
@@ -77,10 +73,6 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
   @Override
   public boolean requireExpectedType() {
     return true;
-  }
-
-  private ConcreteExpression resolveArgRef(ExpressionResolver resolver, ConcreteExpression expression) {
-    return expression instanceof ConcreteReferenceExpression ? resolver.useRefs(Collections.singletonList(argRef), true).resolve(expression) : null;
   }
 
   private ConcreteExpression getArgArgument(ConcreteExpression expr) {
@@ -107,48 +99,29 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     }
   }
 
-  private ConcreteExpression addType(ConcreteExpression expr, ConcreteExpression type, ConcreteExpression opArg) {
+  private ConcreteExpression addType(ConcreteExpression expr, ConcreteExpression type) {
     if (type == null) return expr;
     ConcreteFactory factory = ext.factory.withData(expr.getData());
-    return factory.app(opArg != null ? opArg : factory.ref(argRef), true, Arrays.asList(expr, factory.tuple(), type));
+    return factory.app(factory.ref(argRef), true, Arrays.asList(expr, factory.tuple(), type));
   }
 
   private ConcreteExpression resolveArgument1(ExpressionResolver resolver, ConcreteExpression argument) {
     ConcreteExpression type = argument instanceof ConcreteTypedExpression ? resolver.resolve(((ConcreteTypedExpression) argument).getType()) : null;
     if (argument instanceof ConcreteTypedExpression) argument = ((ConcreteTypedExpression) argument).getExpression();
 
-    List<ConcreteArgument> sequence = argument.getArgumentsSequence();
-    if (sequence.size() >= 3 && sequence.get(sequence.size() - 1).isExplicit() && sequence.get(sequence.size() - 2).isExplicit()) {
-      ConcreteExpression opArg = resolveArgRef(resolver, sequence.get(sequence.size() - 2).getExpression());
-      if (opArg instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) opArg).getReferent() == argRef) {
-        ConcreteExpression result = resolver.resolve(argument.getData(), sequence.subList(0, sequence.size() - 2));
-        ConcreteExpression params = parameter.resolve(resolver, sequence.get(sequence.size() - 1).getExpression(), false, true);
-        if (params == null && type == null) return result;
-        ConcreteFactory factory = ext.factory.withData(argument.getData());
-        ConcreteAppBuilder builder = factory.appBuilder(opArg).app(result).app(params != null ? params : factory.tuple());
-        if (type != null) builder.app(type);
-        return builder.build();
-      }
-
-      if (opArg != null) {
-        sequence.set(sequence.size() - 2, ext.factory.arg(opArg, true));
-        return addType(resolver.resolve(argument.getData(), sequence), type, null);
-      }
+    ConcreteUnparsedSequenceExpression seqExpr = argument instanceof ConcreteUnparsedSequenceExpression seqExpr2 ? seqExpr2 : null;
+    ResolvedApplication resolvedApp = seqExpr != null ? resolver.useRefs(Collections.singletonList(argRef), true).resolveApplication(seqExpr) : null;
+    if (!(resolvedApp != null && resolvedApp.function() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == argRef && resolvedApp.leftElements() != null && resolvedApp.rightElements() != null)) {
+      return addType(resolver.resolve(argument), type);
     }
 
-    if (sequence.size() >= 2 && sequence.get(sequence.size() - 1).isExplicit()) {
-      ConcreteExpression lastArg = resolveArgRef(resolver, sequence.get(sequence.size() - 1).getExpression());
-      if (lastArg instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) lastArg).getReferent() == argRef) {
-        resolver.getErrorReporter().report(new NameResolverError("Expected an argument after '" + argRef.getRefName() + "'", lastArg));
-      }
-
-      if (lastArg != null) {
-        sequence.set(sequence.size() - 1, ext.factory.arg(lastArg, true));
-        return addType(resolver.resolve(argument.getData(), sequence), type, lastArg);
-      }
-    }
-
-    return addType(resolver.resolve(argument), type, null);
+    ConcreteFactory factory = ext.factory.withData(argument.getData());
+    ConcreteExpression result = resolver.resolve(factory.unparsedSequence(resolvedApp.leftElements(), null));
+    ConcreteExpression params = parameter.resolve(resolver, factory.unparsedSequence(resolvedApp.rightElements(), seqExpr.getClauses()), true);
+    if (params == null && type == null) return result;
+    ConcreteAppBuilder builder = factory.appBuilder(resolvedApp.function()).app(result).app(params != null ? params : factory.tuple());
+    if (type != null) builder.app(type);
+    return builder.build();
   }
 
   public ConcreteExpression resolveDefaultClause(ExpressionResolver resolver, ConcreteExpression defaultClause, ConcreteExpression caseArgsExpr) {

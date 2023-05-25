@@ -14,9 +14,7 @@ import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.*;
 import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.prettyprinting.doc.DocFactory;
-import org.arend.ext.reference.ArendRef;
-import org.arend.ext.reference.ExpressionResolver;
-import org.arend.ext.reference.MetaRef;
+import org.arend.ext.reference.*;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
@@ -325,13 +323,41 @@ public class Utils {
     return false;
   }
 
-  public static List<ArendRef> getRefs(ConcreteExpression expr, ExpressionResolver resolver) {
-    List<ArendRef> result = new ArrayList<>();
-    for (ConcreteArgument argument : expr.getArgumentsSequence()) {
-      if (!argument.isExplicit() || !getRef(argument.getExpression(), resolver, result)) {
-        resolver.getErrorReporter().report(new NameResolverError("Cannot parse references", expr));
+  private static List<ConcreteExpression> getUnparsedExpressionList(ConcreteExpression expr) {
+    if (!(expr instanceof ConcreteUnparsedSequenceExpression seqExpr)) {
+      return Collections.singletonList(expr);
+    }
+
+    if (seqExpr.getClauses() != null) {
+      return null;
+    }
+
+    List<ConcreteExpression> result = new ArrayList<>();
+    for (ConcreteUnparsedSequenceElem elem : seqExpr.getSequence()) {
+      if (!(elem.getFixity() == Fixity.NONFIX || elem.getFixity() == Fixity.UNKNOWN) || !elem.isExplicit()) {
         return null;
       }
+      result.add(elem.getExpression());
+    }
+    return result;
+  }
+
+  public static List<ArendRef> getRefs(ConcreteExpression expr, ExpressionResolver resolver) {
+    List<ArendRef> result = new ArrayList<>();
+    List<ConcreteExpression> args = getUnparsedExpressionList(expr);
+    boolean ok = args != null;
+    if (ok) {
+      for (ConcreteExpression arg : args) {
+        if (!getRef(arg, resolver, result)) {
+          ok = false;
+          break;
+        }
+      }
+    }
+
+    if (!ok) {
+      resolver.getErrorReporter().report(new NameResolverError("Cannot parse references", expr));
+      return null;
     }
     return result;
   }
@@ -373,11 +399,20 @@ public class Utils {
 
   public static List<ArendRef> getTuplesOfRefs(ConcreteExpression expr, ExpressionResolver resolver) {
     List<ArendRef> result = new ArrayList<>();
-    for (ConcreteArgument argument : expr.getArgumentsSequence()) {
-      if (!argument.isExplicit() || !getTupleOfRefs(argument.getExpression(), resolver, result)) {
-        resolver.getErrorReporter().report(new NameResolverError("Cannot parse references", expr));
-        return null;
+    List<ConcreteExpression> args = getUnparsedExpressionList(expr);
+    boolean ok = args != null;
+    if (ok) {
+      for (ConcreteExpression arg : args) {
+        if (!getTupleOfRefs(arg, resolver, result)) {
+          ok = false;
+          break;
+        }
       }
+    }
+
+    if (!ok) {
+      resolver.getErrorReporter().report(new NameResolverError("Cannot parse references", expr));
+      return null;
     }
     return result;
   }

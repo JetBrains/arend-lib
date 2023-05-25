@@ -18,6 +18,7 @@ import org.arend.ext.error.*;
 import org.arend.ext.error.quickFix.RemoveErrorQuickFix;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
+import org.arend.ext.reference.Fixity;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
@@ -102,9 +103,12 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       List<ConcreteExpression> fields = new ArrayList<>();
       List<? extends ConcreteExpression> params = Utils.getArgumentList(args.get(paramsIndex).getExpression());
       for (ConcreteExpression param : params) {
-        List<ConcreteArgument> seq = param.getArgumentsSequence();
-        if (seq.size() == 2 && seq.get(0).getExpression() instanceof ConcreteReferenceExpression && seq.get(1).isExplicit() && ((ConcreteReferenceExpression) seq.get(0).getExpression()).getReferent().getRefName().equals(ext.casesMeta.argRef.getRefName())) {
-          ConcreteExpression field = ext.casesMeta.parameter.resolve(resolver, seq.get(1).getExpression(), false, true);
+        ConcreteUnparsedSequenceExpression seqExpr = param instanceof ConcreteUnparsedSequenceExpression seqExpr2 ? seqExpr2 : null;
+        ResolvedApplication resolvedApp = seqExpr != null ? resolver.useRefs(Collections.singletonList(ext.casesMeta.argRef), true).resolveApplication(seqExpr) : null;
+        if (resolvedApp != null && resolvedApp.function() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.casesMeta.argRef && resolvedApp.arguments() != null && resolvedApp.arguments().size() == 1 && resolvedApp.arguments().get(0).isExplicit()) {
+          ConcreteExpression arg = resolvedApp.arguments().get(0).getExpression();
+          ConcreteFactory factory1 = factory.withData(arg.getData());
+          ConcreteExpression field = ext.casesMeta.parameter.resolve(resolver, seqExpr.getClauses() == null ? arg : factory1.unparsedSequence(Collections.singletonList(factory1.unparsedSequenceElem(arg, Fixity.NONFIX, true)), seqExpr.getClauses()), true);
           if (field != null) fields.add(field);
         } else {
           resolver.getErrorReporter().report(new NameResolverError("Expected 'arg' with one explicit argument", param));
