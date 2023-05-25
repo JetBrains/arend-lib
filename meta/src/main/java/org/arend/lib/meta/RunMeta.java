@@ -6,7 +6,7 @@ import org.arend.ext.concrete.expr.*;
 import org.arend.ext.error.NameResolverError;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Fixity;
-import org.arend.ext.reference.ResolvedApplication;
+import org.arend.ext.concrete.ResolvedApplication;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
 import org.arend.lib.util.Utils;
@@ -45,12 +45,12 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
         result = factory.lam(((ConcreteLamExpression) arg).getParameters(), result);
       } else {
         ResolvedApplication resolvedApp = resolver == null ? null : resolver.resolveApplication(arg);
-        if (resolvedApp != null && resolvedApp.function() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.leftArrowRef && resolvedApp.leftElements() != null && resolvedApp.rightElements() != null) {
+        if (resolvedApp != null && resolvedApp.function() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.leftArrowRef && resolvedApp.leftElements() != null && resolvedApp.rightElements() != null && !resolvedApp.rightElements().isEmpty()) {
           if (!(resolvedApp.leftElements().size() == 1 && resolvedApp.leftElements().get(0).isExplicit() && (resolvedApp.leftElements().get(0).fixity() == Fixity.UNKNOWN || resolvedApp.leftElements().get(0).fixity() == Fixity.NONFIX) && resolvedApp.leftElements().get(0).expression() instanceof ConcreteReferenceExpression leftExpr)) {
             resolver.getErrorReporter().report(new NameResolverError("The left argument of '<-' must be a variable", resolvedApp.leftElements().size() == 1 ? resolvedApp.leftElements().get(0).expression() : resolvedApp.function()));
             return null;
           }
-          result = factory.lam(Collections.singletonList(factory.param(leftExpr.getReferent())), result);
+          result = factory.app(factory.unparsedSequence(resolvedApp.rightElements(), resolvedApp.clauses()), true, factory.lam(Collections.singletonList(factory.param(leftExpr.getReferent())), result));
         } else {
           result = factory.app(arg, true, Collections.singletonList(result));
         }
