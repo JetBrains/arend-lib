@@ -1,7 +1,9 @@
 package org.arend.lib.meta.reflect;
 
+import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.definition.CoreConstructor;
+import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
@@ -9,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class TypecheckMeta extends BaseMetaDefinition {
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreDataDefinition ConcreteExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor thisExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor sigmaExpr;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor holeExpr;
@@ -61,9 +64,11 @@ public class TypecheckMeta extends BaseMetaDefinition {
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
-    TypedExpression arg = typechecker.typecheck(contextData.getArguments().get(0).getExpression(), null);
+    ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
+    TypedExpression type = typechecker.typecheckType(factory.ref(ConcreteExpr.getRef()));
+    TypedExpression arg = type == null ? null : typechecker.typecheck(contextData.getArguments().get(0).getExpression(), type.getExpression());
     if (arg == null) return null;
-    ConcreteExpression result = new TypecheckBuilder(this, ext.factory.withData(contextData.getMarker()), typechecker, contextData.getMarker()).process(arg.getExpression());
+    ConcreteExpression result = new TypecheckBuilder(this, factory, typechecker, contextData.getMarker()).process(arg.getExpression());
     return result == null ? null : typechecker.typecheck(result, contextData.getExpectedType());
   }
 }
