@@ -8,7 +8,6 @@ import org.arend.ext.concrete.level.ConcreteLevel;
 import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreConstructor;
-import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
@@ -69,10 +68,10 @@ public class TypecheckBuilder {
     }
   }
 
-  private CoreDefinition getQName(CoreExpression expr) {
+  private ArendRef getQName(CoreExpression expr) {
     expr = expr.normalize(NormalizationMode.WHNF);
     if (expr instanceof CoreQNameExpression) {
-      return ((CoreQNameExpression) expr).getDefinition();
+      return ((CoreQNameExpression) expr).getRef();
     } else {
       TypecheckBuildError.report(errorReporter, "Expected a QName", expr, marker);
       return null;
@@ -110,11 +109,6 @@ public class TypecheckBuilder {
       return factory.ref(binding);
     }
     return factory.ref(localRefs.get(localRefs.size() - 1 - n));
-  }
-
-  private ArendRef getRef(CoreExpression expr) {
-    CoreDefinition def = getQName(expr);
-    return def == null ? null : def.getRef();
   }
 
   private ArendRef addRef() {
@@ -248,7 +242,7 @@ public class TypecheckBuilder {
       Integer n = getSmallInteger(expr.getDefCallArguments().get(0));
       return n == null ? null : factory.numberPattern(n);
     } else if (constructor == meta.conPattern) {
-      ArendRef ref = getRef(expr.getDefCallArguments().get(0));
+      ArendRef ref = getQName(expr.getDefCallArguments().get(0));
       if (ref != null && ref.isLocalRef()) {
         TypecheckBuildError.report(errorReporter, "Expected a constructor", expr.getDefCallArguments().get(0), marker);
         return null;
@@ -335,7 +329,7 @@ public class TypecheckBuilder {
       List<ConcreteClassElement> elements = processArray(expr.getDefCallArguments().get(1), e -> {
         List<? extends CoreExpression> fields = processTuple(e, 2);
         if (fields == null) return null;
-        ArendRef ref = getRef(fields.get(0));
+        ArendRef ref = getQName(fields.get(0));
         if (ref != null && ref.isLocalRef()) {
           TypecheckBuildError.report(errorReporter, "Expected a field", fields.get(0), marker);
           return null;
@@ -375,7 +369,7 @@ public class TypecheckBuilder {
     } else if (constructor == meta.localVar) {
       return getLocalRef(expr.getDefCallArguments().get(0));
     } else if (constructor == meta.globalVar) {
-      ArendRef ref = getRef(expr.getDefCallArguments().get(0));
+      ArendRef ref = getQName(expr.getDefCallArguments().get(0));
       Maybe<List<ConcreteLevel>> pLevels = processMaybe(expr.getDefCallArguments().get(1), e -> processArray(e, this::processLevel));
       Maybe<List<ConcreteLevel>> hLevels = processMaybe(expr.getDefCallArguments().get(2), e -> processArray(e, this::processLevel));
       return ref == null || pLevels == null || hLevels == null ? null : factory.ref(ref, pLevels.just, hLevels.just);
@@ -447,8 +441,8 @@ public class TypecheckBuilder {
       String string = getString(expr.getDefCallArguments().get(0));
       return string == null ? null : factory.string(string);
     } else if (constructor == meta.qNameExpr) {
-      CoreDefinition def = getQName(expr.getDefCallArguments().get(0));
-      return def == null ? null : factory.qName(def.getRef());
+      ArendRef ref = getQName(expr.getDefCallArguments().get(0));
+      return ref == null ? null : factory.qName(ref);
     } else if (constructor == meta.quoteExpr) {
       return factory.core(expr.getDefCallArguments().get(1).computeTyped());
     } else {
