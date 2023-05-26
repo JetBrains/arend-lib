@@ -62,7 +62,7 @@ public class GetArgsMeta extends BaseMetaDefinition {
         params.addAll(lamParams.subList(1, lamParams.size()));
         body = factory.lam(params, body);
       }
-      result = factory.letExpr(false, false, Collections.singletonList(factory.letClause(refs.get(0), Collections.emptyList(), lamParam0.getType(), builder.listToArray(args))), body);
+      result = body.substitute(Collections.singletonMap(refs.get(0), builder.listToArray(args)));
     } else {
       result = factory.app(arg, true, builder.listToArray(args));
     }
