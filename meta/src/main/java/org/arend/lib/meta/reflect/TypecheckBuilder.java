@@ -444,7 +444,7 @@ public class TypecheckBuilder {
       ArendRef ref = getQName(expr.getDefCallArguments().get(0));
       return ref == null ? null : factory.qName(ref);
     } else if (constructor == meta.quoteExpr) {
-      return factory.core(expr.getDefCallArguments().get(1).computeTyped());
+      return factory.core(expr.makeTypedExpression());
     } else {
       TypecheckBuildError.report(errorReporter, expr, marker);
       return null;
