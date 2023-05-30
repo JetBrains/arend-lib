@@ -2,12 +2,10 @@ package org.arend.lib.meta.reflect;
 
 import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.ConcreteCaseArgument;
-import org.arend.ext.concrete.expr.ConcreteCoreExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.concrete.level.ConcreteLevel;
 import org.arend.ext.concrete.pattern.ConcretePattern;
-import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -91,19 +89,19 @@ public class TypecheckBuilder {
     return ref;
   }
 
-  private ConcreteExpression getLocalRef(CoreExpression expr) {
+  private ConcreteReferenceExpression getLocalRef(CoreExpression expr) {
     Integer n = getSmallInteger(expr);
     if (n == null) return null;
     if (n >= localRefs.size()) {
       int k = n - localRefs.size();
-      List<CoreBinding> context = typechecker.getFreeBindingsList();
+      List<ArendRef> context = typechecker.getFreeReferencesList();
       if (k >= context.size()) {
         errorReporter.report(new TypecheckingError("Index too large: " + n + ", number of variables: " + (localRefs.size() + context.size()), marker));
         return null;
       }
-      CoreBinding binding = context.get(context.size() - 1 - k);
+      ArendRef binding = context.get(context.size() - 1 - k);
       ArendRef thisRef = typechecker.getThisReference();
-      if (thisRef != null && binding == typechecker.getFreeBinding(thisRef)) {
+      if (thisRef != null && binding == thisRef) {
         errorReporter.report(new TypecheckingError("A reference to \\this binding", marker));
         return null;
       }
@@ -197,14 +195,15 @@ public class TypecheckBuilder {
   }
 
   private ConcreteLetClause processLetClause(CoreExpression expr) {
-    List<? extends CoreExpression> fields = processTuple(expr, 3);
+    List<? extends CoreExpression> fields = processTuple(expr, 4);
     if (fields == null) return null;
     int size = localRefs.size();
-    List<ConcreteParameter> parameters = processArray(fields.get(0), this::processParameter);
-    Maybe<ConcreteExpression> type = processMaybe(fields.get(1), this::process);
-    ConcreteExpression term = process(fields.get(2));
+    ConcretePattern pattern = processPattern(fields.get(0));
+    List<ConcreteParameter> parameters = processArray(fields.get(1), this::processParameter);
+    Maybe<ConcreteExpression> type = processMaybe(fields.get(2), this::process);
+    ConcreteExpression term = process(fields.get(3));
     removeVars(size);
-    return parameters == null || type == null || term == null ? null : factory.letClause(addRef(), parameters, type.just, term);
+    return pattern == null || parameters == null || type == null || term == null ? null : factory.letClause(pattern, parameters, type.just, term);
   }
 
   private ConcreteLevel processLevel(CoreExpression expr) {
@@ -382,7 +381,7 @@ public class TypecheckBuilder {
         if (fields == null) return null;
         CoreExpression orExpr = fields.get(0).normalize(NormalizationMode.WHNF);
         Pair<ConcreteExpression, Boolean> pair = null;
-        ConcreteExpression elimRef = null;
+        ConcreteReferenceExpression elimRef = null;
         if (orExpr instanceof CoreConCallExpression conCall) {
           if (conCall.getDefinition() == meta.ext.inl) {
             List<? extends CoreExpression> fields2 = processTuple(conCall.getDefCallArguments().get(0), 2);
@@ -402,13 +401,7 @@ public class TypecheckBuilder {
         Maybe<ConcreteExpression> type = processMaybe(fields.get(1), this::process);
         if (type == null) return null;
         if (pair == null) {
-          if (elimRef instanceof ConcreteReferenceExpression) {
-            return factory.caseArg((ConcreteReferenceExpression) elimRef, type.just);
-          } else if (elimRef instanceof ConcreteCoreExpression) {
-            return factory.caseArg((ConcreteCoreExpression) elimRef, type.just);
-          } else {
-            throw new IllegalStateException();
-          }
+          return factory.caseArg(elimRef, type.just);
         }
         return factory.caseArg(pair.proj1, pair.proj2 ? addRef() : null, type.just);
       });
