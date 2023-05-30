@@ -198,11 +198,11 @@ public class TypecheckBuilder {
     List<? extends CoreExpression> fields = processTuple(expr, 4);
     if (fields == null) return null;
     int size = localRefs.size();
-    ConcretePattern pattern = processPattern(fields.get(0));
     List<ConcreteParameter> parameters = processArray(fields.get(1), this::processParameter);
     Maybe<ConcreteExpression> type = processMaybe(fields.get(2), this::process);
     ConcreteExpression term = process(fields.get(3));
     removeVars(size);
+    ConcretePattern pattern = processPattern(fields.get(0));
     return pattern == null || parameters == null || type == null || term == null ? null : factory.letClause(pattern, parameters, type.just, term);
   }
 

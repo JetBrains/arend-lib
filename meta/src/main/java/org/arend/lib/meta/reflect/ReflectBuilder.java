@@ -98,6 +98,9 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     }
 
     Integer n = getLocalVar(ref);
+    if (n == null && ref.isLocalRef()) {
+      throw new ReflectionException(new UnknownReferenceError(ref, expr));
+    }
     return n != null ? factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(n)) : factory.app(factory.ref(ext.tcMeta.globalVar.getRef()), true, factory.qName(ref), levelsToExpression(expr.getPLevels()), levelsToExpression(expr.getHLevels()));
   }
 
