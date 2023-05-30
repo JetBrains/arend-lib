@@ -330,7 +330,6 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     List<ConcreteExpression> clauses = new ArrayList<>();
     for (ConcreteLetClause clause : expr.getClauses()) {
       ConcreteExpression[] array = processParameters(clause.getParameters(), parameters -> new ConcreteExpression[] { listToArray(parameters), exprToExpression(clause.getResultType()), clause.getTerm().accept(this, null) });
-      clauses.add(processParameters(clause.getParameters(), parameters -> factory.tuple(listToArray(parameters), exprToExpression(clause.getResultType()), clause.getTerm().accept(this, null))));
       clauses.add(factory.tuple(makePattern(clause.getPattern()), array[0], array[1], array[2]));
     }
     ConcreteExpression result = factory.app(factory.ref(ext.tcMeta.letExpr.getRef()), true, makeBool(expr.isHave()), makeBool(expr.isStrict()), listToArray(clauses), expr.getExpression().accept(this, null));
