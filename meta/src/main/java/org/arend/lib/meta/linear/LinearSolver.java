@@ -293,7 +293,7 @@ public class LinearSolver {
     boolean isRing = isRat || classCall.getDefinition().isSubClassOf(ext.equationMeta.OrderedRing);
     ConcreteExpression varsArg = factory.ref(ext.prelude.getEmptyArray().getRef());
     for (int i = valueList.size() - 1; i >= 0; i--) {
-      varsArg = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), varsArg);
+      varsArg = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.core(valueList.get(i).computeTyped()), varsArg);
     }
     return factory.newExpr(factory.classExt(factory.ref((isRat ?  ext.linearSolverMeta.LinearRatData : isRing ? ext.linearSolverMeta.LinearRingData : ext.linearSolverMeta.LinearSemiringData).getRef()), Arrays.asList(factory.implementation((ext.equationMeta.RingDataCarrier).getRef(), instanceArg), factory.implementation(ext.equationMeta.DataFunction.getRef(), varsArg))));
   }

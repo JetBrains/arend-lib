@@ -196,7 +196,7 @@ public class Utils {
       return result;
     }
 
-    return typechecker.typecheck(factory.app(factory.core("_", result), arguments), null);
+    return typechecker.typecheck(factory.app(factory.core(result), arguments), null);
   }
 
   private static class MyException extends RuntimeException {}

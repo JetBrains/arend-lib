@@ -298,7 +298,7 @@ public class EquationMeta extends BaseMetaDefinition {
         if (result == null) {
           ok = false;
         } else {
-          equalities.add(factory.core(null, result));
+          equalities.add(factory.core(result));
         }
       }
     }

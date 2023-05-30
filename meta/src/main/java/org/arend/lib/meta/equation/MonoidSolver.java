@@ -337,7 +337,7 @@ public class MonoidSolver extends BaseEqualitySolver {
             continue;
           }
 
-          ConcreteExpression cExpr = rule.binding != null ? factory.ref(rule.binding) : factory.core(null, rule.expression);
+          ConcreteExpression cExpr = rule.binding != null ? factory.ref(rule.binding) : factory.core(rule.expression);
           if (rule.direction == Direction.BACKWARD) {
             cExpr = factory.app(factory.ref(meta.ext.inv.getRef()), true, singletonList(cExpr));
           }
@@ -535,16 +535,15 @@ public class MonoidSolver extends BaseEqualitySolver {
     CoreFunCallExpression eq = Utils.toEquality(type, null, null);
     if (eq == null) {
       CoreExpression typeNorm = type.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
-      if (!(typeNorm instanceof CoreClassCallExpression)) {
+      if (!(typeNorm instanceof CoreClassCallExpression classCall)) {
         return false;
       }
-      CoreClassCallExpression classCall = (CoreClassCallExpression) typeNorm;
       boolean isLDiv = classCall.getDefinition().isSubClassOf(meta.ldiv);
       boolean isRDiv = classCall.getDefinition().isSubClassOf(meta.rdiv);
       if (!isLDiv && !isRDiv) {
         return false;
       }
-      List<ConcreteExpression> args = singletonList(binding != null ? factory.ref(binding) : factory.core(null, typed));
+      List<ConcreteExpression> args = singletonList(binding != null ? factory.ref(binding) : factory.core(typed));
       return (!isLDiv || typeToRule(typechecker.typecheck(factory.app(factory.ref(meta.ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules)) &&
         (!isRDiv || typeToRule(typechecker.typecheck(factory.app(factory.ref(meta.rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules));
     }

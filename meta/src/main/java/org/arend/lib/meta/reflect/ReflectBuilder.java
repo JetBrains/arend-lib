@@ -14,6 +14,7 @@ import org.arend.ext.error.MissingArgumentsError;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
+import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.StdExtension;
 
 import java.util.*;
@@ -357,6 +358,12 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   @Override
   public ConcreteExpression visitTyped(ConcreteTypedExpression expr, Void params) {
     return factory.app(factory.ref(ext.tcMeta.typedExpr.getRef()), true, expr.getExpression().accept(this, null), expr.getType().accept(this, null));
+  }
+
+  @Override
+  public ConcreteExpression visitCore(ConcreteCoreExpression expr, Void params) {
+    TypedExpression typedExpr = expr.getTypedExpression();
+    return factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), factory.arg(factory.core(typedExpr.getType().computeTyped()), false), factory.arg(factory.core(typedExpr), true));
   }
 
   @Override

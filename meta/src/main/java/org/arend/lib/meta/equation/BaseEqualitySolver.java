@@ -158,7 +158,7 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     ConcreteExpression instanceArg = factory.core(instance);
     ConcreteExpression dataArg = factory.ref(meta.ext.prelude.getEmptyArray().getRef());
     for (int i = valueList.size() - 1; i >= 0; i--) {
-      dataArg = factory.app(factory.ref(meta.ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), dataArg);
+      dataArg = factory.app(factory.ref(meta.ext.prelude.getArrayCons().getRef()), true, factory.core(valueList.get(i).computeTyped()), dataArg);
     }
 
     letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(getDataClass(instanceArg, dataArg))));

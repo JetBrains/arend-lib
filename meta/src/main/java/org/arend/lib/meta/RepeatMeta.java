@@ -90,7 +90,7 @@ public class RepeatMeta extends MetaInvocationMeta {
       if (args.size() <= 2) {
         return result;
       }
-      return typechecker.typecheck(factory.app(factory.core("repeat _", result), args.subList(2, args.size())), contextData.getExpectedType());
+      return typechecker.typecheck(factory.app(factory.core(result), args.subList(2, args.size())), contextData.getExpectedType());
     } else {
       return typechecker.typecheck(computeConcrete(steps, args, factory), contextData.getExpectedType());
     }

@@ -59,10 +59,10 @@ public class EquivSolver implements EquationSolver {
     if (leftExpr != null || rightExpr != null) {
       List<ConcreteExpression> args = new ArrayList<>(2);
       if (leftExpr != null) {
-        args.add(factory.core(null, leftExpr));
+        args.add(factory.core(leftExpr));
       }
       if (rightExpr != null) {
-        args.add(factory.core(null, rightExpr));
+        args.add(factory.core(rightExpr));
       }
       expr = factory.app(expr, false, args);
     }
@@ -72,7 +72,7 @@ public class EquivSolver implements EquationSolver {
 
   @Override
   public TypedExpression getTrivialResult(TypedExpression expression) {
-    return typechecker.typecheck(factory.app(factory.ref(meta.idEquiv.getRef()), false, Collections.singletonList(factory.core(null, expression))), null);
+    return typechecker.typecheck(factory.app(factory.ref(meta.idEquiv.getRef()), false, Collections.singletonList(factory.core(expression))), null);
   }
 
   @Override

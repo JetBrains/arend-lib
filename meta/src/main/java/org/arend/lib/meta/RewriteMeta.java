@@ -310,7 +310,7 @@ public class RewriteMeta extends BaseMetaDefinition {
         ArendRef ref = factory.local("T");
         return typechecker.typecheck(factory.app(transport, true, Arrays.asList(
           factory.lam(Collections.singletonList(factory.param(ref)), factory.ref(ref)),
-          factory.core("transport (\\lam T => T) {!} _", path),
+          factory.core(path),
           args.get(currentArg).getExpression())), null);
       }
       isForward = true;
@@ -338,7 +338,7 @@ public class RewriteMeta extends BaseMetaDefinition {
 
     ConcreteExpression concretePath = factory.core(path);
     CoreExpression normType = type.normalize(NormalizationMode.RNF);
-    ConcreteExpression term = lastArg == null ? args.get(currentArg++).getExpression() : factory.core("transport _ _ {!}", lastArg);
+    ConcreteExpression term = lastArg == null ? args.get(currentArg++).getExpression() : factory.core(lastArg);
     var occurVars = new ArrayList<ArendRef>();
     var eqProofs = new ArrayList<EqProofConcrete>();
 

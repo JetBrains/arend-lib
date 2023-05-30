@@ -2,6 +2,7 @@ package org.arend.lib.meta.reflect;
 
 import org.arend.ext.concrete.*;
 import org.arend.ext.concrete.expr.ConcreteCaseArgument;
+import org.arend.ext.concrete.expr.ConcreteCoreExpression;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.concrete.level.ConcreteLevel;
@@ -90,7 +91,7 @@ public class TypecheckBuilder {
     return ref;
   }
 
-  private ConcreteReferenceExpression getLocalRef(CoreExpression expr) {
+  private ConcreteExpression getLocalRef(CoreExpression expr) {
     Integer n = getSmallInteger(expr);
     if (n == null) return null;
     if (n >= localRefs.size()) {
@@ -381,7 +382,7 @@ public class TypecheckBuilder {
         if (fields == null) return null;
         CoreExpression orExpr = fields.get(0).normalize(NormalizationMode.WHNF);
         Pair<ConcreteExpression, Boolean> pair = null;
-        ConcreteReferenceExpression elimRef = null;
+        ConcreteExpression elimRef = null;
         if (orExpr instanceof CoreConCallExpression conCall) {
           if (conCall.getDefinition() == meta.ext.inl) {
             List<? extends CoreExpression> fields2 = processTuple(conCall.getDefCallArguments().get(0), 2);
@@ -400,7 +401,15 @@ public class TypecheckBuilder {
         }
         Maybe<ConcreteExpression> type = processMaybe(fields.get(1), this::process);
         if (type == null) return null;
-        if (pair == null) return factory.caseArg(elimRef, type.just);
+        if (pair == null) {
+          if (elimRef instanceof ConcreteReferenceExpression) {
+            return factory.caseArg((ConcreteReferenceExpression) elimRef, type.just);
+          } else if (elimRef instanceof ConcreteCoreExpression) {
+            return factory.caseArg((ConcreteCoreExpression) elimRef, type.just);
+          } else {
+            throw new IllegalStateException();
+          }
+        }
         return factory.caseArg(pair.proj1, pair.proj2 ? addRef() : null, type.just);
       });
       Maybe<ConcreteExpression> type = processMaybe(expr.getDefCallArguments().get(2), this::process);

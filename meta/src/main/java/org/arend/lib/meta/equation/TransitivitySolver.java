@@ -75,8 +75,7 @@ public class TransitivitySolver implements EquationSolver {
 
     leftValue = relationData.leftExpr;
     rightValue = relationData.rightExpr;
-    if (relationData.defCall instanceof CoreFieldCallExpression) {
-      CoreFieldCallExpression fieldCall = (CoreFieldCallExpression) relationData.defCall;
+    if (relationData.defCall instanceof CoreFieldCallExpression fieldCall) {
       transFieldData = fieldCall.getDefinition().getUserData(meta.ext.transitivityKey);
       if (transFieldData == null) {
         return false;
@@ -158,7 +157,7 @@ public class TransitivitySolver implements EquationSolver {
   @Override
   public @Nullable Maybe<CoreExpression> getEqType(@Nullable TypedExpression leftExpr, @Nullable TypedExpression rightExpr) {
     if (leftExpr != null && rightExpr != null) {
-      TypedExpression result = typechecker.typecheck(factory.app(relation.get(), true, Arrays.asList(factory.core(null, leftExpr), factory.core(null, rightExpr))), null);
+      TypedExpression result = typechecker.typecheck(factory.app(relation.get(), true, Arrays.asList(factory.core(leftExpr), factory.core(rightExpr))), null);
       return result == null ? null : new Maybe<>(result.getExpression());
     } else {
       return new Maybe<>(null);
