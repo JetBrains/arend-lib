@@ -235,9 +235,10 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   private ConcreteExpression makePattern(ConcretePattern pattern) {
     ArendRef ref = pattern.getAsRef();
-    ConcreteExpression result = ref == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, exprToExpression(pattern.getAsRefType()));
+    ConcreteExpression result2 = ref == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, exprToExpression(pattern.getAsRefType()));
+    ConcreteExpression result1 = makePatternInternal(pattern);
     addRef(ref);
-    return factory.tuple(makePatternInternal(pattern), result);
+    return factory.tuple(result1, result2);
   }
 
   private ConcreteExpression makePatterns(List<? extends ConcretePattern> patterns) {
