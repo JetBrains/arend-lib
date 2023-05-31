@@ -12,6 +12,7 @@ import org.arend.ext.core.level.LevelSubstitution;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
+import org.arend.ext.module.ModulePath;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Precedence;
@@ -40,7 +41,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
 
   public CasesMeta(StdExtension ext) {
     this.ext = ext;
-    argRef = ext.factory.global("arg", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 0, true));
+    argRef = ext.factory.global(new ModulePath("Meta"),"arg", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 0, true));
     parameter = new NamedParameter(ext.factory, ext);
 
     BiFunction<ExpressionResolver, ConcreteExpression, ConcreteExpression> handler = (resolver, arg) -> {

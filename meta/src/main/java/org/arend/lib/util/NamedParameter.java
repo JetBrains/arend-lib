@@ -6,6 +6,7 @@ import org.arend.ext.concrete.expr.*;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.NameResolverError;
 import org.arend.ext.error.TypecheckingError;
+import org.arend.ext.module.ModulePath;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Precedence;
@@ -28,14 +29,14 @@ public class NamedParameter {
   }
 
   public ArendRef add(String name) {
-    ArendRef ref = factory.global(name, Precedence.DEFAULT);
+    ArendRef ref = factory.global(new ModulePath("Meta"), name, Precedence.DEFAULT);
     allRefs.add(ref);
     nonFlagRefs.add(ref);
     return ref;
   }
 
   public ArendRef add(String name, BiFunction<ExpressionResolver, ConcreteExpression, ConcreteExpression> handler) {
-    ArendRef ref = factory.global(name, Precedence.DEFAULT);
+    ArendRef ref = factory.global(new ModulePath("Meta"), name, Precedence.DEFAULT);
     allRefs.add(ref);
     nonFlagRefs.add(ref);
     handlers.put(ref, handler);
@@ -43,7 +44,7 @@ public class NamedParameter {
   }
 
   public ArendRef addFlag(String name) {
-    ArendRef ref = factory.global(name, Precedence.DEFAULT);
+    ArendRef ref = factory.global(new ModulePath("Meta"), name, Precedence.DEFAULT);
     allRefs.add(ref);
     return ref;
   }
