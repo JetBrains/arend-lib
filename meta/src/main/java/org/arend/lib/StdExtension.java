@@ -25,6 +25,7 @@ import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.linear.LinearSolverMeta;
+import org.arend.lib.meta.reflect.ErrorMeta;
 import org.arend.lib.meta.reflect.GetArgsMeta;
 import org.arend.lib.meta.reflect.ReflectMeta;
 import org.arend.lib.meta.reflect.TypecheckMeta;
@@ -124,6 +125,7 @@ public class StdExtension implements ArendExtension {
 
   @Override
   public void load(@NotNull ArendDependencyProvider provider) {
+    provider.load(tcMeta);
     provider.load(this);
     provider.load(simpCoeMeta);
     simpCoeFMeta.transport_path_pmap = provider.getDefinition(new ModulePath("Paths"), LongName.fromString("transport_path_pmap.conv"), CoreFunctionDefinition.class);
@@ -138,7 +140,6 @@ public class StdExtension implements ArendExtension {
     provider.getDefinition(ModulePath.fromString("Algebra.Monoid.GCD"), LongName.fromString("DivQuotient.DivQuotientGCDMonoid"), CoreFunctionDefinition.class);
     provider.load(equationMeta);
     provider.load(linearSolverMeta);
-    provider.load(tcMeta);
   }
 
   @Override
@@ -230,6 +231,7 @@ public class StdExtension implements ArendExtension {
     MetaRef reflectRef = contributor.declare(reflect, new LongName("reflect"), "Converts an expression into an element of type `ConcreteExpr`", Precedence.DEFAULT, new ReflectMeta(this));
     quoteRef = contributor.declare(reflect, new LongName("quote"), "This meta can be used only under {reflect} meta. Then it is reflected to `quoteExpr`.", Precedence.DEFAULT, new InternalMeta(reflectRef));
     contributor.declare(reflect, new LongName("getArgs"), "Returns the arguments in the CPS style", Precedence.DEFAULT, new GetArgsMeta(this));
+    contributor.declare(reflect, new LongName("error"), "Fails with the given error message", Precedence.DEFAULT, new ErrorMeta());
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
@@ -289,10 +291,7 @@ public class StdExtension implements ArendExtension {
       "Similar to {ext}, but also applies either {simp_coe} or {ext} when a field of a \\Sigma-type or a record has an appropriate type.",
       Precedence.DEFAULT, null, null, new DeferredMetaDefinition(extsMeta, false, ExtMeta.defermentChecker), new ClassExtResolver(this));
 
-    MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");
-    contributor.declare(function, new LongName("$"), "`f $ a` returns `f a`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 0, true), apply);
-    contributor.declare(function, new LongName("#"), "`f # a` returns `f a`", new Precedence(Precedence.Associativity.LEFT_ASSOC, (byte) 0, true), apply);
     contributor.declare(function, new LongName("repeat"),
       """
         `repeat {n} f x` returns `f^n(x)
