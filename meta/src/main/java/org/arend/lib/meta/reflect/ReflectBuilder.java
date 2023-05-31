@@ -127,7 +127,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       ConcreteExpression type = param.getType();
       for (ArendRef ref : param.getRefList()) {
         ConcreteExpression newType = exprToExpression(type);
-        parameters.add(factory.tuple(makeBool(param.isExplicit()), makeBool(ref != null), newType));
+        parameters.add(factory.tuple(makeBool(param.isExplicit()), refNameToExpr(ref), newType));
         addRef(ref);
       }
     }
@@ -200,7 +200,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
         throw new ReflectionException(new TypecheckingError("Parameters in \\Sigma-types must have types", expr));
       }
       for (ArendRef ref : param.getRefList()) {
-        list.add(factory.tuple(makeBool(ref != null), param.getType().accept(this, null)));
+        list.add(factory.tuple(refNameToExpr(ref), param.getType().accept(this, null)));
         addRef(ref);
       }
     }
@@ -227,7 +227,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       ConcreteExpression type = exprToExpression(refPattern.getType());
       ArendRef ref = refPattern.getRef();
       addRef(ref);
-      return factory.app(factory.ref(ext.tcMeta.namePattern.getRef()), true, makeBool(ref != null), type);
+      return factory.app(factory.ref(ext.tcMeta.namePattern.getRef()), true, refNameToExpr(ref), type);
     } else {
       throw new ReflectionException(new TypecheckingError("Unknown pattern", pattern));
     }
@@ -235,10 +235,10 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   private ConcreteExpression makePattern(ConcretePattern pattern) {
     ArendRef ref = pattern.getAsRef();
-    ConcreteExpression result2 = ref == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, exprToExpression(pattern.getAsRefType()));
-    ConcreteExpression result1 = makePatternInternal(pattern);
+    ConcreteExpression type = exprToExpression(pattern.getAsRefType());
+    ConcreteExpression result = makePatternInternal(pattern);
     addRef(ref);
-    return factory.tuple(result1, result2);
+    return factory.tuple(result, refNameToExpr(ref), type);
   }
 
   private ConcreteExpression makePatterns(List<? extends ConcretePattern> patterns) {
@@ -276,7 +276,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
         }
       }
       ArendRef asRef = var == null ? argument.getAsRef() : null;
-      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, factory.number(var)) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), makeBool(asRef != null))), exprToExpression(argument.getType())));
+      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, factory.number(var)) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), refNameToExpr(asRef))), exprToExpression(argument.getType())));
       addRef(asRef);
     }
     ConcreteExpression resultType = exprToExpression(expr.getResultType());
@@ -359,9 +359,17 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     return factory.app(factory.ref(ext.tcMeta.numberExpr.getRef()), true, factory.number(expr.getNumber()));
   }
 
+  private ConcreteExpression makeString(String string) {
+    return factory.app(factory.ref(ext.tcMeta.stringExpr.getRef()), true, factory.string(string));
+  }
+
+  private ConcreteExpression refNameToExpr(ArendRef ref) {
+    return factory.string(ref == null ? "" : ref.getRefName());
+  }
+
   @Override
   public ConcreteExpression visitString(ConcreteStringExpression expr, Void params) {
-    return factory.app(factory.ref(ext.tcMeta.stringExpr.getRef()), true, factory.string(expr.getUnescapedString()));
+    return makeString(expr.getUnescapedString());
   }
 
   @Override

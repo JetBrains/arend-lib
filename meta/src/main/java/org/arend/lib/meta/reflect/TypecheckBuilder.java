@@ -136,8 +136,9 @@ public class TypecheckBuilder {
     return factory.ref(localRefs.get(localRefs.size() - 1 - n));
   }
 
-  private ArendRef addRef() {
-    ArendRef ref = factory.local("_x" + localRefs.size());
+  private ArendRef addRef(String name) {
+    if (name.equals("")) return null;
+    ArendRef ref = factory.local(name);
     localRefs.add(ref);
     return ref;
   }
@@ -179,7 +180,7 @@ public class TypecheckBuilder {
         return t == null ? null : new Maybe<>(t);
       }
     }
-    TypecheckBuildError.report(errorReporter, "Invalid expression. Expected an array.", expr, marker);
+    TypecheckBuildError.report(errorReporter, "Invalid expression. Expected a maybe expression.", expr, marker);
     return null;
   }
 
@@ -211,9 +212,9 @@ public class TypecheckBuilder {
     List<? extends CoreExpression> fields = processTuple(expr, 3);
     if (fields == null) return null;
     Boolean isExplicit = processBool(fields.get(0));
-    Boolean withVar = processBool(fields.get(1));
+    String var = getString(fields.get(1));
     Maybe<ConcreteExpression> type = processMaybe(fields.get(2), this::process);
-    return isExplicit == null || withVar == null || type == null ? null : withVar ? (type.just == null ? factory.param(isExplicit, addRef()) : factory.param(isExplicit, Collections.singletonList(addRef()), type.just)) : (type.just == null ? factory.param(isExplicit, (ArendRef) null) : factory.param(isExplicit, type.just));
+    return isExplicit == null || var == null || type == null ? null : type.just == null ? factory.param(isExplicit, addRef(var)) : var.equals("") ? factory.param(isExplicit, type.just) : factory.param(isExplicit, Collections.singletonList(addRef(var)), type.just);
   }
 
   private void removeVars(int size) {
@@ -253,11 +254,14 @@ public class TypecheckBuilder {
   }
 
   private ConcretePattern processPattern(CoreExpression expr) {
-    List<? extends CoreExpression> fields = processTuple(expr, 2);
+    List<? extends CoreExpression> fields = processTuple(expr, 3);
     if (fields == null) return null;
     ConcretePattern pattern = processPatternInternal(fields.get(0));
-    Maybe<Maybe<ConcreteExpression>> var = processMaybe(fields.get(1), e -> processMaybe(e, this::process));
-    return var == null || pattern == null ? null : var.just == null ? pattern : pattern.as(addRef(), var.just.just);
+    String var = getString(fields.get(1));
+    Maybe<ConcreteExpression> type = processMaybe(fields.get(2), this::process);
+    if (pattern == null || var == null || type == null) return null;
+    ArendRef ref = addRef(var);
+    return ref == null ? pattern : pattern.as(ref, type.just);
   }
 
   private ConcretePattern processPatternConCall(CoreConCallExpression expr) {
@@ -267,11 +271,8 @@ public class TypecheckBuilder {
       return patterns == null ? null : factory.tuplePattern(patterns);
     } else if (constructor == meta.namePattern) {
       Maybe<ConcreteExpression> type = processMaybe(expr.getDefCallArguments().get(1), this::process);
-      if (type == null) return null;
-      Boolean withVar = processBool(expr.getDefCallArguments().get(0));
-      if (withVar == null) return null;
-      ArendRef ref = withVar ? addRef() : null;
-      return factory.refPattern(ref, type.just);
+      String var = getString(expr.getDefCallArguments().get(0));
+      return var == null || type == null ? null : factory.refPattern(addRef(var), type.just);
     } else if (constructor == meta.numberPattern) {
       Integer n = getSmallInteger(expr.getDefCallArguments().get(0));
       return n == null ? null : factory.numberPattern(n);
@@ -343,9 +344,9 @@ public class TypecheckBuilder {
       List<ConcreteParameter> parameters = processArray(expr.getDefCallArguments().get(0), e -> {
         List<? extends CoreExpression> fields = processTuple(e, 2);
         if (fields == null) return null;
-        Boolean withVar = processBool(fields.get(0));
+        String var = getString(fields.get(0));
         ConcreteExpression type = process(fields.get(1));
-        return withVar == null || type == null ? null : factory.param(true, Collections.singletonList(withVar ? addRef() : null), type);
+        return var == null || type == null ? null : factory.param(true, Collections.singletonList(addRef(var)), type);
       });
       removeVars(size);
       return parameters == null ? null : factory.sigma(parameters);
@@ -414,14 +415,14 @@ public class TypecheckBuilder {
         List<? extends CoreExpression> fields = processTuple(e, 2);
         if (fields == null) return null;
         CoreExpression orExpr = fields.get(0).normalize(NormalizationMode.WHNF);
-        Pair<ConcreteExpression, Boolean> pair = null;
+        Pair<ConcreteExpression, String> pair = null;
         ConcreteReferenceExpression elimRef = null;
         if (orExpr instanceof CoreConCallExpression conCall) {
           if (conCall.getDefinition() == meta.ext.inl) {
             List<? extends CoreExpression> fields2 = processTuple(conCall.getDefCallArguments().get(0), 2);
             if (fields2 == null) return null;
             ConcreteExpression arg = process(fields2.get(0));
-            Boolean asRef = processBool(fields2.get(1));
+            String asRef = getString(fields2.get(1));
             pair = arg == null || asRef == null ? null : new Pair<>(arg, asRef);
           } else if (conCall.getDefinition() == meta.ext.inr) {
             elimRef = getLocalRef(conCall.getDefCallArguments().get(0));
@@ -437,7 +438,7 @@ public class TypecheckBuilder {
         if (pair == null) {
           return factory.caseArg(elimRef, type.just);
         }
-        return factory.caseArg(pair.proj1, pair.proj2 ? addRef() : null, type.just);
+        return factory.caseArg(pair.proj1, addRef(pair.proj2), type.just);
       });
       Maybe<ConcreteExpression> type = processMaybe(expr.getDefCallArguments().get(2), this::process);
       Maybe<ConcreteExpression> typeLevel = processMaybe(expr.getDefCallArguments().get(3), this::process);
