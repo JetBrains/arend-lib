@@ -125,8 +125,8 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     List<ConcreteExpression> parameters = new ArrayList<>();
     for (ConcreteParameter param : params) {
       ConcreteExpression type = param.getType();
-      ConcreteExpression newType = type == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, type.accept(this, null));
       for (ArendRef ref : param.getRefList()) {
+        ConcreteExpression newType = type == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, type.accept(this, null));
         parameters.add(factory.tuple(makeBool(param.isExplicit()), makeBool(ref != null), newType));
         addRef(ref);
       }
@@ -199,9 +199,8 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       if (param.getType() == null) {
         throw new ReflectionException(new TypecheckingError("Parameters in \\Sigma-types must have types", expr));
       }
-      ConcreteExpression type = param.getType().accept(this, null);
       for (ArendRef ref : param.getRefList()) {
-        list.add(factory.tuple(makeBool(ref != null), type));
+        list.add(factory.tuple(makeBool(ref != null), param.getType().accept(this, null)));
         addRef(ref);
       }
     }
