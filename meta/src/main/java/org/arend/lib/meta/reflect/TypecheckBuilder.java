@@ -242,7 +242,7 @@ public class TypecheckBuilder {
     }
   }
 
-  private ConcretePattern processPattern(CoreExpression expr) {
+  private ConcretePattern processPatternInternal(CoreExpression expr) {
     expr = expr.normalize(NormalizationMode.WHNF);
     if (expr instanceof CoreConCallExpression) {
       return processPatternConCall((CoreConCallExpression) expr);
@@ -250,6 +250,14 @@ public class TypecheckBuilder {
       TypecheckBuildError.report(errorReporter, expr, marker);
       return null;
     }
+  }
+
+  private ConcretePattern processPattern(CoreExpression expr) {
+    List<? extends CoreExpression> fields = processTuple(expr, 2);
+    if (fields == null) return null;
+    ConcretePattern pattern = processPatternInternal(fields.get(0));
+    Maybe<Maybe<ConcreteExpression>> var = processMaybe(fields.get(1), e -> processMaybe(e, this::process));
+    return var == null || pattern == null ? null : var.just == null ? pattern : pattern.as(addRef(), var.just.just);
   }
 
   private ConcretePattern processPatternConCall(CoreConCallExpression expr) {
