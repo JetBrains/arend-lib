@@ -265,7 +265,7 @@ public class TypecheckBuilder {
       ArendRef ref = withVar ? addRef() : null;
       return factory.refPattern(ref, type.just);
     } else if (constructor == meta.numberPattern) {
-      Integer n = getSmallNatural(expr.getDefCallArguments().get(0));
+      Integer n = getSmallInteger(expr.getDefCallArguments().get(0));
       return n == null ? null : factory.numberPattern(n);
     } else if (constructor == meta.conPattern) {
       ArendRef ref = getQName(expr.getDefCallArguments().get(0));

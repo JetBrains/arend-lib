@@ -214,7 +214,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   private ConcreteExpression makePattern(ConcretePattern pattern) {
     if (pattern instanceof ConcreteNumberPattern numPattern) {
-      return factory.app(factory.ref(ext.tcMeta.numberPattern.getRef()), true, factory.number(numPattern.getNumber()));
+      return factory.app(factory.ref(ext.tcMeta.numberPattern.getRef()), true, makeNumber(numPattern.getNumber()));
     } else if (pattern instanceof ConcreteConstructorPattern conPattern) {
       ArendRef ref = conPattern.getConstructor();
       if (ref == null) {
@@ -382,11 +382,14 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     return factory.app(factory.ref(ext.tcMeta.stdLevel.getRef()), true, factory.ref(ext.tcMeta.pLevel.getRef()));
   }
 
+  private ConcreteExpression makeNumber(int number) {
+    ConcreteExpression expr = factory.number(number < 0 ? -number : number);
+    return factory.app(factory.ref(number < 0 ? ext.prelude.getNeg().getRef() : ext.prelude.getPos().getRef()), true, expr);
+  }
+
   @Override
   public ConcreteExpression visitNumber(ConcreteNumberLevel expr, Void param) {
-    int num = expr.getNumber();
-    ConcreteExpression result = factory.number(num < 0 ? -num : num);
-    return factory.app(factory.ref(ext.tcMeta.numberLevel.getRef()), true, factory.app(factory.ref(num < 0 ? ext.prelude.getNeg().getRef() : ext.prelude.getPos().getRef()), true, result));
+    return factory.app(factory.ref(ext.tcMeta.numberLevel.getRef()), true, makeNumber(expr.getNumber()));
   }
 
   @Override
