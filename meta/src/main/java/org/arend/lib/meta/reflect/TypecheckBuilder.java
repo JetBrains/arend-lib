@@ -36,6 +36,17 @@ public class TypecheckBuilder {
     this.marker = marker;
   }
 
+  private Integer getSmallNatural(CoreExpression expr) {
+    BigInteger n = getNatural(expr);
+    if (n == null) return null;
+    try {
+      return n.intValueExact();
+    } catch (ArithmeticException e) {
+      TypecheckBuildError.report(errorReporter, "Invalid expression. Expected a small natural number.", expr, marker);
+      return null;
+    }
+  }
+
   private Integer getSmallInteger(CoreExpression expr) {
     BigInteger n = getInteger(expr);
     if (n == null) return null;
@@ -47,14 +58,29 @@ public class TypecheckBuilder {
     }
   }
 
-  private BigInteger getInteger(CoreExpression expr) {
+  private BigInteger getNatural(CoreExpression expr) {
     expr = expr.normalize(NormalizationMode.WHNF);
     if (expr instanceof CoreIntegerExpression) {
       return ((CoreIntegerExpression) expr).getBigInteger();
     } else {
-      TypecheckBuildError.report(errorReporter, "Expected an integer", expr, marker);
+      TypecheckBuildError.report(errorReporter, "Expected a natural number", expr, marker);
       return null;
     }
+  }
+
+  private BigInteger getInteger(CoreExpression expr) {
+    expr = expr.normalize(NormalizationMode.WHNF);
+    if (expr instanceof CoreConCallExpression conCall) {
+      boolean isPos = conCall.getDefinition() == meta.ext.prelude.getPos();
+      boolean isNeg = conCall.getDefinition() == meta.ext.prelude.getNeg();
+      if (isPos || isNeg) {
+        BigInteger result = getNatural(conCall.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF));
+        return result == null ? null : isNeg ? result.negate() : result;
+      }
+    }
+
+    TypecheckBuildError.report(errorReporter, "Expected an integer", expr, marker);
+    return null;
   }
 
   private String getString(CoreExpression expr) {
@@ -78,7 +104,7 @@ public class TypecheckBuilder {
   }
 
   private ArendRef getVarRef(CoreExpression expr, LevelType levelType) {
-    Integer n = getSmallInteger(expr);
+    Integer n = getSmallNatural(expr);
     if (n == null) return null;
     ArendRef ref = typechecker.getLevelVariable(n, levelType == LevelType.PLEVEL);
     if (ref == null) {
@@ -90,7 +116,7 @@ public class TypecheckBuilder {
   }
 
   private ConcreteReferenceExpression getLocalRef(CoreExpression expr) {
-    Integer n = getSmallInteger(expr);
+    Integer n = getSmallNatural(expr);
     if (n == null) return null;
     if (n >= localRefs.size()) {
       int k = n - localRefs.size();
@@ -239,7 +265,7 @@ public class TypecheckBuilder {
       ArendRef ref = withVar ? addRef() : null;
       return factory.refPattern(ref, type.just);
     } else if (constructor == meta.numberPattern) {
-      Integer n = getSmallInteger(expr.getDefCallArguments().get(0));
+      Integer n = getSmallNatural(expr.getDefCallArguments().get(0));
       return n == null ? null : factory.numberPattern(n);
     } else if (constructor == meta.conPattern) {
       ArendRef ref = getQName(expr.getDefCallArguments().get(0));
@@ -420,7 +446,7 @@ public class TypecheckBuilder {
       return isSCase == null || caseArgs == null || type == null || typeLevel == null || clauses == null ? null : factory.caseExpr(isSCase, caseArgs, type.just, typeLevel.just, clauses);
     } else if (constructor == meta.projExpr) {
       ConcreteExpression arg = process(expr.getDefCallArguments().get(0));
-      Integer n = getSmallInteger(expr.getDefCallArguments().get(1));
+      Integer n = getSmallNatural(expr.getDefCallArguments().get(1));
       return arg == null || n == null ? null : factory.proj(arg, n);
     } else if (constructor == meta.appExpr) {
       ConcreteExpression fun = process(expr.getDefCallArguments().get(0));
@@ -437,7 +463,7 @@ public class TypecheckBuilder {
       ConcreteExpression arg = process(expr.getDefCallArguments().get(0));
       return arg == null ? null : factory.boxExpr(arg);
     } else if (constructor == meta.numberExpr) {
-      BigInteger n = getInteger(expr.getDefCallArguments().get(0));
+      BigInteger n = getNatural(expr.getDefCallArguments().get(0));
       return n == null ? null : factory.number(n);
     } else if (constructor == meta.stringExpr) {
       String string = getString(expr.getDefCallArguments().get(0));

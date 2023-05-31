@@ -384,7 +384,9 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitNumber(ConcreteNumberLevel expr, Void param) {
-    return factory.app(factory.ref(ext.tcMeta.numberLevel.getRef()), true, factory.number(expr.getNumber()));
+    int num = expr.getNumber();
+    ConcreteExpression result = factory.number(num < 0 ? -num : num);
+    return factory.app(factory.ref(ext.tcMeta.numberLevel.getRef()), true, factory.app(factory.ref(num < 0 ? ext.prelude.getNeg().getRef() : ext.prelude.getPos().getRef()), true, result));
   }
 
   @Override
