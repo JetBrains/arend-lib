@@ -1,5 +1,6 @@
 package org.arend.lib.meta.reflect;
 
+import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.typechecking.BaseMetaDefinition;
 import org.arend.ext.typechecking.ContextData;
@@ -24,14 +25,15 @@ public class ReflectMeta extends BaseMetaDefinition {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ConcreteExpression arg = contextData.getArguments().get(0).getExpression();
-    ConcreteExpression result;
-    try {
-      result = arg.accept(new ReflectBuilder(typechecker, ext, ext.factory.withData(contextData.getMarker())), null);
-    } catch (ReflectionException e) {
-      typechecker.getErrorReporter().report(e.error);
-      return null;
-    }
-    TypedExpression typed = typechecker.typecheck(result, contextData.getExpectedType());
-    return typed == null ? null : typed.makeDataExpression(new ReflectedExpression(arg));
+    ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
+    TypedExpression type = typechecker.typecheck(factory.ref(ext.tcMeta.ConcreteExpr.getRef()), null);
+    return type == null ? null : typechecker.makeDataExpression(new ReflectedExpression(arg), () -> {
+      try {
+        return arg.accept(new ReflectBuilder(typechecker, ext, factory), null);
+      } catch (ReflectionException e) {
+        typechecker.getErrorReporter().report(e.error);
+        return null;
+      }
+    }, type.getExpression());
   }
 }
