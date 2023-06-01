@@ -9,12 +9,10 @@ import org.arend.ext.concrete.pattern.ConcretePattern;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
-import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.util.Pair;
-import org.arend.lib.util.Maybe;
 
 import java.math.BigInteger;
 import java.util.*;
@@ -24,7 +22,6 @@ public class TypecheckBuilder {
   private final TypecheckMeta meta;
   private final ConcreteFactory factory;
   private final ExpressionTypechecker typechecker;
-  private final ErrorReporter errorReporter;
   private final ConcreteExpression marker;
   private final List<ArendRef> localRefs = new ArrayList<>();
 
@@ -32,29 +29,24 @@ public class TypecheckBuilder {
     this.meta = meta;
     this.factory = factory;
     this.typechecker = typechecker;
-    errorReporter = typechecker.getErrorReporter();
     this.marker = marker;
   }
 
-  private Integer getSmallNatural(CoreExpression expr) {
+  private int getSmallNatural(CoreExpression expr) {
     BigInteger n = getNatural(expr);
-    if (n == null) return null;
     try {
       return n.intValueExact();
     } catch (ArithmeticException e) {
-      TypecheckBuildError.report(errorReporter, "Invalid expression. Expected a small natural number.", expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException("Invalid expression. Expected a small natural number.", expr, marker);
     }
   }
 
-  private Integer getSmallInteger(CoreExpression expr) {
+  private int getSmallInteger(CoreExpression expr) {
     BigInteger n = getInteger(expr);
-    if (n == null) return null;
     try {
       return n.intValueExact();
     } catch (ArithmeticException e) {
-      TypecheckBuildError.report(errorReporter, "Invalid expression. Expected a small integer.", expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException("Invalid expression. Expected a small integer.", expr, marker);
     }
   }
 
@@ -63,8 +55,7 @@ public class TypecheckBuilder {
     if (expr instanceof CoreIntegerExpression) {
       return ((CoreIntegerExpression) expr).getBigInteger();
     } else {
-      TypecheckBuildError.report(errorReporter, "Expected a natural number", expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException("Expected a natural number", expr, marker);
     }
   }
 
@@ -75,12 +66,11 @@ public class TypecheckBuilder {
       boolean isNeg = conCall.getDefinition() == meta.ext.prelude.getNeg();
       if (isPos || isNeg) {
         BigInteger result = getNatural(conCall.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF));
-        return result == null ? null : isNeg ? result.negate() : result;
+        return isNeg ? result.negate() : result;
       }
     }
 
-    TypecheckBuildError.report(errorReporter, "Expected an integer", expr, marker);
-    return null;
+    throw TypecheckBuildError.makeException("Expected an integer", expr, marker);
   }
 
   private String getString(CoreExpression expr) {
@@ -88,8 +78,7 @@ public class TypecheckBuilder {
     if (expr instanceof CoreStringExpression) {
       return ((CoreStringExpression) expr).getString();
     } else {
-      TypecheckBuildError.report(errorReporter, "Expected a string", expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException("Expected a string", expr, marker);
     }
   }
 
@@ -98,38 +87,32 @@ public class TypecheckBuilder {
     if (expr instanceof CoreQNameExpression) {
       return ((CoreQNameExpression) expr).getRef();
     } else {
-      TypecheckBuildError.report(errorReporter, "Expected a QName", expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException("Expected a QName", expr, marker);
     }
   }
 
   private ArendRef getVarRef(CoreExpression expr, LevelType levelType) {
-    Integer n = getSmallNatural(expr);
-    if (n == null) return null;
+    int n = getSmallNatural(expr);
     ArendRef ref = typechecker.getLevelVariable(n, levelType == LevelType.PLEVEL);
     if (ref == null) {
       List<? extends ArendRef> refs = typechecker.getLevelVariables(levelType == LevelType.PLEVEL);
-      errorReporter.report(new TypecheckingError("Index too large: " + n + ", number of variables: " + refs.size(), marker));
-      return null;
+      throw new TypecheckException(new TypecheckingError("Index too large: " + n + ", number of variables: " + refs.size(), marker));
     }
     return ref;
   }
 
   private ConcreteReferenceExpression getLocalRef(CoreExpression expr) {
-    Integer n = getSmallNatural(expr);
-    if (n == null) return null;
+    int n = getSmallNatural(expr);
     if (n >= localRefs.size()) {
       int k = n - localRefs.size();
       List<ArendRef> context = typechecker.getFreeReferencesList();
       if (k >= context.size()) {
-        errorReporter.report(new TypecheckingError("Index too large: " + n + ", number of variables: " + (localRefs.size() + context.size()), marker));
-        return null;
+        throw new TypecheckException(new TypecheckingError("Index too large: " + n + ", number of variables: " + (localRefs.size() + context.size()), marker));
       }
       ArendRef binding = context.get(context.size() - 1 - k);
       ArendRef thisRef = typechecker.getThisReference();
       if (thisRef != null && binding == thisRef) {
-        errorReporter.report(new TypecheckingError("A reference to \\this binding", marker));
-        return null;
+        throw new TypecheckException(new TypecheckingError("A reference to \\this binding", marker));
       }
       return factory.ref(binding);
     }
@@ -148,43 +131,37 @@ public class TypecheckBuilder {
     if (expression instanceof CoreConCallExpression) {
       return processConCall((CoreConCallExpression) expression);
     } else {
-      TypecheckBuildError.report(errorReporter, expression, marker);
-      return null;
+      throw TypecheckBuildError.makeException(expression, marker);
     }
   }
 
   private <T> List<T> processArray(CoreExpression expr, Function<CoreExpression, T> elementProcessor) {
     List<? extends CoreExpression> elements = expr.getArrayElements();
     if (elements == null) {
-      TypecheckBuildError.report(errorReporter, "Invalid expression. Expected an array.", expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException("Invalid expression. Expected an array.", expr, marker);
     }
 
     List<T> result = new ArrayList<>(elements.size());
     for (CoreExpression element : elements) {
-      T t = elementProcessor.apply(element);
-      if (t == null) return null;
-      result.add(t);
+      result.add(elementProcessor.apply(element));
     }
     return result;
   }
 
-  private <T> Maybe<T> processMaybe(CoreExpression expr, Function<CoreExpression, T> elementProcessor) {
+  private <T> T processMaybe(CoreExpression expr, Function<CoreExpression, T> elementProcessor) {
     expr = expr.normalize(NormalizationMode.WHNF);
     if (expr instanceof CoreConCallExpression conCall) {
       CoreConstructor con = conCall.getDefinition();
       if (con == meta.ext.nothing) {
-        return new Maybe<>(null);
+        return null;
       } else if (con == meta.ext.just) {
-        T t = elementProcessor.apply(conCall.getDefCallArguments().get(0));
-        return t == null ? null : new Maybe<>(t);
+        return elementProcessor.apply(conCall.getDefCallArguments().get(0));
       }
     }
-    TypecheckBuildError.report(errorReporter, "Invalid expression. Expected a maybe expression.", expr, marker);
-    return null;
+    throw TypecheckBuildError.makeException("Invalid expression. Expected a maybe expression.", expr, marker);
   }
 
-  private Boolean processBool(CoreExpression expr) {
+  private boolean processBool(CoreExpression expr) {
     expr = expr.normalize(NormalizationMode.WHNF);
     if (expr instanceof CoreConCallExpression conCall) {
       if (conCall.getDefinition() == meta.ext.true_) {
@@ -194,8 +171,7 @@ public class TypecheckBuilder {
       }
     }
 
-    TypecheckBuildError.report(errorReporter, "Invalid expression. Expected a boolean.", expr, marker);
-    return null;
+    throw TypecheckBuildError.makeException("Invalid expression. Expected a boolean.", expr, marker);
   }
 
   private List<? extends CoreExpression> processTuple(CoreExpression expr, int size) {
@@ -203,18 +179,16 @@ public class TypecheckBuilder {
     if (expr instanceof CoreTupleExpression tuple && tuple.getFields().size() == size) {
       return tuple.getFields();
     } else {
-      TypecheckBuildError.report(errorReporter, "Invalid expression. Expected a tuple with " + size + " fields.", expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException("Invalid expression. Expected a tuple with " + size + " fields.", expr, marker);
     }
   }
 
   private ConcreteParameter processParameter(CoreExpression expr) {
     List<? extends CoreExpression> fields = processTuple(expr, 3);
-    if (fields == null) return null;
-    Boolean isExplicit = processBool(fields.get(0));
+    boolean isExplicit = processBool(fields.get(0));
     String var = getString(fields.get(1));
-    Maybe<ConcreteExpression> type = processMaybe(fields.get(2), this::process);
-    return isExplicit == null || var == null || type == null ? null : type.just == null ? factory.param(isExplicit, addRef(var)) : var.equals("") ? factory.param(isExplicit, type.just) : factory.param(isExplicit, Collections.singletonList(addRef(var)), type.just);
+    ConcreteExpression type = processMaybe(fields.get(2), this::process);
+    return type == null ? factory.param(isExplicit, addRef(var)) : var.equals("") ? factory.param(isExplicit, type) : factory.param(isExplicit, Collections.singletonList(addRef(var)), type);
   }
 
   private void removeVars(int size) {
@@ -223,14 +197,12 @@ public class TypecheckBuilder {
 
   private ConcreteLetClause processLetClause(CoreExpression expr) {
     List<? extends CoreExpression> fields = processTuple(expr, 4);
-    if (fields == null) return null;
     int size = localRefs.size();
     List<ConcreteParameter> parameters = processArray(fields.get(1), this::processParameter);
-    Maybe<ConcreteExpression> type = processMaybe(fields.get(2), this::process);
+    ConcreteExpression type = processMaybe(fields.get(2), this::process);
     ConcreteExpression term = process(fields.get(3));
     removeVars(size);
-    ConcretePattern pattern = processPattern(fields.get(0));
-    return pattern == null || parameters == null || type == null || term == null ? null : factory.letClause(pattern, parameters, type.just, term);
+    return factory.letClause(processPattern(fields.get(0)), parameters, type, term);
   }
 
   private ConcreteLevel processLevel(CoreExpression expr) {
@@ -238,8 +210,7 @@ public class TypecheckBuilder {
     if (expr instanceof CoreConCallExpression) {
       return processLevelConCall((CoreConCallExpression) expr);
     } else {
-      TypecheckBuildError.report(errorReporter, expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException(expr, marker);
     }
   }
 
@@ -248,45 +219,36 @@ public class TypecheckBuilder {
     if (expr instanceof CoreConCallExpression) {
       return processPatternConCall((CoreConCallExpression) expr);
     } else {
-      TypecheckBuildError.report(errorReporter, expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException(expr, marker);
     }
   }
 
   private ConcretePattern processPattern(CoreExpression expr) {
     List<? extends CoreExpression> fields = processTuple(expr, 3);
-    if (fields == null) return null;
     ConcretePattern pattern = processPatternInternal(fields.get(0));
     String var = getString(fields.get(1));
-    Maybe<ConcreteExpression> type = processMaybe(fields.get(2), this::process);
-    if (pattern == null || var == null || type == null) return null;
+    ConcreteExpression type = processMaybe(fields.get(2), this::process);
     ArendRef ref = addRef(var);
-    return ref == null ? pattern : pattern.as(ref, type.just);
+    return ref == null ? pattern : pattern.as(ref, type);
   }
 
   private ConcretePattern processPatternConCall(CoreConCallExpression expr) {
     CoreConstructor constructor = expr.getDefinition();
     if (constructor == meta.tuplePattern) {
-      List<ConcretePattern> patterns = processArray(expr.getDefCallArguments().get(0), this::processPattern);
-      return patterns == null ? null : factory.tuplePattern(patterns);
+      return factory.tuplePattern(processArray(expr.getDefCallArguments().get(0), this::processPattern));
     } else if (constructor == meta.namePattern) {
-      Maybe<ConcreteExpression> type = processMaybe(expr.getDefCallArguments().get(1), this::process);
-      String var = getString(expr.getDefCallArguments().get(0));
-      return var == null || type == null ? null : factory.refPattern(addRef(var), type.just);
+      ConcreteExpression type = processMaybe(expr.getDefCallArguments().get(1), this::process);
+      return factory.refPattern(addRef(getString(expr.getDefCallArguments().get(0))), type);
     } else if (constructor == meta.numberPattern) {
-      Integer n = getSmallInteger(expr.getDefCallArguments().get(0));
-      return n == null ? null : factory.numberPattern(n);
+      return factory.numberPattern(getSmallInteger(expr.getDefCallArguments().get(0)));
     } else if (constructor == meta.conPattern) {
       ArendRef ref = getQName(expr.getDefCallArguments().get(0));
-      if (ref != null && ref.isLocalRef()) {
-        TypecheckBuildError.report(errorReporter, "Expected a constructor", expr.getDefCallArguments().get(0), marker);
-        return null;
+      if (ref.isLocalRef()) {
+        throw TypecheckBuildError.makeException("Expected a constructor", expr.getDefCallArguments().get(0), marker);
       }
-      List<ConcretePattern> patterns = processArray(expr.getDefCallArguments().get(1), this::processPattern);
-      return ref == null || patterns == null ? null : factory.conPattern(ref, patterns);
+      return factory.conPattern(ref, processArray(expr.getDefCallArguments().get(1), this::processPattern));
     } else {
-      TypecheckBuildError.report(errorReporter, expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException(expr, marker);
     }
   }
 
@@ -303,35 +265,26 @@ public class TypecheckBuilder {
       }
     }
 
-    TypecheckBuildError.report(errorReporter, expr, marker);
-    return null;
+    throw TypecheckBuildError.makeException(expr, marker);
   }
 
   private ConcreteLevel processLevelConCall(CoreConCallExpression expr) {
     CoreConstructor constructor = expr.getDefinition();
     if (constructor == meta.stdLevel) {
       LevelType type = processLevelType(expr.getDefCallArguments().get(0));
-      return type == LevelType.PLEVEL ? factory.lp() : type == LevelType.HLEVEL ? factory.lh() : null;
+      return type == LevelType.PLEVEL ? factory.lp() : factory.lh();
     } else if (constructor == meta.maxLevel) {
-      ConcreteLevel level1 = processLevel(expr.getDefCallArguments().get(0));
-      ConcreteLevel level2 = processLevel(expr.getDefCallArguments().get(1));
-      return level1 == null || level2 == null ? null : factory.maxLevel(level1, level2);
+      return factory.maxLevel(processLevel(expr.getDefCallArguments().get(0)), processLevel(expr.getDefCallArguments().get(1)));
     } else if (constructor == meta.sucLevel) {
-      ConcreteLevel level = processLevel(expr.getDefCallArguments().get(0));
-      return level == null ? null : factory.sucLevel(level);
+      return factory.sucLevel(processLevel(expr.getDefCallArguments().get(0)));
     } else if (constructor == meta.numberLevel) {
-      Integer n = getSmallInteger(expr.getDefCallArguments().get(0));
-      return n == null ? null : factory.numLevel(n);
+      return factory.numLevel(getSmallInteger(expr.getDefCallArguments().get(0)));
     } else if (constructor == meta.infLevel) {
       return factory.inf();
     } else if (constructor == meta.varLevel) {
-      LevelType type = processLevelType(expr.getDefCallArguments().get(1));
-      if (type == null) return null;
-      ArendRef ref = getVarRef(expr.getDefCallArguments().get(0), type);
-      return ref == null ? null : factory.varLevel(ref);
+      return factory.varLevel(getVarRef(expr.getDefCallArguments().get(0), processLevelType(expr.getDefCallArguments().get(1))));
     } else {
-      TypecheckBuildError.report(errorReporter, expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException(expr, marker);
     }
   }
 
@@ -343,148 +296,113 @@ public class TypecheckBuilder {
       int size = localRefs.size();
       List<ConcreteParameter> parameters = processArray(expr.getDefCallArguments().get(0), e -> {
         List<? extends CoreExpression> fields = processTuple(e, 2);
-        if (fields == null) return null;
         String var = getString(fields.get(0));
         ConcreteExpression type = process(fields.get(1));
-        return var == null || type == null ? null : factory.param(true, Collections.singletonList(addRef(var)), type);
+        return factory.param(true, Collections.singletonList(addRef(var)), type);
       });
       removeVars(size);
-      return parameters == null ? null : factory.sigma(parameters);
+      return factory.sigma(parameters);
     } else if (constructor == meta.holeExpr) {
       return factory.hole();
     } else if (constructor == meta.universeExpr) {
-      Maybe<ConcreteLevel> pLevel = processMaybe(expr.getDefCallArguments().get(0), this::processLevel);
-      Maybe<ConcreteLevel> hLevel = processMaybe(expr.getDefCallArguments().get(1), this::processLevel);
-      return pLevel == null || hLevel == null ? null : factory.universe(pLevel.just, hLevel.just);
+      return factory.universe(processMaybe(expr.getDefCallArguments().get(0), this::processLevel), processMaybe(expr.getDefCallArguments().get(1), this::processLevel));
     } else if (constructor == meta.tupleExpr) {
-      List<ConcreteExpression> fields = processArray(expr.getDefCallArguments().get(0), this::process);
-      return fields == null ? null : factory.tuple(fields);
+      return factory.tuple(processArray(expr.getDefCallArguments().get(0), this::process));
     } else if (constructor == meta.classExtExpr) {
       ConcreteExpression body = process(expr.getDefCallArguments().get(0));
       List<ConcreteClassElement> elements = processArray(expr.getDefCallArguments().get(1), e -> {
         List<? extends CoreExpression> fields = processTuple(e, 2);
-        if (fields == null) return null;
         ArendRef ref = getQName(fields.get(0));
-        if (ref != null && ref.isLocalRef()) {
-          TypecheckBuildError.report(errorReporter, "Expected a field", fields.get(0), marker);
-          return null;
+        if (ref.isLocalRef()) {
+          throw TypecheckBuildError.makeException("Expected a field", fields.get(0), marker);
         }
-        ConcreteExpression impl = process(fields.get(1));
-        return ref == null || impl == null ? null : factory.implementation(ref, impl);
+        return factory.implementation(ref, process(fields.get(1)));
       });
-      if (body == null || elements == null) return null;
       return factory.classExt(body, elements);
     } else if (constructor == meta.newExpr) {
-      ConcreteExpression subExpr = process(expr.getDefCallArguments().get(0));
-      return subExpr == null ? null : factory.newExpr(subExpr);
+      return factory.newExpr(process(expr.getDefCallArguments().get(0)));
     } else if (constructor == meta.evalExpr) {
-      Boolean isPEval = processBool(expr.getDefCallArguments().get(0));
       ConcreteExpression arg = process(expr.getDefCallArguments().get(1));
-      return isPEval == null || arg == null ? null : isPEval ? factory.peval(arg) : factory.eval(arg);
+      return processBool(expr.getDefCallArguments().get(0)) ? factory.peval(arg) : factory.eval(arg);
     } else if (constructor == meta.goalExpr) {
       return factory.goal();
     } else if (constructor == meta.letExpr) {
-      Boolean isHave = processBool(expr.getDefCallArguments().get(0));
-      Boolean isStrict = processBool(expr.getDefCallArguments().get(1));
       int size = localRefs.size();
       List<ConcreteLetClause> clauses = processArray(expr.getDefCallArguments().get(2), this::processLetClause);
       ConcreteExpression body = process(expr.getDefCallArguments().get(3));
       removeVars(size);
-      return isHave == null || isStrict == null || clauses == null || body == null ? null : factory.letExpr(isHave, isStrict, clauses, body);
+      return factory.letExpr(processBool(expr.getDefCallArguments().get(0)), processBool(expr.getDefCallArguments().get(1)), clauses, body);
     } else if (constructor == meta.piExpr) {
       int size = localRefs.size();
       ConcreteParameter parameter = processParameter(expr.getDefCallArguments().get(0));
       ConcreteExpression body = process(expr.getDefCallArguments().get(1));
       removeVars(size);
-      return parameter == null || body == null ? null : factory.pi(Collections.singletonList(parameter), body);
+      return factory.pi(Collections.singletonList(parameter), body);
     } else if (constructor == meta.typedExpr) {
-      ConcreteExpression arg1 = process(expr.getDefCallArguments().get(0));
-      ConcreteExpression arg2 = process(expr.getDefCallArguments().get(1));
-      return arg1 == null || arg2 == null ? null : factory.typed(arg1, arg2);
+      return factory.typed(process(expr.getDefCallArguments().get(0)), process(expr.getDefCallArguments().get(1)));
     } else if (constructor == meta.localVar) {
       return getLocalRef(expr.getDefCallArguments().get(0));
     } else if (constructor == meta.globalVar) {
-      ArendRef ref = getQName(expr.getDefCallArguments().get(0));
-      Maybe<List<ConcreteLevel>> pLevels = processMaybe(expr.getDefCallArguments().get(1), e -> processArray(e, this::processLevel));
-      Maybe<List<ConcreteLevel>> hLevels = processMaybe(expr.getDefCallArguments().get(2), e -> processArray(e, this::processLevel));
-      return ref == null || pLevels == null || hLevels == null ? null : factory.ref(ref, pLevels.just, hLevels.just);
+      return factory.ref(getQName(expr.getDefCallArguments().get(0)),
+        processMaybe(expr.getDefCallArguments().get(1), e -> processArray(e, this::processLevel)),
+        processMaybe(expr.getDefCallArguments().get(2), e -> processArray(e, this::processLevel)));
     } else if (constructor == meta.caseExpr) {
-      Boolean isSCase = processBool(expr.getDefCallArguments().get(0));
       int size = localRefs.size();
       List<ConcreteCaseArgument> caseArgs = processArray(expr.getDefCallArguments().get(1), e -> {
         List<? extends CoreExpression> fields = processTuple(e, 2);
-        if (fields == null) return null;
         CoreExpression orExpr = fields.get(0).normalize(NormalizationMode.WHNF);
         Pair<ConcreteExpression, String> pair = null;
         ConcreteReferenceExpression elimRef = null;
         if (orExpr instanceof CoreConCallExpression conCall) {
           if (conCall.getDefinition() == meta.ext.inl) {
             List<? extends CoreExpression> fields2 = processTuple(conCall.getDefCallArguments().get(0), 2);
-            if (fields2 == null) return null;
             ConcreteExpression arg = process(fields2.get(0));
             String asRef = getString(fields2.get(1));
-            pair = arg == null || asRef == null ? null : new Pair<>(arg, asRef);
+            pair = new Pair<>(arg, asRef);
           } else if (conCall.getDefinition() == meta.ext.inr) {
             elimRef = getLocalRef(conCall.getDefCallArguments().get(0));
-            if (elimRef == null) return null;
           }
         }
         if (pair == null && elimRef == null) {
-          TypecheckBuildError.report(errorReporter, "Invalid expression. Expected either 'inl' or 'inr'.", orExpr, marker);
-          return null;
+          throw TypecheckBuildError.makeException("Invalid expression. Expected either 'inl' or 'inr'.", orExpr, marker);
         }
-        Maybe<ConcreteExpression> type = processMaybe(fields.get(1), this::process);
-        if (type == null) return null;
-        if (pair == null) {
-          return factory.caseArg(elimRef, type.just);
-        }
-        return factory.caseArg(pair.proj1, addRef(pair.proj2), type.just);
+        ConcreteExpression type = processMaybe(fields.get(1), this::process);
+        return pair == null ? factory.caseArg(elimRef, type) : factory.caseArg(pair.proj1, addRef(pair.proj2), type);
       });
-      Maybe<ConcreteExpression> type = processMaybe(expr.getDefCallArguments().get(2), this::process);
-      Maybe<ConcreteExpression> typeLevel = processMaybe(expr.getDefCallArguments().get(3), this::process);
+      ConcreteExpression type = processMaybe(expr.getDefCallArguments().get(2), this::process);
+      ConcreteExpression typeLevel = processMaybe(expr.getDefCallArguments().get(3), this::process);
       removeVars(size);
       List<ConcreteClause> clauses = processArray(expr.getDefCallArguments().get(4), e -> {
         List<? extends CoreExpression> fields = processTuple(e, 2);
-        if (fields == null) return null;
         int size2 = localRefs.size();
         List<ConcretePattern> patterns = processArray(fields.get(0), this::processPattern);
-        Maybe<ConcreteExpression> body = processMaybe(fields.get(1), this::process);
+        ConcreteExpression body = processMaybe(fields.get(1), this::process);
         removeVars(size2);
-        return patterns == null || body == null ? null : factory.clause(patterns, body.just);
+        return factory.clause(patterns, body);
       });
-      return isSCase == null || caseArgs == null || type == null || typeLevel == null || clauses == null ? null : factory.caseExpr(isSCase, caseArgs, type.just, typeLevel.just, clauses);
+      return factory.caseExpr(processBool(expr.getDefCallArguments().get(0)), caseArgs, type, typeLevel, clauses);
     } else if (constructor == meta.projExpr) {
-      ConcreteExpression arg = process(expr.getDefCallArguments().get(0));
-      Integer n = getSmallNatural(expr.getDefCallArguments().get(1));
-      return arg == null || n == null ? null : factory.proj(arg, n);
+      return factory.proj(process(expr.getDefCallArguments().get(0)), getSmallNatural(expr.getDefCallArguments().get(1)));
     } else if (constructor == meta.appExpr) {
-      ConcreteExpression fun = process(expr.getDefCallArguments().get(0));
-      ConcreteExpression arg = process(expr.getDefCallArguments().get(1));
-      Boolean isExplicit = processBool(expr.getDefCallArguments().get(2));
-      return fun == null || arg == null || isExplicit == null ? null : factory.app(fun, isExplicit, arg);
+      return factory.app(process(expr.getDefCallArguments().get(0)), processBool(expr.getDefCallArguments().get(2)), process(expr.getDefCallArguments().get(1)));
     } else if (constructor == meta.lamExpr) {
       int size = localRefs.size();
       ConcreteParameter parameter = processParameter(expr.getDefCallArguments().get(0));
       ConcreteExpression body = process(expr.getDefCallArguments().get(1));
       removeVars(size);
-      return parameter == null || body == null ? null : factory.lam(Collections.singletonList(parameter), body);
+      return factory.lam(Collections.singletonList(parameter), body);
     } else if (constructor == meta.boxExpr) {
-      ConcreteExpression arg = process(expr.getDefCallArguments().get(0));
-      return arg == null ? null : factory.boxExpr(arg);
+      return factory.boxExpr(process(expr.getDefCallArguments().get(0)));
     } else if (constructor == meta.numberExpr) {
-      BigInteger n = getNatural(expr.getDefCallArguments().get(0));
-      return n == null ? null : factory.number(n);
+      return factory.number(getNatural(expr.getDefCallArguments().get(0)));
     } else if (constructor == meta.stringExpr) {
-      String string = getString(expr.getDefCallArguments().get(0));
-      return string == null ? null : factory.string(string);
+      return factory.string(getString(expr.getDefCallArguments().get(0)));
     } else if (constructor == meta.qNameExpr) {
-      ArendRef ref = getQName(expr.getDefCallArguments().get(0));
-      return ref == null ? null : factory.qName(ref);
+      return factory.qName(getQName(expr.getDefCallArguments().get(0)));
     } else if (constructor == meta.quoteExpr) {
       return factory.core(expr.makeTypedExpression());
     } else {
-      TypecheckBuildError.report(errorReporter, expr, marker);
-      return null;
+      throw TypecheckBuildError.makeException(expr, marker);
     }
   }
 }

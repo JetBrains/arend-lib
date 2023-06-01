@@ -68,7 +68,16 @@ public class TypecheckMeta extends BaseMetaDefinition {
     TypedExpression type = typechecker.typecheckType(factory.ref(ConcreteExpr.getRef()));
     TypedExpression arg = type == null ? null : typechecker.typecheck(contextData.getArguments().get(0).getExpression(), type.getExpression());
     if (arg == null) return null;
-    ConcreteExpression result = new TypecheckBuilder(this, factory, typechecker, contextData.getMarker()).process(arg.getExpression());
-    return result == null ? null : typechecker.typecheck(result, contextData.getExpectedType());
+
+    ConcreteExpression result;
+    try {
+      result = new TypecheckBuilder(this, factory, typechecker, contextData.getMarker()).process(arg.getExpression());
+    } catch (TypecheckException e) {
+      if (e.error != null) {
+        typechecker.getErrorReporter().report(e.error);
+      }
+      return null;
+    }
+    return typechecker.typecheck(result, contextData.getExpectedType());
   }
 }
