@@ -35,42 +35,37 @@ public class GetArgsMeta extends BaseMetaDefinition {
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     List<? extends ConcreteArgument> arguments = contextData.getArguments();
     List<ConcreteExpression> args = new ArrayList<>();
-    try {
-      ReflectBuilder builder = new ReflectBuilder(typechecker, ext, factory);
-      for (int i = 1; i < arguments.size(); i++) {
-        ConcreteArgument arg = arguments.get(i);
-        args.add(factory.tuple(arg.getExpression().accept(builder, null), builder.makeBool(arg.isExplicit())));
-      }
-      ConcreteExpression arg = arguments.get(0).getExpression();
-      ConcreteExpression result;
-      if (arg instanceof ConcreteLamExpression lamExpr) {
-        ConcreteExpression body = lamExpr.getBody();
-        List<? extends ConcreteParameter> lamParams = lamExpr.getParameters();
-        ConcreteParameter lamParam0 = lamParams.get(0);
-        List<? extends ArendRef> refs = lamParams.get(0).getRefList();
-        if (lamParams.size() > 1 || refs.size() > 1) {
-          List<ConcreteParameter> params = new ArrayList<>();
-          if (refs.size() > 1) {
-            ConcreteExpression type = lamParam0.getType();
-            if (type == null) {
-              for (int i = 1; i < refs.size(); i++) {
-                params.add(factory.param(lamParam0.isExplicit(), refs.get(i)));
-              }
-            } else {
-              params.add(factory.param(lamParam0.isExplicit(), refs.subList(1, refs.size()), type));
-            }
-          }
-          params.addAll(lamParams.subList(1, lamParams.size()));
-          body = factory.lam(params, body);
-        }
-        result = body.substitute(Collections.singletonMap(refs.get(0), builder.listToArray(args)));
-      } else {
-        result = factory.app(arg, true, builder.listToArray(args));
-      }
-      return typechecker.typecheck(result, contextData.getExpectedType());
-    } catch (ReflectionException e) {
-      typechecker.getErrorReporter().report(e.error);
-      return null;
+    ReflectBuilder builder = new ReflectBuilder(typechecker, ext, factory);
+    for (int i = 1; i < arguments.size(); i++) {
+      ConcreteArgument arg = arguments.get(i);
+      args.add(factory.tuple(factory.app(factory.ref(ext.reflectRef), true, arg.getExpression()), builder.makeBool(arg.isExplicit())));
     }
+    ConcreteExpression arg = arguments.get(0).getExpression();
+    ConcreteExpression result;
+    if (arg instanceof ConcreteLamExpression lamExpr) {
+      ConcreteExpression body = lamExpr.getBody();
+      List<? extends ConcreteParameter> lamParams = lamExpr.getParameters();
+      ConcreteParameter lamParam0 = lamParams.get(0);
+      List<? extends ArendRef> refs = lamParams.get(0).getRefList();
+      if (lamParams.size() > 1 || refs.size() > 1) {
+        List<ConcreteParameter> params = new ArrayList<>();
+        if (refs.size() > 1) {
+          ConcreteExpression type = lamParam0.getType();
+          if (type == null) {
+            for (int i = 1; i < refs.size(); i++) {
+              params.add(factory.param(lamParam0.isExplicit(), refs.get(i)));
+            }
+          } else {
+            params.add(factory.param(lamParam0.isExplicit(), refs.subList(1, refs.size()), type));
+          }
+        }
+        params.addAll(lamParams.subList(1, lamParams.size()));
+        body = factory.lam(params, body);
+      }
+      result = body.substitute(Collections.singletonMap(refs.get(0), builder.listToArray(args)));
+    } else {
+      result = factory.app(arg, true, builder.listToArray(args));
+    }
+    return typechecker.typecheck(result, contextData.getExpectedType());
   }
 }

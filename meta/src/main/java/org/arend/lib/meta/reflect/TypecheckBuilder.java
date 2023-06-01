@@ -65,7 +65,7 @@ public class TypecheckBuilder {
       boolean isPos = conCall.getDefinition() == meta.ext.prelude.getPos();
       boolean isNeg = conCall.getDefinition() == meta.ext.prelude.getNeg();
       if (isPos || isNeg) {
-        BigInteger result = getNatural(conCall.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF));
+        BigInteger result = getNatural(conCall.getDefCallArguments().get(0));
         return isNeg ? result.negate() : result;
       }
     }
@@ -127,9 +127,15 @@ public class TypecheckBuilder {
   }
 
   public ConcreteExpression process(CoreExpression expression) {
-    expression = expression.normalize(NormalizationMode.WHNF);
+    expression = expression.normalize(NormalizationMode.WHNF, dataExpr -> dataExpr.getMetaData() instanceof ReflectedExpression);
     if (expression instanceof CoreConCallExpression) {
       return processConCall((CoreConCallExpression) expression);
+    } else if (expression instanceof CoreDataExpression) {
+      Object data = ((CoreDataExpression) expression).getMetaData();
+      if (!(data instanceof ReflectedExpression)) {
+        throw new IllegalStateException();
+      }
+      return ((ReflectedExpression) data).expression;
     } else {
       throw TypecheckBuildError.makeException(expression, marker);
     }
