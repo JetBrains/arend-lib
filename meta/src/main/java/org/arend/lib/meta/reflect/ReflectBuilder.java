@@ -39,12 +39,19 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   @Override
   public ConcreteExpression visitApp(ConcreteAppExpression expr, Void params) {
     ConcreteFactory factory = this.factory.withData(expr);
-    if (expr.getFunction() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.quoteRef) {
+    if (expr.getFunction() instanceof ConcreteReferenceExpression refExpr && (refExpr.getReferent() == ext.quoteRef || refExpr.getReferent() == ext.spliceRef)) {
       var args = expr.getArguments();
-      if (args.size() != 1 || !args.get(0).isExplicit()) {
-        throw new ReflectionException(new TypecheckingError("Expected exactly 1 explicit argument", refExpr));
+      if (refExpr.getReferent() == ext.quoteRef) {
+        if (args.size() != 1 || !args.get(0).isExplicit()) {
+          throw new ReflectionException(new TypecheckingError("Expected exactly 1 explicit argument", refExpr));
+        }
+        return factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), true, args.get(0).getExpression());
+      } else {
+        if (args.isEmpty() || !args.get(0).isExplicit()) {
+          throw new ReflectionException(new TypecheckingError("Expected an explicit argument", refExpr));
+        }
+        return factory.app(args.get(0).getExpression(), args.subList(1, args.size()));
       }
-      return factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), true, args.get(0).getExpression());
     }
 
     ConcreteExpression result = expr.getFunction().accept(this, null);
@@ -95,7 +102,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   public ConcreteExpression visitReference(ConcreteReferenceExpression expr, Void params) {
     ConcreteFactory factory = this.factory.withData(expr);
     ArendRef ref = expr.getReferent();
-    if (ref == ext.quoteRef) {
+    if (ref == ext.quoteRef || ref == ext.spliceRef) {
       throw new ReflectionException(new MissingArgumentsError(1, expr));
     }
 

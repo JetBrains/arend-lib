@@ -89,6 +89,7 @@ public class StdExtension implements ArendExtension {
   public final TypecheckMeta tcMeta = new TypecheckMeta(this);
   public MetaRef reflectRef;
   public MetaRef quoteRef;
+  public MetaRef spliceRef;
   public CasesMeta casesMeta;
   public MetaRef constructorMetaRef;
   public MetaRef leftArrowRef;
@@ -231,6 +232,7 @@ public class StdExtension implements ArendExtension {
     contributor.declare(reflect, new LongName("typecheck"), "Typechecks an expression of type `ConcreteExpr`", Precedence.DEFAULT, tcMeta);
     reflectRef = contributor.declare(reflect, new LongName("reflect"), "Converts an expression into an element of type `ConcreteExpr`", Precedence.DEFAULT, new ReflectMeta(this));
     quoteRef = contributor.declare(reflect, new LongName("quote"), "If this meta occurs under {reflect} meta, then it is reflected to `quoteExpr`. Otherwise, it expects one explicit argument and just returns it.", Precedence.DEFAULT, new IdMeta(this));
+    spliceRef = contributor.declare(reflect, new LongName("splice"), "If this meta occurs under {reflect} meta, then it is reflected to the identity function. Otherwise, it works just as {typecheck} meta.", Precedence.DEFAULT, new TypecheckMeta(this));
     contributor.declare(reflect, new LongName("getArgs"), "Returns the arguments in the CPS style", Precedence.DEFAULT, new GetArgsMeta(this));
     contributor.declare(reflect, new LongName("error"), "Fails with the given error message", Precedence.DEFAULT, new ErrorMeta());
 

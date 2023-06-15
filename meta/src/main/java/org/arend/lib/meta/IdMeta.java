@@ -1,6 +1,5 @@
 package org.arend.lib.meta;
 
-import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.typechecking.BaseMetaDefinition;
