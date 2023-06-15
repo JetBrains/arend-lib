@@ -230,7 +230,7 @@ public class StdExtension implements ArendExtension {
     ModulePath reflect = ModulePath.fromString("Reflect.Meta");
     contributor.declare(reflect, new LongName("typecheck"), "Typechecks an expression of type `ConcreteExpr`", Precedence.DEFAULT, tcMeta);
     reflectRef = contributor.declare(reflect, new LongName("reflect"), "Converts an expression into an element of type `ConcreteExpr`", Precedence.DEFAULT, new ReflectMeta(this));
-    quoteRef = contributor.declare(reflect, new LongName("quote"), "This meta can be used only under {reflect} meta. Then it is reflected to `quoteExpr`.", Precedence.DEFAULT, new InternalMeta(reflectRef));
+    quoteRef = contributor.declare(reflect, new LongName("quote"), "If this meta occurs under {reflect} meta, then it is reflected to `quoteExpr`. Otherwise, it expects one explicit argument and just returns it.", Precedence.DEFAULT, new IdMeta(this));
     contributor.declare(reflect, new LongName("getArgs"), "Returns the arguments in the CPS style", Precedence.DEFAULT, new GetArgsMeta(this));
     contributor.declare(reflect, new LongName("error"), "Fails with the given error message", Precedence.DEFAULT, new ErrorMeta());
 

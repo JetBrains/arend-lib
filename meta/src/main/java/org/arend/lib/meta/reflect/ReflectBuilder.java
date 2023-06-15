@@ -38,6 +38,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitApp(ConcreteAppExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     if (expr.getFunction() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.quoteRef) {
       var args = expr.getArguments();
       if (args.size() != 1 || !args.get(0).isExplicit()) {
@@ -92,6 +93,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitReference(ConcreteReferenceExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     ArendRef ref = expr.getReferent();
     if (ref == ext.quoteRef) {
       throw new ReflectionException(new MissingArgumentsError(1, expr));
@@ -106,6 +108,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitThis(ConcreteThisExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.ref(ext.tcMeta.thisExpr.getRef());
   }
 
@@ -140,7 +143,8 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     return result;
   }
 
-  private ConcreteExpression processParameters(List<? extends ConcreteParameter> params, ConcreteExpression body, CoreConstructor constructor) {
+  private ConcreteExpression processParameters(List<? extends ConcreteParameter> params, ConcreteExpression body, CoreConstructor constructor, ConcreteExpression expr) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return processParameters(params, parameters -> {
       ConcreteExpression result = body.accept(this, null);
       for (int i = parameters.size() - 1; i >= 0; i--) {
@@ -152,12 +156,12 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitLam(ConcreteLamExpression expr, Void params) {
-    return processParameters(expr.getParameters(), expr.getBody(), ext.tcMeta.lamExpr);
+    return processParameters(expr.getParameters(), expr.getBody(), ext.tcMeta.lamExpr, expr);
   }
 
   @Override
   public ConcreteExpression visitPi(ConcretePiExpression expr, Void params) {
-    return processParameters(expr.getParameters(), expr.getCodomain(), ext.tcMeta.piExpr);
+    return processParameters(expr.getParameters(), expr.getCodomain(), ext.tcMeta.piExpr, expr);
   }
 
   private ConcreteExpression levelToExpression(ConcreteLevel level) {
@@ -170,21 +174,25 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitUniverse(ConcreteUniverseExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.universeExpr.getRef()), true, levelToExpression(expr.getPLevel()), levelToExpression(expr.getHLevel()));
   }
 
   @Override
   public ConcreteExpression visitHole(ConcreteHoleExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.ref(ext.tcMeta.holeExpr.getRef());
   }
 
   @Override
   public ConcreteExpression visitGoal(ConcreteGoalExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.ref(ext.tcMeta.goalExpr.getRef());
   }
 
   @Override
   public ConcreteExpression visitTuple(ConcreteTupleExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     List<ConcreteExpression> list = new ArrayList<>();
     for (ConcreteExpression field : expr.getFields()) {
       list.add(field.accept(this, null));
@@ -194,6 +202,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitSigma(ConcreteSigmaExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     List<ConcreteExpression> list = new ArrayList<>();
     for (ConcreteParameter param : expr.getParameters()) {
       if (param.getType() == null) {
@@ -213,6 +222,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   }
 
   private ConcreteExpression makePatternInternal(ConcretePattern pattern) {
+    ConcreteFactory factory = this.factory.withData(pattern);
     if (pattern instanceof ConcreteNumberPattern numPattern) {
       return factory.app(factory.ref(ext.tcMeta.numberPattern.getRef()), true, makeNumber(numPattern.getNumber()));
     } else if (pattern instanceof ConcreteConstructorPattern conPattern) {
@@ -234,6 +244,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   }
 
   private ConcreteExpression makePattern(ConcretePattern pattern) {
+    ConcreteFactory factory = this.factory.withData(pattern);
     ArendRef ref = pattern.getAsRef();
     ConcreteExpression type = exprToExpression(pattern.getAsRefType());
     ConcreteExpression result = makePatternInternal(pattern);
@@ -265,6 +276,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitCase(ConcreteCaseExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     List<ConcreteExpression> args = new ArrayList<>();
     for (ConcreteCaseArgument argument : expr.getArguments()) {
       ConcreteExpression argExpr = argument.getExpression();
@@ -300,20 +312,24 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitEval(ConcreteEvalExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.evalExpr.getRef()), true, makeBool(expr.isPEval()), expr.getExpression().accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitBox(ConcreteBoxExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.boxExpr.getRef()), true, expr.getExpression().accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitProj(ConcreteProjExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.projExpr.getRef()), true, expr.getExpression().accept(this, null), factory.number(expr.getField()));
   }
 
   private ConcreteExpression coclauseToExpression(ConcreteCoclause coclause) {
+    ConcreteFactory factory = this.factory.withData(coclause);
     ConcreteExpression impl = coclause.getImplementation();
     if (impl == null) {
       ArendRef classRef = coclause.getClassReference();
@@ -328,6 +344,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitClassExt(ConcreteClassExtExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     List<ConcreteExpression> coclauses = new ArrayList<>();
     for (ConcreteCoclause coclause : expr.getCoclauses().getCoclauseList()) {
       coclauses.add(coclauseToExpression(coclause));
@@ -337,11 +354,13 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitNew(ConcreteNewExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.newExpr.getRef()), true, expr.getExpression().accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitLet(ConcreteLetExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     List<ConcreteExpression> clauses = new ArrayList<>();
     for (ConcreteLetClause clause : expr.getClauses()) {
       ConcreteExpression[] array = processParameters(clause.getParameters(), parameters -> new ConcreteExpression[] { listToArray(parameters), exprToExpression(clause.getResultType()), clause.getTerm().accept(this, null) });
@@ -356,11 +375,8 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitNumber(ConcreteNumberExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.numberExpr.getRef()), true, factory.number(expr.getNumber()));
-  }
-
-  private ConcreteExpression makeString(String string) {
-    return factory.app(factory.ref(ext.tcMeta.stringExpr.getRef()), true, factory.string(string));
   }
 
   private ConcreteExpression refNameToExpr(ArendRef ref) {
@@ -369,37 +385,44 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitString(ConcreteStringExpression expr, Void params) {
-    return makeString(expr.getUnescapedString());
+    ConcreteFactory factory = this.factory.withData(expr);
+    return factory.app(factory.ref(ext.tcMeta.stringExpr.getRef()), true, factory.string(expr.getUnescapedString()));
   }
 
   @Override
   public ConcreteExpression visitQName(ConcreteQNameExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.qNameExpr.getRef()), true, factory.qName(expr.getReference()));
   }
 
   @Override
   public ConcreteExpression visitTyped(ConcreteTypedExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.typedExpr.getRef()), true, expr.getExpression().accept(this, null), expr.getType().accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitCore(ConcreteCoreExpression expr, Void params) {
+    ConcreteFactory factory = this.factory.withData(expr);
     TypedExpression typedExpr = expr.getTypedExpression();
     return factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), factory.arg(factory.core(typedExpr.getType().computeTyped()), false), factory.arg(factory.core(typedExpr), true));
   }
 
   @Override
   public ConcreteExpression visitInf(ConcreteInfLevel expr, Void param) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.ref(ext.tcMeta.infLevel.getRef());
   }
 
   @Override
   public ConcreteExpression visitLP(ConcreteLPLevel expr, Void param) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.stdLevel.getRef()), true, factory.ref(ext.tcMeta.pLevel.getRef()));
   }
 
   @Override
   public ConcreteExpression visitLH(ConcreteLHLevel expr, Void param) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.stdLevel.getRef()), true, factory.ref(ext.tcMeta.pLevel.getRef()));
   }
 
@@ -410,11 +433,13 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitNumber(ConcreteNumberLevel expr, Void param) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.numberLevel.getRef()), true, makeNumber(expr.getNumber()));
   }
 
   @Override
   public ConcreteExpression visitVar(ConcreteVarLevel expr, Void param) {
+    ConcreteFactory factory = this.factory.withData(expr);
     int pIndex = typechecker.getLevelVariables(true).indexOf(expr.getReferent());
     int hIndex = pIndex == -1 ? typechecker.getLevelVariables(false).indexOf(expr.getReferent()) : -1;
     if (pIndex < 0 && hIndex < 0) {
@@ -425,11 +450,13 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
 
   @Override
   public ConcreteExpression visitSuc(ConcreteSucLevel expr, Void param) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.sucLevel.getRef()), true, expr.getExpression().accept(this, null));
   }
 
   @Override
   public ConcreteExpression visitMax(ConcreteMaxLevel expr, Void param) {
+    ConcreteFactory factory = this.factory.withData(expr);
     return factory.app(factory.ref(ext.tcMeta.maxLevel.getRef()), true, expr.getLeft().accept(this, null), expr.getRight().accept(this, null));
   }
 }
