@@ -7,7 +7,6 @@ import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.level.*;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.concrete.pattern.*;
-import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.error.FieldsImplementationError;
 import org.arend.ext.error.MissingArgumentsError;
@@ -74,21 +73,16 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     return factory.app(factory.ref(ext.just.getRef()), true, listToArray(list));
   }
 
-  private Integer getLocalVar(ArendRef ref) {
+  private ConcreteExpression getLocalVar(ArendRef ref) {
     Integer n = localRefs.get(ref);
     if (n == null) {
-      CoreBinding binding = typechecker.getFreeBinding(ref);
-      if (binding != null) {
-        List<CoreBinding> context = typechecker.getFreeBindingsList();
-        int index = context.lastIndexOf(binding);
-        if (index >= 0) {
-          n = localRefs.size() + context.size() - 1 - index;
-        }
+      if (typechecker.getFreeBinding(ref) != null) {
+        return factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), true, factory.ref(ref));
       }
     } else {
       n = localRefs.size() - 1 - n;
     }
-    return n;
+    return n == null ? null : factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(n)) ;
   }
 
   @Override
@@ -99,11 +93,11 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       throw new ReflectionException(new MissingArgumentsError(1, expr));
     }
 
-    Integer n = getLocalVar(ref);
-    if (n == null && ref.isLocalRef()) {
+    ConcreteExpression var = getLocalVar(ref);
+    if (var == null && ref.isLocalRef()) {
       throw new ReflectionException(new UnknownReferenceError(ref, expr));
     }
-    return n != null ? factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(n)) : factory.app(factory.ref(ext.tcMeta.globalVar.getRef()), true, factory.qName(ref), levelsToExpression(expr.getPLevels()), levelsToExpression(expr.getHLevels()));
+    return var != null ? var : factory.app(factory.ref(ext.tcMeta.globalVar.getRef()), true, factory.qName(ref), levelsToExpression(expr.getPLevels()), levelsToExpression(expr.getHLevels()));
   }
 
   @Override
@@ -280,7 +274,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     List<ConcreteExpression> args = new ArrayList<>();
     for (ConcreteCaseArgument argument : expr.getArguments()) {
       ConcreteExpression argExpr = argument.getExpression();
-      Integer var = null;
+      ConcreteExpression var = null;
       if (argument.isElim() && argExpr instanceof ConcreteReferenceExpression refExpr) {
         var = getLocalVar(refExpr.getReferent());
         if (var == null) {
@@ -288,7 +282,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
         }
       }
       ArendRef asRef = var == null ? argument.getAsRef() : null;
-      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(var))) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), refNameToExpr(asRef))), exprToExpression(argument.getType())));
+      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, var) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), refNameToExpr(asRef))), exprToExpression(argument.getType())));
       addRef(asRef);
     }
     ConcreteExpression resultType = exprToExpression(expr.getResultType());
