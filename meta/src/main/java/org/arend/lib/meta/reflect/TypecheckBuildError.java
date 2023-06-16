@@ -29,4 +29,9 @@ public class TypecheckBuildError extends TypecheckingError {
   public Doc getBodyDoc(PrettyPrinterConfig ppConfig) {
     return hang(text("Expression:"), termDoc(expression, ppConfig));
   }
+
+  @Override
+  public boolean hasExpressions() {
+    return true;
+  }
 }
