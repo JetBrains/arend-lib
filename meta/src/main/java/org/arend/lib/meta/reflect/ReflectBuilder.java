@@ -39,23 +39,16 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   @Override
   public ConcreteExpression visitApp(ConcreteAppExpression expr, Void params) {
     ConcreteFactory factory = this.factory.withData(expr);
-    if (expr.getFunction() instanceof ConcreteReferenceExpression refExpr && (refExpr.getReferent() == ext.quoteRef || refExpr.getReferent() == ext.spliceRef)) {
-      var args = expr.getArguments();
-      if (refExpr.getReferent() == ext.quoteRef) {
-        if (args.size() != 1 || !args.get(0).isExplicit()) {
-          throw new ReflectionException(new TypecheckingError("Expected exactly 1 explicit argument", refExpr));
-        }
-        return factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), true, args.get(0).getExpression());
-      } else {
-        if (args.isEmpty() || !args.get(0).isExplicit()) {
-          throw new ReflectionException(new TypecheckingError("Expected an explicit argument", refExpr));
-        }
-        return factory.app(args.get(0).getExpression(), args.subList(1, args.size()));
-      }
+    boolean isSplice = expr.getFunction() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.spliceRef;
+    boolean isQuote = expr.getFunction() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.quoteRef;
+    List<? extends ConcreteArgument> arguments = expr.getArguments();
+    if ((isSplice || isQuote) && (arguments.isEmpty() || !arguments.get(0).isExplicit())) {
+      throw new ReflectionException(new TypecheckingError("Expected an explicit argument", expr.getFunction()));
     }
 
-    ConcreteExpression result = expr.getFunction().accept(this, null);
-    for (ConcreteArgument argument : expr.getArguments()) {
+    ConcreteExpression result = isSplice ? arguments.get(0).getExpression() : isQuote ? factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), true, arguments.get(0).getExpression()) : expr.getFunction().accept(this, null);
+    for (int i = isSplice || isQuote ? 1 : 0; i < arguments.size(); i++) {
+      ConcreteArgument argument = arguments.get(i);
       result = factory.app(factory.ref(ext.tcMeta.appExpr.getRef()), true, result, argument.getExpression().accept(this, null), makeBool(argument.isExplicit()));
     }
     return result;

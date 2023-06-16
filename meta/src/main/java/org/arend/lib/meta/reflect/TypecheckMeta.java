@@ -66,7 +66,8 @@ public class TypecheckMeta extends BaseMetaDefinition {
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     TypedExpression type = typechecker.typecheckType(factory.ref(ConcreteExpr.getRef()));
-    TypedExpression arg = type == null ? null : typechecker.typecheck(contextData.getArguments().get(0).getExpression(), type.getExpression());
+    var args = contextData.getArguments();
+    TypedExpression arg = type == null ? null : typechecker.typecheck(args.get(0).getExpression(), type.getExpression());
     if (arg == null) return null;
 
     ConcreteExpression result;
@@ -78,6 +79,6 @@ public class TypecheckMeta extends BaseMetaDefinition {
       }
       return null;
     }
-    return typechecker.typecheck(result, contextData.getExpectedType());
+    return typechecker.typecheck(factory.app(result, args.subList(1, args.size())), contextData.getExpectedType());
   }
 }
