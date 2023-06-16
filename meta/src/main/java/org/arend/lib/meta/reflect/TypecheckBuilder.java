@@ -366,7 +366,33 @@ public class TypecheckBuilder {
             String asRef = getString(fields2.get(1));
             pair = new Pair<>(arg, asRef);
           } else if (conCall.getDefinition() == meta.ext.inr) {
-            elimRef = getLocalRef(conCall.getDefCallArguments().get(0));
+            CoreExpression arg = conCall.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF);
+            boolean ok = true;
+            CoreConCallExpression conCall2 = arg instanceof CoreConCallExpression ? (CoreConCallExpression) arg : null;
+            if (conCall2 != null && conCall2.getDefinition() == meta.localVar) {
+              elimRef = getLocalRef(conCall2.getDefCallArguments().get(0));
+            } else if (conCall2 != null && conCall2.getDefinition() == meta.quoteExpr) {
+              CoreExpression arg2 = conCall2.getDefCallArguments().get(1).normalize(NormalizationMode.WHNF);
+              if (arg2 instanceof CoreReferenceExpression refExpr) {
+                var list = typechecker.getFreeVariablesList();
+                for (int i = list.size() - 1; i >= 0; i--) {
+                  if (list.get(i).proj2 == refExpr.getBinding()) {
+                    elimRef = factory.ref(list.get(i).proj1);
+                    break;
+                  }
+                }
+                if (elimRef == null) {
+                  ok = false;
+                }
+              } else {
+                ok = false;
+              }
+            } else {
+              ok = false;
+            }
+            if (!ok) {
+              throw TypecheckBuildError.makeException("Invalid expression. Expected a local variable.", arg, marker);
+            }
           }
         }
         if (pair == null && elimRef == null) {

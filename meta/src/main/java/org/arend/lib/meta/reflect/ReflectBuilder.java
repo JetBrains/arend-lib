@@ -288,7 +288,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
         }
       }
       ArendRef asRef = var == null ? argument.getAsRef() : null;
-      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, factory.number(var)) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), refNameToExpr(asRef))), exprToExpression(argument.getType())));
+      args.add(factory.tuple(var != null ? factory.app(factory.ref(ext.inr.getRef()), true, factory.app(factory.ref(ext.tcMeta.localVar.getRef()), true, factory.number(var))) : factory.app(factory.ref(ext.inl.getRef()), true, factory.tuple(argExpr.accept(this, null), refNameToExpr(asRef))), exprToExpression(argument.getType())));
       addRef(asRef);
     }
     ConcreteExpression resultType = exprToExpression(expr.getResultType());
