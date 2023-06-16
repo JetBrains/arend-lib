@@ -30,6 +30,10 @@ public class GetArgsMeta extends BaseMetaDefinition {
     return new boolean[] { true };
   }
 
+  private ConcreteExpression argsToArray(List<ConcreteExpression> args, ReflectBuilder builder, ConcreteFactory factory) {
+    return args.isEmpty() ? factory.app(factory.ref(ext.prelude.getEmptyArray().getRef()), false, factory.lam(Collections.singletonList(factory.param(null)), factory.sigma(factory.param(true, factory.ref(ext.tcMeta.ConcreteExpr.getRef())), factory.param(true, factory.ref(ext.false_.getDataType().getRef()))))) : builder.listToArray(args);
+  }
+
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
@@ -62,9 +66,9 @@ public class GetArgsMeta extends BaseMetaDefinition {
         params.addAll(lamParams.subList(1, lamParams.size()));
         body = factory.lam(params, body);
       }
-      result = body.substitute(Collections.singletonMap(refs.get(0), builder.listToArray(args)));
+      result = body.substitute(Collections.singletonMap(refs.get(0), argsToArray(args, builder, factory)));
     } else {
-      result = factory.app(arg, true, builder.listToArray(args));
+      result = factory.app(arg, true, argsToArray(args, builder, factory));
     }
     return typechecker.typecheck(result, contextData.getExpectedType());
   }
