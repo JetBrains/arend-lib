@@ -23,13 +23,24 @@
   => io (reflect (\lam (c : A -> _) => c a))
 
 \func \infixl 1 >>= {A B : \Type} (m : IO A) (k : A -> IO B) : IO (\suc \lp) (\suc \lh) B \elim m
-  | io e => io (reflect (\lam c => splice e (\lam a => doIO (k a) c)))
+  | io e => io (reflect (\lam (c : B -> _) => splice e (\lam a => doIO (k a) c)))
 
 \func getArgs : IO (Array (\Sigma ConcreteExpr Bool))
   => io (reflect (Reflect.Meta.peekObject "runIO" "'getArgs' must be invoked within 'runIO'"))
 
 \func abort {A : \Type} (e : ConcreteExpr) : IO A
-  => io (reflect (\lam _ => splice e))
+  => io (reflect (\lam (_ : A -> _) => splice e))
 
 \func error {A : \Type} (msg : String) : IO A
   => abort (reflect (Reflect.Meta.error msg))
+
+\func Unit => \Sigma
+
+\func pushObject (id : String) (e : ConcreteExpr) : IO Unit
+  => io (reflect (\lam (c : \Sigma -> _) => Reflect.Meta.pushObject id (splice e) (c ())))
+
+\func popObject (id : String) : IO ConcreteExpr
+  => io (reflect (\lam (c : ConcreteExpr -> _) => Reflect.Meta.popObject id "" (\lam o => c (quoteExpr o))))
+
+\func peekObject (id : String) : IO ConcreteExpr
+  => io (reflect (\lam (c : ConcreteExpr -> _) => Reflect.Meta.peekObject id "" (\lam o => c (quoteExpr o))))
