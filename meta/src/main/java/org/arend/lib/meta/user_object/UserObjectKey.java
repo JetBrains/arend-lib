@@ -1,18 +1,17 @@
 package org.arend.lib.meta.user_object;
 
 import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.reference.ArendRef;
 import org.arend.ext.userData.Key;
 
 import java.util.List;
 import java.util.Objects;
 
 public class UserObjectKey extends Key<List<ConcreteExpression>> {
-  private final ArendRef myReference;
+  private final String myName;
 
-  public UserObjectKey(ArendRef reference) {
+  public UserObjectKey(String name) {
     super("user_object");
-    myReference = reference;
+    myName = name;
   }
 
   @Override
@@ -20,11 +19,11 @@ public class UserObjectKey extends Key<List<ConcreteExpression>> {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
     UserObjectKey that = (UserObjectKey) o;
-    return Objects.equals(myReference, that.myReference);
+    return Objects.equals(myName, that.myName);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(myReference);
+    return Objects.hash(myName);
   }
 }

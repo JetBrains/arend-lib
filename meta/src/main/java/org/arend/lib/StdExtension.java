@@ -239,10 +239,10 @@ public class StdExtension implements ArendExtension {
     spliceRef = contributor.declare(reflect, new LongName("splice"), "If this meta occurs under {reflect} meta, then it is reflected to the identity function. Otherwise, it works just as {typecheck} meta.", Precedence.DEFAULT, new TypecheckMeta(this));
     contributor.declare(reflect, new LongName("getArgs"), "Returns the arguments in the CPS style", Precedence.DEFAULT, new GetArgsMeta(this));
     contributor.declare(reflect, new LongName("error"), "Fails with the given error message", Precedence.DEFAULT, new ErrorMeta());
-    contributor.declare(reflect, new LongName("pushObject"), "'pushObject qName obj cont' pushes 'obj' onto the stack associated with the reference 'qName' and returns 'cont'", Precedence.DEFAULT, new PushObjectMeta());
+    contributor.declare(reflect, new LongName("pushObject"), "'pushObject name obj cont' pushes 'obj' onto the stack 'name' and returns 'cont'", Precedence.DEFAULT, new PushObjectMeta());
     contributor.declare(reflect, new LongName("popObject"),
         """
-          'popObject qName msg cont' pops an object from the stack associated with the reference 'qName' and returns 'cont' applied to this object.
+          'popObject name msg cont' pops an object from the stack 'name' and returns 'cont' applied to this object.
 
           If 'cont' is omitted, {popObject} just returns the object.
           If the stack is empty, then it fails with the error message 'msg' or a default error message if 'msg' is omitted or empty.
