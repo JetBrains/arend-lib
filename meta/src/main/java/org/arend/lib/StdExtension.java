@@ -25,6 +25,8 @@ import org.arend.lib.meta.debug.RandomMeta;
 import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.linear.LinearSolverMeta;
+import org.arend.lib.meta.monad.DoMeta;
+import org.arend.lib.meta.monad.RunMeta;
 import org.arend.lib.meta.reflect.ErrorMeta;
 import org.arend.lib.meta.reflect.GetArgsMeta;
 import org.arend.lib.meta.reflect.ReflectMeta;
@@ -246,6 +248,12 @@ public class StdExtension implements ArendExtension {
           If the stack is empty, then it fails with the error message 'msg' or a default error message if 'msg' is omitted or empty.
           """, Precedence.DEFAULT, new PopObjectMeta(this, false));
     contributor.declare(reflect, new LongName("peekObject"), "Works just like {popObject}, but does not remove the object from the stack", Precedence.DEFAULT, new PopObjectMeta(this, true));
+    contributor.declare(ModulePath.fromString("Reflect.IO.Meta"), new LongName("do"),
+        """
+            Implements Haskell-style do-notation for the IO monad.
+            
+            'do { x <- a, b }' is equivalent to 'a >>= \\lam x => b' and 'do { a, b }' is equivalent to 'a >>= \\lam _ => b'.
+            """, Precedence.DEFAULT, new DoMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),

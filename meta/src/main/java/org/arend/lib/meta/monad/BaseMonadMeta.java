@@ -1,26 +1,28 @@
-package org.arend.lib.meta;
+package org.arend.lib.meta.monad;
 
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
+import org.arend.ext.concrete.ResolvedApplication;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.error.NameResolverError;
+import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.ConcreteUnparsedSequenceElem;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Fixity;
-import org.arend.ext.concrete.ResolvedApplication;
-import org.arend.ext.typechecking.*;
+import org.arend.ext.typechecking.BaseMetaDefinition;
+import org.arend.ext.typechecking.ContextData;
+import org.arend.ext.typechecking.MetaResolver;
 import org.arend.lib.StdExtension;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
 import java.util.List;
 
-public class RunMeta extends BaseMetaDefinition implements MetaResolver {
-  private final StdExtension ext;
+public abstract class BaseMonadMeta extends BaseMetaDefinition implements MetaResolver {
+  final StdExtension ext;
 
-  public RunMeta(StdExtension ext) {
+  public BaseMonadMeta(StdExtension ext) {
     this.ext = ext;
   }
 
@@ -33,6 +35,10 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
   public boolean allowEmptyCoclauses() {
     return true;
   }
+
+  abstract ConcreteExpression combine(ConcreteExpression expr1, ConcreteExpression expr2, ConcreteFactory factory);
+
+  abstract ConcreteExpression combine(ConcreteExpression expr1, ArendRef ref, ConcreteExpression expr2, ConcreteFactory factory);
 
   private ConcreteExpression getConcreteRepresentation(List<? extends ConcreteArgument> arguments, ConcreteSourceNode marker, ExpressionResolver resolver) {
     List<? extends ConcreteExpression> args = Utils.getArgumentList(arguments.get(0).getExpression());
@@ -53,9 +59,9 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
             resolver.getErrorReporter().report(new NameResolverError("The left argument of '<-' must be a variable", resolvedApp.leftElements().size() == 1 ? resolvedApp.leftElements().get(0).getExpression() : resolvedApp.function()));
             return null;
           }
-          result = factory.app(factory.unparsedSequence(resolvedApp.rightElements(), seqExpr.getClauses()), true, factory.lam(Collections.singletonList(factory.param(leftArg.getExpression() instanceof ConcreteReferenceExpression leftExpr ? leftExpr.getReferent() : null)), result));
+          result = combine(factory.unparsedSequence(resolvedApp.rightElements(), seqExpr.getClauses()), leftArg.getExpression() instanceof ConcreteReferenceExpression leftExpr ? leftExpr.getReferent() : null, result, factory);
         } else {
-          result = factory.app(arg, true, Collections.singletonList(result));
+          result = combine(arg, result, factory);
         }
       }
     }
