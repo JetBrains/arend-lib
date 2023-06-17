@@ -488,7 +488,8 @@ public class Utils {
         params.addAll(lamParams.subList(1, lamParams.size()));
         body = factory.lam(params, body);
       }
-      return body.substitute(Collections.singletonMap(refs.get(0), arg));
+      ArendRef ref = refs.get(0);
+      return ref == null ? body : body.substitute(Collections.singletonMap(ref, arg));
     } else {
       return factory.app(fun, true, arg);
     }

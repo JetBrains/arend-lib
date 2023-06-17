@@ -4,6 +4,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.error.NameResolverError;
+import org.arend.ext.reference.ConcreteUnparsedSequenceElem;
 import org.arend.ext.reference.ExpressionResolver;
 import org.arend.ext.reference.Fixity;
 import org.arend.ext.concrete.ResolvedApplication;
@@ -47,11 +48,12 @@ public class RunMeta extends BaseMetaDefinition implements MetaResolver {
         ConcreteUnparsedSequenceExpression seqExpr = arg instanceof ConcreteUnparsedSequenceExpression seqExpr2 ? seqExpr2 : null;
         ResolvedApplication resolvedApp = resolver != null && seqExpr != null ? resolver.resolveApplication(seqExpr) : null;
         if (resolvedApp != null && resolvedApp.function() instanceof ConcreteReferenceExpression refExpr && refExpr.getReferent() == ext.leftArrowRef && resolvedApp.leftElements() != null && resolvedApp.rightElements() != null && !resolvedApp.rightElements().isEmpty()) {
-          if (!(resolvedApp.leftElements().size() == 1 && resolvedApp.leftElements().get(0).isExplicit() && (resolvedApp.leftElements().get(0).getFixity() == Fixity.UNKNOWN || resolvedApp.leftElements().get(0).getFixity() == Fixity.NONFIX) && resolvedApp.leftElements().get(0).getExpression() instanceof ConcreteReferenceExpression leftExpr)) {
+          ConcreteUnparsedSequenceElem leftArg = resolvedApp.leftElements().size() == 1 ? resolvedApp.leftElements().get(0) : null;
+          if (!(leftArg != null && leftArg.isExplicit() && (leftArg.getFixity() == Fixity.UNKNOWN || leftArg.getFixity() == Fixity.NONFIX) && (leftArg.getExpression() instanceof ConcreteReferenceExpression || leftArg.getExpression() instanceof ConcreteHoleExpression))) {
             resolver.getErrorReporter().report(new NameResolverError("The left argument of '<-' must be a variable", resolvedApp.leftElements().size() == 1 ? resolvedApp.leftElements().get(0).getExpression() : resolvedApp.function()));
             return null;
           }
-          result = factory.app(factory.unparsedSequence(resolvedApp.rightElements(), seqExpr.getClauses()), true, factory.lam(Collections.singletonList(factory.param(leftExpr.getReferent())), result));
+          result = factory.app(factory.unparsedSequence(resolvedApp.rightElements(), seqExpr.getClauses()), true, factory.lam(Collections.singletonList(factory.param(leftArg.getExpression() instanceof ConcreteReferenceExpression leftExpr ? leftExpr.getReferent() : null)), result));
         } else {
           result = factory.app(arg, true, Collections.singletonList(result));
         }
