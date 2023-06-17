@@ -36,7 +36,7 @@ public class PopObjectMeta extends BaseObjectMeta {
     var args = contextData.getArguments();
     UserObjectKey key = getUserObject(args, typechecker.getErrorReporter());
     String defaultMessage = "Cannot " + (onlyPeek ? "peek" : "pop") + " object; the stack is empty";
-    String message = args.size() < 3 ? defaultMessage : getMessage(args.get(1).getExpression(), typechecker);
+    String message = args.size() < 2 ? defaultMessage : getMessage(args.get(1).getExpression(), typechecker);
     if (key == null || message == null) return null;
     if (message.isEmpty()) message = defaultMessage;
     List<ConcreteExpression> stack = typechecker.getUserData(key);
@@ -48,6 +48,6 @@ public class PopObjectMeta extends BaseObjectMeta {
     if (!onlyPeek) {
       stack.remove(stack.size() - 1);
     }
-    return typechecker.typecheck(args.size() <= 1 ? object : Utils.applyExpression(args.get(args.size() - 1).getExpression(), object, ext.factory.withData(contextData.getMarker())), contextData.getExpectedType());
+    return typechecker.typecheck(args.size() < 3 ? object : Utils.applyExpression(args.get(2).getExpression(), object, ext.factory.withData(contextData.getMarker())), contextData.getExpectedType());
   }
 }
