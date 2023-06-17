@@ -30,6 +30,8 @@ import org.arend.lib.meta.reflect.GetArgsMeta;
 import org.arend.lib.meta.reflect.ReflectMeta;
 import org.arend.lib.meta.reflect.TypecheckMeta;
 import org.arend.lib.meta.simplify.SimplifyMeta;
+import org.arend.lib.meta.user_object.PopObjectMeta;
+import org.arend.lib.meta.user_object.PushObjectMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -235,6 +237,14 @@ public class StdExtension implements ArendExtension {
     spliceRef = contributor.declare(reflect, new LongName("splice"), "If this meta occurs under {reflect} meta, then it is reflected to the identity function. Otherwise, it works just as {typecheck} meta.", Precedence.DEFAULT, new TypecheckMeta(this));
     contributor.declare(reflect, new LongName("getArgs"), "Returns the arguments in the CPS style", Precedence.DEFAULT, new GetArgsMeta(this));
     contributor.declare(reflect, new LongName("error"), "Fails with the given error message", Precedence.DEFAULT, new ErrorMeta());
+    contributor.declare(reflect, new LongName("pushObject"), "'pushObject ref obj cont' pushes 'obj' onto the stack associated with the reference 'ref' and returns 'cont'", Precedence.DEFAULT, new PushObjectMeta());
+    contributor.declare(reflect, new LongName("popObject"),
+        """
+          'popObject ref msg cont' pops an object from the stack associated with the reference 'ref' and returns 'cont' applied to this object.
+
+          If the stack is empty, then it fails with the error message 'msg' or a default error message if 'msg' is omitted.
+          """, Precedence.DEFAULT, new PopObjectMeta(this, false));
+    contributor.declare(reflect, new LongName("peekObject"), "Works just like {popObject}, but does not remove the object from the stack", Precedence.DEFAULT, new PopObjectMeta(this, true));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
