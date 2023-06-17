@@ -19,7 +19,7 @@ public class PushObjectMeta extends BaseObjectMeta {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     var args = contextData.getArguments();
-    UserObjectKey key = getUserObject(args, typechecker.getErrorReporter());
+    UserObjectKey key = getUserObject(args, typechecker);
     if (key == null) return null;
     List<ConcreteExpression> stack = typechecker.getUserData(key);
     if (stack == null) {

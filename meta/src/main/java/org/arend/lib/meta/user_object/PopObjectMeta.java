@@ -1,6 +1,7 @@
 package org.arend.lib.meta.user_object;
 
 import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.concrete.expr.ConcreteStringExpression;
 import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -34,9 +35,10 @@ public class PopObjectMeta extends BaseObjectMeta {
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     var args = contextData.getArguments();
-    UserObjectKey key = getUserObject(args, typechecker.getErrorReporter());
+    UserObjectKey key = getUserObject(args, typechecker);
     String defaultMessage = "Cannot " + (onlyPeek ? "peek" : "pop") + " object; the stack is empty";
-    String message = args.size() < 2 ? defaultMessage : getMessage(args.get(1).getExpression(), typechecker);
+    ConcreteExpression stringExpr = args.size() >= 3 || args.size() == 2 && args.get(1).getExpression() instanceof ConcreteStringExpression ? args.get(1).getExpression() : null;
+    String message = stringExpr == null ? defaultMessage : getMessage(stringExpr, typechecker);
     if (key == null || message == null) return null;
     if (message.isEmpty()) message = defaultMessage;
     List<ConcreteExpression> stack = typechecker.getUserData(key);
@@ -48,6 +50,6 @@ public class PopObjectMeta extends BaseObjectMeta {
     if (!onlyPeek) {
       stack.remove(stack.size() - 1);
     }
-    return typechecker.typecheck(args.size() < 3 ? object : Utils.applyExpression(args.get(2).getExpression(), object, ext.factory.withData(contextData.getMarker())), contextData.getExpectedType());
+    return typechecker.typecheck(args.size() >= 3 || args.size() == 2 && !(args.get(1).getExpression() instanceof ConcreteStringExpression) ? Utils.applyExpression(args.get(args.size() - 1).getExpression(), object, ext.factory.withData(contextData.getMarker())) : object, contextData.getExpectedType());
   }
 }
