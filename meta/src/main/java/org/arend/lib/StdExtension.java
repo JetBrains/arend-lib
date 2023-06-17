@@ -242,7 +242,8 @@ public class StdExtension implements ArendExtension {
         """
           'popObject ref msg cont' pops an object from the stack associated with the reference 'ref' and returns 'cont' applied to this object.
 
-          If the stack is empty, then it fails with the error message 'msg' or a default error message if 'msg' is omitted.
+          If 'cont' is omitted, {popObject} just returns the object.
+          If the stack is empty, then it fails with the error message 'msg' or a default error message if 'msg' is omitted or empty.
           """, Precedence.DEFAULT, new PopObjectMeta(this, false));
     contributor.declare(reflect, new LongName("peekObject"), "Works just like {popObject}, but does not remove the object from the stack", Precedence.DEFAULT, new PopObjectMeta(this, true));
 

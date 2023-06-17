@@ -28,15 +28,17 @@ public class PopObjectMeta extends BaseObjectMeta {
 
   @Override
   public int numberOfOptionalExplicitArguments() {
-    return 1;
+    return 2;
   }
 
   @Override
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     var args = contextData.getArguments();
     UserObjectKey key = getUserObject(args, typechecker.getErrorReporter());
-    String message = args.size() < 3 ? "Cannot " + (onlyPeek ? "peek" : "pop") + " object; the stack is empty" : getMessage(args.get(1).getExpression(), typechecker);
+    String defaultMessage = "Cannot " + (onlyPeek ? "peek" : "pop") + " object; the stack is empty";
+    String message = args.size() < 3 ? defaultMessage : getMessage(args.get(1).getExpression(), typechecker);
     if (key == null || message == null) return null;
+    if (message.isEmpty()) message = defaultMessage;
     List<ConcreteExpression> stack = typechecker.getUserData(key);
     if (stack == null || stack.isEmpty()) {
       typechecker.getErrorReporter().report(new TypecheckingError(message, contextData.getMarker()));
@@ -46,6 +48,6 @@ public class PopObjectMeta extends BaseObjectMeta {
     if (!onlyPeek) {
       stack.remove(stack.size() - 1);
     }
-    return typechecker.typecheck(Utils.applyExpression(args.get(args.size() - 1).getExpression(), object, ext.factory.withData(contextData.getMarker())), contextData.getExpectedType());
+    return typechecker.typecheck(args.size() <= 1 ? object : Utils.applyExpression(args.get(args.size() - 1).getExpression(), object, ext.factory.withData(contextData.getMarker())), contextData.getExpectedType());
   }
 }
