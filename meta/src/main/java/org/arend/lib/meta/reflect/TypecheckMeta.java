@@ -4,7 +4,6 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreDataDefinition;
-import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
@@ -51,8 +50,6 @@ public class TypecheckMeta extends BaseMetaDefinition {
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor namePattern;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor numberPattern;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor conPattern;
-
-  @Dependency(module = "Reflect.IO", name = ">>=")  public CoreFunctionDefinition bind;
 
   final StdExtension ext;
 

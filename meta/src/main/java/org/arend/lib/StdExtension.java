@@ -8,6 +8,7 @@ import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
+import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.MetaRef;
 import org.arend.ext.reference.Precedence;
 import org.arend.ext.typechecking.*;
@@ -80,6 +81,8 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
   @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
   @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
+
+  @Dependency(module = "Reflect.IO", name = ">>=")  public ArendRef ioBind;
 
   public final EquationMeta equationMeta = new EquationMeta(this);
   public final LinearSolverMeta linearSolverMeta = new LinearSolverMeta(this);

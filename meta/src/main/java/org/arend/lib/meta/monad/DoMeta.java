@@ -19,6 +19,6 @@ public class DoMeta extends BaseMonadMeta {
 
   @Override
   ConcreteExpression combine(ConcreteExpression expr1, ArendRef ref, ConcreteExpression expr2, ConcreteFactory factory) {
-    return factory.app(factory.ref(ext.tcMeta.bind.getRef()), true, expr1, factory.lam(Collections.singletonList(factory.param(ref)), expr2));
+    return factory.app(factory.ref(ext.ioBind), true, expr1, factory.lam(Collections.singletonList(factory.param(ref)), expr2));
   }
 }
