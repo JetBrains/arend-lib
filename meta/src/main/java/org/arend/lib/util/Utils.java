@@ -467,31 +467,50 @@ public class Utils {
     }
   }
 
-  public static ConcreteExpression applyExpression(ConcreteExpression fun, ConcreteExpression arg, ConcreteFactory factory) {
-    if (fun instanceof ConcreteLamExpression lamExpr) {
+  public static ConcreteExpression applyExpressions(ConcreteExpression fun, List<? extends ConcreteArgument> args, ConcreteFactory factory) {
+    if (args.isEmpty()) return fun;
+    if (fun instanceof ConcreteLamExpression lamExpr && lamExpr.getParameters().get(0).isExplicit() == args.get(0).isExplicit()) {
+      Map<ArendRef, ConcreteExpression> map = new HashMap<>();
+      int i = 0;
       ConcreteExpression body = lamExpr.getBody();
-      List<? extends ConcreteParameter> lamParams = lamExpr.getParameters();
-      ConcreteParameter lamParam0 = lamParams.get(0);
-      List<? extends ArendRef> refs = lamParams.get(0).getRefList();
-      if (lamParams.size() > 1 || refs.size() > 1) {
-        List<ConcreteParameter> params = new ArrayList<>();
-        if (refs.size() > 1) {
-          ConcreteExpression type = lamParam0.getType();
-          if (type == null) {
-            for (int i = 1; i < refs.size(); i++) {
-              params.add(factory.param(lamParam0.isExplicit(), refs.get(i)));
+      List<? extends ConcreteParameter> parameters = lamExpr.getParameters();
+      loop:
+      for (int j = 0; j < parameters.size(); j++) {
+        ConcreteParameter parameter = parameters.get(j);
+        List<? extends ArendRef> referableList = parameter.getRefList();
+        for (int k = 0; k < referableList.size(); k++) {
+          boolean doBreak = parameter.isExplicit() != args.get(i).isExplicit();
+          if (!doBreak) {
+            if (referableList.get(k) != null) {
+              map.put(referableList.get(k), args.get(i).getExpression());
             }
-          } else {
-            params.add(factory.param(lamParam0.isExplicit(), refs.subList(1, refs.size()), type));
+            if (++i >= args.size()) {
+              doBreak = true;
+              k++;
+            }
+          }
+          if (doBreak) {
+            if (k < referableList.size() || j < parameters.size() - 1) {
+              List<ConcreteParameter> newParams = new ArrayList<>();
+              if (k < referableList.size()) {
+                newParams.add(factory.withData(parameter.getData()).param(parameter.isExplicit(), parameter.getRefList().subList(k, parameter.getRefList().size()), Objects.requireNonNull(parameter.getType())));
+              }
+              newParams.addAll(parameters.subList(j + 1, parameters.size()));
+              body = factory.withData(lamExpr.getData()).lam(newParams, lamExpr.getBody());
+            }
+            break loop;
           }
         }
-        params.addAll(lamParams.subList(1, lamParams.size()));
-        body = factory.lam(params, body);
       }
-      ArendRef ref = refs.get(0);
-      return ref == null ? body : body.substitute(Collections.singletonMap(ref, arg));
-    } else {
-      return factory.app(fun, true, arg);
+      if (i > 0) {
+        return factory.withData(fun.getData()).app(body.substitute(map), args.subList(i, args.size()));
+      }
     }
+
+    return factory.app(fun, args);
+  }
+
+  public static ConcreteExpression applyExpression(ConcreteExpression fun, ConcreteExpression arg, ConcreteFactory factory) {
+    return applyExpressions(fun, Collections.singletonList(factory.arg(arg, true)), factory);
   }
 }

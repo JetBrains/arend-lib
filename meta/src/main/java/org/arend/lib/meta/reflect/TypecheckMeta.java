@@ -7,6 +7,7 @@ import org.arend.ext.core.definition.CoreDataDefinition;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.typechecking.*;
 import org.arend.lib.StdExtension;
+import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -79,6 +80,7 @@ public class TypecheckMeta extends BaseMetaDefinition {
       }
       return null;
     }
-    return typechecker.typecheck(factory.app(result, args.subList(1, args.size())), contextData.getExpectedType());
+
+    return typechecker.typecheck(Utils.applyExpressions(result, args.subList(1, args.size()), factory), contextData.getExpectedType());
   }
 }
