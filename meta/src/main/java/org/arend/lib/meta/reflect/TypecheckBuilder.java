@@ -141,17 +141,24 @@ public class TypecheckBuilder {
     }
   }
 
-  private <T> List<T> processArray(CoreExpression expr, Function<CoreExpression, T> elementProcessor) {
+  public static  <T> List<T> processArray(CoreExpression expr, Function<CoreExpression, T> elementProcessor, ConcreteExpression marker) {
     List<? extends CoreExpression> elements = expr.getArrayElements();
     if (elements == null) {
+      if (marker == null) return null;
       throw TypecheckBuildError.makeException("Invalid expression. Expected an array.", expr, marker);
     }
 
     List<T> result = new ArrayList<>(elements.size());
     for (CoreExpression element : elements) {
-      result.add(elementProcessor.apply(element));
+      T t = elementProcessor.apply(element);
+      if (marker == null && t == null) return null;
+      result.add(t);
     }
     return result;
+  }
+
+  private <T> List<T> processArray(CoreExpression expr, Function<CoreExpression, T> elementProcessor) {
+    return processArray(expr, elementProcessor, marker);
   }
 
   private <T> T processMaybe(CoreExpression expr, Function<CoreExpression, T> elementProcessor) {

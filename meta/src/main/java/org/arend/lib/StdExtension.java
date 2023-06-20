@@ -94,6 +94,7 @@ public class StdExtension implements ArendExtension {
   public final SimpCoeMeta simpCoeFMeta = new SimpCoeMeta(this, true);
   public final SIPMeta sipMeta = new SIPMeta(this);
   public final TypecheckMeta tcMeta = new TypecheckMeta(this);
+  public final ErrorMeta errorMeta = new ErrorMeta();
   public MetaRef reflectRef;
   public MetaRef quoteRef;
   public MetaRef spliceRef;
@@ -135,6 +136,7 @@ public class StdExtension implements ArendExtension {
   @Override
   public void load(@NotNull ArendDependencyProvider provider) {
     provider.load(tcMeta);
+    provider.load(errorMeta);
     provider.load(this);
     provider.load(simpCoeMeta);
     simpCoeFMeta.transport_path_pmap = provider.getDefinition(new ModulePath("Paths"), LongName.fromString("transport_path_pmap.conv"), CoreFunctionDefinition.class);
@@ -241,7 +243,7 @@ public class StdExtension implements ArendExtension {
     quoteRef = contributor.declare(reflect, new LongName("quote"), "If this meta occurs under {reflect} meta, then it is reflected to `quoteExpr`. Otherwise, it expects one explicit argument and just returns it.", Precedence.DEFAULT, new IdMeta(this));
     spliceRef = contributor.declare(reflect, new LongName("splice"), "If this meta occurs under {reflect} meta, then it is reflected to the identity function. Otherwise, it works just as {typecheck} meta.", Precedence.DEFAULT, tcMeta);
     contributor.declare(reflect, new LongName("getArgs"), "Returns the arguments in the CPS style", Precedence.DEFAULT, new GetArgsMeta(this));
-    contributor.declare(reflect, new LongName("error"), "Fails with the given error message", Precedence.DEFAULT, new ErrorMeta());
+    contributor.declare(reflect, new LongName("error"), "Fails with the given error message. The argument should be either of type {String} or {Reflect.IO.Error}", Precedence.DEFAULT, errorMeta);
     contributor.declare(reflect, new LongName("pushObject"), "'pushObject name obj cont' pushes 'obj' onto the stack 'name' and returns 'cont'", Precedence.DEFAULT, new PushObjectMeta());
     contributor.declare(reflect, new LongName("popObject"),
         """
