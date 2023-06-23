@@ -7,6 +7,7 @@ import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.level.*;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.concrete.pattern.*;
+import org.arend.ext.core.context.CoreInferenceVariable;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.error.FieldsImplementationError;
 import org.arend.ext.error.MissingArgumentsError;
@@ -102,12 +103,15 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       throw new ReflectionException(new MissingArgumentsError(1, expr));
     }
 
-    ConcreteExpression var = null;
-    if (!ref.isInferenceRef()) {
-      var = getLocalVar(ref);
-      if (var == null && ref.isLocalRef()) {
-        throw new ReflectionException(new UnknownReferenceError(ref, expr));
-      }
+    CoreInferenceVariable infVar = ref.getInferenceVariable();
+    if (infVar != null) {
+      TypedExpression typedExpr = infVar.computeTyped();
+      return factory.app(factory.ref(ext.tcMeta.quoteExpr.getRef()), factory.arg(factory.core(typedExpr.getType().computeTyped()), false), factory.arg(factory.core(typedExpr), true));
+    }
+
+    ConcreteExpression var = getLocalVar(ref);
+    if (var == null && ref.isLocalRef()) {
+      throw new ReflectionException(new UnknownReferenceError(ref, expr));
     }
     return var != null ? var : factory.app(factory.ref(ext.tcMeta.globalVar.getRef()), true, factory.qName(ref), levelsToExpression(expr.getPLevels()), levelsToExpression(expr.getHLevels()));
   }
@@ -446,7 +450,16 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   @Override
   public ConcreteExpression visitVar(ConcreteVarLevel expr, Void param) {
     ConcreteFactory factory = this.factory.withData(expr);
-    return factory.app(factory.ref(ext.tcMeta.varLevel.getRef()), true, factory.qName(expr.getReferent()));
+    ArendRef ref = expr.getReferent();
+    if (ref.isInferenceRef()) {
+      return factory.app(factory.ref(ext.tcMeta.varLevel.getRef()), true, factory.qName(ref));
+    }
+
+    int index = typechecker.getLevelVariableIndex(ref);
+    if (index < 0) {
+      throw new ReflectionException(new UnknownReferenceError(ref, expr));
+    }
+    return factory.app(factory.ref(ext.tcMeta.varLevel.getRef()), true, factory.number(index), factory.ref(ref.getRefKind() == ArendRef.RefKind.PLEVEL ? ext.tcMeta.pLevel.getRef() : ext.tcMeta.hLevel.getRef()));
   }
 
   @Override

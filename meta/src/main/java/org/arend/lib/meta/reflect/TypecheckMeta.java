@@ -43,6 +43,7 @@ public class TypecheckMeta extends BaseMetaDefinition {
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor numberLevel;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor infLevel;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor varLevel;
+  @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor infVarLevel;
 
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor pLevel;
   @Dependency(module = "Reflect.ConcreteExpr")  public CoreConstructor hLevel;

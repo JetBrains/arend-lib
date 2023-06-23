@@ -91,6 +91,16 @@ public class TypecheckBuilder {
     }
   }
 
+  private ArendRef getVarRef(CoreExpression expr, LevelType levelType) {
+    int n = getSmallNatural(expr);
+    ArendRef ref = typechecker.getLevelVariable(n, levelType == LevelType.PLEVEL);
+    if (ref == null) {
+      List<? extends ArendRef> refs = typechecker.getLevelVariables(levelType == LevelType.PLEVEL);
+      throw new TypecheckException(new TypecheckingError("Index too large: " + n + ", number of variables: " + refs.size(), marker));
+    }
+    return ref;
+  }
+
   private ConcreteReferenceExpression getLocalRef(CoreExpression expr) {
     int n = getSmallNatural(expr);
     if (n >= localRefs.size()) {
@@ -285,6 +295,8 @@ public class TypecheckBuilder {
     } else if (constructor == meta.infLevel) {
       return factory.inf();
     } else if (constructor == meta.varLevel) {
+      return factory.varLevel(getVarRef(expr.getDefCallArguments().get(0), processLevelType(expr.getDefCallArguments().get(1))));
+    } else if (constructor == meta.infVarLevel) {
       return factory.varLevel(getQName(expr.getDefCallArguments().get(0)));
     } else {
       throw TypecheckBuildError.makeException(expr, marker);

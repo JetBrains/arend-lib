@@ -30,11 +30,9 @@ import java.util.List;
 
 public class ConstructorMeta extends BaseMetaDefinition {
   private final StdExtension ext;
-  private final boolean withImplicit;
 
-  public ConstructorMeta(StdExtension ext, boolean withImplicit) {
+  public ConstructorMeta(StdExtension ext, boolean foo) {
     this.ext = ext;
-    this.withImplicit = withImplicit;
   }
 
   @Override
@@ -47,7 +45,7 @@ public class ConstructorMeta extends BaseMetaDefinition {
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     CoreExpression type = contextData.getExpectedType().normalize(NormalizationMode.WHNF);
 
-    if (!withImplicit || type instanceof CoreSigmaExpression) {
+    if (type instanceof CoreSigmaExpression) {
       for (ConcreteArgument argument : contextData.getArguments()) {
         if (!argument.isExplicit()) {
           typechecker.getErrorReporter().report(new ArgumentExplicitnessError(true, argument.getExpression()));
@@ -63,15 +61,10 @@ public class ConstructorMeta extends BaseMetaDefinition {
       return typechecker.typecheck(factory.tuple(args), type);
     }
 
-    if (type instanceof CoreClassCallExpression) {
-      CoreClassCallExpression classCall = (CoreClassCallExpression) type;
+    if (type instanceof CoreClassCallExpression classCall) {
       List<? extends ConcreteArgument> args = contextData.getArguments();
       Boolean isEmpty = Utils.isArrayEmpty(classCall, ext);
       if (isEmpty != null) {
-        if (withImplicit) {
-          return typechecker.typecheck(factory.app(factory.ref(isEmpty ? ext.prelude.getEmptyArray().getRef() : ext.prelude.getArrayCons().getRef()), args), type);
-        }
-
         boolean hasElementsType = classCall.isImplemented(ext.prelude.getArrayElementsType());
         int expected = (hasElementsType ? 0 : 1) + (isEmpty ? 0 : 2);
         if (args.size() < expected) {
@@ -90,10 +83,6 @@ public class ConstructorMeta extends BaseMetaDefinition {
           newArgs.add(factory.arg(args.get(i).getExpression(), true));
         }
         return typechecker.typecheck(factory.app(factory.ref(isEmpty ? ext.prelude.getEmptyArray().getRef() : ext.prelude.getArrayCons().getRef()), newArgs), type);
-      }
-
-      if (withImplicit) {
-        return typechecker.typecheck(factory.newExpr(factory.app(factory.ref(classCall.getDefinition().getRef()), args)), type);
       }
 
       List<ConcreteClassElement> elements = new ArrayList<>();
@@ -131,29 +120,27 @@ public class ConstructorMeta extends BaseMetaDefinition {
 
       if (constructors.size() == 1) {
         List<? extends ConcreteArgument> args = contextData.getArguments();
-        if (!withImplicit) {
-          List<ConcreteArgument> newArgs = new ArrayList<>();
-          CoreParameter param = constructors.get(0).getParameters();
-          for (ConcreteArgument arg : args) {
-            if (!param.hasNext()) {
-              typechecker.getErrorReporter().report(new TypecheckingError("Too many arguments", arg.getExpression()));
-              return null;
-            }
-            newArgs.add(factory.arg(arg.getExpression(), param.isExplicit()));
-            param = param.getNext();
+        List<ConcreteArgument> newArgs = new ArrayList<>();
+        CoreParameter param = constructors.get(0).getParameters();
+        for (ConcreteArgument arg : args) {
+          if (!param.hasNext()) {
+            typechecker.getErrorReporter().report(new TypecheckingError("Too many arguments", arg.getExpression()));
+            return null;
           }
-          args = newArgs;
+          newArgs.add(factory.arg(arg.getExpression(), param.isExplicit()));
+          param = param.getNext();
         }
+        args = newArgs;
 
         if (!args.isEmpty() && !args.get(0).isExplicit()) {
           CoreParameter dataParam = ((CoreDataCallExpression) type).getDefinition().getParameters();
           if (dataParam.hasNext()) {
-            List<ConcreteArgument> newArgs = new ArrayList<>();
+            List<ConcreteArgument> newArgs2 = new ArrayList<>();
             for (; dataParam.hasNext(); dataParam = dataParam.getNext()) {
-              newArgs.add(factory.arg(factory.hole(), false));
+              newArgs2.add(factory.arg(factory.hole(), false));
             }
-            newArgs.addAll(args);
-            args = newArgs;
+            newArgs2.addAll(args);
+            args = newArgs2;
           }
         }
 
