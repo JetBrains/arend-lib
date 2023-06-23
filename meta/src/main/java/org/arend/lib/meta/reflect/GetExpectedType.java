@@ -33,7 +33,14 @@ public class GetExpectedType extends BaseMetaDefinition {
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     CoreExpression expectedType = contextData.getExpectedType();
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
-    ConcreteExpression result = expectedType == null ? factory.ref(ext.nothing.getRef()) : factory.app(factory.ref(ext.just.getRef()), true, expectedType.accept(new CoreReflectBuilder(factory, typechecker, ext), null));
-    return typechecker.typecheck(Utils.applyExpression(contextData.getArguments().get(0).getExpression(), result, factory), contextData.getExpectedType());
+    ConcreteExpression result;
+    if (expectedType == null) {
+      result = factory.app(factory.ref(ext.nothing.getRef()), false, factory.ref(ext.tcMeta.ConcreteExpr.getRef()));
+    } else {
+      ConcreteExpression concreteType = ext.reflectCore(expectedType, typechecker, factory);
+      if (concreteType == null) return null;
+      result = factory.app(factory.ref(ext.just.getRef()), true, concreteType);
+    }
+    return typechecker.typecheck(Utils.applyExpression(contextData.getArguments().get(0).getExpression(), result, factory), expectedType);
   }
 }

@@ -2,12 +2,17 @@ package org.arend.lib;
 
 import org.arend.ext.*;
 import org.arend.ext.concrete.ConcreteFactory;
+import org.arend.ext.concrete.expr.ConcreteExpression;
+import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.*;
+import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.dependency.Dependency;
 import org.arend.ext.dependency.ArendDependencyProvider;
 import org.arend.ext.module.LongName;
 import org.arend.ext.module.ModulePath;
+import org.arend.ext.prettyprinting.PrettyPrinterConfig;
+import org.arend.ext.prettyprinting.PrettyPrinterFlag;
 import org.arend.ext.reference.ArendRef;
 import org.arend.ext.reference.MetaRef;
 import org.arend.ext.reference.Precedence;
@@ -28,15 +33,14 @@ import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.linear.LinearSolverMeta;
 import org.arend.lib.meta.monad.DoMeta;
 import org.arend.lib.meta.monad.RunMeta;
-import org.arend.lib.meta.reflect.ErrorMeta;
-import org.arend.lib.meta.reflect.GetArgsMeta;
-import org.arend.lib.meta.reflect.ReflectMeta;
-import org.arend.lib.meta.reflect.TypecheckMeta;
+import org.arend.lib.meta.reflect.*;
 import org.arend.lib.meta.simplify.SimplifyMeta;
 import org.arend.lib.meta.user_object.PopObjectMeta;
 import org.arend.lib.meta.user_object.PushObjectMeta;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.EnumSet;
 
 @SuppressWarnings("unused")
 public class StdExtension implements ArendExtension {
@@ -107,6 +111,36 @@ public class StdExtension implements ArendExtension {
   private final StdNumberTypechecker numberTypechecker = new StdNumberTypechecker(this);
   private final ListDefinitionListener definitionListener = new ListDefinitionListener().addDeclaredListeners(this);
   public ArendUI ui;
+
+  private static final PrettyPrinterConfig ppConfig = new PrettyPrinterConfig() {
+    @Override
+    public @NotNull EnumSet<PrettyPrinterFlag> getExpressionFlags() {
+      return EnumSet.allOf(PrettyPrinterFlag.class);
+    }
+
+    @Override
+    public @Nullable NormalizationMode getNormalizationMode() {
+      return null;
+    }
+
+    @Override
+    public int getVerboseLevel(@NotNull CoreExpression expression) {
+      return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public int getVerboseLevel(@NotNull CoreParameter parameter) {
+      return Integer.MAX_VALUE;
+    }
+  };
+
+  public static ConcreteExpression coreToConcrete(CoreExpression expr) {
+    return expr.toConcrete(ppConfig);
+  }
+
+  public ConcreteExpression reflectCore(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory) {
+    return ReflectBuilder.process(coreToConcrete(expr), typechecker, this, factory);
+  }
 
   @Override
   public void setUI(@NotNull ArendUI ui) {
@@ -243,6 +277,7 @@ public class StdExtension implements ArendExtension {
     quoteRef = contributor.declare(reflect, new LongName("quote"), "If this meta occurs under {reflect} meta, then it is reflected to `quoteExpr`. Otherwise, it expects one explicit argument and just returns it.", Precedence.DEFAULT, new IdMeta(this));
     spliceRef = contributor.declare(reflect, new LongName("splice"), "If this meta occurs under {reflect} meta, then it is reflected to the identity function. Otherwise, it works just as {typecheck} meta.", Precedence.DEFAULT, tcMeta);
     contributor.declare(reflect, new LongName("getArgs"), "Returns the arguments in the CPS style", Precedence.DEFAULT, new GetArgsMeta(this));
+    contributor.declare(reflect, new LongName("getExpectedType"), "Returns the expected type in the CPS style", Precedence.DEFAULT, new GetExpectedType(this));
     contributor.declare(reflect, new LongName("error"), "Fails with the given error message. The argument should be either of type {String} or {Reflect.IO.Error}", Precedence.DEFAULT, errorMeta);
     contributor.declare(reflect, new LongName("pushObject"), "'pushObject name obj cont' pushes 'obj' onto the stack 'name' and returns 'cont'", Precedence.DEFAULT, new PushObjectMeta());
     contributor.declare(reflect, new LongName("popObject"),

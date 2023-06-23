@@ -31,6 +31,15 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
     this.ext = ext;
   }
 
+  public static ConcreteExpression process(ConcreteExpression expr, ExpressionTypechecker typechecker, StdExtension ext, ConcreteFactory factory) {
+    try {
+      return expr.accept(new ReflectBuilder(typechecker, ext, factory), null);
+    } catch (ReflectionException e) {
+      typechecker.getErrorReporter().report(e.error);
+      return null;
+    }
+  }
+
   public ConcreteExpression makeBool(boolean b) {
     return factory.ref(b ? ext.true_.getRef() : ext.false_.getRef());
   }
@@ -93,9 +102,12 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
       throw new ReflectionException(new MissingArgumentsError(1, expr));
     }
 
-    ConcreteExpression var = getLocalVar(ref);
-    if (var == null && ref.isLocalRef()) {
-      throw new ReflectionException(new UnknownReferenceError(ref, expr));
+    ConcreteExpression var = null;
+    if (!ref.isInferenceRef()) {
+      var = getLocalVar(ref);
+      if (var == null && ref.isLocalRef()) {
+        throw new ReflectionException(new UnknownReferenceError(ref, expr));
+      }
     }
     return var != null ? var : factory.app(factory.ref(ext.tcMeta.globalVar.getRef()), true, factory.qName(ref), levelsToExpression(expr.getPLevels()), levelsToExpression(expr.getHLevels()));
   }
@@ -434,12 +446,7 @@ public class ReflectBuilder implements ConcreteVisitor<Void, ConcreteExpression>
   @Override
   public ConcreteExpression visitVar(ConcreteVarLevel expr, Void param) {
     ConcreteFactory factory = this.factory.withData(expr);
-    int pIndex = typechecker.getLevelVariables(true).indexOf(expr.getReferent());
-    int hIndex = pIndex == -1 ? typechecker.getLevelVariables(false).indexOf(expr.getReferent()) : -1;
-    if (pIndex < 0 && hIndex < 0) {
-      throw new ReflectionException(new UnknownReferenceError(expr.getReferent(), expr));
-    }
-    return factory.app(factory.ref(ext.tcMeta.varLevel.getRef()), true, factory.number(pIndex >= 0 ? pIndex : hIndex), factory.ref(pIndex >= 0 ? ext.tcMeta.pLevel.getRef() : ext.tcMeta.hLevel.getRef()));
+    return factory.app(factory.ref(ext.tcMeta.varLevel.getRef()), true, factory.qName(expr.getReferent()));
   }
 
   @Override

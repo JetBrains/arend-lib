@@ -27,13 +27,6 @@ public class ReflectMeta extends BaseMetaDefinition {
     ConcreteExpression arg = contextData.getArguments().get(0).getExpression();
     ConcreteFactory factory = ext.factory.withData(contextData.getMarker());
     TypedExpression type = typechecker.typecheck(factory.ref(ext.tcMeta.ConcreteExpr.getRef()), null);
-    return type == null ? null : typechecker.makeDataExpression(new ReflectedExpression(arg), () -> {
-      try {
-        return arg.accept(new ReflectBuilder(typechecker, ext, factory), null);
-      } catch (ReflectionException e) {
-        typechecker.getErrorReporter().report(e.error);
-        return null;
-      }
-    }, type.getExpression());
+    return type == null ? null : typechecker.makeDataExpression(new ReflectedExpression(arg), () -> ReflectBuilder.process(arg, typechecker, ext, factory), type.getExpression());
   }
 }
