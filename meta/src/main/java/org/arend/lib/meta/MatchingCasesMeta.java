@@ -1084,7 +1084,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
           return binding == null ? null : binding.makeReference();
         }
         return null;
-      });
+      }, false);
       if (result == null) {
         typechecker.getErrorReporter().report(new TypecheckingError("Cannot substitute expressions", contextData.getMarker()));
         return null;

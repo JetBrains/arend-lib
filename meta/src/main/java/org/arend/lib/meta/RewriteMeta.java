@@ -410,7 +410,7 @@ public class RewriteMeta extends BaseMetaDefinition {
           Integer varInd = occurIndToVarInd.get(occurInd);
           if (varInd == null) return null;
           return checkedVars.get(varInd).getExpression();
-        });
+        }, false);
 
         TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {
