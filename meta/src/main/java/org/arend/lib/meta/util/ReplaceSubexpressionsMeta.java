@@ -51,7 +51,7 @@ public class ReplaceSubexpressionsMeta implements MetaDefinition {
           }
         }
         return null;
-      });
+      }, false);
       return replaced == null ? null : typechecker.check(replaced, marker);
     });
   }

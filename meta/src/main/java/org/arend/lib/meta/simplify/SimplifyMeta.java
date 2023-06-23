@@ -162,7 +162,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
           Integer occurInd = indexOfSubExpr.get(expression);
           if (occurInd == null) return null;
           return checkedVars.get(occurInd).getExpression();
-        });
+        }, false);
 
         TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {

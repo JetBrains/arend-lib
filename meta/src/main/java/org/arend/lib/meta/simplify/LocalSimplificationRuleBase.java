@@ -84,7 +84,7 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
                       return checkedPath.getExpression();
                     }
                     return null;
-                  });
+                  }, false);
                   return exprWithInterval != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(exprWithInterval, refExpr)) : null;
                 }}));
       var simplifiedExpr = expr.getExpression().replaceSubexpressions(expression -> {
@@ -92,7 +92,7 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
           return simplifyRes.proj1;
         }
         return null;
-      });
+      }, false);
       if (simplifiedExpr == null) return null;
       var checkedLam = typechecker.typecheck(lam, null);
       if (checkedLam == null) return null;
