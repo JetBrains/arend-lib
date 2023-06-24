@@ -10,7 +10,7 @@ public class UserObjectKey extends Key<List<ConcreteExpression>> {
   private final String myName;
 
   public UserObjectKey(String name) {
-    super("user_object");
+    super("user_object:" + name);
     myName = name;
   }
 

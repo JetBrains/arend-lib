@@ -1,4 +1,5 @@
 \import Data.Bool
+\import Data.Maybe
 \import Meta
 \import Reflect.ConcreteExpr
 \import Reflect.Error
@@ -14,9 +15,12 @@
 
 \meta runIO {A : \Type} (m : IO A) => run {
   args <- Reflect.Meta.getArgs,
-  Reflect.Meta.pushObject "runIO" args,
+  type <- Reflect.Meta.getExpectedType,
+  Reflect.Meta.pushObject "runIO:args" args,
+  Reflect.Meta.pushObject "runIO:type" type,
   res <- doIO m,
-  _ <- Reflect.Meta.popObject "runIO",
+  _ <- Reflect.Meta.popObject "runIO:type",
+  _ <- Reflect.Meta.popObject "runIO:args",
   res
 }
 
@@ -27,7 +31,10 @@
   | io e => io (reflect (\lam (c : B -> _) => splice e (\lam a => doIO (k a) c)))
 
 \func getArgs : IO (Array (\Sigma ConcreteExpr Bool))
-  => io (reflect (Reflect.Meta.peekObject "runIO" "'getArgs' must be invoked within 'runIO'"))
+  => io (reflect (Reflect.Meta.peekObject "runIO:args" "'getArgs' must be invoked within 'runIO'"))
+
+\func getExpectedType : IO (Maybe ConcreteExpr)
+  => io (reflect (Reflect.Meta.peekObject "runIO:type" "'getExpectedType' must be invoked within 'runIO'"))
 
 \func abort {A : \Type} (e : ConcreteExpr) : IO A
   => io (reflect (\lam (_ : A -> _) => splice e))
@@ -41,7 +48,7 @@
   => io (reflect (\lam (c : \Sigma -> _) => Reflect.Meta.pushObject id (splice e) (c ())))
 
 \func popObject (id : String) : IO ConcreteExpr
-  => io (reflect (\lam (c : ConcreteExpr -> _) => Reflect.Meta.popObject id "" (\lam o => c (quoteExpr o))))
+  => io (reflect (\lam (c : ConcreteExpr -> _) => Reflect.Meta.popObject id "" (\lam o => c (reflect o))))
 
 \func peekObject (id : String) : IO ConcreteExpr
-  => io (reflect (\lam (c : ConcreteExpr -> _) => Reflect.Meta.peekObject id "" (\lam o => c (quoteExpr o))))
+  => io (reflect (\lam (c : ConcreteExpr -> _) => Reflect.Meta.peekObject id "" (\lam o => c (reflect o))))
