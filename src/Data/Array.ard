@@ -1,9 +1,13 @@
 \import Data.Bool
+\import Data.Fin
 \import Data.Maybe
 \import Data.Or
+\import Function.Meta ($)
+\import Logic
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Set
 
 \func mkArray {A : \Type} {n : Nat} (f : Fin n -> A) => \new Array A n f
 
@@ -121,3 +125,72 @@
 
 \func replicate {A : \Type} (n : Nat) (a : A)
   => \new Array A n (\lam _ => a)
+
+\func remove {A : DecSet} (a : A) (l : Array A) : Array A \elim l
+  | nil => nil
+  | a' :: l => \case decideEq a a' \with {
+    | yes _ => remove a l
+    | no _ => a' :: remove a l
+  }
+  \where {
+    \lemma no-element {A : DecSet} {a : A} {l : Array A} {i : Fin (DArray.len {remove a l})} (p : remove a l i = a) : Empty \elim l
+      | nil => \case i
+      | a' :: l => cases (decideEq a a', i, p) \with {
+        | yes e, i, p => no-element p
+        | no q, 0, p => q (inv p)
+        | no q, suc i, p => no-element p
+      }
+
+    \func preimage {A : DecSet} (a : A) (l : Array A) (i : Fin (DArray.len {remove a l})) : \Sigma (j : Fin l.len) (remove a l i = l j) \elim l
+      | nil => (i,idp)
+      | a' :: l => cases (decideEq a a', i) \with {
+        | yes e, i => \let t => preimage a l i \in (suc t.1, t.2)
+        | no q, 0 => (0,idp)
+        | no q, suc i => \let t => preimage a l i \in (suc t.1, t.2)
+      }
+
+    \lemma no-repeats {A : DecSet} {l : Array A} (p : \Pi {i j : Fin l.len} -> l i = l j -> i = j) {a : A} {i j : Fin (DArray.len {remove a l})} (q : remove a l i = remove a l j) : i = j \elim l
+      | nil => \case i
+      | a' :: l => cases (decideEq a a', i, j, q) \with {
+        | yes _, i, j, q => no-repeats (\lam {i'} {j'} s => pmap (fpred i') $ p {suc i'} {suc j'} s) q
+        | no _, 0, 0, q => idp
+        | no s, 0, suc j, q => \let t => preimage a l j \in \case p {0} {suc t.1} (q *> t.2)
+        | no _, suc i, 0, q => \let t => preimage a l i \in \case p {suc t.1} {0} (inv t.2 *> q)
+        | no s, suc i, suc j, q => pmap fsuc (no-repeats (\lam {i'} {j'} s => pmap (fpred i') $ p {suc i'} {suc j'} s) q)
+      }
+  }
+
+\func nub {A : DecSet} (l : Array A) : Array A \elim l
+  | nil => nil
+  | a :: l => a :: remove a (nub l)
+
+\func nub-isSruj {A : DecSet} (l : Array A) (i : Fin l.len) : \Sigma (j : Fin (DArray.len {nub l})) (nub l j = l i) \elim l, i
+  | a :: l, 0 => (0,idp)
+  | a :: l, suc i =>
+    \case decideEq a (l i) \with {
+      | yes e => (0,e)
+      | no q =>
+        \have | t => nub-isSruj l i
+              | s => remove-isSurj a (nub l) t.1 $ \lam p => q $ inv p *> t.2
+        \in (suc s.1, s.2 *> t.2)
+    }
+  \where {
+    \func remove-isSurj {A : DecSet} (a : A) (l : Array A) (i : Fin l.len) (p : l i /= a) : \Sigma (j : Fin (DArray.len {remove a l})) (remove a l j = l i) \elim l
+      | nil => \case i
+      | a' :: l => mcases \with {
+        | yes e => cases (i,p) \with {
+          | 0, p => absurd $ p (inv e)
+          | suc i, p => remove-isSurj a l i p
+        }
+        | no q => cases (i,p) \with {
+          | 0, p => (0,idp)
+          | suc i, p => \let t => remove-isSurj a l i p \in (suc t.1, t.2)
+        }
+      }
+  }
+
+\lemma nub-isInj {A : DecSet} (l : Array A) {i j : Fin (DArray.len {nub l})} (p : nub l i = nub l j) : i = j \elim l, i, j
+  | a :: l, 0, 0 => idp
+  | a :: l, 0, suc j => absurd $ remove.no-element (inv p)
+  | a :: l, suc i, 0 => absurd (remove.no-element p)
+  | a :: l, suc i, suc j => pmap fsuc $ remove.no-repeats (nub-isInj l) p
