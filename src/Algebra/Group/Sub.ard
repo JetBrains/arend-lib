@@ -1,7 +1,13 @@
 \import Algebra.Group
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Sub
+\import Function.Meta
+\import Meta
+\import Paths
 \import Paths.Meta
+\import Relation.Equivalence
+\open Group
 
 \class SubGroup \extends SubMonoid {
   \override S : Group
@@ -12,10 +18,56 @@
     | inverse x => (inverse x.1, contains_inverse x.2)
     | inverse-left => ext inverse-left
     | inverse-right => ext inverse-right
+
+  \func equivalence : Equivalence S \cowith
+    | ~ x y => contains (inverse x * y)
+    | ~-reflexive => transportInv contains inverse-left contains_ide
+    | ~-symmetric c => transport contains (inverse_* *> pmap (_ *) inverse-isInv) (contains_inverse c)
+    | ~-transitive {x} {y} c1 c2 => rewriteEqF (inverse-right {S} {y}, ide-left) (contains_* c1 c2)
+
+  \func Cosets => Quotient (equivalence.~)
 } \where {
   \func cStruct {G : CGroup} (S : SubGroup G) : CGroup \cowith
     | Group => S.struct
     | *-comm => ext *-comm
+}
+
+\class DecSubGroup \extends SubGroup, DecSubMonoid {
+  \override S : Group
+}
+
+\class NormalSubGroup \extends SubGroup {
+  | isNormal (g : S) {h : S} : contains h -> contains (inverse g * h * g)
+
+  \lemma isNormal' (g : S) {h : S} (c : contains h) : contains (g * h * inverse g)
+    => rewriteF inverse-isInv (isNormal (inverse g) c)
+
+  \func quotient : Group Cosets \cowith
+    | ide => in~ 1
+    | * (x y : Cosets) : Cosets \with {
+      | in~ g, in~ g' => in~ (g Group.* g')
+      | in~ g, ~-equiv x y r => ~-pequiv $ rewriteEq (inverse_*, inverse-left {S} {g}, ide-left) r
+      | ~-equiv x y r, in~ g => ~-pequiv $ rewriteEq inverse_* $ transport contains equation (isNormal g r)
+    }
+    | ide-left {x} => cases x \with {
+      | in~ a => pmap in~ ide-left
+    }
+    | ide-right {x} => cases x \with {
+      | in~ a => pmap in~ ide-right
+    }
+    | *-assoc {x} {y} {z} => cases (x,y,z) \with {
+      | in~ x, in~ y, in~ z => pmap in~ *-assoc
+    }
+    | inverse (x : Cosets) : Cosets \with {
+      | in~ g => in~ (Group.inverse g)
+      | ~-equiv x y r => ~-pequiv $ rewrite inverse-isInv $ rewriteEqF (inverse_*, inverse-isInv) $ contains_inverse $ rewriteEqF (inverse-right {S} {x}, ide-left) (isNormal' x r)
+    }
+    | inverse-left {x} => cases x \with {
+      | in~ a => pmap in~ inverse-left
+    }
+    | inverse-right {x} => cases x \with {
+      | in~ a => pmap in~ inverse-right
+    }
 }
 
 \class SubAddGroup \extends SubAddMonoid {
