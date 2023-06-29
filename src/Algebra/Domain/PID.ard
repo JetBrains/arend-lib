@@ -1,0 +1,30 @@
+\import Algebra.Domain
+\import Algebra.Domain.Bezout
+\import Algebra.Domain.Euclidean
+\import Algebra.Monoid
+\import Arith.Int
+\import Arith.Nat
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Order.LinearOrder
+\import Order.StrictOrder
+\open Monoid(LDiv)
+
+\class PID \extends BezoutDomain
+  | divChain : nonZeroMonoid.DivChain
+
+\instance IntPID : PID Int
+  | BezoutDomain => IntDomain
+  | divChain a c => TruncP.map (aux (suc (iabs (a 0).1)) a (\lam i => Domain.nonZero_ldiv (c i)) id<suc) $ \lam s => (s.1, Domain.ldiv_nonZero s.2)
+  \where
+    \lemma aux (n : Nat) (a : Nat -> \Sigma (x : Int) (x /= 0)) (c : \Pi (i : Nat) -> LDiv (a (suc i)).1 (a i).1) (p : iabs (a 0).1 < n) : ∃ (i : Nat) (LDiv (a i).1 (a (suc i)).1) \elim n
+      | 0 => \case p
+      | suc n => \case LinearOrder.trichotomy (iabs (a 0).1) (iabs (a 1).1) \with {
+        | less a0<a1 => absurd $ <-irreflexive $ <-transitive-left a0<a1 $ ldiv_<= (\lam p => (a 0).2 (iabs.equals0 p)) (ldiv_iabs (c 0))
+        | equals e => inP (0, iabs_ldiv $ \new LDiv {
+          | inv => 1
+          | inv-right => e
+        })
+        | greater a1<a0 => TruncP.map (aux n (\lam i => a (suc i)) (\lam i => c (suc i)) (<-transitive-left a1<a0 (<_suc_<= p))) $ \lam s => (suc s.1, s.2)
+      }

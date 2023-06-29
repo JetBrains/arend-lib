@@ -1,6 +1,7 @@
 \import Algebra.Algebra
 \import Algebra.Domain
 \import Algebra.Domain.Euclidean
+\import Algebra.Domain.PID
 \import Algebra.Field
 \import Algebra.Group
 \import Algebra.Meta
@@ -19,6 +20,7 @@
 \import Function.Meta \hiding (#)
 \import HLevel
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
@@ -338,6 +340,33 @@
   }
   | peq => idp
 
+\func degreeUpperBound {R : AddPointed} (p : Poly R) (n : Nat) : \Prop
+  | pzero, n => \Sigma
+  | padd p a, 0 => p = pzero
+  | padd p a, suc n => degreeUpperBound p n
+  | peq, 0 => ext (\lam _ => (), \lam _ => idp)
+  | peq, suc n => idp
+  \where {
+    \lemma toDegree {R : Ring.Dec} {p : Poly R} {n : Nat} (d : degreeUpperBound p n) : degree p <= n \elim p, n
+      | pzero, n => zero<=_
+      | padd p e, 0 => rewrite (decideEq=_reduce d) zero<=_
+      | padd p e, suc n => mcases \with {
+        | yes _ => zero<=_
+        | no _ => suc<=suc (toDegree d)
+      }
+
+    \lemma fromDegree {R : Ring.Dec} {p : Poly R} {n : Nat} (q : degree p <= n) : degreeUpperBound p n \elim p, n
+      | pzero, n => ()
+      | padd p e, 0 => cases (decideEq p 0, q) \with {
+        | yes r, q => r
+        | no _, q => absurd (q NatSemiring.zero<suc)
+      }
+      | padd p e, suc n => fromDegree $ cases (decideEq p 0, q) \with {
+        | yes r, q => rewrite r zero<=_
+        | no n1, q => suc<=suc.conv q
+      }
+  }
+
 \func leadCoef {R : Ring.Dec} (p : Poly R) : R \elim p
   | pzero => 0
   | padd p e => \case decideEq p 0 \with {
@@ -538,3 +567,23 @@
 \instance PolyEuclideanDomain (R : DiscreteField) : EuclideanDomain (Poly R)
   | IntegralDomain.Dec => PolyDecIntegralDomain R
   | isEuclidean => inP (PolyEuclideanRingData R)
+
+\open Monoid(LDiv)
+
+\instance PolyPID (R : DiscreteField) : PID (Poly R)
+  | BezoutDomain => PolyEuclideanDomain R
+  | divChain a c => TruncP.map (aux (suc (degree (a 0).1)) (\lam i => ((a i).1, AddGroup.With#.apartNonZero (a i).2))
+      (\lam i => Domain.nonZero_ldiv (c i)) id<suc) $ \lam s => (s.1, Domain.ldiv_nonZero s.2)
+  \where
+    \lemma aux {R : DiscreteField} (n : Nat) (a : Nat -> \Sigma (x : Poly R) (x /= 0)) (c : \Pi (i : Nat) -> LDiv (a (suc i)).1 (a i).1) (p : degree (a 0).1 < n) : ∃ (i : Nat) (LDiv (a i).1 (a (suc i)).1) \elim n
+      | 0 => \case p
+      | suc n =>
+        \let | r => LDiv.inv {c 0}
+             | rl => inv $ LDiv.inv-right {c 0}
+        \in cases (degree r arg addPath) \with {
+              | 0, q => inP (0, \new LDiv {
+                | inv => padd pzero $ finv (leadCoef r)
+                | inv-right => rewrite rl $ *-assoc *> pmap (_ *) (later $ rewrite (degree=0-lem q) $ pmap (padd pzero) $ zro-left *> finv-right (\lam s => (a 0).2 $ rl *> pmap (_ *) (degree=0-lem q *> later (rewrite s peq)) *> Ring.zro_*-right)) *> ide-right
+              })
+              | suc d, q => TruncP.map (aux n (\lam i => a (suc i)) (\lam i => c (suc i)) $ <-transitive-left (rewrite (rewriteF (inv rl) $ degree_* {_} {_} {r} (a 1).2 (\lam r=0 => (a 0).2 $ rl *> rewrite r=0 Ring.zro_*-right), q) $ <_+-right _ NatSemiring.zero<suc) (<_suc_<= p)) $ \lam s => (suc s.1, s.2)
+            }
