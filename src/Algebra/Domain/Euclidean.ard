@@ -1,5 +1,6 @@
-\import Algebra.Domain.Bezout
+\import Algebra.Domain
 \import Algebra.Domain.GCD
+\import Algebra.Domain.PID
 \import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
@@ -8,8 +9,10 @@
 \import Algebra.Semiring
 \import Arith.Int
 \import Arith.Nat
+\import Data.Or
 \import Function.Meta
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
@@ -93,7 +96,7 @@
     | 0 => g|a
     | suc s => mcases \with {
       | yes _ => g|a
-      | no b/=0 => gcd-isGCD-fueled s g|b (summandDiv (\lam g=0 => b/=0 (inv g|b.inv-right *> pmap (`* _) g=0 *> zro_*-left)) (pmap (`+ _) (inv *-assoc) *> pmap (__ * _ + _) g|b.inv-right *> isDivMod a b *> inv g|a.inv-right))
+      | no b/=0 => gcd-isGCD-fueled s g|b (summandDiv (ldiv/=0 b/=0 g|b) (pmap (`+ _) (inv *-assoc) *> pmap (__ * _ + _) g|b.inv-right *> isDivMod a b *> inv g|a.inv-right))
     }
 
   \func gcd-isGCD (a b : E) : GCD a b \cowith
@@ -116,6 +119,26 @@
         | suc s => mcases \with {
           | yes _ => idp
           | no n => absurd (n idp)
+        }
+
+  \func isPseudonorm {a b : E} (a/=0 : a /= 0) (b|a : LDiv b a)
+    => aux b a/=0 b|a id<suc
+    \where
+      \func aux {a : E} (b : E) (a/=0 : a /= 0) (b|a : LDiv b a) {n : Nat} (p : euclideanMap a < n)
+        : Or (LDiv a b) (\Sigma (b' : E) (LDiv b b') (LDiv b' b) (euclideanMap b' < euclideanMap a)) \elim n
+        | 0 => \case p
+        | suc n => \case decideEq (divMod b a).2 0 \with {
+          | yes e => inl (\new LDiv {
+            | inv => (divMod b a).1
+            | inv-right => later (rewrite e $ inv zro-right) *> isDivMod b a
+          })
+          | no q => inr $
+            \have b|m : LDiv b (divMod b a).2 => summandDiv {_} {b|a.inv * (divMod b a).1} (ldiv/=0 a/=0 b|a) $
+                pmap (`+ _) (inv *-assoc *> later (rewrite b|a.inv-right idp)) *> isDivMod b a *> inv ide-right
+            \in \case aux b q b|m (<-transitive-left (isEuclideanMap b a a/=0 q) $ <_suc_<= p) \with {
+              | inl m|b => ((divMod b a).2, b|m, m|b, isEuclideanMap b a a/=0 q)
+              | inr (b',b'|b,b|b',s) => (b', b'|b, b|b', <-transitive s $ isEuclideanMap b a a/=0 q)
+            }
         }
 } \where {
   \func suc' (n : Nat) : Nat
@@ -157,12 +180,23 @@
     => bezoutIdentity-fueled (suc' (euclideanMap b)) a b
 }
 
-\class EuclideanDomain \extends GCDDomain.Dec, BezoutDomain
+\class EuclideanDomain \extends GCDDomain.Dec, PID
   | isEuclidean : TruncP (EuclideanRingData { | CRing => \this | decideEq => decideEq })
   | isBezout a b => TruncP.map isEuclidean $ \lam (d : EuclideanRingData { | CRing => \this }) =>
       ((d.bezout a b).1, (d.bezout a b).2,
        rewrite d.bezoutIdentity (GCD.gcd|val1 {d.gcd-isGCD a b}),
        rewrite d.bezoutIdentity (GCD.gcd|val2 {d.gcd-isGCD a b}))
+  | divChain a c => \case isEuclidean \with {
+    | inP d => TruncP.map (aux {d} (suc (euclideanMap {d} (a 0).1)) (\lam i => ((a i).1, AddGroup.With#.apartNonZero (a i).2)) (\lam i => Domain.nonZero_ldiv (c i)) (a 0).1 LDiv.id-div LDiv.id-div id<suc) $ \lam s => (s.1, Domain.ldiv_nonZero s.2)
+  }
+  \where {
+    \lemma aux {R : EuclideanRingData} (n : Nat) (a : Nat -> \Sigma (x : R) (x /= 0)) (c : \Pi (i : Nat) -> LDiv (a (suc i)).1 (a i).1) (b : R) (a0|b : LDiv (a 0).1 b) (b|a0 : LDiv b (a 0).1) (p : euclideanMap b < n) : ∃ (i : Nat) (LDiv (a i).1 (a (suc i)).1) \elim n
+      | 0 => \case p
+      | suc n => \case isPseudonorm {_} {b} {(a 1).1} (ldiv/=0 (a 0).2 b|a0) (LDiv.trans (c 0) a0|b) \with {
+        | inl b|a1 => inP (0, LDiv.trans a0|b b|a1)
+        | inr (a1',a1|a1',a1'|a1,a1'<b) => TruncP.map (aux n (\lam i => a (suc i)) (\lam i => c (suc i)) a1' a1|a1' a1'|a1 (<-transitive-left a1'<b $ <_suc_<= p)) $ \lam s => (suc s.1, s.2)
+      }
+  }
 
 \instance NatEuclidean : EuclideanSemiringData
   | CSemiring => NatSemiring
