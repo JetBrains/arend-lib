@@ -3,12 +3,16 @@
 \import Algebra.Domain.Euclidean
 \import Algebra.Field
 \import Algebra.Group
+\import Algebra.Group.Category
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Ordered
 \import Algebra.Pointed
+\import Algebra.Pointed.Category
 \import Algebra.Ring
+\import Algebra.Ring.Category
 \import Algebra.Ring.QPoly
+\import Algebra.Semiring
 \import Arith.Nat
 \import Data.List
 \import Data.Or
@@ -19,6 +23,7 @@
 \import Function.Meta \hiding (#)
 \import HLevel
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
@@ -76,6 +81,16 @@
       => transportInv isSet (Equiv-to-= toQPoly-equiv) (\lam _ _ _ _ => setPath)
   }
 
+\func polyMap (f : AddPointedHom) (p : Poly f.Dom) : Poly f.Cod \elim p
+  | pzero => pzero
+  | padd p e => padd (polyMap f p) (f e)
+  | peq => rewrite f.func-zro peq
+
+\func polyEval {R : Ring} (p : Poly R) (a : R) : R \elim p
+  | pzero => 0
+  | padd p e => polyEval p a * a + e
+  | peq => zro-right *> zro_*-left
+
 \func polyCoef {R : AddPointed} (p : Poly R) (n : Nat) : R \elim p, n
   | pzero, _ => 0
   | padd p e, 0 => e
@@ -93,6 +108,14 @@
 \func monomial {R : AddPointed} (c : R) (n : Nat) : Poly R \elim n
   | 0 => padd pzero c
   | suc n => padd (monomial c n) 0
+
+\lemma polyCoef_monomial {R : AddPointed} {c : R} {n : Nat} : polyCoef (monomial c n) n = c \elim n
+  | 0 => idp
+  | suc n => polyCoef_monomial
+
+\lemma monomial_zro {R : AddPointed} {n : Nat} : monomial R.zro n = pzero \elim n
+  | 0 => peq
+  | suc n => rewrite monomial_zro peq
 
 \instance PolyRing (R : Ring) : Ring (Poly R)
   | zro => pzero
@@ -196,6 +219,10 @@
 
     \lemma *c_* {R : Ring} {c : R} {p : Poly R} : c *c p = padd pzero c * p
       => inv $ pmap (`+ _) peq
+
+    \lemma *c_negative {R : Ring} {c : R} {p : Poly R} : c *c negative p = negative (c *c p) \elim p
+      | pzero => idp
+      | padd p e => pmap2 padd *c_negative R.negative_*-right
   }
 
 \instance PolyAlgebra (R : CRing) : CAlgebra { | R => R }
@@ -330,6 +357,62 @@
     }
   }
 
+\open PolyRing(*c)
+
+\lemma polyCoef_+ {R : Ring} {p q : Poly R} {n : Nat} : polyCoef (p + q) n = polyCoef p n + polyCoef q n \elim p, q, n
+  | pzero, q, n => rewrite zro-left (inv zro-left)
+  | padd p x, padd q y, 0 => idp
+  | padd p x, pzero, n => inv zro-right
+  | padd p x, padd q y, suc n => polyCoef_+
+
+\lemma polyCoef_negative {R : Ring} {p : Poly R} {n : Nat} : polyCoef (negative p) n = negative (polyCoef p n) \elim p, n
+  | pzero, n => inv R.negative_zro
+  | padd p e, 0 => idp
+  | padd p e, suc n => polyCoef_negative
+
+\lemma polyCoef_*c {R : Ring} {a : R} {p : Poly R} {n : Nat} : polyCoef (a *c p) n = a * polyCoef p n \elim p, n
+  | pzero, n => inv zro_*-right
+  | padd p e, 0 => idp
+  | padd p e, suc n => polyCoef_*c
+
+\lemma polyCoef_* {R : Ring} {a : R} {p : Poly R} {k n : Nat} : polyCoef (monomial a k * p) (k + n) = a * polyCoef p n \elim k
+  | 0 => pmap (\lam s => polyCoef (s + _) n) peq *> rewrite zro-left polyCoef_*c
+  | suc k => unfold $ rewrite PolyRing.zro_*c polyCoef_*
+
+\func polyMapRingHom (f : RingHom) : RingHom (PolyRing f.Dom) (PolyRing f.Cod) \cowith
+  | func => polyMap f
+  | func-+ {p q : Poly f.Dom} : polyMap f (p + q) = polyMap f p + polyMap f q \elim p, q {
+    | pzero, q => idp
+    | padd p a, pzero => idp
+    | padd p a, padd q b => rewrite (func-+,f.func-+) idp
+  }
+  | func-ide => rewrite func-ide idp
+  | func-* {p q : Poly f.Dom} : polyMap f (p * q) = polyMap f p * polyMap f q \elim p {
+    | pzero => idp
+    | padd p e => func-+ *> pmap2 (+) (pmap2 padd func-* func-zro) polyMap_*c
+  }
+  \where
+    \func polyMap_*c {f : RingHom} {a : f.Dom} {q : Poly f.Dom} : polyMap f (a *c q) = f a *c polyMap f q \elim q
+      | pzero => idp
+      | padd q b => pmap2 padd polyMap_*c f.func-*
+
+\func polyEvalRingHom {R : CRing} (a : R) : RingHom (PolyRing R) R \cowith
+  | func => polyEval __ a
+  | func-+ {p q : Poly R} : polyEval (p + q) a = polyEval p a + polyEval q a \elim p, q {
+    | pzero, q => inv zro-left
+    | padd p x, pzero => inv zro-right
+    | padd p x, padd q y => rewrite func-+ equation
+  }
+  | func-ide => equation
+  | func-* {p q : Poly R} : polyEval (p * q) a = polyEval p a * polyEval q a \elim p {
+    | pzero => inv zro_*-left
+    | padd p x => func-+ *> rewrite (func-*,polyEval_*c) equation
+  }
+  \where
+    \lemma polyEval_*c {R : Ring} {x a : R} {p : Poly R} : polyEval (x *c p) a = x * polyEval p a \elim p
+      | pzero => inv zro_*-right
+      | padd p y => rewrite polyEval_*c equation
+
 \func degree {R : Ring.Dec} (p : Poly R) : Nat \elim p
   | pzero => 0
   | padd p _ => \case decideEq p 0 \with {
@@ -338,14 +421,14 @@
   }
   | peq => idp
 
-\func degreeUpperBound {R : AddPointed} (p : Poly R) (n : Nat) : \Prop
+\func degree<= {R : AddPointed} (p : Poly R) (n : Nat) : \Prop
   | pzero, n => \Sigma
   | padd p a, 0 => p = pzero
-  | padd p a, suc n => degreeUpperBound p n
+  | padd p a, suc n => degree<= p n
   | peq, 0 => ext (\lam _ => (), \lam _ => idp)
   | peq, suc n => idp
   \where {
-    \lemma toDegree {R : Ring.Dec} {p : Poly R} {n : Nat} (d : degreeUpperBound p n) : degree p <= n \elim p, n
+    \lemma toDegree {R : Ring.Dec} {p : Poly R} {n : Nat} (d : degree<= p n) : degree p <= n \elim p, n
       | pzero, n => zero<=_
       | padd p e, 0 => rewrite (decideEq=_reduce d) zero<=_
       | padd p e, suc n => mcases \with {
@@ -353,7 +436,7 @@
         | no _ => suc<=suc (toDegree d)
       }
 
-    \lemma fromDegree {R : Ring.Dec} {p : Poly R} {n : Nat} (q : degree p <= n) : degreeUpperBound p n \elim p, n
+    \lemma fromDegree {R : Ring.Dec} {p : Poly R} {n : Nat} (q : degree p <= n) : degree<= p n \elim p, n
       | pzero, n => ()
       | padd p e, 0 => cases (decideEq p 0, q) \with {
         | yes r, q => r
@@ -363,7 +446,89 @@
         | yes r, q => rewrite r zero<=_
         | no n1, q => suc<=suc.conv q
       }
+
+    \lemma toCoefs {R : AddPointed} (p : Poly R) (n : Nat) (d : degree<= p n) {k : Nat} (n<k : n < k) : polyCoef p k = 0 \elim p, n, k, n<k
+      | pzero, n, k, _ => idp
+      | padd p e, 0, suc k, _ => rewrite d idp
+      | padd p e, suc n, suc k, NatSemiring.suc<suc n<k => toCoefs p n d n<k
+
+    \func trivialPoly {R : AddPointed} {p : Poly R} (d : \Pi (k : Nat) -> polyCoef p k = 0) : p = pzero \elim p
+      | pzero => idp
+      | padd p e => pmap2 padd (trivialPoly (\lam k => d (suc k))) (d 0) *> peq
+
+    \lemma fromCoefs {R : AddPointed} (p : Poly R) (n : Nat) (d : \Pi {k : Nat} -> n < k -> polyCoef p k = 0) : degree<= p n \elim p, n
+      | pzero, n => ()
+      | padd p e, 0 => trivialPoly (\lam k => d NatSemiring.zero<suc)
+      | padd p e, suc n => fromCoefs p n (\lam n<k => d (NatSemiring.suc<suc n<k))
   }
+
+\lemma degree-exists {R : AddPointed} (p : Poly R) : ∃ (n : Nat) (degree<= p n) \elim p
+  | pzero => inP (0, ())
+  | padd p e => TruncP.map (degree-exists p) $ \lam s => (suc s.1, s.2)
+
+\lemma degree<=-trans {R : AddPointed} {p : Poly R} {n m : Nat} (d : degree<= p n) (n<=m : n <= m) : degree<= p m \elim p, n, m
+  | pzero, n, m => ()
+  | padd p x, 0, 0 => d
+  | padd p x, suc n, 0 => absurd (n<=m NatSemiring.zero<suc)
+  | padd p x, 0, suc m => rewrite d ()
+  | padd p x, suc n, suc m => degree<=-trans d (suc<=suc.conv n<=m)
+
+\lemma degree-reduce {R : AddPointed} (p : Poly R) (n : Nat) (d : degree<= p (suc n)) (c : polyCoef p (suc n) = 0) : degree<= p n \elim p, n
+  | pzero, n => ()
+  | padd pzero e, 0 => idp
+  | padd (padd p x) y, 0 => pmap2 padd d c *> peq
+  | padd p e, suc n => degree-reduce p n d c
+
+\lemma degree<=0 {R : AddPointed} (p : Poly R) (d : degree<= p 0) : p = padd pzero (polyCoef p 0) \elim p
+  | pzero => inv peq
+  | padd p e => pmap (padd __ e) d
+
+\lemma degree<=_+ {R : Ring} {p q : Poly R} {n : Nat} (dp : degree<= p n) (dq : degree<= q n) : degree<= (p + q) n \elim p, q, n
+  | pzero, q, n => dq
+  | padd p x, pzero, n => dp
+  | padd p x, padd q y, 0 => pmap2 (+) dp dq
+  | padd p x, padd q y, suc n => degree<=_+ dp dq
+
+\lemma degree<=_*c {R : Ring} {a : R} {p : Poly R} {n : Nat} (d : degree<= p n) : degree<= (a *c p) n \elim p, n
+  | pzero, n => ()
+  | padd p e, 0 => pmap (a *c) d
+  | padd p e, suc n => degree<=_*c d
+
+\lemma degree<=_negative {R : Ring} {p : Poly R} {n : Nat} (d : degree<= p n) : degree<= (negative p) n \elim p, n
+  | pzero, n => ()
+  | padd p e, 0 => pmap negative d
+  | padd p e, suc n => degree<=_negative d
+
+\lemma degree<=_* {R : Ring} {p q : Poly R} {n m : Nat} (dp : degree<= p n) (dq : degree<= q m) : degree<= (p * q) (n + m) \elim p, n
+  | pzero, n => ()
+  | padd p e, 0 => rewrite dp $ transportInv (\lam x => degree<= (x + _) m) peq $ degree<=_*c dq
+  | padd p e, suc n => degree<=_+ (later $ degree<=_* dp dq) (degree<=_*c $ degree<=-trans dq $ NatSemiring.<=_+ {0} {suc n} zero<=_ <=-refl)
+
+\lemma degree<=_monomial {R : AddPointed} {c : R} {n : Nat} : degree<= (monomial c n) n \elim n
+  | 0 => idp
+  | suc n => degree<=_monomial
+
+\lemma *c_monomial {R : Ring} {a c : R} {n : Nat} : a *c monomial c n = monomial (a * c) n \elim n
+  | 0 => idp
+  | suc n => pmap2 padd *c_monomial zro_*-right
+
+\func isMonic {R : Ring} (p : Poly R) : \Prop
+  => ∃ (n : Nat) (degree<= p n) (polyCoef p n = 1)
+
+\lemma monomial-isMonic {R : Ring} (n : Nat) : isMonic (monomial R.ide n)
+  => inP (n, degree<=_monomial, polyCoef_monomial)
+
+\func polyDivision {R : CRing} (f g : Poly R) (k m n : Nat) (p : suc m = k + n) (df : degree<= f m) (dg : degree<= g n)
+  : \Sigma (q r : Poly R) (Monoid.pow (polyCoef g n) k *c f = q * g + r) (degree<= r (pred n)) \elim k, m, n
+  | 0, m, n => (pzero, f, PolyRing.ide_*c *> equation, rewriteI p df)
+  | 1, 0, 0 => (f, pzero, rewrite (degree<=0 g dg, ide-left, zro-right) $ PolyRing.*c_* *> *-comm, ())
+  | 1, 0, suc n => \case p
+  | suc (suc k), 0, n => \case p
+  | suc k, suc m, n => \let f1 => polyCoef g n *c f - monomial (polyCoef f (suc m)) k * g \in
+                       \have rec => polyDivision f1 g k m n (pmap pred p) (degree-reduce f1 m
+                                (degree<=_+ (degree<=_*c df) (degree<=_negative $ rewrite (pmap pred p) $ degree<=_* degree<=_monomial dg))
+                                (polyCoef_+ *> pmap (_ +) polyCoef_negative *> rewrite polyCoef_*c (rewrite {3} (pmap pred p) $ rewrite (polyCoef_*,*-comm) negative-right))) dg
+                       \in (rec.1 + monomial (Monoid.pow (polyCoef g n) k * polyCoef f (suc m)) k, rec.2, rewrite (PolyRing.*c-assoc, rdistr) $ unfold f1 (rewrite (PolyRing.*c-ldistr, PolyRing.*c_negative, PolyRing.*c-comm-left, *c_monomial) equation) *> pmap (_ +) rec.3 *> inv +-assoc *> pmap (`+ _) +-comm, rec.4)
 
 \func leadCoef {R : Ring.Dec} (p : Poly R) : R \elim p
   | pzero => 0

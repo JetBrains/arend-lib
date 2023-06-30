@@ -1,9 +1,12 @@
-\import Algebra.Domain
+\import Algebra.Domain.Euclidean
+\import Algebra.Domain.GCD
 \import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.GCD
 \import Algebra.Ring.Local
 \import Data.Or
+\import Function.Meta ($)
 \import Logic
 \import Meta
 \import Paths
@@ -12,7 +15,7 @@
 \open Monoid(Inv)
 
 -- | A field is a commutative local ring such that non-invertible elements equal to {zro}.
-\class Field \extends LocalCRing, IntegralDomain
+\class Field \extends LocalCRing, GCDDomain
   | #0 x => Inv x
   | #0-+ {x} {y} => LocalRing.sumInv=>eitherInv x y
   | #0-zro (j : Inv zro) => zro/=ide (inv zro_*-right *> j.inv-left)
@@ -20,13 +23,46 @@
   | zro#ide => Inv.lmake ide ide-left
   | apartZeroProduct xj yj => Inv.product xj yj
 
+  | isGCDDomain x y x#0 y#0 => inP $ \new GCD {
+    | gcd => 1
+    | gcd|val1 => \new Monoid.LDiv {
+      | inv => x
+      | inv-right => ide-left
+    }
+    | gcd|val2 => \new Monoid.LDiv {
+      | inv => y
+      | inv-right => ide-left
+    }
+    | gcd-univ g g|x g|y => \new Monoid.LDiv {
+      | inv => Monoid.LDiv.inv {g|x} * Inv.inv {x#0}
+      | inv-right => inv *-assoc *> pmap (`* _) Monoid.LDiv.inv-right *> Inv.inv-right
+    }
+  }
+
 -- | A discrete field is a commutative ring such that every element is either {zro} or invertible.
-\class DiscreteField \extends Field, IntegralDomain.Dec {
+\class DiscreteField \extends Field, EuclideanDomain {
   | finv : E -> E
   | finv_zro : finv 0 = 0
   | finv-right {x : E} (x/=0 : x /= 0) : x * finv x = 1
+
   \field eitherZeroOrInv (x : E) : (x = 0) `Or` Inv x
     \level Or.levelProp (\lam x=0 j => inv-nonZero j x=0)
+
+  | isEuclidean => inP $ \new EuclideanRingData {
+    | euclideanMap x => 0
+    | divMod x y => \case decideEq y 0 \with {
+      | yes _ => (0, x)
+      | no _ => (finv y * x, 0)
+    }
+    | isDivMod x y => mcases \with {
+      | yes _ => equation
+      | no q => zro-right *> inv *-assoc *> rewrite (finv-right q) ide-left
+    }
+    | isEuclideanMap x y y/=0 => mcases {1} \with {
+      | yes y=0 => absurd (y/=0 y=0)
+      | no _ => \lam p => absurd (p idp)
+    }
+  }
 
   \default finv \as finv-impl x => \case eitherZeroOrInv x \with {
     | inl _ => 0
