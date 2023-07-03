@@ -2,7 +2,10 @@
 \import Algebra.Pointed
 \import Arith.Nat
 \import Data.Array
+\import Data.Fin (fpred)
+\import Function.Meta
 \import HLevel
+\import Logic
 \import Logic.Meta
 \import Meta
 \import Paths
@@ -276,6 +279,10 @@
   \lemma BigSum_zro {l : Array E} (p : \Pi (j : Fin l.len) -> l j = zro) : BigSum l = zro \elim l
     | nil => idp
     | :: a arr => pmap2 (+) (p 0) (BigSum_zro (\lam j => p (suc j))) *> zro-left
+
+  \lemma BigSum-unique {l : Array E} (i : Fin l.len) (p : \Pi (j : Fin l.len) -> i /= j -> l j = 0) : BigSum l = l i \elim l, i
+    | a :: l, 0 => pmap (a +) (BigSum_zro $ \lam j => p (suc j) (\case __)) *> zro-right
+    | a :: l, suc i => pmap (a +) (BigSum-unique i $ \lam j q => p (suc j) (\lam s => q (pmap (fpred i) s))) *> pmap (`+ l i) (p 0 (\case __)) *> zro-left
 } \where {
     \use \coerce fromMonoid (M : Monoid) => \new AddMonoid M.E M.ide (M.*) M.ide-left M.ide-right M.*-assoc
     \use \coerce toMonoid (M : AddMonoid) => \new Monoid M.E M.zro (M.+) M.zro-left M.zro-right M.+-assoc
@@ -306,10 +313,10 @@
     | 0, _, _ => inv zro-left
     | suc n, :: a l, :: a' l' => unfold BigSum (rewrite (BigSum_+ {_} {n} {l}) equation)
 
-  \lemma BigSum_transpose {m n : Nat} (f : Fin m -> Fin n -> E)
+  \lemma BigSum-transpose {m n : Nat} (f : Fin m -> Fin n -> E)
     : BigSum (\lam i => BigSum (f i)) = BigSum (\lam j => BigSum (f __ j)) \elim n
     | 0 => BigSum_zro (\lam _ => idp)
-    | suc _ => BigSum_+ *> pmap (_ +) (BigSum_transpose _)
+    | suc _ => BigSum_+ *> pmap (_ +) (BigSum-transpose _)
 }
   \where {
     \use \coerce fromCMonoid (M : CMonoid) => \new AbMonoid M.E M.ide (M.*) M.ide-left M.ide-right M.*-assoc M.*-comm

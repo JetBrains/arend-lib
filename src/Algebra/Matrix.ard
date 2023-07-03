@@ -1,0 +1,66 @@
+\import Algebra.Group
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Fin
+\import Data.Array
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set
+\open FinLinearOrder
+
+\type Matrix (R : \Type) (n m : Nat) => Array (Array R m) n
+
+\func mkMatrix {R : \Type} {n m : Nat} (f : Fin n -> Fin m -> R) : Matrix R n m
+  => \new Array (Array R m) n $ \lam i => \new Array R m (f i)
+
+\func matrixExt {R : \Type} {n m : Nat} {M N : Matrix R n m} (p : \Pi (i : Fin n) (j : Fin m) -> M i j = N i j) : M = N
+  => path (\lam i => mkMatrix (\lam j k => p j k i))
+
+\instance MatrixRing (R : Ring) (n : Nat) : Ring (Matrix R n n)
+  | zro => mkMatrix $ \lam _ _ => zro
+  | + M N => mkMatrix $ \lam i j => M i j + N i j
+  | zro-left => matrixExt $ \lam i j => zro-left
+  | +-assoc => matrixExt $ \lam i j => +-assoc
+  | +-comm => matrixExt $ \lam i j => +-comm
+  | ide : Matrix R n n => mkMatrix $ \lam i j => \case decideEq i j \with {
+    | yes _ => R.ide
+    | no _ => zro
+  }
+  | * => product
+  | ide-left => product_ide-left
+  | ide-right => product_ide-right
+  | *-assoc => product-assoc
+  | ldistr => matrix_ldistr
+  | rdistr => matrix_rdistr
+  | negative M => mkMatrix $ \lam i j => negative (M i j)
+  | negative-left => matrixExt $ \lam i j => negative-left
+  \where {
+    \open AddMonoid
+
+    \func add {R : AddMonoid} {n m : Nat} (M N : Matrix R n m) : Matrix R n m
+      => mkMatrix $ \lam i j => M i j + N i j
+
+    \func product {R : Ring} {n m k : Nat} (M : Matrix R n m) (N : Matrix R m k) : Matrix R n k
+      => mkMatrix $ \lam j k => BigSum $ \new Array R m $ \lam i => M j i * N i k
+
+    \lemma product_ide-left {R : Ring} {n m : Nat} {M : Matrix R n m} : product ide M = M
+      => matrixExt $ \lam i j => BigSum-unique i (\lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) R.zro_*-left) *> rewrite (decideEq=_reduce idp) ide-left
+
+    \lemma product_ide-right {R : Ring} {n m : Nat} {M : Matrix R n m} : product M ide = M
+      => matrixExt $ \lam i j => BigSum-unique j (\lam k j/=k => later $ rewrite (decideEq/=_reduce (\lam t => j/=k (inv t))) R.zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right
+
+    \lemma product-assoc {R : Ring} {n m k l : Nat} {M : Matrix R n m} {N : Matrix R m k} {L : Matrix R k l} : product (product M N) L = product M (product N L)
+      => matrixExt $ \lam j1 j2 => path (\lam i => BigSum (\new Array R k (\lam j3 => R.BigSum-rdistr {\new Array R m (\lam j4 => M j1 j4 * N j4 j3)} {L j3 j2} i))) *>
+            R.BigSum-transpose _ *> pmap BigSum (arrayExt $ \lam j3 => pmap BigSum $ arrayExt $ \lam j4 => *-assoc) *>
+            inv (path (\lam i => BigSum (\new Array R m (\lam j3 => R.BigSum-ldistr {M j1 j3} {\new Array R k (\lam j4 => N j3 j4 * L j4 j2)} i))))
+
+    \lemma matrix_ldistr {R : Ring} {n m k : Nat} {L : Matrix R n m} {M N : Matrix R m k} : product L (add M N) = add (product L M) (product L N)
+      => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => ldistr) *> R.BigSum_+
+
+    \lemma matrix_rdistr {R : Ring} {n m k : Nat} {M N : Matrix R n m} {L : Matrix R m k} : product (add M N) L = add (product M L) (product N L)
+      => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => rdistr) *> R.BigSum_+
+  }
