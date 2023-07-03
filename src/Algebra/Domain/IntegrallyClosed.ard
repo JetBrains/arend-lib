@@ -1,0 +1,47 @@
+\import Algebra.Module
+\import Algebra.Module.Category
+\import Algebra.Monoid
+\import Algebra.Monoid.Sub
+\import Algebra.Pointed
+\import Algebra.Pointed.Sub
+\import Algebra.Ring
+\import Algebra.Ring.Category
+\import Algebra.Ring.Poly
+\import Algebra.Ring.Sub
+\import Category
+\import Data.Array
+\import Function.Meta
+\import HLevel
+\import Logic
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\func polyImage {R : Ring} {E : CRing} (f : RingHom R E) (a : E) : SubRing E
+  => ringHomImage (polyEvalRingHom a ∘ polyMapRingHom f)
+
+\lemma polyImage-closed {R : Ring} {E : CRing} (f : RingHom R E) (a : E) (x : SubRing.cStruct (polyImage f a)) : polyImage f a (a * x.1) \elim x
+  | (x, inP (p,q)) => inP $ unfold (padd p 0, unfold $ rewrite (q,f.func-zro) (zro-right *> *-comm))
+
+\lemma element-polyImage {R : Ring} {E : CRing} (f : RingHom R E) (a : E) : polyImage f a a
+  => rewriteF ide-right $ polyImage-closed f a (ide {SubRing.cStruct (polyImage f a)})
+
+\func polyImageHom {R : Ring} {E : CRing} (f : RingHom R E) (a : E) : RingHom R (SubRing.cStruct (polyImage f a)) \cowith
+  | func x => (f x, inP (padd pzero x, pmap (`+ f x) Ring.zro_*-left *> zro-left))
+  | func-+ => ext f.func-+
+  | func-ide => ext f.func-ide
+  | func-* => ext f.func-*
+
+\lemma monic-generated {R E : CRing} (f : RingHom R E) (a : E) (p : Poly R) (n : Nat) (dp : degree<= p n) (dm : polyCoef p n = 1) (e : polyEval (polyMap f p) a = 0)
+  : LModule.isGenerated {homLModule (polyImageHom f a)} (\new Array _ n (\lam i => Monoid.pow {SubRing.cStruct (polyImage f a)} (a, element-polyImage f a) i))
+  => \lam (b, inP (g,ga)) =>
+      \have (q,r,g=q*p+r,dr<n) => Contr.center {monicPolyDivision g p n dp dm}
+      \in inP (mkArray $ \lam j => polyCoef r j, (unfold,unfold) at ga $ ext $ inv ga *> rewrite (g=q*p+r,polyMapRingHom.func-+,polyEvalRingHom.func-+,polyMapRingHom.func-*,polyEvalRingHom.func-*,e,E.zro_*-right)
+            (zro-left *> polyEval_polyCoef (degree<_polyMap dr<n) *> pmap AddMonoid.BigSum (arrayExt $ \lam j => pmap2 (*) polyCoef_polyMap (inv SubMonoid.struct_pow)) *> inv SubAddMonoid.struct_BigSum))
+
+\lemma polyImage-isFaithful {R : Ring} {E : CRing} (f : RingHom R E) (inj : \Pi {x y : R} -> f x = f y -> x = y) (a : f.Cod) : LModule.isFaithful {homLModule (polyImageHom f a)}
+  => \lam r p => inj $ inv ide-right *> pmap __.1 (p (1, contains_ide {polyImage f a})) *> inv f.func-zro
+
+\func module-monic {R : Ring} {E : CRing} (f : RingHom R E) (a : E) (M : LModule' R) (Mf : M.isFaithful) (l : Array M) (Mg : M.isGenerated l) (g : LinearMap' M (homLModule (polyImageHom f a)))
+  : \Sigma (p : Poly R) (degree<= p l.len) (polyCoef p l.len = 1)
+  => {?}
