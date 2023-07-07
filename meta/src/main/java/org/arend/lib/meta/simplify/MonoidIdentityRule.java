@@ -19,9 +19,12 @@ public class MonoidIdentityRule extends LocalSimplificationRuleBase {
   private final CoreClassField ideLeft;
   private final CoreClassField ideRight;
 
-  public MonoidIdentityRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker, boolean isCommutative) {
+  private final boolean isAdditive;
+
+  public MonoidIdentityRule(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker, boolean isAdditive) {
     super(instance, classCall, ext, refExpr, typechecker);
-    if (isCommutative) {
+    this.isAdditive = isAdditive;
+    if (isAdditive) {
       this.mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.equationMeta.plus, typechecker, factory, refExpr, ext, 2);
       this.ideMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, ext.zro, typechecker, factory, refExpr, ext, 0);
       this.ideLeft = ext.equationMeta.addMonZroLeft;
@@ -51,5 +54,13 @@ public class MonoidIdentityRule extends LocalSimplificationRuleBase {
       }
     }
     return null;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (obj instanceof MonoidIdentityRule rule) {
+      return isAdditive == rule.isAdditive;
+    }
+    return false;
   }
 }

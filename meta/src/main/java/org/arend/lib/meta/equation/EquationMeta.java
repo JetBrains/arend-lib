@@ -33,15 +33,24 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition AddMonoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition AbMonoid;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    public CoreClassField mul;
+  @Dependency(module = "Algebra.Monoid", name = "Monoid.ide") public CoreClassField ide;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.ide-left") public CoreClassField ideLeft;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.ide-right") public CoreClassField ideRight;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.+") public CoreClassField plus;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-right") public CoreClassField addMonZroRight;
+  @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro") public CoreClassField zro;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-left") public CoreClassField addMonZroLeft;
-
+  @Dependency(module = "Algebra.Group", name = "Group.inverse-isInv")    public CoreFunctionDefinition invIsInv;
+  @Dependency(module = "Algebra.Group", name = "Group.inverse_ide")    public CoreFunctionDefinition invIde;
   @Dependency(module = "Algebra.Group", name = "Group.inverse") public CoreClassField inverse;
+  @Dependency(module = "Algebra.Group", name = "Group.inverse_*") public CoreFunctionDefinition inverseMul;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.negative_+") public CoreFunctionDefinition negativePlus;
+
+  @Dependency(module = "Algebra.Group", name = "AddGroup.toGroup")     public CoreFunctionDefinition fromAddGroupToGroup;
+  @Dependency(module = "Algebra.Group", name = "AbGroup.toCGroup")     public CoreFunctionDefinition fromAbGroupToCGroup;
+  @Dependency(module = "Algebra.Group", name = "AddGroup.negative_zro")    public CoreFunctionDefinition negativeZro;
 
   @Dependency(module = "Order.Lattice", name = "Bounded.MeetSemilattice")         CoreClassDefinition MSemilattice;
   @Dependency(module = "Order.Lattice", name = "MeetSemilattice.meet")            public CoreClassField meet;
@@ -71,7 +80,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Category.Solver", name = "CatTerm.:o")            CoreConstructor compCTerm;
   @Dependency(module = "Category.Solver", name = "CatNF.:nil")            CoreConstructor nilCatNF;
   @Dependency(module = "Category.Solver", name = "CatNF.:cons")           CoreConstructor consCatNF;
-  @Dependency(module = "Category.Solver")                                 CoreClassDefinition HData;
+  @Dependency(module = "Category.Solver")                                 public CoreClassDefinition HData;
   @Dependency(module = "Category.Solver", name = "HData.H")               CoreClassField HDataFunc;
   @Dependency(module = "Category.Solver", name = "HData.V")               CoreClassField VDataFunc;
   @Dependency(module = "Category.Solver", name = "HData.terms-equality")  CoreFunctionDefinition catTermsEq;
@@ -79,11 +88,12 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Category.Solver", name = "HData.interpretNF")     CoreFunctionDefinition catInterpretNF;
   @Dependency(module = "Category.Solver", name = "HData.interpretNF_++")  CoreFunctionDefinition catInterpretNFConcat;
 
-  @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition Data;
-  @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition CData;
-  @Dependency(module = "Algebra.Monoid.Solver")                                       CoreClassDefinition LData;
+  @Dependency(module = "Algebra.Monoid.Solver")                                       public CoreClassDefinition Data;
+  @Dependency(module = "Algebra.Monoid.Solver")                                       public CoreClassDefinition CData;
+  @Dependency(module = "Algebra.Monoid.Solver")                                       public CoreClassDefinition LData;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.vars")                   public CoreClassField DataFunction;
-  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                     CoreClassField SemilatticeDataCarrier;
+  @Dependency(module = "Algebra.Monoid.Solver", name = "LData.L")                     public CoreClassField SemilatticeDataCarrier;
+
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality")         CoreFunctionDefinition termsEq;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.terms-equality-conv")    CoreFunctionDefinition termsEqConv;
   @Dependency(module = "Algebra.Monoid.Solver", name = "Data.replace-consistent")     CoreFunctionDefinition replaceDef;
@@ -96,13 +106,13 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid.Solver", name = "CData.sort-consistent")       CoreFunctionDefinition sortDef;
   @Dependency(module = "Algebra.Monoid.Solver", name = "LData.terms-equality")        CoreFunctionDefinition semilatticeTermsEq;
 
-  @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition SemiringData;
+  @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition SemiringData;
   @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition RingData;
-  @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition CSemiringData;
-  @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition CRingData;
+  @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition CSemiringData;
+  @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition CRingData;
   @Dependency(module = "Algebra.Ring.Solver", name = "SemiringData.R")                public CoreClassField RingDataCarrier;
-  @Dependency(module = "Algebra.Ring.Solver")                                         CoreClassDefinition LatticeData;
-  @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.L")                 CoreClassField LatticeDataCarrier;
+  @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition LatticeData;
+  @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.L")                 public CoreClassField LatticeDataCarrier;
 
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.var")              public CoreConstructor varTerm;
   @Dependency(module = "Algebra.Ring.Solver", name = "RingTerm.coef")             public CoreConstructor coefTerm;
@@ -118,7 +128,21 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver", name = "RingData.interpret")        CoreFunctionDefinition ringInterpret;
   @Dependency(module = "Algebra.Ring.Solver", name = "gensZeroToIdealZero")       CoreFunctionDefinition gensZeroToIdealZero;
 
-  @Dependency(module = "Algebra.Group")                                    public CoreClassDefinition AddGroup;
+  @Dependency(module = "Algebra.Group.Solver", name = "NatData")           public CoreClassDefinition GroupData;
+  @Dependency(module = "Algebra.Group.Solver", name = "CData")           public CoreClassDefinition CGroupData;
+  @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.var")  public CoreConstructor varGTerm;
+  @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:ide") public CoreConstructor ideGTerm;
+  @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:*")   public CoreConstructor mulGTerm;
+  @Dependency(module = "Algebra.Group.Solver", name = "GroupTerm.:inv")  public CoreConstructor invGTerm;
+
+  @Dependency(module = "Algebra.Group.Solver", name = "CData.simplify-correct")  public CoreFunctionDefinition simplifyCorrectAbInv;
+
+  @Dependency(module = "Algebra.Group.Solver", name = "NatData.simplify-correct")  public CoreFunctionDefinition simplifyCorrectInv;
+
+  @Dependency(module = "Algebra.Group")                   public CoreClassDefinition Group;
+  @Dependency(module = "Algebra.Group")                public CoreClassDefinition AddGroup;
+  @Dependency(module = "Algebra.Group")                public CoreClassDefinition AbGroup;
+  @Dependency(module = "Algebra.Group")                public CoreClassDefinition CGroup;
   @Dependency(module = "Algebra.Group", name = "AddGroup.negative")       public CoreClassField negative;
   @Dependency(module = "Algebra.Group", name = "AddGroup.fromZero")       public CoreFunctionDefinition fromZero;
   @Dependency(module = "Algebra.Group", name = "AddGroup.toZero")         public CoreFunctionDefinition toZero;

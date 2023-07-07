@@ -5,6 +5,7 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.MetaDefinition;
@@ -12,7 +13,6 @@ import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.util.Pair;
 import org.arend.lib.StdExtension;
 import org.arend.lib.meta.RewriteMeta;
-import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 
@@ -32,10 +32,14 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
   }
 
   @Override
+  public ConcreteExpression finalizeEqProof(ConcreteExpression proof) { return proof; }
+
+  @Override
   public RewriteMeta.EqProofConcrete apply(TypedExpression expression) {
     var simplifiedExpression = expression;
     RewriteMeta.EqProofConcrete simplificationProof = null;
     while (true) {
+      typechecker.checkCancelled();
       final RewriteMeta.EqProofConcrete[] simplificationRes = {null};
       TypedExpression finalSimplifiedExpression = simplifiedExpression;
       simplifiedExpression.getExpression().processSubexpression(subexpr -> {
@@ -92,7 +96,7 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
           return simplifyRes.proj1;
         }
         return null;
-      }, false);
+      }, true);
       if (simplifiedExpr == null) return null;
       var checkedLam = typechecker.typecheck(lam, null);
       if (checkedLam == null) return null;

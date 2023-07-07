@@ -7,6 +7,7 @@ import org.arend.lib.util.algorithms.polynomials.Ring;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Buchberger implements GroebnerBasisAlgorithm {
 

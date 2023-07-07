@@ -198,7 +198,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     }
 
     public EqProofConcrete inverse(ConcreteFactory factory, StdExtension ext) {
-      return new EqProofConcrete(factory.appBuilder(factory.ref(ext.inv.getRef())).app(proof).build(), right, left);
+      return new EqProofConcrete(factory.appBuilder(factory.ref(ext.inv.getRef()))/*.app(factory.hole(), false).app(left, false).app(right, false)*/.app(proof).build(), right, left);
     }
   }
 
@@ -226,9 +226,11 @@ public class RewriteMeta extends BaseMetaDefinition {
         var right = !isInverse ? eqProofs.get(j).right : eqProofs.get(j).left;
         absNewBody = factory.appBuilder(absNewBody).app(right).build();
       }
-      result = factory.appBuilder(transport)
+      var left = eqProofs.get(i).left; //isInverse ? eqProofs.get(i).left : eqProofs.get(i).right;//eqProofs.get(i).left; //
+      var right = eqProofs.get(i).right; //isInverse ? eqProofs.get(i).right : eqProofs.get(i).left;//eqProofs.get(i).right; //
+      result = factory.appBuilder(transport)//.app(factory.hole(), false)
               //.app(factory.core(transportType))
-              .app(absNewBody)
+              .app(absNewBody) //.app(left, false).app(right, false)
               .app(eqProofs.get(i).proof)
               .app(result)
               .build();
@@ -361,8 +363,8 @@ public class RewriteMeta extends BaseMetaDefinition {
         var var = factory.local("y" + i);
         occurIndToVarInd.put(i, occurVars.size());
         occurVars.add(var);
-        var left = factory.core(foundOccurs.get(i).proj2.computeTyped());
-        var right = factory.core(eq.getDefCallArguments().get(2).computeTyped());
+        var left = factory.core(isInverse == isForward ? eq.getDefCallArguments().get(1).computeTyped() : foundOccurs.get(i).proj2.computeTyped());
+        var right = factory.core(isInverse == isForward ? foundOccurs.get(i).proj2.computeTyped() : eq.getDefCallArguments().get(2).computeTyped());
         if (isExactMatch) {
           eqProofs.add(new EqProofConcrete(concretePath, left, right));
         } else {

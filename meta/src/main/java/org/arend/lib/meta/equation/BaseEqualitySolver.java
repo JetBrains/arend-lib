@@ -33,7 +33,6 @@ public abstract class BaseEqualitySolver implements EquationSolver {
   protected final TypedExpression instance;
   protected final Values<CoreExpression> values;
   protected final ArendRef dataRef;
-  protected final List<ConcreteLetClause> letClauses;
   protected boolean useHypotheses;
 
   protected BaseEqualitySolver(EquationMeta meta, ExpressionTypechecker typechecker, ConcreteFactory factory, ConcreteReferenceExpression refExpr, TypedExpression instance, boolean useHypotheses) {
@@ -43,8 +42,6 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     this.refExpr = refExpr;
     this.instance = instance;
     dataRef = factory.local("d");
-    letClauses = new ArrayList<>();
-    letClauses.add(null);
     values = new Values<>(typechecker, refExpr);
     this.useHypotheses = useHypotheses;
   }
@@ -127,41 +124,8 @@ public abstract class BaseEqualitySolver implements EquationSolver {
     this.useHypotheses = useHypotheses;
   }
 
-  // any value whatsoever
-  protected ConcreteExpression getDefaultValue() {
-    return null;
-  }
-
-  protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
-    return null;
-  }
-
-  protected ConcreteExpression makeFin(int n) {
-    return factory.app(factory.ref(meta.ext.prelude.getFin().getRef()), true, factory.number(n));
-  }
-
-  protected ConcreteExpression makeLambda(Values<CoreExpression> values) {
-    ArendRef lamParam = factory.local("j");
-    List<CoreExpression> valueList = values.getValues();
-    ConcreteClause[] caseClauses = new ConcreteClause[valueList.size()];
-    for (int i = 0; i < valueList.size(); i++) {
-      caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(valueList.get(i).computeTyped()));
-    }
-    return factory.lam(singletonList(factory.param(singletonList(lamParam), makeFin(valueList.size()))),
-      factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
-  }
-
   @Override
   public TypedExpression finalize(ConcreteExpression result) {
-    List<CoreExpression> valueList = values.getValues();
-
-    ConcreteExpression instanceArg = factory.core(instance);
-    ConcreteExpression dataArg = factory.ref(meta.ext.prelude.getEmptyArray().getRef());
-    for (int i = valueList.size() - 1; i >= 0; i--) {
-      dataArg = factory.app(factory.ref(meta.ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), dataArg);
-    }
-
-    letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(getDataClass(instanceArg, dataArg))));
-    return typechecker.typecheck(meta.ext.factory.letExpr(false, false, letClauses, result), null);
+    return typechecker.typecheck(result, null);
   }
 }

@@ -2,7 +2,7 @@
 \import Algebra.Monoid
 \import Arith.Nat
 \import Data.Or
-\import Function.Meta
+\import Function.Meta \hiding (#)
 \import Logic
 \import Logic.Meta
 \import Meta
@@ -11,6 +11,7 @@
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Set
 
 \data List (A : \Type)
   | nil
@@ -120,6 +121,151 @@
       | nil, suc i, suc s => idp
       | :: a l, suc i, s => pmap (a ::) (appendLem l i s)
 
+\data All {A : \Type} (P : A -> \Prop) (l : List A) \elim l
+  | nil => all-nil
+  | :: x l => all-cons (P x) (All P l)
+
+\lemma all-map {A B : \Type} (f : A -> B) {P : B -> \Prop} {l : List A} (a : All P (map f l)) : All (\lam a => P (f a)) l \elim l, a
+  | nil, all-nil => all-nil
+  | :: x l, all-cons p a => all-cons p (all-map f a)
+
+\lemma all-implies {A : \Type} {P Q : A -> \Prop} {l : List A} (a : All P l) (p : All (\lam a => P a -> Q a) l) : All Q l \elim l, a, p
+  | nil, all-nil, all-nil => all-nil
+  | :: x l, all-cons c a, all-cons f p => all-cons (f c) (all-implies a p)
+
+\lemma all-forall {A : \Type} {P : A -> \Prop} {l : List A} (p : \Pi (a : A) -> P a) : All P l \elim l
+  | nil => all-nil
+  | :: a l => all-cons (p a) (all-forall p)
+
+\data All2 {A : \Type} (P : A -> A -> \Prop) (l : List A) \elim l
+  | nil => all2-nil
+  | :: x l => all2-cons (All (P x) l) (All2 P l)
+
+\data AllC {A : \Type} (P : A -> A -> \Prop) (l : List A) \elim l
+  | nil => allC-nil
+  | :: x nil => allC-single
+  | :: x (:: y l) => allC-cons (P x y) (AllC P (y :: l))
+
+\lemma allC-tail {A : \Type} {a : A} {l : List A} {P : A -> A -> \Prop} (a : AllC P (a :: l)) : AllC P l \elim l, a
+  | nil, allC-single => allC-nil
+  | :: y l, allC-cons p a => a
+
+\func count {A : DecSet} (l : List A) (a : A) : Nat \elim l
+  | nil => 0
+  | :: x l => \case decideEq x a \with {
+    | yes _ => suc (count l a)
+    | no _ => count l a
+  }
+  \where {
+    \lemma all-diff {A : DecSet} {l : List A} {a : A} (d : All (a /=) l) : count l a = 0 \elim l, d
+      | nil, all-nil => idp
+      | :: x l, all-cons p d => mcases \with {
+        | yes e => \case p (inv e)
+        | no _ => all-diff d
+      }
+  }
+
+\lemma count_perm {A : DecSet} {l l' : List A} (p : Perm l l') (a : A) : count l a = count l' a \elim l, l', p
+  | nil, nil, perm-nil => idp
+  | :: x l, :: _ l', perm-:: idp p => rewrite (count_perm p) idp
+  | :: x (:: x' l), :: _ (:: _ _), perm-swap idp idp idp => mcases \with {
+    | yes e, yes e' => rewrite (decideEq=_reduce e, decideEq=_reduce e') idp
+    | yes e, no q => rewrite (decideEq=_reduce e, decideEq/=_reduce q) idp
+    | no q, yes e => rewrite (decideEq/=_reduce q, decideEq=_reduce e) idp
+    | no q, no q' => rewrite (decideEq/=_reduce q, decideEq/=_reduce q') idp
+  }
+  | l, l', perm-trans p1 p2 => count_perm p1 a *> count_perm p2 a
+
+\lemma count_++ {A : DecSet} {l l' : List A} {a : A} : count (l ++ l') a = count l a Nat.+ count l' a \elim l
+  | nil => idp
+  | :: x l => mcases \with {
+    | yes e => pmap suc count_++
+    | no q => count_++
+  }
+
+\func group {A : DecSet} (l : List A) : List (\Sigma A Nat) \elim l
+  | nil => nil
+  | :: a l => \case group l \with {
+    | nil => (a,1) :: nil
+    | :: (a',n) l' => \case decideEq a a' \with {
+      | yes _ => (a', suc n) :: l'
+      | no _ => (a,1) :: (a',n) :: l'
+    }
+  }
+
+\open Sort
+
+\lemma group-sorted {A : DecSet} {P : Preorder A} {l : List A} (s : Sorted l) : Sorted (map __.1 (group l)) \elim l, s
+  | nil, sorted-nil => sorted-nil
+  | :: x l, sorted-cons x<=l s => mcases {1} {arg addPath} \with {
+    | nil, _ => sorted-cons <=-refl sorted-nil
+    | :: (a',n) l', p =>
+      \have s' => rewriteF p (group-sorted s)
+      \in mcases \with {
+        | yes _ => s'
+        | no _ => sorted-cons (transport (x <=) (head-lem p) x<=l) s'
+      }
+  }
+  \where {
+    \lemma head-lem {A : DecSet} {l : List A} {a x : A} {n : Nat} {l' : List (\Sigma A Nat)} (p : group l = (a,n) :: l') : headDef x l = a \elim l
+      | nil => \case p
+      | :: y l => mcases {1} p _ \with {
+        | nil, p' => pmap (\lam s => (headDef (a,n) s).1) p'
+        | :: z l'', p' => mcases p' _ \with {
+          | yes e, p'' => e *> pmap (\lam s => (headDef (a,n) s).1) p''
+          | no q, p'' => pmap (\lam s => (headDef (a,n) s).1) p''
+        }
+      }
+  }
+
+\lemma group-diff {A : DecSet} {P : Poset A} {l : List A} (s : Sorted l) : All2 (__.1 /= __.1) (group l) \elim l, s
+  | nil, sorted-nil => all2-nil
+  | :: x l, sorted-cons x<=l s => mcases {1} {arg addPath} \with {
+    | nil, _ => all2-cons all-nil all2-nil
+    | :: ((a',n)) l', p =>
+      \have (all2-cons t t') => rewriteF p (group-diff s)
+      \in mcases \with {
+        | yes _ => all2-cons t t'
+        | no q =>
+          \have | s' => rewriteF p (group-sorted s)
+                | (all-cons _ r) => diff-lem s' a' a' (transport (x <=) (group-sorted.head-lem p) x<=l) q
+          \in all2-cons (all-cons q (all-map __.1 r)) (all2-cons t t')
+      }
+  }
+  \where {
+    \lemma diff-lem {A : DecSet} {P : Poset A} {l : List A} (s : Sorted l) {x : A} (y z : A) (p : x <= headDef y l) (q : x /= headDef z l) : All (x /=) l \elim l, s
+      | nil, sorted-nil => all-nil
+      | :: a l, sorted-cons a<=l s => all-cons q (diff-lem s _ _ (p <=∘ a<=l) (\lam t => q (<=-antisymmetric p (transportInv (a <=) t a<=l))))
+  }
+
+\lemma group_count-lem {A : DecSet} {P : Poset A} {l : List A} (s : Sorted l) : All (\lam p => p.2 = count l p.1) (group l) \elim l, s
+  | nil, sorted-nil => all-nil
+  | :: a l, sorted-cons a<=l s => mcases {2} {arg addPath} \with {
+    | nil, p => all-cons (rewrite (decideEq=_reduce idp, group_nil-lem p) idp) all-nil
+    | :: (a',n) l', p =>
+      \have (all-cons t t') => rewriteF p (group_count-lem s)
+      \in mcases {2} \with {
+        | yes e =>
+          \have (all2-cons t'' _) => rewriteF p (group-diff s)
+          \in all-cons (rewrite (decideEq=_reduce e) $ pmap suc t) $ all-implies t' $ all-implies t'' $ all-forall $ \lam q c d => rewrite (decideEq/=_reduce (\lam e' => c (inv e *> e'))) d
+        | no q =>
+          \have (all-cons _ t'') : All (\lam x => a /= x.1) ((a',n) :: l') => all-map __.1 (group-diff.diff-lem (rewriteF p $ group-sorted s) a a (transport (a <=) (group-sorted.head-lem p) a<=l) q)
+          \in all-cons (rewrite (decideEq=_reduce idp) $ pmap suc $ inv $ count.all-diff $ group-diff.diff-lem s a a a<=l $ rewrite (group-sorted.head-lem p) q) $
+                all-cons (rewrite (decideEq/=_reduce q) t) $ all-implies t' $ all-implies t'' $ all-forall $ \lam y c d => rewrite (decideEq/=_reduce c) d
+      }
+  }
+  \where {
+    \lemma group_nil-lem {A : DecSet} {l : List A} (p : group l = nil) : l = nil \elim l
+      | nil => idp
+      | :: a l => mcases {1} p _ \with {
+        | nil, ()
+        | :: ((a',n)) l', p' => mcases p' _ \with {
+          | yes p1, ()
+          | no n1, ()
+        }
+      }
+  }
+
 \module Sort \where {
   \truncated \data Perm {A : \Type} (xs ys : List A) : \Prop \elim xs, ys
     | nil, nil => perm-nil
@@ -142,25 +288,25 @@
         | :: a1 xs => perm-trans (perm-swap idp idp idp) (perm-:: idp perm-head)
     }
 
-  \data Sorted {A : Dec} (xs : List A) \elim xs
+  \data Sorted {A : Preorder} (xs : List A) \elim xs
     | nil => sorted-nil
-    | :: x xs => sorted-cons (x <= headDef x xs) (Sorted xs)
+    | :: x xs => sorted-cons (x A.<= headDef x xs) (Sorted xs)
     \where {
-      \lemma allSorted {A : Dec} {a1 a2 : A} (l1 l2 : List A) (s : Sorted (a1 :: l1 ++ a2 :: l2)) : a1 <= a2
+      \lemma allSorted {A : Preorder} {a1 a2 : A} (l1 l2 : List A) (s : Sorted (a1 :: l1 ++ a2 :: l2)) : a1 A.<= a2
         => aux a1 (a1 :: l1) l2 s
         \where
-          \lemma aux {A : Dec} (a' : A) {a : A} (l1 l2 : List A) (s : Sorted (l1 ++ a :: l2)) : headDef a' (l1 ++ a :: l2) <= a \elim l1, s
+          \lemma aux {A : Preorder} (a' : A) {a : A} (l1 l2 : List A) (s : Sorted (l1 ++ a :: l2)) : headDef a' (l1 ++ a :: l2) A.<= a \elim l1, s
             | nil, sorted-cons _ s => <=-refl
             | :: a1 l1, sorted-cons a1<=h s => <=-transitive a1<=h (aux a1 l1 l2 s)
 
-      \lemma headSorted {A : Dec} {l1 l2 : List A} (s : Sorted (l1 ++ l2)) : Sorted l1 \elim l1, s
+      \lemma headSorted {A : Preorder} {l1 l2 : List A} (s : Sorted (l1 ++ l2)) : Sorted l1 \elim l1, s
         | nil, _ => sorted-nil
         | :: a l1, sorted-cons e s => sorted-cons (\case \elim l1, \elim e \with {
           | nil, _ => <=-refl
           | :: a1 l1, e => e
         }) (headSorted s)
 
-      \lemma tailSorted {A : Dec} (l1 l2 : List A) (s : Sorted (l1 ++ l2)) : Sorted l2 \elim l1, s
+      \lemma tailSorted {A : Preorder} (l1 l2 : List A) (s : Sorted (l1 ++ l2)) : Sorted l2 \elim l1, s
         | nil, s => s
         | :: a l1, sorted-cons _ s => tailSorted l1 l2 s
     }

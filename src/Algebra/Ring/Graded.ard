@@ -56,7 +56,7 @@
 
       \lemma diff-sum (l l' : Array E) : BigSum (diff l l') = BigSum l - BigSum l' \elim l, l'
         | nil, l' => inv $ zro-left *> BigSum_negative
-        | a :: l, nil => inv $ pmap (_ +) negative_zro *> zro-right
+        | a :: l, nil => simplify
         | a :: l, a' :: l' => equation {usingOnly (diff-sum l l')}
 
       \lemma diff-homogen (l l' : Array E) (k : Nat)
@@ -118,7 +118,7 @@
                           degree-unique.sum-lem2 {_} {l} (fin-inc-left {suc m} {suc k} m) (fin-inc-right {suc m} {suc k} k)
                               (\lam p => m/=k $ inv (fin-inc-left.char_nat {suc k} m) *> p *> fin-inc-right.char_nat {suc m} k)
                               (\lam l p1 p2 => rewrite (decideEq/=_reduce $ \lam p => p1 $ fin_nat-inj $ inv $ fin-inc-left.char_nat {suc k} m *> p, decideEq/=_reduce $ \lam p => p2 $ fin_nat-inj $ inv $ fin-inc-right.char_nat {suc m} k *> p) idp)
-                          *> rewrite (decideEq=_reduce $ inv $ fin-inc-left.char_nat {suc k} m, decideEq=_reduce $ inv $ fin-inc-right.char_nat {suc m} k, decideEq/=_reduce $ \lam p => m/=k $ p *> fin-inc-right.char_nat {suc m} k) (inv p) *> inv (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> zro-left *> zro-right)
+                          *> rewrite (decideEq=_reduce $ inv $ fin-inc-left.char_nat {suc k} m, decideEq=_reduce $ inv $ fin-inc-right.char_nat {suc m} k, decideEq/=_reduce $ \lam p => m/=k $ p *> fin-inc-right.char_nat {suc m} k) (inv p) *> inv (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> simplify)
                    \in \case decideEq n m \with {
                      | yes n=m => cases (decideEq m (fin-inc-right {suc m} k), decideEq k (fin-inc-right {suc m} k), similar-unique l a n s (fin-inc-right {suc m} {suc k} k) $ \lam p => m/=k $ inv n=m *> p *> fin-inc-right.char_nat {suc m} k) \with {
                          | yes e, _, t => inl (inl t)
@@ -153,8 +153,7 @@
     => TruncP.map (homogen-decomp c) $ \lam (l,lh,+l=c) => aux n m 0 lh $ homogen-similar
          (homogen-++ (\lam j => homogen-zro) $ later $ \lam (0) => bh)
          (homogen-++ (\lam j => homogen-zro) $ later $ \lam j => homogen-* ah (lh j))
-         (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> later (simplify $ zro-left *> zro-right *>
-           b=ac *> pmap (a *) (inv +l=c) *> BigSum-ldistr *> inv zro-left) *> inv (BigSum_++ *> pmap (`+ _) BigSum_replicate))
+         (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> later (simplify $ b=ac *> pmap (a *) (inv +l=c) *> BigSum-ldistr) *> inv (BigSum_++ *> pmap (`+ _) BigSum_replicate))
     \where {
       \func aux {a b : E} (s t n : Nat) {l : Array E} (lh : \Pi (j : Fin l.len) -> isHomogen (l j) (n Nat.+ j)) (p : Similar (replicate s zro ++ b :: nil) (replicate t zro ++ map (a *) l))
         : \Sigma (c : E) (k : Nat) (isHomogen c k) (b = a * c) \elim s, t, l, p
@@ -172,7 +171,7 @@
       | inP (l1,l1h,+l1=c1), inP (l2,l2h,+l2=c2) => inP $ aux n m1 m2 0 0 l1h l2h $ homogen-similar
           (homogen-++ (\lam j => homogen-zro) $ later $ \lam (0) => bh)
           (homogen-sum 0 (homogen-++ (\lam j => homogen-zro) (\lam j => later $ homogen-* a1h (l1h j))) (homogen-++ (\lam j => homogen-zro) (\lam j => later $ homogen-* a2h (l2h j))))
-          $ BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> zro-left *> zro-right *> b=ac *>
+          $ BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> simplify b=ac *>
             inv (BigSum_sum *> pmap2 (+) (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> zro-left) (BigSum_++ *> pmap (`+ _) BigSum_replicate0 *> zro-left) *> pmap2 (+) (inv BigSum-ldistr *> pmap (a1 *) +l1=c1) (inv BigSum-ldistr *> pmap (a2 *) +l2=c2))
     }
     \where {
@@ -208,15 +207,15 @@
                 (l2h : \Pi (j : Fin l2.len) -> isHomogen (l2 j) (n2 Nat.+ j))
                 (p : Similar (replicate s zro ++ b :: nil) (sum (replicate t1 zro ++ map (a1 *) l1) (replicate t2 zro ++ map (a2 *) l2)))
         : \Sigma (c1 c2 : E) (k1 k2 : Nat) (isHomogen c1 k1) (isHomogen c2 k2) (b = a1 * c1 + a2 * c2) \elim s, t1, t2, l1, l2, p
-        | 0, 0, 0, nil, nil, ::-nil-similar p _ => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> inv (pmap2 (+) zro_*-right zro_*-right *> zro-left))
-        | 0, 0, 0, nil, c2 :: l2, ::-::-similar p q => (0, c2, 0, n2, homogen-zro, l2h 0, p *> inv (pmap (`+ _) zro_*-right *> zro-left))
-        | 0, 0, 0, c1 :: l1, nil, ::-::-similar p q => (c1, 0, n1, 0, l1h 0, homogen-zro, p *> inv (pmap (_ +) zro_*-right *> zro-right))
+        | 0, 0, 0, nil, nil, ::-nil-similar p _ => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> simplify)
+        | 0, 0, 0, nil, c2 :: l2, ::-::-similar p q => (0, c2, 0, n2, homogen-zro, l2h 0, p *> simplify)
+        | 0, 0, 0, c1 :: l1, nil, ::-::-similar p q => (c1, 0, n1, 0, l1h 0, homogen-zro, p *> simplify)
         | 0, 0, 0, c1 :: l1, c2 :: l2, ::-::-similar p _ => (c1, c2, n1, n2, l1h 0, l2h 0, p)
-        | 0, 0, suc t2, nil, _, ::-::-similar p _ => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> inv (pmap2 (+) zro_*-right zro_*-right *> zro-left))
-        | 0, 0, suc t2, c1 :: l1, _, ::-::-similar p q => (c1, 0, n1, 0, l1h 0, homogen-zro, p *> inv (pmap (_ +) zro_*-right))
-        | 0, suc t1, 0, _, nil, ::-::-similar p q => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> inv (pmap2 (+) zro_*-right zro_*-right *> zro-left))
-        | 0, suc t1, 0, _, c2 :: l2, ::-::-similar p q => (0, c2, 0, n2, homogen-zro, l2h 0, p *> inv (pmap (`+ _) zro_*-right))
-        | 0, suc t1, suc t2, l1, l2, ::-::-similar p q => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> inv (pmap2 (+) zro_*-right zro_*-right))
+        | 0, 0, suc t2, nil, _, ::-::-similar p _ => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> simplify)
+        | 0, 0, suc t2, c1 :: l1, _, ::-::-similar p q => (c1, 0, n1, 0, l1h 0, homogen-zro, p *> simplify)
+        | 0, suc t1, 0, _, nil, ::-::-similar p q => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> simplify)
+        | 0, suc t1, 0, _, c2 :: l2, ::-::-similar p q => (0, c2, 0, n2, homogen-zro, l2h 0, p *> simplify)
+        | 0, suc t1, suc t2, l1, l2, ::-::-similar p q => (0, 0, 0, 0, homogen-zro, homogen-zro, p *> simplify)
         | suc s, 0, 0, nil, nil, ::-nil-similar _ q => aux s 0 0 n1 n2 l1h l2h q
         | suc s, 0, 0, nil, c2 :: l2, ::-::-similar _ q => aux s 0 0 n1 (suc n2) l1h (\lam j => l2h (suc j)) q
         | suc s, 0, 0, c1 :: l1, nil, ::-::-similar _ q => aux s 0 0 (suc n1) n2 (\lam j => l1h (suc j)) l2h (rewrite sum_nil q)

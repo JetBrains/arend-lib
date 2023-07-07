@@ -4,6 +4,7 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreClassDefinition;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -20,7 +21,7 @@ import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
+import java.util.*;
 
 public class EqualitySolver extends BaseEqualitySolver {
   private CoreExpression valuesType;
@@ -121,6 +122,7 @@ public class EqualitySolver extends BaseEqualitySolver {
     }
 
     type = type == null ? null : type.normalize(NormalizationMode.WHNF);
+
     if (type instanceof CoreAppExpression) {
       CoreExpression typeFun = ((CoreAppExpression) type).getFunction().normalize(NormalizationMode.WHNF);
       if (typeFun instanceof CoreAppExpression) {
@@ -135,10 +137,19 @@ public class EqualitySolver extends BaseEqualitySolver {
       }
     }
 
+    var possibleClasses = new HashSet<>(Arrays.asList(meta.Monoid, meta.AddMonoid, meta.MSemilattice));
     Pair<TypedExpression, CoreClassCallExpression> pair = Utils.findInstanceWithClassCall(new InstanceSearchParameters() {
         @Override
         public boolean testClass(@NotNull CoreClassDefinition classDefinition) {
-          return (forcedClass == null || classDefinition.isSubClassOf(forcedClass)) && (classDefinition.isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid)) || classDefinition.isSubClassOf(meta.AddMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AddMonoid)) || classDefinition.isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice)));
+          if (forcedClass != null && !classDefinition.isSubClassOf(forcedClass)) {
+            return false;
+          }
+          for (var clazz : possibleClasses) {
+            if (classDefinition.isSubClassOf(clazz) && (forcedClass == null || forcedClass.isSubClassOf(clazz))) {
+              return true;
+            }
+          }
+          return false;
         }
       }, meta.ext.carrier, type, typechecker, refExpr);
     if (pair != null) {

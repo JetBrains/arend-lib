@@ -4,6 +4,7 @@
 \import Data.Or
 \import Function.Meta
 \import Logic
+\import Meta
 \import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder \hiding (<=)
@@ -23,9 +24,20 @@
   | suc n, 0 => suc n
   | suc n, suc m => n -' m
 
-\lemma -'id {n : Nat} : n -' n = 0 \elim n
+\lemma -'0 {n : Nat} : n -' 0 = n \elim n
   | 0 => idp
-  | suc n => -'id
+  | suc n => idp
+
+\lemma -'+ {n m : Nat} : n + m -' m = n \elim m
+  | 0 => -'0
+  | suc n => -'+
+
+\lemma -'id {n : Nat} : n -' n = 0 => -'+ {0}
+
+\lemma -'-' {a b c : Nat} : a -' b -' c = a -' (b + c) \elim a, b
+  | 0, b => idp
+  | suc a, 0 => idp
+  | suc a, suc b => -'-'
 
 \func suc/=0 {n : Nat} (p : suc n = 0) : Empty
 
@@ -143,6 +155,21 @@
   | JoinSemilattice => NatSemiring
   | bottom => 0
   | bottom-univ {_} => \case __
+  \where {
+    \lemma <=_cancel-left (n : Nat) {m k : Nat} (p : n + m <= n + k) : m <= k \elim n
+      | 0 => p
+      | suc n => <=_cancel-left n (suc<=suc.conv p)
+
+    \lemma <=_cancel-right (n : Nat) {m k : Nat} (p : m + n <= k + n) : m <= k \elim n
+      | 0 => p
+      | suc n => <=_cancel-right n (suc<=suc.conv p)
+
+    \lemma ldistr0 {x : Nat} : x ∧ 0 = 0
+      => cases x idp
+
+    \lemma rdistr0 {x : Nat} : 0 ∧ x = 0
+      => cases x idp
+  }
 
 \lemma zero<=_ {x : Nat} : 0 <= x
   => NatBSemilattice.bottom-univ
@@ -169,6 +196,12 @@
   | 0, _ => zero<=_
   | suc n, 0 => <=-refl
   | suc n, suc m => -'<=id <=∘ <=_+ <=-refl (zero<=_ {1})
+
+\lemma -'+-comm {n m k : Nat} (p : m <= n) : n + k -' m = n -' m + k \elim n, m, k
+  | _, _, 0 => idp
+  | _, 0, _ => rewrite (-'0, -'0) idp
+  | 0, _, _ => rewrite (<=-antisymmetric p zero<=_, -'0) idp
+  | suc n, suc m, k => -'+-comm (\lam q => p (suc<suc q))
 
 \lemma -'-monotone-left {n m k : Nat} (p : n <= m) : n -' k <= m -' k \elim n, m, k
   | 0, _, _ => zero<=_
@@ -197,14 +230,19 @@
   | 0 => zero<=_
   | suc n => <=-transitive (suc<=suc (monotone-diagonal f mon)) (mon n)
 
-\lemma <_suc_<= {n m : Nat} (p : n < suc m) : n <= m \elim n, m, p
-  | 0, m, _ => zero<=_
-  | suc n, 0, suc<suc ()
-  | suc n, suc m, suc<suc p => suc<=suc (<_suc_<= p)
+\lemma suc_<_<= {n m : Nat} (p : n < m) : suc n <= m \elim n, m, p
+  | 0, suc m, p => suc<=suc zero<=_
+  | suc n, suc m, p => suc<=suc $ suc_<_<= {n} {m} (\case p \with { | suc<suc x => x })
+
+\lemma <_suc_<= {n m : Nat} (p : n < suc m) : n <= m => \lam q => suc_<_<= p (suc<suc q)
+
+\lemma suc_<=_< {n m : Nat} (p : suc n <= m) : n < m => <-transitive-left id<suc p
 
 \lemma id<suc {n : Nat} : n < suc n \elim n
   | 0 => zero<suc
   | suc n => suc<suc id<suc
+
+\lemma id<=suc {n : Nat} : n <= suc n => <=_+ <=-refl (zero<=_ {1})
 
 \lemma n*_+_<n {n q r : Nat} (p : n * q + r < n) : q = 0 \elim q
   | 0 => idp

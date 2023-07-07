@@ -14,6 +14,7 @@ import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
 import org.arend.lib.meta.closure.CongruenceClosure;
 import org.arend.lib.meta.cong.CongruenceMeta;
+import org.arend.lib.meta.equation.datafactory.RingDataFactory;
 import org.arend.lib.ring.Monomial;
 import org.arend.lib.util.CountingSort;
 import org.arend.lib.util.Utils;
@@ -45,14 +46,9 @@ public class RingSolver extends BaseEqualitySolver {
   }
 
   @Override
-  protected ConcreteExpression getDefaultValue() {
-    return factory.ref((termCompiler.isLattice ? meta.top : meta.ext.ide).getRef());
-  }
-
-  @Override
-  protected ConcreteExpression getDataClass(ConcreteExpression instanceArg, ConcreteExpression dataArg) {
-    ConcreteExpression data = factory.ref((termCompiler.isLattice ? meta.LatticeData : (termCompiler.isRing ? (isCommutative ? meta.CRingData : meta.RingData) : (isCommutative ? meta.CSemiringData : meta.SemiringData))).getRef());
-    return factory.classExt(data, Arrays.asList(factory.implementation((termCompiler.isLattice ? meta.LatticeDataCarrier : meta.RingDataCarrier).getRef(), instanceArg), factory.implementation(meta.DataFunction.getRef(), dataArg)));
+  public TypedExpression finalize(ConcreteExpression result) {
+    RingDataFactory dataFactory = new RingDataFactory(meta, dataRef, values, factory, instance, termCompiler.isLattice, termCompiler.isRing, isCommutative);
+    return typechecker.typecheck(dataFactory.wrapWithData(result), null);
   }
 
   private void typeToRule(CoreBinding binding, List<Equality> rules) {
