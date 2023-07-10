@@ -308,3 +308,31 @@
                   \lam {i} {j} p => remove1-inj l-inj $ inv (fsuc_fpred (remove/=0 i)) *> pmap fsuc p *> fsuc_fpred (remove/=0 j)
       }
   }
+
+\func index-dec {A : DecSet} (l : Array A) (a : A) : Or (Index a l) (Not (Index a l)) \elim l
+  | nil => inr $ \case __.1
+  | b :: l => \case decideEq b a \with {
+    | yes e => inl (0, e)
+    | no q => \case index-dec l a \with {
+      | inl e => inl (suc e.1, e.2)
+      | inr p => inr $ \case __ \with {
+        | (0, c) => q c
+        | (suc i, c) => p (i,c)
+      }
+    }
+  }
+
+\func repeats-dec {A : DecSet} (l : Array A) : Or (\Sigma (i j : Fin l.len) (i /= j) (l i = l j)) (isInj l) \elim l
+  | nil => inr $ \lam {i} => \case i
+  | a :: l => \case index-dec l a \with {
+    | inl e => inl (suc e.1, 0, (\case __), e.2)
+    | inr q => \case repeats-dec l \with {
+      | inl e => inl (suc e.1, suc e.2, fsuc/= e.3, e.4)
+      | inr p => inr $ \lam {i} {j} => \case \elim i, \elim j \with {
+        | 0, 0 => \lam _ => idp
+        | 0, suc j => \lam r => absurd $ q (j, inv r)
+        | suc i, 0 => \lam r => absurd $ q (i, r)
+        | suc i, suc j => \lam r => pmap fsuc (p r)
+      }
+    }
+  }

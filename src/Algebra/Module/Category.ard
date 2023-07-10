@@ -1,22 +1,126 @@
+\import Algebra.Group
 \import Algebra.Group.Category
+\import Algebra.Meta
 \import Algebra.Module
+\import Algebra.Monoid
 \import Algebra.Ring
+\import Arith.Fin
 \import Category
 \import Category.Meta
+\import Data.Array
+\import Data.Fin (fsuc/=)
+\import Data.Or
+\import Function.Meta
+\import Logic
+\import Meta
 \import Paths
 \import Paths.Meta
+\open AddMonoid
 
 \record LinearMap {R : Ring} \extends AddGroupHom {
   \override Dom : LModule { | R => R }
   \override Cod : LModule { | R => R }
   | func-*c {r : R} {x : Dom} : func (r *c x) = r *c func x
+
+  \lemma linearComb {l : Array (\Sigma R Dom)} : func (BigSum (map (\lam p => p.1 *c p.2) l)) = BigSum (map (\lam p => p.1 *c func p.2) l) \elim l
+    | nil => func-zro
+    | a :: l => unfold BigSum $ func-+ *> pmap2 (+) func-*c linearComb
 }
 
 \meta LinearMap' A B => LinearMap { | R => _ | Dom => A | Cod => B }
 
+\lemma linearMap_zro {R : Ring} {A B : LModule' R} : LinearMap' A B { | func a => 0 } \cowith
+  | func-+ => inv zro-left
+  | func-*c => inv B.*c_zro-right
+
+\lemma linearMap_+ {R : Ring} {A B : LModule' R} (f g : LinearMap' A B) : LinearMap' A B { | func a => f a + g a } \cowith
+  | func-+ => pmap2 (+) f.func-+ g.func-+ *> equation
+  | func-*c => pmap2 (+) f.func-*c g.func-*c *> inv *c-ldistr
+
+\lemma linearMap_negative {R : Ring} {A B : LModule' R} (f : LinearMap' A B) : LinearMap' A B { | func a => negative (f a) } \cowith
+  | func-+ => pmap negative f.func-+ *> B.negative_+ *> +-comm
+  | func-*c => pmap negative f.func-*c *> inv B.*c_negative-right
+
 \record BilinearMap {R : Ring} (A B C : LModule' R) (\coerce func : A -> B -> C)
   | linear-left {b : B} : LinearMap' A C { | func => func __ b }
   | linear-right {a : A} : LinearMap' B C { | func => func a }
+
+\func isMultiLinear {R : Ring} {n : Nat} {A B : LModule' R} (f : Array A n -> B) : \Prop \elim n
+  | 0 => \Sigma
+  | suc n => \Pi (l : Array A n) (j : Fin (suc n)) -> LinearMap' A B { | func x => f (insert x l j) }
+  \where {
+    \lemma reduce {n : Nat} (f : Array A (suc n) -> B) (fl : isMultiLinear f) {a : A} : isMultiLinear (\lam l => f (a :: l)) \elim n
+      | 0 => ()
+      | suc n => \lam l j => fl (a :: l) (suc j)
+  }
+
+\lemma isMultilinear_zro {R : Ring} {n : Nat} {A B : LModule' R} : isMultiLinear {R} {n} {A} {B} (\lam x => 0) \elim n
+  | 0 => ()
+  | suc n => \lam l j => linearMap_zro
+
+\lemma isMultilinear_+ {R : Ring} {n : Nat} {A B : LModule' R} {f g : Array A n -> B} (fl : isMultiLinear f) (gl : isMultiLinear g) : isMultiLinear (\lam x => f x + g x) \elim n
+  | 0 => ()
+  | suc n => \lam l j => linearMap_+ (fl l j) (gl l j)
+
+\lemma isMultilinear_negative {R : Ring} {n : Nat} {A B : LModule' R} {f : Array A n -> B} (fl : isMultiLinear f) : isMultiLinear (\lam x => negative (f x)) \elim n
+  | 0 => ()
+  | suc n => \lam l j => linearMap_negative (fl l j)
+
+\func isAlternating {R : Ring} {n : Nat} {A B : LModule' R} (f : Array A n -> B) : \Prop
+  => \Sigma (isMultiLinear f) (\Pi (l : Array A n) -> (\Sigma (i j : Fin n) (i /= j) (l i = l j)) -> f l = 0)
+  \where {
+    \lemma reduce {n : Nat} (f : Array A (suc n) -> B) (fa : isAlternating f) {a : A} : isAlternating (\lam l => f (a :: l))
+      => (isMultiLinear.reduce f fa.1, \lam l s => fa.2 (a :: l) (suc s.1, suc s.2, fsuc/= s.3, s.4))
+
+    \lemma substract1from0 {n : Nat} {f : Array A (suc (suc n)) -> B} (fa : isAlternating f) {a a' : A} {l : Array A n} : f (a :: a' :: l) = f (a - a' :: a' :: l)
+      => inv $ func-+ {fa.1 (a' :: l) 0} *> pmap (_ +) (AddGroupHom.func-negative {fa.1 (a' :: l) 0} *> pmap negative (fa.2 _ (0, 1, (\case __), idp)) *> B.negative_zro) *> zro-right
+
+    \lemma add0to1 {n : Nat} {f : Array A (suc (suc n)) -> B} (fa : isAlternating f) {a a' : A} {l : Array A n} : f (a :: a' :: l) = f (a :: a + a' :: l)
+      => inv $ inv (path (\lam i => f (a :: insert_zro i))) *> func-+ {fa.1 (a :: l) 1} *> pmap2 (+) (fa.2 _ (0, 1, (\case __), inv (path (\lam i => insert_zro i 0)))) (path (\lam i => f (a :: insert_zro i))) *> zro-left
+
+    \lemma alternating_perm {n : Nat} {f : Array A n -> B} (fa : isAlternating f) {l l' : Array A n} (p : Perm l l') : f l = Perm.sign p *c f l' \elim n, l, l', p
+      | 0, nil, nil, perm-nil => inv ide_*c
+      | suc n, x :: l, _ :: l', perm-:: idp p => alternating_perm (reduce (\lam l => f l) fa) p *> pmap (R.pow -1 __ `*c _) (inv Perm.inversions_perm-::)
+      | suc (suc n), x :: x' :: l, _ :: _ :: _, perm-swap idp idp idp =>
+          f (x :: x' :: l)            ==< substract1from0 fa >==
+          f (x - x' :: x' :: l)       ==< add0to1 fa *> simplify >==
+          f (x - x' :: x :: l)        ==< substract1from0 fa *> simplify >==
+          f (negative x' :: x :: l)   ==< pmap (\lam y => f (y :: x :: l)) (inv A.neg_ide_*c) *> func-*c {fa.1 (x :: l) 0} *> inv (pmap (`*c _) ide-left) >==
+          1 * -1 *c f (x' :: x :: l)  `qed
+      | n, l1, l2, perm-trans p1 p2 => alternating_perm fa p1 *> pmap (_ *c) (alternating_perm fa p2) *> inv (pmap (`*c _) (pmap (R.pow -1) Perm.inversions_perm-trans *> R.pow_+) *> *c-assoc)
+  }
+
+\lemma isAlternating_zro {R : Ring} {n : Nat} {A B : LModule' R} : isAlternating {R} {n} {A} {B} (\lam x => 0)
+  => (isMultilinear_zro, \lam _ _ => idp)
+
+\lemma isAlternating_+ {R : Ring} {n : Nat} {A B : LModule' R} {f g : Array A n -> B} (fa : isAlternating f) (ga : isAlternating g) : isAlternating (\lam x => f x + g x)
+  => (isMultilinear_+ fa.1 ga.1, \lam l c => pmap2 (+) (fa.2 l c) (ga.2 l c) *> zro-left)
+
+\lemma isAlternating_negative {R : Ring} {n : Nat} {A B : LModule' R} {f : Array A n -> B} (fa : isAlternating f) : isAlternating (\lam x => negative (f x))
+  => (isMultilinear_negative fa.1, \lam l c => pmap negative (fa.2 l c) *> B.negative_zro)
+
+\lemma alternating-unique {R : Ring} {n : Nat} {A B : LModule' R} (f g : Array A n -> B) (fa : isAlternating f) (ga : isAlternating g)
+  (l : Array A n) (Ag : A.isGenerated l) (fl=gl : f l = g l) (a : Array A n) : f a = g a
+  => B.fromZero $ alternating-unique_zro (\lam x => f x - g x) (isAlternating_+ fa (isAlternating_negative ga)) l Ag (B.toZero fl=gl) a
+  \where {
+    \open FinLinearOrder (FinLinearOrderInst)
+    \open Perm
+
+    \lemma alternating-unique_zro (f : Array A n -> B) (fa : isAlternating f)
+                                  (l : Array A n) (Ag : A.isGenerated l) (fl=0 : f l = 0) (a : Array A n) : f a = 0
+      => aux f fa.1 l Ag a $ \lam c => \case repeats-dec c \with {
+        | inl e => fa.2 (map l c) (e.1, e.2, e.3, pmap l e.4)
+        | inr inj => isAlternating.alternating_perm fa {map l c} {l} (perm-map l (perm-fin c inj)) *> rewrite fl=0 B.*c_zro-right
+      }
+
+    \lemma aux {n : Nat} (f : Array A n -> B) (fl : isMultiLinear f) (l : Array A) (Ag : A.isGenerated l)
+               (a : Array A n) (p : \Pi (c : Array (Fin l.len) n) -> f (map l c) = 0) : f a = 0 \elim n, a
+      | 0, a => p nil
+      | suc n, a0 :: a => \case Ag a0 \with {
+        | inP a0g => rewrite a0g.2 $ inv (pmap f insert_zro) *> LinearMap.linearComb {fl a 0} {\lam j => (a0g.1 j, l j)} *>
+                      BigSum_zro (\lam j => pmap (_ *c) (later $ pmap f insert_zro *> aux (\lam r => f (l j :: r)) (isMultiLinear.reduce f fl) l Ag a (\lam c => p (j :: c))) *> B.*c_zro-right)
+      }
+  }
 
 \instance LModuleCat (R : Ring) : Cat (LModule' R)
   | Hom A B => LinearMap' A B
