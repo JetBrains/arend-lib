@@ -1,17 +1,22 @@
+\import Algebra.Ring
+\import Arith.Fin
 \import Data.Bool
 \import Data.Fin
 \import Data.Maybe
 \import Data.Or
+\import Function
 \import Function.Meta ($)
 \import Logic
 \import Meta
 \import Paths
 \import Paths.Meta
 \import Set
+\import Set.Fin
+\import Set.Fin.DFin
 
 \func mkArray {A : \Type} {n : Nat} (f : Fin n -> A) => \new Array A n f
 
-\func arrayExt {A : \Type} {n : Nat} {l l' : Array A n} (p : \Pi (j : Fin n) -> l j = l' j) : l = l'
+\func arrayExt {A : \Type} {n : Nat} {l l' : Array A n} (p : \Pi (j : Fin n) -> l j = l' j) : l = {Array A n} l'
   => path (\lam i => \new Array A n (\lam j => p j i))
 
 \func tail {n : Nat} {A : Fin (suc n) -> \Type} (a : DArray A) : DArray (\lam j => A (suc j)) \elim a
@@ -163,6 +168,45 @@
       }
   }
 
+\func remove1 {A : DecSet} (a : A) {n : Nat} (l : Array A (suc n)) : Array A n \elim n, l
+  | 0, l => nil
+  | suc n, a' :: l => \case decideEq a a' \with {
+    | yes _ => l
+    | no _ => a' :: remove1 a l
+  }
+
+\func remove1-surj {A : DecSet} (a : A) {n : Nat} (l : Array A (suc n)) (i : Fin n) : \Sigma (j : Fin (suc n)) (remove1 a l i = l j) \elim n, l
+  | 0, b :: l => \case i
+  | suc n, b :: l => mcases \with {
+    | yes p => (suc i, idp)
+    | no q => \case \elim i \with {
+      | 0 => (0, idp)
+      | suc i => \have t => remove1-surj a l i \in (suc t.1, t.2)
+    }
+  }
+
+\lemma remove1/= {A : DecSet} {a : A} {n : Nat} {l : Array A (suc n)} (inj : isInj l) {j : Fin n} : remove1 a l j /= a \elim n, l
+  | 0, b :: l => \case j
+  | suc n, b :: l => mcases \with {
+    | yes p => \lam q => \case inj {suc j} {0} (q *> p)
+    | no q => \case \elim j \with {
+      | 0 => \lam p => q (inv p)
+      | suc j => remove1/= $ \lam {i} {j} p => pmap (fpred i) $ inj {suc i} {suc j} p
+    }
+  }
+
+\lemma remove1-inj {A : DecSet} {a : A} {n : Nat} {l : Array A (suc n)} (inj : isInj l) {i j : Fin n} (p : remove1 a l i = remove1 a l j) : i = j \elim n, l
+  | 0, b :: l => \case i
+  | suc n, b :: l => cases (decideEq a b, p) \with {
+    | yes _, p => pmap (fpred i) $ inj {suc i} {suc j} p
+    | no q, p => \case \elim i, \elim j, \elim p \with {
+      | 0, 0, p => idp
+      | 0, suc j, p => \have t => remove1-surj a l j \in \case inj {suc t.1} {0} $ inv (p *> t.2)
+      | suc i, 0, p => \have t => remove1-surj a l i \in \case inj {0} {suc t.1} $ inv p *> t.2
+      | suc i, suc j, p => pmap fsuc $ remove1-inj (\lam {i} {j} p => pmap (fpred i) $ inj {suc i} {suc j} p) p
+    }
+  }
+
 \func nub {A : DecSet} (l : Array A) : Array A \elim l
   | nil => nil
   | a :: l => a :: remove a (nub l)
@@ -197,3 +241,70 @@
   | a :: l, 0, suc j => absurd $ remove.no-element (inv p)
   | a :: l, suc i, 0 => absurd (remove.no-element p)
   | a :: l, suc i, suc j => pmap fsuc $ remove.no-repeats (nub-isInj l) p
+
+\func insert {A : \Type} (a : A) (l : Array A) (j : Fin (suc l.len)) : Array A (suc l.len) \elim l, j
+  | nil, j => a :: nil
+  | b :: l, 0 => a :: b :: l
+  | b :: l, suc j => b :: insert a l j
+
+\func insert_zro {A : \Type} {n : Nat} {a : A} {l : Array A n} : insert a l 0 = {Array A (suc n)} a :: l \elim n, l
+  | 0, nil => path (\lam _ => a :: nil)
+  | suc n, b :: l => path (\lam _ => a :: b :: l)
+
+\data Perm {A : \Type} {n : Nat} (l1 l2 : Array A n) \elim n, l1, l2
+  | 0, nil, nil => perm-nil
+  | suc n, :: x l1, :: y l2 => perm-:: (x = y) (Perm l1 l2)
+  | suc (suc n), :: x (:: x' l1), :: y (:: y' l2) => perm-swap (x = y') (x' = y) (l1 = l2)
+  | n, l1, l2 => perm-trans {l : Array A n} (Perm l1 l) (Perm l l2)
+  \where {
+    \func perm-refl {A : \Type} {n : Nat} {l : Array A n} : Perm l l \elim n, l
+      | 0, nil => perm-nil
+      | suc n, a :: l => perm-:: idp perm-refl
+
+    \func inversions {A : \Type} {n : Nat} {l1 l2 : Array A n} (p : Perm l1 l2) : Nat \elim n, l1, l2, p
+      | 0, nil, nil, perm-nil => 0
+      | suc n, x :: l3, y :: l4, perm-:: _ p => inversions p
+      | suc (suc n), x :: (x' :: l3), y :: (y' :: l4), perm-swap p p1 p2 => 1
+      | n, l3, l4, perm-trans p1 p2 => inversions p1 Nat.+ inversions p2
+
+    \lemma inversions_perm-:: {A : \Type} {n : Nat} {x y : A} {l1 l2 : Array A n} {q : x = y} {p : Perm l1 l2} : inversions (perm-:: q p) = inversions p \elim n, l1, l2
+      | 0, nil, nil => idp
+      | suc n, a1 :: l1, a2 :: l2 => idp
+
+    \lemma inversions_perm-trans {A : \Type} {n : Nat} {l1 l l2 : Array A n} {p1 : Perm l1 l} {p2 : Perm l l2} : inversions (perm-trans p1 p2) = inversions p1 Nat.+ inversions p2 \elim n, l1, l2
+      | 0, nil, nil => idp
+      | 1, a1 :: l1, a2 :: l2 => idp
+      | suc (suc n), a1 :: l1, a2 :: l2 => idp
+
+    \func sign {R : Ring} {A : \Type} {n : Nat} {l1 l2 : Array A n} (p : Perm l1 l2) : R
+      => R.pow -1 (inversions p)
+
+    \func perm-map {A B : \Type} (f : A -> B) {n : Nat} {l1 l2 : Array A n} (p : Perm l1 l2) : Perm (map f l1) (map f l2) \elim n, l1, l2, p
+      | 0, nil, nil, perm-nil => perm-nil
+      | suc n, a1 :: l1, a2 :: l2, perm-:: p q => perm-:: (pmap f p) (perm-map f q)
+      | suc (suc n), a1 :: (a1' :: l), a2 :: (a2' :: _), perm-swap p1 p2 idp => perm-swap (pmap f p1) (pmap f p2) idp
+      | n, l1, l2, perm-trans p1 p2 => perm-trans (perm-map f p1) (perm-map f p2)
+
+    \func perm-remove {A : DecSet} {n : Nat} (l : Array A (suc n)) (j : Fin (suc n)) : Perm l (l j :: remove1 (l j) l) \elim n, l, j
+      | 0, a :: nil, 0 => perm-refl
+      | suc n, l, 0 => rewrite (decideEq=_reduce idp) perm-refl
+      | suc n, a :: l, suc j => mcases \with {
+        | yes p => rewrite p perm-refl
+        | no q => perm-trans (perm-:: idp (perm-remove l j)) (perm-swap idp idp idp)
+      }
+
+    \func perm-fin {n : Nat} (l : Array (Fin n) n) (l-inj : isInj l) : Perm l (\lam j => j) \elim n
+      | 0 => perm-nil
+      | 1 => perm-:: (cases (l 0) idp) perm-nil
+      | suc (suc n) => aux2 {suc n} l l-inj 0
+      \where {
+        \func aux {n : Nat} (l : Array (Fin (suc n)) n) (q : \Pi (j : Fin n) -> l j /= 0) (d : Fin n) (r : Perm (map (fpred d) l) (\lam j => j)) : Perm l (\lam j => suc j)
+          => transport {Array (Fin (suc n)) n} (Perm __ _) (arrayExt $ \lam j => fsuc_fpred (q j)) $ perm-map fsuc {n} r
+
+        \func aux2 {n : Nat} (l : Array (Fin (suc n)) (suc n)) (l-inj : isInj l) (d : Fin n) : Perm l (\lam j => j)
+          => \have | (j,lj=0) => isDFin.isSplit {Fin (suc n)} (isDFin.fromPigeonhole (finFin _)) l l-inj 0
+                   | remove/=0 i : remove1 (l j) l i /= 0 => rewrite lj=0 (remove1/= l-inj)
+             \in perm-trans (perm-remove l j) $ perm-:: lj=0 $ aux (remove1 (l j) l) remove/=0 d $ perm-fin (map (fpred d) (remove1 (l j) l)) $
+                  \lam {i} {j} p => remove1-inj l-inj $ inv (fsuc_fpred (remove/=0 i)) *> pmap fsuc p *> fsuc_fpred (remove/=0 j)
+      }
+  }
