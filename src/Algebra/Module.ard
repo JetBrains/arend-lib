@@ -35,6 +35,14 @@
   \lemma neg_ide_*c {a : E} : -1 *c a = negative a
     => *c_negative-left *> pmap negative ide_*c
 
+  \lemma *c_BigSum-left {l : Array R} {a : E} : R.BigSum l *c a = BigSum (\lam i => l i *c a) \elim l
+    | nil => *c_zro-left
+    | r :: l => *c-rdistr *> pmap (_ +) *c_BigSum-left
+
+  \lemma *c_BigSum-right {r : R} {l : Array E} : r *c BigSum l = BigSum (\lam i => r *c l i) \elim l
+    | nil => *c_zro-right
+    | a :: l => *c-ldistr *> pmap (_ +) *c_BigSum-right
+
   \func isGenerated (l : Array E) : \Prop
     => \Pi (x : E) -> ∃ (c : Array R l.len) (x = BigSum (mkArray (\lam i => c i *c l i)))
 
@@ -74,6 +82,34 @@
   | *c-ldistr => ext (\lam j => *c-ldistr)
   | *c-rdistr => ext (\lam j => *c-rdistr)
   | ide_*c => ext (\lam j => ide_*c)
+
+\instance ArrayLModule {R : Ring} (n : Nat) (M : LModule' R) : LModule (Array M n) { | R => R }
+  | zro _ => 0
+  | + f g j => f j + g j
+  | zro-left => arrayExt (\lam j => zro-left)
+  | zro-right => arrayExt (\lam j => zro-right)
+  | +-assoc => arrayExt (\lam j => +-assoc)
+  | negative f j => negative (f j)
+  | negative-left => arrayExt (\lam j => negative-left)
+  | +-comm => arrayExt (\lam j => +-comm)
+  | *c r f j => r *c f j
+  | *c-assoc => arrayExt (\lam j => *c-assoc)
+  | *c-ldistr => arrayExt (\lam j => *c-ldistr)
+  | *c-rdistr => arrayExt (\lam j => *c-rdistr)
+  | ide_*c => arrayExt (\lam j => ide_*c)
+  \where {
+    \lemma skip_*c {R : CRing} {n : Nat} {r : R} {l : Array R (suc n)} {k : Fin (suc n)}
+      : skip (r *c {ArrayLModule _ (RingLModule R)} l) k = r *c {ArrayLModule _ (RingLModule R)} skip l k \elim n, l, k
+      | 0, a :: nil, 0 => idp
+      | suc n, a :: l, 0 => idp
+      | suc n, a :: l, suc k => path (\lam i => r *c a :: skip_*c i)
+
+    \lemma skip_+ {R : CRing} {n : Nat} {l l' : Array R (suc n)} {k : Fin (suc n)}
+      : skip (l + {ArrayLModule _ (RingLModule R)} l') k = skip l k + {ArrayLModule _ (RingLModule R)} skip l' k \elim n, l, l', k
+      | 0, a :: nil, a' :: nil, 0 => idp
+      | suc n, a :: l, a' :: l', 0 => idp
+      | suc n, a :: l, a' :: l', suc k => path (\lam i => a + a' :: skip_+ i)
+  }
 
 \func homLModule (f : RingHom) : LModule' f.Dom \cowith
   | AbGroup => f.Cod

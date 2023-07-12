@@ -41,6 +41,10 @@
   | func-+ => pmap negative f.func-+ *> B.negative_+ *> +-comm
   | func-*c => pmap negative f.func-*c *> inv B.*c_negative-right
 
+\lemma linearMap_BigSum {R : Ring} {A B : LModule' R} {m : Nat} (f : Fin m -> LinearMap' A B) : LinearMap' A B { | func a => BigSum (\lam i => f i a) } \cowith
+  | func-+ => cong (ext (\lam i => func-+)) *> B.BigSum_+
+  | func-*c => cong (ext (\lam i => func-*c)) *> inv B.*c_BigSum-right
+
 \record BilinearMap {R : Ring} (A B C : LModule' R) (\coerce func : A -> B -> C)
   | linear-left {b : B} : LinearMap' A C { | func => func __ b }
   | linear-right {a : A} : LinearMap' B C { | func => func a }
@@ -52,6 +56,20 @@
     \lemma reduce {n : Nat} (f : Array A (suc n) -> B) (fl : isMultiLinear f) {a : A} : isMultiLinear (\lam l => f (a :: l)) \elim n
       | 0 => ()
       | suc n => \lam l j => fl (a :: l) (suc j)
+
+    \lemma fromReplace {n : Nat} {f : Array A n -> B} (p : \Pi (l : Array A n) (j : Fin n) -> LinearMap' A B { | func x => f (replace l j x) }) : isMultiLinear f \elim n
+      | 0 => ()
+      | suc n => \lam l j => \new LinearMap {
+        | func-+ => inv (pmap f (replace_insert {_} {l} {j} {A.zro})) *> func-+ {p _ j} *> pmap2 (+) (pmap f replace_insert) (pmap f replace_insert)
+        | func-*c => inv (pmap f (replace_insert {_} {l} {j} {A.zro})) *> func-*c {p _ j} *> pmap (_ *c) (pmap f replace_insert)
+      }
+
+    \lemma toReplace {n : Nat} {f : Array A n -> B} (fl : isMultiLinear f) (l : Array A n) (j : Fin n) : LinearMap' A B { | func x => f (replace l j x) } \elim n
+      | 0 => \case j
+      | suc n => \new LinearMap {
+        | func-+ => inv (pmap f insert_skip) *> func-+ {fl _ j} *> pmap2 (f __ + f __) insert_skip insert_skip
+        | func-*c => inv (pmap f insert_skip) *> func-*c {fl _ j} *> pmap (_ *c f __) insert_skip
+      }
   }
 
 \lemma isMultilinear_zro {R : Ring} {n : Nat} {A B : LModule' R} : isMultiLinear {R} {n} {A} {B} (\lam x => 0) \elim n
@@ -65,6 +83,10 @@
 \lemma isMultilinear_negative {R : Ring} {n : Nat} {A B : LModule' R} {f : Array A n -> B} (fl : isMultiLinear f) : isMultiLinear (\lam x => negative (f x)) \elim n
   | 0 => ()
   | suc n => \lam l j => linearMap_negative (fl l j)
+
+\lemma isMultilinear_BigSum {R : Ring} {n : Nat} {A B : LModule' R} {m : Nat} (f : Fin m -> Array A n -> B) (fl : \Pi (j : Fin m) -> isMultiLinear (f j)) : isMultiLinear (\lam x => B.BigSum (\lam i => f i x)) \elim n
+  | 0 => ()
+  | suc n => \lam l j => linearMap_BigSum (fl __ l j)
 
 \func isAlternating {R : Ring} {n : Nat} {A B : LModule' R} (f : Array A n -> B) : \Prop
   => \Sigma (isMultiLinear f) (\Pi (l : Array A n) -> (\Sigma (i j : Fin n) (i /= j) (l i = l j)) -> f l = 0)

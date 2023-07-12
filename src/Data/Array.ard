@@ -1,3 +1,4 @@
+\import Algebra.Meta
 \import Algebra.Ring
 \import Arith.Fin
 \import Data.Bool
@@ -16,7 +17,7 @@
 
 \func mkArray {A : \Type} {n : Nat} (f : Fin n -> A) => \new Array A n f
 
-\func arrayExt {A : \Type} {n : Nat} {l l' : Array A n} (p : \Pi (j : Fin n) -> l j = l' j) : l = {Array A n} l'
+\func arrayExt {A : \Type} {n : Nat} {l l' : Array A n} (p : \Pi (j : Fin n) -> l j = l' j) : l = l'
   => path (\lam i => \new Array A n (\lam j => p j i))
 
 \func tail {n : Nat} {A : Fin (suc n) -> \Type} (a : DArray A) : DArray (\lam j => A (suc j)) \elim a
@@ -247,9 +248,64 @@
   | b :: l, 0 => a :: b :: l
   | b :: l, suc j => b :: insert a l j
 
-\func insert_zro {A : \Type} {n : Nat} {a : A} {l : Array A n} : insert a l 0 = {Array A (suc n)} a :: l \elim n, l
-  | 0, nil => path (\lam _ => a :: nil)
-  | suc n, b :: l => path (\lam _ => a :: b :: l)
+\func insert_zro {A : \Type} {n : Nat} {a : A} {l : Array A n} : insert a l 0 = a :: l \elim n, l
+  | 0, nil => idp
+  | suc n, b :: l => idp
+
+\func insert-index {A : \Type} {a : A} {l : Array A} {j : Fin (suc l.len)} : insert a l j j = a \elim l, j
+  | nil, 0 => idp
+  | b :: l, 0 => idp
+  | b :: l, suc j => insert-index
+
+\func skip {A : \Type} {n : Nat} (l : Array A (suc n)) (k : Fin (suc n)) : Array A n \elim n, l, k
+  | n, _ :: l, 0 => l
+  | suc n, a :: l, suc k => a :: skip l k
+
+\func replace {A : \Type} (l : Array A) (i : Fin l.len) (a : A) : Array A l.len \elim l, i
+  | b :: l, 0 => a :: l
+  | b :: l, suc i => b :: replace l i a
+
+\func replace_insert {A : \Type} {l : Array A} {i : Fin (suc l.len)} {a b : A} : replace (insert a l i) i b = insert b l i \elim l, i
+  | nil, 0 => idp
+  | c :: l, 0 => idp
+  | c :: l, suc i => cong replace_insert
+
+\func skip_replace_= {A : \Type} {n : Nat} {l : Array A (suc n)} {i : Fin (suc n)} {a : A}
+  : skip (replace l i a) i = skip l i \elim n, l, i
+  | 0, b :: l, 0 => idp
+  | suc n, b :: l, 0 => idp
+  | suc n, b :: l, suc i => path (\lam i => b :: skip_replace_= i)
+
+\func skip_replace_/= {A : \Type} {n : Nat} {l : Array A (suc n)} {j i : Fin (suc n)} {a : A} (p : j /= i)
+  : skip (replace l j a) i = replace (skip l i) (newIndex p) a \elim n, l, j, i
+  | _, _, 0, 0 => absurd (p idp)
+  | suc n, b :: l, 0, suc 0 => idp
+  | suc n, b :: l, 0, suc (suc i) => idp
+  | suc n, b :: l, suc j, 0 => idp
+  | suc n, b :: l, suc j, suc i => cong (skip_replace_/= _)
+  \where {
+    \func newIndex {n : Nat} {j i : Fin (suc n)} (p : i /= j) : Fin n \elim n, j, i
+      | _, 0, 0 => absurd (p idp)
+      | suc n, 0, suc i => i
+      | suc n, suc j, 0 => 0
+      | suc n, suc j, suc i => suc $ newIndex (\lam q => p (pmap fsuc q))
+  }
+
+\func map_replace {A B : \Type} (f : A -> B) {l : Array A} {i : Fin l.len} {a : A}
+  : map f (replace l i a) = replace (map f l) i (f a) \elim l, i
+  | b :: l, 0 => idp
+  | b :: l, suc i => path (\lam i => f b :: map_replace f i)
+
+\func insert_skip {A : \Type} {n : Nat} {l : Array A (suc n)} {k : Fin (suc n)} {a : A}
+  : insert a (skip l k) k = replace l k a \elim n, l, k
+  | 0, b :: nil, 0 => idp
+  | suc n, b :: l, 0 => idp
+  | suc n, b :: l, suc k => cong insert_skip
+
+\func skip_insert_= {A : \Type} {n : Nat} {a : A} {l : Array A n} {j : Fin (suc n)} : skip (insert a l j) j = l \elim n, l, j
+  | 0, nil, 0 => idp
+  | suc n, b :: l, 0 => idp
+  | suc n, b :: l, suc j => cong skip_insert_=
 
 \data Perm {A : \Type} {n : Nat} (l1 l2 : Array A n) \elim n, l1, l2
   | 0, nil, nil => perm-nil
@@ -299,7 +355,7 @@
       | suc (suc n) => aux2 {suc n} l l-inj 0
       \where {
         \func aux {n : Nat} (l : Array (Fin (suc n)) n) (q : \Pi (j : Fin n) -> l j /= 0) (d : Fin n) (r : Perm (map (fpred d) l) (\lam j => j)) : Perm l (\lam j => suc j)
-          => transport {Array (Fin (suc n)) n} (Perm __ _) (arrayExt $ \lam j => fsuc_fpred (q j)) $ perm-map fsuc {n} r
+          => transport (Perm __ _) (arrayExt $ \lam j => fsuc_fpred (q j)) $ perm-map fsuc {n} r
 
         \func aux2 {n : Nat} (l : Array (Fin (suc n)) (suc n)) (l-inj : isInj l) (d : Fin n) : Perm l (\lam j => j)
           => \have | (j,lj=0) => isDFin.isSplit {Fin (suc n)} (isDFin.fromPigeonhole (finFin _)) l l-inj 0
