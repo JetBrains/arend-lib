@@ -11,7 +11,7 @@
 \import Arith.Int
 \import Arith.Nat
 \import Data.Array
-\import Data.Fin (fsuc)
+\import Data.Fin (fsuc, fsuc/=)
 \import Function.Meta
 \import Logic
 \import Meta
@@ -185,3 +185,28 @@
                         \in pmap (R.pow -1 __ + _) s *> pmap (`+ _) R.negative_ide-right *> negative-left) *> zro_*-left) *> zro_*-right)
       }
   }
+
+\lemma determinant_ide {R : CRing} {n : Nat} : determinant (MatrixRing.ide {R} {n}) = 1 \elim n
+  | 0 => idp
+  | suc n => pmap2 (+) (*-assoc *> ide-left *> ide-left *> pmap determinant ide_minor *> determinant_ide) (R.BigSum_zro $ \lam j => *-assoc *> zro_*-left) *> zro-right
+  \where {
+    \lemma ide_minor {R : Ring} {n : Nat} : determinant.minor (MatrixRing.ide {R} {suc n}) 0 0 = 1 \elim n
+      | 0 => idp
+      | suc n => matrixExt $ \lam i j => mcases {2} \with {
+        | yes p => rewrite (decideEq=_reduce $ pmap fsuc p) idp
+        | no q => rewrite (decideEq/=_reduce $ fsuc/= q) idp
+      }
+  }
+
+\lemma determinant_* {R : CRing} {n : Nat} (M N : Matrix R n n) : determinant (M * N) = determinant M * determinant N
+  => alternating-unique {R} _ _
+      (isAlternating_linear-left {R} (\new LinearMap {
+        | func (l : Array R n) => mkArray $ \lam k => R.BigSum $ \lam j => l j * N j k
+        | func-+ => arrayExt $ \lam k => pmap R.BigSum (arrayExt $ \lam j => rdistr) *> R.BigSum_+
+        | func-*c => arrayExt $ \lam k => pmap R.BigSum (arrayExt $ \lam j => *-assoc) *> inv R.BigSum-ldistr
+      }) determinant.alternating)
+      (isAlternating_linear-right {R} determinant.alternating RingLModule.*_hom-right)
+      MatrixRing.ide
+      (\lam l => inP (l, arrayExt $ \lam j => inv $ ArrayLModule.BigSum-index *> R.BigSum-unique j (\lam i j/=i => later $ rewrite (decideEq/=_reduce $ \lam p => j/=i (inv p)) zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right))
+      (pmap determinant ide-left *> inv (pmap (`* _) determinant_ide *> ide-left))
+      M
