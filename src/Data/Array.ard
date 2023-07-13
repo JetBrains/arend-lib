@@ -1,6 +1,7 @@
 \import Algebra.Meta
 \import Algebra.Ring
 \import Arith.Fin
+\import Arith.Nat
 \import Data.Bool
 \import Data.Fin
 \import Data.Maybe
@@ -260,6 +261,22 @@
 \func skip {A : \Type} {n : Nat} (l : Array A (suc n)) (k : Fin (suc n)) : Array A n \elim n, l, k
   | n, _ :: l, 0 => l
   | suc n, a :: l, suc k => a :: skip l k
+  \where {
+    \func newIndex {n : Nat} {j i : Fin (suc n)} (p : i /= j) : Fin n \elim n, j, i
+      | _, 0, 0 => absurd (p idp)
+      | suc n, 0, suc i => i
+      | suc n, suc j, 0 => 0
+      | suc n, suc j, suc i => suc $ newIndex (\lam q => p (pmap fsuc q))
+
+    \open NatSemiring
+
+    \lemma newIndex_< {n : Nat} {i j k : Fin (suc n)} {pj : j /= i} {pk : k /= i} (q : j < k) : newIndex pj < newIndex pk \elim n, i, j, k, q
+      | _, 0, 0, _, _ => absurd (pj idp)
+      | _, 0, _, 0, _ => absurd (pk idp)
+      | suc n, 0, suc j, suc k, suc<suc q => q
+      | suc n, suc i, 0, suc k, q => zero<suc
+      | suc n, suc i, suc j, suc k, suc<suc q => suc<suc (newIndex_< q)
+  }
 
 \func replace {A : \Type} (l : Array A) (i : Fin l.len) (a : A) : Array A l.len \elim l, i
   | b :: l, 0 => a :: l
@@ -277,19 +294,18 @@
   | suc n, b :: l, suc i => path (\lam i => b :: skip_replace_= i)
 
 \func skip_replace_/= {A : \Type} {n : Nat} {l : Array A (suc n)} {j i : Fin (suc n)} {a : A} (p : j /= i)
-  : skip (replace l j a) i = replace (skip l i) (newIndex p) a \elim n, l, j, i
+  : skip (replace l j a) i = replace (skip l i) (skip.newIndex p) a \elim n, l, j, i
   | _, _, 0, 0 => absurd (p idp)
   | suc n, b :: l, 0, suc 0 => idp
   | suc n, b :: l, 0, suc (suc i) => idp
   | suc n, b :: l, suc j, 0 => idp
   | suc n, b :: l, suc j, suc i => cong (skip_replace_/= _)
-  \where {
-    \func newIndex {n : Nat} {j i : Fin (suc n)} (p : i /= j) : Fin n \elim n, j, i
-      | _, 0, 0 => absurd (p idp)
-      | suc n, 0, suc i => i
-      | suc n, suc j, 0 => 0
-      | suc n, suc j, suc i => suc $ newIndex (\lam q => p (pmap fsuc q))
-  }
+
+\func skip-index {A : \Type} {n : Nat} {l : Array A (suc n)} {i j : Fin (suc n)} {p : j /= i} : skip l i (skip.newIndex p) = l j \elim n, l, i, j
+  | _, _, 0, 0 => absurd (p idp)
+  | suc n, a :: l, 0, suc j => idp
+  | suc n, a :: l, suc i, 0 => idp
+  | suc n, a :: l, suc i, suc j => skip-index
 
 \func map_replace {A B : \Type} (f : A -> B) {l : Array A} {i : Fin l.len} {a : A}
   : map f (replace l i a) = replace (map f l) i (f a) \elim l, i
@@ -331,6 +347,10 @@
       | 0, nil, nil => idp
       | 1, a1 :: l1, a2 :: l2 => idp
       | suc (suc n), a1 :: l1, a2 :: l2 => idp
+
+    \lemma inversions_perm-refl {A : \Type} {n : Nat} {l : Array A n} : inversions (perm-refl {A} {n} {l}) = 0 \elim n, l
+      | 0, nil => idp
+      | suc n, a :: l => inversions_perm-:: *> inversions_perm-refl
 
     \func sign {R : Ring} {A : \Type} {n : Nat} {l1 l2 : Array A n} (p : Perm l1 l2) : R
       => R.pow -1 (inversions p)

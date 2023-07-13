@@ -5,14 +5,16 @@
 \import Algebra.Monoid
 \import Algebra.Ring
 \import Arith.Fin
+\import Arith.Nat
 \import Category
 \import Category.Meta
 \import Data.Array
-\import Data.Fin (fsuc/=)
+\import Data.Fin (nat_fin_=)
 \import Data.Or
 \import Function.Meta
 \import Logic
 \import Meta
+\import Order.LinearOrder
 \import Paths
 \import Paths.Meta
 \open AddMonoid
@@ -89,16 +91,25 @@
   | suc n => \lam l j => linearMap_BigSum (fl __ l j)
 
 \func isAlternating {R : Ring} {n : Nat} {A B : LModule' R} (f : Array A n -> B) : \Prop
-  => \Sigma (isMultiLinear f) (\Pi (l : Array A n) -> (\Sigma (i j : Fin n) (i /= j) (l i = l j)) -> f l = 0)
+  => \Sigma (isMultiLinear f) (\Pi (l : Array A n) -> (\Sigma (i j : Fin n) (i < j) (l i = l j)) -> f l = 0)
   \where {
+    \open NatSemiring(<,zero<suc,suc<suc)
+
+    \lemma to/= {f : Array A n -> B} (fa : isAlternating f) (l : Array A n) (t : \Sigma (i j : Fin n) (i /= j) (l i = l j)) : f l = 0
+      => fa.2 l $ \case NatSemiring.trichotomy t.1 t.2 \with {
+        | less e => (t.1, t.2, e, t.4)
+        | equals e => absurd $ t.3 (nat_fin_= e)
+        | greater e => (t.2, t.1, e, inv t.4)
+      }
+
     \lemma reduce {n : Nat} (f : Array A (suc n) -> B) (fa : isAlternating f) {a : A} : isAlternating (\lam l => f (a :: l))
-      => (isMultiLinear.reduce f fa.1, \lam l s => fa.2 (a :: l) (suc s.1, suc s.2, fsuc/= s.3, s.4))
+      => (isMultiLinear.reduce f fa.1, \lam l s => fa.2 (a :: l) (suc s.1, suc s.2, suc<suc s.3, s.4))
 
     \lemma substract1from0 {n : Nat} {f : Array A (suc (suc n)) -> B} (fa : isAlternating f) {a a' : A} {l : Array A n} : f (a :: a' :: l) = f (a - a' :: a' :: l)
-      => inv $ func-+ {fa.1 (a' :: l) 0} *> pmap (_ +) (AddGroupHom.func-negative {fa.1 (a' :: l) 0} *> pmap negative (fa.2 _ (0, 1, (\case __), idp)) *> B.negative_zro) *> zro-right
+      => inv $ func-+ {fa.1 (a' :: l) 0} *> pmap (_ +) (AddGroupHom.func-negative {fa.1 (a' :: l) 0} *> pmap negative (fa.2 _ (0, 1, zero<suc, idp)) *> B.negative_zro) *> zro-right
 
     \lemma add0to1 {n : Nat} {f : Array A (suc (suc n)) -> B} (fa : isAlternating f) {a a' : A} {l : Array A n} : f (a :: a' :: l) = f (a :: a + a' :: l)
-      => inv $ inv (path (\lam i => f (a :: insert_zro i))) *> func-+ {fa.1 (a :: l) 1} *> pmap2 (+) (fa.2 _ (0, 1, (\case __), inv (path (\lam i => insert_zro i 0)))) (path (\lam i => f (a :: insert_zro i))) *> zro-left
+      => inv $ inv (path (\lam i => f (a :: insert_zro i))) *> func-+ {fa.1 (a :: l) 1} *> pmap2 (+) (fa.2 _ (0, 1, zero<suc, inv (path (\lam i => insert_zro i 0)))) (path (\lam i => f (a :: insert_zro i))) *> zro-left
 
     \lemma alternating_perm {n : Nat} {f : Array A n -> B} (fa : isAlternating f) {l l' : Array A n} (p : Perm l l') : f l = Perm.sign p *c f l' \elim n, l, l', p
       | 0, nil, nil, perm-nil => inv ide_*c
@@ -131,7 +142,7 @@
     \lemma alternating-unique_zro (f : Array A n -> B) (fa : isAlternating f)
                                   (l : Array A n) (Ag : A.isGenerated l) (fl=0 : f l = 0) (a : Array A n) : f a = 0
       => aux f fa.1 l Ag a $ \lam c => \case repeats-dec c \with {
-        | inl e => fa.2 (map l c) (e.1, e.2, e.3, pmap l e.4)
+        | inl e => isAlternating.to/= fa (map l c) (e.1, e.2, e.3, pmap l e.4)
         | inr inj => isAlternating.alternating_perm fa {map l c} {l} (perm-map l (perm-fin c inj)) *> rewrite fl=0 B.*c_zro-right
       }
 

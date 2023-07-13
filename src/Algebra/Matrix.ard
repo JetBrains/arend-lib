@@ -1,5 +1,6 @@
 \import Algebra.Group
 \import Algebra.Group.Category
+\import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Module.Category
 \import Algebra.Monoid
@@ -7,6 +8,8 @@
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Arith.Fin
+\import Arith.Int
+\import Arith.Nat
 \import Data.Array
 \import Data.Fin (fsuc)
 \import Function.Meta
@@ -88,17 +91,34 @@
     \func minor {R : \Type} {n m : Nat} (M : Matrix R (suc n) (suc m)) (i0 : Fin (suc n)) (j0 : Fin (suc m)) : Matrix R n m
       => map (skip __ j0) (skip M i0)
 
+    \func minor' {R : \Type} {n m : Nat} (M : Matrix R (suc n) (suc m)) (i0 : Fin (suc n)) (j0 : Fin (suc m)) : Matrix R n m
+      => skip (map (skip __ j0) M) i0
+
+    \func minor=minor' {R : \Type} {n m : Nat} (M : Matrix R (suc n) (suc m)) (i0 : Fin (suc n)) (j0 : Fin (suc m)) : minor M i0 j0 = minor' M i0 j0
+      => matrixExt (aux M i0 j0)
+      \where {
+        \func aux {R : \Type} {n m : Nat} (M : Array (Array R (suc m)) (suc n)) (i0 : Fin (suc n)) (j0 : Fin (suc m)) (i : Fin n) (j : Fin m)
+          : skip (skip M i0 i) j0 j = skip {Array R m} (map (skip __ j0) M) i0 i j \elim n, M, i0, i
+          | suc n, l :: M, 0, i => idp
+          | suc n, l :: M, suc i0, 0 => idp
+          | suc n, l :: M, suc i0, suc i => aux M i0 j0 i j
+      }
+
     \lemma multilinear {R : CRing} {n : Nat} : isMultiLinear {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinant M) \elim n
       | 0 => ()
       | suc n => determinantN.multilinear {R} {suc n} 0
+
+    \lemma alternating {R : CRing} {n : Nat} : isAlternating {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinant M) \elim n
+      | 0 => ((), \lam _ (t,_,_,_) => \case t)
+      | suc n => determinantN.alternating {R} {suc n} 0
   }
 
 \func determinantN {R : CRing} {n : Nat} (k : Fin n) (M : Matrix R n n) : R \elim n
   | 0 => 1
   | suc n => R.BigSum $ \lam i => M i k * R.pow -1 (i Nat.+ k) * determinant (minor M i k)
   \where {
-    \open determinant(minor)
-    \open skip_replace_/=
+    \open determinant
+    \open skip
     \open ArrayLModule
 
     \lemma minor_insert {R : CRing} {n m : Nat} {i : Fin (suc n)} {x : Array R (suc m)} {l : Array (Array R (suc m)) n} {j : Fin (suc m)}
@@ -129,5 +149,39 @@
           | func-+ => rewrite (aux/= q, aux/= q, aux/= q) $ pmap (_ *) (inv (path (\lam i' => determinant (minor (replace_insert {_} {M} {j} {replicate (suc n) R.zro} i') i k))) *> pmap determinant (minor_replace q) *> rewrite skip_+ (func-+ {isMultiLinear.toReplace {R} {_} {_} {n} determinant.multilinear _ _} *> pmap2 (determinant __ + determinant __) (inv (minor_replace q) *> path (\lam i' => minor (replace_insert i') i k)) (inv (minor_replace q) *> path (\lam i' => minor (replace_insert i') i k)))) *> ldistr
           | func-*c {r} {x} => rewrite (aux/= q, aux/= q) $ pmap (_ * _ * __) (inv (path (\lam i' => determinant (minor (replace_insert {_} {M} {j} {replicate (suc n) R.zro} i') i k))) *> pmap determinant (minor_replace q) *> rewrite skip_*c (func-*c {isMultiLinear.toReplace {R} {_} {_} {n} determinant.multilinear _ _} *> pmap (r * determinant __) (inv (minor_replace q))) *> path (\lam i' => r * determinant (minor (replace_insert i') i k)) *> *-comm) *> inv *-assoc *> *-comm
         }
+      }
+
+    \lemma alternating {R : CRing} {n : Nat} (k : Fin n) : isAlternating {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinantN k M) \elim n
+      | 0 => ((), \lam _ => \case __.1)
+      | suc n => (multilinear k, aux k)
+      \where {
+        \open NatSemiring(<,suc<suc)
+
+        \func permutation1 {R : \Type} {n : Nat} (j : Fin (suc n)) (l : Array R (suc n)) : Perm l (l j :: skip l j) \elim n, j, l
+          | 0, 0, l => Perm.perm-refl
+          | suc n, 0, l => Perm.perm-refl
+          | suc n, suc j, a :: l => perm-trans (perm-:: idp (permutation1 j l)) (perm-swap idp idp idp)
+
+        \func permutation {R : \Type} {n : Nat} {i j : Fin (suc n)} (p : i < j) (l : Array R (suc n)) (q : l i = l j) : Perm (skip l i) (skip l j) \elim n, i, j, p, l, q
+          | 0, 0, 0, (), _, _
+          | suc n, 0, suc j, _, a :: l, idp => permutation1 j l
+          | suc n, suc i, suc j, suc<suc p, a :: l, q => perm-:: idp (permutation p l q)
+
+        \lemma permutation1_inversions {R : \Type} {n : Nat} {j : Fin (suc n)} {l : Array R (suc n)} : Perm.inversions (permutation1 j l) = j \elim n, j, l
+          | 0, 0, l => idp
+          | suc n, 0, a :: l => Perm.inversions_perm-:: *> Perm.inversions_perm-refl
+          | suc n, suc j, a :: l => pmap suc permutation1_inversions
+
+        \lemma permutation_inversions {R : \Type} {n : Nat} {i j : Fin (suc n)} {p : i < j} {l : Array R (suc n)} {q : l i = l j} : Perm.inversions (permutation p l q) = j -' suc i \elim n, i, j, p, l, q
+          | 0, 0, 0, (), _, _
+          | suc n, 0, suc j, _, a :: l, idp => permutation1_inversions *> inv -'0
+          | suc n, suc i, suc j, suc<suc p, a :: l, q => Perm.inversions_perm-:: *> permutation_inversions
+
+        \lemma aux {R : CRing} {n : Nat} (k : Fin n) (M : Array (Array R n) n) (t : \Sigma (i j : Fin n) (i < j) (M i = M j)) : determinantN k M = 0 \elim n
+          | 0 => \case t.1
+          | suc n => R.BigSum-unique2 {\lam i => M i k * R.pow -1 (i Nat.+ k) * determinant (minor M i k)} t.3 (\lam i i/=t1 i/=t2 => pmap (_ *) (determinant.alternating.2 (minor M i k) (newIndex $ \lam p => i/=t1 (inv p), newIndex $ \lam p => i/=t2 (inv p), newIndex_< t.3, pmap (skip __ k) $ skip-index *> t.4 *> inv skip-index)) *> zro_*-right) *>
+                      rewrite (pmap {Array R _} (__ k) t.4) (pmap2 (+) *-assoc *-assoc *> inv ldistr *> pmap (_ *) (later $ rewrite (minor=minor', minor=minor', isAlternating.alternating_perm {R} determinant.alternating $ permutation t.3 (map (skip __ k) M) $ pmap (skip __ k) t.4) $ rewriteI *-assoc $ inv rdistr *> pmap (`* _) (unfold Perm.sign $ rewrite (permutation_inversions, inv R.pow_+, inv R.pow_-1_+2) $
+                        \have s : t.1 Nat.+ k Nat.+ (t.2 -' suc t.1) Nat.+ 2 = suc (t.2 Nat.+ k) => pmap suc $ unpos $ pmap (pos (suc (t.1 Nat.+ k)) +) (-'=- $ suc_<_<= t.3) *> linarith
+                        \in pmap (R.pow -1 __ + _) s *> pmap (`+ _) R.negative_ide-right *> negative-left) *> zro_*-left) *> zro_*-right)
       }
   }
