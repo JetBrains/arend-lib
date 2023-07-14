@@ -64,7 +64,7 @@
       => mkMatrix $ \lam i j => M i j + N i j
 
     \func product {R : Ring} {n m k : Nat} (M : Matrix R n m) (N : Matrix R m k) : Matrix R n k
-      => mkMatrix $ \lam j k => BigSum $ \new Array R m $ \lam i => M j i * N i k
+      => mkMatrix $ \lam i k => BigSum $ \new Array R m $ \lam j => M i j * N j k
 
     \lemma product_ide-left {R : Ring} {n m : Nat} {M : Matrix R n m} : product ide M = M
       => matrixExt $ \lam i j => BigSum-unique i (\lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) R.zro_*-left) *> rewrite (decideEq=_reduce idp) ide-left
@@ -82,6 +82,26 @@
 
     \lemma matrix_rdistr {R : Ring} {n m k : Nat} {M N : Matrix R n m} {L : Matrix R m k} : product (add M N) L = add (product M L) (product N L)
       => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => rdistr) *> R.BigSum_+
+
+    \lemma ide_generates {R : Ring} {n : Nat} : LModule.isGenerated {ArrayLModule n (RingLModule R)} ide
+      => \lam l => inP (l, arrayExt $ \lam j => inv $ ArrayLModule.BigSum-index *> R.BigSum-unique j (\lam i j/=i => later $ rewrite (decideEq/=_reduce $ \lam p => j/=i (inv p)) zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right)
+
+    -- | A recursive definition of the identity matrix is sometimes more convenient.
+    \func ide' {R : Ring} {n : Nat} : Array (Array R n) n \elim n
+      | 0 => nil
+      | suc n => (1 :: replicate n zro) :: map (\lam l => R.zro :: l) ide'
+
+    \lemma ide=ide' {R : Ring} {n : Nat} : ide {R} {n} = ide' \elim n
+      | 0 => idp
+      | suc n => matrixExt $ \case \elim __, \elim __ \with {
+        | 0, 0 => idp
+        | 0, suc j => idp
+        | suc i, 0 => idp
+        | suc i, suc j => (later $ cases (decideEq i j) \with {
+          | yes e => rewrite (decideEq=_reduce $ pmap fsuc e) idp
+          | no q => rewrite (decideEq/=_reduce $ fsuc/= q) idp
+        }) *> pmap (__ i j) ide=ide'
+      }
   }
 
 \func determinant {R : CRing} {n : Nat} (M : Matrix R n n) : R \elim n
@@ -184,11 +204,31 @@
                         \have s : t.1 Nat.+ k Nat.+ (t.2 -' suc t.1) Nat.+ 2 = suc (t.2 Nat.+ k) => pmap suc $ unpos $ pmap (pos (suc (t.1 Nat.+ k)) +) (-'=- $ suc_<_<= t.3) *> linarith
                         \in pmap (R.pow -1 __ + _) s *> pmap (`+ _) R.negative_ide-right *> negative-left) *> zro_*-left) *> zro_*-right)
       }
+
+    \lemma determinantN_ide {R : CRing} {n : Nat} (k : Fin n) : determinantN k (MatrixRing.ide {R} {n}) = 1 \elim n
+      | 0 => idp
+      | suc n => R.BigSum-unique {\lam i => MatrixRing.ide i k * R.pow -1 (i Nat.+ k) * determinant (minor MatrixRing.ide i k)} k (\lam j k/=j => rewrite (decideEq/=_reduce $ \lam p => k/=j $ inv p) simplify) *>
+                  rewrite (decideEq=_reduce idp, ide-left) (pmap2 (*) R.pow_-1_even (pmap determinant (pmap (minor __ k k) MatrixRing.ide=ide' *> ide'_minor k *> inv MatrixRing.ide=ide') *> determinant_ide {R} {n}) *> ide-left)
+      \where {
+        \func double-skip {R : \Set} {n m : Nat} {M : Array (Array R n) (suc m)} {k : Fin (suc m)} {i : Fin m} {j : Fin n}
+          : skip {Array R _} M k i j = skip (map {Array R n} (__ j) M) k i \elim m, M, k, i
+          | suc m, l :: M, 0, i => idp
+          | suc m, l :: M, suc k, 0 => idp
+          | suc m, l :: M, suc k, suc i => double-skip
+
+        \lemma ide'_minor {R : Ring} {n : Nat} (k : Fin (suc n)) : determinant.minor (MatrixRing.ide' {R}) k k = MatrixRing.ide' \elim n, k
+          | 0, k => idp
+          | suc n, 0 => idp
+          | suc n, suc k => pmap matrixFromArrays $ pmap2 (::) (pmap (\lam l => R.ide :: l) (skip_replicate R.zro)) $ arrayExt $ \lam i => pmap2 (::) (double-skip *> pmap {Array R _} (__ i) (skip_replicate R.zro {k})) $ cong (arrayExt $ \lam j => double-skip *> inv double-skip) *> pmap {Matrix R n n} (__ i) (ide'_minor k)
+      }
+
+    \lemma =determinant {R : CRing} {n : Nat} {k : Fin n} {M : Matrix R n n} : determinantN k M = determinant M
+      => alternating-unique {R} (alternating k) determinant.alternating MatrixRing.ide_generates (determinantN_ide k *> inv determinant_ide) M
   }
 
 \lemma determinant_ide {R : CRing} {n : Nat} : determinant (MatrixRing.ide {R} {n}) = 1 \elim n
   | 0 => idp
-  | suc n => pmap2 (+) (*-assoc *> ide-left *> ide-left *> pmap determinant ide_minor *> determinant_ide) (R.BigSum_zro $ \lam j => *-assoc *> zro_*-left) *> zro-right
+  | suc n => determinantN.determinantN_ide {R} {suc n} 0
   \where {
     \lemma ide_minor {R : Ring} {n : Nat} : determinant.minor (MatrixRing.ide {R} {suc n}) 0 0 = 1 \elim n
       | 0 => idp
@@ -199,14 +239,26 @@
   }
 
 \lemma determinant_* {R : CRing} {n : Nat} (M N : Matrix R n n) : determinant (M * N) = determinant M * determinant N
-  => alternating-unique {R} _ _
+  => alternating-unique {R}
       (isAlternating_linear-left {R} (\new LinearMap {
         | func (l : Array R n) => mkArray $ \lam k => R.BigSum $ \lam j => l j * N j k
         | func-+ => arrayExt $ \lam k => pmap R.BigSum (arrayExt $ \lam j => rdistr) *> R.BigSum_+
         | func-*c => arrayExt $ \lam k => pmap R.BigSum (arrayExt $ \lam j => *-assoc) *> inv R.BigSum-ldistr
       }) determinant.alternating)
       (isAlternating_linear-right {R} determinant.alternating RingLModule.*_hom-right)
-      MatrixRing.ide
-      (\lam l => inP (l, arrayExt $ \lam j => inv $ ArrayLModule.BigSum-index *> R.BigSum-unique j (\lam i j/=i => later $ rewrite (decideEq/=_reduce $ \lam p => j/=i (inv p)) zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right))
+      MatrixRing.ide_generates
       (pmap determinant ide-left *> inv (pmap (`* _) determinant_ide *> ide-left))
       M
+
+\func adjugate {R : CRing} {n : Nat} (M : Matrix R n n) : Matrix R n n \elim n
+  | 0 => M
+  | suc n => mkMatrix $ \lam i j => Monoid.pow -1 (j + i) * determinant (determinant.minor M j i)
+
+\lemma determinant_adjugate_= {R : CRing} {n : Nat} {M : Matrix R (suc n) (suc n)} (k : Fin (suc n)) : determinant M = R.BigSum (\lam j => M j k * adjugate M k j)
+  => inv ({?} *> determinantN.=determinant {R} {suc n} {k} {M})
+
+\lemma adjugate-left {R : CRing} {n : Nat} {M : Matrix R n n} : adjugate M * M = determinant M *c ide
+ => matrixExt $ \lam i k => mcases \with {
+      | yes p => rewrite p {?} *> inv ide-right
+      | no q => {?} *> inv zro_*-right
+    }
