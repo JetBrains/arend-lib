@@ -23,19 +23,17 @@
 \import Set.Fin.Pigeonhole
 \open LinearlyOrderedSemiring(<=_+)
 
-\class FinSet \extends KFinSet, Choice
-  | finEq : TruncP (E = {\Set} Fin finCard)
-  | finSurj => TruncP.map finEq $ \lam p =>
-                \let e => =-to-Equiv (inv p)
-                \in (e, Surjection.isSurj {ESEquiv.fromEquiv e})
+\class FinSet \hlevels \extends KFinSet, Choice
+  | finEq : TruncP (Equiv {Fin finCard} {E})
+  | finSurj => TruncP.map finEq $ \lam (e : Equiv {Fin finCard} {E}) => (e, Surjection.isSurj {ESEquiv.fromEquiv e})
 
   | choice {B} => \case finEq \with {
-    | inP p => rewriteF (inv p) (finiteAC {finCard}) {B}
+    | inP e => rewriteF (Equiv-to-= e) (finiteAC {finCard}) {B}
   }
   \where {
-    \use \level levelProp (A : \Set) (X Y : FinSet A) : X = Y
+    \use \level levelProp {A : \Set} (X Y : FinSet A) : X = Y
       => ext (\case X.finEq, Y.finEq \with {
-        | inP A=Xcard, inP A=Ycard => FinCardBij (inv A=Xcard *> A=Ycard)
+        | inP Xcard=A, inP Ycard=A => FinCardBij (Xcard=A `transEquiv` symQEquiv Ycard=A)
       })
 
     \lemma finiteAC {n : Nat} {A : Fin n -> \Type} (f : \Pi (i : Fin n) -> TruncP (A i)) : TruncP (\Pi (i : Fin n) -> A i) \elim n
@@ -69,9 +67,9 @@
     \lemma suc-isInj {n : Nat} (x y : Fin n) (p : suc x = suc y) : x = y \elim n
       | suc n => pmap pred p
 
-    \lemma FinCardBij {n m : Nat} (p : Fin n = Fin m) : n = m =>
-      \have | e : ESEquiv => =-to-Equiv p
-            | e' : ESEquiv => =-to-Equiv (inv p)
+    \lemma FinCardBij {n m : Nat} (p : Equiv {Fin n} {Fin m}) : n = m =>
+      \have | e  : ESEquiv => p
+            | e' : ESEquiv => ESEquiv.fromEquiv (symQEquiv p)
       \in <=-antisymmetric (FinCardInj e  (\lam x y => Retraction.sec {e.isEmb  x y}))
                            (FinCardInj e' (\lam x y => Retraction.sec {e'.isEmb x y}))
 
@@ -108,10 +106,10 @@
       | suc n, suc k, suc i => pmap fsuc skip_sface
 
     \lemma fromArray {A : \Set} (l : Array A) (p : \Pi (a : A) -> ∃ (i : Fin l.len) (l i = a)) (q : \Pi {i j : Fin l.len} -> l i = l j -> i = j) : FinSet A l.len \cowith
-      | finEq => inP $ inv $ Equiv-to-= $ \new ESEquiv l {
-                                            | Embedding => Embedding.fromInjection q
-                                            | isSurj => p
-                                          }
+      | finEq => inP $ \new ESEquiv l {
+                         | Embedding => Embedding.fromInjection q
+                         | isSurj => p
+                       }
   }
 
 \lemma transport_zero {n m : Nat} (p : n = m) : transport Fin (pmap suc p) 0 = 0 \elim p
@@ -171,20 +169,30 @@
 
 \instance emptyFin : FinSet Empty
   | finCard => 0
-  | finEq => inP (path (iso {Empty} {Fin 0} (\case __) (\case __) idpe (\case __)))
+  | finEq => inP $ \new QEquiv {
+    | f => \case __
+    | ret => \case __
+    | ret_f => \case __
+    | f_sec => \case __
+  }
 
 \instance unitFin : FinSet (\Sigma)
   | finCard => 1
-  | finEq => inP (path (iso {\Sigma} {Fin 1} (\lam _ => 0) (\lam _ => ()) idpe (\lam x => cases x idp)))
+  | finEq => inP $ \new QEquiv {
+    | f _ => ()
+    | ret _ => 0
+    | ret_f (0) => idp
+    | f_sec _ => idp
+  }
 
 \instance FinFin (n : Nat) : FinSet (Fin n)
   | finCard => n
-  | finEq => inP idp
+  | finEq => inP idEquiv
 
 \instance finOr (S T : FinSet) : FinSet (Or S T)
   | finCard => S.finCard + T.finCard
   | finEq => \case S.finEq, T.finEq \with {
-    | inP Se, inP Te => inP (pmap2 Or Se Te *> QEquiv-to-= (aux {S.finCard} {T.finCard}))
+    | inP Se, inP Te => inP $ =-to-Equiv $ inv (QEquiv-to-= (aux {S.finCard} {T.finCard})) *> pmap2 Or (Equiv-to-= Se) (Equiv-to-= Te)
   }
   \where {
     \func aux {n m : Nat} : QEquiv {Or (Fin n) (Fin m)} {Fin (n + m)} \cowith
@@ -235,7 +243,7 @@
   => \case AbMonoid.FinSum.char (\lam i => finCard {Q i}) \with {
        | inP p => rewrite p.2 $ \new FinSet {
          | finEq => \case FinSet.finiteAC (\lam i => finEq {Q (p.1 i)}) \with {
-           | inP d => inP $ Equiv-to-= $ symQEquiv (sigma-left p.1) `transEquiv` sigma-right (\lam i => =-to-Equiv (d i)) `transEquiv` aux _
+           | inP d => inP $ symQEquiv (aux _) `transEquiv` sigma-right d `transEquiv` sigma-left p.1
          }
        }
      }
