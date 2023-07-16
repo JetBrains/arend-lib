@@ -1,9 +1,13 @@
+\import Algebra.Group.Symmetric (symmetric-rec)
+\import Algebra.Monoid
 \import Algebra.Ordered
+\import Algebra.Semiring
 \import Arith.Fin
 \import Arith.Nat
-\import Data.Array
+\import Data.Fin (fpred, fsuc, fsuc/=)
 \import Data.Or
 \import Equiv
+\import Equiv.Sigma
 \import Equiv.Univalence
 \import Function.Meta ($)
 \import Logic
@@ -12,13 +16,11 @@
 \import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
-\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Set
 \import Set.Fin.KFin
 \import Set.Fin.Pigeonhole
-\open Nat(+)
 \open LinearlyOrderedSemiring(<=_+)
 
 \class FinSet \extends KFinSet, Choice
@@ -94,6 +96,17 @@
       | suc n, suc x0, suc x, 0 => \case p
       | suc n, suc x0, suc x, suc y => pmap (suc __) (skip-isInj (suc-isInj _ _ p))
 
+    \lemma sface_skip {n : Nat} {x0 x : Fin (suc n)} {d : x0 /= x} : sface x0 (skip x0 x d) = x \elim n, x0, x
+      | _, 0, 0 => absurd (d idp)
+      | suc n, 0, suc x => idp
+      | suc n, suc x0, 0 => idp
+      | suc n, suc x0, suc x => pmap fsuc sface_skip
+
+    \lemma skip_sface {n : Nat} {k : Fin (suc n)} {i : Fin n} {d : k /= sface k i} : skip k (sface k i) d = i \elim n, k, i
+      | suc n, 0, i => idp
+      | suc n, suc k, 0 => idp
+      | suc n, suc k, suc i => pmap fsuc skip_sface
+
     \lemma fromArray {A : \Set} (l : Array A) (p : \Pi (a : A) -> ∃ (i : Fin l.len) (l i = a)) (q : \Pi {i j : Fin l.len} -> l i = l j -> i = j) : FinSet A l.len \cowith
       | finEq => inP $ inv $ Equiv-to-= $ \new ESEquiv l {
                                             | Embedding => Embedding.fromInjection q
@@ -136,46 +149,25 @@
   | 0 => i
   | suc k => suc (fin-raise i)
 
-\func sface {n : Nat} (k : Fin (suc n)) (i : Fin n) : Fin (suc n) => \case LinearOrder.dec<_<= (i : Nat) k \with {
-  | inl _ => i
-  | inr _ => suc i
-}
+\func sface {n : Nat} (k : Fin (suc n)) (i : Fin n) : Fin (suc n) \elim n, k, i
+  | suc n, 0, i => suc i
+  | suc n, suc k, 0 => 0
+  | suc n, suc k, suc i => suc (sface k i)
 
-\lemma sface-skip {n : Nat} (k : Fin (suc n)) (i : Fin n) : sface k i /= k => unfold sface (mcases \with {
-  | inl i<k => \lam i=k => NatSemiring.<-irreflexive (transport {Nat} (`< k) i=k i<k)
-  | inr k<=i => \lam i+1=k => NatSemiring.<-irreflexive (<-transitive-left id<suc (rewriteF (inv i+1=k) k<=i))
-})
+\lemma sface-skip {n : Nat} {k : Fin (suc n)} {i : Fin n} : sface k i /= k \elim n, k, i
+  | suc n, 0, i => \case __
+  | suc n, suc k, 0 => \case __
+  | suc n, suc k, suc i => fsuc/= sface-skip
+
+\lemma sface-inj {n : Nat} {k : Fin (suc n)} {i i' : Fin n} (p : sface k i = sface k i') : i = i' \elim n, k, i, i'
+  | suc n, 0, i, i' => pmap (fpred i) p
+  | suc n, suc k, 0, 0 => idp
+  | suc n, suc k, 0, suc i' => \case p
+  | suc n, suc k, suc i, 0 => \case p
+  | suc n, suc k, suc i, suc i' => pmap fsuc $ sface-inj $ pmap (fpred k) p
 
 \func cyclePerm {n : Nat} (k : Fin n) : QEquiv {Fin n} {Fin n} \elim n
-  | suc n => \new QEquiv {
-    | f => \case __ \with {
-      | 0 => k
-      | suc i => sface k i
-    }
-    | ret i => \case LinearOrder.trichotomy (i : Nat) k \with {
-      | less i<k => suc (toFin (<-transitive-left i<k (<_suc_<= (fin_< k))))
-      | equals _ => 0
-      | greater _ => i
-    }
-    | ret_f => \case \elim __ \with {
-      | 0 => rewrite (LinearOrder.trichotomy=_reduce idp) idp
-      | suc i => mcases {2} \with {
-        | inl i<k => rewrite (LinearOrder.trichotomy<_reduce i<k) (pmap (\lam j => suc j) (fin_nat-inj (toFin=id _)))
-        | inr k<=i => rewrite (LinearOrder.trichotomy>_reduce (<-transitive-right k<=i id<suc)) idp
-      }
-    }
-    | f_sec i => mcases {2} \with {
-      | less i<k => mcases \with {
-          | inl _ => fin_nat-inj (toFin=id _)
-          | inr k<=i' => \case NatSemiring.<-irreflexive (NatSemiring.<-transitive-left i<k (rewriteF toFin=id k<=i'))
-        }
-      | equals i=k => inv (fin_nat-inj i=k)
-      | greater k<i => \case \elim i, \elim k<i \with {
-        | 0, k<0 => contradiction
-        | suc i, k<i+1 => rewrite (LinearOrder.dec<=_reduce (<_suc_<= k<i+1)) idp
-      }
-    }
-  }
+  | suc n => Equiv.ret {symmetric-rec} (k,idEquiv)
 
 \instance emptyFin : FinSet Empty
   | finCard => 0
@@ -185,7 +177,7 @@
   | finCard => 1
   | finEq => inP (path (iso {\Sigma} {Fin 1} (\lam _ => 0) (\lam _ => ()) idpe (\lam x => cases x idp)))
 
-\instance finFin (n : Nat) : FinSet (Fin n)
+\instance FinFin (n : Nat) : FinSet (Fin n)
   | finCard => n
   | finEq => inP idp
 
@@ -239,23 +231,24 @@
       | suc n => rewrite (ret_inr-lem {n} t) idp
   }
 
-\lemma finSum (S : FinSet) (Q : S -> FinSet) : FinSet (\Sigma (i : S) (Q i))
-  => \case S.finEq \with {
-    | inP e => transportInv (\lam X => \Pi (Q : X -> FinSet) -> FinSet (\Sigma (i : X) (Q i))) e (\lam Q => \new FinSet {
-      | finCard => Big (+) 0 (\lam i => finCard {Q i})
-      | finEq => \case FinSet.finiteAC (\lam i => finEq {Q i}) \with {
-        | inP d => inP (path (\lam j => \Sigma (i : Fin S.finCard) (d i @ j)) *> Equiv-to-= (aux (\lam i => finCard {Q i})))
-      }
-    }) Q
-  }
+\lemma finSum (S : FinSet) (Q : S -> FinSet) : FinSet (\Sigma (i : S) (Q i)) (AbMonoid.FinSum (\lam i => finCard {Q i}))
+  => \case AbMonoid.FinSum.char (\lam i => finCard {Q i}) \with {
+       | inP p => rewrite p.2 $ \new FinSet {
+         | finEq => \case FinSet.finiteAC (\lam i => finEq {Q (p.1 i)}) \with {
+           | inP d => inP $ Equiv-to-= $ symQEquiv (sigma-left p.1) `transEquiv` sigma-right (\lam i => =-to-Equiv (d i)) `transEquiv` aux _
+         }
+       }
+     }
   \where {
-    \func aux {n : Nat} (Q : Fin n -> Nat) : QEquiv {\Sigma (i : Fin n) (Fin (Q i))} {Fin (Big (+) 0 Q)} \cowith
-      | f (p : \Sigma (i : Fin n) (Fin (Q i))) : Fin (Big (+) 0 Q) \elim n, p {
+    \open AddMonoid
+
+    \func aux {n : Nat} (Q : Fin n -> Nat) : QEquiv {\Sigma (i : Fin n) (Fin (Q i))} {Fin (BigSum Q)} \cowith
+      | f (p : \Sigma (i : Fin n) (Fin (Q i))) : Fin (BigSum Q) \elim n, p {
         | 0, ((),_)
         | suc n, (0, j) => fin-inc (<=_+ <=-refl zero<=_) j
         | suc n, (suc i, j) => fin-raise (f (i,j))
       }
-      | ret (k : Fin (Big (+) 0 Q)) : \Sigma (i : Fin n) (Fin (Q i)) \elim n {
+      | ret (k : Fin (BigSum Q)) : \Sigma (i : Fin n) (Fin (Q i)) \elim n {
         | suc n => \case finOr.aux.ret k \with {
           | inl s => (0,s)
           | inr t => \have (i,r) => ret t \in (suc i, r)
@@ -266,7 +259,7 @@
         | suc n, (0, j) => rewrite finOr.ret_inl-lem idp
         | suc n, (suc i, j) => rewrite finOr.ret_inr-lem (rewrite (ret_f {n} {\lam i => Q (suc i)} (i,j)) idp)
       }
-      | f_sec (k : Fin (Big (+) 0 Q)) : f (ret k) = k \elim n {
+      | f_sec (k : Fin (BigSum Q)) : f (ret k) = k \elim n {
         | suc n => mcases {_} {arg addPath} \with {
           | inl s, p => inv (pmap finOr.aux.f p) *> finOr.aux.f_sec k
           | inr t, p => pmap fin-raise (f_sec t) *> inv (pmap finOr.aux.f p) *> finOr.aux.f_sec k
@@ -274,4 +267,5 @@
       }
   }
 
-\instance pairFin (A B : FinSet) => finSum A (\lam _ => B)
+\instance pairFin (A B : FinSet) : FinSet (\Sigma A B) (A.finCard Nat.* B.finCard)
+  => transport (FinSet _) Semiring.FinSum_replicate $ finSum A (\lam _ => B)

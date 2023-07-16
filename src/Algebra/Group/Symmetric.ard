@@ -1,0 +1,64 @@
+\import Algebra.Group
+\import Combinatorics.Factorial
+\import Data.Fin
+\import Equiv
+\import Equiv.Sigma
+\import Equiv.Univalence
+\import Function.Meta
+\import Logic
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set.Fin
+\import Set.Fin.Pigeonhole
+
+\type Sym (n : Nat) => Equiv {Fin n} {Fin n}
+  \where {
+    \func fromEquiv {n : Nat} (e : Equiv {Fin n} {Fin n}) : Sym n => e
+
+    \lemma equals {n : Nat} {x y : Sym n} (p : \Pi (j : Fin n) -> x j = y j) : x = y
+      => pmap fromEquiv (Equiv.equals (ext p))
+  }
+
+\instance SymmetricGroup (n : Nat) : Group (Sym n)
+  | ide => idEquiv
+  | * e1 e2 => transEquiv e1 e2
+  | ide-left => Sym.equals $ \lam j => idp
+  | ide-right => Sym.equals $ \lam j => idp
+  | *-assoc => Sym.equals $ \lam j => idp
+  | inverse e => symQEquiv e
+  | inverse-left => Sym.equals Equiv.f_ret
+  | inverse-right => Sym.equals Equiv.ret_f
+
+\func symmetric-rec {n : Nat} : QEquiv {Sym (suc n)} {\Sigma (Fin (suc n)) (Sym n)} \cowith
+  | f e => (e 0, PigeonholeSet.isEquiv (\lam j => FinSet.skip (e 0) (e (suc j)) $ \lam p => \case Equiv.isInj p) $ \lam p => unfsuc $ Equiv.isInj $ FinSet.skip-isInj p)
+  | ret s => PigeonholeSet.isEquiv {FinFin (suc n)}
+      (\case __ \with {
+        | 0 => s.1
+        | suc j => sface s.1 (s.2 j)
+      }) (\lam {j} {j'} => \case \elim j, \elim j' \with {
+        | 0, 0 => \lam _ => idp
+        | 0, suc j' => \lam p => absurd $ sface-skip (inv p)
+        | suc j, 0 => \lam p => absurd $ sface-skip p
+        | suc j, suc j' => \lam p => pmap fsuc $ Equiv.isInj {s.2} (sface-inj p)
+      })
+  | ret_f e => Sym.equals $ \case \elim __ \with {
+    | 0 => idp
+    | suc j => FinSet.sface_skip
+  }
+  | f_sec s => pmap (s.1,__) $ Sym.equals $ \lam j => FinSet.skip_sface
+
+\instance symmetric-fin (n : Nat) : FinSet (Sym n) (fac n) \elim n
+  | 0 => \new FinSet {
+    | finEq => inP $ QEquiv-to-= $ \new QEquiv {
+      | f _ => 0
+      | ret _ => 1
+      | ret_f e => Sym.equals (\case __)
+      | f_sec (0) => idp
+    }
+  }
+  | suc n => \new FinSet {
+    | finEq => \case finEq {pairFin (FinFin (suc n)) (FinFin (fac n))}, finEq {symmetric-fin n} \with {
+      | inP e, inP e' => inP $ QEquiv-to-= symmetric-rec *> Equiv-to-= (sigma-right $ \lam _ => =-to-Equiv e') *> e
+    }
+  }
