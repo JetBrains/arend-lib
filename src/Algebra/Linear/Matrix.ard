@@ -19,6 +19,7 @@
 \import Paths
 \import Paths.Meta
 \import Set
+\import Set.Fin
 \open FinLinearOrder
 
 \type Matrix (R : \Type) (n m : Nat) => Array (Array R m) n
@@ -252,7 +253,35 @@
       M
 
 \func determinantF {R : CRing} {n : Nat} (M : Matrix R n n)
-  => R.FinSum $ \lam (e : Sym n) => R.BigSum $ \lam j => M (e j) j
+  => FinSum $ \lam (e : Sym n) => Sym.sign e * R.BigProd (\lam j => M (e j) j)
+  \where {
+    \open determinant
+    \open AbMonoid
+    \open Monoid
+
+    \lemma =determinant {R : CRing} {n : Nat} {M : Matrix R n n} : determinantF M = determinant M \elim n
+      | 0 => \case AbMonoid.FinSum.char _ \with {
+        | inP p => p.2 *> zro-right *> ide-right
+      }
+      | suc n =>
+        \have t (e : Sym (suc n)) : BigProd (\lam j => minor M (e 0) 0 (Sym.reduce e j) j) = BigProd (\lam j => M (e (fsuc j)) (fsuc j)) => cong (ext $ \lam j => minor_Sym)
+        \in FinSum (\lam (e : Sym (suc n)) => Sym.sign e * BigProd (\lam j => M (e j) j)) ==< pmap FinSum (ext $ \lam e => rewrite t equation) *> inv (FinSum_Equiv symmetric-rec) >==
+            FinSum (\lam (p : \Sigma (Fin (suc n)) (Sym n)) => M p.1 0 * pow -1 p.1 * (Sym.sign p.2 * BigProd (\lam j => minor M p.1 0 (p.2 j) j))) ==< inv FinSum-double >==
+            FinSum (\lam i => FinSum (\lam (e : Sym n) => M i 0 * pow -1 i * (Sym.sign e * BigProd (\lam j => minor M i 0 (e j) j)))) ==< cong (ext $ \lam i => inv R.FinSum-ldistr) >==
+            FinSum (\lam i => M i 0 * pow -1 i * determinantF (minor M i 0)) ==< cong (ext $ \lam i => cong =determinant) >==
+            FinSum (\lam i => M i 0 * pow -1 i * determinant (minor M i 0)) ==< FinSum=BigSum >==
+            R.BigSum (\lam i => M i 0 * pow -1 i * determinant (minor M i 0)) `qed
+      \where {
+        \func skip_skip {A : \Type} {n : Nat} {l : Array A (suc n)} {k j : Fin (suc n)} {d : k /= j} : skip l k (FinSet.skip k j d) = l j \elim n, l, k, j
+          | n, l, 0, 0 => absurd (d idp)
+          | suc n, a :: l, 0, suc j => idp
+          | suc n, a :: l, suc k, 0 => idp
+          | suc n, a :: l, suc k, suc j => skip_skip
+
+        \func minor_Sym {A : \Type} {n : Nat} {M : Matrix A (suc n) (suc n)} {e : Sym (suc n)} {j : Fin n} : minor M (e 0) 0 (Sym.reduce e j) j = M (e (suc j)) (suc j)
+          => skip_0 *> pmap {Array A (suc n)} (__ (suc j)) (skip_skip {Array A (suc n)})
+      }
+  }
 
 \func adjugate {R : CRing} {n : Nat} (M : Matrix R n n) : Matrix R n n \elim n
   | 0 => M
