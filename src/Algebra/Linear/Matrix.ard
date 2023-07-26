@@ -106,9 +106,8 @@
       }
   }
 
-\func determinant {R : CRing} {n : Nat} (M : Matrix R n n) : R \elim n
-  | 0 => 1
-  | suc n => determinantN {R} {suc n} 0 M
+\func determinant {R : CRing} {n : Nat} (M : Matrix R n n)
+  => R.FinSum $ \lam (e : Sym n) => Sym.sign e * R.BigProd (\lam j => M (e j) j)
   \where {
     \func minor {R : \Type} {n m : Nat} (M : Matrix R (suc n) (suc m)) (i0 : Fin (suc n)) (j0 : Fin (suc m)) : Matrix R n m
       => map (skip __ j0) (skip M i0)
@@ -128,11 +127,11 @@
 
     \lemma multilinear {R : CRing} {n : Nat} : isMultiLinear {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinant M) \elim n
       | 0 => ()
-      | suc n => determinantN.multilinear {R} {suc n} 0
+      | suc n => transportInv (\lam d => isMultiLinear {R} (\lam M => d M)) (path $ \lam i M => determinantN.determinant=determinant0 {R} {n} {M} i) (determinantN.multilinear {R} {suc n} 0)
 
     \lemma alternating {R : CRing} {n : Nat} : isAlternating {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinant M) \elim n
       | 0 => ((), \lam _ (t,_,_,_) => \case t)
-      | suc n => determinantN.alternating {R} {suc n} 0
+      | suc n => transportInv (\lam d => isAlternating {R} (\lam M => d M)) (path $ \lam i M => determinantN.determinant=determinant0 {R} {n} {M} i) (determinantN.alternating {R} {suc n} 0)
   }
 
 \func determinantN {R : CRing} {n : Nat} (k : Fin n) (M : Matrix R n n) : R \elim n
@@ -168,8 +167,8 @@
         | func-*c {r} {a} => rewrite e $ *-assoc *> pmap {Array R (suc n)} (__ k * _) (insert-index {Array R (suc n)}) *> *-assoc *> pmap (r *) (pmap (\lam x => _ * (_ * determinant x)) (minor_insert *> inv minor_insert) *> inv (*-assoc *> pmap {Array R (suc n)} (__ k * _) (insert-index {Array R (suc n)})))
         }
         | no q => \new LinearMap {
-          | func-+ => rewrite (aux/= q, aux/= q, aux/= q) $ pmap (_ *) (inv (path (\lam i' => determinant (minor (replace_insert {_} {M} {j} {replicate (suc n) R.zro} i') i k))) *> pmap determinant (minor_replace q) *> rewrite skip_+ (func-+ {isMultiLinear.toReplace {R} {_} {_} {n} determinant.multilinear _ _} *> pmap2 (determinant __ + determinant __) (inv (minor_replace q) *> path (\lam i' => minor (replace_insert i') i k)) (inv (minor_replace q) *> path (\lam i' => minor (replace_insert i') i k)))) *> ldistr
-          | func-*c {r} {x} => rewrite (aux/= q, aux/= q) $ pmap (_ * _ * __) (inv (path (\lam i' => determinant (minor (replace_insert {_} {M} {j} {replicate (suc n) R.zro} i') i k))) *> pmap determinant (minor_replace q) *> rewrite skip_*c (func-*c {isMultiLinear.toReplace {R} {_} {_} {n} determinant.multilinear _ _} *> pmap (r * determinant __) (inv (minor_replace q))) *> path (\lam i' => r * determinant (minor (replace_insert i') i k)) *> *-comm) *> inv *-assoc *> *-comm
+          | func-+ => rewrite (aux/= q, aux/= q, aux/= q) $ pmap (_ *) (inv (path (\lam i' => determinant (minor (replace_insert {_} {M} {j} {replicate (suc n) R.zro} i') i k))) *> pmap determinant (minor_replace q) *> later (rewrite skip_+ $ func-+ {isMultiLinear.toReplace {R} {_} {_} {n} determinant.multilinear _ _} *> pmap2 (determinant __ + determinant __) (inv (minor_replace q) *> path (\lam i' => minor (replace_insert i') i k)) (inv (minor_replace q) *> path (\lam i' => minor (replace_insert i') i k)))) *> ldistr
+          | func-*c {r} {x} => rewrite (aux/= q, aux/= q) $ pmap (_ * _ * __) (inv (path (\lam i' => determinant (minor (replace_insert {_} {M} {j} {replicate (suc n) R.zro} i') i k))) *> pmap determinant (minor_replace q) *> later (rewrite skip_*c $ func-*c {isMultiLinear.toReplace {R} {_} {_} {n} determinant.multilinear _ _} *> pmap (r * determinant __) (inv (minor_replace q))) *> path (\lam i' => r * determinant (minor (replace_insert i') i k)) *> *-comm) *> inv *-assoc *> *-comm
         }
       }
 
@@ -226,11 +225,34 @@
 
     \lemma =determinant {R : CRing} {n : Nat} {k : Fin n} {M : Matrix R n n} : determinantN k M = determinant M
       => alternating-unique {R} (alternating k) determinant.alternating MatrixRing.ide_generates (determinantN_ide k *> inv determinant_ide) M
+
+    \open AbMonoid
+    \open Monoid
+
+    \lemma determinant=determinant0 {R : CRing} {n : Nat} {M : Matrix R (suc n) (suc n)} : determinant M = determinantN {R} {suc n} 0 M
+      => \have t (e : Sym (suc n)) : BigProd (\lam j => minor M (e 0) 0 (Sym.reduce e j) j) = BigProd (\lam j => M (e (fsuc j)) (fsuc j)) => cong (ext $ \lam j => minor_Sym)
+         \in FinSum (\lam (e : Sym (suc n)) => Sym.sign e * BigProd (\lam j => M (e j) j)) ==< pmap FinSum (ext $ \lam e => rewrite (t,R.pow_+) equation) *> inv (FinSum_Equiv symmetric-rec) >==
+             FinSum (\lam (p : \Sigma (Fin (suc n)) (Sym n)) => M p.1 0 * pow -1 p.1 * (Sym.sign p.2 * BigProd (\lam j => minor M p.1 0 (p.2 j) j))) ==< inv FinSum-double >==
+             FinSum (\lam i => FinSum (\lam (e : Sym n) => M i 0 * pow -1 i * (Sym.sign e * BigProd (\lam j => minor M i 0 (e j) j)))) ==< cong (ext $ \lam i => inv R.FinSum-ldistr) >==
+             FinSum (\lam i => M i 0 * pow -1 i * determinant (minor M i 0)) ==< FinSum=BigSum >==
+             R.BigSum (\lam i => M i 0 * pow -1 i * determinant (minor M i 0)) `qed
+      \where {
+        \func skip_skip {A : \Type} {n : Nat} {l : Array A (suc n)} {k j : Fin (suc n)} {d : k /= j} : skip l k (FinSet.skip k j d) = l j \elim n, l, k, j
+          | n, l, 0, 0 => absurd (d idp)
+          | suc n, a :: l, 0, suc j => idp
+          | suc n, a :: l, suc k, 0 => idp
+          | suc n, a :: l, suc k, suc j => skip_skip
+
+        \func minor_Sym {A : \Type} {n : Nat} {M : Matrix A (suc n) (suc n)} {e : Sym (suc n)} {j : Fin n} : minor M (e 0) 0 (Sym.reduce e j) j = M (e (suc j)) (suc j)
+          => skip_0 *> pmap {Array A (suc n)} (__ (suc j)) (skip_skip {Array A (suc n)})
+      }
   }
 
 \lemma determinant_ide {R : CRing} {n : Nat} : determinant (MatrixRing.ide {R} {n}) = 1 \elim n
-  | 0 => idp
-  | suc n => determinantN.determinantN_ide {R} {suc n} 0
+  | 0 => \case AbMonoid.FinSum.char _ \with {
+    | inP p => p.2 *> zro-right *> ide-right
+  }
+  | suc n => rewrite determinantN.determinant=determinant0 (determinantN.determinantN_ide {R} {suc n} 0)
   \where {
     \lemma ide_minor {R : Ring} {n : Nat} : determinant.minor (MatrixRing.ide {R} {suc n}) 0 0 = 1 \elim n
       | 0 => idp
@@ -252,36 +274,11 @@
       (pmap determinant ide-left *> inv (pmap (`* _) determinant_ide *> ide-left))
       M
 
-\func determinantF {R : CRing} {n : Nat} (M : Matrix R n n)
-  => FinSum $ \lam (e : Sym n) => Sym.sign e * R.BigProd (\lam j => M (e j) j)
-  \where {
-    \open determinant
-    \open AbMonoid
-    \open Monoid
+\func transpose {R : \Type} {n m : Nat} (M : Matrix R n m) : Matrix R m n
+  => mkMatrix (\lam i j => M j i)
 
-    \lemma =determinant {R : CRing} {n : Nat} {M : Matrix R n n} : determinantF M = determinant M \elim n
-      | 0 => \case AbMonoid.FinSum.char _ \with {
-        | inP p => p.2 *> zro-right *> ide-right
-      }
-      | suc n =>
-        \have t (e : Sym (suc n)) : BigProd (\lam j => minor M (e 0) 0 (Sym.reduce e j) j) = BigProd (\lam j => M (e (fsuc j)) (fsuc j)) => cong (ext $ \lam j => minor_Sym)
-        \in FinSum (\lam (e : Sym (suc n)) => Sym.sign e * BigProd (\lam j => M (e j) j)) ==< pmap FinSum (ext $ \lam e => rewrite t equation) *> inv (FinSum_Equiv symmetric-rec) >==
-            FinSum (\lam (p : \Sigma (Fin (suc n)) (Sym n)) => M p.1 0 * pow -1 p.1 * (Sym.sign p.2 * BigProd (\lam j => minor M p.1 0 (p.2 j) j))) ==< inv FinSum-double >==
-            FinSum (\lam i => FinSum (\lam (e : Sym n) => M i 0 * pow -1 i * (Sym.sign e * BigProd (\lam j => minor M i 0 (e j) j)))) ==< cong (ext $ \lam i => inv R.FinSum-ldistr) >==
-            FinSum (\lam i => M i 0 * pow -1 i * determinantF (minor M i 0)) ==< cong (ext $ \lam i => cong =determinant) >==
-            FinSum (\lam i => M i 0 * pow -1 i * determinant (minor M i 0)) ==< FinSum=BigSum >==
-            R.BigSum (\lam i => M i 0 * pow -1 i * determinant (minor M i 0)) `qed
-      \where {
-        \func skip_skip {A : \Type} {n : Nat} {l : Array A (suc n)} {k j : Fin (suc n)} {d : k /= j} : skip l k (FinSet.skip k j d) = l j \elim n, l, k, j
-          | n, l, 0, 0 => absurd (d idp)
-          | suc n, a :: l, 0, suc j => idp
-          | suc n, a :: l, suc k, 0 => idp
-          | suc n, a :: l, suc k, suc j => skip_skip
-
-        \func minor_Sym {A : \Type} {n : Nat} {M : Matrix A (suc n) (suc n)} {e : Sym (suc n)} {j : Fin n} : minor M (e 0) 0 (Sym.reduce e j) j = M (e (suc j)) (suc j)
-          => skip_0 *> pmap {Array A (suc n)} (__ (suc j)) (skip_skip {Array A (suc n)})
-      }
-  }
+\lemma determinant_transpose {R : CRing} {n : Nat} {M : Matrix R n n} : determinant (transpose M) = determinant M
+  => R.FinSum_Equiv SymmetricGroup.inv-isEquiv *> pmap R.FinSum (ext $ \lam e => pmap2 (*) {?} {?})
 
 \func adjugate {R : CRing} {n : Nat} (M : Matrix R n n) : Matrix R n n \elim n
   | 0 => M

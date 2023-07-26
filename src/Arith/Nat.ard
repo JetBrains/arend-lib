@@ -3,14 +3,17 @@
 \import Data.Bool
 \import Data.Or
 \import Function.Meta
+\import HLevel
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder \hiding (<=)
 \import Paths
 \import Paths.Meta
-\import Set (==, ==_=)
+\import Set (==, ==_=, Dec)
+\import Set.Fin
 \open Nat
 
 -- # Various operations
@@ -149,7 +152,7 @@
 
 -- # Properties of <= and <
 
-\open LinearOrder
+\open LinearOrder \hiding (Dec)
 
 \instance NatBSemilattice : Bounded.JoinSemilattice
   | JoinSemilattice => NatSemiring
@@ -221,6 +224,14 @@
   | suc n, 0 => \case p
   | suc n, suc m => suc<=suc (-'_<= p)
 
+\lemma -'_< {n m : Nat} (p : 0 < n -' m) : m < n \elim n, m, p
+  | suc n, 0, _ => zero<suc
+  | suc n, suc m, p => suc<suc (-'_< p)
+
+\lemma <_-' {n m : Nat} (p : m < n) : 0 < n -' m \elim n, m, p
+  | suc n, 0, _ => zero<suc
+  | suc n, suc m, suc<suc p => <_-' p
+
 \open LinearlyOrderedSemiring \hiding (Dec)
 
 \lemma <=_* {n m k l : Nat} (n<=m : n <= m) (k<=l : k <= l) : n * k <= m * l
@@ -257,6 +268,12 @@
 
 \lemma toFin=id {k n : Nat} (p : k < n) : toFin p = {Nat} k \elim n
   | suc n => mod_< p
+
+\func mod_Fin (k : Nat) {n : Nat} (p : 0 < n) : Fin n \elim n
+  | suc n => k mod suc n
+
+\lemma mod_Fin=mod {k n : Nat} {p : 0 < n} : mod_Fin k p = {Nat} k mod n \elim n
+  | suc n => idp
 
 \open NatSemiring
 
@@ -327,6 +344,12 @@
   | n, 0 => inv m|n.inv-right *> *-comm
   | suc x \as n, suc y \as m => mod-unique {m} {n div m} {_} {m|n.inv} (fin_< (n mod m)) zero<suc (divModProp n m *> inv m|n.inv-right)
 
+\lemma id_mod {n : Nat} : n mod n = 0
+  => div_mod $ \new LDiv {
+    | inv => 1
+    | inv-right => NatSemiring.ide-right
+  }
+
 \lemma div_*<=id {n m : Nat} : n div m * m <= n
   => transport2 (<=) *-comm (Nat.divModProp n m) (<=_+ <=-refl zero<=_)
 
@@ -338,3 +361,16 @@
 
 \lemma nat_<-dec {n m : Nat} {so : So (nat_<=-dec.nat_<=_Bool (suc n) m)} : n < m
   => <-transitive-left id<suc $ nat_<=-dec {suc n} {m} {so}
+
+\lemma search (A : Nat -> \Prop) (d : \Pi (n : Nat) -> Dec (A n)) (c : ∃ (n : Nat) (A n))
+  : Contr (\Sigma (n0 : Nat) (A n0) (\Pi (n : Nat) -> A n -> n0 <= n))
+  => \case \elim c \with {
+    | inP (n,An) => isProp=>isContr (\lam t s => ext $ <=-antisymmetric (t.3 s.1 s.2) (s.3 t.1 t.2)) $
+      \have t => Contr.center {FinSet.search-unique (\lam j => A j) (\lam j => d j) (inP (n, transportInv A (mod_< id<suc) An))}
+      \in (t.1, t.2, \lam k Ak => \case dec<_<= k t.1 \with {
+        | inl k<t1 =>
+          \have s => mod_< $ <-transitive k<t1 (fin_< t.1)
+          \in absurd $ <-irreflexive $ <-transitive-left k<t1 $ transport (t.1 <=) s $ t.3 (k mod suc n) (transportInv A s Ak)
+        | inr t1<=k => t1<=k
+      })
+  }
