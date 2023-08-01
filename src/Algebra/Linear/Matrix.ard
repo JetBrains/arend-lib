@@ -1,3 +1,4 @@
+\import Algebra.Algebra
 \import Algebra.Group
 \import Algebra.Group.Category
 \import Algebra.Group.Symmetric
@@ -16,6 +17,7 @@
 \import Function.Meta
 \import Logic
 \import Meta
+\import Order.LinearOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -106,11 +108,24 @@
       }
   }
 
+\instance MatrixCAlgebra (R : CRing) (n : Nat) : AAlgebra { | R => R }
+  | Ring => MatrixRing R n
+  | LModule => MatrixModule R n n
+  | *c-comm-left  => matrixExt $ \lam i j => R.BigSum-ldistr *> pmap R.BigSum (arrayExt {R} {n} $ \lam k => equation)
+  | *c-comm-right => matrixExt $ \lam i j => R.BigSum-ldistr *> pmap R.BigSum (arrayExt {R} {n} $ \lam k => equation)
+
 \func determinant {R : CRing} {n : Nat} (M : Matrix R n n)
   => R.FinSum $ \lam (e : Sym n) => sign e * R.BigProd (\lam j => M (e j) j)
   \where {
     \func minor {R : \Type} {n m : Nat} (M : Matrix R (suc n) (suc m)) (i0 : Fin (suc n)) (j0 : Fin (suc m)) : Matrix R n m
       => map (skip __ j0) (skip M i0)
+
+    \func minorExt {R : \Type} {n m : Nat} {M M' : Array (Array R (suc m)) (suc n)} {i : Fin (suc n)} {j : Fin (suc m)}
+                   (p : \Pi {i' : Fin (suc n)} {j' : Fin (suc m)} -> i' /= i -> j' /= j -> M i' j' = M' i' j')
+      : minor M i j = minor M' i j \elim n, M, M', i
+      | 0, l :: nil, l' :: nil, 0 => idp
+      | suc n, l :: M, l' :: M', 0 => matrixExt $ \lam i' j' => path (\lam ii => skipExt (\lam k => p {suc i'} (\case __)) ii j')
+      | suc n, l :: M, l' :: M', suc i => path (\lam ii => skipExt (\lam k => p {0} (\case __)) ii :: minorExt (\lam q => p (fsuc/= q)) ii)
 
     \func minor' {R : \Type} {n m : Nat} (M : Matrix R (suc n) (suc m)) (i0 : Fin (suc n)) (j0 : Fin (suc m)) : Matrix R n m
       => skip (map (skip __ j0) M) i0
@@ -124,6 +139,25 @@
           | suc n, l :: M, suc i0, 0 => idp
           | suc n, l :: M, suc i0, suc i => aux M i0 j0 i j
       }
+
+    \func skip_transpose {R : \Type} {n m : Nat} {M : Array (Array R m) (suc n)} {i : Fin (suc n)}
+      : transpose (skip M i) = map (skip __ i) (transpose M) \elim n, M, i
+      | 0, l :: nil, 0 => idp
+      | suc n, l :: M, 0 => idp
+      | suc n, l :: M, suc i => matrixExt $ \lam i' => \case \elim __ \with {
+        | 0 => idp
+        | suc j' => aux
+      }
+      \where
+        \func aux {R : \Type} {n m : Nat} {M : Array (Array R m) (suc n)} {i : Fin (suc n)} {i' : Fin m} {j' : Fin n}
+          : skip {Array R m} M i j' i' = skip (M __ i') i j' \elim n, M, i, j'
+          | suc n, l :: M, 0, j' => idp
+          | suc n, l :: M, suc i, 0 => idp
+          | suc n, l :: M, suc i, suc j' => aux
+
+    \func minor_transpose {R : \Type} {n m : Nat} (M : Array (Array R (suc m)) (suc n)) {i : Fin (suc m)} {j : Fin (suc n)}
+      : minor (transpose M) i j = transpose (minor M j i)
+      => path (\lam i' => map (skip __ j) (pmap transpose skip_transpose i')) *> inv skip_transpose *> inv (pmap transpose (minor=minor' M j i))
 
     \lemma multilinear {R : CRing} {n : Nat} : isMultiLinear {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinant M) \elim n
       | 0 => ()
@@ -174,7 +208,7 @@
 
     \lemma alternating {R : CRing} {n : Nat} (k : Fin n) : isAlternating {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinantN k M) \elim n
       | 0 => ((), \lam _ => \case __.1)
-      | suc n => (multilinear k, aux k)
+      | suc n => (multilinear k, \lam M => aux k M)
       \where {
         \open NatSemiring(<,suc<suc)
 
@@ -198,12 +232,29 @@
           | suc n, 0, suc j, _, a :: l, idp => permutation1_inversions *> inv -'0
           | suc n, suc i, suc j, suc<suc p, a :: l, q => Perm.inversions_perm-:: *> permutation_inversions
 
-        \lemma aux {R : CRing} {n : Nat} (k : Fin n) (M : Array (Array R n) n) (t : \Sigma (i j : Fin n) (i < j) (M i = M j)) : determinantN k M = 0 \elim n
+        \lemma minor-lem {R : CRing} {n : Nat} {i j k : Fin (suc n)} {M : Matrix R (suc n) (suc n)} (i/=j : i /= j) (p : M i = M j)
+          : pow -1 (i Nat.+ k) * determinant (minor M i k) + pow -1 (j Nat.+ k) * determinant (minor M j k) = 0
+          => \case LinearOrder.trichotomy i j \with {
+            | less i<j => aux i<j p
+            | Tri.equals i=j => absurd (i/=j i=j)
+            | greater j<i => +-comm *> aux j<i (inv p)
+          }
+          \where
+            \lemma aux {R : CRing} {n : Nat} {i j k : Fin (suc n)} {M : Matrix R (suc n) (suc n)} (i<j : i < j) (p : M i = M j)
+              : pow -1 (i Nat.+ k) * determinant (minor M i k) + pow -1 (j Nat.+ k) * determinant (minor M j k) = 0
+              => rewrite (minor=minor', minor=minor', isAlternating.alternating_perm {R} determinant.alternating $ permutation i<j (map (skip __ k) M) $ pmap (skip __ k) p) $
+                 rewriteI *-assoc $ inv rdistr *> pmap (`* _) (unfold Perm.sign $ rewrite (permutation_inversions, inv R.pow_+, inv R.pow_-1_+2) $
+                  \have s : i Nat.+ k Nat.+ (j -' suc i) Nat.+ 2 = suc (j Nat.+ k) => pmap suc $ unpos $ pmap (pos (suc (i Nat.+ k)) +) (-'=- $ suc_<_<= i<j) *> linarith
+                  \in pmap (R.pow -1 __ + _) s *> pmap (`+ _) R.negative_ide-right *> negative-left) *> zro_*-left
+
+        \lemma minor-lem' {R : CRing} {n : Nat} {i j k : Fin (suc n)} {M : Matrix R (suc n) (suc n)} (i/=j : i /= j) (p : \Pi (k : Fin (suc n)) -> M k i = M k j)
+          : pow -1 (k Nat.+ i) * determinant (minor M k i) + pow -1 (k Nat.+ j) * determinant (minor M k j) = 0
+          => pmap2 (+) (pmap2 (pow -1 __ * __) +-comm $ inv $ pmap determinant (minor_transpose M) *> determinant_transpose (minor M k i)) (pmap2 (pow -1 __ * __) +-comm $ inv $ pmap determinant (minor_transpose M) *> determinant_transpose (minor M k j)) *> minor-lem {R} {n} {i} {j} {k} {transpose M} i/=j (arrayExt p)
+
+        \lemma aux {R : CRing} {n : Nat} (k : Fin n) (M : Matrix R n n) (t : \Sigma (i j : Fin n) (i < j) (M i = M j)) : determinantN k M = 0 \elim n
           | 0 => \case t.1
           | suc n => R.BigSum-unique2 {\lam i => M i k * R.pow -1 (i Nat.+ k) * determinant (minor M i k)} t.3 (\lam i i/=t1 i/=t2 => pmap (_ *) (determinant.alternating.2 (minor M i k) (newIndex $ \lam p => i/=t1 (inv p), newIndex $ \lam p => i/=t2 (inv p), newIndex_< t.3, pmap (skip __ k) $ skip-index *> t.4 *> inv skip-index)) *> zro_*-right) *>
-                      rewrite (pmap {Array R _} (__ k) t.4) (pmap2 (+) *-assoc *-assoc *> inv ldistr *> pmap (_ *) (later $ rewrite (minor=minor', minor=minor', isAlternating.alternating_perm {R} determinant.alternating $ permutation t.3 (map (skip __ k) M) $ pmap (skip __ k) t.4) $ rewriteI *-assoc $ inv rdistr *> pmap (`* _) (unfold Perm.sign $ rewrite (permutation_inversions, inv R.pow_+, inv R.pow_-1_+2) $
-                        \have s : t.1 Nat.+ k Nat.+ (t.2 -' suc t.1) Nat.+ 2 = suc (t.2 Nat.+ k) => pmap suc $ unpos $ pmap (pos (suc (t.1 Nat.+ k)) +) (-'=- $ suc_<_<= t.3) *> linarith
-                        \in pmap (R.pow -1 __ + _) s *> pmap (`+ _) R.negative_ide-right *> negative-left) *> zro_*-left) *> zro_*-right)
+                      rewrite (pmap {Array R _} (__ k) t.4) (pmap2 (+) *-assoc *-assoc *> inv ldistr *>  pmap (_ *) (minor-lem.aux t.3 t.4) *> zro_*-right )
       }
 
     \lemma determinantN_ide {R : CRing} {n : Nat} (k : Fin n) : determinantN k (MatrixRing.ide {R} {n}) = 1 \elim n
@@ -217,7 +268,7 @@
           | suc m, l :: M, suc k, 0 => idp
           | suc m, l :: M, suc k, suc i => double-skip
 
-        \lemma ide'_minor {R : Ring} {n : Nat} (k : Fin (suc n)) : determinant.minor (MatrixRing.ide' {R}) k k = MatrixRing.ide' \elim n, k
+        \lemma ide'_minor {R : Ring} {n : Nat} (k : Fin (suc n)) : minor (MatrixRing.ide' {R}) k k = MatrixRing.ide' \elim n, k
           | 0, k => idp
           | suc n, 0 => idp
           | suc n, suc k => pmap matrixFromArrays $ pmap2 (::) (pmap (\lam l => R.ide :: l) (skip_replicate R.zro)) $ arrayExt $ \lam i => pmap2 (::) (double-skip *> pmap {Array R _} (__ i) (skip_replicate R.zro {k})) $ cong (arrayExt $ \lam j => double-skip *> inv double-skip) *> pmap {Matrix R n n} (__ i) (ide'_minor k)
@@ -248,13 +299,15 @@
       }
   }
 
+\open determinant(minor)
+
 \lemma determinant_ide {R : CRing} {n : Nat} : determinant (MatrixRing.ide {R} {n}) = 1 \elim n
   | 0 => \case AbMonoid.FinSum.char _ \with {
     | inP p => p.2 *> zro-right *> ide-right
   }
   | suc n => rewrite determinantN.determinant=determinant0 (determinantN.determinantN_ide {R} {suc n} 0)
   \where {
-    \lemma ide_minor {R : Ring} {n : Nat} : determinant.minor (MatrixRing.ide {R} {suc n}) 0 0 = 1 \elim n
+    \lemma ide_minor {R : Ring} {n : Nat} : minor (MatrixRing.ide {R} {suc n}) 0 0 = 1 \elim n
       | 0 => idp
       | suc n => matrixExt $ \lam i j => mcases {2} \with {
         | yes p => rewrite (decideEq=_reduce $ pmap fsuc p) idp
@@ -262,7 +315,7 @@
       }
   }
 
-\lemma determinant_* {R : CRing} {n : Nat} (M N : Matrix R n n) : determinant (M * N) = determinant M * determinant N
+\lemma determinant_* {R : CRing} {n : Nat} {M N : Matrix R n n} : determinant (M * N) = determinant M * determinant N
   => alternating-unique {R}
       (isAlternating_linear-left {R} (\new LinearMap {
         | func (l : Array R n) => mkArray $ \lam k => R.BigSum $ \lam j => l j * N j k
@@ -277,18 +330,59 @@
 \func transpose {R : \Type} {n m : Nat} (M : Matrix R n m) : Matrix R m n
   => mkMatrix (\lam i j => M j i)
 
-\lemma determinant_transpose {R : CRing} {n : Nat} {M : Matrix R n n} : determinant (transpose M) = determinant M
+\lemma determinant_transpose {R : CRing} {n : Nat} (M : Matrix R n n) : determinant (transpose M) = determinant M
   => R.FinSum_Equiv SymmetricGroup.inv-isEquiv *> pmap R.FinSum (ext $ \lam (e : Sym n) => pmap2 (*) sign_inverse $ CMonoid.BigProd_Perm $ transport (Perm _) (arrayExt $ \lam j => later $ pmap (M (e j)) (e.ret_f j)) (Perm.equiv_perm e))
 
 \func adjugate {R : CRing} {n : Nat} (M : Matrix R n n) : Matrix R n n \elim n
   | 0 => M
-  | suc n => mkMatrix $ \lam i j => Monoid.pow -1 (j + i) * determinant (determinant.minor M j i)
+  | suc n => mkMatrix $ \lam i j => Monoid.pow -1 (j + i) * determinant (minor M j i)
 
-\lemma determinant_adjugate_= {R : CRing} {n : Nat} {M : Matrix R (suc n) (suc n)} (k : Fin (suc n)) : determinant M = R.BigSum (\lam j => M j k * adjugate M k j)
-  => inv ({?} *> determinantN.=determinant {R} {suc n} {k} {M})
+\lemma adjugate_transpose {R : CRing} {n : Nat} (M : Matrix R n n) : adjugate (transpose M) = transpose (adjugate M) \elim n
+  | 0 => idp
+  | suc n => matrixExt $ \lam i j => pmap2 (R.pow -1 __ * __) +-comm $ pmap determinant (determinant.minor_transpose M) *> determinant_transpose (minor M i j)
 
-\lemma adjugate-left {R : CRing} {n : Nat} {M : Matrix R n n} : adjugate M * M = determinant M *c ide
- => matrixExt $ \lam i k => mcases \with {
-      | yes p => rewrite p {?} *> inv ide-right
-      | no q => {?} *> inv zro_*-right
-    }
+\lemma adjugate-left {R : CRing} {n : Nat} {M : Matrix R n n} : adjugate M * M = determinant M *c 1
+  => matrixExt $ \lam i k => mcases \with {
+       | yes p => rewrite p determinant_adjugate_= *> inv ide-right
+       | no q => determinant_adjugate_/= q *> inv zro_*-right
+     }
+  \where {
+    \lemma determinant_adjugate_= {R : CRing} {n : Nat} {M : Matrix R n n} {k : Fin n} : R.BigSum (\lam j => adjugate M k j * M j k) = determinant M \elim n
+      | suc n => path (\lam i => R.BigSum (\lam (j : Fin (suc n)) => (R.*-comm {R.pow -1 (j Nat.+ k) * determinant (minor M j k)} {M j k} *> inv *-assoc) i)) *> determinantN.=determinant
+
+    \lemma adjugate-lem {R : CRing} {n : Nat} {M : Matrix R n n} {i i' j : Fin n} (i/=i' : i /= i') (p : \Pi (k : Fin n) -> M k i = M k i') : negative (adjugate M i j) = adjugate M i' j \elim n
+      | suc n => AddMonoid.negative-unique (adjugate M i j) negative-left (determinantN.alternating.minor-lem' i/=i' p)
+
+    \lemma adjugateExt {R : CRing} {n : Nat} {M M' : Matrix R n n} {i j : Fin n} (p : \Pi {i' j' : Fin n} -> i' /= i -> j' /= j -> M i' j' = M' i' j') : adjugate M j i = adjugate M' j i \elim n
+      | suc n => pmap (R.pow -1 (i Nat.+ j) * determinant __) (determinant.minorExt p)
+
+    \lemma determinant_adjugate_/= {R : CRing} {n : Nat} {M : Matrix R n n} {i k : Fin n} (i/=k : i /= k) : R.BigSum (\lam j => adjugate M i j * M j k) = 0
+      => \let | M' => mkMatrix $ \lam i' j' => \case decideEq i j' \with {
+                      | yes _ => M i' k
+                      | no _ => M i' j'
+                    }
+              | r : R.BigSum (\lam j => adjugate M' k j * M' j k) = 0 => determinant_adjugate_= *> inv (determinant_transpose M') *>
+                      isAlternating.to/= {R} determinant.alternating (transpose M') (i, k, i/=k, arrayExt $ \lam j => rewrite (decideEq=_reduce idp, decideEq/=_reduce i/=k) idp)
+         \in pmap R.BigSum (arrayExt $ \lam j => pmap2 (*) (adjugateExt (\lam p q => later $ rewrite (decideEq/=_reduce $ /=-sym q) idp) *> inv (adjugate-lem (/=-sym i/=k) $ \lam j => later $ rewrite (decideEq/=_reduce i/=k, decideEq=_reduce idp) idp)) (later $ rewrite (decideEq/=_reduce i/=k) idp) *> R.negative_*-left) *> inv R.BigSum_negative *> pmap negative r *> R.negative_zro
+  }
+
+\lemma transpose_* {R : CRing} {n : Nat} {M M' : Matrix R n n} : transpose (M * M') = transpose M' * transpose M
+  => product
+  \where
+    \lemma product {R : CRing} {n m k : Nat} {M : Matrix R n m} {M' : Matrix R m k} : transpose (MatrixRing.product M M') = MatrixRing.product (transpose M') (transpose M)
+      => matrixExt $ \lam i j => cong $ ext \lam k => *-comm
+
+\lemma adjugate-right {R : CRing} {n : Nat} {M : Matrix R n n} : M * adjugate M = determinant M *c 1
+  => pmap (M *) (adjugate_transpose (transpose M)) *> inv (transpose_* {R} {n} {adjugate (transpose M)} {transpose M}) *> pmap transpose adjugate-left *> matrixExt (\lam i j => pmap2 (*) (determinant_transpose M) $ later $ mcases {1} \with {
+    | yes p => rewrite (decideEq=_reduce (inv p)) idp
+    | no q => rewrite (decideEq/=_reduce (/=-sym q)) idp
+  })
+
+\lemma determinant-inv {R : CRing} {n : Nat} {M : Matrix R n n} : Inv M <-> Inv (determinant M)
+  => (\lam (c : Inv M) => Inv.lmake (determinant c.inv) $ inv determinant_* *> pmap determinant c.inv-left *> determinant_ide,
+      \lam (c : Inv (determinant M)) => \new Inv {
+        | inv => c.inv *c adjugate M
+        | inv-left => inv *c-comm-left *> pmap (c.inv *c) adjugate-left *> inv (*c-assoc {_} {_} {_} {ide}) *> pmap (`*c ide) c.inv-left *> ide_*c
+        | inv-right => inv *c-comm-right *> pmap (c.inv *c) adjugate-right *> inv (*c-assoc {_} {_} {_} {ide}) *> pmap (`*c ide) c.inv-left *> ide_*c
+      })
+  \where \open Monoid
