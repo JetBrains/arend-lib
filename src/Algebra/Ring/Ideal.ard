@@ -18,7 +18,9 @@
 \import Paths
 \import Paths.Meta
 \import Set
+\import Set.Fin
 \open AddMonoid
+\open AbMonoid
 
 -- | Left ideal
 \record LIdeal \extends SubAddGroup {
@@ -65,6 +67,11 @@
   \lemma bigSum (l : Array S) (p : \Pi (i : Fin l.len) -> contains (l i)) : contains (BigSum l) \elim l
     | nil => contains_zro
     | :: a l => contains_+ (p 0) (bigSum l (\lam i => p (suc i)))
+
+  \lemma finSum {J : FinSet} {a : J -> S} (p : \Pi (j : J) -> contains (a j)) : contains (FinSum a)
+    => \case FinSum.char a \with {
+         | inP (e,q) => transportInv contains q $ bigSum _ $ \lam i => p (e i)
+       }
 } \where {
   \func closure {R : CRing} {J : \Set} (g : J -> R) : Ideal R \cowith
     | contains e => ∃ (l : Array (\Sigma R J)) (e = BigSum (map (\lam p => p.1 * g p.2) l))
@@ -76,6 +83,9 @@
 
   \lemma closure-superset {R : CRing} {J : \Set} {g : J -> R} (j : J) : closure g (g j)
     => inP ((1,j) :: nil, equation)
+
+  \lemma sclosure-superset {R : CRing} {U : R -> \Prop} {x : R} (Ux : U x) : sclosure U x
+    => inP ((1,(x,Ux)) :: nil, equation)
 
   \lemma closure-univ {R : CRing} {J : \Set} {g : J -> R} {I : Ideal R} (c : \Pi (j : J) -> I (g j)) {x : R} (d : closure g x) : I x \elim d
     | inP (l,p) => transportInv I p $ bigSum _ $ \lam i => later $ ideal-left (c (l i).2)
@@ -90,35 +100,26 @@
     => (\lam (inP (l,b=sl)) => inP (BigSum (map __.1 l), b=sl *> inv (R.BigSum-rdistr {map __.1 l})  *> *-comm), \lam (inP (c,b=ac)) => inP ((c,()) :: nil, b=ac *> *-comm *> inv zro-right))
 
   \lemma closure2-lem {R : CRing} {a : R} (f : Bool -> R)
-    : closure f a <-> ∃ (c d : R) (a = f true * c + f false * d) =>
-    \let (g, h) => fin-closure-lem {2} (\new QEquiv {
-      | f => \case \elim __ \with {
-        | 0 => true | 1 => false
-      }
-      | ret => \case \elim __ \with {
-        | false => 1 | true => 0
-      }
-      | ret_f => cases __ \with {
-        | 0 => idp | 1 => idp
-      }
-      | f_sec => cases __ \with {
-        | false => idp | true => idp
-      }
-    }) f
-    \in (\lam s => TruncP.map (g s) (\lam (c, a=fc) => (c true, c false, equation)),
-         \lam (inP (c, d, a=fc)) => h (inP (if __ c d, a=fc *> equation)))
+    : closure f a <-> ∃ (c d : R) (a = f true * c + f false * d)
+    => \have (g,h) => fin-closure-lem f
+       \in (\lam s => TruncP.map (g s) (\lam (c, a=fc) => (c true, c false, a=fc *> FinSum.char2 _ BoolFin.equiv *> equation)),
+            \lam (inP (c, d, a=fc)) => h (inP (if __ c d, a=fc *> inv (FinSum.char2 _ BoolFin.equiv *> equation))))
 
-  \lemma fin-closure-lem {n : Nat} {R : CRing} {D : \Set} (eq : Equiv {Fin n} {D}) {a : R} (f : D -> R)
-    : closure f a <-> ∃ (c : D -> R) (a = BigSum (\lam i => c (eq i) * f (eq i))) =>
-    \let (g, h) => closureN-lem (\lam i => f (eq i))
-    \in (
-      \lam (inP (l, a=fl)) =>
-          TruncP.map (g (inP (map (\lam (r, d) => (r, eq.ret d)) l,
-                              a=fl *> pmap BigSum (exts (idp, \lam j => pmap (_ * f __) (inv (eq.f_ret _)))))))
-              (\lam (c, a=fc) => (\lam d => c (eq.ret d),
-                                  a=fc *> pmap BigSum (exts (idp, \lam j => pmap (c __ * _) (inv (eq.ret_f _)))))),
-      \lam (inP (c, a=fc)) =>
-          TruncP.map (h (inP (\lam i => c (eq i), a=fc))) (\lam (l, a=fl) => (map (\lam (r, i) => (r, eq i)) l, a=fl)))
+  \lemma fin-closure-lem {D : FinSet} {R : CRing} {a : R} (f : D -> R)
+    : closure f a <-> ∃ (c : D -> R) (a = FinSum (\lam i => c i * f i))
+    => \case D.finEq \with {
+         | inP (eq : Equiv) =>
+           \have (g,h) => closureN-lem (\lam i => f (eq i))
+           \in (
+             \lam (inP (l, a=fl)) =>
+                 TruncP.map (g (inP (map (\lam (r, d) => (r, eq.ret d)) l,
+                                     a=fl *> pmap BigSum (exts (idp, \lam j => pmap (_ * f __) (inv (eq.f_ret _)))))))
+                     (\lam (c, a=fc) => (\lam d => c (eq.ret d),
+                                         a=fc *> pmap BigSum (exts (idp, \lam j => pmap (c __ * _) (inv (eq.ret_f _)))) *> inv (FinSum.char2 _ eq)
+                                        )),
+             \lam (inP (c, a=fc)) =>
+                 TruncP.map (h (inP (\lam i => c (eq i), a=fc *> FinSum.char2 _ eq))) (\lam (l, a=fl) => (map (\lam (r, i) => (r, eq i)) l, a=fl)))
+       }
 
   \lemma closureN-lem {R : CRing} {a : R} {n : Nat} (B : Array R n)
     : closure B a <-> ∃ (c : Array R n) (a = BigSum (\lam i => c i * B i)) =>

@@ -4,6 +4,7 @@
 \import Algebra.Semiring
 \import Arith.Fin
 \import Arith.Nat \using (pred \as pred')
+\import Data.Bool
 \import Data.Fin (fpred, fsuc, fsuc/=, nat_fin_=)
 \import Data.Or
 \import Equiv
@@ -26,14 +27,42 @@
 \import Set.Fin.Pigeonhole
 \open LinearlyOrderedSemiring(<=_+)
 
-\class FinSet \extends KFinSet, Choice
+\class FinSet \extends KFinSet, Choice, DecSet {
   | finEq : TruncP (Equiv {Fin finCard} {E})
   | finSurj => TruncP.map finEq $ \lam (e : Equiv {Fin finCard} {E}) => (e, Surjection.isSurj {ESEquiv.fromEquiv e})
 
   | choice {B} => \case finEq \with {
     | inP e => rewriteF (Equiv-to-= e) (finiteAC {finCard}) {B}
   }
-  \where {
+
+  | decideEq x y => \case finEq \with {
+    | inP (e : Equiv) => \case decideEq {FinLinearOrder.FinLinearOrderInst} (e.ret x) (e.ret y) \with {
+      | yes q => yes (Equiv.isInj {symQEquiv e} q)
+      | no q => no $ \lam p => q (pmap e.ret p)
+    }
+  }
+
+  | # => /=
+  | nonEqualApart p => p
+  | #-irreflexive p => p idp
+  | #-symmetric => /=-sym
+  | #-comparison x y z x/=z => \case decideEq x y \with {
+    | yes x=y => byRight (\lam y=z => x/=z (x=y *> y=z))
+    | no x/=y => byLeft x/=y
+  }
+  | tightness {x} {y} x//=y => \case decideEq x y \with {
+    | yes x=y => x=y
+    | no x/=y => absurd (x//=y x/=y)
+  }
+
+  \lemma search (A : E -> \Prop) (d : \Pi (e : E) -> Dec (A e)) : Dec (∃ (e : E) (A e))
+    => \case finEq \with {
+         | inP (e : Equiv) => \case searchFin (\lam j => A (e j)) (\lam j => d (e j)) \with {
+           | inl a => yes (inP (e a.1, a.2))
+           | inr b => no $ \lam (inP t) => b (e.ret t.1) (transportInv A (e.f_ret t.1) t.2)
+         }
+    }
+} \where {
     \use \level levelProp {A : \Set} (X Y : FinSet A) : X = Y
       => ext (\case X.finEq, Y.finEq \with {
         | inP Xcard=A, inP Ycard=A => FinCardBij (Xcard=A `transEquiv` symQEquiv Ycard=A)
@@ -48,10 +77,10 @@
         })
       }
 
-    \func search {n : Nat} (A : Fin n -> \Prop) (d : \Pi (j : Fin n) -> Dec (A j))
+    \func searchFin {n : Nat} (A : Fin n -> \Prop) (d : \Pi (j : Fin n) -> Dec (A j))
       : Or (\Sigma (j0 : Fin n) (A j0) (\Pi (j : Fin n) -> A j -> (j0 : Nat) <= j)) (\Pi (j : Fin n) -> Not (A j)) \elim n
       | 0 => inr (\case __)
-      | suc n => \case d 0, search _ (\lam j => d (suc j)) \with {
+      | suc n => \case d 0, searchFin _ (\lam j => d (suc j)) \with {
         | yes e, _ => inl (0, e, \lam j _ => zero<=_)
         | no e, inl (j0,Aj0,u) => inl (suc j0, Aj0, \case \elim __ \with {
           | 0 => \lam A0 => absurd (e A0)
@@ -63,10 +92,10 @@
         }
       }
 
-    \lemma search-unique {n : Nat} (A : Fin n -> \Prop) (d : \Pi (j : Fin n) -> Dec (A j)) (c : ∃ (j : Fin n) (A j))
+    \lemma searchFin-unique {n : Nat} (A : Fin n -> \Prop) (d : \Pi (j : Fin n) -> Dec (A j)) (c : ∃ (j : Fin n) (A j))
       : Contr (\Sigma (j0 : Fin n) (A j0) (\Pi (j : Fin n) -> A j -> (j0 : Nat) <= j))
       => \case \elim c \with {
-        | inP (j,Aj) => isProp=>isContr (\lam t s => ext $ nat_fin_= $ <=-antisymmetric (t.3 s.1 s.2) (s.3 t.1 t.2)) $ \case search A d \with {
+        | inP (j,Aj) => isProp=>isContr (\lam t s => ext $ nat_fin_= $ <=-antisymmetric (t.3 s.1 s.2) (s.3 t.1 t.2)) $ \case searchFin A d \with {
           | inl r => r
           | inr e => absurd (e j Aj)
         }
@@ -213,7 +242,7 @@
 \func cyclePerm {n : Nat} (k : Fin n) : QEquiv {Fin n} {Fin n} \elim n
   | suc n => Equiv.ret {symmetric-rec} (k,idEquiv)
 
-\instance emptyFin : FinSet Empty
+\instance EmptyFin : FinSet Empty
   | finCard => 0
   | finEq => inP $ \new QEquiv {
     | f => \case __
@@ -222,7 +251,7 @@
     | f_sec => \case __
   }
 
-\instance unitFin : FinSet (\Sigma)
+\instance UnitFin : FinSet (\Sigma)
   | finCard => 1
   | finEq => inP $ \new QEquiv {
     | f _ => ()
@@ -230,6 +259,24 @@
     | ret_f (0) => idp
     | f_sec _ => idp
   }
+
+\instance BoolFin : FinSet Bool 2
+  | finEq => inP equiv
+  \where
+    \func equiv : QEquiv {Fin 2} {Bool} \cowith
+      | f => \case \elim __ \with {
+        | 0 => true
+        | 1 => false
+      }
+      | ret => \case \elim __ \with {
+        | true => 0
+        | false => 1
+      }
+      | ret_f => \case \elim __ \with {
+        | 0 => idp
+        | 1 => idp
+      }
+      | f_sec => cases __ idp
 
 \instance FinFin (n : Nat) : FinSet (Fin n)
   | finCard => n

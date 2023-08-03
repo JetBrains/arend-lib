@@ -58,7 +58,7 @@
   | * => product
   | ide-left => product_ide-left
   | ide-right => product_ide-right
-  | *-assoc => product-assoc
+  | *-assoc => product-gen-assoc
   | ldistr => matrix_ldistr
   | rdistr => matrix_rdistr
   \where {
@@ -67,8 +67,11 @@
     \func add {R : AddMonoid} {n m : Nat} (M N : Matrix R n m) : Matrix R n m
       => mkMatrix $ \lam i j => M i j + N i j
 
+    \func product-gen {R : Ring} {L : LModule' R} {n m k : Nat} (M : Matrix R n m) (N : Matrix L m k) : Matrix L n k
+      => mkMatrix $ \lam i k => BigSum $ \lam j => M i j *c N j k
+
     \func product {R : Ring} {n m k : Nat} (M : Matrix R n m) (N : Matrix R m k) : Matrix R n k
-      => mkMatrix $ \lam i k => BigSum $ \new Array R m $ \lam j => M i j * N j k
+      => product-gen {R} {RingLModule R} M N
 
     \lemma product_ide-left {R : Ring} {n m : Nat} {M : Matrix R n m} : product ide M = M
       => matrixExt $ \lam i j => BigSum-unique i (\lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) R.zro_*-left) *> rewrite (decideEq=_reduce idp) ide-left
@@ -76,10 +79,10 @@
     \lemma product_ide-right {R : Ring} {n m : Nat} {M : Matrix R n m} : product M ide = M
       => matrixExt $ \lam i j => BigSum-unique j (\lam k j/=k => later $ rewrite (decideEq/=_reduce (\lam t => j/=k (inv t))) R.zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right
 
-    \lemma product-assoc {R : Ring} {n m k l : Nat} {M : Matrix R n m} {N : Matrix R m k} {L : Matrix R k l} : product (product M N) L = product M (product N L)
-      => matrixExt $ \lam j1 j2 => path (\lam i => BigSum (\new Array R k (\lam j3 => R.BigSum-rdistr {\new Array R m (\lam j4 => M j1 j4 * N j4 j3)} {L j3 j2} i))) *>
-            R.BigSum-transpose _ *> pmap BigSum (arrayExt $ \lam j3 => pmap BigSum $ arrayExt $ \lam j4 => *-assoc) *>
-            inv (path (\lam i => BigSum (\new Array R m (\lam j3 => R.BigSum-ldistr {M j1 j3} {\new Array R k (\lam j4 => N j3 j4 * L j4 j2)} i))))
+    \lemma product-gen-assoc {R : Ring} {M : LModule' R} {n m k l : Nat} {A : Matrix R n m} {B : Matrix R m k} {C : Matrix M k l} : product-gen (product A B) C = product-gen A (product-gen B C)
+        => matrixExt $ \lam j1 j2 => path (\lam i => BigSum (\lam j3 => M.*c_BigSum-left {\lam j4 => A j1 j4 * B j4 j3} {C j3 j2} i)) *>
+            M.BigSum-transpose _ *> pmap BigSum (arrayExt $ \lam j3 => pmap BigSum $ arrayExt $ \lam j4 => *c-assoc) *>
+            inv (path (\lam i => BigSum (\lam j3 => M.*c_BigSum-right {A j1 j3} {\lam j4 => B j3 j4 *c C j4 j2} i)))
 
     \lemma matrix_ldistr {R : Ring} {n m k : Nat} {L : Matrix R n m} {M N : Matrix R m k} : product L (add M N) = add (product L M) (product L N)
       => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => ldistr) *> R.BigSum_+
@@ -386,3 +389,11 @@
         | inv-right => inv *c-comm-right *> pmap (c.inv *c) adjugate-right *> inv (*c-assoc {_} {_} {_} {ide}) *> pmap (`*c ide) c.inv-left *> ide_*c
       })
   \where \open Monoid
+
+\lemma equations-determinant {R : CRing} {M : LModule' R} {n k : Nat} {A : Matrix R n n} {U : Matrix M n k}
+                             (p : \Pi (i : Fin n) (j : Fin k) -> product-gen A U i j = 0) (i : Fin n) (j : Fin k) : determinant A *c U i j = 0
+  => \have | r : product-gen (adjugate A) (mkMatrix (\lam _ _ => zro)) = mkMatrix (\lam _ _ => zro) => matrixExt $ \lam i j => M.BigSum_zro $ \lam k => M.*c_zro-right
+           | t : product-gen (determinant A *c ide) U = mkMatrix (\lam _ _ => zro)
+               => pmap (product-gen __ U) (inv adjugate-left) *> product-gen-assoc *> cong (matrixExt p) *> r
+     \in pmap (`*c _) (inv ide-right) *> rewriteF (decideEq=_reduce idp) (inv (M.BigSum-unique i $ \lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) $ pmap (`*c _) R.zro_*-right *> M.*c_zro-left) *> path (\lam i' => t i' i j))
+  \where \open MatrixRing

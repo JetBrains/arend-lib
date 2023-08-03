@@ -2,14 +2,17 @@
 \import Algebra.Ring.Graded
 \import Algebra.Ring.Ideal
 \import Data.Array
+\import Data.Or
 \import Function.Meta
 \import Logic
 \import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Set.Fin
 \open GradedCRing
 \open AddMonoid
+\open AbMonoid
 
 \record HomogenIdeal \extends Ideal {
   \override S : GradedCRing
@@ -28,7 +31,19 @@
   -- | If an ideal has a set of homogeneous generators, then it is homogeneous
   \func fromGen {R : GradedCRing} (I : Ideal R) (h : TruncP (hasHomogenGen I)) : HomogenIdeal \cowith
     | Ideal => I
-    | isHomogenIdeal {l} lh s j => {?}
+    | isHomogenIdeal {l} lh s j =>
+      \have | (inP H) => h
+            | (inP (l' : Array, p)) => (H.3 (BigSum l)).1 s
+            | (inP f) => FinSet.finiteAC (\lam j => homogen-decomp (l' j).1)
+            | (inP l'h) => FinSet.finiteAC (\lam j => H.2 (l' j).2.1 (l' j).2.2)
+            | q => p *> path (\lam i => BigSum (\lam j => inv (FinSum=BigSum *> (f j).3) i * (l' j).2.1)) *>
+                   inv FinSum=BigSum *> pmap FinSum (ext $ \lam j => R.FinSum-rdistr) *>
+                   FinSum-double-dep (\lam j => FinFin (DArray.len {(f j).1})) *>
+                   FinSum-homogen (later $ \lam k => (k.2 Nat.+ (l'h k.1).1, homogen-* ((f k.1).2 k.2) (l'h k.1).2))
+      \in \case similar-eq (R.homogen-similar lh (FinSum-homogen.array-homogen (later $ \lam k => (k.2 Nat.+ (l'h k.1).1, R.homogen-* ((f k.1).2 k.2) (l'h k.1).2))) q) j \with {
+        | inl r => transport I r.2 $ finSum $ \lam k => later $ ideal-left $ (H.3 _).2 $ Ideal.sclosure-superset (l' k.1.1).2.2
+        | inr r => transportInv I r contains_zro
+      }
 }
 
 \func irrelevantIdeal (R : GradedCRing) : HomogenIdeal R

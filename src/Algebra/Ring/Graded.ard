@@ -1,15 +1,19 @@
 \import Algebra.Group
 \import Algebra.Meta
+\import Algebra.Monoid
 \import Algebra.Pointed
 \import Algebra.Ring
 \import Arith.Nat
 \import Data.Array
-\import Data.Fin (fsuc/=)
+\import Data.Fin (fsuc/=, nat_fin_=)
 \import Data.Or
+\import Equiv
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
+\import Order.LinearOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -39,6 +43,11 @@
   \lemma homogen-BigSum {l : Array E} {n : Nat} (p : ∀ (a : l) (isHomogen a n)) : isHomogen (BigSum l) n \elim l
     | nil => homogen-zro
     | a :: l => homogen-+ (p 0) (homogen-BigSum (\lam j => p (suc j)))
+
+  \lemma homogen-FinSum {J : FinSet} {a : J -> E} {n : Nat} (p : \Pi (j : J) -> isHomogen (a j) n) : isHomogen (FinSum a) n
+    => \case AbMonoid.FinSum.char a \with {
+      | inP (e,q) => transportInv (isHomogen __ n) q $ homogen-BigSum $ \lam j => p (e j)
+    }
 
   \lemma homogen-similar {l l' : Array E} (lh : isHomogenArray l) (l'h : isHomogenArray l') (p : BigSum l = BigSum l') : Similar l l'
     => diff=0->similar $ homogen-unique (diff l l') (diff-homogen l l' 0 lh l'h) (diff-sum l l' *> toZero p)
@@ -224,6 +233,22 @@
         | suc s, suc t1, 0, l1, c2 :: l2, ::-::-similar _ q => aux s t1 0 n1 (suc n2) l1h (\lam j => l2h (suc j)) q
         | suc s, suc t1, suc t2, l1, l2, ::-::-similar _ q => aux s t1 t2 n1 n2 l1h l2h q
     }
+
+  \lemma FinSum-homogen {J : FinSet} {a : J -> E} (p : \Pi (j : J) -> \Sigma (n : Nat) (isHomogen (a j) n)) : FinSum a = BigSum array
+    => FinSum_Equiv (later $ \new QEquiv {
+      | f s => s.2.1
+      | ret j => ((p j).1, (j, inv $ mod_< $ <-transitive-right (FinJoin-cond _) id<suc))
+      | ret_f => unfold $ unfold $ unfold $ \lam s => exts (nat_fin_= $ mod_< (<-transitive-right (FinJoin-cond s.2.1) id<suc) *> s.2.2, idp)
+      | f_sec j => idp
+    }) *> inv (FinSum-double-dep (\lam i => SigmaFin J $ \lam j => DecFin (decideEq (p j).1 i)) {\lam s => a s.2.1}) *> FinSum=BigSum {_} {suc $ FinJoin (\lam j => (p j).1)}
+    \where {
+      \open Bounded.JoinSemilattice
+
+      \func array => \new Array E (suc $ FinJoin (\lam j => (p j).1)) $ \lam i => FinSum {_} {SigmaFin J $ \lam j => DecFin (decideEq (p j).1 i)} (\lam k => a k.1)
+
+      \lemma array-homogen : isHomogenArray array
+        => \lam n => homogen-FinSum $ later $ \lam j => transport (isHomogen _) j.2 (p j.1).2
+    }
 } \where {
   \data Similar {A : AddPointed} (l l' : Array A) \elim l, l'
     | nil, nil => nil-nil-similar
@@ -234,4 +259,14 @@
   \lemma similar-nil {A : AddPointed} {l : Array A} (s : Similar l nil) (j : Fin l.len) : l j = 0 \elim l, s, j
     | a :: l, ::-nil-similar p s, 0 => p
     | a :: l, ::-nil-similar p s, suc j => similar-nil s j
+
+  \func similar-eq {A : AddPointed} {l l' : Array A} (s : Similar l l') (j : Fin l.len)
+    : Or (\Sigma (i : Fin l'.len) (l' i = l j)) (l j = 0) \elim l, l', s, j
+    | a :: l, nil, ::-nil-similar p s, 0 => inr p
+    | a :: l, nil, ::-nil-similar p s, suc j => similar-eq s j
+    | a :: l, a' :: l', ::-::-similar p s, 0 => inl (0, inv p)
+    | a :: l, a' :: l', ::-::-similar p s, suc j => \case similar-eq s j \with {
+      | inl r => inl (suc r.1, r.2)
+      | inr r => inr r
+    }
 }

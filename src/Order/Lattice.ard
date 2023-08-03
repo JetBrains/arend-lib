@@ -2,11 +2,14 @@
 \import Algebra.Semiring
 \import Category.Limit
 \import Data.Array
+\import Equiv
 \import Function.Meta
 \import HLevel
+\import Logic
 \import Paths
 \import Order.PartialOrder
 \import Paths.Meta
+\import Set.Fin
 
 \class MeetSemilattice \extends Poset {
   | meet \alias \infixl 7 ∧ : E -> E -> E
@@ -161,10 +164,36 @@
         | *-comm => meet-comm
     }
 
-  \class JoinSemilattice \extends Order.Lattice.JoinSemilattice
+  \class JoinSemilattice \extends Order.Lattice.JoinSemilattice {
     | bottom : E
     | bottom-univ {x : E} : bottom <= x
-    \where {
+
+    \func BigJoin (l : Array E) : E
+      => Big (∨) bottom l
+
+    \lemma BigJoin-cond {l : Array E} (j : Fin l.len) : l j <= BigJoin l \elim l, j
+      | a :: l, 0 => join-left
+      | a :: l, suc j => BigJoin-cond j <=∘ join-right
+
+    \lemma BigJoin-univ {l : Array E} {x : E} (p : \Pi (j : Fin l.len) -> l j <= x) : BigJoin l <= x \elim l
+      | nil => bottom-univ
+      | a :: l => join-univ (p 0) $ BigJoin-univ $ \lam j => p (suc j)
+
+    \sfunc FinJoin {J : FinSet} (a : J -> E) : E
+      => AbMonoid.FinSum {\this} a
+
+    \lemma FinJoin-cond {J : FinSet} (j : J) {a : J -> E} : a j <= FinJoin a
+      => \case (AbMonoid.FinSum.aux a).2 \with {
+           | inP (e : Equiv, q) => \have t => (\peval FinJoin a) *> (\peval AbMonoid.FinSum a) *> inv q
+                                   \in transport2 (<=) (pmap a (e.f_ret j)) (inv t) (BigJoin-cond (e.ret j))
+         }
+
+    \lemma FinJoin-univ {J : FinSet} {a : J -> E} {x : E} (p : \Pi (j : J) -> a j <= x) : FinJoin a <= x
+      => \case (AbMonoid.FinSum.aux a).2 \with {
+           | inP (e,q) => \have t => (\peval FinJoin a) *> (\peval AbMonoid.FinSum a) *> inv q
+                          \in transportInv (`<= x) t $ BigJoin-univ $ \lam j => p (e j)
+         }
+  } \where {
       \use \coerce toMonoid (L : JoinSemilattice) : AbMonoid L \cowith
         | zro => bottom
         | + => join

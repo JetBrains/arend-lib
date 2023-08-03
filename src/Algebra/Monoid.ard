@@ -16,6 +16,7 @@
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Set
 \import Set.Fin
 \import Set.Fin.Pigeonhole
 
@@ -382,6 +383,11 @@
         }
     }
 
+  \lemma FinSum_zro {J : FinSet} {x : J -> E} (p : \Pi (j : J) -> x j = 0) : FinSum x = 0
+    => \case FinSum.char x \with {
+      | inP (e,q) => q *> BigSum_zro (\lam j => p (e j))
+    }
+
   \lemma FinSum-const {A : FinSet} {x : E} : FinSum {_} {A} (\lam _ => x) = BigSum (\new Array E A.finCard (\lam j => x))
     => \case FinSum.char {_} {A} (\lam _ => x) \with {
          | inP p => p.2
@@ -406,6 +412,26 @@
       | inP p => \let A' => \new FinSet A B.finCard $ TruncP.map B.finEq $ \lam e' => transEquiv e' (symQEquiv e)
                  \in FinSum.char2 x (transEquiv p.1 e) *> inv p.2 *> pmap {FinSet A} (FinSum {_} {__} _) (FinSet.levelProp A' A)
     }
+
+  \lemma FinSum-inj {A B : FinSet} (f : A -> B) (inj : isInj f) {x : B -> E} (p : \Pi (b : B) -> (\Pi (a : A) -> f a /= b) -> x b = 0) : FinSum x = FinSum (\lam a => x (f a))
+    => \have dec (b : B) : Decide (∃ (a : A) (f a = b)) => \new Decide { | decide => FinSet.search (\lam a => f a = b) (\lam a => decideEq (f a) b) }
+       \in FinSum_Equiv (later $ \new QEquiv {
+         | f => \case \elim __ \with {
+           | inl s => s.1
+           | inr s => s.1
+         }
+         | ret b => \case decide {dec b} \with {
+           | yes e => inl (b,e)
+           | no q => inr (b,q)
+         }
+         | ret_f => \case \elim __ \with {
+           | inl s => rewrite (dec_yes_reduce s.2) idp
+           | inr s => rewrite (dec_no_reduce s.2) idp
+         }
+         | f_sec b => mcases {2} idp
+       }) *> FinSum_Or {_} {SigmaFin B $ \lam b => DecFin (decide {dec b})} {SigmaFin B $ \lam b => DecFin (decide {NotDecide (dec b)})} *>
+             pmap2 (+) (FinSum_Equiv $ later $ Equiv.fromInjSurj {A} {\Sigma (b : B) (∃ (a : A) (f a = b))} (\lam a => (f a, inP (a,idp))) (\lam {a} {a'} q => inj $ pmap __.1 q) $ \lam s => TruncP.map s.2 $ \lam t => (t.1, ext t.2))
+                       (FinSum_zro $ later $ \lam j => p j.1 $ \lam a q => j.2 $ inP (a,q)) *> zro-right
 
   \lemma FinSum_Or {A B : FinSet} {x : Or A B -> E} : FinSum x = FinSum (\lam a => x (inl a)) + FinSum (\lam b => x (inr b))
     => \case FinSum.char _, FinSum.char _ \with {
