@@ -26,9 +26,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
-\import Order.LinearOrder
 \import Order.PartialOrder
-\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
@@ -83,6 +81,12 @@
     \lemma cover_zro {R : GradedCRing} {x : Carrier R} (p : x.1 = 0) {J : \Set} {g : J -> Carrier R} : Cover {ProjPres R} x g
       => cover-trans (cover-basic {_} {x} {Empty} {absurd} $ later $ inP (inr x.2, idEquiv, ext (inv p, idp), \case __)) (\case __)
 
+    \lemma cover-eq {R : GradedCRing} {x y : Carrier R} (p : x.1 = y.1) {J : \Set} {g : J -> Carrier R} (c : Cover {ProjPres R} x g) : Cover {ProjPres R} y g
+      => \case R.degree-unique (transport (isHomogen __ _) p x.3) y.3 \with {
+           | inl r => cover_zro r
+           | inr r => transport (Cover __ g) (ext (p, pmap pred r)) c
+         }
+
     \lemma cover-proj1 {R : GradedCRing} {x : Carrier R} {J : \Set} {g : J -> Carrier R} {a : Carrier R} {b : R} {n : Nat} (bh : isHomogen b n) (p : x.1 = a.1 * b) (j : J) (q : g j = a) : Cover {ProjPres R} x g
       => \case R.degree-unique {_} {_} {suc a.2 + n} x.3 $ rewrite p $ homogen-* a.3 bh \with {
         | inl x=0 => cover_zro x=0
@@ -103,21 +107,29 @@
         | inr n => inP (nothing, idEquiv, idp, \case \elim __)
       }
 
-    \lemma ideal_cover {R : GradedCRing} {x : Carrier R} {J : \Set} {g : J -> Carrier R} (c : Ideal.radical {closure (\lam j => (g j).1)} x.1) : Cover {ProjPres R} x g \elim c
-      | inP (0, inP (l,p)) => \case homogen-bigSum {R} {0} (mkArray $ \lam i => ((l i).1, g (l i).2)) (rewriteI p R.homogen-ide) \with {
-        | inP (l', q) =>
-          \have t => R.BigSum_zro {mkArray (\lam j => (l' j).1 * (g (l j).2).1)} $ \lam j =>
-                       \case R.degree-unique (l' j).4 (R.homogen-* (l' j).3 (g (l j).2).3) \with {
-                         | inl p => p
-                         | inr ()
-                       }
-          \in cover_zro equation
+    \lemma cover_BigSum {R : GradedCRing} {l : Array R} {n : Nat} (p : \Pi (j : Fin l.len) -> isHomogen (l j) (suc n))
+      : Cover {ProjPres R} (BigSum l, n, R.homogen-BigSum p) (mkArray $ later $ \lam j => (l j, n, p j)) \elim l
+      | nil => cover_zro idp
+      | a :: l => cover-trans (cover-basic $ FramePres.indexing-make $ later $ inl (n, a, BigSum l, p 0, R.homogen-BigSum (\lam j => p (suc j)))) $ later $ \case \elim __ \with {
+        | false => cover-trans (cover_BigSum (\lam j => p (suc j))) (\lam i => cover-inj (suc i) idp)
+        | true => cover-inj 0 idp
       }
-      | inP (suc n, inP (l : Array, p)) => \case homogen-bigSum (mkArray $ \lam i => ((l i).1, g (l i).2)) $ rewriteI p $ R.homogen-pow {x.1} {suc x.2} {suc n} x.3 \with {
-        | inP (l',q) => Cover.cover-trans1 (cover_hpow n) $
-          \let l'' => mkArray $ \lam j => (l' j).1 * (g (l j).2).1
-          \in rewrite (hpow-lem (R.homogen-BigSum {l''} $ \lam j => (l' j).4) (hpow_pow *> p *> q) hpow-degree) $
-              cover-trans (cover_bigSum {R} {l''} _) $ \lam j => cover-proj2 (l' j).3 idp (l j).2 idp
+
+    \lemma cover_FinSum {R : GradedCRing} {J : FinSet} {a : J -> R} {n : Nat} (p : \Pi (j : J) -> isHomogen (a j) (suc n))
+      : Cover {ProjPres R} (R.FinSum a, n, R.homogen-FinSum p) (\lam j => (a j, n, p j))
+      => \case AbMonoid.FinSum.char a \with {
+           | inP (e,q) => cover-trans (cover-eq (inv q) $ cover_BigSum (\lam i => p (e i))) $ \lam i => cover-inj (e i) idp
+         }
+
+    \lemma ideal_cover {R : GradedCRing} {x : Carrier R} {J : \Set} {g : J -> Carrier R} (c : Ideal.radical {closure (\lam j => (g j).1)} x.1) : Cover {ProjPres R} x g \elim c
+      | inP (n, inP (l : Array, p)) => \case R.sum-decomp (map (\lam s => (x.1 * s.1, (g s.2).1)) l) (\lam i => inP (suc (g (l i).2).2, (g (l i).2).3)) \with {
+        | inP (N,f,q) =>
+          \have p' => hpow_pow *> *-comm *> pmap (x.1 *) p *> R.BigSum-ldistr *> path (\lam i => BigSum (\lam j => inv (R.*-assoc {x.1} {(l j).1} {(g (l j).2).1}) i)) *> q
+          \in Cover.cover-trans1 (cover_hpow n) $ \case R.homogenSum-unique (\lam m => R.homogen-FinSum $ (f m).5) $ transport (isHomogen __ _) p' (hpow x n).3 \with {
+            | inl (j,s,q) => cover-trans (cover-eq (inv $ p' *> s) $ cover_FinSum {R} {(f j).1} {\lam k => (f j).2 k * (g (l ((f j).4 k)).2).1} (\lam k => transport (isHomogen _) q ((f j).5 k))) $
+                              \lam k => cover-proj2 ((f j).3 k).2 idp (l ((f j).4 k)).2 idp
+            | inr r => cover_zro (p' *> r)
+          }
       }
       \where {
         \func hpow {R : GradedCRing} (x : Carrier R) (n : Nat) : Carrier R \elim n
@@ -128,36 +140,9 @@
           | 0 => inv ide-left
           | suc n => pmap (`* x.1) hpow_pow
 
-        \lemma hpow-degree {R : GradedCRing} {x : Carrier R} {n : Nat} : (hpow x n).2 = suc x.2 * n + x.2 \elim n
-          | 0 => idp
-          | suc n => pmap (\lam y => suc (y + x.2)) hpow-degree
-
-        \lemma hpow-lem {R : GradedCRing} {x : Carrier R} {n : Nat} {a : R} {m : Nat} (ah : isHomogen a (suc m)) (p : (hpow x n).1 = a) (q : (hpow x n).2 = m) : hpow x n = (a, m, ah)
-          => ext (p,q)
-
         \lemma cover_hpow {R : GradedCRing} {x : Carrier R} (n : Nat) : Cover1 {ProjPres R} x (hpow x n) \elim n
           | 0 => cover-inj () idp
           | suc n => Cover.cover-prod (cover_hpow n) (cover-inj () idp)
-
-        \lemma homogen-bigSum {R : GradedCRing} {n : Nat} (l : Array (\Sigma R (Carrier R))) (lh : isHomogen (BigSum $ map (\lam p => p.1 * p.2.1) l) n)
-          : ∃ (l' : DArray {l.len} (\lam j => \Sigma (a : R) (m : Nat) (isHomogen a m) (isHomogen (a * (l j).2.1) n))) (BigSum (map (\lam p => p.1 * p.2.1) l) = BigSum (mkArray (\lam j => (l' j).1 * (l j).2.1)))
-          => \have | lem1 {n m : Nat} (p : suc m <= n) : suc (n -' suc m Nat.+ m) = n => pmap iabs $ transportInv (\lam x => x + m + 1 = n) (-'=- p) linarith
-                   | lem2 {n m k : Nat} (p : m <= n) (q : n < m + k) : n -' m < k => pos<pos.conv $ transportInv (`< _) (-'=- p) linarith
-             \in TruncP.map (FinSet.finiteAC (\lam j => homogen-decomp (l j).1)) $ \lam f => (\new DArray { | at j => later $ \case LinearOrder.dec<_<= n (suc (l j).2.2), LinearOrder.dec<_<= n (suc (l j).2.2 + DArray.len {(f j).1}) \with {
-               | inl p, _ => (0, 0, homogen-zro, rewrite R.zro_*-left homogen-zro)
-               | _, inr p => (0, 0, homogen-zro, rewrite R.zro_*-left homogen-zro)
-               | inr p, inl q =>
-                 \let index => toFin {n -' suc (l j).2.2} (lem2 p q)
-                 \in ((f j).1 index, index, (f j).2 index, transport (\lam x => R.isHomogen _ x) (lem1 p) $ homogen-* (transport (isHomogen ((f j).1 index)) (toFin=id _) ((f j).2 index)) (l j).2.3)
-             } }, unfold_let {?})
-
-        \lemma cover_bigSum {R : GradedCRing} {l : Array R} {n : Nat} (p : \Pi (j : Fin l.len) -> isHomogen (l j) (suc n))
-          : Cover {ProjPres R} (BigSum l, n, R.homogen-BigSum p) (mkArray $ later $ \lam j => (l j, n, p j)) \elim l
-          | nil => cover-basic $ inP (inr n, \new QEquiv (\case __) (\case __) (\case __) (\case __), ext (idp,idp), \case __)
-          | a :: l => cover-trans (cover-basic $ FramePres.indexing-make $ later $ inl (n, a, BigSum l, p 0, R.homogen-BigSum (\lam j => p (suc j)))) $ later $ \case \elim __ \with {
-            | false => cover-trans (cover_bigSum (\lam j => p (suc j))) (\lam i => cover-inj (suc i) idp)
-            | true => cover-inj 0 idp
-          }
       }
   }
 

@@ -143,6 +143,14 @@
         | a' :: l, suc n, ::-::-similar p s, suc j => similar-unique l a n s j $ \lam q => n/=j (pmap suc q)
     }
 
+  \func homogenSum-unique {l : Array E} (lh : isHomogenArray l) {n : Nat} (h : isHomogen (BigSum l) n)
+    : Or (\Sigma (j : Fin l.len) (BigSum l = l j) (j = {Nat} n)) (BigSum l = 0)
+    => \case similar-eq (homogen-similar {_} {replicate n zro ++ BigSum l :: nil} (homogen-++ (\lam j => homogen-zro) $ later $ \lam (0) => h) lh $
+              BigSum_++ *> pmap2 (+) BigSum_replicate0 zro-right *> zro-left) (++.index-right 0) \with {
+         | inl r => inl (r.1, inv ++.++_index-right *> r.2, r.3 *> ++.index-right-nat)
+         | inr r => inr (inv ++.++_index-right *> r)
+       }
+
   \lemma homogen-++ {l l' : Array E} (lh : isHomogenArray l) (l'h : \Pi (j : Fin l'.len) -> isHomogen (l' j) (l.len Nat.+ j)) : isHomogenArray (l ++ l')
     => aux 0 lh l'h
     \where
@@ -242,14 +250,24 @@
       | f_sec j => idp
     }) *> inv (FinSum-double-dep (\lam i => SigmaFin J $ \lam j => DecFin (decideEq (p j).1 i)) {\lam s => a s.2.1}) *> FinSum=BigSum {_} {suc $ FinJoin (\lam j => (p j).1)}
     \where {
-      \open Bounded.JoinSemilattice
-
       \func array => \new Array E (suc $ FinJoin (\lam j => (p j).1)) $ \lam i => FinSum {_} {SigmaFin J $ \lam j => DecFin (decideEq (p j).1 i)} (\lam k => a k.1)
 
       \lemma array-homogen : isHomogenArray array
         => \lam n => homogen-FinSum $ later $ \lam j => transport (isHomogen _) j.2 (p j.1).2
     }
+
+  \lemma sum-decomp (l : Array (\Sigma E E)) (c : \Pi (i : Fin l.len) -> ∃ (n : Nat) (isHomogen (l i).2 n))
+    : ∃ (N : Nat) (f : \Pi (n : Fin N) -> \Sigma (J : FinSet) (g : J -> E) (\Pi (j : J) -> \Sigma (n : Nat) (isHomogen (g j) n)) (h : J -> Fin l.len) (\Pi (j : J) -> isHomogen (g j * (l (h j)).2) n))
+        (BigSum (map (\lam s => s.1 * s.2) l) = BigSum (\lam n => FinSum (\lam j => (f n).2 j * (l ((f n).4 j)).2)))
+    => \let | (inP c') => FinSet.finiteAC c
+            | (inP d) => FinSet.finiteAC (\lam i => homogen-decomp (l i).1)
+            | p k : _ => later $ (k.2 Nat.+ (c' k.1).1, homogen-* ((d k.1).2 k.2) (c' k.1).2)
+            | q => path (\lam i => BigSum (\lam i' => inv (FinSum=BigSum *> (d i').3) i * (l i').2)) *> inv FinSum=BigSum *>
+                   pmap FinSum (ext $ \lam j => FinSum-rdistr) *> FinSum-double-dep (\lam i => FinFin (DArray.len {(d i).1})) *> FinSum-homogen p
+       \in inP (suc _, \lam n => (SigmaFin (SigmaFin (FinFin l.len) (\lam i => FinFin (DArray.len {(d i).1}))) (\lam k => DecFin (decideEq (p k).1 n)), \lam k => (d k.1.1).1 k.1.2, \lam k => (k.1.2, (d k.1.1).2 k.1.2), __.1.1, \lam k => transport (isHomogen _) k.2 (p k.1).2), q)
 } \where {
+  \open Bounded.JoinSemilattice
+
   \data Similar {A : AddPointed} (l l' : Array A) \elim l, l'
     | nil, nil => nil-nil-similar
     | nil, a :: l' => nil-::-similar (a = 0) (Similar nil l')
@@ -261,12 +279,15 @@
     | a :: l, ::-nil-similar p s, suc j => similar-nil s j
 
   \func similar-eq {A : AddPointed} {l l' : Array A} (s : Similar l l') (j : Fin l.len)
-    : Or (\Sigma (i : Fin l'.len) (l' i = l j)) (l j = 0) \elim l, l', s, j
+    : Or (\Sigma (i : Fin l'.len) (l j = l' i) (i = {Nat} j)) (l j = 0) \elim l, l', s, j
     | a :: l, nil, ::-nil-similar p s, 0 => inr p
-    | a :: l, nil, ::-nil-similar p s, suc j => similar-eq s j
-    | a :: l, a' :: l', ::-::-similar p s, 0 => inl (0, inv p)
+    | a :: l, nil, ::-nil-similar p s, suc j => \case similar-eq s j \with {
+      | inl r => \case r.1
+      | inr r => inr r
+    }
+    | a :: l, a' :: l', ::-::-similar p s, 0 => inl (0, p, idp)
     | a :: l, a' :: l', ::-::-similar p s, suc j => \case similar-eq s j \with {
-      | inl r => inl (suc r.1, r.2)
+      | inl r => inl (suc r.1, r.2, pmap suc r.3)
       | inr r => inr r
     }
 }
