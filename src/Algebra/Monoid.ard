@@ -48,6 +48,9 @@
 
   \func BigProd (l : Array E) => Big (*) ide l
 
+  \lemma BigProd_ide {l : Array E} (p : \Pi (j : Fin l.len) -> l j = ide) : BigProd l = ide
+    => AddMonoid.BigSum_zro {AddMonoid.fromMonoid \this} p
+
   \lemma BigProd_++ {l l' : Array E} : BigProd (l ++ l') = BigProd l * BigProd l'
     => AddMonoid.BigSum_++ {AddMonoid.fromMonoid \this}
 
@@ -311,6 +314,10 @@
   \lemma BigSum-unique2 {l : Array E} {i j : Fin l.len} (i<j : i NatSemiring.< j) (p : \Pi (k : Fin l.len) -> k /= i -> k /= j -> l k = 0) : BigSum l = l i + l j \elim l, i, j, i<j
     | a :: l, 0, suc j, _ => pmap (a +) $ BigSum-unique j $ \lam k j/=k => p (suc k) (\case __) $ fsuc/= $ \lam q => j/=k (inv q)
     | a :: l, suc i, suc j, NatSemiring.suc<suc i<j => pmap (`+ _) (p 0 (\case __) (\case __)) *> zro-left *> BigSum-unique2 i<j (\lam k k/=i k/=j => p (suc k) (fsuc/= k/=i) (fsuc/= k/=j))
+
+  \lemma BigSum-pred {P : E -> \Prop} (P0 : P 0) (P+ : \Pi {x y : E} -> P x -> P y -> P (x + y)) {l : Array E} (p : \Pi (j : Fin l.len) -> P (l j)) : P (AddMonoid.BigSum l) \elim l
+    | nil => P0
+    | a :: l => P+ (p 0) $ BigSum-pred P0 P+ $ \lam j => p (suc j)
 } \where {
     \use \coerce fromMonoid (M : Monoid) => \new AddMonoid M.E M.ide (M.*) M.ide-left M.ide-right M.*-assoc
     \use \coerce toMonoid (M : AddMonoid) => \new Monoid M.E M.zro (M.+) M.zro-left M.zro-right M.+-assoc
@@ -436,6 +443,16 @@
   \lemma FinSum_Or {A B : FinSet} {x : Or A B -> E} : FinSum x = FinSum (\lam a => x (inl a)) + FinSum (\lam b => x (inr b))
     => \case FinSum.char _, FinSum.char _ \with {
       | inP p, inP q => FinSum.char2 x (transEquiv (OrFin.aux {A.finCard} {B.finCard}) (Or.Or_Equiv p.1 q.1)) *> BigSum_Or (\lam a => x (Or.map a p.1 q.1)) *> inv (pmap2 (+) p.2 q.2)
+    }
+
+  \lemma FinSum-unique {J : FinSet} {a : J -> E} (j : J) (p : \Pi (j' : J) -> j' /= j -> a j' = 0) : FinSum a = a j
+    => \case FinSum.char a \with {
+         | inP (e : Equiv, q) => q *> BigSum-unique (e.ret j) (\lam i c => p (e i) $ \lam s => c $ inv $ e.adjoint s) *> pmap a (e.f_ret j)
+       }
+
+  \lemma FinSum-pred {P : E -> \Prop} (P0 : P 0) (P+ : \Pi {x y : E} -> P x -> P y -> P (x + y)) {J : FinSet} {a : J -> E} (p : \Pi (j : J) -> P (a j)) : P (AbMonoid.FinSum a)
+    => \case AbMonoid.FinSum.char a \with {
+      | inP (e,q) => transportInv P q $ AddMonoid.BigSum-pred P0 P+ $ \lam i => p (e i)
     }
 }
   \where {

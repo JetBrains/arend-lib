@@ -30,8 +30,10 @@
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Prelude \hiding (nil,::)
 \import Relation.Equivalence
 \import Set
+\import Set.Fin
 
 \data Poly (R : AddPointed)
   | pzero
@@ -374,10 +376,13 @@
   | padd p x, pzero, n => inv zro-right
   | padd p x, padd q y, suc n => polyCoef_+
 
-\lemma polyCoef_negative {R : Ring} {p : Poly R} {n : Nat} : polyCoef (negative p) n = negative (polyCoef p n) \elim p, n
-  | pzero, n => inv R.negative_zro
-  | padd p e, 0 => idp
-  | padd p e, suc n => polyCoef_negative
+\func polyCoefHom {R : Ring} {n : Nat} : AddGroupHom (PolyRing R) R \cowith
+  | func => polyCoef __ n
+  | func-zro => idp
+  | func-+ => polyCoef_+
+
+\lemma polyCoef_negative {R : Ring} {p : Poly R} {n : Nat} : polyCoef (negative p) n = negative (polyCoef p n)
+  => polyCoefHom.func-negative
 
 \lemma polyCoef_*c {R : Ring} {a : R} {p : Poly R} {n : Nat} : polyCoef (a *c p) n = a * polyCoef p n \elim p, n
   | pzero, n => inv zro_*-right
@@ -404,6 +409,12 @@
     \func polyMap_*c {f : RingHom} {a : f.Dom} {q : Poly f.Dom} : polyMap f (a *c q) = f a *c polyMap f q \elim q
       | pzero => idp
       | padd q b => pmap2 padd polyMap_*c f.func-*
+
+\func polyEmbHom {R : Ring} : RingHom R (PolyRing R) \cowith
+  | func => padd 0
+  | func-+ => idp
+  | func-ide => idp
+  | func-* => pmap (padd 0) (inv zro-left)
 
 \func polyEvalRingHom {R : CRing} (a : R) : RingHom (PolyRing R) R \cowith
   | func => polyEval __ a
@@ -539,6 +550,12 @@
   | padd p x, padd q y, 0 => pmap2 (+) dp dq
   | padd p x, padd q y, suc n => degree<=_+ dp dq
 
+\lemma degree<=_BigSum {R : Ring} {l : Array (Poly R)} {n : Nat} (d : \Pi (j : Fin l.len) -> degree<= (l j) n) : degree<= (AddMonoid.BigSum l) n
+  => AddMonoid.BigSum-pred {_} {degree<= __ n} () (\lam {p} {q} => degree<=_+) d
+
+\lemma degree<=_FinSum {R : Ring} {J : FinSet} {a : J -> Poly R} {n : Nat} (d : \Pi (j : J) -> degree<= (a j) n) : degree<= (AbMonoid.FinSum a) n
+  => AbMonoid.FinSum-pred {_} {degree<= __ n} () (\lam {p} {q} => degree<=_+) d
+
 \lemma degree<=_*c {R : Ring} {a : R} {p : Poly R} {n : Nat} (d : degree<= p n) : degree<= (a *c p) n \elim p, n
   | pzero, n => ()
   | padd p e, 0 => pmap (a *c) d
@@ -554,6 +571,11 @@
   | padd p e, 0 => rewrite dp $ transportInv (\lam x => degree<= (x + _) m) peq $ degree<=_*c dq
   | padd p e, suc n => degree<=_+ (later $ degree<=_* dp dq) (degree<=_*c $ degree<=-trans dq $ NatSemiring.<=_+ {0} {suc n} zero<=_ <=-refl)
 
+\lemma degree<=_BigProd {R : Ring} {l : Array (Poly R)} (d : Array Nat l.len) (p : \Pi (j : Fin l.len) -> degree<= (l j) (d j))
+  : degree<= (Monoid.BigProd l) (AddMonoid.BigSum d) \elim l, d
+  | Prelude.nil, d => idp
+  | a Prelude.:: l, n Prelude.:: d => degree<=_* (p 0) $ degree<=_BigProd d $ \lam j => p (suc j)
+
 \lemma degree<=_monomial {R : AddPointed} {c : R} {n : Nat} : degree<= (monomial c n) n \elim n
   | 0 => idp
   | suc n => degree<=_monomial
@@ -562,13 +584,18 @@
   | 0 => idp
   | suc n => pmap2 padd *c_monomial zro_*-right
 
-\lemma leadCoef-product {R : Ring} (p q : Poly R) {n m : Nat} (dp : degree<= p n) (dq : degree<= q m) : polyCoef (p * q) (n + m) = polyCoef p n * polyCoef q m \elim p, n
+\lemma leadCoef-product {R : Ring} {p q : Poly R} {n m : Nat} (dp : degree<= p n) (dq : degree<= q m) : polyCoef (p * q) (n + m) = polyCoef p n * polyCoef q m \elim p, n
   | pzero, n => inv zro_*-left
   | padd p x, 0 => polyCoef_+ *> pmap2 (+) (\case \elim m \with {
     | 0 => idp
     | suc m => later (rewrite dp idp)
   }) polyCoef_*c *> zro-left
-  | padd p x, suc n => polyCoef_+ *> pmap2 (+) (leadCoef-product p q dp dq) (polyCoef_*c *> pmap (x *) (degree<=.toCoefs q m dq $ <_+-left m NatSemiring.zero<suc) *> zro_*-right) *> zro-right
+  | padd p x, suc n => polyCoef_+ *> pmap2 (+) (leadCoef-product dp dq) (polyCoef_*c *> pmap (x *) (degree<=.toCoefs q m dq $ <_+-left m NatSemiring.zero<suc) *> zro_*-right) *> zro-right
+
+\lemma leadCoef_BigProd {R : Ring} {l : Array (Poly R)} (d : Array Nat l.len) (ld : \Pi (j : Fin l.len) -> degree<= (l j) (d j))
+  : polyCoef (Monoid.BigProd l) (AddMonoid.BigSum d) = R.BigProd (\lam j => polyCoef (l j) (d j)) \elim l, d
+  | Prelude.nil, d => idp
+  | p Prelude.:: l, n Prelude.:: d => leadCoef-product (ld 0) (degree<=_BigProd d (\lam j => ld (suc j))) *> pmap (_ *) (leadCoef_BigProd d (\lam j => ld (suc j)))
 
 \func isMonic {R : Ring} (p : Poly R) : \Prop
   => ∃ (n : Nat) (degree<= p n) (polyCoef p n = 1)
@@ -599,7 +626,7 @@
      }
   \where {
     \lemma aux {R : Ring} (q g : Poly R) (n : Nat) (dg : degree<= g n) (dm : polyCoef g n = 1) (dqg : degree< (q * g) n) : q = 0
-      => degree<=.trivialPoly $ \lam k dq => inv (leadCoef-product q g dq dg *> pmap (_ *) dm *> ide-right) *> dqg (LinearlyOrderedSemiring.<=_+ zero<=_ <=-refl)
+      => degree<=.trivialPoly $ \lam k dq => inv (leadCoef_* q g dq dg *> pmap (_ *) dm *> ide-right) *> dqg (LinearlyOrderedSemiring.<=_+ zero<=_ <=-refl)
   }
 
 \func leadCoef {R : Ring.Dec} (p : Poly R) : R \elim p
