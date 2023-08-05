@@ -1,7 +1,7 @@
 \import Algebra.Linear.Matrix
 \import Algebra.Linear.Matrix.CharPoly
+\import Algebra.Meta
 \import Algebra.Module
-\import Algebra.Module.Category
 \import Algebra.Monoid
 \import Algebra.Monoid.Sub
 \import Algebra.Pointed
@@ -43,19 +43,22 @@
       \in inP (mkArray $ \lam j => polyCoef r j, (unfold,unfold) at ga $ ext $ inv ga *> rewrite (g=q*p+r,polyMapRingHom.func-+,polyEvalRingHom.func-+,polyMapRingHom.func-*,polyEvalRingHom.func-*,e,E.zro_*-right)
             (zro-left *> polyEval_polyCoef (degree<_polyMap dr<n) *> pmap AddMonoid.BigSum (arrayExt $ \lam j => pmap2 (*) polyCoef_polyMap (inv SubMonoid.struct_pow)) *> inv SubAddMonoid.struct_BigSum))
 
-\lemma polyImage-isFaithful {R : Ring} {E : CRing} (f : RingHom R E) (inj : \Pi {x y : R} -> f x = f y -> x = y) (a : f.Cod) : LModule.isFaithful {homLModule (polyImageHom f a)}
-  => \lam r p => inj $ inv ide-right *> pmap __.1 (p (1, contains_ide {polyImage f a})) *> inv f.func-zro
-
-\lemma module-monic {R E : CRing} (f : RingHom R E) (a : E) (M : LModule' R) (Mf : M.isFaithful) (l : Array M) (Mg : M.isGenerated l)
-                    (g : LinearMap' M (homLModule f)) (ag : \Pi (x : M) -> ∃ (y : M) (g y = a * g x))
+\lemma module-monic {R E : CRing} (f : RingHom R E) (a : E) (S : SubRing E) (SR : \Pi (x : R) -> S (f x))
+                    (l : Array S.struct) (Sg : LModule.isGenerated {homLModule (S.corestrict f SR)} l) (Sa : S a)
   : ∃ (p : Poly R) (degree<= p l.len) (polyCoef p l.len = 1) (polyEval (polyMap f p) a = 0)
-  => \let | (inP ag') => FinSet.finiteAC $ \lam j => ag (l j)
-          | (inP Mg') => FinSet.finiteAC $ \lam j => Mg (ag' j).1
-          | A => mkMatrix (\lam i => (Mg' i).1)
-     \in inP (charPoly A, charPoly-degree A, charPoly-monic A, pmap (polyEval __ a) (charPoly_map f A) *> {?})
+  => \let | (inP Sg') => FinSet.finiteAC $ \lam j => Sg (a * (l j).1, contains_* Sa (l j).2)
+          | (inP d) => Sg (1,contains_ide)
+          | A => mkMatrix (\lam i => (Sg' i).1)
+     \in inP (charPoly A, charPoly-degree A, charPoly-monic A, pmap (polyEval __ a) (charPoly_map f A) *> eigen-root (matrix-map f A) (
+          inP (mkMatrix $ \lam i _ => (l i).1,
+               \lam x p => inv ide-right *> pmap (x *) (pmap __.1 d.2 *> S.struct_BigSum) *> E.BigSum-ldistr *> E.BigSum_zro (\lam i => equation {usingOnly (pmap (__ i 0) p)}),
+               matrixExt $ \lam i _ => pmap __.1 (Sg' i).2 *> S.struct_BigSum)))
 
 \func isIntegral (f : RingHom) (x : f.Cod) : \Prop
   => ∃ (p : Poly f.Dom) (isMonic p) (polyEval (polyMap f p) x = 0)
+
+\func isIntegralExt (f : RingHom) : \Prop
+  => \Pi (x : f.Cod) -> isIntegral f x
 
 -- TODO
 \func integralClosure {R E : CRing} (f : RingHom R E) : SubRing E \cowith
