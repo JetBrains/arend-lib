@@ -6,8 +6,10 @@
 \import Algebra.Module
 \import Algebra.Module.Category
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Pointed
 \import Algebra.Ring
+\import Algebra.Ring.Category
 \import Algebra.Semiring
 \import Arith.Fin
 \import Arith.Int
@@ -37,20 +39,26 @@
 \func matrix-map {A B : \Type} (f : A -> B) {n m : Nat} (M : Matrix A n m) : Matrix B n m
   => mkMatrix $ \lam i j => f (M i j)
 
-\instance MatrixModule (R : Ring) (n m : Nat) : LModule' R \cowith
-  | E => Matrix R n m
+\instance MatrixAbGroup (A : AbGroup) (n m : Nat) : AbGroup (Matrix A n m) \cowith
   | zro => mkMatrix $ \lam _ _ => zro
-  | + => MatrixRing.add
+  | + M N => mkMatrix $ \lam i j => M i j + N i j
   | zro-left => matrixExt $ \lam i j => zro-left
   | +-assoc => matrixExt $ \lam i j => +-assoc
   | +-comm => matrixExt $ \lam i j => +-comm
   | negative M => mkMatrix $ \lam i j => negative (M i j)
   | negative-left => matrixExt $ \lam i j => negative-left
+
+\instance MatrixModule (R : Ring) (n m : Nat) : LModule' R \cowith
+  | AbGroup => MatrixAbGroup R n m
   | *c a M => mkMatrix $ \lam i j => a * M i j
   | *c-assoc => matrixExt $ \lam i j => *-assoc
   | *c-ldistr => matrixExt $ \lam i j => ldistr
   | *c-rdistr => matrixExt $ \lam i j => rdistr
   | ide_*c => matrixExt $ \lam i j => ide-left
+  \where {
+    \func *c-gen {R : Ring} {M : LModule' R} (a : R) {n m : Nat} (A : Matrix M n m) : Matrix M n m
+      => mkMatrix $ \lam i j => a *c A i j
+  }
 
 \instance MatrixRing (R : Ring) (n : Nat) : Ring (Matrix R n n)
   | AbGroup => MatrixModule R n n
@@ -59,16 +67,13 @@
     | no _ => zro
   }
   | * => product
-  | ide-left => product_ide-left
+  | ide-left => product-gen_ide-left
   | ide-right => product_ide-right
   | *-assoc => product-gen-assoc
-  | ldistr => matrix_ldistr
-  | rdistr => matrix_rdistr
+  | ldistr => product-gen-ldistr
+  | rdistr => product-gen-rdistr _ _
   \where {
     \open AddMonoid
-
-    \func add {R : AddMonoid} {n m : Nat} (M N : Matrix R n m) : Matrix R n m
-      => mkMatrix $ \lam i j => M i j + N i j
 
     \func product-gen {R : Ring} {L : LModule' R} {n m k : Nat} (M : Matrix R n m) (N : Matrix L m k) : Matrix L n k
       => mkMatrix $ \lam i k => BigSum $ \lam j => M i j *c N j k
@@ -76,8 +81,8 @@
     \func product {R : Ring} {n m k : Nat} (M : Matrix R n m) (N : Matrix R m k) : Matrix R n k
       => product-gen {R} {RingLModule R} M N
 
-    \lemma product_ide-left {R : Ring} {n m : Nat} {M : Matrix R n m} : product ide M = M
-      => matrixExt $ \lam i j => BigSum-unique i (\lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) R.zro_*-left) *> rewrite (decideEq=_reduce idp) ide-left
+    \lemma product-gen_ide-left {R : Ring} {M : LModule' R} {n m : Nat} {A : Matrix M n m} : product-gen ide A = A
+      => matrixExt $ \lam i j => BigSum-unique i (\lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) M.*c_zro-left) *> rewrite (decideEq=_reduce idp) M.ide_*c
 
     \lemma product_ide-right {R : Ring} {n m : Nat} {M : Matrix R n m} : product M ide = M
       => matrixExt $ \lam i j => BigSum-unique j (\lam k j/=k => later $ rewrite (decideEq/=_reduce (\lam t => j/=k (inv t))) R.zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right
@@ -87,11 +92,17 @@
             M.BigSum-transpose _ *> pmap BigSum (arrayExt $ \lam j3 => pmap BigSum $ arrayExt $ \lam j4 => *c-assoc) *>
             inv (path (\lam i => BigSum (\lam j3 => M.*c_BigSum-right {A j1 j3} {\lam j4 => B j3 j4 *c C j4 j2} i)))
 
-    \lemma matrix_ldistr {R : Ring} {n m k : Nat} {L : Matrix R n m} {M N : Matrix R m k} : product L (add M N) = add (product L M) (product L N)
-      => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => ldistr) *> R.BigSum_+
+    \lemma product-gen-ldistr {R : Ring} {M : LModule' R} {n m k : Nat} {A : Matrix R n m} {B C : Matrix M m k} : product-gen A (B + C) = product-gen A B + product-gen A C
+      => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => *c-ldistr) *> M.BigSum_+
 
-    \lemma matrix_rdistr {R : Ring} {n m k : Nat} {M N : Matrix R n m} {L : Matrix R m k} : product (add M N) L = add (product M L) (product N L)
-      => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => rdistr) *> R.BigSum_+
+    \lemma product-gen-rdistr {R : Ring} {M : LModule' R} {n m k : Nat} (A B : Matrix R n m) {C : Matrix M m k} : product-gen (A + B) C = product-gen A C + product-gen B C
+      => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => *c-rdistr) *> M.BigSum_+
+
+    \lemma product-gen_negative-left {R : Ring} {L : LModule' R} {n m k : Nat} {M : Matrix R n m} {N : Matrix L m k} : product-gen (negative M) N = negative (product-gen M N)
+      => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => L.*c_negative-left) *> inv L.BigSum_negative
+
+    \lemma product-gen_negative-right {R : Ring} {L : LModule' R} {n m k : Nat} {M : Matrix R n m} {N : Matrix L m k} : product-gen M (negative N) = negative (product-gen M N)
+      => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => L.*c_negative-right) *> inv L.BigSum_negative
 
     \lemma ide_generates {R : Ring} {n : Nat} : LModule.isGenerated {ArrayLModule n (RingLModule R)} ide
       => \lam l => inP (l, arrayExt $ \lam j => inv $ ArrayLModule.BigSum-index *> R.BigSum-unique j (\lam i j/=i => later $ rewrite (decideEq/=_reduce $ \lam p => j/=i (inv p)) zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right)
@@ -114,11 +125,20 @@
       }
   }
 
-\instance MatrixCAlgebra (R : CRing) (n : Nat) : AAlgebra { | R => R }
+\instance MatrixAlgebra (R : CRing) (n : Nat) : AAlgebra { | R => R }
   | Ring => MatrixRing R n
   | LModule => MatrixModule R n n
-  | *c-comm-left  => matrixExt $ \lam i j => R.BigSum-ldistr *> pmap R.BigSum (arrayExt {R} {n} $ \lam k => equation)
-  | *c-comm-right => matrixExt $ \lam i j => R.BigSum-ldistr *> pmap R.BigSum (arrayExt {R} {n} $ \lam k => equation)
+  | *c-comm-left  => product-gen_*c-comm-left _
+  | *c-comm-right => product-gen_*c-comm-right
+  \where {
+    \lemma product-gen_*c-comm-left {R : Ring} {L : LModule' R} {n m k : Nat} {a : R} (A : Matrix R n m) {B : Matrix L m k}
+      : MatrixModule.*c-gen a (MatrixRing.product-gen A B) = MatrixRing.product-gen (a *c A) B
+      => matrixExt $ \lam i j => L.*c_BigSum-right *> pmap L.BigSum (arrayExt $ \lam k => inv *c-assoc)
+
+    \lemma product-gen_*c-comm-right {R : CRing} {L : LModule' R} {n m k : Nat} {a : R} {A : Matrix R n m} {B : Matrix L m k}
+      : MatrixModule.*c-gen a (MatrixRing.product-gen A B) = MatrixRing.product-gen A (MatrixModule.*c-gen a B)
+      => matrixExt $ \lam i j => L.*c_BigSum-right *> pmap L.BigSum (arrayExt $ \lam k => inv *c-assoc *> pmap (`*c _) *-comm *> *c-assoc)
+  }
 
 \func determinant {R : CRing} {n : Nat} (M : Matrix R n n)
   => R.FinSum $ \lam (e : Sym n) => sign e * R.BigProd (\lam j => M (e j) j)
@@ -393,10 +413,13 @@
       })
   \where \open Monoid
 
-\lemma equations-determinant {R : CRing} {M : LModule' R} {n k : Nat} {A : Matrix R n n} {U : Matrix M n k}
-                             (p : \Pi (i : Fin n) (j : Fin k) -> product-gen A U i j = 0) (i : Fin n) (j : Fin k) : determinant A *c U i j = 0
-  => \have | r : product-gen (adjugate A) (mkMatrix (\lam _ _ => zro)) = mkMatrix (\lam _ _ => zro) => matrixExt $ \lam i j => M.BigSum_zro $ \lam k => M.*c_zro-right
-           | t : product-gen (determinant A *c ide) U = mkMatrix (\lam _ _ => zro)
-               => pmap (product-gen __ U) (inv adjugate-left) *> product-gen-assoc *> cong (matrixExt p) *> r
-     \in pmap (`*c _) (inv ide-right) *> rewriteF (decideEq=_reduce idp) (inv (M.BigSum-unique i $ \lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) $ pmap (`*c _) R.zro_*-right *> M.*c_zro-left) *> path (\lam i' => t i' i j))
+\lemma determinant_map {R S : CRing} (f : RingHom R S) {n : Nat} (A : Matrix R n n) : f (determinant A) = determinant (matrix-map f A)
+  => AddMonoidHom.func-FinSum f *> pmap AbMonoid.FinSum (ext $ \lam e => func-* *> pmap2 (*) (sign.sign_hom f) MonoidHom.func-BigProd)
+
+\lemma equations-determinant {R : CRing} {M : LModule' R} {n k : Nat} (A : Matrix R n n) {U : Matrix M n k}
+                             (p : product-gen A U = 0) : MatrixModule.*c-gen (determinant A) U = 0
+  => \have | r : product-gen (adjugate A) 0 = 0 => matrixExt $ \lam i j => M.BigSum_zro $ \lam k => M.*c_zro-right
+           | t : product-gen (determinant A *c ide) U = 0
+               => pmap (product-gen __ U) (inv adjugate-left) *> product-gen-assoc *> cong p *> r
+     \in matrixExt $ \lam i j => pmap (`*c _) (inv ide-right) *> rewriteF (decideEq=_reduce idp) (inv (M.BigSum-unique i $ \lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) $ pmap (`*c _) R.zro_*-right *> M.*c_zro-left) *> path (\lam i' => t i' i j))
   \where \open MatrixRing

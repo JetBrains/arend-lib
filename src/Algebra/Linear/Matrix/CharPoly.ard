@@ -2,15 +2,19 @@
 \import Algebra.Group.Category
 \import Algebra.Group.Symmetric
 \import Algebra.Linear.Matrix
+\import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Ring
+\import Algebra.Ring.Category
 \import Algebra.Ring.Poly
 \import Algebra.Semiring
 \import Arith.Fin
 \import Data.Array
 \import Function.Meta
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
@@ -21,11 +25,11 @@
 \func charPoly {R : CRing} {n : Nat} (M : Matrix R n n) : Poly R
   => determinant $ padd 1 0 *c matrix-map (padd 0) 1 - matrix-map (padd 0) M
 
-\lemma charPoly-degree {R : CRing} {n : Nat} {M : Matrix R n n} : degree<= (charPoly M) n
+\lemma charPoly-degree {R : CRing} {n : Nat} (M : Matrix R n n) : degree<= (charPoly M) n
   => degree<=_FinSum $ \lam j => degree<=_* (transport (degree<= __ 0) (sign.sign_hom polyEmbHom) idp) $
       transport (degree<= _) Semiring.BigSum_replicate $ degree<=_BigProd (replicate n 1) (\lam _ => idp)
 
-\lemma charPoly-monic {R : CRing} {n : Nat} {M : Matrix R n n} : polyCoef (charPoly M) n = 1
+\lemma charPoly-monic {R : CRing} {n : Nat} (M : Matrix R n n) : polyCoef (charPoly M) n = 1
   => AddMonoidHom.func-FinSum polyCoefHom *> AbMonoid.FinSum-unique 1 (\lam (e : Sym n) e/=id =>
         leadCoef-product (transport (degree<= __ 0) (sign.sign_hom polyEmbHom) idp) (transport (degree<= _) Semiring.BigSum_replicate $ degree<=_BigProd (replicate n 1) (\lam _ => idp)) *>
         pmap (_ *) (pmap (polyCoef _) (inv Semiring.BigSum_replicate) *> leadCoef_BigProd (replicate n 1) (\lam _ => idp) *>
@@ -35,3 +39,29 @@
                    })) *> R.zro_*-right) *>
      pmap (\lam x => polyCoef (x * _) n) sign_ide *> pmap (polyCoef __ n) ide-left *> pmap (polyCoef _) (inv Semiring.BigSum_replicate) *>
      leadCoef_BigProd (replicate n 1) (\lam _ => idp) *> Monoid.BigProd_ide (\lam j => zro-left *> ide-left *> later (rewrite (decideEq=_reduce idp) idp))
+
+\lemma charPoly_map {R S : CRing} (f : RingHom R S) {n : Nat} (A : Matrix R n n) : polyMap f (charPoly A) = charPoly (matrix-map f A)
+  => unfold charPoly $ determinant_map (polyMapRingHom f) (padd 1 0 *c matrix-map (padd 0) 1 - matrix-map (padd 0) A) *> cong (matrixExt $ \lam i j =>
+      pmap2 (\lam x => padd (padd 0 x)) (func-+ *> pmap2 (+) f.func-zro (func-* *> pmap2 (*) f.func-ide (later $ mcases \with {
+        | yes _ => f.func-ide
+        | no _ => f.func-zro
+      }))) (func-+ *> pmap2 (+) (func-+ *> pmap2 (+) f.func-zro (func-* *> pmap2 (*) f.func-zro (later $ mcases \with {
+        | yes _ => f.func-ide
+        | no _ => f.func-zro
+      }))) f.func-negative))
+
+\type isEigenvalue {R : Ring} {n : Nat} (A : Matrix R n n) (a : R)
+  => ∃ (U : Matrix R n 1) (\Pi (x : R) -> x *c U = 0 -> x = 0) (a *c U = MatrixRing.product A U)
+
+-- | An eigenvalue of a matrix is a root of its characteristic polynomial.
+\lemma eigen-root {R : CRing} {n : Nat} (A : Matrix R n n) {a : R} (e : isEigenvalue A a) : polyEval (charPoly A) a = 0 \elim e
+  | inP (U,c,p) => generalized A U c p
+  \where {
+    \open MatrixRing
+
+    \lemma generalized {R : CRing} {n : Nat} (A : Matrix R n n) {M : LModule' R} (U : Matrix M n 1)
+                       (c : \Pi (x : R) -> MatrixModule.*c-gen x U = 0 -> x = 0)
+                       {a : R} (p : MatrixModule.*c-gen a U = product-gen A U) : polyEval (charPoly A) a = 0
+      => determinant_map (polyEvalRingHom a) (padd 1 0 *c matrix-map (padd 0) 1 - matrix-map (padd 0) A) *> cong (matrixExt $ \lam i j => equation) *> c _ (equations-determinant (a *c 1 - A) $
+          product-gen-rdistr (a *c 1) (negative A) *> pmap (product-gen (a *c 1) U +) product-gen_negative-left *> AddGroup.toZero (inv (MatrixAlgebra.product-gen_*c-comm-left 1) *> cong product-gen_ide-left *> p))
+  }
