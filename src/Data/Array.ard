@@ -77,6 +77,45 @@
   | nil => idp
   | :: a l => pmap (a ::) ++_nil
 
+\lemma len_++ {A : \Type} {l l' : Array A} : DArray.len {l ++ l'} = l.len Nat.+ l'.len \elim l
+  | nil => idp
+  | a :: l => pmap suc len_++
+
+\func unhead {A : \Type} {a a' : A} {l l' : Array A} (p : a :: l = a' :: l') : a = a'
+  => pmap (headDef a) p
+  \where
+    \func headDef {A : \Type} (def : A) (l : Array A) : A \elim l
+      | nil => def
+      | a :: _ => a
+
+\func untail {A : \Type} {a a' : A} {l l' : Array A} (p : a :: l = a' :: l') : l = l'
+  => pmap (tailDef l) p
+  \where
+    \func tailDef {A : \Type} (def : Array A) (l : Array A) : Array A \elim l
+      | nil => def
+      | _ :: l => l
+
+\func ++-cancel-left {A : \Type} {l l1 l2 : Array A} (p : l ++ l1 = l ++ l2) : l1 = l2 \elim l
+  | nil => p
+  | :: a l => ++-cancel-left (untail p)
+
+\func ++-cancel-right {A : \Type} {l l1 l2 : Array A} (p : l1 ++ l = l2 ++ l) : l1 = l2 \elim l1, l2
+  | nil, nil => idp
+  | nil, :: a l2 => absurd (contr p)
+  | :: a l1, nil => absurd (contr (inv p))
+  | :: a1 l1, :: a2 l2 => path (\lam i => unhead p i :: ++-cancel-right (untail p) i)
+  \where
+    \lemma contr {A : \Type} {l l' : Array A} {a : A} (p : l = a :: l' ++ l) : Empty
+      => \case NatSemiring.cancel-right {0} {suc l'.len} l.len (pmap (DArray.len {__}) p *> pmap suc len_++)
+
+\func ++-assoc {A : \Type} {xs ys zs : Array A} : (xs ++ ys) ++ zs = xs ++ (ys ++ zs) \elim xs
+  | nil => idp
+  | :: x xs => pmap (x ::) ++-assoc
+
+\func replicate_+ {A : \Type} {n m : Nat} {a : A} : replicate (n Nat.+ m) a = replicate n a ++ replicate m a \elim n
+  | 0 => idp
+  | suc n => pmap (a ::) replicate_+
+
 \func Index {A : \Type} (x : A) (l : Array A) => \Sigma (i : Fin l.len) (l i = x)
 
 \func index-left {A : \Type} {x : A} {l l' : Array A} (i : Index x l) : Index x (l ++ l') \elim l, i
