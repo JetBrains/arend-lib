@@ -1,0 +1,47 @@
+\import Algebra.Group.Category
+\import Algebra.Monoid
+\import Data.Array
+\import Function.Meta
+\import Paths
+\import Relation.Equivalence
+
+\type PermSet (A : \Type) => Quotient {Array A} EPerm
+
+\lemma permSet-ext {A : \Type} {x y : PermSet A} (p : x = {Quotient EPerm} y) : x = y
+  => path (\lam i => p i)
+
+\instance PermSetAbMonoid (A : \Type) : AbMonoid (PermSet A)
+  | zro => in~ nil
+  | + (x y : PermSet A) : PermSet A \with {
+    | in~ l, in~ l' => in~ (l ++ l')
+    | in~ l, ~-equiv l1 l2 r => permSet-ext $ ~-pequiv (EPerm.eperm-++-right r)
+    | ~-equiv l1 l2 r, in~ l => permSet-ext $ ~-pequiv (EPerm.eperm-++-left r)
+  }
+  | zro-left {x} => \case \elim x \with {
+    | in~ l => idp
+  }
+  | +-assoc {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ l1, in~ l2, in~ l3 => permSet-ext (pmap in~ ++-assoc)
+  }
+  | +-comm {x} {y} => \case \elim x, \elim y \with {
+    | in~ l, in~ l' => permSet-ext (~-pequiv EPerm.eperm-++-comm)
+  }
+
+\func permSet-map {A B : \Type} (f : A -> B) (s : PermSet A) : PermSet B \elim s
+  | in~ l => in~ (map f l)
+  | ~-equiv x y r => permSet-ext $ ~-pequiv (EPerm.EPerm_map f r)
+
+\lemma permSet-map_+ {A B : \Type} {f : A -> B} {x y : PermSet A} : permSet-map f (x + y) = permSet-map f x + permSet-map f y \elim x, y
+  | in~ l, in~ l' => permSet-ext $ pmap in~ (map_++ f)
+
+\func permSet-sum {A : AbMonoid} (x : PermSet A) : A \elim x
+  | in~ l => A.BigSum l
+  | ~-equiv x y r => A.BigSum_EPerm r
+
+\lemma permSet-sum_+ {A : AbMonoid} {x y : PermSet A} : permSet-sum (x + y) = permSet-sum x + permSet-sum y \elim x, y
+  | in~ l, in~ l' => A.BigSum_++
+
+\func permSetHom {A : \Type} {B : AbMonoid} (f : A -> B) : AddMonoidHom (PermSetAbMonoid A) B \cowith
+  | func x => permSet-sum (permSet-map f x)
+  | func-zro => idp
+  | func-+ => pmap permSet-sum permSet-map_+ *> permSet-sum_+
