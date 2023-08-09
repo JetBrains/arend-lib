@@ -3,6 +3,7 @@
 \import Algebra.Group.Category
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Ring
 \import Algebra.Ring.Category
 \import Algebra.Semiring
@@ -12,6 +13,7 @@
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence \hiding (~)
+\import Set.Fin
 \open EPerm
 \open Transitive(Closure,cin,ctrans)
 
@@ -155,3 +157,34 @@
     | func-ide => idp
     | func-* => rewriteI {1} M.zro-left idp
   }
+
+\func evalMS {M : \Set} {R : Semiring} (x : MonoidSet M R) (f : M -> R) : R \elim x
+  | in~ l => R.BigSum $ map (\lam s => s.1 * f s.2) l
+  | ~-equiv l l' r => evalMS-coh f r
+  \where {
+    \lemma evalMS-coh {M : \Set} {R : Semiring} (f : M -> R) {l l' : Array (\Sigma R M)} (r : l ~ l')
+      : R.BigSum (map (\lam s => s.1 * f s.2) l) = R.BigSum (map (\lam s => s.1 * f s.2) l') \elim r
+      | ~-perm e => R.BigSum_EPerm $ EPerm_map (\lam s => s.1 * f s.2) e
+      | ~-sym r => inv (evalMS-coh f r)
+      | ~-zro idp => pmap (`+ _) zro_*-left *> zro-left
+      | ~-+ m idp idp => pmap (`+ _) rdistr *> +-assoc
+  }
+
+\func evalMSMonoidHom {M : \Set} {R : Semiring} (f : M -> R) : AddMonoidHom (MonoidAbMonoid M R) R \cowith
+  | func => evalMS __ f
+  | func-zro => idp
+  | func-+ {x} {y} => \case \elim x, \elim y \with {
+    | in~ l, in~ l' => pmap R.BigSum (map_++ (\lam s => s.1 * f s.2)) *> R.BigSum_++
+  }
+
+\func evalMSSemiringHom {M : AddMonoid} {R : CSemiring} (f : MonoidHom M R) : SemiringHom (MonoidSemiring M R) R \cowith
+  | AddMonoidHom => evalMSMonoidHom f
+  | func-ide => simplify f.func-ide
+  | func-* {x} {y} => \case \elim x, \elim y \with {
+    | in~ l, in~ l' => inv R.FinSum=BigSum *> R.FinSum_Equiv pairs.pairs-index-equiv *>
+                       pmap R.FinSum (ext $ \lam s => rewrite (pairs.pairs-index s.1 s.2).2 $ unfold MonoidSemiring.func $ rewrite f.func-* equation) *>
+                       inv R.FinSum-distr *> pmap2 (*) R.FinSum=BigSum R.FinSum=BigSum
+  }
+
+\func evalMSRingHom {M : AddMonoid} {R : CRing} (f : MonoidHom M R) : RingHom (MonoidRing M R) R \cowith
+  | SemiringHom => evalMSSemiringHom f

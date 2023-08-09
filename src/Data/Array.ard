@@ -1,4 +1,5 @@
 \import Algebra.Meta
+\import Algebra.Ordered
 \import Algebra.Ring
 \import Arith.Fin
 \import Arith.Nat
@@ -11,6 +12,8 @@
 \import Function.Meta ($)
 \import Logic
 \import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -47,6 +50,9 @@
       | a :: l, 0 => idp
       | a :: l, suc i => pmap suc index-left-nat
 
+    \lemma index-left-inj {A : \Type} {l m : Array A} : isInj (index-left {A} {l} {m})
+      => \lam p => nat_fin_= $ inv index-left-nat *> p *> index-left-nat
+
     \func index-right {A : \Type} {l m : Array A} (i : Fin m.len) : Fin (DArray.len {l ++ m}) \elim l
       | nil => i
       | a :: l => suc (index-right i)
@@ -58,6 +64,12 @@
     \lemma index-right-nat {A : \Type} {l m : Array A} {i : Fin m.len} : index-right {A} {l} i = {Nat} l.len Nat.+ i \elim l
       | nil => idp
       | a :: l => pmap suc index-right-nat
+
+    \lemma index-right-inj {A : \Type} {l m : Array A} : isInj (index-right {A} {l} {m})
+      => \lam p => nat_fin_= $ NatSemiring.cancel-left l.len $ inv index-right-nat *> p *> index-right-nat
+
+    \lemma index-left/=right {A : \Type} {l m m' : Array A} {i : Fin l.len} {j : Fin m'.len} : index-left {A} {l} {m} i /= {Nat} index-right {A} {l} j
+      => \lam p => NatSemiring.<-irreflexive $ <-transitive-left (fin_< i) $ rewrite (inv index-left-nat *> p *> index-right-nat) (LinearlyOrderedSemiring.<=_+ <=-refl zero<=_)
 
     \func split-index {A : \Type} {l m : Array A} (i : Fin (DArray.len {l ++ m}))
       : Or (\Sigma (j : Fin l.len) (i = index-left j)) (\Sigma (j : Fin m.len) (i = index-right j)) \elim l, i
@@ -503,6 +515,12 @@
     \func EPerm_++-swap {A : \Type} {l l' : Array A} {a : A} : EPerm (l ++ a :: l') (a :: l ++ l') \elim l
       | nil => eperm-refl
       | a' :: l => mkcon eperm-trans {a' :: a :: l ++ l'} (eperm-:: idp EPerm_++-swap) (eperm-swap idp idp idp)
+
+    \func Perm_EPerm {A : \Type} {n : Nat} {l l' : Array A n} (p : Perm l l') : EPerm l l' \elim n, l, l', p
+      | 0, nil, nil, perm-nil => eperm-nil
+      | suc n, x :: l, y :: l', perm-:: p q => eperm-:: p (Perm_EPerm q)
+      | suc (suc n), x :: (x' :: l), y :: (y' :: l'), perm-swap p1 p2 q => eperm-swap p1 p2 q
+      | n, l, l', perm-trans p1 p2 => eperm-trans (Perm_EPerm p1) (Perm_EPerm p2)
   }
 
 \func pairs {A B C : \Type} (f : A -> B -> C) (l : Array A) (l' : Array B) : Array C \elim l
@@ -543,6 +561,25 @@
       | a :: l, 0 => (++.index-left {_} {map (f a) l'} j, ++.++_index-left {_} {map (f a) l'} j)
       | a :: l, suc i => \have t => pairs-index i j
                          \in (++.index-right t.1, ++.++_index-right *> t.2)
+
+    \lemma pairs-index-inj {A B C : \Type} {f : A -> B -> C} {l : Array A} {l' : Array B} {i i' : Fin l.len} {j j' : Fin l'.len} (p : (pairs-index {_} {_} {_} {f} i j).1 = (pairs-index i' j').1) : \Sigma (i = i') (j = j') \elim l, i, i'
+      | a :: l, 0, 0 => (idp, nat_fin_= $ inv (later ++.index-left-nat) *> p *> ++.index-left-nat)
+      | a :: l, 0, suc i' => absurd (++.index-left/=right p)
+      | a :: l, suc i, 0 => absurd $ ++.index-left/=right (inv p)
+      | a :: l, suc i, suc i' => \let t => pairs-index-inj (++.index-right-inj p)
+                                 \in (pmap fsuc t.1, t.2)
+
+    \lemma pairs-index-surj {A B C : \Type} {f : A -> B -> C} {l : Array A} {l' : Array B}
+      : isSurj (\lam (s : \Sigma (Fin l.len) (Fin l'.len)) => (pairs-index {_} {_} {_} {f} s.1 s.2).1) \elim l
+      | nil => \case __
+      | a :: l => \lam k => \case ++.split-index k \with {
+        | inl r => inP ((0, r.1), inv r.2)
+        | inr r => TruncP.map (pairs-index-surj r.1) $ \lam t => ((suc t.1.1, t.1.2), pmap ++.index-right t.2 *> inv r.2)
+      }
+
+    \lemma pairs-index-equiv {A B C : \Type} {f : A -> B -> C} {l : Array A} {l' : Array B}
+      : Equiv {\Sigma (Fin l.len) (Fin l'.len)} {Fin (DArray.len {pairs f l l'})} (\lam s => (pairs-index s.1 s.2).1)
+      => Equiv.fromInjSurj _ (\lam p => ext (pairs-index-inj p)) pairs-index-surj
   }
 
 \sfunc index-dec {A : DecSet} (l : Array A) (a : A) : Or (Index a l) (Not (Index a l)) \elim l
