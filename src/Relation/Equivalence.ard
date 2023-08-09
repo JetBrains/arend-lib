@@ -4,13 +4,37 @@
 \import Logic.Meta
 \import Meta
 \import Paths
-\import Paths.Meta
 
-\class Equivalence (A : \Set)
+\class Transitive (A : \Set)
   | \infix 4 ~ : A -> A -> \Prop
+  | ~-transitive {x y z : A} : x ~ y -> y ~ z -> x ~ z
+  \where {
+    \truncated \data Closure {A : \Type} (R : A -> A -> \Type) (x y : A) : \Prop
+      | cin (R x y)
+      | ctrans {z : A} (Closure R x z) (Closure R z y)
+      \where {
+        \func isTransitive {A : \Set} (R : A -> A -> \Type) : Transitive A \cowith
+          | ~ x y => Closure R x y
+          | ~-transitive => ctrans
+
+        \lemma isSymmetric {A : \Set} {R : A -> A -> \Type} (sym : \Pi {a a' : A} -> R a a' -> R a' a) {a a' : A} (c : Closure R a a') : Closure R a' a \elim c
+          | cin r => cin (sym r)
+          | ctrans c1 c2 => ctrans (isSymmetric sym c2) (isSymmetric sym c1)
+
+        \lemma univ {A : \Set} {R : A -> A -> \Type} (E : Transitive A) (f : \Pi {x y : A} -> R x y -> x ~ y) {x y : A} (c : Closure R x y) : x ~ y \elim c
+          | cin r => f r
+          | ctrans p q => ~-transitive (univ E f p) (univ E f q)
+
+        \lemma ofTransitive (E : Transitive) {x y : E} (c : Closure (~) x y) : x ~ y => univ E (\lam p => p) c
+
+        \lemma toEquality {A B : \Set} (f : A -> B) {R : A -> A -> \Type} (p : \Pi {a a' : A} -> R a a' -> f a = f a') {a a' : A} (c : Closure R a a') : f a = f a'
+          => univ (\new Transitive A (f __ = f __) (*>)) p c
+      }
+  }
+
+\class Equivalence \extends Transitive
   | ~-reflexive {x : A} : x ~ x
   | ~-symmetric {x y : A} : x ~ y -> y ~ x
-  | ~-transitive {x y z : A} : x ~ y -> y ~ z -> x ~ z
   \where {
     \truncated \data Closure {A : \Type} (R : A -> A -> \Type) (x y : A) : \Prop
       | cin (R x y)

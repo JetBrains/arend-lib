@@ -456,6 +456,95 @@
       => perm-map l $ perm-sym $ perm-fin (\lam j => e j) e.isInj
   }
 
+\data EPerm {A : \Type} (l1 l2 : Array A) \elim l1, l2
+  | nil, nil => eperm-nil
+  | :: x l1, :: y l2 => eperm-:: (x = y) (EPerm l1 l2)
+  | :: x (:: x' l1), :: y (:: y' l2) => eperm-swap (x = y') (x' = y) (l1 = l2)
+  | l1, l2 => eperm-trans {l : Array A} (EPerm l1 l) (EPerm l l2)
+  \where {
+    \func eperm-refl {A : \Type} {l : Array A} : EPerm l l \elim l
+      | nil => eperm-nil
+      | a :: l => eperm-:: idp eperm-refl
+
+    \func eperm-= {A : \Type} {l l' : Array A} (p : l = l') : EPerm l l' \elim p
+      | idp => eperm-refl
+
+    \func eperm-sym {A : \Type} {l l' : Array A} (e : EPerm l l') : EPerm l' l \elim l, l', e
+      | nil, nil, eperm-nil => eperm-nil
+      | x :: l1, y :: l2, eperm-:: p e => eperm-:: (inv p) (eperm-sym e)
+      | x :: (x' :: l1), y :: (y' :: l2), eperm-swap p1 p2 q => eperm-swap (inv p2) (inv p1) (inv q)
+      | l, l', eperm-trans e1 e2 => eperm-trans (eperm-sym e2) (eperm-sym e1)
+
+    \func eperm-++-comm {A : \Type} {l l' : Array A} : EPerm (l ++ l') (l' ++ l) \elim l, l'
+      | nil, nil => eperm-nil
+      | nil, a :: l => rewrite ++_nil eperm-refl
+      | a :: l, nil => rewrite ++_nil eperm-refl
+      | a :: l, a' :: l' => mkcon eperm-trans {a :: a' :: l' ++ l} (eperm-:: idp eperm-++-comm) $ mkcon eperm-trans {a' :: a :: l ++ l'}
+                              (mkcon eperm-trans {a' :: a :: l' ++ l} (eperm-swap idp idp idp) $ eperm-:: idp $ eperm-:: idp $ eperm-sym $ eperm-++-comm) (eperm-:: idp eperm-++-comm)
+
+    \func eperm-++-left {A : \Type} {l1 l2 l : Array A} (e : EPerm l1 l2) : EPerm (l1 ++ l) (l2 ++ l) \elim l1, l2, e
+      | nil, nil, eperm-nil => eperm-refl
+      | x :: l1, y :: l2, eperm-:: p e => eperm-:: p (eperm-++-left e)
+      | x :: (x' :: l1), y :: (y' :: l2), eperm-swap p1 p2 q => eperm-swap p1 p2 (pmap (`++ l) q)
+      | l1, l2, eperm-trans e1 e2 => eperm-trans (eperm-++-left e1) (eperm-++-left e2)
+
+    \func eperm-++-right {A : \Type} {l l1 l2 : Array A} (e : EPerm l1 l2) : EPerm (l ++ l1) (l ++ l2)
+      => eperm-++-comm `eperm-trans` eperm-++-left e `eperm-trans` eperm-++-comm
+
+    \func eperm-++ {A : \Type} {l1 l1' l2 l2' : Array A} (e1 : EPerm l1 l1') (e2 : EPerm l2 l2') : EPerm (l1 ++ l2) (l1' ++ l2')
+      => eperm-++-left e1 `eperm-trans` eperm-++-right e2
+
+    \func EPerm_map {A B : \Type} (f : A -> B) {l l' : Array A} (e : EPerm l l') : EPerm (map f l) (map f l') \elim l, l', e
+      | nil, nil, eperm-nil => eperm-nil
+      | x :: l, y :: l', eperm-:: p e => eperm-:: (pmap f p) (EPerm_map f e)
+      | x :: (x' :: l), y :: (y' :: l'), eperm-swap idp idp idp => eperm-swap idp idp idp
+      | l, l', eperm-trans e1 e2 => eperm-trans (EPerm_map f e1) (EPerm_map f e2)
+
+    \func EPerm_++-swap {A : \Type} {l l' : Array A} {a : A} : EPerm (l ++ a :: l') (a :: l ++ l') \elim l
+      | nil => eperm-refl
+      | a' :: l => mkcon eperm-trans {a' :: a :: l ++ l'} (eperm-:: idp EPerm_++-swap) (eperm-swap idp idp idp)
+  }
+
+\func pairs {A B C : \Type} (f : A -> B -> C) (l : Array A) (l' : Array B) : Array C \elim l
+  | nil => nil
+  | a :: l => map (f a) l' ++ pairs f l l'
+  \where {
+    \open EPerm
+
+    \func pairs_nil {A B C : \Type} {f : A -> B -> C} {l : Array A} : pairs f l nil = nil \elim l
+      | nil => idp
+      | a :: l => pairs_nil
+
+    \func pairs-flip {A B C : \Type} {f : A -> B -> C} {l : Array A} {l' : Array B} : EPerm (pairs f l l') (pairs (\lam b a => f a b) l' l) \elim l, l'
+      | nil, nil => eperm-nil
+      | nil, a :: l => pairs-flip
+      | a :: l, nil => pairs-flip
+      | a :: l, b :: l' => eperm-:: idp $ eperm-++-right pairs-flip `eperm-trans` transport2 EPerm ++-assoc ++-assoc (eperm-++ eperm-++-comm $ eperm-sym pairs-flip) `eperm-trans` eperm-++-right pairs-flip
+
+    \func pairs_++-left {A B C : \Type} {f : A -> B -> C} {l1 l2 : Array A} {l : Array B} : pairs f (l1 ++ l2) l = pairs f l1 l ++ pairs f l2 l \elim l1
+      | nil => idp
+      | a :: l1 => pmap (_ ++) pairs_++-left *> inv ++-assoc
+
+    \func pairs_++-right {A B C : \Type} {f : A -> B -> C} {l : Array A} {l1 l2 : Array B} : EPerm (pairs f l (l1 ++ l2)) (pairs f l l1 ++ pairs f l l2)
+      => pairs-flip `eperm-trans` rewrite pairs_++-left (eperm-++ pairs-flip pairs-flip)
+
+    \func pairs_map-left {A : \Type} {f : A -> A -> A} (p : \Pi {x y z : A} -> f (f x y) z = f x (f y z)) {a : A} {l l' : Array A}
+      : pairs f (map (f a) l) l' = map (f a) (pairs f l l') \elim l
+      | nil => idp
+      | a' :: l => pmap2 (++) (arrayExt {_} {_} {map (f (f a a')) l'} $ \lam j => p) (pairs_map-left p) *> inv (map_++ (f a))
+
+    \func pairs-assoc {A : \Type} {f : A -> A -> A} (p : \Pi {x y z : A} -> f (f x y) z = f x (f y z)) {l1 l2 l3 : Array A}
+      : pairs f (pairs f l1 l2) l3 = pairs f l1 (pairs f l2 l3) \elim l1
+      | nil => idp
+      | a :: l => pairs_++-left *> pmap2 (++) (pairs_map-left p) (pairs-assoc p)
+
+    \func pairs-index {A B C : \Type} {f : A -> B -> C} {l : Array A} {l' : Array B} (i : Fin l.len) (j : Fin l'.len)
+      : \Sigma (k : Fin (DArray.len {pairs f l l'})) (pairs f l l' k = f (l i) (l' j)) \elim l, i
+      | a :: l, 0 => (++.index-left {_} {map (f a) l'} j, ++.++_index-left {_} {map (f a) l'} j)
+      | a :: l, suc i => \have t => pairs-index i j
+                         \in (++.index-right t.1, ++.++_index-right *> t.2)
+  }
+
 \sfunc index-dec {A : DecSet} (l : Array A) (a : A) : Or (Index a l) (Not (Index a l)) \elim l
   | nil => inr $ \case __.1
   | b :: l => \case decideEq b a \with {

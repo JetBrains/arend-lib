@@ -1,0 +1,157 @@
+\import Algebra.Algebra
+\import Algebra.Group
+\import Algebra.Group.Category
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ring
+\import Algebra.Ring.Category
+\import Algebra.Semiring
+\import Data.Array
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence \hiding (~)
+\open EPerm
+\open Transitive(Closure,cin,ctrans)
+
+\type MonoidSet (M : \Set) (R : AddMonoid) => Quotient {Array (\Sigma R M)} (~)
+  \where {
+    \data \infix 5 ~ {M : \Set} {R : AddMonoid} (l l' : Array (\Sigma R M))
+      | ~-perm (EPerm l l')
+      | ~-sym (l' ~ l)
+      | ~-zro {m : M} (l = (0,m) :: l')
+      | ~-+ {l'' : Array (\Sigma R M)} (m : M) {a b : R} (l = (a + b, m) :: l'') (l' = (a,m) :: (b,m) :: l'')
+
+    \func inMS~ {M : \Set} {R : AddMonoid} (l : Array (\Sigma R M)) : Quotient (~) => in~ l
+
+    \func ~_++-left {M : \Set} {R : AddMonoid} {l1 l2 l : Array (\Sigma R M)} (e : l1 ~ l2) : (l1 ++ l) ~ (l2 ++ l) \elim e
+      | ~-perm e => ~-perm (eperm-++-left e)
+      | ~-sym e => ~-sym (~_++-left e)
+      | ~-zro p => ~-zro (pmap (`++ l) p)
+      | ~-+ m p q => ~-+ m (pmap (`++ l) p) (pmap (`++ l) q)
+
+    \func ~_++-right {M : \Set} {R : AddMonoid} {l l1 l2 : Array (\Sigma R M)} (e : Closure (~) l1 l2) : Closure (~) (l ++ l1) (l ++ l2) \elim e
+      | cin e => cin (~-perm eperm-++-comm) `ctrans` cin (~_++-left e) `ctrans` cin (~-perm eperm-++-comm)
+      | ctrans e1 e2 => ~_++-right e1 `ctrans` ~_++-right e2
+
+    \func ~_++ {M : \Set} {R : AddMonoid} {l1 l2 l1' l2' : Array (\Sigma R M)} (e1 : Closure (~) l1 l1') (e2 : Closure (~) l2 l2') : Closure (~) (l1 ++ l2) (l1' ++ l2') \elim e1
+      | cin e1 => cin (~_++-left e1) `ctrans` ~_++-right e2
+      | ctrans r1 r2 => ~_++ r1 e2 `ctrans` ~_++ r2 (cin (~-perm eperm-refl))
+
+    \func ~_map {M M' : \Set} (f : AddMonoidHom) (g : M -> M') {l l' : Array (\Sigma f.Dom M)} (e : l ~ l') : map (\lam s => (f s.1, g s.2)) l ~ map (\lam s => (f s.1, g s.2)) l' \elim e
+      | ~-perm e => ~-perm (EPerm_map (\lam s => (f s.1, g s.2)) e)
+      | ~-sym e => ~-sym (~_map f g e)
+      | ~-zro {m} idp => ~-zro $ pmap (\lam x => (x, g m) :: map (\lam s => (f s.1, g s.2)) l') f.func-zro
+      | ~-+ {l''} m idp idp => ~-+ (g m) (pmap (\lam x => (x, g m) :: map (\lam s => (f s.1, g s.2)) l'') f.func-+) idp
+  }
+
+\open MonoidSet
+
+\lemma monoid-ext {M : \Set} {R : AddMonoid} {x y : Quotient {Array (\Sigma R M)} (~)} (p : x = y) : x = {MonoidSet M R} y
+  => path (\lam i => p i)
+
+\instance MonoidAbMonoid (M : \Set) (R : AddMonoid) : AbMonoid (MonoidSet M R)
+  | zro => in~ nil
+  | + (x y : MonoidSet M R) : MonoidSet M R \with {
+    | in~ l, in~ l' => in~ (l ++ l')
+    | in~ l, ~-equiv l1 l2 r => monoid-ext $ ~-pequiv (~-perm eperm-++-comm) *> ~-pequiv (~_++-left r) *> ~-pequiv (~-perm eperm-++-comm)
+    | ~-equiv l1 l2 r, in~ l' => monoid-ext $ ~-pequiv (~_++-left r)
+  }
+  | zro-left {x : MonoidSet M R} : in~ nil + x = x \elim x {
+    | in~ l => idp
+  }
+  | +-assoc {x y z : MonoidSet M R} : (x + y) + z = x + (y + z) \elim x, y, z {
+    | in~ l1, in~ l2, in~ l3 => monoid-ext $ pmap in~ ++-assoc
+  }
+  | +-comm {x y : MonoidSet M R} : x + y = y + x \elim x, y {
+    | in~ l, in~ l' => monoid-ext $ ~-pequiv (~-perm eperm-++-comm)
+  }
+  \where \open MonoidSet
+
+\instance MonoidAbGroup (M : \Set) (R : AddGroup) : AbGroup
+  | AbMonoid => MonoidAbMonoid M R
+  | negative (x : MonoidSet M R) : MonoidSet M R \with {
+    | in~ l => in~ (map func l)
+    | ~-equiv l l' r => monoid-ext $ Closure.toEquality inMS~ ~-pequiv (~_negative (cin r))
+  }
+  | negative-left {x : MonoidSet M R} : negative x + x = 0 \elim x {
+    | in~ l => monoid-ext $ ~_negative-left l
+  }
+  \where {
+    \open Transitive(Closure,cin,ctrans)
+
+    \func func {M : \Set} {R : AddGroup} (s : \Sigma R M) => (R.negative s.1, s.2)
+
+    \func ~_negative {M : \Set} {R : AddGroup} {l l' : Array (\Sigma R M)} (p : Closure (~) l l')
+      : Closure (~) (map func l) (map func l') \elim p
+      | cin (~-perm e) => cin $ ~-perm (EPerm_map func e)
+      | cin (~-sym p) => Closure.isSymmetric (\lam r => ~-sym r) $ ~_negative (cin p)
+      | cin (~-zro {m} idp) => cin $ ~-zro $ pmap (\lam x => (x, m) :: map func l') R.negative_zro
+      | cin (~-+ {l''} m idp idp) => ctrans (cin (~-+ m (pmap (\lam x => (x,m) :: map func l'') R.negative_+) idp)) $ cin $ ~-perm (eperm-swap idp idp idp)
+      | ctrans r1 r2 => ctrans (~_negative r1) (~_negative r2)
+
+    \func ~_negative-left {M : \Set} {R : AddGroup} (l : Array (\Sigma R M)) : inMS~ (map func l ++ l) = inMS~ nil \elim l
+      | nil => idp
+      | a :: l => ~-pequiv (~-perm $ EPerm_++-swap {_} {map func (a :: l)}) *> ~-pequiv (~-sym $ ~-+ a.2 (cong $ inv negative-right) idp) *> ~-pequiv (~-zro idp) *> ~_negative-left l
+  }
+
+\instance MonoidSemiring (M : AddMonoid) (R : Semiring) : Semiring
+  | AbMonoid => MonoidAbMonoid M R
+  | ide => in~ ((1,0) :: nil)
+  | * (x y : MonoidSet M R) : MonoidSet M R \elim x, y {
+    | in~ l, in~ l' => in~ (pairs func l l')
+    | in~ l, ~-equiv l1 l2 r => monoid-ext $ Closure.toEquality inMS~ ~-pequiv (*-coh-right r)
+    | ~-equiv l1 l2 r, in~ l => monoid-ext $ ~-pequiv (~-perm pairs-flip) *> Closure.toEquality inMS~ ~-pequiv (*-coh-right {AddMonoid.op M} {Semiring.op R} r) *> ~-pequiv (~-perm pairs-flip)
+  }
+  | ide-left {x} => \case \elim x \with {
+    | in~ l => monoid-ext ide-left-aux
+  }
+  | ide-right {x} => \case \elim x \with {
+    | in~ l => monoid-ext $ ~-pequiv (~-perm pairs-flip) *> ide-left-aux {AddMonoid.op M} {Semiring.op R}
+  }
+  | *-assoc {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ l1, in~ l2, in~ l3 => monoid-ext $ ~-pequiv $ ~-perm $ eperm-= $ pairs-assoc $ \lam {a} {b} {c} => ext (R.*-assoc, +-assoc)
+  }
+  | ldistr {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ l1, in~ l2, in~ l3 => monoid-ext $ ~-pequiv (~-perm pairs_++-right)
+  }
+  | rdistr {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ l1, in~ l2, in~ l3 => monoid-ext $ pmap inMS~ pairs_++-left
+  }
+  | zro_*-left {x} => \case \elim x \with {
+    | in~ l => idp
+  }
+  | zro_*-right {x} => \case \elim x \with {
+    | in~ l => monoid-ext $ pmap inMS~ pairs_nil
+  }
+  \where {
+    \open pairs
+
+    \func func {M : AddMonoid} {R : Semiring} (s t : \Sigma R M) => (s.1 R.* t.1, s.2 + t.2)
+
+    \lemma ide-left-aux {M : AddMonoid} {R : Semiring} {l : Array (\Sigma R M)} : inMS~ (map (func (1,0)) l ++ nil) = inMS~ l
+      => ~-pequiv $ ~-perm $ eperm-= $ ++_nil *> arrayExt {_} {_} {map (func (1,0)) l} (\lam j => ext (R.ide-left, zro-left))
+
+    \func *-coh-right {M : AddMonoid} {R : Semiring} {l l1 l2 : Array (\Sigma R M)} (r : l1 ~ l2) : Closure (~) (pairs func l l1) (pairs func l l2) \elim l
+      | nil => cin (~-perm eperm-refl)
+      | a :: l => ~_++ (cin $ ~_map (\new AddMonoidHom R R (a.1 R.*) zro_*-right ldistr) (a.2 +) r) (*-coh-right r)
+  }
+
+\instance MonoidRing (M : AddMonoid) (R : Ring) : Ring
+  | Semiring => MonoidSemiring M R
+  | AbGroup => MonoidAbGroup M R
+
+\instance MonoidCSemiring (M : AbMonoid) (R : CSemiring) : CSemiring
+  | Semiring => MonoidSemiring M R
+  | *-comm {x} {y} => \case \elim x, \elim y \with {
+    | in~ l, in~ l' => monoid-ext $ ~-pequiv (~-perm pairs.pairs-flip) *> cong (ext $ \lam t s => ext (*-comm, +-comm))
+  }
+
+\instance MonoidAlgebra (M : AbMonoid) (R : CRing) : CAlgebra { | R => R }
+  => homAlgebra {R} {\new CRing { | Ring => MonoidRing M R | *-comm => *-comm }} $ \new RingHom {
+    | func a => inMS~ ((a,M.zro) :: nil)
+    | func-+ => monoid-ext $ ~-pequiv $ mkcon ~-+ {nil} M.zro idp idp
+    | func-ide => idp
+    | func-* => rewriteI {1} M.zro-left idp
+  }
