@@ -4,7 +4,6 @@ import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreBinding;
 import org.arend.ext.core.definition.CoreClassDefinition;
-import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -151,7 +150,7 @@ public class EqualitySolver extends BaseEqualitySolver {
           }
           return false;
         }
-      }, meta.ext.carrier, type, typechecker, refExpr);
+      }, meta.ext.carrier, type, typechecker, refExpr, forcedClass);
     if (pair != null) {
       initializeAlgebraSolver(pair.proj1, pair.proj2);
       return true;

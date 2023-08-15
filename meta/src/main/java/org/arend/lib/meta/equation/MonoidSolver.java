@@ -1,7 +1,6 @@
 package org.arend.lib.meta.equation;
 
 import org.arend.ext.concrete.ConcreteAppBuilder;
-import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.expr.ConcreteAppExpression;
@@ -20,7 +19,7 @@ import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.util.Pair;
 import org.arend.lib.context.ContextHelper;
-import org.arend.lib.error.AlgebraSolverError;
+import org.arend.lib.error.MonoidSolverError;
 import org.arend.lib.meta.equation.binop_matcher.DefinitionFunctionMatcher;
 import org.arend.lib.meta.equation.binop_matcher.FunctionMatcher;
 import org.arend.lib.meta.equation.datafactory.CategoryDataFactory;
@@ -48,9 +47,8 @@ public class MonoidSolver extends BaseEqualitySolver {
   private Map<CoreBinding, List<RuleExt>> contextRules;
   private boolean isCommutative;
   private boolean isSemilattice;
-  private boolean isMultiplicative;
+  private final boolean isMultiplicative;
   private final boolean isCat;
-  private final CoreClassField ide;
   private final Values<CoreExpression> obValues;
   protected final List<ConcreteLetClause> letClauses;
   private final Map<Pair<Integer,Integer>, Map<Integer,Integer>> homMap; // the key is the pair (domain,codomain), the value is a map from indices in `values` to indices specific to those objects.
@@ -66,7 +64,7 @@ public class MonoidSolver extends BaseEqualitySolver {
     isSemilattice = !isCat && classCall.getDefinition().isSubClassOf(meta.MSemilattice) && (forcedClass == null || forcedClass.isSubClassOf(meta.MSemilattice));
     isMultiplicative = !isSemilattice && !isCat && classCall.getDefinition().isSubClassOf(meta.Monoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.Monoid));
     isCommutative = !isCat && (isSemilattice || isMultiplicative && classCall.getDefinition().isSubClassOf(meta.CMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.CMonoid)) || !isMultiplicative && classCall.getDefinition().isSubClassOf(meta.AbMonoid) && (forcedClass == null || forcedClass.isSubClassOf(meta.AbMonoid)));
-    ide = isSemilattice ? meta.top : isMultiplicative ? meta.ext.ide : meta.ext.zro;
+    CoreClassField ide = isSemilattice ? meta.top : isMultiplicative ? meta.ext.ide : meta.ext.zro;
     CoreClassField mul = isSemilattice ? meta.meet : isMultiplicative ? meta.mul : meta.plus;
     mulMatcher = isCat ? new DefinitionFunctionMatcher(meta.ext.sipMeta.catComp, 5) : FunctionMatcher.makeFieldMatcher(classCall, instance, mul, typechecker, factory, refExpr, meta.ext, 2);
     ideMatcher = isCat ? new DefinitionFunctionMatcher(meta.ext.sipMeta.catId, 1) : FunctionMatcher.makeFieldMatcher(classCall, instance, ide, typechecker, factory, refExpr, meta.ext, 0);
@@ -276,7 +274,10 @@ public class MonoidSolver extends BaseEqualitySolver {
 
     ConcreteExpression lastArgument;
     if (!term1.nf.equals(term2.nf)) {
-      if (!useHypotheses) return null;
+      if (!useHypotheses) {
+        errorReporter.report(new MonoidSolverError(isMultiplicative, term1.nf, term2.nf, values.getValues(), Collections.emptyList(), Collections.emptyList(),  Collections.emptyList(), hint != null ? hint : refExpr));
+        return null;
+      }
 
       List<RuleExt> rules = new ArrayList<>();
       if (contextRules == null) {
@@ -306,7 +307,11 @@ public class MonoidSolver extends BaseEqualitySolver {
         }
         isCommutative = oldCommutative;
         isSemilattice = oldSemilattice;
-        return solver.solve(term1, term2, equalities);
+        ConcreteExpression result = solver.solve(term1, term2, equalities);
+        if (result == null) {
+          errorReporter.report(new MonoidSolverError(isMultiplicative, term1.nf, term2.nf, values.getValues(), rules, Collections.emptyList(), Collections.emptyList(), hint != null ? hint : refExpr));
+        }
+        return result;
       }
 
       List<Step> trace1 = new ArrayList<>();
@@ -316,7 +321,7 @@ public class MonoidSolver extends BaseEqualitySolver {
       if (!newNf1.equals(newNf2)) {
         isCommutative = oldCommutative;
         isSemilattice = oldSemilattice;
-        errorReporter.report(new AlgebraSolverError(term1.nf, term2.nf, values.getValues(), rules, trace1, trace2, hint != null ? hint : refExpr));
+        errorReporter.report(new MonoidSolverError(isMultiplicative, term1.nf, term2.nf, values.getValues(), rules, trace1, trace2, hint != null ? hint : refExpr));
         return null;
       }
 
@@ -542,10 +547,9 @@ public class MonoidSolver extends BaseEqualitySolver {
     CoreFunCallExpression eq = Utils.toEquality(type, null, null);
     if (eq == null) {
       CoreExpression typeNorm = type.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
-      if (!(typeNorm instanceof CoreClassCallExpression)) {
+      if (!(typeNorm instanceof CoreClassCallExpression classCall)) {
         return false;
       }
-      CoreClassCallExpression classCall = (CoreClassCallExpression) typeNorm;
       boolean isLDiv = classCall.getDefinition().isSubClassOf(meta.ldiv);
       boolean isRDiv = classCall.getDefinition().isSubClassOf(meta.rdiv);
       if (!isLDiv && !isRDiv) {

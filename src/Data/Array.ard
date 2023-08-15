@@ -1,6 +1,7 @@
 \import Algebra.Meta
 \import Algebra.Ordered
 \import Algebra.Ring
+\import Algebra.Semiring
 \import Arith.Fin
 \import Arith.Nat
 \import Data.Bool
@@ -149,6 +150,10 @@
     | true, q, 0 => q
     | true, q, suc i => filter-sat p l i
   }
+
+\func filter_true {A : \Type} {p : A -> Bool} (c : \Pi (a : A) -> p a = true) {l : Array A} : filter p l = l \elim l
+  | nil => idp
+  | a :: l => rewrite (c a) $ pmap (a ::) (filter_true c)
 
 \func fold {A B : \Type} (f : A -> B -> B) (b : B) (l : Array A) : B \elim l
   | nil => b
@@ -512,6 +517,17 @@
       | x :: (x' :: l), y :: (y' :: l'), eperm-swap idp idp idp => eperm-swap idp idp idp
       | l, l', eperm-trans e1 e2 => eperm-trans (EPerm_map f e1) (EPerm_map f e2)
 
+    \func EPerm_filter {A : \Type} (f : A -> Bool) {l l' : Array A} (e : EPerm l l') : EPerm (filter f l) (filter f l') \elim l, l', e
+      | nil, nil, eperm-nil => eperm-nil
+      | x :: l, _ :: l', eperm-:: idp e => cases (f x) \with {
+        | false => EPerm_filter f e
+        | true => eperm-:: idp (EPerm_filter f e)
+      }
+      | x :: (x' :: l), _ :: (_ :: l'), eperm-swap idp idp idp => cases (f x, f x') eperm-refl \with {
+        | true, true => eperm-swap idp idp idp
+      }
+      | l, l', eperm-trans e1 e2 => eperm-trans (EPerm_filter f e1) (EPerm_filter f e2)
+
     \func EPerm_++-swap {A : \Type} {l l' : Array A} {a : A} : EPerm (l ++ a :: l') (a :: l ++ l') \elim l
       | nil => eperm-refl
       | a' :: l => mkcon eperm-trans {a' :: a :: l ++ l'} (eperm-:: idp EPerm_++-swap) (eperm-swap idp idp idp)
@@ -521,6 +537,12 @@
       | suc n, x :: l, y :: l', perm-:: p q => eperm-:: p (Perm_EPerm q)
       | suc (suc n), x :: (x' :: l), y :: (y' :: l'), perm-swap p1 p2 q => eperm-swap p1 p2 q
       | n, l, l', perm-trans p1 p2 => eperm-trans (Perm_EPerm p1) (Perm_EPerm p2)
+
+    \lemma EPerm_len {A : \Type} {l l' : Array A} (e : EPerm l l') : l.len = l'.len \elim l, l', e
+      | nil, nil, eperm-nil => idp
+      | x :: l, y :: l', eperm-:: p e => pmap suc (EPerm_len e)
+      | x :: (x' :: l), y :: (y' :: l'), eperm-swap _ _ idp => idp
+      | l, l', eperm-trans e1 e2 => EPerm_len e1 *> EPerm_len e2
   }
 
 \func pairs {A B C : \Type} (f : A -> B -> C) (l : Array A) (l' : Array B) : Array C \elim l
@@ -551,6 +573,12 @@
       | nil => idp
       | a' :: l => pmap2 (++) (arrayExt {_} {_} {map (f (f a a')) l'} $ \lam j => p) (pairs_map-left p) *> inv (map_++ (f a))
 
+    \func pairs_map {A B : \Type} {f1 : A -> A -> A} {f2 : B -> B -> B} (g : A -> B)
+                    (p : \Pi {a b : A} -> g (f1 a b) = f2 (g a) (g b)) {l l' : Array A}
+      : map g (pairs f1 l l') = pairs f2 (map g l) (map g l') \elim l
+      | nil => idp
+      | a :: l => map_++ g *> pmap2 (++) (exts $ \lam j => p) (pairs_map _ p)
+
     \func pairs-assoc {A : \Type} {f : A -> A -> A} (p : \Pi {x y z : A} -> f (f x y) z = f x (f y z)) {l1 l2 l3 : Array A}
       : pairs f (pairs f l1 l2) l3 = pairs f l1 (pairs f l2 l3) \elim l1
       | nil => idp
@@ -580,6 +608,10 @@
     \lemma pairs-index-equiv {A B C : \Type} {f : A -> B -> C} {l : Array A} {l' : Array B}
       : Equiv {\Sigma (Fin l.len) (Fin l'.len)} {Fin (DArray.len {pairs f l l'})} (\lam s => (pairs-index s.1 s.2).1)
       => Equiv.fromInjSurj _ (\lam p => ext (pairs-index-inj p)) pairs-index-surj
+
+    \lemma pairs-distr {A : \Type} {R : Semiring} {f : A -> A -> A} (g : A -> R) {l l' : Array A} (p : \Pi {a b : A} -> g (f a b) = g a R.* g b)
+      : R.BigSum (map g (pairs f l l')) = R.BigSum (map g l) R.* R.BigSum (map g l')
+      => inv R.FinSum=BigSum *> R.FinSum_Equiv pairs.pairs-index-equiv *> pmap R.FinSum (ext $ \lam s => rewrite (pairs.pairs-index s.1 s.2).2 p) *> inv R.FinSum-distr *> pmap2 (R.*) R.FinSum=BigSum R.FinSum=BigSum
   }
 
 \sfunc index-dec {A : DecSet} (l : Array A) (a : A) : Or (Index a l) (Not (Index a l)) \elim l

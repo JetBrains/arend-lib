@@ -12,6 +12,7 @@ import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.context.ContextHelper;
+import org.arend.lib.error.EquationSolverError;
 import org.arend.lib.meta.closure.CongruenceClosure;
 import org.arend.lib.meta.cong.CongruenceMeta;
 import org.arend.lib.meta.equation.datafactory.RingDataFactory;
@@ -61,7 +62,7 @@ public class RingSolver extends BaseEqualitySolver {
       toCommutativeNF(lhsTerm.nf);
       toCommutativeNF(rhsTerm.nf);
     }
-    rules.add(new Equality(factory.ref(binding), lhsTerm, rhsTerm));
+    rules.add(new Equality(binding, factory.ref(binding), lhsTerm, rhsTerm));
   }
 
   private void toCommutativeNF(List<Monomial> nf) {
@@ -123,7 +124,11 @@ public class RingSolver extends BaseEqualitySolver {
 
       if(!rules.isEmpty()) {
         ComRingSolver comSolver = new ComRingSolver();
-        return comSolver.solve(term1, term2, rules);
+        ConcreteExpression result = comSolver.solve(term1, term2, rules);
+        if (result == null) {
+          errorReporter.report(new EquationSolverError("Ring solver failed", nf1, nf2, values.getValues(), equalitiesToAssumptions(rules), hint != null ? hint : refExpr));
+        }
+        return result;
       }
     }
     if (!termCompiler.isLattice) {
@@ -131,6 +136,7 @@ public class RingSolver extends BaseEqualitySolver {
       nf2 = Monomial.collapse(nf2);
     }
     if (!nf1.equals(nf2)) {
+      errorReporter.report(new EquationSolverError("Ring solver failed", nf1, nf2, values.getValues(), Collections.emptyList(), hint != null ? hint : refExpr));
       return null;
     }
 
@@ -168,15 +174,25 @@ public class RingSolver extends BaseEqualitySolver {
   }
 
   private static class Equality {
-    public final ConcreteExpression binding;
-    public TermCompiler.CompiledTerm lhsTerm;
-    public TermCompiler.CompiledTerm rhsTerm;
+    final CoreBinding binding;
+    final ConcreteExpression bindingExpr;
+    TermCompiler.CompiledTerm lhsTerm;
+    TermCompiler.CompiledTerm rhsTerm;
 
-    private Equality(ConcreteExpression binding, TermCompiler.CompiledTerm lhsTerm, TermCompiler.CompiledTerm rhsTerm) {
+    Equality(CoreBinding binding, ConcreteExpression bindingExpr, TermCompiler.CompiledTerm lhsTerm, TermCompiler.CompiledTerm rhsTerm) {
       this.binding = binding;
+      this.bindingExpr = bindingExpr;
       this.lhsTerm = lhsTerm;
       this.rhsTerm = rhsTerm;
     }
+  }
+
+  private static List<EquationSolverError.Assumption> equalitiesToAssumptions(List<Equality> equalities) {
+    List<EquationSolverError.Assumption> result = new ArrayList<>(equalities.size());
+    for (Equality equality : equalities) {
+      result.add(new EquationSolverError.Assumption(null, equality.binding, false, equality.lhsTerm.nf, equality.rhsTerm.nf));
+    }
+    return result;
   }
 
   private class ComRingSolver {
@@ -305,7 +321,7 @@ public class RingSolver extends BaseEqualitySolver {
           .app(factory.core(instance), false)
           .app(axiom.lhsTerm.originalExpr, false)
           .app(axiom.rhsTerm.originalExpr, false)
-          .app(axiom.binding)
+          .app(axiom.bindingExpr)
           .build();
         var coeffTerm = nfToRingTerm(polyToNF(idealCoeffs.get(i)));
 

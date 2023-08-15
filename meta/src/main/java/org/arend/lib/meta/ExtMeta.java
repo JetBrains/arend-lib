@@ -12,6 +12,7 @@ import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.level.CoreLevel;
 import org.arend.ext.core.level.LevelSubstitution;
+import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.core.ops.SubstitutionPair;
 import org.arend.ext.error.*;
@@ -73,14 +74,7 @@ public class ExtMeta extends BaseMetaDefinition {
   }
 
   private static boolean useLet(CoreExpression expr, int index) {
-    if (expr instanceof CoreReferenceExpression) {
-      return false;
-    }
-    if (!(expr instanceof CoreTupleExpression)) {
-      return true;
-    }
-    CoreTupleExpression tuple = (CoreTupleExpression) expr;
-    return !(index < tuple.getFields().size() && tuple.getFields().get(index) instanceof CoreReferenceExpression);
+    return !(expr instanceof CoreReferenceExpression) && (!(expr instanceof CoreTupleExpression tuple) || !(index < tuple.getFields().size() && tuple.getFields().get(index) instanceof CoreReferenceExpression));
   }
 
   private static ConcreteExpression makeProj(ConcreteFactory factory, ConcreteExpression expr, int index, List<CoreClassField> fields) {
@@ -183,8 +177,10 @@ public class ExtMeta extends BaseMetaDefinition {
     }
 
     private ConcreteExpression generate(ConcreteExpression arg, CoreExpression type, CoreExpression coreLeft, CoreExpression coreRight) {
-      ConcreteExpression left = factory.core(coreLeft.computeTyped());
-      ConcreteExpression right = factory.core(coreRight.computeTyped());
+      TypedExpression leftTyped = coreLeft.computeTyped();
+      TypedExpression rightTyped = coreRight.computeTyped();
+      ConcreteExpression left = factory.core(leftTyped);
+      ConcreteExpression right = factory.core(rightTyped);
 
       if (type instanceof CorePiExpression) {
         List<CoreParameter> piParams = new ArrayList<>();
@@ -212,6 +208,22 @@ public class ExtMeta extends BaseMetaDefinition {
       if (type instanceof CoreSigmaExpression || type instanceof CoreClassCallExpression) {
         CoreParameter typeParams = type instanceof CoreSigmaExpression ? ((CoreSigmaExpression) type).getParameters() : ((CoreClassCallExpression) type).getClassFieldParameters();
         List<CoreClassField> classFields = type instanceof CoreClassCallExpression ? Utils.getNotImplementedField((CoreClassCallExpression) type) : null;
+
+        ConcreteExpression arrayLength = null;
+        if (type instanceof CoreClassCallExpression classCall && classCall.getDefinition() == ext.prelude.getDArray() && classFields.size() == 2 && classCall.isImplemented(ext.prelude.getArrayElementsType())) {
+          CoreExpression leftType = leftTyped.getType().normalize(NormalizationMode.WHNF);
+          CoreExpression rightType = rightTyped.getType().normalize(NormalizationMode.WHNF);
+          if (leftType instanceof CoreClassCallExpression leftClassCall && rightType instanceof CoreClassCallExpression rightClassCall) {
+            CoreExpression leftLength = leftClassCall.getImplementationHere(ext.prelude.getArrayLength(), leftTyped);
+            CoreExpression rightLength = rightClassCall.getImplementationHere(ext.prelude.getArrayLength(), rightTyped);
+            if (leftLength != null && rightLength != null && Utils.tryTypecheck(typechecker, tc -> tc.compare(leftLength, rightLength, CMP.EQ, null, false, true, false))) {
+              arrayLength = factory.core(leftLength.computeTyped());
+              typeParams = typechecker.substituteParameters(typeParams, LevelSubstitution.EMPTY, Collections.singletonList(arrayLength));
+              classFields.remove(0);
+            }
+          }
+        }
+
         Set<CoreClassField> propFields = new HashSet<>();
         Set<CoreBinding> propBindings = new HashSet<>();
         int i = 0;
@@ -227,8 +239,7 @@ public class ExtMeta extends BaseMetaDefinition {
 
         ConcreteExpression newArg = arg;
         Map<CoreClassField, PathExpression> superFields = new HashMap<>();
-        if (type instanceof CoreClassCallExpression) {
-          CoreClassCallExpression classCall = (CoreClassCallExpression) type;
+        if (type instanceof CoreClassCallExpression classCall) {
           ConcreteExpression baseExpr = arg instanceof ConcreteClassExtExpression ? ((ConcreteClassExtExpression) arg).getBaseClassExpression() : arg;
           CoreDefinition def = ext.definitionProvider.getCoreDefinition(baseExpr instanceof ConcreteReferenceExpression ? ((ConcreteReferenceExpression) baseExpr).getReferent() : null);
           boolean isSubclass = def instanceof CoreClassDefinition && ((CoreClassDefinition) def).isSubClassOf(classCall.getDefinition());
@@ -247,8 +258,7 @@ public class ExtMeta extends BaseMetaDefinition {
                 }
 
                 CoreDefinition implDef = ext.definitionProvider.getCoreDefinition(coclause.getImplementedRef());
-                if (implDef instanceof CoreClassDefinition) {
-                  CoreClassDefinition implClass = (CoreClassDefinition) implDef;
+                if (implDef instanceof CoreClassDefinition implClass) {
                   if (!((CoreClassDefinition) def).isSubClassOf(implClass)) {
                     typechecker.getErrorReporter().report(new SubclassError(false, def.getRef(), coclause));
                     return null;
@@ -657,6 +667,9 @@ public class ExtMeta extends BaseMetaDefinition {
         ConcreteExpression concreteResult;
         if (type instanceof CoreClassCallExpression) {
           List<ConcreteClassElement> classElements = new ArrayList<>(classFields.size());
+          if (arrayLength != null) {
+            classElements.add(factory.implementation(ext.prelude.getArrayLength().getRef(), arrayLength));
+          }
           for (int j = 0; j < classFields.size(); j++) {
             classElements.add(factory.implementation(classFields.get(j).getRef(), fields.get(j)));
           }

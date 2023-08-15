@@ -14,11 +14,12 @@
 \import Algebra.Ring.QPoly
 \import Algebra.Semiring
 \import Arith.Nat
+\import Category \hiding (Map,univalence)
 \import Data.Or
 \import Equiv
 \import Equiv.Fiber
 \import Equiv.Univalence
-\import Function
+\import Function \hiding (id,o)
 \import Function.Meta \hiding (#)
 \import HLevel
 \import Logic
@@ -86,10 +87,18 @@
   | padd p e => padd (polyMap f p) (f e)
   | peq => rewrite f.func-zro peq
 
+\lemma polyMap-comp {A B C : AddPointed} (f : AddPointedHom A B) (g : AddPointedHom B C) {p : Poly A} : polyMap g (polyMap f p) = polyMap (g ∘ f) p \elim p
+  | pzero => idp
+  | padd p e => pmap (padd __ _) (polyMap-comp f g)
+
 \func polyEval {R : Ring} (p : Poly R) (a : R) : R \elim p
   | pzero => 0
   | padd p e => polyEval p a * a + e
   | peq => zro-right *> zro_*-left
+
+\lemma polyEval_polyMap {f : RingHom} {p : Poly f.Dom} {a : f.Dom} : polyEval (polyMap f p) (f a) = f (polyEval p a) \elim p
+  | pzero => inv func-zro
+  | padd p e => inv $ func-+ *> pmap (`+ _) (f.func-* *> pmap (`* _) (inv polyEval_polyMap))
 
 \func polyCoef {R : AddPointed} (p : Poly R) (n : Nat) : R \elim p, n
   | pzero, _ => 0
@@ -233,6 +242,16 @@
       | pzero => idp
       | padd p e => pmap2 padd *c_negative R.negative_*-right
   }
+
+\lemma padd-expand {R : Ring} {p : Poly R} {e : R} : padd p e = p * padd 1 0 + padd 0 e \elim p
+  | pzero => idp
+  | padd p a => pmap2 padd (padd-expand *> simplify simplify) simplify
+
+\func polyHom {R : Ring} : RingHom R (PolyRing R) \cowith
+  | func => padd pzero
+  | func-+ => idp
+  | func-ide => idp
+  | func-* => pmap (padd pzero) (inv zro-left)
 
 \instance PolyAlgebra (R : CRing) : CAlgebra { | R => R }
   | Ring => PolyRing R
@@ -521,6 +540,12 @@
 \lemma degree<=_degree< {R : AddPointed} {p : Poly R} {n : Nat} (d : degree<= p n) : degree< p (suc n)
   => \lam s => degree<=.toCoefs p n d (<-transitive-left id<suc s)
 
+\lemma degree<_degree<= {R : AddPointed} {p : Poly R} {n : Nat} (d : degree< p (suc n)) : degree<= p n
+  => degree<=.fromCoefs p n $ \lam q => d (suc_<_<= q)
+
+\lemma degree<=_polyMap {f : AddPointedHom} {p : Poly f.Dom} {n : Nat} (d : degree<= p n) : degree<= (polyMap f p) n
+  => degree<_degree<= $ degree<_polyMap (degree<=_degree< d)
+
 \lemma degree-exists {R : AddPointed} (p : Poly R) : ∃ (n : Nat) (degree<= p n) \elim p
   | pzero => inP (0, ())
   | padd p e => TruncP.map (degree-exists p) $ \lam s => (suc s.1, s.2)
@@ -597,6 +622,9 @@
 
 \func isMonic {R : Ring} (p : Poly R) : \Prop
   => ∃ (n : Nat) (degree<= p n) (polyCoef p n = 1)
+
+\lemma polyMap_isMonic {f : RingHom} {p : Poly f.Dom} (m : isMonic p) : isMonic (polyMap f p) \elim m
+  | inP t => inP (t.1, degree<=_polyMap t.2, polyCoef_polyMap *> pmap f t.3 *> func-ide)
 
 \lemma monomial-isMonic {R : Ring} (n : Nat) : isMonic (monomial R.ide n)
   => inP (n, degree<=_monomial, polyCoef_monomial)

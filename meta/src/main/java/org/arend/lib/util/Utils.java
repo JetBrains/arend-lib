@@ -5,6 +5,7 @@ import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.ConcreteSourceNode;
 import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.context.CoreParameter;
+import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreDefinition;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
@@ -262,6 +263,26 @@ public class Utils {
     }
 
     return null;
+  }
+
+  public static Pair<TypedExpression, CoreClassCallExpression> findInstanceWithClassCall(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker, CoreClassDefinition forcedClass) {
+    Pair<TypedExpression, CoreClassCallExpression> result = findInstanceWithClassCall(parameters, classifyingField, classifyingExpr, typechecker, marker);
+    if (result == null) {
+      if (forcedClass != null) {
+        typechecker.getErrorReporter().report(new InstanceInferenceError(forcedClass.getRef(), classifyingExpr, marker));
+      }
+      return null;
+    }
+
+    CoreExpression classifyingImpl = result.proj2.getImplementation(classifyingField, result.proj1);
+    if (classifyingImpl != null && !typechecker.compare(classifyingImpl, classifyingExpr, CMP.EQ, marker, true, true, false)) {
+      if (forcedClass != null) {
+        typechecker.getErrorReporter().report(new InstanceInferenceError(forcedClass.getRef(), classifyingExpr, marker, new CoreExpression[] { result.proj1.getExpression() }));
+      }
+      return null;
+    }
+
+    return result;
   }
 
   public static boolean safeCompare(ExpressionTypechecker typechecker, UncheckedExpression expr1, UncheckedExpression expr2, CMP cmp, ConcreteSourceNode marker, boolean allowEquations, boolean normalize, boolean useTypes) {

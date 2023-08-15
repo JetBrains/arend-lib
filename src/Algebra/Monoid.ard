@@ -56,6 +56,13 @@
 
   \lemma BigProd_suc {n : Nat} {l : Array E (suc n)} : BigProd l = BigProd (\new Array E n (\lam i => l i)) * l n
     => AddMonoid.BigSum_suc {AddMonoid.fromMonoid \this}
+
+  \lemma BigProd_replicate {x : E} {n : Nat} : BigProd (replicate n x) = pow x n \elim n
+    | 0 => idp
+    | suc n => pmap (x *) BigProd_replicate *> pow-left
+
+  \lemma BigProd_replicate1 {n : Nat} : BigProd (replicate n ide) = ide
+    => BigProd_replicate *> pow_ide
 } \where {
   \func equals {M N : Monoid} (p : M = {\Set} N) (q : \let f x => coe (p @) x right \in \Pi (x y : M) -> f (x * y) = f x * f y) : M = N
     => exts (p, ide-equality , q)
@@ -345,6 +352,9 @@
   \func DivChain : \Prop
     => \Pi (a : Nat -> E) -> (\Pi (i : Nat) -> LDiv (a (suc i)) (a i)) -> ∃ (j : Nat) (LDiv (a j) (a (suc j)))
 
+  \lemma BigProd_EPerm {l l' : Array E} (e : EPerm l l') : BigProd l = BigProd l'
+    => AbMonoid.BigSum_EPerm {AbMonoid.fromCMonoid \this} e
+
   \lemma BigProd_Perm {n : Nat} {l l' : Array E n} (p : Perm l l') : BigProd l = BigProd l'
     => AbMonoid.BigSum_Perm {AbMonoid.fromCMonoid \this} p
 } \where \open Monoid
@@ -390,31 +400,31 @@
         \where
           \lemma aux (e e' : Equiv {Fin A.finCard} {A}) : BigSum (\lam j => x (e j)) = BigSum (\lam j => x (e' j))
             => BigSum_Perm $ transport (Perm _) (arrayExt $ \lam j => pmap x $ e.f_ret _) $ Perm.equiv_perm $ transEquiv e' (symQEquiv e)
+    }
 
-      \lemma char {A : FinSet} (x : A -> E) : ∃ (e : Equiv {Fin A.finCard} {A}) (FinSum x = BigSum (\lam j => x (e j)))
-        => TruncP.map (aux x).2 $ \lam t => (t.1, (\peval FinSum x) *> inv t.2)
+  \lemma FinSum_char {A : FinSet} (x : A -> E) : ∃ (e : Equiv {Fin A.finCard} {A}) (FinSum x = BigSum (\lam j => x (e j))) =>
+    TruncP.map (FinSum.aux x).2 $ \lam t => (t.1, (\peval FinSum x) *> inv t.2)
 
-      \lemma char2 {A : FinSet} (x : A -> E) (e : Equiv {Fin A.finCard} {A}) : FinSum x = BigSum (\lam j => x (e j))
-        => \case char x \with {
-          | inP p => p.2 *> aux.aux x p.1 e
-        }
+  \lemma FinSum_char2 {A : FinSet} (x : A -> E) (e : Equiv {Fin A.finCard} {A}) : FinSum x = BigSum (\lam j => x (e j)) =>
+    \case FinSum_char x \with {
+      | inP p => p.2 *> FinSum.aux.aux x p.1 e
     }
 
   \lemma FinSum_zro {J : FinSet} {x : J -> E} (p : \Pi (j : J) -> x j = 0) : FinSum x = 0
-    => \case FinSum.char x \with {
+    => \case FinSum_char x \with {
       | inP (e,q) => q *> BigSum_zro (\lam j => p (e j))
     }
 
   \lemma FinSum-const {A : FinSet} {x : E} : FinSum {_} {A} (\lam _ => x) = BigSum (\new Array E A.finCard (\lam j => x))
-    => \case FinSum.char {_} {A} (\lam _ => x) \with {
+    => \case FinSum_char {_} {A} (\lam _ => x) \with {
          | inP p => p.2
        }
 
   \lemma FinSum-double-dep {A : FinSet} (B : A -> FinSet) {x : (\Sigma (a : A) (B a)) -> E}
     : FinSum (\lam a => FinSum (\lam b => x (a,b))) = FinSum {_} {SigmaFin A B} x
-    => \case FinSum.char _, choice (\lam a => FinSum.char (\lam b => x (a,b))) \with {
+    => \case FinSum_char _, choice (\lam a => FinSum_char (\lam b => x (a,b))) \with {
       | inP p, inP f => p.2 *> cong (ext $ \lam j => (f _).2) *> BigSum-double-dep (\lam j => finCard {B (p.1 j)}) (\lam s => x (p.1 s.1, (f _).1 s.2)) *>
-                          inv (FinSum.char2 _ (unfold $ =-to-QEquiv (pmap Fin $ FinSum.char2 {NatSemiring} (\lam i => finCard {B i}) p.1) `transEquiv` SigmaFin.aux `transEquiv` sigma-equiv p.1 (\lam j => (f _).1)) *> pmap BigSum (exts $ (FinSum.char2 {NatSemiring} _ p.1, \lam j => idp)))
+                          inv (FinSum_char2 _ (unfold $ =-to-QEquiv (pmap Fin $ FinSum_char2 {NatSemiring} (\lam i => finCard {B i}) p.1) `transEquiv` SigmaFin.aux `transEquiv` sigma-equiv p.1 (\lam j => (f _).1)) *> pmap BigSum (exts $ (FinSum_char2 {NatSemiring} _ p.1, \lam j => idp)))
     }
 
   \lemma FinSum-double {A B : FinSet} {x : A -> B -> E}
@@ -422,12 +432,12 @@
     => FinSum-double-dep (\lam _ => B) *> pmap {FinSet (\Sigma A B)} (FinSum {_} {__} _) (Path.inProp _ _)
 
   \lemma FinSum=BigSum {n : Nat} {x : Fin n -> E} : FinSum x = BigSum x
-    => FinSum.char2 x idEquiv
+    => FinSum_char2 x idEquiv
 
   \lemma FinSum_Equiv {A B : FinSet} (e : Equiv {A} {B}) {x : B -> E} : FinSum x = FinSum (\lam a => x (e a))
-    => \case FinSum.char _ \with {
+    => \case FinSum_char _ \with {
       | inP p => \let A' => \new FinSet A B.finCard $ TruncP.map B.finEq $ \lam e' => transEquiv e' (symQEquiv e)
-                 \in FinSum.char2 x (transEquiv p.1 e) *> inv p.2 *> pmap {FinSet A} (FinSum {_} {__} _) (FinSet.levelProp A' A)
+                 \in FinSum_char2 x (transEquiv p.1 e) *> inv p.2 *> pmap {FinSet A} (FinSum {_} {__} _) (FinSet.levelProp A' A)
     }
 
   \lemma FinSum-inj {A B : FinSet} (f : A -> B) (inj : isInj f) {x : B -> E} (p : \Pi (b : B) -> (\Pi (a : A) -> f a /= b) -> x b = 0) : FinSum x = FinSum (\lam a => x (f a))
@@ -451,17 +461,17 @@
                        (FinSum_zro $ later $ \lam j => p j.1 $ \lam a q => j.2 $ inP (a,q)) *> zro-right
 
   \lemma FinSum_Or {A B : FinSet} {x : Or A B -> E} : FinSum x = FinSum (\lam a => x (inl a)) + FinSum (\lam b => x (inr b))
-    => \case FinSum.char _, FinSum.char _ \with {
-      | inP p, inP q => FinSum.char2 x (transEquiv (OrFin.aux {A.finCard} {B.finCard}) (Or.Or_Equiv p.1 q.1)) *> BigSum_Or (\lam a => x (Or.map a p.1 q.1)) *> inv (pmap2 (+) p.2 q.2)
+    => \case FinSum_char _, FinSum_char _ \with {
+      | inP p, inP q => FinSum_char2 x (transEquiv (OrFin.aux {A.finCard} {B.finCard}) (Or.Or_Equiv p.1 q.1)) *> BigSum_Or (\lam a => x (Or.map a p.1 q.1)) *> inv (pmap2 (+) p.2 q.2)
     }
 
   \lemma FinSum-unique {J : FinSet} {a : J -> E} (j : J) (p : \Pi (j' : J) -> j' /= j -> a j' = 0) : FinSum a = a j
-    => \case FinSum.char a \with {
+    => \case FinSum_char a \with {
          | inP (e : Equiv, q) => q *> BigSum-unique (e.ret j) (\lam i c => p (e i) $ \lam s => c $ inv $ e.adjoint s) *> pmap a (e.f_ret j)
        }
 
   \lemma FinSum-pred {P : E -> \Prop} (P0 : P 0) (P+ : \Pi {x y : E} -> P x -> P y -> P (x + y)) {J : FinSet} {a : J -> E} (p : \Pi (j : J) -> P (a j)) : P (AbMonoid.FinSum a)
-    => \case AbMonoid.FinSum.char a \with {
+    => \case FinSum_char a \with {
       | inP (e,q) => transportInv P q $ AddMonoid.BigSum-pred P0 P+ $ \lam i => p (e i)
     }
 }

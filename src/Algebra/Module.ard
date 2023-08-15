@@ -7,11 +7,14 @@
 \import Algebra.Ring.Category
 \import Algebra.Semiring
 \import Data.Array
+\import Equiv
 \import Function.Meta
 \import Logic
+\import Logic.Classical
 \import Logic.Meta
 \import Paths
 \import Paths.Meta
+\import Set.Fin
 
 \class LModule (R : Ring) \extends AbGroup {
   | \infixl 7 *c : R -> E -> E
@@ -38,19 +41,58 @@
   \lemma neg_ide_*c {a : E} : -1 *c a = negative a
     => *c_negative-left *> pmap negative ide_*c
 
-  \lemma *c_BigSum-left {l : Array R} {a : E} : R.BigSum l *c a = BigSum (\lam i => l i *c a) \elim l
+  \lemma *c_BigSum-rdistr {l : Array R} {a : E} : R.BigSum l *c a = BigSum (\lam i => l i *c a) \elim l
     | nil => *c_zro-left
-    | r :: l => *c-rdistr *> pmap (_ +) *c_BigSum-left
+    | r :: l => *c-rdistr *> pmap (_ +) *c_BigSum-rdistr
 
-  \lemma *c_BigSum-right {r : R} {l : Array E} : r *c BigSum l = BigSum (\lam i => r *c l i) \elim l
+  \lemma *c_BigSum-ldistr {r : R} {l : Array E} : r *c BigSum l = BigSum (\lam i => r *c l i) \elim l
     | nil => *c_zro-right
-    | a :: l => *c-ldistr *> pmap (_ +) *c_BigSum-right
+    | a :: l => *c-ldistr *> pmap (_ +) *c_BigSum-ldistr
+
+  \lemma *c_FinSum-rdistr {J : FinSet} {f : J -> R} {a : E} : R.FinSum f *c a = FinSum (\lam j => f j *c a)
+    => \case R.FinSum_char f \with {
+         | inP (e,p) => pmap (`*c a) p *> *c_BigSum-rdistr *> inv (FinSum_char2 _ e)
+       }
+
+  \lemma *c_FinSum-ldistr {r : R} {J : FinSet} {f : J -> E} : r *c FinSum f = FinSum (\lam j => r *c f j)
+    => \case FinSum_char f \with {
+         | inP (e,p) => pmap (r *c) p *> *c_BigSum-ldistr *> inv (FinSum_char2 _ e)
+       }
 
   \type isGenerated (l : Array E) : \Prop
-    => \Pi (x : E) -> ∃ (c : Array R l.len) (x = BigSum (mkArray (\lam i => c i *c l i)))
+    => \Pi (x : E) -> ∃ (c : Array R l.len) (x = BigSum (\lam i => c i *c l i))
+
+  \type isGeneratedFin {J : FinSet} (f : J -> E) : \Prop
+    => \Pi (x : E) -> ∃ (c : J -> R) (x = FinSum (\lam j => c j *c f j))
+
+  \lemma generated-array-fin {l : Array E} (g : isGenerated l) : isGeneratedFin l
+    => \lam x => TruncP.map (g x) $ \lam t => (t.1, t.2 *> inv FinSum=BigSum)
+
+  \lemma generated-fin-array {J : FinSet} {f : J -> E} (g : isGeneratedFin f) : ∃ (l : Array E) (isGenerated l)
+    => TruncP.map J.finEq $ \lam (e : Equiv {Fin J.finCard} {J}) =>
+        (\lam i => f (e i), \lam x => TruncP.map (g x) $ \lam t => (\lam i => t.1 (e i), t.2 *> FinSum_Equiv e *> FinSum=BigSum))
 
   \func isFaithful : \Prop
     => \Pi (r : R) -> (\Pi (m : E) -> r *c m = 0) -> r = 0
+} \where {
+  \func pullback (f : RingHom) (M : LModule' f.Cod) : LModule' f.Dom \cowith
+    | AbGroup => M
+    | *c a x => f a *c x
+    | *c-assoc => pmap (`*c _) f.func-* *> *c-assoc
+    | *c-ldistr => *c-ldistr
+    | *c-rdistr => pmap (`*c _) f.func-+ *> *c-rdistr
+    | ide_*c => pmap (`*c _) f.func-ide *> ide_*c
+
+  \lemma generated-fin-comp (f : RingHom) {M : LModule' f.Cod} {I J : FinSet} {a : I -> f.Cod} {b : J -> M} (Cg : isGeneratedFin {homLModule f} a) (Mg : isGeneratedFin b)
+    : isGeneratedFin {pullback f M} (\lam (p : \Sigma J I) => a p.2 *c b p.1)
+    => \lam x => \have | (inP (d,p)) => Mg x
+                       | (inP g) => choice (\lam j => Cg (d j))
+                 \in inP (\lam s => (g s.1).1 s.2, p *> path (\lam i => FinSum (\lam j => (g j).2 i *c b j)) *>
+                            path (\lam i' => FinSum (\lam j => M.*c_FinSum-rdistr {I} {\lam i => (g j).1 i *c a i} {b j} i')) *> FinSum-double *> pmap FinSum (ext $ \lam s => *c-assoc))
+
+  \lemma generated-comp (f : RingHom) {M : LModule' f.Cod} {l : Array f.Cod} {l' : Array M} (Cg : isGenerated {homLModule f} l) (Mg : isGenerated l')
+    : ∃ (l'' : Array M) (isGenerated {pullback f M} l'')
+    => generated-fin-array {pullback f M} $ generated-fin-comp f (generated-array-fin Cg) (generated-array-fin Mg)
 }
 
 \meta LModule' R => LModule { | R => R }

@@ -1,9 +1,153 @@
+\import Algebra.Algebra
+\import Algebra.Group.Category
+\import Algebra.Meta
+\import Algebra.Module
+\import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Monoid.PermSet
+\import Algebra.Pointed
 \import Algebra.Ring
 \import Algebra.Ring.Category
 \import Algebra.Ring.MonoidRing
+\import Algebra.Ring.Poly
+\import Category (id)
+\import Data.Array
+\import Data.Fin \hiding (Index)
+\import Equiv
+\import Function.Meta ($)
+\import Logic
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set
 
 \func MPoly (J : \Set) (R : CRing) => MonoidAlgebra (PermSetAbMonoid J) R
 
+\func mPoly-map {J : \Set} {R S : CRing} (f : AddMonoidHom R S) (p : MPoly J R) : MPoly J S
+  => monoidSet-map (\lam x => x) f p
+
 \func mPolyEval {J : \Set} {R : CRing} (f : J -> R) : RingHom (MPoly J R) R
-  => evalMSRingHom (permSetHom f)
+  => evalMSRingHom (permSet-univ {J} {AbMonoid.fromCMonoid R} f)
+
+\func mVar {J : \Set} {R : CRing} (j : J) : MPoly J R
+  => msMonomial 1 $ PermSet.inPS (j :: nil)
+
+\func mLastCoef {J : \Set} {R : CRing} (p : MPoly J R) => monoidSet-coefs (\lam x => decToBool (permSet-zro-dec x)) p
+
+\func MPoly_Empty {J : \Set} {R : CRing} (e : J -> Empty) : QEquiv {MPoly J R} {R} mLastCoef \cowith
+  | ret a => in~ $ (a, in~ nil) :: nil
+  | ret_f => \case \elim __ \with {
+    | in~ l => unfold mLastCoef $ rewrite (filter_true $ \lam s => later $ cases (permSet-zro-dec s.2) \with {
+      | yes _ => idp
+      | no q => absurd $ q $ cases s.2 \with {
+        | in~ nil => idp
+        | in~ (j :: _) => absurd (e j)
+      }
+    }) $ inv $ MonoidSet.unique-sum {PermSet J} (in~ nil) $ \lam j => cases (l j).2 \with {
+      | in~ nil => idp
+      | in~ (j :: _) => absurd (e j)
+    }
+  }
+  | f_sec a => zro-right
+
+\func MPoly_Fin-suc {n : Nat} {R : CRing} : QEquiv {MPoly (Fin (suc n)) R} {Poly (MPoly (Fin n) R)} \cowith
+  | f (p : MPoly (Fin (suc n)) R) : Poly (MPoly (Fin n) R) \with {
+    | in~ l => AddMonoid.BigSum (map m-func l)
+    | ~-equiv l l' r => m-func-coh r
+  }
+  | ret (p : Poly (MPoly (Fin n) R)) : MPoly (Fin (suc n)) R \with {
+    | pzero => 0
+    | padd p e => ret p * mVar fzero + monoidSet-map (permSet-map fsuc) (id R) e
+    | peq => zro-right *> Ring.zro_*-left {MPoly (Fin (suc n)) R} {mVar fzero}
+  }
+  | ret_f => \case \elim __ \with {
+    | in~ l => retHom.func-BigSum *> pmap AddMonoid.BigSum (exts $ \lam j => unfold $ unfold m-func $ cases (l j).2 \with {
+      | in~ l' => ret-aux *> pmap (_ *) retHom.func-BigProd *>
+                             later (pmap (_ *) {_} {msMonomial R.ide (PermSet.inPS l')} $ pmap Monoid.BigProd (exts $ \lam j => cases (l' j) \with {
+                               | 0 => pmap (\lam x => inMS x) $ unfold MonoidSemiring.func $ rewrite ide-left idp
+                               | suc j =>
+                                 \let v => inMS ((R.ide, permSet-map fsuc (PermSet.inPS (j :: nil))) :: nil)
+                                 \in unfold $ pmap (`+ v) (Ring.zro_*-left {_} {mVar fzero}) *> zro-left {_} {v}
+                             }) *> msMonomial_BigProd_ide *> pmap (msMonomial _) permSet-split)
+                               *> msMonomial-split
+    }) *> msMonomial_BigSum
+  }
+  | f_sec (p : Poly (MPoly (Fin n) R)) : f (ret p) = p \with {
+    | pzero => idp
+    | padd p e => fHom.func-+ *> pmap (`+ _) (fHom.func-* *> pmap (`* _) (f_sec p)) *>
+                  pmap2 (\lam x y => p * padd (padd 0 (inMS ((x,zro) :: nil))) 0 + y) (ide-left *> ide-left) (later $ \case \elim e \with {
+                    | in~ l => pmap AddMonoid.BigSum (exts $ \lam j => cases (l j).2 \with {
+                      | in~ l' => inv (pmap (_ *c) (polyHom.func-BigProd {map mVar l'})) *> pmap (padd pzero) (pmap (_ *) msMonomial_BigProd_ide *> pmap2 (\lam x y => inMS ((x,y) :: nil)) ide-right (zro-left *> permSet-split))
+                    }) *> inv polyHom.func-BigSum *> pmap (padd pzero) msMonomial_BigSum
+                  }) *> inv padd-expand
+  }
+  \where {
+    \open MonoidSet
+
+    \func var-func (j : Fin (suc n)) : Poly (MPoly (Fin n) R)
+      | 0 => padd 1 0
+      | suc j => padd 0 (mVar j)
+
+    \func f-monomial (x : PermSet (Fin (suc n))) : Poly (MPoly (Fin n) R)
+      | in~ l => Monoid.BigProd (map var-func l)
+      | ~-equiv l l' r => CMonoid.BigProd_EPerm (EPerm.EPerm_map var-func r)
+
+    \lemma f-monomial_+ {x y : PermSet (Fin (suc n))} : f-monomial (x + y) = f-monomial x * f-monomial y \elim x, y
+      | in~ l, in~ l' => pmap Monoid.BigProd (map_++ var-func) *> Monoid.BigProd_++
+
+    \func m-func (s : \Sigma R (PermSet (Fin (suc n)))) => msMonomial s.1 zro *c f-monomial s.2
+
+    \func m-func-coh {l l' : Array (\Sigma R (PermSet (Fin (suc n))))} (e : l ~ l') : AddMonoid.BigSum (map m-func l) = AddMonoid.BigSum (map m-func l') \elim e
+      | ~-perm e => AbMonoid.BigSum_EPerm (EPerm.EPerm_map m-func e)
+      | ~-sym e => inv (m-func-coh e)
+      | ~-zro {m} idp => pmap (`+ _) $ pmap (`*c _) (monoidSet-ext $ ~-pequiv (~-zro idp)) *> LModule.*c_zro-left
+      | ~-+ m idp idp => pmap (`+ _) (pmap (`*c _) (later msMonomial_+) *> *c-rdistr) *> +-assoc
+
+    \func fHom : RingHom (MPoly (Fin (suc n)) R) (PolyRing (MPoly (Fin n) R)) f \cowith
+      | func-+ {x} {y} => \case \elim x, \elim y \with {
+        | in~ l, in~ l' => pmap AddMonoid.BigSum (map_++ m-func) *> AddMonoid.BigSum_++
+      }
+      | func-ide => simplify
+      | func-* {x} {y} => \case \elim x, \elim y \with {
+        | in~ l, in~ l' => pairs.pairs-distr m-func $ \lam {a} {b} => pmap2 (*c) msMonomial_* f-monomial_+ *>
+                            *c-assoc {_} {msMonomial a.1 zro} *> pmap (_ *c) *c-comm-right *> *c-comm-left
+      }
+
+    \lemma ret-aux {p : Poly (MPoly (Fin n) R)} {e : MPoly (Fin n) R}
+      : ret (e *c p) = monoidSet-map (permSet-map fsuc) (id R) e * ret p \elim p
+      | pzero => inv Ring.zro_*-right
+      | padd p a => rewrite (ret-aux, func-* {monoidSet-ringHom (permSet-hom fsuc) (id R)}) (equation {CRing})
+
+    \func retHom : RingHom (PolyRing (MPoly (Fin n) R)) (MPoly (Fin (suc n)) R) ret \cowith
+      | func-zro => idp
+      | func-+ {p q : Poly (MPoly (Fin n) R)} : ret (p + q) = ret p + ret q \with {
+        | pzero, q => inv zro-left
+        | padd p a, pzero => inv zro-right
+        | padd p a, padd q b => rewrite func-+ $ rewrite (AddMonoidHom.func-+ {monoidSet-hom (permSet-map fsuc) (id R)}) (equation {Ring})
+      }
+      | func-ide => idp
+      | func-* {p q : Poly (MPoly (Fin n) R)} : ret (p * q) = ret p * ret q \elim p {
+        | pzero => inv Ring.zro_*-left
+        | padd p e => func-+ *> rewrite (func-*,ret-aux) (equation {CRing})
+      }
+
+    \lemma ret_eval (p : Poly (MPoly (Fin n) R)) {a : R} (l : Array R n)
+      : mPolyEval l (polyEval p (msMonomial a zro)) = mPolyEval (a :: l) (ret p) \elim p
+      | pzero => idp
+      | padd p e => func-+ *> pmap (`+ _) func-* *> pmap2 (_ * __ + __) simplify (pmap (evalMS e) (ext \lam m => \case \elim m \with { | in~ l => idp }) *> inv evalMS_map) *> pmap (`+ _) (pmap (`* _) (ret_eval p l) *> inv func-*) *> inv func-+
+
+    \lemma f_eval (p : MPoly (Fin (suc n)) R) {a : R} (l : Array R n)
+      : mPolyEval l (polyEval (f p) (msMonomial a zro)) = mPolyEval (a :: l) p
+      => ret_eval (f p) l *> pmap (mPolyEval _) (MPoly_Fin-suc.ret_f p)
+
+    \lemma f_polyMap {S : CRing} {p : MPoly (Fin (suc n)) R} {g : RingHom (MPoly (Fin n) R) (MPoly (Fin n) S)} {h : AddMonoidHom R S}
+                     (g-var : \Pi (j : Fin n) -> g (mVar j) = mVar j) (g-const : \Pi (a : R) -> g (msMonomial a zro) = msMonomial (h a) zro)
+      : polyMap g (f p) = f (mPoly-map h p) \elim p
+      | in~ l => AddMonoidHom.func-BigSum {polyMapRingHom g} *> pmap AddMonoid.BigSum (exts \lam j => unfold $ unfold m-func $ unfold msMonomial $ polyMapRingHom.polyMap_*c *> pmap2 (*c) (g-const (l j).1) (later $ cases (l j).2 \with {
+        | in~ l' => MonoidHom.func-BigProd {polyMapRingHom g} *> pmap Monoid.BigProd (exts \lam j => cases (l' j) \with {
+          | 0 => pmap2 (\lam x => padd (padd pzero x)) g.func-ide g.func-zro
+          | suc j => pmap (padd pzero) (g-var j)
+        })
+      }))
+  }
