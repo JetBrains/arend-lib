@@ -6,8 +6,9 @@
 \import Algebra.Ring
 \import Algebra.Ring.Category
 \import Algebra.Semiring
+\import Category
 \import Data.Array
-\import Equiv
+\import Equiv \hiding (Map)
 \import Function.Meta
 \import Logic
 \import Logic.Classical
@@ -65,10 +66,13 @@
   \type isGeneratedFin {J : FinSet} (f : J -> E) : \Prop
     => \Pi (x : E) -> ∃ (c : J -> R) (x = FinSum (\lam j => c j *c f j))
 
+  \func isFinitelyGenerated : \Prop
+    => ∃ (l : Array E) (isGenerated l)
+
   \lemma generated-array-fin {l : Array E} (g : isGenerated l) : isGeneratedFin l
     => \lam x => TruncP.map (g x) $ \lam t => (t.1, t.2 *> inv FinSum=BigSum)
 
-  \lemma generated-fin-array {J : FinSet} {f : J -> E} (g : isGeneratedFin f) : ∃ (l : Array E) (isGenerated l)
+  \lemma generated-fin-array {J : FinSet} {f : J -> E} (g : isGeneratedFin f) : isFinitelyGenerated
     => TruncP.map J.finEq $ \lam (e : Equiv {Fin J.finCard} {J}) =>
         (\lam i => f (e i), \lam x => TruncP.map (g x) $ \lam t => (\lam i => t.1 (e i), t.2 *> FinSum_Equiv e *> FinSum=BigSum))
 
@@ -90,9 +94,11 @@
                  \in inP (\lam s => (g s.1).1 s.2, p *> path (\lam i => FinSum (\lam j => (g j).2 i *c b j)) *>
                             path (\lam i' => FinSum (\lam j => M.*c_FinSum-rdistr {I} {\lam i => (g j).1 i *c a i} {b j} i')) *> FinSum-double *> pmap FinSum (ext $ \lam s => *c-assoc))
 
-  \lemma generated-comp (f : RingHom) {M : LModule' f.Cod} {l : Array f.Cod} {l' : Array M} (Cg : isGenerated {homLModule f} l) (Mg : isGenerated l')
-    : ∃ (l'' : Array M) (isGenerated {pullback f M} l'')
-    => generated-fin-array {pullback f M} $ generated-fin-comp f (generated-array-fin Cg) (generated-array-fin Mg)
+  \lemma generated-pullback (f : RingHom) {M : LModule' f.Cod} (Cg : isFinitelyGenerated {homLModule f}) (Mg : M.isFinitelyGenerated) : isFinitelyGenerated {pullback f M} \elim Cg, Mg
+    | inP (l,Cg), inP (l',Mg) => generated-fin-array {pullback f M} $ generated-fin-comp f (generated-array-fin Cg) (generated-array-fin Mg)
+
+  \lemma generated-comp {R S T : Ring} (f : RingHom R S) (g : RingHom S T) (fg : isFinitelyGenerated {homLModule f}) (gg : isFinitelyGenerated {homLModule g}) : isFinitelyGenerated {homLModule (g ∘ f)}
+    => generated-pullback f fg gg
 }
 
 \meta LModule' R => LModule { | R => R }

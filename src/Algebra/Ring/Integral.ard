@@ -5,6 +5,7 @@
 \import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Monoid.PermSet
 \import Algebra.Monoid.Sub
 \import Algebra.Pointed
@@ -15,6 +16,7 @@
 \import Algebra.Ring.MonoidRing
 \import Algebra.Ring.Poly
 \import Algebra.Ring.Sub
+\import Arith.Nat
 \import Category
 \import Data.Array
 \import Equiv (Equiv)
@@ -35,32 +37,52 @@
 \lemma polyImage-closed {R : Ring} {E : CRing} (f : RingHom R E) (a : E) (x : SubRing.cStruct (polyImage f a)) : polyImage f a (a * x.1) \elim x
   | (x, inP (p,q)) => inP $ unfold (padd p 0, unfold $ rewrite (q,f.func-zro) (zro-right *> *-comm))
 
-\lemma element-polyImage {R : Ring} {E : CRing} (f : RingHom R E) (a : E) : polyImage f a a
+\lemma polyImage-ext {R : Ring} {E : CRing} (f : RingHom R E) (a : E) (b : R) : polyImage f a (f b)
+  => inP (padd pzero b, simplify)
+
+\lemma polyImage-element {R : Ring} {E : CRing} {f : RingHom R E} {a : E} : polyImage f a a
   => rewriteF ide-right $ polyImage-closed f a (ide {SubRing.cStruct (polyImage f a)})
 
 \func polyImageHom {R : Ring} {E : CRing} (f : RingHom R E) (a : E) : RingHom R (SubRing.cStruct (polyImage f a)) \cowith
-  | func x => (f x, inP (padd pzero x, pmap (`+ f x) Ring.zro_*-left *> zro-left))
+  | func x => (f x, polyImage-ext f a x)
+  | func-+ => ext f.func-+
+  | func-ide => ext f.func-ide
+  | func-* => ext f.func-*
+
+\func mPolyImage {R E : CRing} (f : RingHom R E) (l : Array E) : SubRing E
+  => ringHomImage (mPolyEval l ∘ mPoly-mapHom f)
+
+\lemma mPolyImage-ext {R E : CRing} (f : RingHom R E) (l : Array E) (b : R) : mPolyImage f l (f b)
+  => inP (msMonomial b zro, simplify)
+
+\func mPolyImage-element {R E : CRing} (f : RingHom R E) (l : Array E) (j : Fin l.len) : mPolyImage f l (l j)
+  => inP (mVar j, unfold $ unfold $ rewrite f.func-ide simplify)
+
+\func mPolyImageHom {R E : CRing} (f : RingHom R E) (l : Array E) : RingHom R (SubRing.cStruct (mPolyImage f l)) \cowith
+  | func x => (f x, mPolyImage-ext f l x)
   | func-+ => ext f.func-+
   | func-ide => ext f.func-ide
   | func-* => ext f.func-*
 
 \lemma monic-generated {R E : CRing} (f : RingHom R E) (a : E) (p : Poly R) (n : Nat) (dp : degree<= p n) (dm : polyCoef p n = 1) (e : polyEval (polyMap f p) a = 0)
-  : LModule.isGenerated {homLModule (polyImageHom f a)} (\new Array _ n (\lam i => Monoid.pow {SubRing.cStruct (polyImage f a)} (a, element-polyImage f a) i))
+  : LModule.isGenerated {homLModule (polyImageHom f a)} (\new Array _ n (\lam i => Monoid.pow {SubRing.cStruct (polyImage f a)} (a, polyImage-element) i))
   => \lam (b, inP (g,ga)) =>
       \have (q,r,g=q*p+r,dr<n) => Contr.center {monicPolyDivision g p n dp dm}
       \in inP (mkArray $ \lam j => polyCoef r j, (unfold,unfold) at ga $ ext $ inv ga *> rewrite (g=q*p+r,polyMapRingHom.func-+,polyEvalRingHom.func-+,polyMapRingHom.func-*,polyEvalRingHom.func-*,e,E.zro_*-right)
             (zro-left *> polyEval_polyCoef (degree<_polyMap dr<n) *> pmap AddMonoid.BigSum (arrayExt $ \lam j => pmap2 (*) polyCoef_polyMap (inv SubMonoid.struct_pow)) *> inv SubAddMonoid.struct_BigSum))
 
-\lemma module-monic {R E : CRing} (f : RingHom R E) (a : E) (S : SubRing E) (SR : \Pi (x : R) -> S (f x))
-                    (l : Array S.struct) (Sg : LModule.isGenerated {homLModule (S.corestrict f SR)} l) (Sa : S a)
-  : ∃ (p : Poly R) (degree<= p l.len) (polyCoef p l.len = 1) (polyEval (polyMap f p) a = 0)
-  => \let | (inP Sg') => FinSet.finiteAC $ \lam j => Sg (a * (l j).1, contains_* Sa (l j).2)
-          | (inP d) => Sg (1,contains_ide)
-          | A => mkMatrix (\lam i => (Sg' i).1)
-     \in inP (charPoly A, charPoly-degree A, charPoly-monic A, pmap (polyEval __ a) (charPoly_map f A) *> eigen-root (matrix-map f A) (
-          inP (mkMatrix $ \lam i _ => (l i).1,
-               \lam x p => inv ide-right *> pmap (x *) (pmap __.1 d.2 *> S.struct_BigSum) *> E.BigSum-ldistr *> E.BigSum_zro (\lam i => equation {usingOnly (pmap (__ i 0) p)}),
-               matrixExt $ \lam i _ => pmap __.1 (Sg' i).2 *> S.struct_BigSum)))
+\lemma module-integral {R E : CRing} (f : RingHom R E) (a : E) (S : SubRing E) (SR : \Pi (x : R) -> S (f x))
+                       (Sg : LModule.isFinitelyGenerated {homLModule (S.corestrict f SR)}) (Sa : S a) : isIntegral f a \elim Sg
+  | inP (l,Sg) => TruncP.map (module-monic l Sg) \lam d => (d.1, inP (_, d.2, d.3), d.4)
+  \where
+    \lemma module-monic (l : Array S.struct) (Sg : LModule.isGenerated {homLModule (S.corestrict f SR)} l) : ∃ (p : Poly R) (degree<= p l.len) (polyCoef p l.len = 1) (polyEval (polyMap f p) a = 0)
+      => \let | (inP Sg') => FinSet.finiteAC $ \lam j => Sg (a * (l j).1, contains_* Sa (l j).2)
+              | (inP d) => Sg (1,contains_ide)
+              | A => mkMatrix (\lam i => (Sg' i).1)
+         \in inP (charPoly A, charPoly-degree A, charPoly-monic A, pmap (polyEval __ a) (charPoly_map f A) *> eigen-root (matrix-map f A) (
+              inP (mkMatrix $ \lam i _ => (l i).1,
+                   \lam x p => inv ide-right *> pmap (x *) (pmap __.1 d.2 *> S.struct_BigSum) *> E.BigSum-ldistr *> E.BigSum_zro (\lam i => equation {usingOnly (pmap (__ i 0) p)}),
+                   matrixExt $ \lam i _ => pmap __.1 (Sg' i).2 *> S.struct_BigSum)))
 
 \func isIntegral (f : RingHom) (x : f.Cod) : \Prop
   => ∃ (p : Poly f.Dom) (isMonic p) (polyEval (polyMap f p) x = 0)
@@ -68,8 +90,7 @@
 \func isIntegralExt (f : RingHom) : \Prop
   => \Pi (x : f.Cod) -> isIntegral f x
 
-\lemma integral-generated {R E : CRing} (f : RingHom R E) (a : E) (ai : isIntegral f a)
-  : ∃ (l : Array (homLModule (polyImageHom f a))) (LModule.isGenerated {homLModule (polyImageHom f a)} l) \elim ai
+\lemma integral-generated {R E : CRing} (f : RingHom R E) (a : E) (ai : isIntegral f a) : LModule.isFinitelyGenerated {homLModule (polyImageHom f a)} \elim ai
   | inP (p, inP t, pc) => inP (_, monic-generated f a p t.1 t.2 t.3 pc)
 
 \lemma integralExt-left {R S E : Ring} (f : RingHom R S) (g : RingHom S E) (inj : isInj g) (int : isIntegralExt (g ∘ f)) : isIntegralExt f
@@ -79,21 +100,43 @@
   => \lam x => TruncP.map (int x) $ \lam t => (polyMap f t.1, polyMap_isMonic t.2, pmap (polyEval __ x) (polyMap-comp f g) *> t.3)
 
 \lemma integralExt-generated {R S : CRing} (f : RingHom R S) (fi : isIntegralExt f) {l : Array S} (gen : CAlgebra.isGenerated {homAlgebra f} l)
-  : ∃ (l' : Array S) (LModule.isGenerated {homLModule f} l') \elim l
+  : LModule.isFinitelyGenerated {homLModule f} \elim l
   | nil => inP (1 :: nil, \lam x => TruncP.map (gen x) $ \lam t => (mLastCoef t.1 :: nil, t.2 *> unfold (rewriteI {1} (Equiv.ret_f {MPoly_Empty {Fin 0} $ \case __} t.1) $ pmap (`+ 0) simplify)))
-  | a :: (l : Array) => \let | g => polyImageHom f a
-                   | h => SubRing.embed {polyImage f a}
-                   | (inP t) => integral-generated f a (fi a)
-                   | (inP s) => integralExt-generated {SubRing.cStruct (polyImage f a)} h (integralExt-right g h fi) {l} $ \lam x => TruncP.map (gen x) $ \lam t => (polyEval (MPoly_Fin-suc (mPoly-map (polyImageHom f a) t.1)) (msMonomial (later (a, element-polyImage f a)) zro), t.2 *> pmap {AddMonoidHom R S} (\lam f => mPolyEval _ $ monoidSet-map _ f t.1) (later $ exts \lam a => ide-right)
-                                  *> inv (MPoly_Fin-suc.f_eval {_} {S} (mPoly-map f t.1) {a} l) *> pmap (mPolyEval l) (pmap2 polyEval (pmap MPoly_Fin-suc.f (later $ cases t.1 \with {
-                     | in~ l' => pmap MonoidSet.inMS $ exts \lam j => ext (inv ide-right, idp)
-                   }) *> inv (MPoly_Fin-suc.f_polyMap {_} {_} {S} (\lam j => pmap (msMonomial __ _) ide-right) $ \lam b => idp)) (pmap (msMonomial __ _) (inv ide-right)) *> polyEval_polyMap {monoidSet-ringHom (AddMonoidCat.id _) _}))
-              \in LModule.generated-comp g t.2 s.2
+  | a :: (l : Array) =>
+    \let | g => polyImageHom f a
+         | h => SubRing.embed {polyImage f a}
+    \in LModule.generated-pullback g (integral-generated f a (fi a)) $ integralExt-generated h (integralExt-right g h fi) \lam x => TruncP.map (gen x) \lam t =>
+          (polyEval (MPoly_Fin-suc (mPoly-map (polyImageHom f a) t.1)) (msMonomial (later (a, polyImage-element)) zro),
+           t.2 *> pmap {AddMonoidHom R S} (\lam f => mPolyEval _ $ monoidSet-map _ f t.1) (later $ exts \lam a => ide-right) *>
+           inv (MPoly_Fin-suc.f_eval (mPoly-map f t.1) l) *> pmap (mPolyEval l) (pmap2 polyEval (pmap MPoly_Fin-suc.f (later $ cases t.1 \with {
+             | in~ l' => pmap MonoidSet.inMS $ exts \lam j => ext (inv ide-right, idp)
+           }) *> inv (MPoly_Fin-suc.f_polyMap (\lam j => pmap (msMonomial __ _) ide-right) $ \lam b => idp)) (pmap (msMonomial __ _) (inv ide-right)) *> polyEval_polyMap {monoidSet-ringHom (AddMonoidCat.id _) _}))
 
--- \lemma integral-comp {R S T : CRing} (f : RingHom R S) (g : RingHom S T) (fi : isIntegralExt f) {a : T} (ai : isIntegral g a) : isIntegral (g ∘ f) a \elim ai
---   | inP (p, inP (d,dp,dc), pa=0) => \let S' => Big {S} {CRing} (\lam x a => SubRing.cStruct $ polyImage (polyEvalRingHom x) a) S nil \in {?}
+\lemma integral-comp {R S T : CRing} (f : RingHom R S) (g : RingHom S T) (fi : isIntegralExt f) {a : T} (ai : isIntegral g a) : isIntegral (g ∘ f) a \elim ai
+  | inP (p, inP (d,dp,dc), pa=0) =>
+    \case suc d \as d', idp : d' = suc d \with {
+      | d', d'=d+1 =>
+        \let | SR : SubRing S => mPolyImage f (\new Array S d' (\lam j => polyCoef p j))
+             | S' => SubRing.cStruct SR
+             | f' : RingHom R S' => SR.corestrict f \lam y => inP (msMonomial y zro, simplify)
+             | fi' : isIntegralExt f' => integralExt-left f' SR.embed (\lam q => ext q) fi
+             | g' : RingHom S' T => g ∘ {_} {S'} SR.embed
+             | l' => \new Array S' d' (\lam j => (polyCoef p j, mPolyImage-element f (\new Array S d' (\lam j => polyCoef p j)) j))
+        \in module-integral (g' ∘ f') a (polyImage g' a) (\lam y => polyImage-ext (g ∘ SR.embed) a (f y, inP (msMonomial y zro, simplify))) (LModule.generated-comp f' (polyImageHom g' a) (integralExt-generated f' fi' {l'}
+            (\lam x => TruncP.map x.2 \lam t => (t.1, ext $ inv t.2 *> unfold (unfold $ unfold $ pmap2 evalMS (later $ cases t.1 \with {
+              | in~ l'' => pmap MonoidSet.inMS $ exts \lam j => ext (inv ide-right, idp)
+            }) (ext \case \elim __ \with {
+              | in~ l'' => inv SR.embed.func-BigProd
+            }) *> evalMS_map2 SR.embed)))) $
+        integral-generated g' a $ inP (Poly.fromArray l', inP (d, degree<_degree<= $ rewriteI d'=d+1 fromArray_degree<,
+           pmap (polyCoef _) (inv (toFin=id _)) *> polyCoef_fromArray {_} {l'} {toFin {d} $ rewrite d'=d+1 id<suc} *>
+           ext (pmap (polyCoef p) (toFin=id _) *> dc)), pmap (polyEval __ a) (inv (polyMap-comp SR.embed g) *>
+           pmap (polyMap g) (polyMap_fromArray *> inv (fromArray_polyCoef $ rewrite d'=d+1 $ degree<=_degree< dp))) *> pa=0)) polyImage-element
+    }
 
--- TODO
+\lemma integralExt-comp {R S E : CRing} (f : RingHom R S) (g : RingHom S E) (fi : isIntegralExt f) (gi : isIntegralExt g) : isIntegralExt (g ∘ f)
+  => \lam x => integral-comp f g fi (gi x)
+
 \func integralClosure {R E : CRing} (f : RingHom R E) : SubRing E \cowith
   | contains => isIntegral f
   | contains_zro => inP (monomial 1 1, monomial-isMonic 1, rewrite f.func-zro $ zro-right *> E.zro_*-right)
@@ -101,3 +144,7 @@
   | contains_ide => inP (padd (padd pzero 1) -1, {?}, {?})
   | contains_* => {?}
   | contains_negative => {?}
+  \where {
+    \lemma integral-combined {R E : CRing} (f : RingHom R E) {a b : E} (ai : isIntegral f a) (bi : isIntegral f b) : isIntegralExt (mPolyImageHom f (a :: b :: nil))
+      => {?}
+  }

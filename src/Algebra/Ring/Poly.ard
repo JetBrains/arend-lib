@@ -15,6 +15,7 @@
 \import Algebra.Semiring
 \import Arith.Nat
 \import Category \hiding (Map,univalence)
+\import Data.Array
 \import Data.Or
 \import Equiv
 \import Equiv.Fiber
@@ -91,6 +92,10 @@
   | pzero => idp
   | padd p e => pmap (padd __ _) (polyMap-comp f g)
 
+\lemma polyMap_fromArray {f : AddPointedHom} {l : Array f.Dom} : polyMap f (Poly.fromArray l) = Poly.fromArray (map f l) \elim l
+  | nil => idp
+  | a :: l => pmap (padd __ _) polyMap_fromArray
+
 \func polyEval {R : Ring} (p : Poly R) (a : R) : R \elim p
   | pzero => 0
   | padd p e => polyEval p a * a + e
@@ -111,6 +116,10 @@
   | pzero, n => inv f.func-zro
   | padd p e, 0 => idp
   | padd p e, suc n => polyCoef_polyMap
+
+\lemma polyCoef_fromArray {R : AddPointed} {l : Array R} {j : Fin l.len} : polyCoef (Poly.fromArray l) j = l j \elim l, j
+  | a :: l, 0 => idp
+  | a :: l, suc j => polyCoef_fromArray
 
 \func lastCoef {R : AddPointed} (p : Poly R) => polyCoef p 0
 
@@ -602,6 +611,22 @@
 \lemma degree<=_monomial {R : AddPointed} {c : R} {n : Nat} : degree<= (monomial c n) n \elim n
   | 0 => idp
   | suc n => degree<=_monomial
+
+\lemma fromArray_polyCoef {R : AddPointed} {n : Nat} {p : Poly R} (d : degree< p n) : p = Poly.fromArray (\new Array R n (\lam j => polyCoef p j)) \elim n, p
+  | 0, p => degree<=.trivialPoly (\lam k _ => d zero<=_)
+  | n, pzero => inv fromArray0
+  | suc n, padd p e => pmap (padd __ e) $ fromArray_polyCoef \lam q => d (suc<=suc q)
+  \where
+    \lemma fromArray0 {n : Nat} : Poly.fromArray (replicate n R.zro) = pzero \elim n
+      | 0 => idp
+      | suc n => pmap (padd __ zro) fromArray0 *> peq
+
+\lemma fromArray_degree< {R : AddPointed} {l : Array R} : degree< (Poly.fromArray l) l.len \elim l
+  | nil => \lam _ => idp
+  | a :: l => \lam {k} => \case \elim k \with {
+    | 0 => \lam d => \case suc_<=_< d
+    | suc k => \lam d => fromArray_degree< (suc<=suc.conv d)
+  }
 
 \lemma *c_monomial {R : Ring} {a c : R} {n : Nat} : a *c monomial c n = monomial (a * c) n \elim n
   | 0 => idp
