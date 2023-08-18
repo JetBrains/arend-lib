@@ -1,6 +1,7 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Pointed
+\import Function.Meta
 \import HLevel
 \import Logic
 \import Meta
@@ -17,10 +18,23 @@
             (gcd|val1 : LDiv gcd val1)
             (gcd|val2 : LDiv gcd val2)
             (gcd-univ : \Pi (g : M) -> LDiv g val1 -> LDiv g val2 -> LDiv g gcd)
-  \where {
-    \func swap (g : GCD {}) : GCD g.val2 g.val1 g.gcd g.gcd|val2 g.gcd|val1 \cowith
-      | gcd-univ g' g'|a g'|b => g.gcd-univ g' g'|b g'|a
-  }
+  {
+    \func swap : GCD val2 val1 gcd gcd|val2 gcd|val1 \cowith
+      | gcd-univ g g|a g|b => gcd-univ g g|b g|a
+
+    \func reduce (p : \Pi {x y : M} -> gcd * x = gcd * y -> x = y)
+      : GCD gcd|val1.inv gcd|val2.inv 1 LDiv.ide-div LDiv.ide-div \cowith
+      | gcd-univ g (g|a : LDiv) (g|b : LDiv) => \let t : LDiv => gcd-univ (gcd * g) (\new LDiv {
+        | inv => g|a.inv
+        | inv-right => *-assoc *> rewrite g|a.inv-right gcd|val1.inv-right
+      }) (\new LDiv {
+        | inv => g|b.inv
+        | inv-right => *-assoc *> rewrite g|b.inv-right gcd|val2.inv-right
+      }) \in \new LDiv {
+        | inv => t.inv
+        | inv-right => p $ inv *-assoc *> t.inv-right *> inv ide-right
+      }
+}
 
 \class GCDMonoid \extends CancelCMonoid
   | isGCD (x y : E) : TruncP (GCD x y)
@@ -192,7 +206,7 @@
           }
   }
 
-\lemma gcd_*_div {M : GCDMonoid} (a b c : M) (a|bc : LDiv a (b * c)) (a_b : GCD a b ide) : LDiv a c
+\lemma gcd_*_div {M : GCDMonoid} {a b c : M} (a|bc : LDiv a (b * c)) (a_b : GCD a b ide) : LDiv a c
   => div-from~ (later rewriteI (pmap (`* inD c) (inv (gcd_~ (gcd-to~ a_b))) *> ide-left {_} {inD c})
                                (gcd_*_div (inD a) (inD b) (inD c) (div-to~ a|bc)))
   \where {
@@ -200,32 +214,20 @@
     \open DivQuotient
   }
 
+\lemma gcd_pow_div {M : GCDMonoid} {a b : M} {n : Nat} (a|bc : LDiv a (M.pow b n)) (a_b : GCD a b ide) : LDiv a b \elim n
+  | 0 => \new LDiv {
+    | inv => a|bc.inv * b
+    | inv-right => inv *-assoc *> pmap (`* b) a|bc.inv-right *> ide-left
+  }
+  | suc n => gcd_pow_div (gcd_*_div (rewriteF *-comm a|bc) a_b) a_b
+
 \func div_gcd {M : CMonoid} {a b : M} (a|b : LDiv a b) : GCD b a a \cowith
   | gcd|val1 => a|b
   | gcd|val2 => \new LDiv { | inv => 1 | inv-right => ide-right }
   | gcd-univ g g|b g|a => g|a
 
 \func gcd_reduced=1 {M : CancelCMonoid} (gcd : GCD {M}) : GCD gcd.gcd|val1.inv gcd.gcd|val2.inv 1
-  => aux gcd (cancel-left gcd.gcd)
-  \where
-    \func aux {M : CMonoid} (gcd : GCD {M}) (cancel : \Pi {x y : M} -> gcd.gcd * x = gcd.gcd * y -> x = y) : GCD gcd.gcd|val1.inv gcd.gcd|val2.inv 1 \cowith
-      | gcd|val1 => \new LDiv {
-        | inv => gcd.gcd|val1.inv
-        | inv-right => ide-left
-      }
-      | gcd|val2 => \new LDiv {
-        | inv => gcd.gcd|val2.inv
-        | inv-right => ide-left
-      }
-      | gcd-univ g (g|inv1 : LDiv) (g|inv2 : LDiv) => CMonoid.divInv cancel (gcd.gcd-univ (gcd.gcd * g)
-          (\new LDiv {
-            | inv => g|inv1.inv
-            | inv-right => *-assoc *> pmap (_ *) g|inv1.inv-right *> gcd.gcd|val1.inv-right
-          })
-          (\new LDiv {
-            | inv => g|inv2.inv
-            | inv-right => *-assoc *> pmap (_ *) g|inv2.inv-right *> gcd.gcd|val2.inv-right
-          }))
+  => gcd.reduce (cancel-left gcd.gcd)
 
 \lemma gcd-isUnique {M : CancelCMonoid} {a b : M} (g1 g2 : GCD a b) : areAssociates g1.gcd g2.gcd
   => equivalent-areAssociates g1.gcd g2.gcd (make~ g1.gcd g2.gcd (gcd-isUnique (gcd-to~ g1) (gcd-to~ g2)))

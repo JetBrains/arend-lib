@@ -1,4 +1,5 @@
 \import Algebra.Algebra
+\import Algebra.Group
 \import Algebra.Group.Category
 \import Algebra.Linear.Matrix
 \import Algebra.Linear.Matrix.CharPoly
@@ -21,7 +22,7 @@
 \import Category
 \import Data.Array
 \import Equiv (Equiv)
-\import Function (isInj)
+\import Function (isInj, isSurj)
 \import Function.Meta
 \import HLevel
 \import Logic
@@ -72,6 +73,9 @@
       \in inP (mkArray $ \lam j => polyCoef r j, (unfold,unfold) at ga $ ext $ inv ga *> rewrite (g=q*p+r,polyMapRingHom.func-+,polyEvalRingHom.func-+,polyMapRingHom.func-*,polyEvalRingHom.func-*,e,E.zro_*-right)
             (zro-left *> polyEval_polyCoef (degree<_polyMap dr<n) *> pmap AddMonoid.BigSum (arrayExt $ \lam j => pmap2 (*) polyCoef_polyMap (inv SubMonoid.struct_pow)) *> inv SubAddMonoid.struct_BigSum))
 
+\func isIntegral (f : RingHom) (x : f.Cod) : \Prop
+  => ∃ (p : Poly f.Dom) (isMonic p) (polyEval (polyMap f p) x = 0)
+
 \lemma module-integral {R E : CRing} (f : RingHom R E) (a : E) (S : SubRing E) (SR : \Pi (x : R) -> S (f x))
                        (Sg : LModule.isFinitelyGenerated {homLModule (S.corestrict f SR)}) (Sa : S a) : isIntegral f a \elim Sg
   | inP (l,Sg) => TruncP.map (module-monic l Sg) \lam d => (d.1, inP (_, d.2, d.3), d.4)
@@ -86,11 +90,8 @@
                    \lam x p => inv ide-right *> pmap (x *) (pmap __.1 d.2 *> S.struct_BigSum) *> E.BigSum-ldistr *> E.BigSum_zro (\lam i => equation {usingOnly (pmap (__ i 0) p)}),
                    matrixExt $ \lam i _ => pmap __.1 (Sg' i).2 *> S.struct_BigSum)))
 
-\func isIntegral (f : RingHom) (x : f.Cod) : \Prop
-  => ∃ (p : Poly f.Dom) (isMonic p) (polyEval (polyMap f p) x = 0)
-
 \func isIntegralExt (f : RingHom) : \Prop
-  => \Pi (x : f.Cod) -> isIntegral f x
+  => \Pi (a : f.Cod) -> isIntegral f a
 
 \lemma integral-generated {R E : CRing} (f : RingHom R E) (a : E) (ai : isIntegral f a) : LModule.isFinitelyGenerated {homLModule (polyImageHom f a)} \elim ai
   | inP (p, inP t, pc) => inP (_, monic-generated f a p t.1 t.2 t.3 pc)
@@ -108,8 +109,14 @@
   | inP (p, inP t, pc) => \lam (x, inP (q,qa=x)) => TruncP.map (poly_integral.aux f a p t.1 t.2 t.3 pc q qa=x)
       \lam s => (s.1, inP (t.1,s.2,s.3), ext $ inv (polyEval_polyMap {SubRing.embed {polyImage f a}}) *> pmap (polyEval __ x) (polyMap-comp _ _) *> s.4)
 
-\lemma integral_image {R S E : Ring} {f : RingHom R S} (g : RingHom S E) {a : S} (ai : isIntegral f a) : isIntegral (g ∘ f) (g a) \elim ai
+\lemma integral_image-comp {R S E : Ring} {f : RingHom R S} (g : RingHom S E) {a : S} (ai : isIntegral f a) : isIntegral (g ∘ f) (g a) \elim ai
   | inP t => inP (t.1, t.2, pmap (polyEval __ _) (inv (polyMap-comp f g)) *> polyEval_polyMap *> pmap g t.3 *> g.func-zro)
+
+\lemma integralExt-surj (f : RingHom) (s : isSurj f) : isIntegralExt f
+  => \lam a => TruncP.map (s a) \lam (b,fb=a) => (padd 1 (negative b), inP (1, idp, idp), rewrite (f.func-ide,f.func-negative,fb=a) simplify)
+
+\lemma integral_image (f : RingHom) (a : f.Dom) : isIntegral f (f a)
+  => integral_image-comp {_} {_} {_} {id f.Dom} f {a} $ integralExt-surj (id f.Dom) (\lam y => inP (y, idp)) a
 
 \lemma integralExt-left {R S E : Ring} (f : RingHom R S) (g : RingHom S E) (inj : isInj g) (int : isIntegralExt (g ∘ f)) : isIntegralExt f
   => \lam x => TruncP.map (int (g x)) $ \lam t => (t.1, t.2, inj $ inv polyEval_polyMap *> pmap (polyEval __ _) (polyMap-comp f g) *> t.3 *> inv g.func-zro)
@@ -133,7 +140,7 @@
              | in~ l' => pmap MonoidSet.inMS $ exts \lam j => ext (inv ide-right, idp)
            }) *> inv (MPoly_Fin-suc.f_polyMap (\lam j => pmap (msMonomial __ _) ide-right) $ \lam b => idp)) (pmap (msMonomial __ _) (inv ide-right)) *> polyEval_polyMap {monoidSet-ringHom (AddMonoidCat.id _) _}))
 
-\lemma integral-comp {R S T : CRing} (f : RingHom R S) (g : RingHom S T) (fi : isIntegralExt f) {a : T} (ai : isIntegral g a) : isIntegral (g ∘ f) a \elim ai
+\lemma integral-comp {R S T : CRing} {f : RingHom R S} {g : RingHom S T} (fi : isIntegralExt f) {a : T} (ai : isIntegral g a) : isIntegral (g ∘ f) a \elim ai
   | inP (p, inP (d,dp,dc), pa=0) =>
     \case suc d \as d', idp : d' = suc d \with {
       | d', d'=d+1 =>
@@ -156,15 +163,15 @@
     }
 
 \lemma integralExt-comp {R S E : CRing} (f : RingHom R S) (g : RingHom S E) (fi : isIntegralExt f) (gi : isIntegralExt g) : isIntegralExt (g ∘ f)
-  => \lam x => integral-comp f g fi (gi x)
+  => \lam x => integral-comp fi (gi x)
 
 \func integralClosure-subring {R E : CRing} (f : RingHom R E) : SubRing E \cowith
   | contains => isIntegral f
   | contains_zro => inP (monomial 1 1, monomial-isMonic 1, rewrite f.func-zro $ zro-right *> E.zro_*-right)
-  | contains_+ {a} {b} ai bi => integral_image (SubRing.embed {polyImage SubRing.embed b}) $
+  | contains_+ {a} {b} ai bi => integral_image-comp (SubRing.embed {polyImage SubRing.embed b}) $
       integral-combined f ai bi (a + b, inP $ (padd 1 $ repeat {4} unfold (a, inP (padd 1 0, rewrite (f.func-ide,f.func-zro) simplify)), repeat {3} unfold equation))
   | contains_ide => inP (padd (padd pzero 1) -1, inP (1,idp,idp), rewrite (f.func-negative,f.func-ide) simplify)
-  | contains_* {a} {b} ai bi => integral_image (SubRing.embed {polyImage SubRing.embed b}) $
+  | contains_* {a} {b} ai bi => integral_image-comp (SubRing.embed {polyImage SubRing.embed b}) $
       integral-combined f ai bi (a * b, inP (padd (padd pzero (a, inP (padd 1 0, unfold $ unfold $
         rewrite (f.func-ide,f.func-zro) simplify))) (zro {SubRing.cStruct (polyImage f a)}), repeat {3} unfold simplify))
   | contains_negative {a} ai => transport (isIntegral f) (later $ rewrite (f.func-negative,f.func-zro,f.func-ide) equation) $ poly_integral f a ai (padd (padd pzero -1) 0)
@@ -173,3 +180,21 @@
       : isIntegralExt (polyImageHom (SubRing.embed {polyImage f a}) b ∘ polyImageHom f a)
       => integralExt-comp (polyImageHom f a) (polyImageHom (SubRing.embed {polyImage f a}) b) (polyImage_integralExt a ai) $
           polyImage_integralExt {SubRing.cStruct (polyImage f a)} b $ integral-right (polyImageHom f a) (SubRing.embed {polyImage f a}) b bi
+
+\func integralClosure {R E : CRing} (f : RingHom R E) : CRing
+  => SubRing.cStruct (integralClosure-subring f)
+
+\func integralClosure-left {R E : CRing} (f : RingHom R E) : RingHom R (integralClosure f)
+  => SubRing.corestrict f \lam a => later (integral_image f a)
+
+\func integralClosure-right {R E : CRing} (f : RingHom R E) : RingHom (integralClosure f) E
+  => SubRing.embed {integralClosure-subring f}
+
+\func isIntegrallyClosed (f : RingHom)
+  => \Pi (a : f.Cod) -> isIntegral f a -> ∃ (b : f.Dom) (f b = a)
+
+\lemma integralClosure-integral {R E : CRing} (f : RingHom R E) : isIntegralExt (integralClosure-left f)
+  => \lam a => TruncP.map a.2 \lam t => (t.1, t.2, ext $ inv (polyEval_polyMap {integralClosure-right f}) *> pmap (polyEval __ _) (polyMap-comp _ _) *> t.3)
+
+\lemma integralClosure-closed {R E : CRing} (f : RingHom R E) : isIntegrallyClosed (integralClosure-right f)
+  => \lam a ai => inP ((a, integral-comp {R} {integralClosure f} (integralClosure-integral f) ai ), idp)

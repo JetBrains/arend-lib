@@ -1,12 +1,18 @@
+\import Algebra.Field
+\import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
+\import Algebra.Monoid.Sub
 \import Algebra.Ring
+\import Algebra.Ring.Localization
 \import Algebra.Semiring
+\import Data.Or
 \import Function.Meta ($)
 \import Logic
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
 \import Set
 
 {- | Domain is a ring with a tight apartness relation such that elements apart from {zro} are closed under finite products.
@@ -43,6 +49,11 @@
     | cancel-left x {y} {z} x*y=x*z => ext (nonZero-cancel-left (apartNonZero x.2) (pmap __.1 x*y=x*z))
     | cancel-right z {x} {y} x*z=y*z => ext (nonZero-cancel-right (apartNonZero z.2) (pmap __.1 x*z=y*z))
 
+  \func subMonoid : SubMonoid \this \cowith
+    | contains => #0
+    | contains_ide => zro#ide
+    | contains_* => apartZeroProduct
+
   \lemma ldiv_nonZero {a b : E} {a#0 : a `#0} {b#0 : b `#0} (a|b : Monoid.LDiv a b) : Monoid.LDiv {nonZeroMonoid} (a,a#0) (b,b#0) \cowith
     | inv => (a|b.inv, #0-*-right (transportInv #0 a|b.inv-right b#0))
     | inv-right => ext a|b.inv-right
@@ -60,6 +71,10 @@
     | inv => i.inv.1
     | inv-left => pmap __.1 i.inv-left
     | inv-right => pmap __.1 i.inv-right
+
+  \lemma pow_#0 {a : E} {n : Nat} (a#0 : a `#0) : pow a n `#0 \elim n
+    | 0 => zro#ide
+    | suc n => apartZeroProduct (pow_#0 a#0) a#0
 } \where {
   \class Dec \extends Domain, Ring.Dec, StrictDomain {
     \default zro/=ide zro=ide => #0-zro (transportInv #0 zro=ide zro#ide)
@@ -90,8 +105,17 @@
 } \where {
   \open Monoid
 
-  \class Dec \extends Domain.Dec, StrictIntegralDomain
+  \class Dec \extends IntegralDomain, Domain.Dec, StrictIntegralDomain
 }
+
+\instance FieldOfQuotients (D : IntegralDomain.Dec) : DiscreteField \cowith
+  | CRing => LocRing D.subMonoid
+  | eitherZeroOrInv => \case \elim __ \with {
+    | in~ x => \case decideEq x.1 0 \with {
+      | yes e => inl $ LocRing.equals1 _ $ ide-right *> e *> inv zro_*-left
+      | no q => inr $ Monoid.Inv.lmake (inl~ (x.2, x.1, AddGroup.nonZeroApart q)) $ LocRing.equals1 _ (simplify *-comm)
+    }
+  }
 
 \class StrictDomain \extends Ring, NonZeroSemiring
   | zeroProduct {x y : E} : x * y = zro -> (x = zro) || (y = zro)
