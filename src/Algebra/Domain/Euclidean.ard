@@ -1,4 +1,3 @@
-\import Algebra.Domain
 \import Algebra.Domain.GCD
 \import Algebra.Domain.PID
 \import Algebra.Group
@@ -12,6 +11,7 @@
 \import Data.Or
 \import Function.Meta
 \import Logic
+\import Logic.Classical
 \import Logic.Meta
 \import Meta
 \import Order.LinearOrder
@@ -19,7 +19,9 @@
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
 \import Set \hiding (#)
+\import Set.Fin
 \open Monoid(LDiv,Inv)
 
 \class EuclideanSemiringData \extends CSemiring, DecSet {
@@ -187,10 +189,22 @@
        rewrite d.bezoutIdentity (GCD.gcd|val1 {d.gcd-isGCD a b}),
        rewrite d.bezoutIdentity (GCD.gcd|val2 {d.gcd-isGCD a b}))
   | divChain a c => \case isEuclidean \with {
-    | inP d => TruncP.map (aux {d} (suc (euclideanMap {d} (a 0).1)) (\lam i => ((a i).1, AddGroup.With#.apartNonZero (a i).2)) (\lam i => Domain.nonZero_ldiv (c i)) (a 0).1 LDiv.id-div LDiv.id-div id<suc) $ \lam s => (s.1, Domain.ldiv_nonZero s.2)
+    | inP d => cases (a 0 arg addPath) \with {
+      | in~ a0, ap =>
+        \let n => suc (euclideanMap {d} a0.1)
+        \in \case Choice.liftSurj Quotient.in-surj (\lam (j : Fin (suc n)) => a j) \with {
+          | inP (b,bp) => TruncP.map (aux {d} n (\lam i => ((b i).1, AddGroup.With#.apartNonZero (b i).2))
+              (\lam i => nonZero_ldiv {_} {_} {_} {(b (suc i)).2} {(b i).2} $ div-from~ {nonZeroMonoid} $ rewrite (bp (suc i), bp i) (c i)) a0.1
+              (nonZero_ldiv {_} {_} {_} {(b 0).2} {a0.2} $ div-from~ {nonZeroMonoid} $ rewrite (bp 0, ap) LDiv.id-div)
+              (nonZero_ldiv {_} {_} {_} {a0.2} {(b 0).2} $ div-from~ {nonZeroMonoid} $ rewrite (bp 0, ap) LDiv.id-div)
+              id<suc) $ \lam s => (s.1, rewriteI (bp s.1, bp (suc s.1)) $ div-to~ {nonZeroMonoid} $ ldiv_nonZero s.2)
+        }
+    }
   }
   \where {
-    \lemma aux {R : EuclideanRingData} (n : Nat) (a : Nat -> \Sigma (x : R) (x /= 0)) (c : \Pi (i : Nat) -> LDiv (a (suc i)).1 (a i).1) (b : R) (a0|b : LDiv (a 0).1 b) (b|a0 : LDiv b (a 0).1) (p : euclideanMap b < n) : ∃ (i : Nat) (LDiv (a i).1 (a (suc i)).1) \elim n
+    \open DivQuotient
+
+    \lemma aux {R : EuclideanRingData} (n : Nat) (a : Fin (suc n) -> \Sigma (x : R) (x /= 0)) (c : \Pi (i : Fin n) -> LDiv (a (suc i)).1 (a i).1) (b : R) (a0|b : LDiv (a 0).1 b) (b|a0 : LDiv b (a 0).1) (p : euclideanMap b < n) : ∃ (i : Fin n) (LDiv (a i).1 (a (suc i)).1) \elim n
       | 0 => \case p
       | suc n => \case isPseudonorm {_} {b} {(a 1).1} (ldiv/=0 (a 0).2 b|a0) (LDiv.trans (c 0) a0|b) \with {
         | inl b|a1 => inP (0, LDiv.trans a0|b b|a1)
