@@ -6,6 +6,7 @@
 \import Algebra.Monoid.Sub
 \import Algebra.Ring
 \import Algebra.Ring.Localization
+\import Algebra.Ring.Reduced
 \import Algebra.Semiring
 \import Data.Or
 \import Function.Meta ($)
@@ -18,14 +19,21 @@
 {- | Domain is a ring with a tight apartness relation such that elements apart from {zro} are closed under finite products.
  -   Classically, this is equivalent to the usual definition since there is a unique apartness relation on a set assuming LEM.
  -}
-\class Domain \extends Ring.With# {
+\class Domain \extends Ring.With#, ImpotentRing {
   | zro#ide : ide `#0
-  | apartZeroProduct {x y : E} : x `#0 -> y `#0 -> (x * y) `#0
+  | #0-* {x y : E} : x `#0 -> y `#0 -> (x * y) `#0
+
+  | isReduced p => #0-tight $ \lam a#0 => #0-zro $ transport #0 p (#0-* a#0 a#0)
+  | isIdempotent {a} p => \have q : a * (1 - a) = 0 => ldistr *> rewrite negative_*-right (toZero $ ide-right *> inv p)
+                          \in \case #0-+ {_} {a} {1 - a} (simplify zro#ide) \with {
+                            | byLeft a#0 => byRight $ inv $ fromZero $ #0-tight \lam zro-a#0 => apartNonZero (#0-* a#0 zro-a#0) q
+                            | byRight zro-a#0 => byLeft $ #0-tight \lam a#0 => apartNonZero (#0-* a#0 zro-a#0) q
+                          }
 
   \lemma nonZeroProduct {x y : E} (x/=0 : x /= zro) (y/=0 : y /= zro) : x * y /= zro => \lam x*y=0 =>
     x/=0 (#0-tight (\lam x#0 =>
     y/=0 (#0-tight (\lam y#0 =>
-        #0-zro (transport #0 x*y=0 (apartZeroProduct x#0 y#0))))))
+        #0-zro (transport #0 x*y=0 (#0-* x#0 y#0))))))
 
   \lemma nonZero-left {x y : E} (x/=0 : x /= zro) (x*y=0 : x * y = zro) : y = zro
     => separatedEq (nonZeroProduct x/=0 __ x*y=0)
@@ -42,7 +50,7 @@
   \func nonZeroMonoid : CancelMonoid \cowith
     | E => \Sigma (x : E) (x `#0)
     | ide => (ide, zro#ide)
-    | * x y => (x.1 * y.1, apartZeroProduct x.2 y.2)
+    | * x y => (x.1 * y.1, #0-* x.2 y.2)
     | ide-left => ext ide-left
     | ide-right => ext ide-right
     | *-assoc => ext *-assoc
@@ -52,7 +60,7 @@
   \func subMonoid : SubMonoid \this \cowith
     | contains => #0
     | contains_ide => zro#ide
-    | contains_* => apartZeroProduct
+    | contains_* => #0-*
 
   \lemma ldiv_nonZero {a b : E} {a#0 : a `#0} {b#0 : b `#0} (a|b : Monoid.LDiv a b) : Monoid.LDiv {nonZeroMonoid} (a,a#0) (b,b#0) \cowith
     | inv => (a|b.inv, #0-*-right (transportInv #0 a|b.inv-right b#0))
@@ -74,22 +82,22 @@
 
   \lemma pow_#0 {a : E} {n : Nat} (a#0 : a `#0) : pow a n `#0 \elim n
     | 0 => zro#ide
-    | suc n => apartZeroProduct (pow_#0 a#0) a#0
+    | suc n => #0-* (pow_#0 a#0) a#0
 } \where {
   \class Dec \extends Domain, Ring.Dec, StrictDomain {
     \default zro/=ide zro=ide => #0-zro (transportInv #0 zro=ide zro#ide)
     \default zeroProduct {x} {y} xy=0 => \case decideEq x zro, decideEq y zro \with {
       | yes x=0, _ => byLeft x=0
       | _, yes y=0 => byRight y=0
-      | no x/=0, no y/=0 => absurd $ #0-zro $ transport #0 xy=0 $ apartZeroProduct (nonZeroApart x/=0) (nonZeroApart y/=0)
+      | no x/=0, no y/=0 => absurd $ #0-zro $ transport #0 xy=0 $ #0-* (nonZeroApart x/=0) (nonZeroApart y/=0)
     }
     \default zro#ide => nonZeroApart (\lam x => zro/=ide (inv x))
-    \default apartZeroProduct x#0 y#0 => nonZeroApart (\lam xy=0 => ||.rec' (apartNonZero x#0) (apartNonZero y#0) (zeroProduct xy=0))
+    \default #0-* x#0 y#0 => nonZeroApart (\lam xy=0 => ||.rec' (apartNonZero x#0) (apartNonZero y#0) (zeroProduct xy=0))
   }
 }
 
 -- | An integral domain is a commutative domain.
-\class IntegralDomain \extends Domain, CRing.With# {
+\class IntegralDomain \extends Domain, CRing.With#, ImpotentCRing {
   \func nonZeroMonoid : CancelCMonoid \cowith
     | CancelMonoid => Domain.nonZeroMonoid
     | *-comm => ext *-comm
