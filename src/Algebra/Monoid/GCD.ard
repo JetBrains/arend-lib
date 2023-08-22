@@ -1,5 +1,6 @@
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Pointed
 \import Function.Meta
 \import HLevel
@@ -130,7 +131,7 @@
 
     \cons inD {M : CMonoid} (x : M) : DivQuotient M => in~ x
 
-    \lemma make~ {M : CMonoid} (x y : M) (p : inD x = inD y) : x ~ y =>
+    \lemma make~ {M : CMonoid} {x y : M} (p : inD x = inD y) : x ~ y =>
       Quotient.equalityEquiv (Preorder.EquivRel {DivPreoder M}) p
 
     \lemma equivalent-areAssociates {M : CancelCMonoid} (x y : M) (p : x ~ y) : areAssociates x y \elim p
@@ -162,7 +163,7 @@
     \instance DivQuotientCancelMonoid (M : CancelCMonoid) : UnitlessMonoid
       | CMonoid => DivQuotientMonoid M
       | cancel-left (inD x) {inD y} {inD z} x*y=x*z => path (~-equiv y z (
-          \case make~ (x * y) (x * z) x*y=x*z \return y ~ z \with {
+          \case make~ x*y=x*z \return y ~ z \with {
             | (inP x*z|x*y, inP x*y|x*z) => (inP (LDiv.cancel-left y x*z|x*y), inP (LDiv.cancel-left z x*y|x*z))
           }))
       | uniqueUnit (j : Inv) => \case j.val \as [x], j.inv \as [y], j.inv-right : [x] * [y] = inD ide \return [x] = inD ide \with {
@@ -176,11 +177,23 @@
       | inv => inD x|y.inv
       | inv-right => pmap inD x|y.inv-right
 
-    \lemma div-from~ {M : CancelCMonoid} {x y : M} (d : LDiv (inD x) (inD y)) : LDiv x y =>
-      \case d.inv \as i, d.inv-right : inD x * i = inD y \return LDiv x y \with {
-        | inD i, ~x*i=y => \case (make~ (x * i) y ~x*i=y).2 \return LDiv x y \with {
-          | inP (x*i|y : LDiv (x * i) y) => \new LDiv x y (i * x*i|y.inv) (inv *-assoc *> x*i|y.inv-right)
+    \lemma div-from~' {M : CMonoid} {x y : M} (d : LDiv (inD x) (inD y)) : TruncP (LDiv x y) =>
+      \case d.inv \as i, d.inv-right : inD x * i = inD y \with {
+        | inD i, ~x*i=y => \case (make~ ~x*i=y).2 \with {
+          | inP (x*i|y : LDiv (x * i) y) => inP \new LDiv x y (i * x*i|y.inv) (inv *-assoc *> x*i|y.inv-right)
         }
+      }
+
+    \lemma div-from~ {M : CancelCMonoid} {x y : M} (d : LDiv (inD x) (inD y)) : LDiv x y
+      => \case div-from~' d \with {
+           | inP r => r
+         }
+
+    \func map {M N : CMonoid} (f : MonoidHom M N) : MonoidHom (DivQuotientMonoid M) (DivQuotientMonoid N) \cowith
+      | func => Quotient.map f \lam p => later (TruncP.map p.1 f.func-LDiv, TruncP.map p.2 f.func-LDiv)
+      | func-ide => pmap in~ f.func-ide
+      | func-* {x} {y} => \case \elim x, \elim y \with {
+        | in~ a, in~ a' => pmap in~ f.func-*
       }
 
     -- | If the original monoid is a GCD-monoid, then the quotient monoid is a unit-less GCD-monoid.
@@ -230,7 +243,7 @@
   => gcd.reduce (cancel-left gcd.gcd)
 
 \lemma gcd-isUnique {M : CancelCMonoid} {a b : M} (g1 g2 : GCD a b) : areAssociates g1.gcd g2.gcd
-  => equivalent-areAssociates g1.gcd g2.gcd (make~ g1.gcd g2.gcd (gcd-isUnique (gcd-to~ g1) (gcd-to~ g2)))
+  => equivalent-areAssociates g1.gcd g2.gcd (DivQuotient.make~ (gcd-isUnique (gcd-to~ g1) (gcd-to~ g2)))
   \where {
     \open DivQuotient
     \open UnitlessMonoid

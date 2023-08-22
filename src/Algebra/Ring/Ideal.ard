@@ -2,6 +2,7 @@
 \import Algebra.Group.Sub
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.GCD
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Arith.Int
@@ -17,6 +18,7 @@
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
 \import Set
 \import Set.Fin
 \open AddMonoid
@@ -34,6 +36,9 @@
   \override S : Ring
   | ideal-right {r a : S} : contains a -> contains (a * r)
   | contains_negative c => transport contains (Ring.negative_*-right *> pmap negative ide-right) (ideal-right c)
+
+  \lemma ldiv {a b : S} (a|b : Monoid.LDiv a b) (Ia : contains a) : contains b
+    => transport contains a|b.inv-right (ideal-right Ia)
 }
 
 -- | Two-sided ideal
@@ -72,6 +77,13 @@
     => \case FinSum_char a \with {
          | inP (e,q) => transportInv contains q $ bigSum _ $ \lam i => p (e i)
        }
+
+  \func isGenerated (l : Array (\Sigma (x : S) (contains x)))
+    => \Pi {a : S} -> contains a -> ∃ (l' : Array S l.len) (a = BigSum (\lam j => l' j * (l j).1))
+
+  \func isFinitelyGenerated => ∃ (l : Array (\Sigma (x : S) (contains x))) (isGenerated l)
+
+  \func isPrincipal => ∃ (a : S) (contains a) (\Pi {b : S} -> contains b -> TruncP (Monoid.LDiv a b))
 } \where {
   \func closure {R : CRing} {J : \Set} (g : J -> R) : Ideal R \cowith
     | contains e => ∃ (l : Array (\Sigma R J)) (e = BigSum (map (\lam p => p.1 * g p.2) l))
@@ -145,4 +157,20 @@
           | no n, yes e => absurd (n (pmap pred e))
         })
     }
+
+  \func ChainCondition {R : CRing} (I : Nat -> Ideal R) =>
+    (\Pi (n : Nat) {a : R} -> I n a -> I (suc n) a) -> ∃ (n : Nat) (\Pi {a : R} -> I (suc n) a -> I n a)
+
+  \lemma fromMonoidChainCondition {R : CRing} (cc : CMonoid.DivChain {DivQuotient.DivQuotientMonoid R})
+    (I : Nat -> Ideal R) (p : \Pi (n : Nat) -> Ideal.isPrincipal {I n}) : ChainCondition I
+    => \lam f =>
+        \let | r n => TruncP.rec-set (p n) (\lam s => in~ s.1) \lam s s' => ~-pequiv $ later (s'.3 s.2, s.3 s'.2)
+             | t => cc (\lam n => (r n).1) \lam n => \case (r n).2, (r (suc n)).2 \with {
+               | inP sn, inP sn+1 => transport2 (\lam x y => TruncP (Monoid.LDiv x y)) sn+1.2 sn.2 $ TruncP.map (sn+1.1.3 $ f n sn.1.2) DivQuotient.div-to~
+             }
+        \in TruncP.map t \lam s => (s.1, \case (r s.1).2, (r (suc s.1)).2 \with {
+          | inP d, inP d' => \lam c => \case DivQuotient.div-from~' $ transport2 Monoid.LDiv (inv d.2) (inv d'.2) s.2, d'.1.3 c \with {
+            | inP d|d', inP d'|a => ldiv d'|a (ldiv d|d' d.1.2)
+          }
+        })
 }

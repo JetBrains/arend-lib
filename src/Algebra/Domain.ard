@@ -2,19 +2,27 @@
 \import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Monoid.GCD
 \import Algebra.Monoid.Sub
 \import Algebra.Ring
 \import Algebra.Ring.Localization
 \import Algebra.Ring.Reduced
 \import Algebra.Semiring
+\import Arith.Nat
 \import Data.Or
+\import Function
 \import Function.Meta ($)
 \import Logic
+\import Logic.Meta
+\import Meta
+\import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
 \import Set
+\import Set.Fin
 
 {- | Domain is a ring with a tight apartness relation such that elements apart from {zro} are closed under finite products.
  -   Classically, this is equivalent to the usual definition since there is a unique apartness relation on a set assuming LEM.
@@ -25,7 +33,7 @@
 
   | isReduced p => #0-tight $ \lam a#0 => #0-zro $ transport #0 p (#0-* a#0 a#0)
   | isIdempotent {a} p => \have q : a * (1 - a) = 0 => ldistr *> rewrite negative_*-right (toZero $ ide-right *> inv p)
-                          \in \case #0-+ {_} {a} {1 - a} (simplify zro#ide) \with {
+                          \in \case #0-+ (transportInv #0 (+-comm *> +-assoc *> pmap (1 +) negative-left *> zro-right) zro#ide) \with {
                             | byLeft a#0 => byRight $ inv $ fromZero $ #0-tight \lam zro-a#0 => apartNonZero (#0-* a#0 zro-a#0) q
                             | byRight zro-a#0 => byLeft $ #0-tight \lam a#0 => apartNonZero (#0-* a#0 zro-a#0) q
                           }
@@ -113,7 +121,49 @@
 } \where {
   \open Monoid
 
-  \class Dec \extends IntegralDomain, Domain.Dec, StrictIntegralDomain
+  \class Dec \extends IntegralDomain, Domain.Dec, StrictIntegralDomain {
+    \lemma divQuotient_dec0 (a : DivQuotient \this) : Set.Dec (a = in~ 0)
+      | in~ a => \case decideEq a 0 \with {
+        | yes e => yes $ ~-pequiv $ rewrite e (inP LDiv.id-div, inP LDiv.id-div)
+        | no q => no \lam p => q $ \case (DivQuotient.make~ p).1 \with {
+          | inP d => inv (LDiv.inv-right {d}) *> zro_*-left
+        }
+      }
+
+    \lemma fromNonZeroDivChain (cc : CMonoid.DivChain {DivQuotient.DivQuotientMonoid nonZeroMonoid}) : CMonoid.DivChain {DivQuotient.DivQuotientMonoid \this}
+      => \lam a ac =>
+          \have | f => DivQuotient.map {SubMonoid.cStruct subMonoid} subMonoid.embed
+                | f-inj : isInj f => \lam {x} {y} => \case \elim x, \elim y \with {
+                  | in~ x, in~ y => \lam p => \have t => DivQuotient.make~ p \in ~-pequiv (TruncP.map t.1 ldiv_nonZero, TruncP.map t.2 ldiv_nonZero)
+                }
+                | f-lem {x} {y} (d : LDiv {DivQuotient.DivQuotientMonoid \this} (f x) (f y)) : TruncP (LDiv x y) =>
+                  \case x \as x, y \as y, d.inv \as z, d.inv-right : f x * {DivQuotient.DivQuotientMonoid \this} z = f y \return TruncP (LDiv x y) \with {
+                    | in~ x, in~ y, in~ z, p => TruncP.map (DivQuotient.make~ p).2 \lam s => DivQuotient.div-to~ $ ldiv_nonZero $ LDiv.trans (LDiv.factor-left LDiv.id-div) s
+                  }
+                | r n (q : Not (∃ (j : Fin (suc (suc n))) (a (suc j) = in~ 0))) => TruncP.rec {_} {\Sigma (x : DivQuotient nonZeroMonoid) (f x = a (suc n))} (\lam s s' => ext $ f-inj $ s.2 *> inv s'.2) (Quotient.in-surj (a (suc n)))
+                   \lam s => (in~ (s.1, nonZeroApart \lam s=0 => q $ inP (n, pmap (\lam x => a (suc x)) (toFin=id $ <-transitive id<suc id<suc) *> inv s.2 *> pmap in~ s=0)), s.2)
+                | t => cc (\lam n => \case FinSet.search {FinFin (suc (suc n))} _ (\lam j => divQuotient_dec0 (a (suc j))) \with {
+                         | yes e => in~ (1,zro#ide)
+                         | no q => (r n q).1
+                       }) (\lam n => mcases {1} \with {
+                         | yes e => inP LDiv.ide-div
+                         | no q => rewrite (FinSet.search_no_reduce (\lam (j : Fin (suc (suc n))) => divQuotient_dec0 (a (suc j))) (\lam p => q p)) $ \case ac (suc n) \with {
+                           | inP d => f-lem $ transport2 LDiv (inv (r (suc n) q).2) (inv (r n (\lam p => q p)).2) d
+                         }
+                       })
+          \in \case t \with {
+            | inP s => mcases {2} s.2 _ \with {
+                | yes e', s2 => TruncP.map e' \lam e => (e.1, \new LDiv {
+                  | inv => in~ 0
+                  | inv-right => cases (a e.1) \with {
+                    | in~ b => pmap in~ zro_*-right *> inv e.2
+                  }
+                })
+                | no q, s2 => rewrite (FinSet.search_no_reduce (\lam (j : Fin (suc (suc s.1))) => divQuotient_dec0 (a (suc j))) (\lam p => q p)) at s2 $
+                                inP (suc s.1, transport2 LDiv (r s.1 (\lam p => q p)).2 (r (suc s.1) q).2 $ MonoidHom.func-LDiv {f} s2)
+              }
+          }
+  }
 }
 
 \instance FieldOfQuotients (D : IntegralDomain.Dec) : DiscreteField \cowith

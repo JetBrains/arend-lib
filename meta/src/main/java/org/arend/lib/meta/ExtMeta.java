@@ -216,8 +216,22 @@ public class ExtMeta extends BaseMetaDefinition {
           if (leftType instanceof CoreClassCallExpression leftClassCall && rightType instanceof CoreClassCallExpression rightClassCall) {
             CoreExpression leftLength = leftClassCall.getImplementationHere(ext.prelude.getArrayLength(), leftTyped);
             CoreExpression rightLength = rightClassCall.getImplementationHere(ext.prelude.getArrayLength(), rightTyped);
-            if (leftLength != null && rightLength != null && Utils.tryTypecheck(typechecker, tc -> tc.compare(leftLength, rightLength, CMP.EQ, null, false, true, false))) {
-              arrayLength = factory.core(leftLength.computeTyped());
+            boolean ok = false;
+            if (leftLength != null && rightLength != null) {
+              if (Utils.tryTypecheck(typechecker, tc -> tc.compare(leftLength, rightLength, CMP.EQ, null, false, true, false))) {
+                ok = true;
+              }
+            } else {
+              CoreExpression length = leftLength != null ? leftLength : rightLength;
+              if (length != null) {
+                length = length.normalize(NormalizationMode.WHNF);
+                if (length instanceof CoreFieldCallExpression fieldCall && fieldCall.getDefinition() == ext.prelude.getArrayLength() && Utils.tryTypecheck(typechecker, tc -> tc.compare(fieldCall.getArgument(), (leftLength != null ? rightTyped : leftTyped).getExpression(), CMP.EQ, null, false, true, false))) {
+                  ok = true;
+                }
+              }
+            }
+            if (ok) {
+              arrayLength = factory.core((leftLength != null ? leftLength : rightLength).computeTyped());
               typeParams = typechecker.substituteParameters(typeParams, LevelSubstitution.EMPTY, Collections.singletonList(arrayLength));
               classFields.remove(0);
             }

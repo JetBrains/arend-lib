@@ -1,13 +1,18 @@
-\import Algebra.Domain
 \import Algebra.Domain.GCD(GCDDomain)
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
+\import Algebra.Ring.Ideal
+\import Data.Array
+\import Function.Meta
 \import Logic
+\import Logic.Meta
+\import Meta
 \import Paths
+\import Paths.Meta
 \open Monoid(LDiv)
 
-\class BezoutDomain \extends GCDDomain
-  | isBezout (a b : E) : TruncP (\Sigma (s t : E) (LDiv (s * a + t * b) a) (LDiv (s * a + t * b) b))
+\class BezoutDomain \extends GCDDomain {
+  | isBezout (a b : E) : ∃ (s t : E) (LDiv (s * a + t * b) a) (LDiv (s * a + t * b) b)
   | isGCDDomain x y _ _ => TruncP.map (isBezout x y) (\lam p => \new GCD x y {
     | gcd => p.1 * x + p.2 * y
     | gcd|val1 => p.3
@@ -23,3 +28,19 @@
         p.1 * x + p.2 * y                         `qed
     }
   })
+
+  \lemma isBezoutArray (l : Array E) : ∃ (c : Array E l.len) (\Pi (j : Fin l.len) -> LDiv (BigSum (\lam i => c i * l i)) (l j)) \elim l
+    | nil => inP (nil, \case __)
+    | a :: l =>
+      \have | (inP s) => isBezoutArray l
+            | (inP t) => isBezout a (BigSum (\lam j => s.1 j * l j))
+      \in inP (t.1 :: map (t.2 *) s.1, \case \elim __ \with {
+        | 0 => transport (\lam x => LDiv (t.1 * a + x) a) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.3
+        | suc j => LDiv.trans (transport (\lam x => LDiv (t.1 * a + x) _) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.4) (s.2 j)
+      })
+
+  \lemma finitelyGenerated_principal (I : Ideal \this) (fg : I.isFinitelyGenerated) : I.isPrincipal \elim fg
+    | inP s => TruncP.map (isBezoutArray $ map __.1 s.1) \lam t =>
+        (BigSum (\lam j => t.1 j * (s.1 j).1), I.bigSum _ \lam j => ideal-left $ later (s.1 j).2, \lam {b} Ib =>
+            TruncP.map (s.2 Ib) \lam u => transportInv (LDiv _ __) u.2 (LDiv_BigSum \lam j => later $ LDiv.factor-right $ t.2 j))
+}

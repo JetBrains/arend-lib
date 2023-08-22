@@ -116,6 +116,9 @@ public class StdExtension implements ArendExtension {
     simpCoeFMeta.transport_path_pmap = provider.getDefinition(new ModulePath("Paths"), LongName.fromString("transport_path_pmap.conv"), CoreFunctionDefinition.class);
     simpCoeFMeta.transport_path_pmap_right = provider.getDefinition(new ModulePath("Paths"), LongName.fromString("transport_path_pmap-right.conv"), CoreFunctionDefinition.class);
     provider.load(sipMeta);
+    provider.getDefinition(new ModulePath("Set"), new LongName("ProductDecide"), CoreFunctionDefinition.class);
+    provider.getDefinition(new ModulePath("Set"), new LongName("NotDecide"), CoreFunctionDefinition.class);
+    provider.getDefinition(new ModulePath("Set"), new LongName("EqualityDecide"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Data.List"), new LongName("ListMonoid"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Arith.Nat"), new LongName("NatSemiring"), CoreFunctionDefinition.class);
     provider.getDefinition(ModulePath.fromString("Arith.Int"), new LongName("IntRing"), CoreFunctionDefinition.class);
