@@ -1,6 +1,8 @@
 \import Algebra.Domain.GCD(GCDDomain)
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
+\import Algebra.Ring
 \import Algebra.Ring.Ideal
 \import Data.Array
 \import Function.Meta
@@ -9,25 +11,12 @@
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Set
 \open Monoid(LDiv)
 
 \class BezoutDomain \extends GCDDomain {
   | isBezout (a b : E) : ∃ (s t : E) (LDiv (s * a + t * b) a) (LDiv (s * a + t * b) b)
-  | isGCDDomain x y _ _ => TruncP.map (isBezout x y) (\lam p => \new GCD x y {
-    | gcd => p.1 * x + p.2 * y
-    | gcd|val1 => p.3
-    | gcd|val2 => p.4
-    | gcd-univ g (g|x : LDiv g x) (g|y : LDiv g y) => \new LDiv {
-      | inv => p.1 * g|x.inv + p.2 * g|y.inv
-      | inv-right =>
-        g * (p.1 * g|x.inv + p.2 * g|y.inv)       ==< ldistr >==
-        g * (p.1 * g|x.inv) + g * (p.2 * g|y.inv) ==< inv (pmap2 (+) *-assoc *-assoc) >==
-        (g * p.1) * g|x.inv + (g * p.2) * g|y.inv ==< pmap2 (__ * g|x.inv + __ * g|y.inv) *-comm *-comm >==
-        (p.1 * g) * g|x.inv + (p.2 * g) * g|y.inv ==< pmap2 (+) *-assoc *-assoc >==
-        p.1 * (g * g|x.inv) + p.2 * (g * g|y.inv) ==< pmap2 (p.1 * __ + p.2 * __) g|x.inv-right g|y.inv-right >==
-        p.1 * x + p.2 * y                         `qed
-    }
-  })
+  | isGCDDomain x y _ _ => TruncP.map (isBezout x y) (\lam p => bezoutGCD p.3 p.4)
 
   \lemma isBezoutArray (l : Array E) : ∃ (c : Array E l.len) (\Pi (j : Fin l.len) -> LDiv (BigSum (\lam i => c i * l i)) (l j)) \elim l
     | nil => inP (nil, \case __)
@@ -43,4 +32,39 @@
     | inP s => TruncP.map (isBezoutArray $ map __.1 s.1) \lam t =>
         (BigSum (\lam j => t.1 j * (s.1 j).1), I.bigSum _ \lam j => ideal-left $ later (s.1 j).2, \lam {b} Ib =>
             TruncP.map (s.2 Ib) \lam u => transportInv (LDiv _ __) u.2 (LDiv_BigSum \lam j => later $ LDiv.factor-right $ t.2 j))
+} \where {
+  \func bezoutGCD {R : CRing} {a b s t : R} (p : LDiv (s * a + t * b) a) (q : LDiv (s * a + t * b) b) : GCD a b (s * a + t * b) \cowith
+    | gcd|val1 => p
+    | gcd|val2 => q
+    | gcd-univ g (g|x : LDiv g a) (g|y : LDiv g b) => \new LDiv {
+      | inv => s * g|x.inv + t * g|y.inv
+      | inv-right =>
+        g * (s * g|x.inv + t * g|y.inv)       ==< ldistr >==
+        g * (s * g|x.inv) + g * (t * g|y.inv) ==< inv (pmap2 (+) *-assoc *-assoc) >==
+        (g * s) * g|x.inv + (g * t) * g|y.inv ==< pmap2 (__ * g|x.inv + __ * g|y.inv) *-comm *-comm >==
+        (s * g) * g|x.inv + (t * g) * g|y.inv ==< pmap2 (+) *-assoc *-assoc >==
+        s * (g * g|x.inv) + t * (g * g|y.inv) ==< pmap2 (s * __ + t * __) g|x.inv-right g|y.inv-right >==
+        s * a + t * b                         `qed
+    }
+
+  \class Dec \extends StrictBezoutDomain, GCDDomain.Dec {
+    \default isStrictBezout a b => \case decideEq a 0 \with {
+      | yes e => inP (1, 1, 1, 0, simplify e, simplify Monoid.Inv.ide-isInv)
+      | no a/=0 => TruncP.map (isBezout a b) \lam (s, t, p : LDiv, q : LDiv) =>
+        \have gcd/=0 : GCD.gcd {bezoutGCD p q} /= 0 => \lam gcd=0 => a/=0 $ inv p.inv-right *> equation
+        \in (t, s, q.inv, p.inv, nonZero-cancel-right gcd/=0 $ equation {usingOnly (p.inv-right, q.inv-right)},
+             transportInv Monoid.Inv (nonZero-cancel-right gcd/=0 $ equation {usingOnly (p.inv-right, q.inv-right)}) Monoid.Inv.ide-isInv)
+    }
+  }
+}
+
+\class StrictBezoutDomain \extends BezoutDomain {
+  | isStrictBezout (a b : E) : ∃ (s t u v : E) (a * u = b * v) (Monoid.Inv (s * u + t * v))
+  \default isBezout a b => TruncP.map (isStrictBezout a b) \lam (s,t,u,v,p,(x,xl,_)) => (t, s, \new LDiv {
+    | inv => x * v
+    | inv-right => equation
+  }, \new LDiv {
+    | inv => x * u
+    | inv-right => equation
+  })
 }

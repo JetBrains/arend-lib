@@ -1,0 +1,57 @@
+\import Algebra.Domain.Bezout
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Monoid.Category
+\import Algebra.Monoid.GCD
+\import Algebra.MulOrdered
+\import Algebra.Ring.Local
+\import Function.Meta
+\import Logic
+\import Meta
+\import Order.LinearOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\open Monoid \hiding (equals)
+
+\class ValuationRing \extends StrictBezoutDomain, LocalCRing {
+  | isValuationRing (a b : E) : LDiv a b || LDiv b a
+
+  \default locality a => \case isValuationRing a (a + 1) \with {
+    | byLeft (r : LDiv) => byLeft $ Inv.lmake (r.inv - 1) $ equation {usingOnly r.inv-right}
+    | byRight (r : LDiv) => byRight $ Inv.lmake (1 - r.inv) $ equation {usingOnly r.inv-right}
+  }
+  \default isStrictBezout a b => \case isValuationRing a b \with {
+    | byLeft (a|b : LDiv) => inP (0, 1, a|b.inv, 1, a|b.inv-right *> inv ide-right, simplify Inv.ide-isInv)
+    | byRight (b|a : LDiv) => inP (1, 0, 1, b|a.inv, ide-right *> inv b|a.inv-right, simplify Inv.ide-isInv)
+  }
+  \default isValuationRing a b =>
+    \let | (inP bez) => isBezout a b
+         | gcd : GCD => BezoutDomain.bezoutGCD bez.3 bez.4
+         | d => 1 - bez.1 * gcd.gcd|val1.inv - bez.2 * gcd.gcd|val2.inv
+         | lem {a g e : E} (d : LDiv g a) (c : Inv (e * d.inv)) : LDiv a g =>
+           \have c' : Inv d.inv => Inv.cfactor-right c
+           \in \new LDiv { | inv => c'.inv | inv-right => equation {usingOnly (d.inv-right, c'.inv-left)} }
+    \in \case sum1Array (bez.1 * gcd.gcd|val1.inv :: bez.2 * gcd.gcd|val2.inv :: d :: nil) simplify \with {
+      | TruncP.inP (0,c) => byLeft $ LDiv.trans (lem gcd.gcd|val1 c) bez.4
+      | TruncP.inP (1,c) => byRight $ LDiv.trans (lem gcd.gcd|val2 c) bez.3
+      | TruncP.inP (2, c : Inv) => \have gcd=0 : zro = gcd => equation {usingOnly (gcd.gcd|val1.inv-right,gcd.gcd|val2.inv-right,c.inv-left)}
+                                   \in byLeft \new LDiv { | inv => 0 | inv-right => zro_*-right *> inv zro_*-left *> pmap (`* _) gcd=0 *> LDiv.inv-right {bez.4} }
+    }
+
+  \func ValuationMonoid : OrderedCMonoid
+    => DivQuotient.DivQuotientMonoid \this
+
+  \func ValuationTotalOrder : TotalOrder \cowith
+    | Poset => ValuationMonoid
+    | totality (in~ x) (in~ y) => \case isValuationRing x y \with {
+      | byLeft r => byRight (inP r)
+      | byRight r => byLeft (inP r)
+    }
+
+  \func valuation : MonoidHom \this ValuationMonoid \cowith
+    | func => in~
+    | func-ide => idp
+    | func-* => idp
+}
