@@ -1,6 +1,10 @@
+\import Arith.Nat
+\import Data.Array
+\import Data.Fin (nat_fin_=)
 \import Function.Meta
 \import HLevel
 \import Logic.Meta
+\import Meta
 \import Paths
 \import Paths.Meta
 
@@ -85,4 +89,21 @@
     \lemma dir {A B : \Prop} (p : A = B) (a : A) : B => transport (\lam X => X) p a
 
     \lemma conv {A B : \Prop} (p : A = B) (b : B) : A => dir (inv p) b
+  }
+
+\type TFAE (l : Array \Prop) : \Prop
+  => \Pi (i j : Fin l.len) -> l i -> l j
+
+\lemma tfae {n : Nat} {l : Array \Prop (suc n)} (p : DArray {n} (\lam i => l i -> l (suc i))) (q : l n -> l 0) : TFAE l \elim n
+  | 0 => \lam (0) (0) a => a
+  | suc n => \have t => tfae {n} {tail l} (\lam i => p (suc i)) \lam a => p 0 $ q $ transport l (nat_fin_= $ pmap suc (mod_< id<suc) *> inv (mod_< id<suc)) a
+             \in \case \elim __, \elim __ \with {
+                   | 0, j => aux p (later idp)
+                   | suc i, 0 => \lam a => q $ aux p (later $ pmap suc (<=_exists $ <_suc_<= $ fin_< i) *> inv (mod_< id<suc)) a
+                   | suc i, suc j => t i j
+                 }
+  \where {
+    \lemma aux {n : Nat} {l : Array \Prop (suc n)} (p : DArray {n} (\lam i => l i -> l (suc i))) {i j : Fin (suc n)} {k : Nat} (q : i Nat.+ k = j) (a : l i) : l j \elim j, k, q
+      | _, 0, idp => a
+      | suc j, suc k, q => p j $ aux p (pmap pred q) a
   }
