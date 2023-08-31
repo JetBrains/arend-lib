@@ -2,14 +2,20 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Algebra.Monoid.GCD
+\import Algebra.Ring.Ideal
 \import Algebra.Ring.Local
 \import Algebra.Ring.Poly
+\import Algebra.Ring.Reduced
 \import Algebra.Semiring
 \import Arith.Nat
+\import Data.Array
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
+\import Order.PartialOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -62,7 +68,7 @@
       | inv-right => negative_* *> j.inv-right
     }
 
-  \func isNilpotent (x : E) => ∃ (n : Nat) (pow x n = 0)
+  \func IsNilpotent (x : E) => ∃ (n : Nat) (pow x n = 0)
 
   \lemma pow_-1_+2 {n : Nat} : pow -1 (n Nat.+ 2) = pow -1 n
     => pow_+ {_} { -1} {n} {2} *> pmap (_ *) (*-assoc *> ide-left *> negative_* *> ide-left) *> ide-right
@@ -74,12 +80,17 @@
   \lemma pow_-1_mod2 {n : Nat} : pow -1 n = pow -1 (n Nat.mod 2)
     => pmap (pow -1) (inv (Nat.divModProp n 2)) *> pow_+ *> pmap (`* _) (pow_* *> pmap (pow __ _) (*-assoc *> ide-left *> negative_* *> ide-left) *> pow_ide) *> ide-left
 
-  \type isZeroDimensional => \Pi (a : E) -> ∃ (b : E) (n : Nat) (pow a n = pow a (suc n) * b)
+  \lemma idempotent_LDiv {a b : E} (q : b * b = b) (d : Monoid.LDiv b a) : a = b * a
+    => inv d.inv-right *> pmap (`* _) (inv q) *> *-assoc *> pmap (b *) d.inv-right
 
-  \lemma finite-zeroDimensional (c : FinSet E) : isZeroDimensional
+  \type IsZeroDimensional => \Pi (a : E) -> ∃ (b : E) (n : Nat) (pow a n = pow a (suc n) * b)
+
+  \lemma finite-zeroDimensional (c : FinSet E) : IsZeroDimensional
     => \lam a => TruncP.map (c.pigeonhole< (pow a)) \lam s => (pow a (s.2 -' suc s.1), s.1, s.4 *> pmap (pow a) (inv $ <=_exists $ suc_<_<= s.3) *> pow_+ {_} {_} {suc s.1})
 
-  \type isConnected => \Pi (a : E) -> a * a = a -> (a = 0) || (a = 1)
+  \type IsConnected => \Pi (a : E) -> a * a = a -> (a = 0) || (a = 1)
+
+  \func IsVonNeumannRegular => \Pi (a : E) -> ∃ (b : E) (a = a * b * a)
 } \where {
   \func op (R : Ring) : Ring \cowith
     | AbGroup => R
@@ -104,7 +115,38 @@
 }
 
 \class CRing \extends Ring, CSemiring {
-  \lemma isZeroDimensional-char : isZeroDimensional <-> (\Pi (a : E) -> ∃ (b : E) (k : Nat) (k /= 0) (b * b = b) (LDiv (pow a k) b) (LDiv b (pow a k)))
+  \func IsBezout => \Pi (a b : E) -> ∃ (s t : E) (LDiv (s * a + t * b) a) (LDiv (s * a + t * b) b)
+
+  \lemma bezout_finitelyGenerated_principal (bez : IsBezout) (I : Ideal \this) (fg : I.IsFinitelyGenerated) : I.IsPrincipal \elim fg
+    | inP s => TruncP.map (isBezoutArray $ map __.1 s.1) \lam t =>
+        (BigSum (\lam j => t.1 j * (s.1 j).1), (I.bigSum _ \lam j => ideal-left $ later (s.1 j).2, \lam {b} Ib =>
+            TruncP.map (s.2 Ib) \lam u => transportInv (LDiv _ __) u.2 (LDiv_BigSum \lam j => later $ LDiv.factor-right $ t.2 j)))
+    \where
+      \lemma isBezoutArray (l : Array E) : ∃ (c : Array E l.len) (\Pi (j : Fin l.len) -> LDiv (BigSum (\lam i => c i * l i)) (l j)) \elim l
+        | nil => inP (nil, \case __)
+        | a :: l =>
+          \have | (inP s) => isBezoutArray l
+                | (inP t) => bez a (BigSum (\lam j => s.1 j * l j))
+          \in inP (t.1 :: map (t.2 *) s.1, \case \elim __ \with {
+            | 0 => transport (\lam x => LDiv (t.1 * a + x) a) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.3
+            | suc j => LDiv.trans (transport (\lam x => LDiv (t.1 * a + x) _) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.4) (s.2 j)
+          })
+
+  \func bezoutGCD {a b s t : E} (p : LDiv (s * a + t * b) a) (q : LDiv (s * a + t * b) b) : GCD a b (s * a + t * b) \cowith
+    | gcd|val1 => p
+    | gcd|val2 => q
+    | gcd-univ g (g|x : LDiv g a) (g|y : LDiv g b) => \new LDiv {
+      | inv => s * g|x.inv + t * g|y.inv
+      | inv-right =>
+        g * (s * g|x.inv + t * g|y.inv)       ==< ldistr >==
+        g * (s * g|x.inv) + g * (t * g|y.inv) ==< inv (pmap2 (+) *-assoc *-assoc) >==
+        (g * s) * g|x.inv + (g * t) * g|y.inv ==< pmap2 (__ * g|x.inv + __ * g|y.inv) *-comm *-comm >==
+        (s * g) * g|x.inv + (t * g) * g|y.inv ==< pmap2 (+) *-assoc *-assoc >==
+        s * (g * g|x.inv) + t * (g * g|y.inv) ==< pmap2 (s * __ + t * __) g|x.inv-right g|y.inv-right >==
+        s * a + t * b                         `qed
+    }
+
+  \lemma zeroDimensional-char : IsZeroDimensional <-> (\Pi (a : E) -> ∃ (b : E) (k : Nat) (k /= 0) (b * b = b) (LDiv (pow a k) b) (LDiv b (pow a k)))
     => (\lam c a => \case c a \with {
       | inP (b,n,p) => cases (n arg addPath) \with {
         | 0, q => inP (1, 1, (\case __), ide-left, \new LDiv {
@@ -124,12 +166,12 @@
         | suc n => aux n p *> pmap (`* _) p *> *-assoc *> pmap (x *) *-comm
 
   \lemma zeroDimensional_local-char : TFAE (
-    \Sigma isZeroDimensional (\Pi (a : E) -> Inv a || Inv (a + 1)),
-    \Sigma isZeroDimensional isConnected,
-    \Pi (a : E) -> Inv a || (\Sigma (n : Nat) (pow a n = 0)))
-    => TFAE.cycle $ later (
+    \Sigma IsZeroDimensional (\Pi (a : E) -> Inv a || Inv (a + 1)),
+    \Sigma IsZeroDimensional IsConnected,
+    \Pi (a : E) -> Inv a || (\Sigma (n : Nat) (pow a n = 0))
+  ) => TFAE.cycle $ later (
         \lam s => (s.1, LocalRing.local=>connected s.2),
-        \lam s a => \case isZeroDimensional-char.1 s.1 a \with {
+        \lam s a => \case zeroDimensional-char.1 s.1 a \with {
           | inP r => \case s.2 r.1 r.4 \with {
             | byLeft r1=0 => byRight (r.2, inv (LDiv.inv-right {r.6}) *> pmap (`* _) r1=0 *> zro_*-left)
             | byRight r1=1 => byLeft $ Inv.cfactor-right $ rewriteF (inv $ suc_pred r.3) $ Inv.lmake (LDiv.inv {r.5}) $ *-comm *> LDiv.inv-right {r.5} *> r1=1
@@ -144,6 +186,60 @@
                      | t : polyEval p a = 0 => MonoidHom.func-pow {polyEvalRingHom a} *> pmap (pow __ r.1) equation *> r.2
                 \in Inv.ldiv $ transport (LDiv a) (lastCoef_pow *> pow_ide) (poly-root-div t)
         }))
+
+  \lemma vonNeumann_idempotent (vn : IsVonNeumannRegular) (a : E) : ∃ (u : E) (u * u = u) (LDiv a u) (a = u * a)
+    => TruncP.map (vn a) \lam (b,p) => (a * b, equation, LDiv.factor-left LDiv.id-div, p)
+
+  \lemma vonNeumann_Bezout (vn : IsVonNeumannRegular) : IsBezout
+    => \lam a b => \case vonNeumann_idempotent vn a, vonNeumann_idempotent vn b \with {
+      | inP (u, uu=u, (c,ac=u), a=ua), inP (v, vv=v, (d,bd=v), b=vb) => inP (c, (1 - u) * d,
+          \new LDiv { | inv => a | inv-right => equation }, \new LDiv { | inv => b | inv-right => equation })
+    }
+
+  \lemma vonNeumann-char : TFAE (
+    IsVonNeumannRegular,
+    \Sigma IsZeroDimensional (ReducedRing { | Ring => \this }),
+    \Pi (I : Ideal \this) -> I.IsFinitelyGenerated -> ∃ (u : E) (u * u = u) (I.IsGeneratedBy1 u),
+    \Pi (I : Ideal \this) -> I IdealMonoid.* I = I,
+    \Pi (I J : Ideal \this) -> I ∧ J = I IdealMonoid.* J
+  ) => TFAE.proof $ later (
+    ((0,1), \lam c => (\lam a => TruncP.map (c a) \lam s => (s.1, 1, equation {usingOnly s.2}),
+                       \new ReducedRing { | isReduced {a} p => \case c a \with {
+                         | inP (b,q) => equation
+                       } })),
+    ((1,0), \lam (zd, red : ReducedRing) => \lam a => \case zd a \with {
+        | inP (b, 0, p) => inP (b, equation)
+        | inP (b, suc n, p) => inP (b, inv ide-right *> fromZero (pmap (_ +) (inv negative_*-right) *> inv ldistr *>
+            red.noNilpotent {_} {suc n} (pow_*-comm {_} {_} {_} {suc n} *> equation)) *> inv *-assoc)
+      }
+    ),
+    ((0,2), \lam vn I Ifg =>
+        \have | (inP (a,ag)) => bezout_finitelyGenerated_principal (vonNeumann_Bezout vn) I Ifg
+              | (inP (u,uu=u,a|u,a=ua)) => vonNeumann_idempotent vn a
+        \in inP (u, uu=u, (Ideal.ldiv a|u ag.1, \lam Ib => TruncP.map (ag.2 Ib) $ LDiv.trans (\new LDiv u a a (inv a=ua))))
+    ),
+    ((2,0), \lam c a => \case c (closure1 a) (principal->finitelyGenerated closure1-principal) \with {
+                          | inP (u,uu=u,(a|u',f)) =>
+                            \have | (inP (a|u : LDiv a u)) => closure1_LDiv.1 a|u'
+                                  | (inP u|a) => f {a} (closure-superset {_} {_} {\lam _ => a} ())
+                            \in inP (a|u.inv, equation {using (a|u.inv-right, idempotent_LDiv uu=u u|a)})
+                        }),
+    ((0,4), \lam v I J => <=-antisymmetric (\lam {a} c =>
+      \case v a \with {
+        | inP (b,p) => rewrite p $ closure-superset {_} {_} {IdealMonoid.func I J} $ later (a * b, a, ideal-right (IdealLattice.meet-left c), IdealLattice.meet-right c)
+      }) IdealMonoid.product_meet),
+    ((4,3), \lam f I => inv (f I I) *> IdealLattice.meet-idemp),
+    ((3,0), \lam f a =>
+       \have | (inP (l,p)) => rewriteI (f (closure1 a)) $ closure-superset {_} {_} {\lam _ => a} ()
+             | (inP g) => FinSet.finiteAC {_} {\lam j => \Sigma (b c d : E) (LDiv a c) (LDiv a d) ((l j).1 = b) ((l j).2.1 = c) ((l j).2.2 = d)}
+                 \lam j => \case closure1_LDiv.1 (l j).2.3, closure1_LDiv.1 (l j).2.4 \with {
+                   | inP a|c, inP a|d => inP ((l j).1, (l j).2.1, (l j).2.2, a|c, a|d, idp, idp, idp)
+                 }
+       \in inP (BigSum $ \lam j => (g j).1 * (LDiv.inv {(g j).4} * LDiv.inv {(g j).5}), rewrite (BigSum-ldistr,BigSum-rdistr) $
+              p *> pmap BigSum (exts \lam j => equation {usingOnly (LDiv.inv-right {(g j).4}, LDiv.inv-right {(g j).5}, (g j).6, (g j).7, (g j).8)}))
+    )
+  )
+  \where \open Ideal
 } \where {
     \open Monoid(LDiv,Inv)
 
@@ -153,4 +249,8 @@
 
     -- | A commutative ring with decidable equality.
     \class Dec \extends Ring.Dec, With#
-  }
+
+    \func op (R : CRing) : CRing \cowith
+      | Ring => Ring.op R
+      | *-comm => *-comm
+}

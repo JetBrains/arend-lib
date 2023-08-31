@@ -3,6 +3,8 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
+\import Algebra.Monoid.Sub
+\import Algebra.Pointed.Sub
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Arith.Int
@@ -10,11 +12,13 @@
 \import Combinatorics.Binom
 \import Data.Array
 \import Data.Bool
+\import Data.Or
 \import Equiv
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
@@ -78,12 +82,17 @@
          | inP (e,q) => transportInv contains q $ bigSum _ $ \lam i => p (e i)
        }
 
-  \func isGenerated (l : Array (\Sigma (x : S) (contains x)))
+  \func IsGeneratedBy (l : Array (\Sigma (x : S) (contains x)))
     => \Pi {a : S} -> contains a -> ∃ (l' : Array S l.len) (a = BigSum (\lam j => l' j * (l j).1))
 
-  \func isFinitelyGenerated => ∃ (l : Array (\Sigma (x : S) (contains x))) (isGenerated l)
+  \func IsFinitelyGenerated => ∃ (l : Array (\Sigma (x : S) (contains x))) (IsGeneratedBy l)
 
-  \func isPrincipal => ∃ (a : S) (contains a) (\Pi {b : S} -> contains b -> TruncP (Monoid.LDiv a b))
+  \func IsGeneratedBy1 (a : S) => \Sigma (contains a) (\Pi {b : S} -> contains b -> TruncP (Monoid.LDiv a b))
+
+  \func IsPrincipal => ∃ (a : S) (IsGeneratedBy1 a)
+
+  \lemma principal->finitelyGenerated (p : IsPrincipal) : IsFinitelyGenerated
+    | inP s => inP ((s.1, s.2.1) :: nil, \lam {a} c => TruncP.map (s.2.2 c) \lam (d : Monoid.LDiv s.1 a) => (d.inv :: nil, simplify $ inv d.inv-right *> *-comm))
 } \where {
   \func closure {R : CRing} {J : \Set} (g : J -> R) : Ideal R \cowith
     | contains e => ∃ (l : Array (\Sigma R J)) (e = BigSum (map (\lam p => p.1 * g p.2) l))
@@ -110,6 +119,15 @@
 
   \lemma closure1-lem {R : CRing} {a b : R} : closure1 a b <-> ∃ (c : R) (b = a * c)
     => (\lam (inP (l,b=sl)) => inP (BigSum (map __.1 l), b=sl *> inv (R.BigSum-rdistr {map __.1 l})  *> *-comm), \lam (inP (c,b=ac)) => inP ((c,()) :: nil, b=ac *> *-comm *> inv zro-right))
+
+  \lemma closure1_LDiv {R : CRing} {a b : R} : closure1 a b <-> TruncP (Monoid.LDiv a b)
+    => (\lam c => TruncP.map (closure1-lem.1 c) \lam s => \new Monoid.LDiv a b s.1 (inv s.2), \lam c => closure1-lem.2 $ TruncP.map c \lam (d : Monoid.LDiv a b) => (d.inv, inv d.inv-right))
+
+  \lemma closure1-principal {R : CRing} {a : R} : IsPrincipal {closure1 a}
+    => inP (a, generated)
+    \where
+      \lemma generated {R : CRing} {a : R} : IsGeneratedBy1 {closure1 a} a
+        => (closure-superset {R} {_} {\lam _ => a} (), \lam {a} => closure1_LDiv.1)
 
   \lemma closure2-lem {R : CRing} {a : R} (f : Bool -> R)
     : closure f a <-> ∃ (c d : R) (a = f true * c + f false * d)
@@ -162,15 +180,83 @@
     (\Pi (n : Nat) {a : R} -> I n a -> I (suc n) a) -> ∃ (n : Nat) (\Pi {a : R} -> I (suc n) a -> I n a)
 
   \lemma fromMonoidChainCondition {R : CRing} (cc : CMonoid.DivChain {DivQuotient.DivQuotientMonoid R})
-    (I : Nat -> Ideal R) (p : \Pi (n : Nat) -> Ideal.isPrincipal {I n}) : ChainCondition I
+    (I : Nat -> Ideal R) (p : \Pi (n : Nat) -> Ideal.IsPrincipal {I n}) : ChainCondition I
     => \lam f =>
-        \let | r n => TruncP.rec-set (p n) (\lam s => in~ s.1) \lam s s' => ~-pequiv $ later (s'.3 s.2, s.3 s'.2)
+        \let | r n => TruncP.rec-set (p n) (\lam s => in~ s.1) \lam s s' => ~-pequiv $ later (s'.2.2 s.2.1, s.2.2 s'.2.1)
              | t => cc (\lam n => (r n).1) \lam n => \case (r n).2, (r (suc n)).2 \with {
-               | inP sn, inP sn+1 => transport2 (\lam x y => TruncP (Monoid.LDiv x y)) sn+1.2 sn.2 $ TruncP.map (sn+1.1.3 $ f n sn.1.2) DivQuotient.div-to~
+               | inP sn, inP sn+1 => transport2 (\lam x y => TruncP (Monoid.LDiv x y)) sn+1.2 sn.2 $ TruncP.map (sn+1.1.2.2 $ f n sn.1.2.1) DivQuotient.div-to~
              }
         \in TruncP.map t \lam s => (s.1, \case (r s.1).2, (r (suc s.1)).2 \with {
-          | inP d, inP d' => \lam c => \case DivQuotient.div-from~' $ transport2 Monoid.LDiv (inv d.2) (inv d'.2) s.2, d'.1.3 c \with {
-            | inP d|d', inP d'|a => ldiv d'|a (ldiv d|d' d.1.2)
+          | inP d, inP d' => \lam c => \case DivQuotient.div-from~' $ transport2 Monoid.LDiv (inv d.2) (inv d'.2) s.2, d'.1.2.2 c \with {
+            | inP d|d', inP d'|a => ldiv d'|a (ldiv d|d' d.1.2.1)
           }
         })
 }
+
+\instance IdealLattice {R : CRing} : Bounded.Lattice (Ideal R)
+  | <= I J => \Pi {a : R} -> I a -> J a
+  | <=-refl c => c
+  | <=-transitive p q c => q (p c)
+  | <=-antisymmetric p q => exts \lam a => ext (p,q)
+  | meet (I J : Ideal R) : Ideal R \cowith {
+    | contains x => \Sigma (I x) (J x)
+    | contains_zro => (contains_zro, contains_zro)
+    | contains_+ s t => (contains_+ s.1 t.1, contains_+ s.2 t.2)
+    | ideal-left s => (ideal-left s.1, ideal-left s.2)
+  }
+  | meet-left => __.1
+  | meet-right => __.2
+  | meet-univ f g c => (f c, g c)
+  | top : Ideal R \cowith {
+    | contains _ => \Sigma
+    | contains_zro => ()
+    | contains_+ _ _ => ()
+    | ideal-left _ => ()
+  }
+  | top-univ _ => ()
+  | join I J => Ideal.closure {R} {Or (\Sigma (a : R) (I a)) (\Sigma (a : R) (J a))} (Or.rec __.1 __.1)
+  | join-left {I} {J} {a} c => Ideal.closure-superset {R} {Or (\Sigma (a : R) (I a)) (\Sigma (a : R) (J a))} {Or.rec __.1 __.1} $ inl (a,c)
+  | join-right {I} {J} {a} c => Ideal.closure-superset {R} {Or (\Sigma (a : R) (I a)) (\Sigma (a : R) (J a))} {Or.rec __.1 __.1} $ inr (a,c)
+  | join-univ {I} {J} f g => Ideal.closure-univ {R} {Or (\Sigma (a : R) (I a)) (\Sigma (a : R) (J a))} {Or.rec __.1 __.1} \lam e => cases e \with {
+    | inl c => f c.2
+    | inr c => g c.2
+  }
+  | bottom : Ideal R \cowith {
+    | contains a => a = 0
+    | contains_zro => idp
+    | contains_+ p q => rewrite (p,q) zro-left
+    | ideal-left p => rewrite p zro_*-right
+  }
+  | bottom-univ p => rewrite p contains_zro
+
+\instance IdealMonoid {R : CRing} : CMonoid (Ideal R)
+  | ide => IdealLattice.top
+  | * => product
+  | ide-left => <=-antisymmetric (product-right {R} {IdealLattice.top}) \lam {a} c => inP ((1, (1, a, (), c)) :: nil, simplify)
+  | *-assoc {I} {J} {K} => <=-antisymmetric
+      (Ideal.closure-univ {R} {_} {func (product I J) K} {product I (product J K)} \lam (a, b, inP (l,p), Kb) =>
+          unfold func $ rewrite (p,R.BigSum-rdistr) $ Ideal.bigSum {product I (product J K)} _ \lam j => unfold func $
+          rewrite *-assoc $ ideal-left {product I (product J K)} $ rewrite *-assoc $ Ideal.closure-superset {R} {_} {func I (product J K)} $
+          later ((l j).2.1, (l j).2.2 * b, (l j).2.3, inP ((1, ((l j).2.2, b, (l j).2.4, Kb)) :: nil, simplify)))
+      (Ideal.closure-univ {R} {_} {func I (product J K)} {product (product I J) K} \lam (a, b, Ia, inP (l,p)) =>
+          unfold func $ rewrite (p,R.BigSum-ldistr) $ Ideal.bigSum {product (product I J) K} _ \lam j => unfold func $
+          rewrite (*-comm,*-assoc) $ ideal-left {product (product I J) K} $ rewrite (*-comm, inv *-assoc) $ Ideal.closure-superset {R} {_} {func (product I J) K} $
+          later (a * (l j).2.1, (l j).2.2, inP ((1, (a, (l j).2.1, Ia, (l j).2.3)) :: nil, simplify), (l j).2.4))
+  | *-comm =>
+    \have lem {I J : Ideal R} : product I J <= product J I => Ideal.closure-univ {R} {_} {func I J}
+        \lam s => transport (product J I) *-comm $ Ideal.closure-superset {R} {\Sigma (a b : R) (J a) (I b)} {func J I} (s.2,s.1,s.4,s.3)
+    \in <=-antisymmetric lem lem
+  \where {
+    \func func {R : CRing} (I J : Ideal R) => \lam (s : \Sigma (a b : R) (I a) (J b)) => s.1 * s.2
+
+    \func product {R : CRing} (I J : Ideal R) => Ideal.closure (func I J)
+
+    \lemma product-left {R : CRing} {I J : Ideal R} : product I J <= I
+      => Ideal.closure-univ {R} {_} {func I J} (\lam s => ideal-right s.3)
+
+    \lemma product-right {R : CRing} {I J : Ideal R} : product I J <= J
+      => Ideal.closure-univ {R} {_} {func I J} (\lam s => ideal-left s.4)
+
+    \lemma product_meet {R : CRing} {I J : Ideal R} : product I J <= I ∧ J
+      => meet-univ product-left product-right
+  }

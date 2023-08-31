@@ -2,9 +2,6 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
-\import Algebra.Ring
-\import Algebra.Ring.Ideal
-\import Data.Array
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -15,38 +12,9 @@
 \open Monoid(LDiv)
 
 \class BezoutDomain \extends GCDDomain {
-  | isBezout (a b : E) : ∃ (s t : E) (LDiv (s * a + t * b) a) (LDiv (s * a + t * b) b)
+  | isBezout : IsBezout
   | isGCDDomain x y _ _ => TruncP.map (isBezout x y) (\lam p => bezoutGCD p.3 p.4)
-
-  \lemma isBezoutArray (l : Array E) : ∃ (c : Array E l.len) (\Pi (j : Fin l.len) -> LDiv (BigSum (\lam i => c i * l i)) (l j)) \elim l
-    | nil => inP (nil, \case __)
-    | a :: l =>
-      \have | (inP s) => isBezoutArray l
-            | (inP t) => isBezout a (BigSum (\lam j => s.1 j * l j))
-      \in inP (t.1 :: map (t.2 *) s.1, \case \elim __ \with {
-        | 0 => transport (\lam x => LDiv (t.1 * a + x) a) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.3
-        | suc j => LDiv.trans (transport (\lam x => LDiv (t.1 * a + x) _) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.4) (s.2 j)
-      })
-
-  \lemma finitelyGenerated_principal (I : Ideal \this) (fg : I.isFinitelyGenerated) : I.isPrincipal \elim fg
-    | inP s => TruncP.map (isBezoutArray $ map __.1 s.1) \lam t =>
-        (BigSum (\lam j => t.1 j * (s.1 j).1), I.bigSum _ \lam j => ideal-left $ later (s.1 j).2, \lam {b} Ib =>
-            TruncP.map (s.2 Ib) \lam u => transportInv (LDiv _ __) u.2 (LDiv_BigSum \lam j => later $ LDiv.factor-right $ t.2 j))
 } \where {
-  \func bezoutGCD {R : CRing} {a b s t : R} (p : LDiv (s * a + t * b) a) (q : LDiv (s * a + t * b) b) : GCD a b (s * a + t * b) \cowith
-    | gcd|val1 => p
-    | gcd|val2 => q
-    | gcd-univ g (g|x : LDiv g a) (g|y : LDiv g b) => \new LDiv {
-      | inv => s * g|x.inv + t * g|y.inv
-      | inv-right =>
-        g * (s * g|x.inv + t * g|y.inv)       ==< ldistr >==
-        g * (s * g|x.inv) + g * (t * g|y.inv) ==< inv (pmap2 (+) *-assoc *-assoc) >==
-        (g * s) * g|x.inv + (g * t) * g|y.inv ==< pmap2 (__ * g|x.inv + __ * g|y.inv) *-comm *-comm >==
-        (s * g) * g|x.inv + (t * g) * g|y.inv ==< pmap2 (+) *-assoc *-assoc >==
-        s * (g * g|x.inv) + t * (g * g|y.inv) ==< pmap2 (s * __ + t * __) g|x.inv-right g|y.inv-right >==
-        s * a + t * b                         `qed
-    }
-
   \class Dec \extends StrictBezoutDomain, GCDDomain.Dec {
     \default isStrictBezout a b => \case decideEq a 0 \with {
       | yes e => inP (1, 1, 1, 0, simplify e, simplify Monoid.Inv.ide-isInv)
