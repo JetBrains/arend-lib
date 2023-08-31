@@ -1,7 +1,10 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Arith.Nat
+\import Data.Bool
+\import Data.Fin
 \import Data.Or
+\import Function
 \import Function.Meta \hiding (#)
 \import Logic
 \import Logic.Meta
@@ -468,3 +471,65 @@
         }
   }
 }
+
+\func contains {A : DecSet} (l : List A) (a : A) : Bool \elim l
+  | nil => false
+  | b :: l => \case decideEq b a \with {
+    | yes _ => true
+    | no _ => contains l a
+  }
+
+\func union {A : DecSet} (l l' : List A) : List A \elim l
+  | nil => l'
+  | a :: l => if (contains l' a) (union l l') (a :: union l l')
+
+\truncated \data InList {A : \Type} (a : A) (l : List A) : \Prop \elim l
+  | a' :: l => { here (a = a') | there (InList a l) }
+  \where {
+    \func \infix 4 ~ {A : \Type} (l l' : List A) => \Pi (a : A) -> InList a l <-> InList a l'
+
+    \lemma ~_:: {A : \Type} {a : A} {l l' : List A} (p : l ~ l') : a :: l ~ a :: l'
+      => \lam b => (InList_:: (p b).1, InList_:: (p b).2)
+      \where
+        \lemma InList_:: {A : \Type} {a b : A} {l l' : List A} (p : InList b l -> InList b l') (c : InList b (a :: l)) : InList b (a :: l') \elim c
+          | here q => here q
+          | there c => there (p c)
+  }
+
+\lemma InList_++ {A : \Type} {a : A} {l l' : List A} (p : InList a (l ++ l')) : InList a l || InList a l' \elim l, p
+  | nil, p => byRight p
+  | a' :: l, here p => byLeft (here p)
+  | a' :: l, there p => ||.map there id (InList_++ p)
+
+\lemma InList_++-left {A : \Type} {a : A} {l l' : List A} (p : InList a l) : InList a (l ++ l') \elim l, p
+  | a' :: l, here p => here p
+  | a' :: l, there p => there (InList_++-left p)
+
+\lemma InList_++-right {A : \Type} {a : A} {l l' : List A} (p : InList a l') : InList a (l ++ l') \elim l
+  | nil => p
+  | a' :: l => there (InList_++-right p)
+
+\open InList
+
+\lemma contains_InList {A : DecSet} {a : A} {l : List A} : (contains l a = true) <-> InList a l \elim l
+  | nil => ((\case __), \case __)
+  | a' :: l => (\lam p => cases (decideEq a' a, p) \with {
+    | yes e, _ => here (inv e)
+    | no _, p => there (contains_InList.1 p)
+  }, \lam p => mcases \with {
+    | yes _ => idp
+    | no q => \case \elim p \with {
+      | here p => absurd $ q (inv p)
+      | there p => contains_InList.2 p
+    }
+  })
+
+\lemma union~++ {A : DecSet} {l l' : List A} : union l l' ~ l ++ l' \elim l
+  | nil => \lam a => (id,id)
+  | a :: l => cases (contains l' a arg addPath) \with {
+    | false, _ => ~_:: union~++
+    | true, q => \lam b => (\lam c => there ((union~++ b).1 c), \case \elim __ \with {
+      | here p => (union~++ b).2 $ InList_++-right $ rewrite p (contains_InList.1 q)
+      | there p => (union~++ b).2 p
+    })
+  }
