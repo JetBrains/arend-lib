@@ -1,0 +1,52 @@
+\import Algebra.Group
+\import Algebra.Group.Sub
+\import Algebra.Module
+\import Algebra.Monoid
+\import Algebra.Monoid.Sub
+\import Algebra.Pointed.Sub
+\import Algebra.Ring
+\import Algebra.Ring.Ideal
+\import Data.Array
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Lattice
+\import Paths
+\import Paths.Meta
+
+\class SubLModule (R : Ring) \extends SubAddGroup {
+  \override S : LModule' R
+  | contains_*c {a : R} {b : S} : contains b -> contains (a *c b)
+}
+
+\func topSubLModule {R : Ring} (M : LModule' R) : SubLModule { | R => R | S => M } \cowith
+  | contains _ => \Sigma
+  | contains_zro => ()
+  | contains_+ _ _ => ()
+  | contains_negative _ => ()
+  | contains_*c _ => ()
+
+\instance SubLModuleSemilattice (R : Ring) (M : LModule' R) : Bounded.MeetSemilattice (SubLModule { | R => R | S => M })
+  | <= U V => \Pi {a : M} -> U a -> V a
+  | <=-refl c => c
+  | <=-transitive f g c => g (f c)
+  | <=-antisymmetric f g => exts \lam a => ext (f,g)
+  | meet (U V : SubLModule { | R => R | S => M }) : SubLModule { | R => R | S => M } \cowith {
+    | contains a => \Sigma (U a) (V a)
+    | contains_zro => (contains_zro, contains_zro)
+    | contains_+ s t => (contains_+ s.1 t.1, contains_+ s.2 t.2)
+    | contains_negative s => (contains_negative s.1, contains_negative s.2)
+    | contains_*c s => (contains_*c s.1, contains_*c s.2)
+  }
+  | meet-left => __.1
+  | meet-right => __.2
+  | meet-univ f g c => (f c, g c)
+  | top => topSubLModule M
+  | top-univ _ => ()
+
+\func \infixl 7 *m {R : Ring} (I : LIdeal R) {M : LModule' R} (S : SubLModule { | R => R | S => M }) : SubLModule { | R => R | S => M } \cowith
+  | contains a => ∃ (l : Array (\Sigma (x : R) (I x) M)) (a = M.BigSum (map (\lam s => s.1 *c s.3) l))
+  | contains_zro => inP (nil,idp)
+  | contains_+ (inP s) (inP t) => inP (s.1 ++ t.1, pmap2 (+) s.2 t.2 *> inv M.BigSum_++ *> pmap M.BigSum (inv (map_++ (\lam s => s.1 *c s.3))))
+  | contains_negative (inP s) => inP (map (later \lam t => (negative t.1, contains_negative t.2, t.3)) s.1, pmap negative s.2 *> M.BigSum_negative *> pmap M.BigSum (exts \lam j => inv M.*c_negative-left))
+  | contains_*c {a} {b} (inP s) => inP (map (later \lam t => (a * t.1, ideal-left t.2, t.3)) s.1, pmap (a *c) s.2 *> M.*c_BigSum-ldistr *> pmap M.BigSum (exts \lam j => inv M.*c-assoc))

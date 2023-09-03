@@ -1,0 +1,45 @@
+\import Algebra.Group
+\import Algebra.Group.Sub
+\import Algebra.Linear.Matrix
+\import Algebra.Meta
+\import Algebra.Module
+\import Algebra.Module.Sub
+\import Algebra.Monoid
+\import Algebra.Monoid.Sub
+\import Algebra.Ring
+\import Algebra.Ring.Ideal
+\import Data.Array
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Fin
+
+\lemma nakayama {R : CRing} {M : LModule' R} {I : Ideal R} (fg : M.IsFinitelyGenerated)
+                (c : topSubLModule M <= I *m topSubLModule M) : ∃ (e : R) (I (1 - e)) (\Pi (m : M) -> e *c m = 0) \elim fg
+  | inP (l : Array, lg) =>
+    \let | (inP f) => FinSet.finiteAC \lam j => c {l j} ()
+         | (inP g) => FinSet.finiteAC \lam i => FinSet.finiteAC \lam j => lg ((f i).1 j).3
+         | A => mkMatrix \lam i k => R.BigSum $ mkArray \lam j => ((f i).1 j).1 * (g i j).1 k
+         | Al=l : product-gen A (mkColumn l) = mkColumn l => matrixExt \lam i k =>
+             path (\lam i' => M.BigSum (\lam j => M.*c_BigSum-rdistr {mkArray \lam j' => ((f i).1 j').1 * (g i j').1 j} {l j} i')) *>
+             M.BigSum-transpose _ *> pmap M.BigSum (exts \lam j => pmap M.BigSum (exts \lam k => *c-assoc) *>
+             inv M.*c_BigSum-ldistr *> pmap (_ *c) (inv (g i j).2)) *> inv (f i).2
+         | B => ide - A
+         | t => equations-determinant B {mkColumn l} $ product-gen-rdistr ide (negative A) {mkColumn l} *> pmap2 (+) (product-gen_ide-left (mkColumn l)) (MatrixRing.product-gen_negative-left A (mkColumn l)) *> AddGroup.toZero {_} {mkColumn l} {product-gen A (mkColumn l)} (inv Al=l)
+    \in inP (determinant B, FactorRing.unfequiv $ inv $ determinant_map (factorMap I) B *> cong (matrixExt \lam i j => mcases (FactorRing.fequiv $ simplify $ contains_negative $ I.bigSum _ \lam k => later $ ideal-right ((f i).1 k).2)) *> determinant_ide {_} {l.len}, \lam m => \case lg m \with {
+      | inP (c,p) => rewrite p $ M.*c_BigSum-ldistr *> M.BigSum_zro \lam j => inv M.*c-assoc *> pmap (`*c _) *-comm *> M.*c-assoc *> later (path \lam i => _ *c t i j 0) *> M.*c_zro-right
+    })
+  \where \open MatrixRing
+
+\lemma nakayama-ideal {R : CRing} {I : Ideal R} (Ifg : I.IsFinitelyGenerated) (p : I <= I * I) : ∃ (u : R) (u * u = u) (I.IsGeneratedBy1 u)
+  => TruncP.map (nakayama {R} {I.module} (Ideal.module.finitelyGenerated Ifg) \lam {s} _ => TruncP.map (p s.2)
+        \lam t => (map (later \lam s => (s.1 * s.2.1, ideal-left s.2.3, (s.2.2, s.2.4))) t.1,
+                   ext $ t.2 *> pmap R.BigSum (exts \lam j => inv *-assoc) *> inv SubAddMonoid.struct_BigSum))
+      \lam s => (1 - s.1, equation {usingOnly (pmap __.1 $ s.3 (1 - s.1, s.2) )}, (s.2, \lam {b} Ib => inP \new Monoid.LDiv {
+        | inv => b
+        | inv-right => equation {usingOnly (pmap __.1 $ s.3 (b,Ib))}
+      }))

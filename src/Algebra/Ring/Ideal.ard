@@ -1,11 +1,13 @@
 \import Algebra.Group
 \import Algebra.Group.Sub
 \import Algebra.Meta
+\import Algebra.Module
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
 \import Algebra.Monoid.Sub
 \import Algebra.Pointed.Sub
 \import Algebra.Ring
+\import Algebra.Ring.Category
 \import Algebra.Semiring
 \import Arith.Int
 \import Arith.Nat
@@ -63,6 +65,18 @@
           | byRight m<=j => ideal-left (rewriteI (<=_exists m<=j) (rewrite Monoid.pow_+ (ideal-right yS)))
         }))))
     | ideal-left (inP (n,s)) => inP (n, transportInv contains CMonoid.pow_*-comm (ideal-left s))
+
+  \func module : LModule' S \cowith
+    | AbGroup => SubAddGroup.abStruct \this
+    | *c a s => (a * s.1, ideal-left s.2)
+    | *c-assoc => ext *-assoc
+    | *c-ldistr => ext ldistr
+    | *c-rdistr => ext rdistr
+    | ide_*c => ext ide-left
+    \where {
+      \lemma finitelyGenerated (p : IsFinitelyGenerated) : module.IsFinitelyGenerated \elim p
+        | inP (l,lg) => inP (l, \lam s => TruncP.map (lg s.2) \lam t => (t.1, ext $ t.2 *> inv struct_BigSum))
+    }
 
   \lemma radical-superset {x : S} (s : contains x) : radical x
     => inP (1, transportInv contains ide-left s)
@@ -260,3 +274,69 @@
     \lemma product_meet {R : CRing} {I J : Ideal R} : product I J <= I ∧ J
       => meet-univ product-left product-right
   }
+
+\instance FactorRing (I : Ideal) : CRing
+  | E => Type I
+  | zro => inF 0
+  | + (x y : Type I) : Type I \with {
+    | in~ a, in~ b => in~ (a Ring.+ b)
+    | in~ a, ~-equiv b c r => fequiv (simplify r)
+    | ~-equiv b c r, in~ a => fequiv (simplify r)
+  }
+  | zro-left {x} => \case \elim x \with {
+    | in~ a => fequiv (simplify contains_zro)
+  }
+  | +-assoc {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ a, in~ b, in~ c => fequiv (simplify contains_zro)
+  }
+  | +-comm {x} {y} => \case \elim x, \elim y \with {
+    | in~ a, in~ b => fequiv (simplify contains_zro)
+  }
+  | ide => inF 1
+  | * (x y : Type I) : Type I \with {
+    | in~ a, in~ b => inF (a Ring.* b)
+    | in~ a, ~-equiv b c r => fequiv $ transport I equation (I.ideal-left {a} r)
+    | ~-equiv b c r, in~ a => fequiv $ transport I equation (I.ideal-right {a} r)
+  }
+  | ide-left {x} => \case \elim x \with {
+    | in~ a => fequiv (simplify contains_zro)
+  }
+  | *-assoc {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ a, in~ b, in~ c => fequiv (transport I equation contains_zro)
+  }
+  | ldistr {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ a, in~ b, in~ c => fequiv (transport I equation contains_zro)
+  }
+  | natCoef n => inF (natCoef n)
+  | natCoefZero => fequiv $ simplify (transportInv I natCoefZero contains_zro)
+  | natCoefSuc n => fequiv $ later $ rewrite natCoefSuc (simplify contains_zro)
+  | negative (x : Type I) : Type I \with {
+    | in~ a => inF (Ring.negative a)
+    | ~-equiv a b r => fequiv $ transport I equation (I.ideal-left { -1} r)
+  }
+  | negative-left {x} => \case \elim x \with {
+    | in~ a => fequiv (simplify contains_zro)
+  }
+  | *-comm {x} {y} => \case \elim x, \elim y \with {
+    | in~ a, in~ b => fequiv (transport I equation contains_zro)
+  }
+  \where {
+    \type Type (I : Ideal) => Quotient {I.S} (\lam a b => I (a - b))
+
+    \func inF {I : Ideal} (a : I.S) : Type I => in~ a
+
+    \lemma fequiv {I : Ideal} {a b : I.S} (p : I (a - b)) : inF a = inF b
+      => path (\lam i => ~-equiv a b p i)
+
+    \lemma unfequiv {I : Ideal} {a b : I.S} (p : inF a = inF b ) : I (a - b) => Quotient.equalityEquiv (\new Equivalence I.S (\lam a b => I (a - b)) {
+      | ~-transitive c d => transport I equation (contains_+ c d)
+      | ~-reflexive => simplify contains_zro
+      | ~-symmetric c => transport I equation (I.ideal-left { -1} c)
+    }) $ path (\lam i => p i)
+  }
+
+\func factorMap (I : Ideal) : RingHom I.S (FactorRing I) \cowith
+  | func => FactorRing.inF
+  | func-+ => idp
+  | func-ide => idp
+  | func-* => idp

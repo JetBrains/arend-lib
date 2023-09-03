@@ -5,11 +5,13 @@
 \import Algebra.Monoid.GCD
 \import Algebra.Ring.Ideal
 \import Algebra.Ring.Local
+\import Algebra.Ring.Nakayama
 \import Algebra.Ring.Poly
 \import Algebra.Ring.Reduced
 \import Algebra.Semiring
 \import Arith.Nat
 \import Data.Array
+\import Data.Bool
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
@@ -192,12 +194,6 @@
   \lemma vonNeumann_idempotent (vn : IsVonNeumannRegular) (a : E) : ∃ (u : E) (u * u = u) (LDiv a u) (a = u * a)
     => TruncP.map (vn a) \lam (b,p) => (a * b, equation, LDiv.factor-left LDiv.id-div, p)
 
-  \lemma vonNeumann_Bezout (vn : IsVonNeumannRegular) : IsBezout
-    => \lam a b => \case vonNeumann_idempotent vn a, vonNeumann_idempotent vn b \with {
-      | inP (u, uu=u, (c,ac=u), a=ua), inP (v, vv=v, (d,bd=v), b=vb) => inP (c, (1 - u) * d,
-          \new LDiv { | inv => a | inv-right => equation }, \new LDiv { | inv => b | inv-right => equation })
-    }
-
   \lemma vonNeumann-char : TFAE (
     IsVonNeumannRegular,
     \Sigma IsZeroDimensional (ReducedRing { | Ring => \this }),
@@ -215,11 +211,6 @@
             red.noNilpotent {_} {suc n} (pow_*-comm {_} {_} {_} {suc n} *> equation)) *> inv *-assoc)
       }
     ),
-    ((0,2), \lam vn I Ifg =>
-        \have | (inP (a,ag)) => bezout_finitelyGenerated_principal (vonNeumann_Bezout vn) I Ifg
-              | (inP (u,uu=u,a|u,a=ua)) => vonNeumann_idempotent vn a
-        \in inP (u, uu=u, (Ideal.ldiv a|u ag.1, \lam Ib => TruncP.map (ag.2 Ib) $ LDiv.trans (\new LDiv u a a (inv a=ua))))
-    ),
     ((2,0), \lam c a => \case c (closure1 a) (principal->finitelyGenerated closure1-principal) \with {
                           | inP (u,uu=u,(a|u',f)) =>
                             \have | (inP (a|u : LDiv a u)) => closure1_LDiv.1 a|u'
@@ -231,17 +222,16 @@
         | inP (b,p) => rewrite p $ closure-superset {_} {_} {IdealMonoid.func I J} $ later (a * b, a, ideal-right (IdealLattice.meet-left c), IdealLattice.meet-right c)
       }) IdealMonoid.product_meet),
     ((4,3), \lam f I => inv (f I I) *> IdealLattice.meet-idemp),
-    ((3,0), \lam f a =>
-       \have | (inP (l,p)) => rewriteI (f (closure1 a)) $ closure-superset {_} {_} {\lam _ => a} ()
-             | (inP g) => FinSet.finiteAC {_} {\lam j => \Sigma (b c d : E) (LDiv a c) (LDiv a d) ((l j).1 = b) ((l j).2.1 = c) ((l j).2.2 = d)}
-                 \lam j => \case closure1_LDiv.1 (l j).2.3, closure1_LDiv.1 (l j).2.4 \with {
-                   | inP a|c, inP a|d => inP ((l j).1, (l j).2.1, (l j).2.2, a|c, a|d, idp, idp, idp)
-                 }
-       \in inP (BigSum $ \lam j => (g j).1 * (LDiv.inv {(g j).4} * LDiv.inv {(g j).5}), rewrite (BigSum-ldistr,BigSum-rdistr) $
-              p *> pmap BigSum (exts \lam j => equation {usingOnly (LDiv.inv-right {(g j).4}, LDiv.inv-right {(g j).5}, (g j).6, (g j).7, (g j).8)}))
+    ((3,2), \lam f I Ifg => nakayama-ideal Ifg (Preorder.=_<= (inv (f I)))
     )
   )
   \where \open Ideal
+
+  \lemma vonNeumann_Bezout (vn : IsVonNeumannRegular) : IsBezout
+    => \lam a b => \case vonNeumann_idempotent vn a, vonNeumann_idempotent vn b \with {
+      | inP (u, uu=u, (c,ac=u), a=ua), inP (v, vv=v, (d,bd=v), b=vb) => inP (c, (1 - u) * d,
+          \new LDiv { | inv => a | inv-right => equation }, \new LDiv { | inv => b | inv-right => equation })
+    }
 } \where {
     \open Monoid(LDiv,Inv)
 
