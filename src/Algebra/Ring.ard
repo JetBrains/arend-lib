@@ -11,7 +11,6 @@
 \import Algebra.Semiring
 \import Arith.Nat
 \import Data.Array
-\import Data.Bool
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
@@ -121,20 +120,31 @@
 
   \func IsStrictBezout => \Pi (a b : E) -> ∃ (s t u v : E) (a * u = b * v) (s * u + t * v = 1)
 
-  \lemma bezout_finitelyGenerated_principal (bez : IsBezout) (I : Ideal \this) (fg : I.IsFinitelyGenerated) : I.IsPrincipal \elim fg
-    | inP s => TruncP.map (isBezoutArray $ map __.1 s.1) \lam t =>
-        (BigSum (\lam j => t.1 j * (s.1 j).1), (I.bigSum _ \lam j => ideal-left $ later (s.1 j).2, \lam {b} Ib =>
-            TruncP.map (s.2 Ib) \lam u => transportInv (LDiv _ __) u.2 (LDiv_BigSum \lam j => later $ LDiv.factor-right $ t.2 j)))
-    \where
-      \lemma isBezoutArray (l : Array E) : ∃ (c : Array E l.len) (\Pi (j : Fin l.len) -> LDiv (BigSum (\lam i => c i * l i)) (l j)) \elim l
+  \lemma bezout_finitelyGenerated_principal : IsBezout <-> (\Pi {I : Ideal \this} -> I.IsFinitelyGenerated -> I.IsPrincipal)
+    => (\lam bez {I : Ideal} Ifg =>
+          \have | (inP s) => Ifg
+                | (inP t) => isBezoutArray bez s.1
+          \in inP (BigSum (\lam j => t.1 j * s.1 j), (I.bigSum _ \lam j => ideal-left $ later (s.2.1 j), \lam {b} Ib =>
+               TruncP.map (s.2.2 Ib) \lam u => transportInv (LDiv _ __) u.2 (LDiv_BigSum \lam j => later $ LDiv.factor-right $ t.2 j))),
+        \lam p a b =>
+          \have | (inP (d,s)) => p {Ideal.closure (a :: b :: nil)} Ideal.closure-finGenerated
+                | (inP t) => Ideal.closureN-lem.1 s.1
+                | (inP d|a) => s.2 (Ideal.closure-superset {_} {_} {a :: b :: nil} (later 0))
+                | (inP d|b) => s.2 (Ideal.closure-superset {_} {_} {a :: b :: nil} (later 1))
+                | p => unfold BigSum at t $ rewriteF zro-right t.2
+          \in inP (t.1 0, t.1 1, rewriteI p d|a, rewriteI p d|b)
+    )
+    \where {
+      \lemma isBezoutArray (bez : IsBezout) (l : Array E) : ∃ (c : Array E l.len) (\Pi (j : Fin l.len) -> LDiv (BigSum (\lam i => c i * l i)) (l j)) \elim l
         | nil => inP (nil, \case __)
         | a :: l =>
-          \have | (inP s) => isBezoutArray l
+          \have | (inP s) => isBezoutArray bez l
                 | (inP t) => bez a (BigSum (\lam j => s.1 j * l j))
           \in inP (t.1 :: map (t.2 *) s.1, \case \elim __ \with {
             | 0 => transport (\lam x => LDiv (t.1 * a + x) a) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.3
             | suc j => LDiv.trans (transport (\lam x => LDiv (t.1 * a + x) _) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.4) (s.2 j)
           })
+    }
 
   \func bezoutGCD {a b s t : E} (p : LDiv (s * a + t * b) a) (q : LDiv (s * a + t * b) b) : GCD a b (s * a + t * b) \cowith
     | gcd|val1 => p
@@ -195,11 +205,11 @@
     => TruncP.map (vn a) \lam (b,p) => (a * b, equation, LDiv.factor-left LDiv.id-div, p)
 
   \lemma vonNeumann-char : TFAE (
-    IsVonNeumannRegular,
-    \Sigma IsZeroDimensional (ReducedRing { | Ring => \this }),
-    \Pi (I : Ideal \this) -> I.IsFinitelyGenerated -> ∃ (u : E) (u * u = u) (I.IsGeneratedBy1 u),
-    \Pi (I : Ideal \this) -> I IdealMonoid.* I = I,
-    \Pi (I J : Ideal \this) -> I ∧ J = I IdealMonoid.* J
+    {- 0 -} IsVonNeumannRegular,
+    {- 1 -} \Sigma IsZeroDimensional (ReducedRing { | Ring => \this }),
+    {- 2 -} \Pi (I : Ideal \this) -> I.IsFinitelyGenerated -> ∃ (u : E) (u * u = u) (I.IsGeneratedBy1 u),
+    {- 3 -} \Pi (I : Ideal \this) -> I IdealMonoid.* I = I,
+    {- 4 -} \Pi (I J : Ideal \this) -> I ∧ J = I IdealMonoid.* J
   ) => TFAE.proof $ later (
     ((0,1), \lam c => (\lam a => TruncP.map (c a) \lam s => (s.1, 1, equation {usingOnly s.2}),
                        \new ReducedRing { | isReduced {a} p => \case c a \with {
@@ -228,10 +238,7 @@
   \where \open Ideal
 
   \lemma vonNeumann_Bezout (vn : IsVonNeumannRegular) : IsBezout
-    => \lam a b => \case vonNeumann_idempotent vn a, vonNeumann_idempotent vn b \with {
-      | inP (u, uu=u, (c,ac=u), a=ua), inP (v, vv=v, (d,bd=v), b=vb) => inP (c, (1 - u) * d,
-          \new LDiv { | inv => a | inv-right => equation }, \new LDiv { | inv => b | inv-right => equation })
-    }
+    => bezout_finitelyGenerated_principal.2 \lam {I} Ifg => TruncP.map (vonNeumann-char 0 2 vn I Ifg) \lam s => (s.1,s.3)
 } \where {
     \open Monoid(LDiv,Inv)
 

@@ -75,7 +75,7 @@
     | ide_*c => ext ide-left
     \where {
       \lemma finitelyGenerated (p : IsFinitelyGenerated) : module.IsFinitelyGenerated \elim p
-        | inP (l,lg) => inP (l, \lam s => TruncP.map (lg s.2) \lam t => (t.1, ext $ t.2 *> inv struct_BigSum))
+        | inP (l,lg) => inP (\lam j => (l j, lg.1 j), \lam s => TruncP.map (lg.2 s.2) \lam t => (t.1, ext $ t.2 *> inv struct_BigSum))
     }
 
   \lemma radical-superset {x : S} (s : contains x) : radical x
@@ -96,17 +96,17 @@
          | inP (e,q) => transportInv contains q $ bigSum _ $ \lam i => p (e i)
        }
 
-  \func IsGeneratedBy (l : Array (\Sigma (x : S) (contains x)))
-    => \Pi {a : S} -> contains a -> ∃ (l' : Array S l.len) (a = BigSum (\lam j => l' j * (l j).1))
+  \func IsGeneratedBy (l : Array S)
+    => \Sigma (∀ (a : l) (contains a)) (\Pi {a : S} -> contains a -> ∃ (l' : Array S l.len) (a = BigSum (\lam j => l' j * l j)))
 
-  \func IsFinitelyGenerated => ∃ (l : Array (\Sigma (x : S) (contains x))) (IsGeneratedBy l)
+  \func IsFinitelyGenerated => ∃ (l : Array S) (IsGeneratedBy l)
 
   \func IsGeneratedBy1 (a : S) => \Sigma (contains a) (\Pi {b : S} -> contains b -> TruncP (Monoid.LDiv a b))
 
   \func IsPrincipal => ∃ (a : S) (IsGeneratedBy1 a)
 
   \lemma principal->finitelyGenerated (p : IsPrincipal) : IsFinitelyGenerated
-    | inP s => inP ((s.1, s.2.1) :: nil, \lam {a} c => TruncP.map (s.2.2 c) \lam (d : Monoid.LDiv s.1 a) => (d.inv :: nil, simplify $ inv d.inv-right *> *-comm))
+    | inP s => inP (s.1 :: nil, (\lam _ => s.2.1, \lam {a} c => TruncP.map (s.2.2 c) \lam (d : Monoid.LDiv s.1 a) => (d.inv :: nil, simplify $ inv d.inv-right *> *-comm)))
 } \where {
   \func closure {R : CRing} {J : \Set} (g : J -> R) : Ideal R \cowith
     | contains e => ∃ (l : Array (\Sigma R J)) (e = BigSum (map (\lam p => p.1 * g p.2) l))
@@ -153,7 +153,7 @@
     : closure f a <-> ∃ (c : D -> R) (a = FinSum (\lam i => c i * f i))
     => \case D.finEq \with {
          | inP (eq : Equiv) =>
-           \have (g,h) => closureN-lem (\lam i => f (eq i))
+           \have (g,h) => closureN-lem {_} {_} {\lam i => f (eq i)}
            \in (
              \lam (inP (l, a=fl)) =>
                  TruncP.map (g (inP (map (\lam (r, d) => (r, eq.ret d)) l,
@@ -165,8 +165,8 @@
                  TruncP.map (h (inP (\lam i => c (eq i), a=fc *> FinSum_char2 _ eq))) (\lam (l, a=fl) => (map (\lam (r, i) => (r, eq i)) l, a=fl)))
        }
 
-  \lemma closureN-lem {R : CRing} {a : R} {n : Nat} (B : Array R n)
-    : closure B a <-> ∃ (c : Array R n) (a = BigSum (\lam i => c i * B i)) =>
+  \lemma closureN-lem {R : CRing} {a : R} {B : Array R}
+    : closure B a <-> ∃ (c : Array R B.len) (a = BigSum (\lam i => c i * B i)) =>
     (TruncP.map __ (\lam q =>
         (\lam i => BigSum (map (\lam p => if (p.2 NatSemiring.== i) p.1 0) q.1),
          q.2 *> pmap BigSum (exts (\lam k => inv (singleton-lem _ _ (q.1 k).2)
@@ -189,6 +189,12 @@
           | no n, yes e => absurd (n (pmap pred e))
         })
     }
+
+  \lemma closure-generated {R : CRing} {l : Array R} : IsGeneratedBy {closure l} l
+    => (closure-superset, \lam c => closureN-lem.1 c)
+
+  \lemma closure-finGenerated {R : CRing} {l : Array R} : IsFinitelyGenerated {closure l}
+    => inP (l, closure-generated)
 
   \func ChainCondition {R : CRing} (I : Nat -> Ideal R) =>
     (\Pi (n : Nat) {a : R} -> I n a -> I (suc n) a) -> ∃ (n : Nat) (\Pi {a : R} -> I (suc n) a -> I n a)
