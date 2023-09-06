@@ -1,4 +1,5 @@
 \import Algebra.Algebra
+\import Algebra.Domain
 \import Algebra.Group
 \import Algebra.Group.Category
 \import Algebra.Linear.Matrix
@@ -28,6 +29,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.LinearOrder
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
@@ -198,3 +200,28 @@
 
 \lemma integralClosure-closed {R E : CRing} (f : RingHom R E) : isIntegrallyClosed (integralClosure-right f)
   => \lam a ai => inP ((a, integral-comp {R} {integralClosure f} (integralClosure-integral f) ai ), idp)
+
+-- p = x^n + a_{n-1}*x^{n-1} + ... + a_0
+-- q = a*x^n+a^a_{n-1}*x^{n-1} + ... + a * a_0
+-- p = b*a*x^n + b*a^a_{n-1}*x^{n-1} + ... + b*a*a_0
+-- p * a = q, p = b * q
+
+\func isMinPoly (f : RingHom) (a : f.Cod) (p : Poly f.Dom) : \Prop
+  => \Sigma (isMonic p) (polyEval (polyMap f p) a = 0) (\Pi {q : Poly f.Dom} -> polyEval (polyMap f q) a = 0 -> TruncP (Monoid.LDiv p q))
+  \where {
+    \lemma unique {R : StrictDomain} {f : RingHom R} {a : f.Cod} {p q : Poly R} (pm : isMinPoly f a p) (qm : isMinPoly f a q) : p = q
+      => \case pm.3 qm.2, qm.3 pm.2 \with {
+        | inP (p|q : Monoid.LDiv), inP (q|p : Monoid.LDiv) => \case polyDiv p|q q|p \with {
+          | byLeft (p=0,_) => \case pm.1 \with {
+            | inP (n,_,s) => absurd $ zro/=ide (rewriteF p=0 s)
+          }
+          | byRight (a,b,u,v,ab=1,ba=1) => \case pm.1, qm.1 \with {
+            | inP (n,dp,cp), inP (m,dq,cq) => \case LinearOrder.trichotomy n m \with {
+              | less n<m => absurd $ NonZeroSemiring.inv-nonZero (\new Monoid.Inv b a ab=1 ba=1) $ inv ide-left *> pmap (`* _) (inv cq) *> inv polyCoef_*-right *> rewriteF (inv q|p.inv-right, v) (degree<=.toCoefs p n dp n<m)
+              | equals n=m => inv ide-right *> pmap (p *) (inv $ u *> pmap (padd pzero) (inv ide-left *> pmap (`* a) (inv cp *> pmap (polyCoef p) n=m) *> inv polyCoef_*-right *> rewriteF (inv p|q.inv-right, u) cq)) *> p|q.inv-right
+              | greater m<n => absurd $ NonZeroSemiring.inv-nonZero (\new Monoid.Inv a b ba=1 ab=1) $ inv ide-left *> pmap (`* _) (inv cp) *> inv polyCoef_*-right *> rewriteF (inv p|q.inv-right, u) (degree<=.toCoefs q m dq m<n)
+            }
+          }
+        }
+      }
+  }
