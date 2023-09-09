@@ -1,5 +1,7 @@
 \import Algebra.Algebra
 \import Algebra.Domain
+\import Algebra.Domain.Euclidean
+\import Algebra.Field
 \import Algebra.Group
 \import Algebra.Group.Category
 \import Algebra.Linear.Matrix
@@ -9,11 +11,14 @@
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
 \import Algebra.Monoid.PermSet
+\import Algebra.Monoid.Prime
 \import Algebra.Monoid.Sub
+\import Algebra.Ordered
 \import Algebra.Pointed
 \import Algebra.Pointed.Sub
 \import Algebra.Ring
 \import Algebra.Ring.Category
+\import Algebra.Ring.Ideal
 \import Algebra.Ring.MPoly
 \import Algebra.Ring.MonoidRing
 \import Algebra.Ring.Poly
@@ -30,13 +35,16 @@
 \import Logic.Meta
 \import Meta
 \import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
+\import Set
 \import Set.Fin
 
 \func polyImage {R : Ring} {E : CRing} (f : RingHom R E) (a : E) : SubRing E
-  => ringHomImage (polyEvalRingHom a ∘ polyMapRingHom f)
+  => ringHomImage (polyMapEvalRingHom f a)
 
 \lemma polyImage-closed {R : Ring} {E : CRing} (f : RingHom R E) (a : E) (x : SubRing.cStruct (polyImage f a)) : polyImage f a (a * x.1) \elim x
   | (x, inP (p,q)) => inP $ unfold (padd p 0, unfold $ rewrite (q,f.func-zro) (zro-right *> *-comm))
@@ -52,6 +60,13 @@
   | func-+ => ext f.func-+
   | func-ide => ext f.func-ide
   | func-* => ext f.func-*
+
+-- | A map `R[x] -> R[a]` given by `p |-> p(a)`.
+\func polyImageHomPoly {R : Ring} {E : CRing} (f : RingHom R E) (a : E) : RingHom (PolyRing R) (SubRing.cStruct (polyImage f a)) \cowith
+  | func p => (polyEval (polyMap f p) a, inP (p, idp))
+  | func-+ => ext $ func-+ {polyMapEvalRingHom f a}
+  | func-ide => ext $ simplify f.func-ide
+  | func-* => ext $ func-* {polyMapEvalRingHom f a}
 
 \func mPolyImage {R E : CRing} (f : RingHom R E) (l : Array E) : SubRing E
   => ringHomImage (mPolyEval l ∘ mPoly-mapHom f)
@@ -201,16 +216,26 @@
 \lemma integralClosure-closed {R E : CRing} (f : RingHom R E) : isIntegrallyClosed (integralClosure-right f)
   => \lam a ai => inP ((a, integral-comp {R} {integralClosure f} (integralClosure-integral f) ai ), idp)
 
--- p = x^n + a_{n-1}*x^{n-1} + ... + a_0
--- q = a*x^n+a^a_{n-1}*x^{n-1} + ... + a * a_0
--- p = b*a*x^n + b*a^a_{n-1}*x^{n-1} + ... + b*a*a_0
--- p * a = q, p = b * q
+-- | A map `R[x]/p -> R[a]` given by `[q]_~ |-> q(a)`.
+\func integral_factor {R E : CRing} (f : RingHom R E) (a : E) (p : Poly R) (e : polyEval (polyMap f p) a = 0)
+  : RingHom (FactorRing (Ideal.closure1 p)) (SubRing.cStruct (polyImage f a))
+  => factor-lift (polyImageHomPoly f a) \lam {q} c => ext $ unfold \case Ideal.closure1-lem.1 c \with {
+    | inP (d,q=pd) => rewrite (q=pd, func-* {polyMapEvalRingHom f a}) equation
+  }
 
 \func isMinPoly (f : RingHom) (a : f.Cod) (p : Poly f.Dom) : \Prop
-  => \Sigma (isMonic p) (polyEval (polyMap f p) a = 0) (\Pi {q : Poly f.Dom} -> polyEval (polyMap f q) a = 0 -> TruncP (Monoid.LDiv p q))
+  => \Sigma (polyEval (polyMap f p) a = 0) (\Pi {q : Poly f.Dom} -> polyEval (polyMap f q) a = 0 -> TruncP (Monoid.LDiv p q))
+
+\lemma integral_factor-equiv {R E : CRing} (f : RingHom R E) (a : E) (p : Poly R) (pm : isMinPoly f a p) : Equiv (integral_factor f a p pm.1)
+  => Equiv.fromInjSurj _ (AddGroupHom.injective $ unfold \lam {q} => \case \elim q \with {
+    | in~ q => \lam u => FactorRing.fequiv $ Ideal.closure1_LDiv.2 $ simplify $ pm.2 (pmap __.1 u)
+  }) \lam s => TruncP.map s.2 \lam t => (in~ t.1, ext t.2)
+
+\func isMonicMinPoly (f : RingHom) (a : f.Cod) (p : Poly f.Dom) : \Prop
+  => \Sigma (isMonic p) (isMinPoly f a p)
   \where {
-    \lemma unique {R : StrictDomain} {f : RingHom R} {a : f.Cod} {p q : Poly R} (pm : isMinPoly f a p) (qm : isMinPoly f a q) : p = q
-      => \case pm.3 qm.2, qm.3 pm.2 \with {
+    \lemma unique {R : StrictDomain} {f : RingHom R} {a : f.Cod} {p q : Poly R} (pm : isMonicMinPoly f a p) (qm : isMonicMinPoly f a q) : p = q
+      => \case pm.2.2 qm.2.1, qm.2.2 pm.2.1 \with {
         | inP (p|q : Monoid.LDiv), inP (q|p : Monoid.LDiv) => \case polyDiv p|q q|p \with {
           | byLeft (p=0,_) => \case pm.1 \with {
             | inP (n,_,s) => absurd $ zro/=ide (rewriteF p=0 s)
@@ -224,4 +249,42 @@
           }
         }
       }
+  }
+
+\lemma irr_minPoly {K : DiscreteField} {E : NonZeroCRing} (f : RingHom K E) (a : E) (p : Irr {PolyAlgebra K}) (pe : polyEval (polyMap f p) a = 0) : isMinPoly f a p
+  => \have p/=0 (p=0 : p.e = 0) => K.zro/=ide $ pmap lastCoef $ p.isCancelable-left {0} {1} $ rewrite p=0 idp
+     \in (pe, minPoly-fromDeg f a p pe p/=0 \lam q/=0 qe => aux f a p pe p/=0 id<suc q/=0 qe)
+  \where {
+    \lemma aux {K : DiscreteField} {E : NonZeroCRing} (f : RingHom K E) (a : E) (p : Irr {PolyAlgebra K}) (pe : polyEval (polyMap f p) a = 0) (p/=0 : p.e /= 0) {n : Nat}
+               {q : Poly K} (qd : degree q < n) (q/=0 : q /= 0) (qe : polyEval (polyMap f q) a = 0) : degree p <= degree q \elim n
+      | suc n =>
+        \have d : EuclideanRingData (Poly K) => PolyEuclideanRingData K
+        \in \case decideEq (d.divMod p q).2 0 \with {
+              | yes r=0 =>
+                \have p=qd => rewriteF r=0 (inv (d.isDivMod p q)) *> zro-right
+                \in \case p.isIrr p=qd \with {
+                  | byLeft (e : Monoid.Inv) => \case polyInv e \with {
+                    | inP s => absurd $ NonZeroSemiring.inv-nonZero (f.func-Inv s.3) $ inv zro-left *> rewriteF (s.2,zro_*-left) qe
+                  }
+                  | byRight (e : Monoid.Inv) => rewrite (inv $ pmap (`* e.inv) p=qd *> *-assoc *> pmap (q *) e.inv-right *> ide-right, degree_* p/=0 \lam e1=0 => zro/=ide {PolyDomain K} $ inv zro_*-right *> pmap (e *) (inv e1=0) *> e.inv-right) (LinearlyOrderedSemiring.<=_+ <=-refl zero<=_)
+                }
+              | no r/=0 => \have | dr<dq => d.isEuclideanMap p q q/=0 r/=0
+                                 | dp<=dr => aux f a p pe p/=0 (<-transitive-left dr<dq $ suc<=suc.conv $ suc_<_<= qd) r/=0 $
+                                              inv (func-+ {polyMapEvalRingHom f a} *> pmap (`+ _) (func-* {polyMapEvalRingHom f a} *> pmap (`* _) qe *> zro_*-left) *> zro-left) *>
+                                              pmap (\lam x => polyEval (polyMap f x) a) (d.isDivMod p q) *> pe
+                           \in LinearOrder.<_<= (<-transitive-right dp<=dr dr<dq)
+            }
+
+    \lemma minPoly-fromDeg {K : DiscreteField} {E : CRing} (f : RingHom K E) (a : E) (p : Poly K) (pe : polyEval (polyMap f p) a = 0) (p/=0 : p /= 0)
+                           (c : \Pi {q : Poly K} -> q /= 0 -> polyEval (polyMap f q) a = 0 -> degree p <= degree q)
+                           {q : Poly K} (qe : polyEval (polyMap f q) a = 0) : TruncP (Monoid.LDiv p q)
+      => \let d : EuclideanRingData (Poly K) => PolyEuclideanRingData K
+         \in \case decideEq (d.divMod q p).2 0 \with {
+           | yes r=0 => inP \new Monoid.LDiv {
+             | inv => (d.divMod q p).1
+             | inv-right => inv zro-right *> pmap (_ +) (inv r=0) *> d.isDivMod q p
+           }
+           | no r/=0 => absurd $ <-irreflexive $ <-transitive-left (d.isEuclideanMap q p p/=0 r/=0) $ c r/=0 $
+                          inv (func-+ {polyMapEvalRingHom f a} *> pmap (`+ _) (func-* {polyMapEvalRingHom f a} *> equation) *> zro-left) *> pmap (\lam u => polyEval (polyMap f u) a) (d.isDivMod q p) *> qe
+         }
   }
