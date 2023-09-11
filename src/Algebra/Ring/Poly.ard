@@ -102,6 +102,9 @@
   | padd p e => polyEval p a * a + e
   | peq => zro-right *> zro_*-left
 
+\func polyMapEval {A : AddPointed} {R : Ring} (f : AddPointedHom A R) (p : Poly A) (a : R) : R
+  => polyEval (polyMap f p) a
+
 \lemma polyEval_polyMap {f : RingHom} {p : Poly f.Dom} {a : f.Dom} : polyEval (polyMap f p) (f a) = f (polyEval p a) \elim p
   | pzero => inv func-zro
   | padd p e => inv $ func-+ *> pmap (`+ _) (f.func-* *> pmap (`* _) (inv polyEval_polyMap))
@@ -149,6 +152,17 @@
 \lemma polyCoef_monomial {R : AddPointed} {c : R} {n : Nat} : polyCoef (monomial c n) n = c \elim n
   | 0 => idp
   | suc n => polyCoef_monomial
+
+\lemma polyMap_monomial {f : AddPointedHom} {c : f.Dom} {n : Nat} : polyMap f (monomial c n) = monomial (f c) n \elim n
+  | 0 => idp
+  | suc n => pmap2 padd polyMap_monomial func-zro
+
+\lemma polyEval_monomial {R : Ring} {c a : R} {n : Nat} : polyEval (monomial c n) a = c * pow a n \elim n
+  | 0 => simplify
+  | suc n => rewrite polyEval_monomial equation
+
+\lemma polyMapEval_monomial {f : RingHom} {a : f.Cod} {n : Nat} : polyMapEval f (monomial 1 n) a = pow a n
+  => pmap (polyEval __ a) polyMap_monomial *> polyEval_monomial *> pmap (`* _) func-ide *> ide-left
 
 \lemma monomial_zro {R : AddPointed} {n : Nat} : monomial R.zro n = pzero \elim n
   | 0 => peq
@@ -679,6 +693,26 @@
     }
   }
 
+\lemma monomial-factor {R : StrictIntegralDomain} {p q s : Poly R} (t : p * q = padd s 0)
+  : ∃ (r : Poly R) (Or (\Sigma (p = padd r 0) (r * q = s)) (\Sigma (q = padd r 0) (p * r = s))) \elim p, q
+  | pzero, q => inP (pzero, inl (inv peq, pmap polyShift t))
+  | p, pzero => inP (pzero, inr (inv peq, zro_*-right *> pmap polyShift (inv zro_*-right *> t)))
+  | padd p a, padd q b => \case zeroProduct $ inv zro-left *> pmap lastCoef t \with {
+    | byLeft a=0 => inP (p, inl (pmap (padd p) a=0, *-comm *> inv zro-right *> pmap (_ +) (inv PolyRing.zro_*c *> pmap (`*c q) (inv a=0)) *> pmap (`+ _) *-comm *> pmap polyShift t))
+    | byRight b=0 => inP (q, inr (pmap (padd q) b=0, pmap (`+ _) (inv zro-right *> pmap2 (\lam x => padd x 0 +) *-comm (inv PolyRing.zro_*c *> pmap (`*c p) (inv b=0)) *> *-comm) *> pmap polyShift t))
+  }
+
+\lemma monomial_div {R : StrictIntegralDomain} {n : Nat} {p : Poly R} (d : LDiv p (monomial 1 n)) : ∃ (c : R) (c /= 0) (k : Nat) (p = monomial c k) \elim n, p
+  | 0, p => TruncP.map (polyInv $ Inv.lmake d.inv $ *-comm *> d.inv-right) \lam s => (s.1, NonZeroSemiring.inv-nonZero s.3, 0, s.2)
+  | suc n, p => \case monomial-factor d.inv-right \with {
+    | inP (r, inl s) => TruncP.map (monomial_div (\new LDiv r (monomial 1 n) d.inv s.2)) \lam t => (t.1, t.2, suc t.3, s.1 *> pmap (padd __ 0) t.4)
+    | inP (r, inr s) => monomial_div (\new LDiv p (monomial 1 n) r s.2)
+  }
+
+\lemma monomial_div2 {R : Ring} {n : Nat} {c : R} {p : Poly R} (d : LDiv (monomial c (suc n)) p) : lastCoef p = 0 \elim p
+  | pzero => idp
+  | padd p a => pmap lastCoef $ inv $ pmap (_ +) (inv PolyRing.zro_*c) *> d.inv-right
+
 \lemma degree<=_BigProd {R : Ring} {l : Array (Poly R)} (d : Array Nat l.len) (p : \Pi (j : Fin l.len) -> degree<= (l j) (d j))
   : degree<= (BigProd l) (AddMonoid.BigSum d) \elim l, d
   | nil, d => idp
@@ -893,6 +927,27 @@
       | no q/=0 => leadCoef_+ (later $ rewrite (decideEq/=_reduce $ Domain.nonZeroProduct p/=0 q/=0) (degree_*.degree_< q/=0 p/=0)) *> rewrite (decideEq/=_reduce $ Domain.nonZeroProduct p/=0 q/=0) leadCoef_*
     }
   }
+
+\func poly-factor-monomial {R : AddPointed} {D : DecSet R} {p : Poly R}
+  : p /= pzero -> \Sigma (n : Nat) (q : Poly R) (p = iterr (padd __ 0) n q) (lastCoef q /= 0) \elim p
+  | pzero => \lam p/=0 => absurd (p/=0 idp)
+  | padd p a => \lam pX+a/=0 => \case decideEq a 0 \with {
+    | yes a=0 => \have s => poly-factor-monomial \lam p=0 => pX+a/=0 $ pmap2 padd p=0 a=0 *> peq
+                 \in (suc s.1, s.2, rewrite a=0 $ pmap (padd __ 0) s.3, s.4)
+    | no a/=0 => (0, padd p a, idp, a/=0)
+  }
+  | peq => pathOver $ simp_coe \lam f => absurd (f idp)
+
+\lemma poly-factor-monomial-unique {R : AddPointed} {n m : Nat} {q q' : Poly R} (c : iterr (padd __ 0) n q = iterr (padd __ 0) m q') (qc : lastCoef q /= 0) (q'c : lastCoef q' /= 0) : \Sigma (n = m) (q = q') \elim n, m
+  | 0, 0 => (idp, c)
+  | 0, suc m => absurd $ qc $ rewrite c idp
+  | suc n, 0 => absurd $ q'c $ rewriteI c idp
+  | suc n, suc m => \have r => poly-factor-monomial-unique (pmap polyShift c) qc q'c
+                    \in (pmap suc r.1, r.2)
+
+\lemma poly-monomial-char {R : Ring} {n : Nat} {p : Poly R} : monomial 1 n * p = iterr (padd __ 0) n p \elim n
+  | 0 => pmap2 (+) peq PolyRing.ide_*c
+  | suc n => pmap (_ +) PolyRing.zro_*c *> pmap (padd __ 0) poly-monomial-char
 
 \instance PolyEuclideanRingData (R : DiscreteField) : EuclideanRingData (Poly R)
   | CRing => PolyAlgebra R
