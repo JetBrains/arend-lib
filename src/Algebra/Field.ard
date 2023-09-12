@@ -7,10 +7,12 @@
 \import Algebra.Monoid.GCD
 \import Algebra.Monoid.Prime
 \import Algebra.Ring
+\import Algebra.Ring.Category
 \import Algebra.Ring.Ideal
 \import Algebra.Ring.Local
 \import Algebra.Semiring
 \import Data.Or
+\import Equiv
 \import Function.Meta ($)
 \import Logic
 \import Meta
@@ -135,6 +137,22 @@
   \func from-|| {R : CRing} (q : 0 /= {R} 1) (p : \Pi (a : R) -> (a = zro) || Inv a) : DiscreteField { | CRing => R } \cowith
     | zro/=ide => q
     | eitherZeroOrInv a => TruncP.remove (Or.levelProp (\lam a=0 e => inv-nonZero {\new NonZeroSemiring { | Semiring => R | zro/=ide => q }} e a=0)) (||.toOr (p a))
+
+  \func backwards (f : RingHom) (e : Equiv f) (D : DiscreteField { | Ring => f.Cod }) : DiscreteField { | Ring => f.Dom } \cowith
+    | *-comm => e.isInj $ f.func-* *> *-comm *> inv f.func-*
+    | zro/=ide q => D.zro/=ide $ inv f.func-zro *> pmap f q *> f.func-ide
+    | eitherZeroOrInv a => Or.map (D.eitherZeroOrInv (f a)) (\lam q => e.isInj $ q *> inv f.func-zro) \lam (fai : Inv (f a)) => \new Inv a {
+      | inv => e.ret fai.inv
+      | inv-left => e.isInj $ f.func-* *> pmap (`* _) (e.f_ret _) *> fai.inv-left *> inv f.func-ide
+      | inv-right => e.isInj $ f.func-* *> pmap (_ *) (e.f_ret _) *> fai.inv-right *> inv f.func-ide
+    }
+
+  \func forward {f : RingHom} (e : Equiv f) (D : DiscreteField { | Ring => f.Dom }) : DiscreteField { | Ring => f.Cod }
+    => backwards (\new RingHom f.Cod f.Dom e.ret {
+      | func-+ => e.isInj $ e.f_ret _ *> inv (f.func-+ *> pmap2 (+) (e.f_ret _) (e.f_ret _))
+      | func-ide => e.isInj $ e.f_ret _ *> inv f.func-ide
+      | func-* => e.isInj $ e.f_ret _ *> inv (f.func-* *> pmap2 (*) (e.f_ret _) (e.f_ret _))
+    }) (symQEquiv e) D
 }
 
 \instance FactorIrrField (R : BezoutRing) (p : Irr {R})
