@@ -160,7 +160,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
         }
         return false;
       }
-    }, ext.carrier, type, typechecker, refExpr);
+    }, ext.carrier, type, typechecker, refExpr, null);
     if (instanceClassCallPair != null) {
       TypedExpression instance = instanceClassCallPair.proj1;
       CoreClassCallExpression classCall = instanceClassCallPair.proj2;
