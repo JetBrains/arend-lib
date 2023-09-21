@@ -1,5 +1,6 @@
 # Arend Standard Library
 
+[![JetBrains project](https://jb.gg/badges/official.svg)](https://confluence.jetbrains.com/display/ALL/JetBrains+on+GitHub)
 ![check](https://github.com/JetBrains/arend-lib/workflows/check/badge.svg)
 
 Arend is a theorem prover based on [Homotopy Type Theory](https://ncatlab.org/nlab/show/homotopy+type+theory).
