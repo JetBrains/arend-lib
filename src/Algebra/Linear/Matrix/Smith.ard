@@ -1,0 +1,146 @@
+\import Algebra.Domain.Bezout
+\import Algebra.Linear.Matrix
+\import Algebra.Module
+\import Algebra.Module.Category
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Nat
+\import Data.Array
+\import Data.Fin (fsuc, fsuc/=)
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set
+\import Set.Fin
+\open Monoid \hiding (equals)
+
+\func \infix 4 M~ {R : Ring} {n m : Nat} (A B : Matrix R n m) : \Prop
+  => ∃ (C : Inv {MatrixRing R n}) (D : Inv {MatrixRing R m}) (B = C.val MatrixRing.product A MatrixRing.product D.val)
+
+\instance M~-equiv {R : Ring} {n m : Nat} : Equivalence (Matrix R n m) (M~) \cowith
+  | ~-reflexive {A} => inP (Inv.ide-isInv, Inv.ide-isInv, inv $ product_ide-right *> product_ide-left)
+  | ~-symmetric {A} {B} => TruncP.map __ \lam s => (Inv.op {s.1}, Inv.op {s.2}, inv $ pmap (\lam z => Inv.inv {s.1} product z product Inv.inv {s.2}) (s.3 *> product-gen-assoc) *>
+                                                                                      \let A' => A product Inv.val {s.2}
+                                                                                      \in pmap (`product _) (inv (product-assoc _ _ A') *> pmap (`product A') (Inv.inv-left {s.1}) *> product_ide-left {_} {_} {_} {A'}) *> product-gen-assoc *> pmap (A product) (Inv.inv-right {s.2}) *> product_ide-right)
+  | ~-transitive {P} {Q} {S} (inP s) (inP t) => inP (Inv.product t.1 s.1, Inv.product s.2 t.2, t.3 *> pmap (_ product __ product _) s.3 *> pmap (`product _) {_ product (_ product P product _)} {_ * _ product P product _} (pmap (_ product) product-gen-assoc *> inv (product-assoc _ _ (P product _)) *> inv (product-assoc (_ * _) _ _)) *> product-assoc (_ * _ product P) _ _)
+  \where \open MatrixRing
+
+\func IsSmithNF {R : Semiring} {n m : Nat} (A : Matrix R n m) : \Prop
+  => \Sigma (IsDiagonal A) (\Pi (i : Nat) (p : suc i < n) (q : suc i < m) -> TruncP (LDiv (A (toFin $ <-transitive id<suc p) (toFin $ <-transitive id<suc q)) (A (toFin p) (toFin q))))
+
+\class SmithRing \extends StrictBezoutRing {
+  | isSmith (A : Matrix E 2 2) : ∃ (B : Matrix E 2 2) (IsDiagonal B) (A M~ B)
+
+  \lemma diagonalize {n m : Nat} (A : Matrix E n m) : ∃ (B : Matrix E n m) (IsDiagonal B) (A M~ B) \elim n, m
+    | 0, m => inP (nil, (\case __), inP (Inv.ide-isInv, Inv.ide-isInv, idp))
+    | n, 0 => inP (mkMatrix $ later \lam i j => (\case j), \lam i j => (\case j), inP (Inv.ide-isInv, Inv.ide-isInv, idp))
+    | suc n, suc m => {?}
+    \where {
+      \private \lemma elimRowColumn {n m : Nat} (A : Matrix E (suc n) (suc m)) (k : Nat)
+        : ∃ (B : Matrix E (suc n) (suc m)) (A M~ B) (\Pi (i : Fin (suc n)) -> (0 : Nat) < i -> i < k -> B i 0 = 0) (\Pi (j : Fin (suc m)) -> (0 : Nat) < j -> j < k -> B 0 j = 0) \elim k
+        | 0 => inP (A, M~-equiv.~-reflexive, \lam i p q => absurd $ <-irreflexive $ <-transitive p q, \lam j p q => absurd $ <-irreflexive $ <-transitive p q)
+        | suc k => \case elimRowColumn A k \with {
+          | inP (A',A~A',f,g) =>
+            \let C => matrixFromArrays $ (A 0 0 :: A k 0 :: nil) :: (A 0 k :: A k k :: nil) :: nil
+            \in {?}
+            {- \case isStrictBezout (A' 0 0) (A' 0 (suc k)) \with {
+              | inP (s,t,u,v,p,q) =>
+                \let | C => matrixFromArrays ((s :: t :: nil) :: (negative v :: u :: nil) :: nil)
+                     | Cinv (k<m : k < m) : Inv (embed22 C {m} (suc k)) => determinant-inv.2 $ transportInv Inv (embed22_determinant {_} {C} {?} *> determinant22 {_} {C} *> {?}) Inv.ide-isInv
+                \in inP (A' MatrixRing.product embed22 C (suc k), M~-equiv.~-transitive A~A' $ inP ({?}, Inv.ide-isInv, {?}), \lam i i>0 i<=k+1 => {?}, \lam i i>1 => {?})
+            } -}
+        }
+
+      \private \lemma elimColumn' {n m : Nat} (A : Matrix E (suc n) (suc m)) (k : Nat)
+        : ∃ (B : Matrix E (suc n) (suc m)) (A M~ B) (\Pi (i : Fin (suc m)) -> (0 : Nat) < i -> i < k -> B 0 i = 0) (\Pi (j : Fin n) -> (1 : Nat) < j -> B j 0 = A j 0) \elim k
+        | 0 => inP (A, M~-equiv.~-reflexive, \lam i p q => absurd $ <-irreflexive $ <-transitive p q, \lam _ _ => idp)
+        | suc k => \case elimRowColumn A k \with {
+          | inP (A',A~A',f,g) => \case isStrictBezout (A' 0 0) (A' 0 k) \with {
+            | inP (s,t,u,v,p,q) =>
+              \let | C => matrixFromArrays ((s :: t :: nil) :: (u :: negative v :: nil) :: nil)
+                   | Cinv : Inv (embed22 C {n} k) => determinant-inv.2 $ transportInv Inv (embed22_determinant {_} {C} {?}) {?}
+              \in inP (embed22 C k MatrixRing.product A', M~-equiv.~-transitive A~A' $ inP ({?}, Inv.ide-isInv, {?}), \lam i i>0 i<k+1 => {?}, \lam i i>1 => {?})
+          }
+        }
+    }
+}
+
+\func embed22 {R : Ring} (A : Matrix R 2 2) {n : Nat} (k : Fin (suc n)) : Matrix R (suc n) (suc n)
+  => matrixFromArrays $ replace2 (MatrixRing.ide {R} {suc n}) 0 k
+                            (replace2 (replicate (suc n) zro) 0 k (A 0 0) (A 1 0))
+                            (replace2 (replicate (suc n) zro) 0 k (A 0 1) (A 1 1))
+  \where {
+    \func replace2 {A : \Type} (l : Array A) (i j : Fin l.len) (a b : A) : Array A l.len
+      => replace (replace l i a) j b
+
+    \func replace2-first {A : \Type} {l : Array A} {i j : Fin l.len} {a b : A} (i/=j : i /= {Nat} j) : replace2 l i j a b i = a
+      => replace-notIndex {A} {replace l i a} (/=-sym i/=j) *> replace-index
+
+    \func replace2-second {A : \Type} {l : Array A} {i j : Fin l.len} {a b : A} : replace2 l i j a b j = b
+      => replace-index
+  }
+
+\lemma embed22_determinant {R : CRing} {A : Matrix R 2 2} {n : Nat} {k : Fin (suc n)} (k/=0 : k /= {Nat} 0)
+  : determinant (embed22 A k) = determinant A \elim k
+  | 0 => absurd (k/=0 idp)
+  | suc k => inv (determinantN.=determinant {R} {suc n} {0} {embed22 A (suc k)}) *> pmap2 (+)
+      (pmap2 (*) (ide-right *> embed22_00 {R} {_} {n} {suc k} \case __) $ pmap determinant embed22_minor00 *> determinant_diagonal *>
+        BigProd-unique k (\lam j k/=j => later $ replace-notIndex (fin_nat-ineq k/=j)) *> replace-index)
+      (R.BigSum-unique k (\lam j k/=j => later (rewrite (replace-notIndex (fin_nat-ineq k/=j), zro_*-left) zro_*-left)) *>
+        later (rewrite replace-index $ simplify $ pmap R.negative $ *-assoc *> pmap (_ *) (\case \elim n, \elim k, \elim k/=0 \with {
+          | suc n, k, k/=0 => later $ inv (isAlternating.alternating_perm {R} determinant.alternating embed22_minor_k0_perm.1 *> pmap (pow -1 __ * _) embed22_minor_k0_perm.2) *> determinant_diagonal1
+        }) *> *-comm)) *> inv determinant22
+  \where {
+    \open embed22
+    \open determinant
+
+    \lemma embed22_00 {R : Ring} {A : Matrix R 2 2} {n : Nat} {k : Fin (suc n)} (k/=0 : k /= {Nat} 0) : embed22 A k 0 0 = A 0 0
+      => pmap {Array R (suc n)} (__ 0) (replace2-first {Array R (suc n)} {MatrixRing.ide} {0} (/=-sym k/=0)) *> replace2-first {_} {replicate (suc n) zro} (/=-sym k/=0)
+
+    \lemma embed22_minor00 {R : Ring} {A : Matrix R 2 2} {n : Nat} {k : Fin n}
+      : minor (embed22 A (suc k)) 0 0 = diagonal1 k (A 1 1)
+      => minor00 (embed22 A (suc k)) *> matrixExt \lam i j => \case decideEq i k \with {
+        | yes i=k => rewrite (i=k,replace-index,replace-index) $ mcases \with {
+          | yes k=j => rewrite k=j replace-index
+          | no k/=j => replace-notIndex (fin_nat-ineq k/=j)
+        }
+        | no i/=k => rewrite (replace-notIndex $ fin_nat-ineq $ /=-sym i/=k) $ mcases {2} \with {
+          | yes i=j => rewrite (decideEq=_reduce $ pmap fsuc i=j) $ inv $ replace-notIndex $ fin_nat-ineq (/=-sym i/=k)
+          | no i/=j => rewrite (decideEq/=_reduce $ fsuc/= i/=j) idp
+        }
+      }
+
+    \func diagonal1 {R : Ring} {n : Nat} (k : Fin n) (a : R) : Matrix R n n
+      => diagonal (replace (replicate n ide) k a)
+
+    \lemma determinant_diagonal1 {R : CRing} {n : Nat} {k : Fin n} {a : R} : determinant (diagonal1 k a) = a
+      => determinant_diagonal *> BigProd-unique k (\lam j k/=j => replace-notIndex $ fin_nat-ineq $ later k/=j) *> replace-index
+
+    \lemma embed22_minor_k0 {R : Ring} {A : Matrix R 2 2} {n : Nat} {k : Fin (suc n)}
+      : minor (embed22 A (suc k)) (suc k) 0 = diagonal1 k (A 1 0) k :: skip {Array R (suc n)} (diagonal1 k (A 1 0)) k
+      => matrixExt \lam i j => \case \elim i \with {
+        | 0 => mcases \with {
+          | yes k=j => rewrite k=j $ replace-index *> inv replace-index
+          | no k/=j => replace-notIndex $ fin_nat-ineq k/=j
+        }
+        | suc i => pmap {Array (Array R (suc (suc n))) n} (\lam x => x i (suc j)) skip_replace_= *>
+            pmap {Array (Array R (suc n)) n} (__ i j) (skip_map {Array R (suc (suc n))} {Array R (suc n)} (\lam l j => l (fsuc j)) *>
+            skipExt \lam i i/=k => exts \lam j => mcases {2} \with {
+              | yes i=j => rewrite (decideEq=_reduce $ pmap fsuc i=j, replace-notIndex $ fin_nat-ineq $ /=-sym i/=k) idp
+              | no i/=j => rewrite (decideEq/=_reduce $ fsuc/= i/=j) idp
+            })
+      }
+
+    \sfunc embed22_minor_k0_perm {R : Ring} {A : Matrix R 2 2} {n : Nat} {k : Fin (suc n)}
+      : \Sigma (p : Perm (diagonal1 k (A 1 0)) (minor (embed22 A (suc k)) (suc k) 0)) (Perm.inversions p = k)
+      => rewrite embed22_minor_k0 (determinantN.alternating.permutation1 k (diagonal1 k (A 1 0)), determinantN.alternating.permutation1_inversions)
+  }

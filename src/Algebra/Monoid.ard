@@ -51,6 +51,9 @@
   \lemma BigProd_ide {l : Array E} (p : \Pi (j : Fin l.len) -> l j = ide) : BigProd l = ide
     => AddMonoid.BigSum_zro {AddMonoid.fromMonoid \this} p
 
+  \lemma BigProd-unique {l : Array E} (i : Fin l.len) (p : \Pi (j : Fin l.len) -> i /= j -> l j = 1) : BigProd l = l i
+    => AddMonoid.BigSum-unique {AddMonoid.fromMonoid \this} i p
+
   \lemma BigProd_++ {l l' : Array E} : BigProd (l ++ l') = BigProd l * BigProd l'
     => AddMonoid.BigSum_++ {AddMonoid.fromMonoid \this}
 
@@ -217,8 +220,11 @@
     }
 
   -- | The type of two-sided inverses of an element
-  \record Inv \extends LInv, RInv
-    \where {
+  \record Inv \extends LInv, RInv {
+    \func op : Inv inv val \cowith
+      | inv-left => inv-right
+      | inv-right => inv-left
+  } \where {
       \use \level levelProp {M : Monoid} {x : M} (j j' : Inv x) : j = j' =>
         \have p => inv-isUnique j j' idp
         \in path (\lam i => \new Inv x (p @ i)
@@ -270,7 +276,7 @@
           ide                             `qed
 
       \lemma factor-left {M : Monoid} {x y : M} (i : RInv y) (j : Inv (x * y)) : Inv x =>
-        \have t : Inv {op M} x => factor-right {op M} (\new LInv y i.inv i.inv-right) (\new Inv (x * y) j.inv j.inv-right j.inv-left)
+        \have t : Inv {Monoid.op M} x => factor-right {Monoid.op M} (\new LInv y i.inv i.inv-right) (\new Inv (x * y) j.inv j.inv-right j.inv-left)
         \in \new Inv t.val t.inv t.inv-right t.inv-left
 
       \lemma lmake {M : CMonoid} {x : M} (y : M) (p : y * x = ide) : Inv x y \cowith
@@ -449,7 +455,7 @@
 
   \lemma FinSum_Equiv {A B : FinSet} (e : Equiv {A} {B}) {x : B -> E} : FinSum x = FinSum (\lam a => x (e a))
     => \case FinSum_char _ \with {
-      | inP p => \let A' => \new FinSet A B.finCard $ TruncP.map B.finEq $ \lam e' => transEquiv e' (symQEquiv e)
+      | inP p => \let A' => \new FinSet A B.finCard { | finEq => TruncP.map B.finEq $ \lam e' => transEquiv e' (symQEquiv e)}
                  \in FinSum_char2 x (transEquiv p.1 e) *> inv p.2 *> pmap {FinSet A} (FinSum {_} {__} _) (FinSet.levelProp A' A)
     }
 
