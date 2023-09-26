@@ -1,5 +1,6 @@
 \import Algebra.Domain.Bezout
 \import Algebra.Linear.Matrix
+\import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Module.Category
 \import Algebra.Monoid
@@ -13,7 +14,6 @@
 \import Logic
 \import Logic.Meta
 \import Meta
-\import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
@@ -34,48 +34,75 @@
   | ~-transitive {P} {Q} {S} (inP s) (inP t) => inP (Inv.product t.1 s.1, Inv.product s.2 t.2, t.3 *> pmap (_ product __ product _) s.3 *> pmap (`product _) {_ product (_ product P product _)} {_ * _ product P product _} (pmap (_ product) product-gen-assoc *> inv (product-assoc _ _ (P product _)) *> inv (product-assoc (_ * _) _ _)) *> product-assoc (_ * _ product P) _ _)
   \where \open MatrixRing
 
-\func IsSmithNF {R : Semiring} {n m : Nat} (A : Matrix R n m) : \Prop
+\type IsSmith {R : Semiring} {n m : Nat} (A : Matrix R n m) : \Prop
   => \Sigma (IsDiagonal A) (\Pi (i : Nat) (p : suc i < n) (q : suc i < m) -> TruncP (LDiv (A (toFin $ <-transitive id<suc p) (toFin $ <-transitive id<suc q)) (A (toFin p) (toFin q))))
 
+\lemma isSmith11 {R : Semiring} {n m : Nat} (p : n <= 1) (q : m <= 1) {A : Matrix R n m} : IsSmith A \elim n, m
+  | 0, _ => ((\case __), \lam _ => \case __)
+  | _, 0 => (\lam _ => \case __ \with {}, \lam _ _ => \case __)
+  | 1, 1 => (\lam (0) (0) p => absurd (p idp), \lam _ _ _ => inP LDiv.id-div)
+  | suc (suc n), _ => absurd linarith
+  | _, suc (suc m) => absurd linarith
+
 \class SmithRing \extends StrictBezoutRing {
-  | isSmith (A : Matrix E 2 2) : ∃ (B : Matrix E 2 2) (IsDiagonal B) (A M~ B)
+  | isSmith (A : Matrix E 2 2) : A 1 0 = 0 -> ∃ (B : Matrix E 2 2) (IsDiagonal B) (A M~ B)
 
-  \lemma diagonalize {n m : Nat} (A : Matrix E n m) : ∃ (B : Matrix E n m) (IsDiagonal B) (A M~ B) \elim n, m
-    | 0, m => inP (nil, (\case __), inP (Inv.ide-isInv, Inv.ide-isInv, idp))
-    | n, 0 => inP (mkMatrix $ later \lam i j => (\case j), \lam i j => (\case j), inP (Inv.ide-isInv, Inv.ide-isInv, idp))
-    | suc n, suc m => {?}
+  \lemma toSmith {n m : Nat} (A : Matrix E n m) : ∃ (B : Matrix E n m) (IsSmith B) (A M~ B)
+    => {?}
     \where {
-      \private \lemma elimRowColumn {n m : Nat} (A : Matrix E (suc n) (suc m)) (k : Nat)
-        : ∃ (B : Matrix E (suc n) (suc m)) (A M~ B) (\Pi (i : Fin (suc n)) -> (0 : Nat) < i -> i < k -> B i 0 = 0) (\Pi (j : Fin (suc m)) -> (0 : Nat) < j -> j < k -> B 0 j = 0) \elim k
-        | 0 => inP (A, M~-equiv.~-reflexive, \lam i p q => absurd $ <-irreflexive $ <-transitive p q, \lam j p q => absurd $ <-irreflexive $ <-transitive p q)
-        | suc k => \case elimRowColumn A k \with {
-          | inP (A',A~A',f,g) =>
-            \let C => matrixFromArrays $ (A 0 0 :: A k 0 :: nil) :: (A 0 k :: A k k :: nil) :: nil
-            \in {?}
-            {- \case isStrictBezout (A' 0 0) (A' 0 (suc k)) \with {
-              | inP (s,t,u,v,p,q) =>
-                \let | C => matrixFromArrays ((s :: t :: nil) :: (negative v :: u :: nil) :: nil)
-                     | Cinv (k<m : k < m) : Inv (embed22 C {m} (suc k)) => determinant-inv.2 $ transportInv Inv (embed22_determinant {_} {C} {?} *> determinant22 {_} {C} *> {?}) Inv.ide-isInv
-                \in inP (A' MatrixRing.product embed22 C (suc k), M~-equiv.~-transitive A~A' $ inP ({?}, Inv.ide-isInv, {?}), \lam i i>0 i<=k+1 => {?}, \lam i i>1 => {?})
-            } -}
-        }
-
-      \private \lemma elimColumn' {n m : Nat} (A : Matrix E (suc n) (suc m)) (k : Nat)
-        : ∃ (B : Matrix E (suc n) (suc m)) (A M~ B) (\Pi (i : Fin (suc m)) -> (0 : Nat) < i -> i < k -> B 0 i = 0) (\Pi (j : Fin n) -> (1 : Nat) < j -> B j 0 = A j 0) \elim k
-        | 0 => inP (A, M~-equiv.~-reflexive, \lam i p q => absurd $ <-irreflexive $ <-transitive p q, \lam _ _ => idp)
-        | suc k => \case elimRowColumn A k \with {
-          | inP (A',A~A',f,g) => \case isStrictBezout (A' 0 0) (A' 0 k) \with {
-            | inP (s,t,u,v,p,q) =>
-              \let | C => matrixFromArrays ((s :: t :: nil) :: (u :: negative v :: nil) :: nil)
-                   | Cinv : Inv (embed22 C {n} k) => determinant-inv.2 $ transportInv Inv (embed22_determinant {_} {C} {?}) {?}
-              \in inP (embed22 C k MatrixRing.product A', M~-equiv.~-transitive A~A' $ inP ({?}, Inv.ide-isInv, {?}), \lam i i>0 i<k+1 => {?}, \lam i i>1 => {?})
-          }
-        }
+      \private \lemma aux {n m k : Nat} (p : n <= m) (q : m <= k) (A : Matrix E n m) : ∃ (B : Matrix E n m) (IsSmith B) (A M~ B) \elim k
+        | 0 => inP (A, (\lam i => \case transport Fin (<=_exists $ p <=∘ q) i \with {}, \lam i _ s => \case transport (_ <) (<=_exists q) s), M~-equiv.~-reflexive)
+        | 1 => inP (A, isSmith11 (p <=∘ q) q, M~-equiv.~-reflexive)
+        | 2 => \case \elim n, \elim m, \elim p, \elim q, \elim A \with {
+                 | n, 0, p, q, A => inP (A, isSmith11 linarith linarith, M~-equiv.~-reflexive)
+                 | n, 1, p, q, A => inP (A, isSmith11 p <=-refl, M~-equiv.~-reflexive)
+                 | 0, 2, p, q, A => inP (A, ((\case __), \lam _ => \case __), M~-equiv.~-reflexive)
+                 | 1, 2, p, q, A => TruncP.map (isStrictBezout (A 0 0) (A 0 1)) \lam (s,t,u,v,au=bv,su+tv=1) =>
+                     (makeMatrix ((s * A 0 1 + t * A 0 0, zro) :: nil), (\case \elim __, \elim __ \with {
+                       | 0, 0 => \lam p => absurd (p idp)
+                       | 0, 1 => \lam _ => idp
+                     }, \case \elim __, \elim __ \with {
+                       | i, NatSemiring.suc<suc ()
+                     }), inP ((determinant-inv {_} {1} {MatrixRing.ide}).2 $ transportInv Inv (determinant11 MatrixRing.ide) Inv.ide-isInv,
+                              \let C => makeMatrix ((t, negative u), (s, v))
+                              \in (determinant-inv {_} {2} {C}).2 $ transportInv Inv (determinant22 {_} {C} *> equation) Inv.ide-isInv,
+                              matrixExt \case \elim __, \elim __ \with {
+                                | 0, 0 => equation
+                                | 0, 1 => equation
+                              }))
+                 | 2, 2, _, _, A =>
+                   \let | (inP (s,t,u,v,p,q)) => isStrictBezout (A 0 0) (A 1 0)
+                        | F => makeMatrix ((t, s), (negative u, v))
+                        | (inP (B,Bd,A~B)) => isSmith (F MatrixRing.product A) equation
+                        | (inP (s',t',u',v',p',q')) => isStrictBezout (B 0 0) (B 1 1)
+                        | C => makeMatrix ((t', s'), (negative u', v'))
+                        | D => makeMatrix ((ide, negative (s' * u')), (ide, t' * v'))
+                   \in inP (C MatrixRing.product B MatrixRing.product D, (\lam i j => unfold BigSum \case \elim i, \elim j \with {
+                     | 0, 0 => \lam p => absurd (p idp)
+                     | 0, 1 => \lam _ => rewrite (Bd 0 1 (\case __), Bd 1 0 \case __) equation
+                     | 1, 0 => \lam _ => rewrite (Bd 0 1 (\case __), Bd 1 0 \case __) equation
+                     | 1, 1 => \lam p => absurd (p idp)
+                   }, \case \elim __, \elim __ \with {
+                     | 0, _ => \lam _ => inP $ unfold BigSum $ rewrite (Bd 0 1 (\case __), Bd 1 0 \case __) $ simplify $
+                                LDiv_+ (LDiv.factor-left $ LDiv.factor-right \new LDiv { | inv => v' | inv-right => equation })
+                                       (LDiv.factor-left $ LDiv.factor-right \new LDiv { | inv => u' | inv-right => equation })
+                     | suc n, NatSemiring.suc<suc (NatSemiring.suc<suc ())
+                   }), (inP ((determinant-inv {_} {_} {F}).2 $ transportInv Inv (determinant22 {_} {F} *> equation) Inv.ide-isInv,
+                             Inv.ide-isInv,
+                             inv MatrixRing.product_ide-right) M~-equiv.`~-transitive` {_} {F MatrixRing.product A}
+                       A~B) M~-equiv.`~-transitive`
+                       inP ((determinant-inv {_} {_} {C}).2 $ transportInv Inv (determinant22 {_} {C} *> equation) Inv.ide-isInv,
+                            (determinant-inv {_} {_} {D}).2 $ transportInv Inv (determinant22 {_} {D} *> equation) Inv.ide-isInv,
+                            idp))
+                 | (suc (suc (suc n))), 2, p, q, A => absurd linarith
+                 | n, suc (suc (suc m)), p, q, A => absurd linarith
+               }
+        | suc (suc (suc k)) => {?}
     }
 }
 
 \func embed22 {R : Ring} (A : Matrix R 2 2) {n : Nat} (k : Fin (suc n)) : Matrix R (suc n) (suc n)
-  => matrixFromArrays $ replace2 (MatrixRing.ide {R} {suc n}) 0 k
+  => makeMatrix $ replace2 (MatrixRing.ide {R} {suc n}) 0 k
                             (replace2 (replicate (suc n) zro) 0 k (A 0 0) (A 1 0))
                             (replace2 (replicate (suc n) zro) 0 k (A 0 1) (A 1 1))
   \where {
