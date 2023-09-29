@@ -139,6 +139,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
         }
         return CoreExpression.FindAction.CONTINUE; /**/
         var processor = new SimplifyExpressionProcessor(true);
+        processor.lamParams.addAll(lamParams);
         // var subexpr = normExpr;
         typechecker.withCurrentState(tc -> normExpr.processSubexpression(processor));
         simplificationOccurrences.addAll(processor.getSimplificationOccurrences());
