@@ -5,6 +5,7 @@ import org.arend.ext.concrete.ConcreteParameter;
 import org.arend.ext.concrete.expr.ConcreteArgument;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
+import org.arend.ext.core.context.CoreParameter;
 import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
@@ -72,6 +73,8 @@ public class SimplifyMeta extends BaseMetaDefinition {
       this.skipRoot = skipRoot;
     }
 
+    private List<CoreParameter> lamParams = new ArrayList<>();
+
     @Override
     public CoreExpression.FindAction apply(CoreExpression expression) {
       if (skipRoot && isFirstLaunch) {
@@ -79,9 +82,18 @@ public class SimplifyMeta extends BaseMetaDefinition {
         return CoreExpression.FindAction.CONTINUE;
       }
 
+      if (lamParams.stream().anyMatch(p -> expression.findFreeBindings().contains(p.getBinding()))) {
+        return CoreExpression.FindAction.CONTINUE;
+      }
+
       var simplificationRules = new TreeSet<SimplificationRule>((o1, o2) -> o1.equals(o2) ? 0 : o1.hashCode() - o2.hashCode()); //getSimplificationRulesForType(expression.computeType());
       var normExpr = expression.normalize(NormalizationMode.WHNF);
       var simplifiedExpr = normExpr.computeTyped();
+
+      if (normExpr instanceof CoreLamExpression) {
+        var lam = (CoreLamExpression)normExpr;
+        lamParams.add(lam.getParameters());
+      }
 
       simplificationRules.addAll(getSimplificationRulesForType(expression.computeType()));
 
@@ -127,6 +139,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
         }
         return CoreExpression.FindAction.CONTINUE; /**/
         var processor = new SimplifyExpressionProcessor(true);
+        processor.lamParams.addAll(lamParams);
         // var subexpr = normExpr;
         typechecker.withCurrentState(tc -> normExpr.processSubexpression(processor));
         simplificationOccurrences.addAll(processor.getSimplificationOccurrences());

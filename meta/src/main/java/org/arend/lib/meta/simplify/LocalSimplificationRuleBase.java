@@ -5,6 +5,8 @@ import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
+import org.arend.ext.core.expr.CorePiExpression;
+import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
@@ -16,6 +18,7 @@ import org.arend.lib.meta.RewriteMeta;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.Collections;
 
 public abstract class LocalSimplificationRuleBase implements SimplificationRule {
@@ -23,12 +26,16 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
   protected final StdExtension ext;
   protected final ConcreteReferenceExpression refExpr;
   protected final ExpressionTypechecker typechecker;
+  protected final CoreClassCallExpression classCall;
+  protected final TypedExpression instance;
 
   public LocalSimplificationRuleBase(TypedExpression instance, CoreClassCallExpression classCall, StdExtension ext, ConcreteReferenceExpression refExpr, ExpressionTypechecker typechecker) {
     this.ext = ext;
     this.factory = ext.factory;
     this.refExpr = refExpr;
     this.typechecker = typechecker;
+    this.classCall = classCall;
+    this.instance = instance;
   }
 
   @Override
@@ -43,6 +50,24 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
       final RewriteMeta.EqProofConcrete[] simplificationRes = {null};
       TypedExpression finalSimplifiedExpression = simplifiedExpression;
       simplifiedExpression.getExpression().processSubexpression(subexpr -> {
+        if (!subexpr.computeType().compare(expression.getType(), CMP.EQ)) {
+          if (subexpr.computeType() instanceof CorePiExpression) {
+            var type = (CorePiExpression)subexpr.computeType();
+            var params = type.getParameters();
+            while (true) {
+              if (!params.getBinding().getTypeExpr().compare(expression.getType(), CMP.EQ)) {
+                return CoreExpression.FindAction.SKIP;
+              }
+              if (params.hasNext()) break;
+              params = params.getNext();
+            }
+            if (!type.getCodomain().compare(expression.getType(), CMP.EQ)) {
+              return CoreExpression.FindAction.SKIP;
+            }
+          } else {
+            return CoreExpression.FindAction.SKIP;
+          }
+        }
         simplificationRes[0] = applySimplificationToSubexpr(finalSimplifiedExpression, subexpr);
         if (simplificationRes[0] != null) {
           return CoreExpression.FindAction.STOP;
