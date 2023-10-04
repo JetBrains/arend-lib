@@ -35,6 +35,34 @@
 
 \func map_:: {A B : \Type} {f : A -> B} {a : A} {l : Array A} : map f (a :: l) = f a :: map f l => idp
 
+\func \infixr 5 ++' {A : \Type} (xs : Array A) {n : Nat} (ys : Array A n) : Array A (xs.len Nat.+ n) \elim xs
+  | nil => ys
+  | a :: xs => a :: xs ++' ys
+  \where {
+    \func ++'_index-left {A : \Type} {l : Array A} {n : Nat} {m : Array A n} {i : Fin l.len} : (l ++' m) (fin-inc i) = l i \elim l, i
+      | a :: l, 0 => idp
+      | a :: l, suc i => ++'_index-left
+
+    \func ++'_index-right {A : \Type} {l : Array A} {n : Nat} {m : Array A n} {i : Fin n} : (l ++' m) (fin-raise i) = m i \elim l
+      | nil => idp
+      | a :: l => ++'_index-right
+
+    \func split-index {n m : Nat} (i : Fin (n Nat.+ m))
+      : Or (\Sigma (j : Fin n) (i = fin-inc j)) (\Sigma (j : Fin m) (i = fin-raise j))
+      => rewriteI (OrFin.aux.ret_f i) $ cases (OrFin.aux.f i) \with {
+        | inl j => inl (j,idp)
+        | inr j => inr (j,idp)
+      }
+  }
+
+\func ++'-split {A : \Type} {n m : Nat} {l : Array A (n Nat.+ m)} : l = (\new Array A n \lam i => l (fin-inc i)) ++' (\new Array A m \lam j => l (fin-raise j)) \elim n, l
+  | 0, l => idp
+  | suc n, a :: l => cong ++'-split
+
+\func map_++' {A B : \Type} (f : A -> B) {l : Array A} {n : Nat} {l' : Array A n} : map f (l ++' l') = map f l ++' map f l' \elim l
+  | nil => idp
+  | :: a l =>  path (\lam i => f a :: map_++' f i)
+
 \func \infixr 5 ++ {A : \Type} (xs ys : Array A) : Array A \elim xs
   | nil => ys
   | :: a xs => a :: xs ++ ys
@@ -336,6 +364,11 @@
       | suc n, suc i, 0, suc k, q => zero<suc
       | suc n, suc i, suc j, suc k, suc<suc q => suc<suc (newIndex_< q)
   }
+
+\func skip_++' {A : \Type} {n m : Nat} {l : Array A (suc n)} {l' : Array A m} {k : Fin (suc n)} : skip (l ++' l') (fin-inc k) = skip l k ++' l' \elim n, l, k
+  | 0, a :: nil, 0 => exts \lam j => skip_0
+  | suc n, a :: l, 0 => idp
+  | suc n, a :: l, suc k => cong skip_++'
 
 \func skipExt {A : \Type} {n : Nat} {l l' : Array A (suc n)} {k : Fin (suc n)} (p : \Pi (i : Fin (suc n)) -> i /= k -> l i = l' i) : skip l k = skip l' k \elim n, l, l', k
   | 0, l, l', 0 => idp

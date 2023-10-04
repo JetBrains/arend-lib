@@ -3,7 +3,7 @@
 \import Algebra.Ordered
 \import Algebra.Semiring
 \import Arith.Fin
-\import Arith.Nat \using (pred \as pred')
+\import Arith.Nat \using (NatSemiring, pred \as pred')
 \import Data.Bool
 \import Data.Fin (fpred, fsuc, fsuc/=, nat_fin_=)
 \import Data.Or
@@ -199,22 +199,23 @@
 \lemma transport_suc {n m : Nat} (p : n = m) (x : Fin n) : transport Fin (pmap suc p) (suc x) = suc (transport Fin p x) \elim p
   | idp => idp
 
-\func fin-inc {n m : Nat} (p : n <= m) (i : Fin n) : Fin m
+\func fin-inc_<= {n m : Nat} (p : n <= m) (i : Fin n) : Fin m
   => toFin (<-transitive-left (fin_< i) p)
 
-\func fin-inc-left {n m : Nat} (i : Fin n) : Fin (n + m)
-  => fin-inc (<=_+ <=-refl zero<=_) i
+\func fin-inc {n m : Nat} (i : Fin n) : Fin (n + m) \elim n, i
+  | suc n, 0 => 0
+  | suc n, suc i => suc (fin-inc i)
   \where {
-    \lemma char {n m : Nat} (i : Fin n) : fin-inc-left {n} {m} i = {Nat} i \elim n
-      | 0 => \case i
-      | suc n => mod_< $ <-transitive-left (fin_< i) $ suc<=suc $ <=_+ <=-refl zero<=_
+    \lemma char {n m : Nat} {i : Fin n} : fin-inc {n} {m} i = {Nat} i \elim n, i
+      | suc n, 0 => idp
+      | suc n, suc i => pmap suc char
 
-    \lemma char_nat {n : Nat} (i : Nat) : fin-inc-left {suc i} {n} i = {Nat} i \elim i
-      | i => char {suc i} i *> mod_< id<suc
+    \lemma char_nat {n : Nat} (i : Nat) : fin-inc {suc i} {n} i = {Nat} i
+      => char *> mod_< id<suc
   }
 
 \func fin-inc-right {n m : Nat} (i : Fin m) : Fin (n + m)
-  => fin-inc (<=_+ zero<=_ <=-refl) i
+  => fin-inc_<= (<=_+ zero<=_ <=-refl) i
   \where {
     \lemma char {n m : Nat} (i : Fin m) : fin-inc-right {n} i = {Nat} i \elim m
       | 0 => \case i
@@ -302,7 +303,7 @@
         | suc n, suc i => Or.map (f i) fsuc id
       }
       | ret (e : Or (Fin n) (Fin m)) : Fin (n + m) \with {
-        | inl s => fin-inc-left s
+        | inl s => fin-inc s
         | inr t => fin-raise t
       }
       | ret_f (i : Fin (n + m)) : ret (f i) = i \elim n, i {
@@ -310,7 +311,7 @@
         | suc n, 0 => idp
         | suc n, suc i => cases (f i arg addPath) \with {
           | inl s, p => \have q => inv (pmap ret p) *> ret_f i \in \case \elim n, \elim i, \elim s, \elim q \with {
-            | suc n, i, s, q => fin_nat-inj (mod_< (<-transitive-left (fin_< (suc s)) (suc<=suc (later (suc<=suc (<=_+ <=-refl zero<=_))))) *> inv (pmap suc (mod_< (<-transitive-left (fin_< s) (suc<=suc (<=_+ <=-refl zero<=_)))))) *> pmap (\lam i => suc i) q
+            | suc n, i, s, q => pmap fsuc q
           }
           | inr t, p => pmap (\lam i => suc i) (inv (pmap ret p) *> ret_f i)
         }
@@ -320,16 +321,9 @@
         | inr t => ret_inr-lem t
       }
 
-    \lemma ret_inl-lem {n m : Nat} (s : Fin n) : OrFin.aux.f {n} {m} (toFin (<-transitive-left (fin_< s) (<=_+ <=-refl zero<=_))) = inl s
-      => aux (later (\case \elim n, \elim s \with {
-        | suc n, 0 => idp
-        | suc n, suc s => mod_< (<-transitive-left (fin_< (suc s)) (suc<=suc (<=_+ <=-refl zero<=_)))
-      }))
-      \where
-        \lemma aux {n m : Nat} {i : Fin (n + m)} {s : Fin n} (p : i = {Nat} s) : OrFin.aux.f i = inl s \elim n, i, s
-          | suc n, 0, _ => pmap inl (fin_nat-inj {suc n} p)
-          | suc n, suc i, 0 => \case p
-          | suc n, suc i, suc s => rewrite (aux (pmap pred' p)) idp
+    \lemma ret_inl-lem {n m : Nat} (i : Fin n) : OrFin.aux.f {n} {m} (fin-inc i) = inl i \elim n, i
+      | suc n, 0 => idp
+      | suc n, suc i => rewrite ret_inl-lem idp
 
     \lemma ret_inr-lem {n m : Nat} (t : Fin m) : aux.f (fin-raise {m} {n} t) = inr t \elim n
       | 0 => idp
@@ -356,7 +350,7 @@
       }
       | ret (p : \Sigma (i : Fin n) (Fin (Q i))) : Fin (BigSum Q) \elim n, p {
         | 0, ((),_)
-        | suc n, (0, j) => fin-inc (<=_+ <=-refl zero<=_) j
+        | suc n, (0, j) => fin-inc j
         | suc n, (suc i, j) => fin-raise (ret (i,j))
       }
       | ret_f (k : Fin (BigSum Q)) : ret (f k) = k \elim n {

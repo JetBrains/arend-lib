@@ -16,6 +16,7 @@
 \import Arith.Nat
 \import Data.Array
 \import Data.Fin (fsuc, fsuc/=)
+\import Data.Or
 \import Function.Meta
 \import Logic
 \import Meta
@@ -38,8 +39,60 @@
 \func mkRow {R : \Type} (l : Array R) : Matrix R 1 l.len
   => mkMatrix \lam _ => l
 
+\func addColumn {R : \Type} {n m : Nat} (l : Array R n) (M : Matrix R n m) : Matrix R n (suc m)
+  => makeMatrix \lam j => l j :: M j
+
+\func addRow {R : \Type} {n m : Nat} (l : Array R m) (M : Matrix R n m) : Matrix R (suc n) m
+  => l :: M
+
+\func blockMatrix {R : AddPointed} {n m n' m' : Nat} (A : Matrix R n m) (B : Matrix R n' m') : Matrix R (n + n') (m + m')
+  => makeMatrix $ map {Array R m} (`++' replicate m' zro) A ++' map (replicate m zro ++') B
+  \where {
+    \lemma elem00 {A : Matrix R n m} {B : Matrix R n' m'} (i : Fin n) (j : Fin m) : blockMatrix A B (fin-inc i) (fin-inc j) = A i j
+      => path (\lam k => ++'.++'_index-left {Array R (m + m')} k _) *> ++'.++'_index-left
+
+    \lemma elem10 {A : Matrix R n m} {B : Matrix R n' m'} (i : Fin n') (j : Fin m) : blockMatrix A B (fin-raise i) (fin-inc j) = 0
+      => path (\lam k => ++'.++'_index-right {Array R (m + m')} k _) *> ++'.++'_index-left
+
+    \lemma elem01 {A : Matrix R n m} {B : Matrix R n' m'} (i : Fin n) (j : Fin m') : blockMatrix A B (fin-inc i) (fin-raise j) = 0
+      => path (\lam k => ++'.++'_index-left {Array R (m + m')} k _) *> ++'.++'_index-right
+
+    \lemma elem11 {A : Matrix R n m} {B : Matrix R n' m'} (i : Fin n') (j : Fin m') : blockMatrix A B (fin-raise i) (fin-raise j) = B i j
+      => path (\lam k => ++'.++'_index-right {Array R (m + m')} k _) *> ++'.++'_index-right
+  }
+
+\lemma blockMatrix_minor {R : AddPointed} {n m n' m' : Nat} {A : Matrix R (suc n) (suc m)} {B : Matrix R n' m'} (i : Fin (suc n)) (j : Fin (suc m))
+  : minor (blockMatrix A B) (fin-inc i) (fin-inc j) = blockMatrix (minor A i j) B
+  => determinant.minor=minor' (blockMatrix A B) _ _ *> path (\lam i' => skip (map_++' (skip __ _) {map {Array R (suc m)} (`++' replicate m' zro) A} i') (fin-inc i)) *>
+       \have | s1 => path (\lam i' => skip (map {Array R (suc m)} (\lam x => skip_++' {_} {_} {_} {x} {replicate m' zro} i') A) i) *> {Array (Array R (m + m')) n} inv (skip_map (\lam x => skip x j ++' replicate m' zro))
+             | s2 => path (\lam i' => map (\lam l => (skip_++' {R} {_} {_} {replicate (suc m) zro} {l} {j} *> path (\lam i => skip_replicate {R} {m} zro {j} i ++' l)) i') B)
+       \in matrixExt' $ skip_++' *> {Array (Array R (m + m')) (n + n')} path (\lam i' => s1 i' ++' s2 i')
+
+\func block21Matrix {R : AddPointed} {n m k : Nat} (A : Matrix R n k) (B : Matrix R m k) : Matrix R (n + m) k
+  => makeMatrix (A ++' B)
+
+\lemma blockMatrix_*-left {R : Ring} {n m n' m' k : Nat} {A : Matrix R n m} {B : Matrix R n' m'} {C : Matrix R m k} {D : Matrix R m' k}
+  : blockMatrix A B MatrixRing.product block21Matrix C D = block21Matrix (A MatrixRing.product C) (B MatrixRing.product D)
+  => matrixExt \lam i j => R.BigSum-split *> \case ++'.split-index i \with {
+    | inl (i',p) => rewrite p $ pmap2 (+) (pmap R.BigSum $ exts \lam j' => pmap2 (\lam x (y : Array R k) => x * y j) (blockMatrix.elem00 i' j') (++'.++'_index-left {Array R k})) (R.BigSum_zro \lam j' => pmap (`* _) (blockMatrix.elem01 i' j') *> zro_*-left) *> zro-right *> inv (pmap {Array R k} (__ j) (++'.++'_index-left {Array R k}))
+    | inr (i',p) => rewrite p $ pmap2 (+) (R.BigSum_zro \lam j' => pmap (`* _) (blockMatrix.elem10 i' j') *> zro_*-left) (pmap R.BigSum $ exts \lam j' => pmap2 (\lam x (y : Array R k) => x * y j) (blockMatrix.elem11 i' j') (++'.++'_index-right {Array R k})) *> zro-left *> inv (pmap {Array R k} (__ j) (++'.++'_index-right {Array R k}))
+  }
+
+\func block12Matrix {R : AddPointed} {n m k : Nat} (A : Matrix R k n) (B : Matrix R k m) : Matrix R k (n + m)
+  => makeMatrix \lam j => A j ++' B j
+
+\lemma blockMatrix_*-right {R : Ring} {n m n' m' k : Nat} {A : Matrix R n m} {B : Matrix R n' m'} {C : Matrix R k n} {D : Matrix R k n'}
+  : block12Matrix C D MatrixRing.product blockMatrix A B = block12Matrix (C MatrixRing.product A) (D MatrixRing.product B)
+  => matrixExt \lam i j => R.BigSum-split *> \case ++'.split-index j \with {
+    | inl (j',p) => rewrite p $ pmap2 (+) (pmap R.BigSum $ exts \lam i' => pmap2 (*) ++'.++'_index-left (blockMatrix.elem00 i' j')) (R.BigSum_zro \lam i' => pmap (_ *) (blockMatrix.elem10 i' j') *> zro_*-right) *> zro-right *> inv ++'.++'_index-left
+    | inr (j',p) => rewrite p $ pmap2 (+) (R.BigSum_zro \lam i' => pmap (_ *) (blockMatrix.elem01 i' j') *> zro_*-right) (pmap R.BigSum $ exts \lam i' => pmap2 (*) ++'.++'_index-right (blockMatrix.elem11 i' j')) *> zro-left *> inv ++'.++'_index-right
+  }
+
 \func matrixExt {R : \Type} {n m : Nat} {M N : Matrix R n m} (p : \Pi (i : Fin n) (j : Fin m) -> M i j = N i j) : M = N
   => path (\lam i => mkMatrix (\lam j k => p j k i))
+
+\func matrixExt' {R : \Type} {n m : Nat} {M N : Matrix R n m} (p : M = {Array (Array R m) n} N) : M = N
+  => path (\lam i => p i)
 
 \func matrix-map {A B : \Type} (f : A -> B) {n m : Nat} (M : Matrix A n m) : Matrix B n m
   => mkMatrix $ \lam i j => f (M i j)
@@ -77,9 +130,9 @@
   | * => product
   | ide-left => product_ide-left
   | ide-right => product_ide-right
-  | *-assoc => product-gen-assoc
-  | ldistr => product-gen-ldistr
-  | rdistr => product-gen-rdistr _ _
+  | *-assoc => product-assoc _ _ _
+  | ldistr => product-ldistr
+  | rdistr => product-rdistr _ _
   \where {
     \open AddMonoid
 
@@ -87,13 +140,13 @@
       => mkMatrix $ \lam i k => BigSum $ \lam j => M i j *c N j k
 
     \func \infixl 7 product {R : Ring} {n m k : Nat} (M : Matrix R n m) (N : Matrix R m k) : Matrix R n k
-      => product-gen {R} {RingLModule R} M N
+      => mkMatrix $ \lam i k => BigSum $ \lam j => M i j * N j k
 
     \lemma product-gen_ide-left {R : Ring} {M : LModule' R} {n m : Nat} (A : Matrix M n m) : product-gen ide A = A
       => matrixExt $ \lam i j => BigSum-unique i (\lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) M.*c_zro-left) *> rewrite (decideEq=_reduce idp) M.ide_*c
 
     \lemma product_ide-left {R : Ring} {n m : Nat} {A : Matrix R n m} : ide product A = A
-      => product-gen_ide-left _
+      => product-gen_ide-left {_} {RingLModule R} _
 
     \lemma product_ide-right {R : Ring} {n m : Nat} {M : Matrix R n m} : M product ide = M
       => matrixExt $ \lam i j => BigSum-unique j (\lam k j/=k => later $ rewrite (decideEq/=_reduce (\lam t => j/=k (inv t))) R.zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right
@@ -104,25 +157,31 @@
           inv (path (\lam i => BigSum (\lam j3 => M.*c_BigSum-ldistr {A j1 j3} {\lam j4 => B j3 j4 *c C j4 j2} i)))
 
     \lemma product-assoc {R : Ring} {n m k l : Nat} (A : Matrix R n m) (B : Matrix R m k) (C : Matrix R k l) : A product B product C = A product (B product C)
-      => product-gen-assoc
+      => product-gen-assoc {_} {RingLModule R}
 
     \lemma product-gen-ldistr {R : Ring} {M : LModule' R} {n m k : Nat} {A : Matrix R n m} {B C : Matrix M m k} : product-gen A (B + C) = product-gen A B + product-gen A C
       => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => *c-ldistr) *> M.BigSum_+
 
+    \lemma product-ldistr {R : Ring} {n m k : Nat} {A : Matrix R n m} {B C : Matrix R m k} : A product (B + C) = A product B + A product C
+      => product-gen-ldistr {_} {RingLModule R}
+
     \lemma product-gen-rdistr {R : Ring} {M : LModule' R} {n m k : Nat} (A B : Matrix R n m) {C : Matrix M m k} : product-gen (A + B) C = product-gen A C + product-gen B C
       => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => *c-rdistr) *> M.BigSum_+
+
+    \lemma product-rdistr {R : Ring} {n m k : Nat} (A B : Matrix R n m) {C : Matrix R m k} : (A + B) product C = A product C + B product C
+      => product-gen-rdistr {_} {RingLModule R} A B
 
     \lemma product-gen_negative-left {R : Ring} {L : LModule' R} {n m k : Nat} (M : Matrix R n m) (N : Matrix L m k) : product-gen (negative M) N = negative (product-gen M N)
       => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => L.*c_negative-left) *> inv L.BigSum_negative
 
     \lemma product_negative-left {R : Ring} {n m k : Nat} {M : Matrix R n m} {N : Matrix R m k} : negative M product N = negative (M product N)
-      => product-gen_negative-left _ _
+      => product-gen_negative-left {_} {RingLModule R} _ _
 
     \lemma product-gen_negative-right {R : Ring} {L : LModule' R} {n m k : Nat} (M : Matrix R n m) (N : Matrix L m k) : product-gen M (negative N) = negative (product-gen M N)
       => matrixExt $ \lam i j => pmap BigSum (arrayExt $ \lam k => L.*c_negative-right) *> inv L.BigSum_negative
 
     \lemma product_negative-right {R : Ring} {n m k : Nat} {M : Matrix R n m} {N : Matrix R m k} : M product negative N = negative (M product N)
-      => product-gen_negative-right _ _
+      => product-gen_negative-right {_} {RingLModule R} _ _
 
     \lemma ide_generates {R : Ring} {n : Nat} : LModule.IsGenerated {ArrayLModule n (RingLModule R)} ide
       => \lam l => inP (l, arrayExt $ \lam j => inv $ ArrayLModule.BigSum-index *> R.BigSum-unique j (\lam i j/=i => later $ rewrite (decideEq/=_reduce $ \lam p => j/=i (inv p)) zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right)
@@ -349,6 +408,9 @@
       }
   }
 
+\lemma determinant00 {R : CRing} (A : Matrix R 0 0) : determinant A = 1
+  => determinant_ide
+
 \lemma determinant11 {R : CRing} (A : Matrix R 1 1) : determinant A = A 0 0
   => inv (determinantN.=determinant {R} {1} {0}) *> simplify (pmap (_ *) (determinant_ide {R} {0}) *> ide-right)
 
@@ -386,6 +448,10 @@
 
 \func transpose {R : \Type} {n m : Nat} (M : Matrix R n m) : Matrix R m n
   => mkMatrix (\lam i j => M j i)
+  \where {
+    \lemma isInv {R : CRing} {n : Nat} (A : Monoid.Inv {MatrixRing R n}) : Monoid.Inv (transpose A.val)
+      => determinant-inv.2 $ transportInv Monoid.Inv (later $ determinant_transpose A.val) (determinant-inv.1 A)
+  }
 
 \lemma determinant_transpose {R : CRing} {n : Nat} (M : Matrix R n n) : determinant (transpose M) = determinant M
   => R.FinSum_Equiv SymmetricGroup.inv-isEquiv *> pmap R.FinSum (ext $ \lam (e : Sym n) => pmap2 (*) sign_inverse $ CMonoid.BigProd_Perm $ transport (Perm _) (arrayExt $ \lam j => later $ pmap (M (e j)) (e.ret_f j)) (Perm.equiv_perm e))
@@ -444,8 +510,24 @@
       })
   \where \open Monoid
 
+\lemma blockMatrix_Inv {R : CRing} {n m : Nat} {A : Matrix R n n} {B : Matrix R m m} : Inv (blockMatrix A B) <-> (\Sigma (Inv A) (Inv B))
+  => (\lam s => (determinant-inv.2 $ Inv.cfactor-left $ transport Inv (determinant_block A B) $ determinant-inv.1 s,
+                 determinant-inv.2 $ Inv.cfactor-right $ transport Inv (determinant_block A B) $ determinant-inv.1 s),
+      \lam s => determinant-inv.2 $ transportInv Inv (determinant_block A B) $ Inv.product (determinant-inv.1 s.1) (determinant-inv.1 s.2))
+  \where \open Monoid
+
 \lemma determinant_map {R S : CRing} (f : RingHom R S) {n : Nat} (A : Matrix R n n) : f (determinant A) = determinant (matrix-map f A)
   => AddMonoidHom.func-FinSum f *> pmap AbMonoid.FinSum (ext $ \lam e => func-* *> pmap2 (*) (sign.sign_hom f) MonoidHom.func-BigProd)
+
+\lemma determinant_block {R : CRing} {n m : Nat} (A : Matrix R n n) (B : Matrix R m m) : determinant (blockMatrix A B) = determinant A * determinant B \elim n
+  | 0 => inv (pmap (`* _) (determinant00 A) *> ide-left)
+  | suc n => inv (determinantN.=determinant {R} {suc (n + m)} {0} {blockMatrix A B}) *>
+      (cong (++'-split {R} {suc n} *> pmap2 (::) (pmap (_ *) (pmap determinant (blockMatrix_minor 0 0) *> determinant_block (minor A 0 0) B) *> inv *-assoc)
+                                           (cong (ext \lam j => pmap2 (*) (pmap2 (*) (blockMatrix.elem00 {R} {suc n} {suc n} (suc j) 0) $ later $ rewrite fin-inc.char idp) (pmap determinant (blockMatrix_minor (suc j) 0) *> determinant_block (minor A (suc j) 0) B) *> inv *-assoc)
+                                                 (exts \lam j => *-assoc *> pmap (`* _) (blockMatrix.elem10 {R} {suc n} {suc n} j 0) *> zro_*-left)))
+            *> R.BigSum_++' {\lam i => A i 0 * R.pow -1 i * determinant (minor A i 0) * determinant B} *> pmap (_ +) (R.BigSum_replicate0 {m}) *> zro-right
+        : R.BigSum (\lam i => blockMatrix A B i 0 * R.pow -1 i * determinant (minor (blockMatrix A B) i 0)) = R.BigSum (\lam i => A i 0 * R.pow -1 i * determinant (minor A i 0) * determinant B))
+      *> inv (R.BigSum-rdistr {\lam i => A i 0 * R.pow -1 i * determinant (minor A i 0)}) *> pmap (`* _) (determinantN.=determinant {R} {suc n} {0})
 
 \lemma equations-determinant {R : CRing} {M : LModule' R} {n k : Nat} (A : Matrix R n n) {U : Matrix M n k}
                              (p : product-gen A U = 0) : MatrixModule.*c-gen (determinant A) U = 0
@@ -457,6 +539,9 @@
 
 \func IsDiagonal {R : AddPointed} {n m : Nat} (A : Matrix R n m) : \Prop
   => \Pi (i : Fin n) (j : Fin m) -> i /= {Nat} j -> A i j = 0
+  \where
+    \lemma transposed {R : AddPointed} {n m : Nat} {A : Matrix R n m} (d : IsDiagonal A) : IsDiagonal (transpose A)
+      => \lam i j i/=j => d j i (/=-sym i/=j)
 
 \lemma diagonal-isDiagonal {R : AddPointed} {l : Array R} : IsDiagonal (diagonal l)
   => \lam i j q => rewrite (decideEq/=_reduce \lam (p : i = j) => q p) idp
