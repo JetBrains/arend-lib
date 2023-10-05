@@ -21,6 +21,7 @@
 \import Logic
 \import Meta
 \import Order.LinearOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -67,6 +68,15 @@
        \have | s1 => path (\lam i' => skip (map {Array R (suc m)} (\lam x => skip_++' {_} {_} {_} {x} {replicate m' zro} i') A) i) *> {Array (Array R (m + m')) n} inv (skip_map (\lam x => skip x j ++' replicate m' zro))
              | s2 => path (\lam i' => map (\lam l => (skip_++' {R} {_} {_} {replicate (suc m) zro} {l} {j} *> path (\lam i => skip_replicate {R} {m} zro {j} i ++' l)) i') B)
        \in matrixExt' $ skip_++' *> {Array (Array R (m + m')) (n + n')} path (\lam i' => s1 i' ++' s2 i')
+
+\lemma blockMatrix_* {R : Ring} {n m n' m' k k' : Nat} (A : Matrix R n m) (B : Matrix R n' m') (C : Matrix R m k) (D : Matrix R m' k')
+  : blockMatrix A B MatrixRing.product blockMatrix C D = blockMatrix (A MatrixRing.product C) (B MatrixRing.product D)
+  => matrixExt \lam i j => R.BigSum-split *> \case ++'.split-index i, ++'.split-index j \with {
+    | inl (i',p), inl (j',q) => rewrite (p,q) $ pmap2 (+) (cong $ ext \lam i => pmap2 (*) (blockMatrix.elem00 i' i) (blockMatrix.elem00 i j')) (R.BigSum_zro \lam j => pmap (_ *) (blockMatrix.elem10 j j') *> zro_*-right) *> zro-right *> inv (blockMatrix.elem00 {_} {_} {_} {_} {_} {A MatrixRing.product C} {B MatrixRing.product D} i' j')
+    | inl (i',p), inr (j',q) => rewrite (p,q) $ pmap2 (+) (R.BigSum_zro \lam i => pmap (_ *) (blockMatrix.elem01 i j') *> zro_*-right) (R.BigSum_zro \lam j => pmap (`* _) (blockMatrix.elem01 i' j) *> zro_*-left) *> zro-right *> inv (blockMatrix.elem01 {_} {_} {_} {_} {_} {A MatrixRing.product C} {B MatrixRing.product D} i' j')
+    | inr (i',p), inl (j',q) => rewrite (p,q) $ pmap2 (+) (R.BigSum_zro \lam i => pmap (`* _) (blockMatrix.elem10 i' i) *> zro_*-left) (R.BigSum_zro \lam j => pmap (_ *) (blockMatrix.elem10 j j') *> zro_*-right) *> zro-right *> inv (blockMatrix.elem10 {_} {_} {_} {_} {_} {A MatrixRing.product C} {B MatrixRing.product D} i' j')
+    | inr (i',p), inr (j',q) => rewrite (p,q) $ pmap2 (+) (R.BigSum_zro \lam i => pmap (_ *) (blockMatrix.elem01 i j') *> zro_*-right) (cong $ ext \lam j => pmap2 (*) (blockMatrix.elem11 i' j) (blockMatrix.elem11 j j')) *> zro-left *> inv (blockMatrix.elem11 {_} {_} {_} {_} {_} {A MatrixRing.product C} {B MatrixRing.product D} i' j')
+  }
 
 \func block21Matrix {R : AddPointed} {n m k : Nat} (A : Matrix R n k) (B : Matrix R m k) : Matrix R (n + m) k
   => makeMatrix (A ++' B)
@@ -537,20 +547,39 @@
      \in matrixExt $ \lam i j => pmap (`*c _) (inv ide-right) *> rewriteF (decideEq=_reduce idp) (inv (M.BigSum-unique i $ \lam k i/=k => later $ rewrite (decideEq/=_reduce i/=k) $ pmap (`*c _) R.zro_*-right *> M.*c_zro-left) *> path (\lam i' => t i' i j))
   \where \open MatrixRing
 
-\func IsDiagonal {R : AddPointed} {n m : Nat} (A : Matrix R n m) : \Prop
+\type IsDiagonal {R : AddPointed} {n m : Nat} (A : Matrix R n m) : \Prop
   => \Pi (i : Fin n) (j : Fin m) -> i /= {Nat} j -> A i j = 0
-  \where
+  \where {
     \lemma transposed {R : AddPointed} {n m : Nat} {A : Matrix R n m} (d : IsDiagonal A) : IsDiagonal (transpose A)
       => \lam i j i/=j => d j i (/=-sym i/=j)
+
+    \lemma =>upperTriangular {R : AddPointed} {n m : Nat} {A : Matrix R n m} (d : IsDiagonal A) : IsUpperTriangular A
+      => \lam i j j<i => d i j \lam p => linarith
+
+    \lemma =>lowerTriangular {R : AddPointed} {n m : Nat} {A : Matrix R n m} (d : IsDiagonal A) : IsLowerTriangular A
+      => \lam i j j<i => d i j \lam p => linarith
+  }
+
+\type IsUpperTriangular {R : AddPointed} {n m : Nat} (A : Matrix R n m) : \Prop
+  => \Pi (i : Fin n) (j : Fin m) -> (j : Nat) < i -> A i j = 0
+
+\type IsLowerTriangular {R : AddPointed} {n m : Nat} (A : Matrix R n m) : \Prop
+  => \Pi (i : Fin n) (j : Fin m) -> (i : Nat) < j -> A i j = 0
 
 \lemma diagonal-isDiagonal {R : AddPointed} {l : Array R} : IsDiagonal (diagonal l)
   => \lam i j q => rewrite (decideEq/=_reduce \lam (p : i = j) => q p) idp
 
-\lemma determinant_IsDiagonal {R : CRing} {n : Nat} {A : Matrix R n n} (d : IsDiagonal A) : determinant A = R.BigProd (\lam j => A j j) \elim n
-  | 0 => determinant_ide
+\lemma determinant_IsUpperTriangular {R : CRing} {n : Nat} {A : Matrix R n n} (d : IsUpperTriangular A) : determinant A = R.BigProd (\lam j => A j j) \elim n
+  | 0 => determinant00 A
   | suc n => inv (determinantN.=determinant {R} {suc n} {0}) *> pmap2 (+)
-              (pmap2 (*) ide-right $ pmap determinant (determinant.minor00 _) *> determinant_IsDiagonal {R} {n} {mkMatrix \lam i j => A (suc i) (suc j)} \lam i j i/=j => d (suc i) (suc j) \lam q => i/=j (pmap pred q))
-              (R.BigSum_zro \lam j => later $ rewrite (d (suc j) zro (\case __), zro_*-left) zro_*-left) *> zro-right
+              (pmap2 (*) ide-right $ pmap determinant (determinant.minor00 _) *> determinant_IsUpperTriangular {R} {n} {mkMatrix \lam i j => A (suc i) (suc j)} \lam i j i<j => d (suc i) (suc j) (NatSemiring.suc<suc i<j))
+              (R.BigSum_zro \lam j => later $ rewrite (d (suc j) zro NatSemiring.zero<suc, zro_*-left) zro_*-left) *> zro-right
+
+\lemma determinant_IsLowerTriangular {R : CRing} {n : Nat} {A : Matrix R n n} (d : IsLowerTriangular A) : determinant A = R.BigProd (\lam j => A j j)
+  => inv (determinant_transpose A) *> determinant_IsUpperTriangular {_} {_} {transpose A} (\lam i j => d j i)
+
+\lemma determinant_IsDiagonal {R : CRing} {n : Nat} {A : Matrix R n n} (d : IsDiagonal A) : determinant A = R.BigProd (\lam j => A j j)
+  => determinant_IsUpperTriangular (IsDiagonal.=>upperTriangular d)
 
 \lemma determinant_diagonal {R : CRing} {l : Array R} : determinant (diagonal l) = R.BigProd l
   => determinant_IsDiagonal {R} {l.len} {diagonal l} diagonal-isDiagonal *> pmap R.BigProd (exts \lam j => rewrite (decideEq=_reduce idp) idp)
