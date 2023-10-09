@@ -4,10 +4,13 @@
 \import Algebra.Monoid.GCD
 \import Algebra.Ring
 \import Algebra.Ring.Reduced
+\import Data.Array
+\import Function.Meta
 \import Logic
 \import Logic.Meta
 \import Meta
 \import Paths
+\import Paths.Meta
 \open Monoid(LDiv)
 
 \class BezoutRing \extends CRing {
@@ -17,6 +20,19 @@
     => TruncP.map (isBezout a b) \lam (s,t,d1,d2) =>
         \let (w,q) => gcd.gcd-univ (s * a + t * b) d1 d2
         \in (w * s, w * t, equation)
+} \where {
+  \lemma linComb=>coprime {R : CRing} {n : Nat} (s : Array R n) {u : Array R n} (p : R.BigSum (\lam j => s j * u j) = 1) : IsCoprimeArray u
+    => \lam z f => Monoid.Inv.lmake (R.BigSum \lam j => s j * LDiv.inv {f j}) $ BigSum-rdistr *>
+          pmap BigSum (exts \lam j => *-assoc *> pmap (_ *) (*-comm *> LDiv.inv-right {f j})) *> p
+
+  \lemma linCombInv=>coprime {R : CRing} {n : Nat} (s : Array R n) {u : Array R n} (p : Monoid.Inv (R.BigSum (\lam j => s j * u j))) : IsCoprimeArray u
+    => linComb=>coprime (\lam j => p.inv * s j) $ pmap BigSum (exts \lam j => *-assoc) *> inv BigSum-ldistr *> p.inv-left
+
+  \lemma linComb2=>coprime {R : CRing} {s t a b : R} (p : s * a + t * b = 1) : IsCoprime a b
+    => linComb2Inv=>coprime (transportInv Monoid.Inv p Monoid.Inv.ide-isInv)
+
+  \lemma linComb2Inv=>coprime {R : CRing} {s t a b : R} (p : Monoid.Inv (s * a + t * b)) : IsCoprime a b
+    => \lam z z|a z|b => linCombInv=>coprime (s,t) {a,b} (transport Monoid.Inv simplify p) z (z|a,z|b)
 }
 
 \class StrictBezoutRing \extends BezoutRing {
@@ -28,6 +44,16 @@
     | inv => u
     | inv-right => equation
   })
+
+  \lemma bezoutArray {n : Nat} (a : Array E (suc n)) : ∃ (s u : Array E (suc n)) (BigSum (\lam j => s j * u j) = 1) (d : E) (\Pi (j : Fin (suc n)) -> a j = u j * d) \elim n, a
+    | 0, a :: nil => inP (1 :: nil, 1 :: nil, simplify, a, \lam (0) => inv ide-left)
+    | suc n, a1 :: a =>
+      \have | (inP (s,u,p,d,f)) => bezoutArray a
+            | (inP (s1,t1,u1,v1,p1,q1)) => isStrictBezout d a1
+      \in inP (s1 :: map (t1 *) s, u1 :: map (v1 *) u, pmap (_ +) (pmap2 (+) equation (cong $ ext \lam j => equation) *> inv (BigSum-ldistr {_} {_} {\lam j => s j * u j}) *> pmap (_ *) p *> ide-right) *> q1, s1 * a1 + t1 * d, \case \elim __ \with {
+        | 0 => equation
+        | suc j => f j *> equation
+      })
 }
 
 \class BezoutDomain \extends GCDDomain, BezoutRing {
