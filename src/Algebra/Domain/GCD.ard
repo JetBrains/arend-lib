@@ -21,12 +21,12 @@
 \import Paths.Meta
 \import Relation.Equivalence
 \import Set
-\open Monoid(LDiv,Inv)
+\open Monoid(LDiv)
 
 \class GCDDomain \extends IntegralDomain {
   | isGCDDomain (x y : E) : x `#0 -> y `#0 -> TruncP (GCD x y)
 
-  \func nonZeroMonoid : GCDMonoid \cowith
+  \func nonZeroMonoid : CancelGCDMonoid \cowith
     | CancelCMonoid => IntegralDomain.nonZeroMonoid
     | isGCD x y =>
       \have | (inP (g : GCD x.1 y.1)) => isGCDDomain x.1 y.1 x.2 y.2
@@ -73,12 +73,21 @@
       | inv-right => ldistr *> pmap2 (+) g'|a+bd.inv-right (Ring.negative_*-right *> pmap negative (inv *-assoc *> pmap (`* d) g'|b.inv-right)) *> simplify
     }) g'|b
 } \where {
-  \class Dec \extends GCDDomain, IntegralDomain.Dec, IntegrallyClosedDomain {
+  \class Dec \extends GCDDomain, GCDMonoid, IntegralDomain.Dec, IntegrallyClosedDomain {
+    | isGCD => gcd nonZeroApart
+    | gcd-ldistr c {x} {y} g => \case decideEq c 0 \with {
+      | yes c=0 => rewrite c=0 $ simplify $ inP \new GCD {
+        | gcd|val1 => LDiv.id-div
+        | gcd|val2 => LDiv.id-div
+        | gcd-univ g g|0 _ => g|0
+      }
+      | no c/=0 => TruncP.map (gcd nonZeroApart (c * x) (c * y)) $ GCDMonoid.gcd-ldistr_cancel (\lam {a} {b} => nonZero-cancel-left c/=0) g
+    }
     | isIntegrallyClosedDomain x xi => \case Dec.coprime-repr-aux x, \elim xi \with {
       | inP c, inP d => \case loc_poly (\lam s p => nonZero-cancel-right (apartNonZero s) p) d.1 d.2 (rewriteF c.5 d.3) \with {
         | inP e => rewrite c.5 \case decide#0 c.1 \with {
           | inl q => inP (0, LocRing.equals1 _ equation)
-          | inr c1#0 => inP (_, inv $ div_loc $ nonZero_ldiv $ gcd_pow_div {nonZeroMonoid} {c.2,c.3} {c.1,c1#0} {e.1}
+          | inr c1#0 => inP (_, inv $ div_loc $ nonZero_ldiv $ nonZeroMonoid.gcd_pow_div {c.2,c.3} {c.1,c1#0} {e.1}
                           (transport (LDiv _) (ext $ inv subMonoid.embed.func-pow) $ ldiv_nonZero {_} {_} {_} {_} {pow_#0 c1#0} e.2) $ \new GCD {
                             | gcd|val1 => LDiv.ide-div
                             | gcd|val2 => LDiv.ide-div
@@ -89,55 +98,18 @@
     }
 
     \lemma coprime-repr (x : LocRing subMonoid) => coprime-repr-aux x
-
-    \func gcd_*_div {a b c : E} (a|bc : LDiv a (b * c)) (a_b : GCD a b 1) : LDiv a c
-      => \case decideEq a 0, decideEq b 0, decideEq c 0 \with {
-           | yes a=0, no b/=0, _ =>
-             \have t : c = 0 => Domain.nonZero-left b/=0 (inv a|bc.inv-right *> pmap (`* _) a=0 *> zro_*-left)
-             \in transportInv (LDiv a __) t Semiring.zero-div
-           | _, yes b=0, _ => LDiv.trans (a_b.gcd-univ a LDiv.id-div (transportInv (LDiv a __) b=0 Semiring.zero-div)) LDiv.ide-div
-           | _, _, yes c=0 => \new LDiv {
-             | inv => 0
-             | inv-right => zro_*-right *> inv c=0
-           }
-           | no a/=0, no b/=0, no c/=0 => Domain.nonZero_ldiv (Algebra.Monoid.GCD.gcd_*_div {nonZeroMonoid} {a, nonZeroApart a/=0} {b, nonZeroApart b/=0} {c, nonZeroApart c/=0} (Domain.ldiv_nonZero a|bc) (IntegralDomain.gcd_nonZero _ _ a_b))
-      }
-
-    \lemma gcd (a b : E) : TruncP (GCD a b)
-      => \case decideEq a 0, decideEq b 0 \with {
-           | yes a=0, _ => inP (GCD.swap {transportInv (GCD b __) a=0 (gcd_0 b)})
-           | _, yes b=0 => inP (transportInv (GCD a __) b=0 (gcd_0 a))
-           | no a/=0, no b/=0 => isGCDDomain a b (nonZeroApart a/=0) (nonZeroApart b/=0)
-         }
-
-    \lemma irr-isPrime (p : Irr {\this}) : Prime p p.notInv \cowith
-      | isCancelable-left => p.isCancelable-left
-      | isPrime {x} {y} (p|x*y : LDiv) => \case decideEq x 0, decideEq y 0 \with {
-        | yes x=0, _ => byLeft (\new LDiv p x 0 (zro_*-right *> inv x=0))
-        | _, yes y=0 => byRight (\new LDiv p y 0 (zro_*-right *> inv y=0))
-        | no x/=0, no y/=0 =>
-          \let | elem : nonZeroMonoid => (p, #0-*-left (transportInv #0 p|x*y.inv-right (#0-* (nonZeroApart x/=0) (nonZeroApart y/=0))))
-               | irr => \new Irr {nonZeroMonoid} elem {
-                          | notInv => \lam i => p.notInv (Domain.nonZero_inv elem.2 i)
-                          | isIrr {a} {b} p=a*b => \case p.isIrr (pmap __.1 p=a*b) \with {
-                            | byLeft t => byLeft (Domain.inv_nonZero a.2 t)
-                            | byRight t => byRight (Domain.inv_nonZero b.2 t)
-                          }
-                          | isCancelable-left {a} {b} p*a=p*b => ext (p.isCancelable-left (pmap __.1 p*a=p*b))
-                        }
-          \in \case Prime.isPrime {Algebra.Monoid.Prime.irr-isPrime irr} {x, nonZeroApart x/=0} {y, nonZeroApart y/=0} (\new LDiv {
-            | inv => (p|x*y.inv, #0-*-right (transportInv #0 p|x*y.inv-right (#0-* (nonZeroApart x/=0) (nonZeroApart y/=0))))
-            | inv-right => ext p|x*y.inv-right
-          }) \with {
-                  | byLeft (p|x : LDiv) => byLeft (\new LDiv p x p|x.inv.1 (pmap __.1 p|x.inv-right))
-                  | byRight (p|y : LDiv) => byRight (\new LDiv p y p|y.inv.1 (pmap __.1 p|y.inv-right))
-                }
-      }
   } \where {
+    \private \lemma gcd {M : GCDDomain} {D : DecSet M} (d : \Pi {x : M} -> x /= 0 -> x `#0) (a b : M) : TruncP (GCD a b)
+      => \case decideEq a 0, decideEq b 0 \with {
+        | yes a=0, _ => inP (GCD.swap {transportInv (GCD b __) a=0 (gcd_0 b)})
+        | _, yes b=0 => inP (transportInv (GCD a __) b=0 (gcd_0 a))
+        | no a/=0, no b/=0 => isGCDDomain a b (d a/=0) (d b/=0)
+      }
+
     \lemma coprime-repr-aux {D : GCDDomain} {dec : IntegralDomain.Dec { | IntegralDomain => D }} (x : LocRing D.subMonoid)
       : ∃ (a b : E) (b#0 : #0 b) (GCD a b 1) (x = inl~ (a, b, b#0))
       | in~ (x,y,y#0) => \case decideEq x 0 \with {
-        | yes x=0 => inP (0, 1, zro#ide, div_gcd LDiv.ide-div, LocRing.equals1 _ equation)
+        | yes x=0 => inP (0, 1, zro#ide, GCD.swap {div_gcd LDiv.ide-div}, LocRing.equals1 _ equation)
         | no x/=0 => TruncP.map (isGCDDomain x y (nonZeroApart x/=0) y#0) \lam (gcd : GCD x y) =>
             (gcd.gcd|val1.inv, gcd.gcd|val2.inv, #0-*-right $ transportInv #0 gcd.gcd|val2.inv-right y#0,
              gcd.reduce $ \lam {x} {y} => nonZero-cancel-left $ \lam gcd=0 => x/=0 $ inv gcd.gcd|val1.inv-right *> equation,

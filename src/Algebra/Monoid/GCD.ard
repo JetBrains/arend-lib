@@ -36,10 +36,67 @@
         | inv => t.inv
         | inv-right => p $ inv *-assoc *> t.inv-right *> inv ide-right
       }
+} \where {
+  \func ~-stable {M : CMonoid} {x y z z' : M} (z|z' : LDiv z z') (z'|z : LDiv z' z) (g : GCD x y z) : GCD x y z' \cowith
+    | gcd|val1 => LDiv.trans z'|z g.gcd|val1
+    | gcd|val2 => LDiv.trans z'|z g.gcd|val2
+    | gcd-univ d d|x d|y => LDiv.trans (g.gcd-univ d d|x d|y) z|z'
 }
 
-\class GCDMonoid \extends CancelCMonoid
+\class GCDMonoid \extends CMonoid {
   | isGCD (x y : E) : TruncP (GCD x y)
+  | gcd-ldistr (c : E) {x y z : E} : GCD x y z -> TruncP (GCD (c * x) (c * y) (c * z))
+
+  \lemma gcd-rdistr {x y z : E} (c : E) (gcd : GCD x y z) : TruncP (GCD (x * c) (y * c) (z * c))
+    => coe (\lam i => TruncP (GCD (*-comm i) (*-comm i) (*-comm i))) (gcd-ldistr c gcd) right
+
+  \lemma gcd_*-comm {a b c : E} (ab : GCD a b) (a_bc : GCD a (b * c)) : TruncP (GCD a (ab.gcd * c) a_bc)
+    => \case gcd-rdistr c ab \with {
+      | inP (gcd : GCD) => inP \new GCD {
+        | gcd|val1 => a_bc.gcd|val1
+        | gcd|val2 => gcd.gcd-univ a_bc (LDiv.trans a_bc.gcd|val1 $ LDiv.make c idp) a_bc.gcd|val2
+        | gcd-univ g g|a g|ab_c => a_bc.gcd-univ g g|a (LDiv.trans g|ab_c gcd.gcd|val2)
+      }
+    }
+
+  \lemma gcd_*_div {a b c : E} (a|bc : LDiv a (b * c)) (ab : GCD a b) : TruncP (LDiv a (ab * c))
+    => \case gcd_*-comm ab (div_gcd a|bc) \with {
+      | inP d => inP (GCD.gcd|val2 {d})
+    }
+
+  \lemma coprime_*_div {a b c : E} (a|bc : LDiv a (b * c)) (a_b : GCD a b ide) : TruncP (LDiv a c)
+    => TruncP.map (gcd_*_div a|bc a_b) (transport (LDiv a) ide-left)
+
+  \lemma gcd_pow_div {a b : E} {n : Nat} (a|bc : LDiv a (pow b n)) (a_b : GCD a b ide) : TruncP (LDiv a b) \elim n
+    | 0 => inP \new LDiv {
+      | inv => a|bc.inv * b
+      | inv-right => inv *-assoc *> pmap (`* b) a|bc.inv-right *> ide-left
+    }
+    | suc n => \case coprime_*_div (rewriteF *-comm a|bc) a_b \with {
+      | inP r => gcd_pow_div r a_b
+    }
+} \where {
+  \func gcd-ldistr_cancel {M : CMonoid} {c x y z : M} (cancel : \Pi {a b : M} -> c * a = c * b -> a = b) (gcd : GCD x y z) (gcd' : GCD (c * x) (c * y)) : GCD (c * x) (c * y) (c * z)
+    => \let | cz|gcd' : LDiv (c * z) gcd' => gcd'.gcd-univ (c * z) (LDiv.product-left c gcd.gcd|val1) (LDiv.product-left c gcd.gcd|val2)
+            | s => cz|gcd'.inv
+            | cancel-c {x} {y} (d : LDiv (c * x) (c * y)) => LDiv.make d.inv (cancel (inv *-assoc *> d.inv-right))
+            | zs|z : LDiv (z * s) z => gcd.gcd-univ (z * s) (cancel-c $ transport (LDiv __ _) (inv cz|gcd'.inv-right *> *-assoc) gcd'.gcd|val1)
+                (cancel-c $ transport (LDiv __ _) (inv cz|gcd'.inv-right *> *-assoc) gcd'.gcd|val2)
+       \in GCD.~-stable (LDiv.make zs|z.inv $ pmap (`* _) (inv cz|gcd'.inv-right) *> *-assoc *> *-assoc *> pmap (c *) (inv *-assoc) *> pmap (c *) zs|z.inv-right) cz|gcd' gcd'
+}
+
+\class CancelGCDMonoid \extends GCDMonoid, CancelCMonoid {
+  | gcd-ldistr c {x} {y} {z} (gcd : GCD x y z) => TruncP.map (isGCD (c * x) (c * y)) (GCDMonoid.gcd-ldistr_cancel (cancel-left c) gcd)
+
+  \lemma gcd_*_div {a b c : E} (a|bc : LDiv a (b * c)) (ab : GCD a b) : LDiv a (ab * c)
+    => TruncP.remove (LDiv.levelProp _ _) (GCDMonoid.gcd_*_div a|bc ab)
+
+  \lemma coprime_*_div {a b c : E} (a|bc : LDiv a (b * c)) (a_b : GCD a b ide) : LDiv a c
+    => TruncP.remove (LDiv.levelProp _ _) (GCDMonoid.coprime_*_div a|bc a_b)
+
+  \lemma gcd_pow_div {a b : E} {n : Nat} (a|bc : LDiv a (pow b n)) (a_b : GCD a b ide) : LDiv a b
+    => TruncP.remove (LDiv.levelProp _ _) (GCDMonoid.gcd_pow_div a|bc a_b)
+}
 
 -- | Monoids with a unique unit. This is useful because the GCD relation on them is functional.
 \class UnitlessMonoid \extends CancelCMonoid {
@@ -65,7 +122,7 @@
 }
 
 -- | GCD monoids with a unique unit. This is useful because the GCD relation on them is functional.
-\class UnitlessGCDMonoid \extends UnitlessMonoid, GCDMonoid {
+\class UnitlessGCDMonoid \extends UnitlessMonoid, CancelGCDMonoid {
   \lemma gcdC (x y : E) : GCD x y \level GCD-isProp x y
     => TruncP.remove (GCD-isProp x y) (isGCD x y)
 
@@ -74,22 +131,10 @@
   \lemma gcd_~ {x y : E} (g : GCD x y) : g.gcd = gcd x y
     => gcd-isUnique g (gcdC x y)
 
-  \lemma gcd_*-left (c a b : E) : c * gcd a b = gcd (c * a) (c * b) =>
-    \let | d : GCD a b => gcdC a b
-         | e : GCD (c * a) (c * b) => gcdC (c * a) (c * b)
-         | cd|e : LDiv (c * d.gcd) e.gcd => e.gcd-univ (c * d.gcd) (LDiv.product-left c d.gcd a d.gcd|val1)
-                                                       (LDiv.product-left c d.gcd b d.gcd|val2)
-         | x => cd|e.inv
-         | c[xd]=e =>
-             c * (x * d.gcd) ==< pmap (c *) *-comm >==
-             c * (d.gcd * x) ==< inv *-assoc >==
-             (c * d.gcd) * x ==< cd|e.inv-right >==
-             e.gcd           `qed
-         | xd|d : LDiv (x * d.gcd) d.gcd =>
-             d.gcd-univ (x * d.gcd)
-                        (LDiv.cancel-left a (rewrite c[xd]=e e.gcd|val1))
-                        (LDiv.cancel-left b (rewrite c[xd]=e e.gcd|val2))
-    \in pmap (c *) (div-eq (\new LDiv d.gcd (x * d.gcd) x *-comm) xd|d) *> c[xd]=e
+  \lemma gcd_*-left (c a b : E) : c * gcd a b = gcd (c * a) (c * b)
+    => \case gcd-ldistr c (gcdC a b) \with {
+         | inP g => gcd-isUnique g (gcdC (c * a) (c * b))
+       }
 
   \lemma gcd_*-right (a b c : E) : gcd a b * c = gcd (a * c) (b * c)
     => *-comm *> gcd_*-left c a b *> pmap2 gcd *-comm *-comm
@@ -111,10 +156,6 @@
     gcd (gcd a (a * c)) (b * c) ==< DivLattice.join-assoc >==
     gcd a (gcd (a * c) (b * c)) ==< pmap (gcd a) (inv (gcd_*-right a b c)) >==
     gcd a (gcd a b * c)         `qed
-
-  \lemma gcd_*_div (a b c : E) (a|bc : LDiv a (b * c)) : LDiv a (gcd a b * c)
-    => rewriteI {1} (inv (gcd_*-comm a b c) *> DivLattice.join-comm *> DivLattice.join_<= a|bc)
-                    (GCD.gcd|val2 {gcdC a (gcd a b * c)})
 }
 
 -- | The quotient of a monoid by the equivalence relation ``x ~ y`` iff ``x | y`` and ``y | x``.
@@ -158,10 +199,10 @@
       \func \infixl 7 *' {M : CMonoid} (x y : DivQuotient M) : DivQuotient M
         | inD x, inD y => inD (x * y)
         | inD x, ~-equiv y y' y~y' i => ~-equiv (x * y) (x * y') (\case y~y' \with {
-          | (inP y'|y, inP y|y') => (inP (LDiv.product-left x y' y y'|y), inP (LDiv.product-left x y y' y|y'))
+          | (inP y'|y, inP y|y') => (inP (LDiv.product-left x y'|y), inP (LDiv.product-left x y|y'))
         }) i
         | ~-equiv x x' x~x' i, inD y => ~-equiv (x * y) (x' * y) (\case x~x' \with {
-          | (inP x'|x, inP x|x') => (inP (LDiv.product-right x' x y x'|x), inP (LDiv.product-right x x' y x|x'))
+          | (inP x'|x, inP x|x') => (inP (LDiv.product-right y x'|x), inP (LDiv.product-right y x|x'))
         }) i
     }
 
@@ -170,7 +211,7 @@
       | CMonoid => DivQuotientMonoid M
       | cancel-left (inD x) {inD y} {inD z} x*y=x*z => path (~-equiv y z (
           \case make~ x*y=x*z \return y ~ z \with {
-            | (inP x*z|x*y, inP x*y|x*z) => (inP (LDiv.cancel-left y x*z|x*y), inP (LDiv.cancel-left z x*y|x*z))
+            | (inP x*z|x*y, inP x*y|x*z) => (inP (LDiv.cancel-left x x*z|x*y), inP (LDiv.cancel-left x x*y|x*z))
           }))
       | uniqueUnit (j : Inv) => \case j.val \as [x], j.inv \as [y], j.inv-right : [x] * [y] = inD ide \return [x] = inD ide \with {
         | inD x, inD y, p => path (~-equiv x ide (inv~ide (\have d : LDiv x ide => div-from~ (\new LDiv { | inv => inD y | inv-right => p }) \in Inv.rmake d.inv d.inv-right)))
@@ -203,7 +244,7 @@
       }
 
     -- | If the original monoid is a GCD-monoid, then the quotient monoid is a unit-less GCD-monoid.
-    \instance DivQuotientGCDMonoid (M : GCDMonoid) : UnitlessGCDMonoid
+    \instance DivQuotientGCDMonoid (M : CancelGCDMonoid) : UnitlessGCDMonoid
       | UnitlessMonoid => DivQuotientCancelMonoid M
       | isGCD (inD x) (inD y) => TruncP.map (isGCD x y) (\lam (g : GCD x y) => \new GCD (inD x) (inD y) (inD g.gcd) {
         | gcd|val1 => div-to~ g.gcd|val1
@@ -225,25 +266,10 @@
           }
   }
 
-\lemma gcd_*_div {M : GCDMonoid} {a b c : M} (a|bc : LDiv a (b * c)) (a_b : GCD a b ide) : LDiv a c
-  => div-from~ (later rewriteI (pmap (`* inD c) (inv (gcd_~ (gcd-to~ a_b))) *> ide-left {_} {inD c})
-                               (gcd_*_div (inD a) (inD b) (inD c) (div-to~ a|bc)))
-  \where {
-    \open UnitlessGCDMonoid
-    \open DivQuotient
-  }
-
-\lemma gcd_pow_div {M : GCDMonoid} {a b : M} {n : Nat} (a|bc : LDiv a (M.pow b n)) (a_b : GCD a b ide) : LDiv a b \elim n
-  | 0 => \new LDiv {
-    | inv => a|bc.inv * b
-    | inv-right => inv *-assoc *> pmap (`* b) a|bc.inv-right *> ide-left
-  }
-  | suc n => gcd_pow_div (gcd_*_div (rewriteF *-comm a|bc) a_b) a_b
-
-\func div_gcd {M : CMonoid} {a b : M} (a|b : LDiv a b) : GCD b a a \cowith
-  | gcd|val1 => a|b
-  | gcd|val2 => \new LDiv { | inv => 1 | inv-right => ide-right }
-  | gcd-univ g g|b g|a => g|a
+\func div_gcd {M : CMonoid} {a b : M} (a|b : LDiv a b) : GCD a b a \cowith
+  | gcd|val1 => LDiv.make 1 ide-right
+  | gcd|val2 => a|b
+  | gcd-univ g g|a g|b => g|a
 
 \func gcd_reduced=1 {M : CancelCMonoid} (gcd : GCD {M}) : GCD gcd.gcd|val1.inv gcd.gcd|val2.inv 1
   => gcd.reduce (cancel-left gcd.gcd)
