@@ -3,6 +3,7 @@
 \import Algebra.Monoid.Category
 \import Algebra.MulOrdered
 \import Algebra.Pointed
+\import Data.Fin
 \import Function.Meta
 \import HLevel
 \import Logic
@@ -64,16 +65,33 @@
       | inP d => inP (GCD.gcd|val2 {d})
     }
 
-  \lemma coprime_*_div {a b c : E} (a|bc : LDiv a (b * c)) (a_b : GCD a b ide) : TruncP (LDiv a c)
-    => TruncP.map (gcd_*_div a|bc a_b) (transport (LDiv a) ide-left)
+  \lemma coprime_*_div {a b c : E} (a|bc : LDiv a (b * c)) (a_b : IsCoprime a b) : TruncP (LDiv a c)
+    => TruncP.map (gcd_*_div a|bc $ IsCoprime.=>gcd a_b) (transport (LDiv a) ide-left)
 
-  \lemma gcd_pow_div {a b : E} {n : Nat} (a|bc : LDiv a (pow b n)) (a_b : GCD a b ide) : TruncP (LDiv a b) \elim n
+  \lemma gcd_pow_div {a b : E} {n : Nat} (a|bc : LDiv a (pow b n)) (a_b : IsCoprime a b) : TruncP (LDiv a b) \elim n
     | 0 => inP \new LDiv {
       | inv => a|bc.inv * b
       | inv-right => inv *-assoc *> pmap (`* b) a|bc.inv-right *> ide-left
     }
     | suc n => \case coprime_*_div (rewriteF *-comm a|bc) a_b \with {
       | inP r => gcd_pow_div r a_b
+    }
+
+  \lemma IsComprime_BigProd {a : E} {l : Array E} (p : \Pi (j : Fin l.len) -> IsCoprime a (l j)) : IsCoprime a (Monoid.BigProd l) \elim l
+    | nil => \lam z _ (z|1 : LDiv z 1) => Inv.lmake z|1.inv (*-comm *> z|1.inv-right)
+    | b :: l => \lam z z|a z|bl => \case coprime_*_div z|bl $ IsCoprime.factor-left z|a (p 0) \with {
+      | inP r => IsComprime_BigProd (\lam j => p (suc j)) z z|a r
+    }
+
+  \lemma coprime_*_div-left {d e a : E} (d_e : IsCoprime d e) (d|a : LDiv d a) (e|a : LDiv e a) : TruncP (LDiv (d * e) a)
+    => \case coprime_*_div (rewriteF (inv e|a.inv-right) d|a) d_e \with {
+      | inP (r : LDiv) => inP $ LDiv.make r.inv $ pmap (`* _) *-comm *> *-assoc *> pmap (e *) r.inv-right *> e|a.inv-right
+    }
+
+  \lemma coprime_BigProd_div-left {l : Array E} {a : E} (p : \Pi (i j : Fin l.len) -> i /= j -> IsCoprime (l i) (l j)) (l|a : \Pi (j : Fin l.len) -> LDiv (l j) a) : TruncP (LDiv (BigProd l) a) \elim l
+    | nil => inP LDiv.ide-div
+    | d :: l => \case coprime_BigProd_div-left (\lam i j i/=j => p (suc i) (suc j) (fsuc/= i/=j)) (\lam j => l|a (suc j)) \with {
+      | inP d' => coprime_*_div-left (IsComprime_BigProd \lam j => p 0 (suc j) \case __) (l|a 0) d'
     }
 } \where {
   \func gcd-ldistr_cancel {M : CMonoid} {c x y z : M} (cancel : \Pi {a b : M} -> c * a = c * b -> a = b) (gcd : GCD x y z) (gcd' : GCD (c * x) (c * y)) : GCD (c * x) (c * y) (c * z)
@@ -86,15 +104,15 @@
 }
 
 \class CancelGCDMonoid \extends GCDMonoid, CancelCMonoid {
-  | gcd-ldistr c {x} {y} {z} (gcd : GCD x y z) => TruncP.map (isGCD (c * x) (c * y)) (GCDMonoid.gcd-ldistr_cancel (cancel-left c) gcd)
+  | gcd-ldistr c {x} {y} {z} (gcd : GCD x y z) => TruncP.map (isGCD (c * x) (c * y)) (GCDMonoid.gcd-ldistr_cancel (cancel_*-left c) gcd)
 
   \lemma gcd_*_div {a b c : E} (a|bc : LDiv a (b * c)) (ab : GCD a b) : LDiv a (ab * c)
     => TruncP.remove (LDiv.levelProp _ _) (GCDMonoid.gcd_*_div a|bc ab)
 
-  \lemma coprime_*_div {a b c : E} (a|bc : LDiv a (b * c)) (a_b : GCD a b ide) : LDiv a c
+  \lemma coprime_*_div {a b c : E} (a|bc : LDiv a (b * c)) (a_b : IsCoprime a b) : LDiv a c
     => TruncP.remove (LDiv.levelProp _ _) (GCDMonoid.coprime_*_div a|bc a_b)
 
-  \lemma gcd_pow_div {a b : E} {n : Nat} (a|bc : LDiv a (pow b n)) (a_b : GCD a b ide) : LDiv a b
+  \lemma gcd_pow_div {a b : E} {n : Nat} (a|bc : LDiv a (pow b n)) (a_b : IsCoprime a b) : LDiv a b
     => TruncP.remove (LDiv.levelProp _ _) (GCDMonoid.gcd_pow_div a|bc a_b)
 }
 
@@ -103,7 +121,7 @@
   | uniqueUnit (j : Inv) : j.val = ide
 
   \lemma div-eq {x y : E} (d1 : LDiv x y) (d2 : LDiv y x) : x = y =>
-    \have d1=ide : d1.inv = ide => uniqueUnit (Inv.lmake d2.inv (cancel-left y equation))
+    \have d1=ide : d1.inv = ide => uniqueUnit (Inv.lmake d2.inv (cancel_*-left y equation))
     \in equation {usingOnly d1=ide} (x * d1.inv)
 
   \lemma GCD-isProp (x y : E) : isProp (GCD x y) =>
@@ -179,8 +197,8 @@
     \lemma equivalent-areAssociates {M : CancelCMonoid} (x y : M) (p : x ~ y) : areAssociates x y \elim p
        | (inP (y|x : LDiv y x), inP (x|y : LDiv x y)) =>
            (\new Inv y|x.inv x|y.inv {
-             | inv-left => cancel-left x (inv *-assoc *> pmap (`* _) x|y.inv-right *> y|x.inv-right *> inv ide-right)
-             | inv-right => cancel-left y (inv *-assoc *> pmap (`* _) y|x.inv-right *> x|y.inv-right *> inv ide-right)
+             | inv-left => cancel_*-left x (inv *-assoc *> pmap (`* _) x|y.inv-right *> y|x.inv-right *> inv ide-right)
+             | inv-right => cancel_*-left y (inv *-assoc *> pmap (`* _) y|x.inv-right *> x|y.inv-right *> inv ide-right)
            }, inv y|x.inv-right *> *-comm)
 
     -- | The quotient monoid is indeed a monoid.
@@ -209,7 +227,7 @@
     -- | If the original monoid is cancellative, then so is the quotient monoid.
     \instance DivQuotientCancelMonoid (M : CancelCMonoid) : UnitlessMonoid
       | CMonoid => DivQuotientMonoid M
-      | cancel-left (inD x) {inD y} {inD z} x*y=x*z => path (~-equiv y z (
+      | cancel_*-left (inD x) {inD y} {inD z} x*y=x*z => path (~-equiv y z (
           \case make~ x*y=x*z \return y ~ z \with {
             | (inP x*z|x*y, inP x*y|x*z) => (inP (LDiv.cancel-left x x*z|x*y), inP (LDiv.cancel-left x x*y|x*z))
           }))
@@ -264,6 +282,17 @@
           \case \elim [g], [g]|[x], [g]|[y] \return LDiv [g] (inD z) \level LDiv.levelProp [g] (inD z) \with {
             | inD g', ~g'|x, ~g'|y => div-to~ (g.gcd-univ g' (div-from~ ~g'|x) (div-from~ ~g'|y))
           }
+
+    \func gcd-from~ {M : CancelCMonoid} {x y z : M} (g : GCD (inD x) (inD y) (inD z)) : GCD x y z \cowith
+      | gcd|val1 => div-from~ g.gcd|val1
+      | gcd|val2 => div-from~ g.gcd|val2
+      | gcd-univ d d|x d|y => div-from~ (g.gcd-univ (inD d) (div-to~ d|x) (div-to~ d|y))
+
+    \lemma elemDivChain {M : CMonoid} (c : CMonoid.DivChain {DivQuotientMonoid M}) : M.DivChain
+      => \lam a d =>
+          \have | (inP s) => c (\lam i => in~ (a i)) \lam i => TruncP.map (d i) div-to~
+                | (inP r) => div-from~' s.2
+          \in inP (s.1,r)
   }
 
 \func div_gcd {M : CMonoid} {a b : M} (a|b : LDiv a b) : GCD a b a \cowith
@@ -272,7 +301,7 @@
   | gcd-univ g g|a g|b => g|a
 
 \func gcd_reduced=1 {M : CancelCMonoid} (gcd : GCD {M}) : GCD gcd.gcd|val1.inv gcd.gcd|val2.inv 1
-  => gcd.reduce (cancel-left gcd.gcd)
+  => gcd.reduce (cancel_*-left gcd.gcd)
 
 \lemma gcd-isUnique {M : CancelCMonoid} {a b : M} (g1 g2 : GCD a b) : areAssociates g1.gcd g2.gcd
   => equivalent-areAssociates g1.gcd g2.gcd (DivQuotient.make~ (gcd-isUnique (gcd-to~ g1) (gcd-to~ g2)))
@@ -283,16 +312,22 @@
 
 \func IsCoprime {M : CMonoid} (x y : M) => \Pi (z : M) -> LDiv z x -> LDiv z y -> Inv z
   \where {
-    \func =>gcd (c : IsCoprime x y) : GCD x y ide \cowith
+    \func =>gcd {x y : M} (c : IsCoprime x y) : GCD x y ide \cowith
       | gcd|val1 => \new LDiv ide x x ide-left
       | gcd|val2 => \new LDiv ide y y ide-left
       | gcd-univ g g|x g|y => \have i : Inv g => c g g|x g|y
                               \in \new LDiv g ide i.inv i.inv-right
 
-    \lemma <=gcd (g : GCD x y ide) : IsCoprime x y =>
+    \lemma <=gcd {x y : M} (g : GCD x y ide) : IsCoprime x y =>
       \lam z z|x z|y =>
           \have z|g : LDiv z g.gcd => g.gcd-univ z z|x z|y
           \in Inv.rmake z|g.inv z|g.inv-right
+
+    \lemma factor-left {M : CMonoid} {x y z : M} (d : LDiv x y) (p : IsCoprime y z) : IsCoprime x z
+      => \lam w w|x w|z => p w (LDiv.trans w|x d) w|z
+
+    \lemma factor-right {M : CMonoid} {x y z : M} (d : LDiv y z) (p : IsCoprime x z) : IsCoprime x y
+      => \lam w w|x w|y => p w w|x (LDiv.trans w|y d)
   }
 
 \type IsCoprimeArray {M : CMonoid} (l : Array M) => \Pi (z : M) -> DArray (\lam j => LDiv z (l j)) -> Inv z

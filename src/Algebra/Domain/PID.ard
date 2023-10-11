@@ -1,9 +1,66 @@
+\import Algebra.Domain
 \import Algebra.Domain.Bezout
+\import Algebra.Domain.GCD
+\import Algebra.Linear.Matrix.Smith
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
 \import Algebra.Ring.Ideal
 \import Algebra.Ring.Noetherian
+\import Function
+\import Function.Meta ($)
+\import Logic
+\import Paths
+\import Relation.Equivalence
+\import Set
+\open DivQuotient \hiding (~)
+\open Monoid
 
-\class PID \extends StrictBezoutDomain, NoetherianCRing
-  | divChain : CMonoid.DivChain {DivQuotient.DivQuotientMonoid \this}
-  | isNoetherian I Ifg => Ideal.fromMonoidChainCondition divChain I \lam n => bezout_finitelyGenerated_principal.1 isBezout (Ifg n)
+\class PID \extends SmithDomain, NoetherianCRing {
+  | divChain : CMonoid.DivChain {DivQuotientMonoid nonZeroMonoid}
+  | isNoetherian I Ifg => Ideal.fromMonoidChainCondition (IntegralDomain.Dec.fromNonZeroDivChain divChain) I \lam n => bezout_finitelyGenerated_principal.1 isBezout (Ifg n)
+  | isKaplansky => {?}
+} \where {
+  \func RelPart {M : CMonoid} (a b : M) => \Sigma (c : E) (LDiv c a) (GCD c b 1) (\Pi (d : E) -> LDiv d a -> GCD d b 1 -> TruncP (LDiv d c))
+
+  \type IsAdequate {M : CMonoid} (a : M) => \Pi (b : M) -> TruncP (RelPart a b)
+
+  \open UnitlessGCDMonoid
+
+  \lemma unitless_adequate {M : UnitlessGCDMonoid} (dc : M.DivChain) (a : M) : IsAdequate a
+    => \lam b =>
+        \let | g x => GCD.gcd|val1 {gcdC x b}
+             | f x => LDiv.inv {g x}
+             | (inP (n, d : LDiv)) => dc (iterr f __ a) \lam i => inP $ LDiv.swap $ g (iterr f i a)
+             | c => iterr f n a
+        \in inP (c, iterr-ind {_} {LDiv __ a} LDiv.id-div (LDiv.trans (LDiv.swap (g _)) __) n,
+                 transport (GCD c b) (uniqueUnit $ Inv.lmake d.inv $ cancel_*-left c $ inv *-assoc *> pmap (`* g c) d.inv-right *> *-comm *> LDiv.inv-right {g c} *> inv ide-right) (gcdC c b),
+                 \lam d (d|a : LDiv d a) d_b => inP $ iterr-ind {_} {LDiv d} d|a (\lam {x} (d|x : LDiv d x) => \new LDiv {
+                   | inv => f d|x.inv
+                   | inv-right => cancel_*-left (gcdC d|x.inv b) $ *-comm *> *-assoc *> pmap (d *) (*-comm *> LDiv.inv-right {g d|x.inv}) *> d|x.inv-right *> inv (LDiv.inv-right {g x})
+                 }) n)
+
+  \lemma monoid_adequate {M : CancelGCDMonoid} (dc : DivChain {DivQuotientMonoid M}) (a : M) : IsAdequate a
+    => \lam b => \case unitless_adequate dc (inD a) (inD b) \with {
+      | inP (in~ c, c|a, c_b, f) => inP (c, div-from~ c|a, gcd-from~ c_b, \lam d d|a d_b => TruncP.map (f (inD d) (div-to~ d|a) (gcd-to~ d_b)) div-from~)
+    }
+
+  \lemma domain_adequate {M : GCDDomain.Dec} (dc : DivChain {DivQuotientMonoid M.nonZeroMonoid}) {a : M} (a/=0 : a /= 0) : IsAdequate a
+    => \lam b => \case decideEq b 0 \with {
+      | yes b=0 => inP (1, LDiv.ide-div, div_gcd LDiv.ide-div, \lam d _ g =>
+                        inP (GCD.gcd-univ {g} d LDiv.id-div $ \new LDiv { | inv => 0 | inv-right => zro_*-right *> inv b=0 }))
+      | no b/=0 => TruncP.map (monoid_adequate dc (a, nonZeroApart a/=0) (b, nonZeroApart b/=0)) \lam (c,c|a,c_b,f) =>
+          (c.1, nonZero_ldiv c|a, nonZero_gcd c_b, \lam d (d|a : LDiv d a) d_b =>
+           TruncP.map (f (d, #0-*-left $ transportInv #0 d|a.inv-right $ nonZeroApart a/=0) (ldiv_nonZero d|a) (gcd_nonZero d_b)) nonZero_ldiv)
+    }
+
+  \lemma adequate_kaplansky {R : BezoutDomain.Dec} (ad : \Pi {a : R} -> a /= 0 -> IsAdequate a) : SmithRing.IsKaplansky R
+    => \lam a b c a_b_c => \case coprime_bezoutArray a_b_c, decideEq a 0, decideEq c 0 \with {
+      | inP (s,p), yes a=0, _ => inP (s 1, s 2, IsCoprime.=>gcd $ BezoutRing.bezout_coprime {_} {0} {1} equation)
+      | inP (s,p), _, yes c=0 => inP (1, 0, IsCoprime.=>gcd $ BezoutRing.bezout_coprime {_} {s 0} {s 1} equation)
+      | _, no a/=0, no c/=0 =>
+          \let | (inP (D1, D1|ac : LDiv, D1_a, D1u)) => ad (nonZero_* a/=0 c/=0) a
+               | (inP (D2,D2|D/D1,D2_b,D2u)) => ad (ldiv/=0 (nonZero_* a/=0 c/=0) (LDiv.swap D1|ac)) b
+          \in {?}
+    }
+}

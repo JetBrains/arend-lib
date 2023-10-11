@@ -1,10 +1,12 @@
 \import Algebra.Domain.GCD(GCDDomain)
+\import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
 \import Algebra.Ring
 \import Algebra.Ring.Reduced
 \import Data.Array
+\import Data.Fin (fsuc/=)
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -30,19 +32,52 @@
     => TruncP.map (isBezout a b) \lam (s,t,d1,d2) =>
         \let (w,q) => gcd.gcd-univ (s * a + t * b) d1 d2
         \in (w * s, w * t, equation)
+
+  \lemma bezoutArray_LDiv (l : Array E) : ∃ (c : Array E l.len) (\Pi (j : Fin l.len) -> LDiv (BigSum (\lam i => c i * l i)) (l j)) \elim l
+    | nil => inP (nil, \case __)
+    | a :: l =>
+      \have | (inP s) => bezoutArray_LDiv l
+            | (inP t) => isBezout a (BigSum (\lam j => s.1 j * l j))
+      \in inP (t.1 :: map (t.2 *) s.1, \case \elim __ \with {
+        | 0 => transport (\lam x => LDiv (t.1 * a + x) a) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.3
+        | suc j => LDiv.trans (transport (\lam x => LDiv (t.1 * a + x) _) (BigSum-ldistr *> pmap BigSum (exts \lam j => inv *-assoc)) t.4) (s.2 j)
+      })
+
+  \lemma coprime_bezoutArray {a : Array E} (ac : IsCoprimeArray a) : ∃ (s : Array E a.len) (BigSum (\lam j => s j * a j) = 1)
+    => TruncP.map (bezoutArray_LDiv a) \lam (c,f) =>
+        \have lci : Monoid.Inv => ac (BigSum (\lam j => c j * a j)) f
+        \in (\lam j => lci.inv * c j, pmap BigSum (exts \lam j => *-assoc) *> inv BigSum-ldistr *> lci.inv-left)
+
+  \lemma chinese2 (a1 a2 d1 d2 : E) (p : IsCoprime d1 d2) : ∃ (r : E) (LDiv d1 (r - a1)) (LDiv d2 (r - a2))
+    => TruncP.map (gcd_bezout (IsCoprime.=>gcd p))
+        \lam (s1,s2,s1d1+s2d2=1) => (a1 * s2 * d2 + a2 * s1 * d1, LDiv.make ((a2 - a1) * s1) equation, LDiv.make ((a1 - a2) * s2) equation)
+
+  \lemma chinese {n : Nat} (a d : Array E n) (p : \Pi (i j : Fin n) -> i /= j -> IsCoprime (d i) (d j))
+    : ∃ (r : E) (\Pi (j : Fin n) -> LDiv (d j) (r - a j)) \elim n
+    | 0 => inP (0, \case __)
+    | suc n =>
+      \have | (inP (q,f)) => chinese (tail a) (tail d) \lam i j i/=j => p (suc i) (suc j) (fsuc/= i/=j)
+            | (inP (r,p1,p2)) => chinese2 (a 0) q (d 0) (BigProd (tail d)) $ IsComprime_BigProd $ later \lam j => p 0 (suc j) (\case __)
+      \in inP (r, \case \elim __ \with {
+        | 0 => p1
+        | suc j => transport (LDiv _) equation (LDiv_+ (LDiv.trans (LDiv_BigProd j) p2) (f j))
+      })
+
+  \lemma chinese-unique {n : Nat} (r r' : E) (d : Array E n) (p : \Pi (i j : Fin n) -> i /= j -> IsCoprime (d i) (d j)) (q : \Pi (j : Fin n) -> LDiv (d j) (r - r')) : TruncP (LDiv (BigProd d) (r - r'))
+    => coprime_BigProd_div-left p q
 } \where {
-  \lemma linComb=>coprime {R : CRing} {n : Nat} (s : Array R n) {u : Array R n} (p : R.BigSum (\lam j => s j * u j) = 1) : IsCoprimeArray u
+  \lemma bezoutArray_coprime {R : CRing} {n : Nat} (s : Array R n) {u : Array R n} (p : R.BigSum (\lam j => s j * u j) = 1) : IsCoprimeArray u
     => \lam z f => Monoid.Inv.lmake (R.BigSum \lam j => s j * LDiv.inv {f j}) $ BigSum-rdistr *>
           pmap BigSum (exts \lam j => *-assoc *> pmap (_ *) (*-comm *> LDiv.inv-right {f j})) *> p
 
-  \lemma linCombInv=>coprime {R : CRing} {n : Nat} (s : Array R n) {u : Array R n} (p : Monoid.Inv (R.BigSum (\lam j => s j * u j))) : IsCoprimeArray u
-    => linComb=>coprime (\lam j => p.inv * s j) $ pmap BigSum (exts \lam j => *-assoc) *> inv BigSum-ldistr *> p.inv-left
+  \lemma bezoutArrayInv_coprime {R : CRing} {n : Nat} (s : Array R n) {u : Array R n} (p : Monoid.Inv (R.BigSum (\lam j => s j * u j))) : IsCoprimeArray u
+    => bezoutArray_coprime (\lam j => p.inv * s j) $ pmap BigSum (exts \lam j => *-assoc) *> inv BigSum-ldistr *> p.inv-left
 
-  \lemma linComb2=>coprime {R : CRing} {s t a b : R} (p : s * a + t * b = 1) : IsCoprime a b
-    => linComb2Inv=>coprime (transportInv Monoid.Inv p Monoid.Inv.ide-isInv)
+  \lemma bezout_coprime {R : CRing} {s t a b : R} (p : s * a + t * b = 1) : IsCoprime a b
+    => bezoutInv_coprime (transportInv Monoid.Inv p Monoid.Inv.ide-isInv)
 
-  \lemma linComb2Inv=>coprime {R : CRing} {s t a b : R} (p : Monoid.Inv (s * a + t * b)) : IsCoprime a b
-    => \lam z z|a z|b => linCombInv=>coprime (s,t) {a,b} (transport Monoid.Inv simplify p) z (z|a,z|b)
+  \lemma bezoutInv_coprime {R : CRing} {s t a b : R} (p : Monoid.Inv (s * a + t * b)) : IsCoprime a b
+    => \lam z z|a z|b => bezoutArrayInv_coprime (s,t) {a,b} (transport Monoid.Inv simplify p) z (z|a,z|b)
 }
 
 \class StrictBezoutRing \extends BezoutRing {
