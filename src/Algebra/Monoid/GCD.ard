@@ -25,7 +25,7 @@
     \func swap : GCD val2 val1 gcd gcd|val2 gcd|val1 \cowith
       | gcd-univ g g|a g|b => gcd-univ g g|b g|a
 
-    \func reduce (p : \Pi {x y : M} -> gcd * x = gcd * y -> x = y)
+    \func reduce (p : CMonoid.IsCancelable gcd)
       : GCD gcd|val1.inv gcd|val2.inv 1 LDiv.ide-div LDiv.ide-div \cowith
       | gcd-univ g (g|a : LDiv) (g|b : LDiv) => \let t : LDiv => gcd-univ (gcd * g) (\new LDiv {
         | inv => g|a.inv
@@ -77,11 +77,20 @@
       | inP r => gcd_pow_div r a_b
     }
 
-  \lemma IsComprime_BigProd {a : E} {l : Array E} (p : \Pi (j : Fin l.len) -> IsCoprime a (l j)) : IsCoprime a (Monoid.BigProd l) \elim l
-    | nil => \lam z _ (z|1 : LDiv z 1) => Inv.lmake z|1.inv (*-comm *> z|1.inv-right)
-    | b :: l => \lam z z|a z|bl => \case coprime_*_div z|bl $ IsCoprime.factor-left z|a (p 0) \with {
-      | inP r => IsComprime_BigProd (\lam j => p (suc j)) z z|a r
+  \lemma IsCoprime_*-right {a b c : E} (a_b : IsCoprime a b) (a_c : IsCoprime a c) : IsCoprime a (b * c)
+    => \lam z z|a z|bl => \case coprime_*_div z|bl $ IsCoprime.factor-left z|a a_b \with {
+      | inP r => a_c z z|a r
     }
+
+  \lemma IsCoprime_*-left {a b c : E} (a_c : IsCoprime a c) (b_c : IsCoprime b c) : IsCoprime (a * b) c
+    => IsCoprime.swap (IsCoprime_*-right (IsCoprime.swap a_c) (IsCoprime.swap b_c))
+
+  \lemma IsCoprime_BigProd-right {a : E} {l : Array E} (p : \Pi (j : Fin l.len) -> IsCoprime a (l j)) : IsCoprime a (Monoid.BigProd l) \elim l
+    | nil => \lam z _ (z|1 : LDiv z 1) => Inv.lmake z|1.inv (*-comm *> z|1.inv-right)
+    | b :: l => IsCoprime_*-right (p 0) (IsCoprime_BigProd-right \lam j => p (suc j))
+
+  \lemma IsCoprime_BigProd-left {a : E} {l : Array E} (p : \Pi (j : Fin l.len) -> IsCoprime (l j) a) : IsCoprime (Monoid.BigProd l) a
+    => IsCoprime.swap $ IsCoprime_BigProd-right \lam j => IsCoprime.swap (p j)
 
   \lemma coprime_*_div-left {d e a : E} (d_e : IsCoprime d e) (d|a : LDiv d a) (e|a : LDiv e a) : TruncP (LDiv (d * e) a)
     => \case coprime_*_div (rewriteF (inv e|a.inv-right) d|a) d_e \with {
@@ -91,10 +100,10 @@
   \lemma coprime_BigProd_div-left {l : Array E} {a : E} (p : \Pi (i j : Fin l.len) -> i /= j -> IsCoprime (l i) (l j)) (l|a : \Pi (j : Fin l.len) -> LDiv (l j) a) : TruncP (LDiv (BigProd l) a) \elim l
     | nil => inP LDiv.ide-div
     | d :: l => \case coprime_BigProd_div-left (\lam i j i/=j => p (suc i) (suc j) (fsuc/= i/=j)) (\lam j => l|a (suc j)) \with {
-      | inP d' => coprime_*_div-left (IsComprime_BigProd \lam j => p 0 (suc j) \case __) (l|a 0) d'
+      | inP d' => coprime_*_div-left (IsCoprime_BigProd-right \lam j => p 0 (suc j) \case __) (l|a 0) d'
     }
 } \where {
-  \func gcd-ldistr_cancel {M : CMonoid} {c x y z : M} (cancel : \Pi {a b : M} -> c * a = c * b -> a = b) (gcd : GCD x y z) (gcd' : GCD (c * x) (c * y)) : GCD (c * x) (c * y) (c * z)
+  \func gcd-ldistr_cancel {M : CMonoid} {c x y z : M} (cancel : IsCancelable c) (gcd : GCD x y z) (gcd' : GCD (c * x) (c * y)) : GCD (c * x) (c * y) (c * z)
     => \let | cz|gcd' : LDiv (c * z) gcd' => gcd'.gcd-univ (c * z) (LDiv.product-left c gcd.gcd|val1) (LDiv.product-left c gcd.gcd|val2)
             | s => cz|gcd'.inv
             | cancel-c {x} {y} (d : LDiv (c * x) (c * y)) => LDiv.make d.inv (cancel (inv *-assoc *> d.inv-right))
@@ -310,7 +319,7 @@
     \open UnitlessMonoid
   }
 
-\func IsCoprime {M : CMonoid} (x y : M) => \Pi (z : M) -> LDiv z x -> LDiv z y -> Inv z
+\type IsCoprime {M : CMonoid} (x y : M) => \Pi (z : M) -> LDiv z x -> LDiv z y -> Inv z
   \where {
     \func =>gcd {x y : M} (c : IsCoprime x y) : GCD x y ide \cowith
       | gcd|val1 => \new LDiv ide x x ide-left
@@ -318,16 +327,22 @@
       | gcd-univ g g|x g|y => \have i : Inv g => c g g|x g|y
                               \in \new LDiv g ide i.inv i.inv-right
 
-    \lemma <=gcd {x y : M} (g : GCD x y ide) : IsCoprime x y =>
-      \lam z z|x z|y =>
+    \lemma <=gcdInv {x y : M} (g : GCD x y) (gi : Inv g.gcd) : IsCoprime x y
+      => \lam z z|x z|y =>
           \have z|g : LDiv z g.gcd => g.gcd-univ z z|x z|y
-          \in Inv.rmake z|g.inv z|g.inv-right
+          \in Inv.rmake (z|g.inv * gi.inv) $ inv *-assoc *> pmap (`* _) z|g.inv-right *> gi.inv-right
+
+    \lemma <=gcd {x y : M} (g : GCD x y ide) : IsCoprime x y
+      => <=gcdInv g Inv.ide-isInv
 
     \lemma factor-left {M : CMonoid} {x y z : M} (d : LDiv x y) (p : IsCoprime y z) : IsCoprime x z
       => \lam w w|x w|z => p w (LDiv.trans w|x d) w|z
 
     \lemma factor-right {M : CMonoid} {x y z : M} (d : LDiv y z) (p : IsCoprime x z) : IsCoprime x y
       => \lam w w|x w|y => p w w|x (LDiv.trans w|y d)
+
+    \lemma swap {M : CMonoid} {x y : M} (c : IsCoprime x y) : IsCoprime y x
+      => \lam z z|x z|y => c z z|y z|x
   }
 
 \type IsCoprimeArray {M : CMonoid} (l : Array M) => \Pi (z : M) -> DArray (\lam j => LDiv z (l j)) -> Inv z
