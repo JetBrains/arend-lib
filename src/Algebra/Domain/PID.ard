@@ -1,5 +1,8 @@
-{- | The definition of a relatively prime part, adequate rings, and the proof that adequate rings are Smith are taken from
+{- | Adequate rings were defined in
  -   Olaf Helmer, The elementary divisor theorem for certain rings without chain condition, 1943
+ -
+ -   The proof that adequate rings satisfy the Kaplansky condition is taken from
+ -   Irving Kaplansky, Elementary divisors and modules, 1949
 -}
 
 \import Algebra.Domain
@@ -15,8 +18,9 @@
 \import Function
 \import Function.Meta ($)
 \import Logic
-\import Meta
+\import Logic.Meta
 \import Paths
+\import Paths.Meta
 \import Relation.Equivalence
 \import Set
 \open DivQuotient \hiding (~)
@@ -27,19 +31,7 @@
   | isNoetherian I Ifg => Ideal.fromMonoidChainCondition (IntegralDomain.Dec.fromNonZeroDivChain divChain) I \lam n => bezout_finitelyGenerated_principal.1 isBezout (Ifg n)
   | isKaplansky => adequate_kaplansky (domain_adequate divChain)
 } \where {
-  \func RelPart {M : CMonoid} (a b : M) => \Sigma (c : E) (LDiv c a) (IsCoprime c b) (\Pi (d : E) -> LDiv d a -> IsCoprime d b -> TruncP (LDiv d c))
-
-  \lemma RelPart-coprime {M : GCDMonoid} {a b : M} (cancel : IsCancelable a) (R : RelPart a b) : IsCoprime R.1 (LDiv.inv {R.2})
-    => \lam z z|R (z|a/R : LDiv) =>
-        \let | Rz|a : LDiv (R.1 * z) a => LDiv.make z|a/R.inv $ *-assoc *> pmap (R.1 *) z|a/R.inv-right *> LDiv.inv-right {R.2}
-             | Rz_b : IsCoprime (R.1 * z) b => IsCoprime_*-left R.3 (IsCoprime.factor-left z|R R.3)
-             | (inP (x,p)) => R.4 _ Rz|a Rz_b
-        \in Inv.lmake x $ *-comm *> LDiv_IsCancaleble R.2 cancel (inv *-assoc *> p *> inv ide-right)
-
-  \func RelPart-lem {M : CMonoid} {a b d : M} (d|a : LDiv d a) (R : RelPart a b) (d_R : IsCoprime d R.1) : RelPart d b
-    => (1, LDiv.ide-div, \lam z z|1 _ => Inv.ldiv z|1, \lam e e|d e_b => TruncP.map (R.4 e (LDiv.trans e|d d|a) e_b) (d_R e e|d))
-
-  \type IsAdequate {M : CMonoid} (a : M) => \Pi (b : M) -> TruncP (RelPart a b)
+  \type IsAdequate {M : CMonoid} (a : M) => \Pi (b : M) -> ∃ (c : E) (LDiv c a) (IsCoprime c b) (\Pi (d : E) -> LDiv d a -> IsCoprime d b -> TruncP (LDiv d c))
 
   \open UnitlessGCDMonoid
 
@@ -71,25 +63,15 @@
     }
 
   \lemma adequate_kaplansky {R : BezoutDomain.Dec} (adeq : \Pi {a : R} -> a /= 0 -> IsAdequate a) : SmithRing.IsKaplansky R
-    => \lam a b c a_b_c => \case coprime_bezoutArray a_b_c, decideEq a 0, decideEq c 0 \with {
-      | inP (s,p), yes a=0, _ => inP (s 1, s 2, BezoutRing.bezout_coprime {_} {0} {1} equation)
-      | inP (s,p), _, yes c=0 => inP (1, 0, BezoutRing.bezout_coprime {_} {s 0} {s 1} equation)
-      | _, no a/=0, no c/=0 =>
-          \have | ac/=0 => nonZero_* a/=0 c/=0
-                | (inP ((D1, D1|ac : LDiv, D1_a, _) \as R1)) => adeq ac/=0 a
-                | (inP ((D2,D2|D/D1,D2_b,_) \as R2)) => adeq (ldiv/=0 ac/=0 (LDiv.swap D1|ac)) b
-                | (inP (a',a*,ap)) => gcd_bezout (IsCoprime.=>gcd D1_a)
-                | (inP (b',b*,bp)) => gcd_bezout (IsCoprime.=>gcd D2_b)
-                | (inP (r,(rx,rp),(ry,rq))) => chinese2 a* (b* * (1 - c)) D1 D2 $ IsCoprime.factor-right D2|D/D1 $ RelPart-coprime (\lam {_} {_} => nonZero-cancel-left ac/=0) R1
-          \in inP (r, 1, \lam z (x1,p1) (x2,p2) =>
-              \let | z_D1 : IsCoprime z D1 => BezoutRing.bezout_coprime {_} {x1} {a' - a * rx} equation
-                   | z_D2 : IsCoprime z D2 => BezoutRing.bezout_coprime {_} {x2} {b' * (1 - c) - ry * b} equation
-                   | z|ac : LDiv z (a * c) => LDiv.make (a * x2 - b * x1) equation
-                   | Rza => RelPart-lem z|ac R1 z_D1
-                   | Rzb => RelPart-lem (LDiv_TruncP $ coprime_*_div (transportInv (LDiv z) D1|ac.inv-right z|ac) z_D1) R2 z_D2
-                   | (inP (z_b : GCD)) => isGCD z b
-              \in Inv.ldiv $ LDiv_TruncP $ Rzb.4 z LDiv.id-div $ IsCoprime.<=gcdInv z_b $ Inv.ldiv $ LDiv_TruncP $ Rza.4 z_b z_b.gcd|val1
-                    \lam x x|z_b x|a => a_b_c x (x|a, LDiv.trans x|z_b z_b.gcd|val2, LDiv.trans x|z_b $
-                    LDiv.make (x2 * z_b.gcd|val1.inv - r * z_b.gcd|val2.inv) (equation {using (z_b.gcd|val1.inv-right, z_b.gcd|val2.inv-right)})))
+    => \lam a b c a_b_c => \case coprime_bezoutArray a_b_c, decideEq a 0 \with {
+      | inP (s,p), yes a=0 => inP (s 1, s 2, BezoutRing.bezout_coprime {_} {0} {1} equation)
+      | _, no a/=0 =>
+        \have | (inP R) => adeq a/=0 c
+              | (inP (c',c*,cp)) => gcd_bezout (IsCoprime.=>gcd R.3)
+        \in inP (1, c* * (1 - b), simplify \lam d d1 (y,p) =>
+            \have | d_c : IsCoprime d c => \lam z (x1,p1) (x2,p2) => a_b_c z
+                            (LDiv.trans (LDiv.make x1 p1) d1, LDiv.make (x1 * y - x2 * c* * (1 - b)) equation, LDiv.make x2 p2)
+                  | d_R : IsCoprime d R.1 => BezoutRing.bezout_coprime {_} {y} {(1 - b) * c'} equation
+            \in d_R d LDiv.id-div $ LDiv_TruncP $ R.4 d d1 d_c)
     }
 }
