@@ -11,7 +11,6 @@
 \import Algebra.Ring.Reduced
 \import Algebra.Semiring
 \import Arith.Nat
-\import Data.Array
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
@@ -85,11 +84,6 @@
   \lemma idempotent_LDiv {a b : E} (q : b * b = b) (d : Monoid.LDiv b a) : a = b * a
     => inv d.inv-right *> pmap (`* _) (inv q) *> *-assoc *> pmap (b *) d.inv-right
 
-  \type IsZeroDimensional => \Pi (a : E) -> ∃ (b : E) (n : Nat) (pow a n = pow a (suc n) * b)
-
-  \lemma finite-zeroDimensional (c : FinSet E) : IsZeroDimensional
-    => \lam a => TruncP.map (c.pigeonhole< (pow a)) \lam s => (pow a (s.2 -' suc s.1), s.1, s.4 *> pmap (pow a) (inv $ <=_exists $ suc_<_<= s.3) *> pow_+ {_} {_} {suc s.1})
-
   \type IsConnected => \Pi (a : E) -> a * a = a -> (a = 0) || (a = 1)
 
   \func IsVonNeumannRegular => \Pi (a : E) -> ∃ (b : E) (a = a * b * a)
@@ -152,20 +146,34 @@
         s * a + t * b                         `qed
     }
 
-  \lemma zeroDimensional-char : IsZeroDimensional <-> (\Pi (a : E) -> ∃ (b : E) (k : Nat) (k /= 0) (b * b = b) (LDiv (pow a k) b) (LDiv b (pow a k)))
-    => (\lam c a => \case c a \with {
-      | inP (b,n,p) => cases (n arg addPath) \with {
-        | 0, q => inP (1, 1, (\case __), ide-left, \new LDiv {
-          | inv => b
-          | inv-right => inv (rewriteF q p)
-        }, LDiv.ide-div)
-        | suc n', q => \have t => rewriteF pow_*-comm $ aux n (p *> *-assoc)
-                       \in inP (pow a n * pow b n, n, rewrite q (\case __), equation,
-                                \new LDiv { | inv => pow b n | inv-right => idp }, \new LDiv { | inv => pow a n | inv-right => equation })
-      }
-    }, \lam c a => TruncP.map (c a) \lam s =>
-          (LDiv.inv {s.5} * pow a (pred s.2), s.2, inv (LDiv.idempt s.6 s.4) *> *-comm *>
-           pmap (_ *) (inv (LDiv.inv-right {s.5}) *> *-comm *> pmap (_ * pow a __) (inv $ suc_pred s.3) *> inv *-assoc *> *-comm) *> inv *-assoc))
+  \type Dim<= (k : Nat) => \Pi (x : Array E (suc k)) -> ∃ (a : Array E (suc k)) (m : Array Nat (suc k)) (fold x a m = 0)
+    \where
+      \func fold {k : Nat} (xs as : Array E k) (ms : Array Nat k) : E \elim k, xs, as, ms
+        | 0, nil, nil, nil => 1
+        | suc k, x :: xs, a :: as, m :: ms => pow x m * (fold xs as ms - x * a)
+
+  \type IsZeroDimensional => \Pi (a : E) -> ∃ (b : E) (n : Nat) (pow a n = pow a (suc n) * b)
+
+  \lemma finite-zeroDimensional (c : FinSet E) : IsZeroDimensional
+    => \lam a => TruncP.map (c.pigeonhole< (pow a)) \lam s => (pow a (s.2 -' suc s.1), s.1, s.4 *> pmap (pow a) (inv $ <=_exists $ suc_<_<= s.3) *> pow_+ {_} {_} {suc s.1})
+
+  \lemma zeroDimensional-char : TFAE (
+    IsZeroDimensional,
+    Dim<= 0,
+    \Pi (a : E) -> ∃ (b : E) (k : Nat) (k /= 0) (b * b = b) (LDiv (pow a k) b) (LDiv b (pow a k))
+  ) => TFAE.cycle $ later (
+        \lam zd x => \case zd (x 0) \with {
+          | inP (b,n,p) => inP (b :: nil, n :: nil, equation)
+        },
+        \lam zd x => \case zd (x :: nil) \with {
+          | inP (a,m,p) => cases (m 0 arg addPath) \with {
+            | 0, q => inP (1, 1, (\case __), ide-left, LDiv.make (a 0) (equation {usingOnly (rewriteF q p)}), LDiv.ide-div)
+            | suc n, q => \have t => rewriteF pow_*-comm $ aux {_} {pow x (m 0)} {x * a 0} (m 0) equation
+                          \in inP (pow x (m 0) * pow (a 0) (m 0), m 0, rewrite q (\case __), equation, LDiv.factor-left LDiv.id-div, LDiv.make (pow x (m 0)) equation)
+          }
+        }, \lam c a => TruncP.map (c a) \lam s =>
+            (LDiv.inv {s.5} * pow a (pred s.2), s.2, inv (LDiv.idempt s.6 s.4) *> *-comm *>
+             pmap (_ *) (inv (LDiv.inv-right {s.5}) *> *-comm *> pmap (_ * pow a __) (inv $ suc_pred s.3) *> inv *-assoc *> *-comm) *> inv *-assoc))
     \where
       \lemma aux {x c : E} (n : Nat) (p : x = x * c) : x = x * pow c n \elim n
         | 0 => inv ide-right
@@ -177,7 +185,7 @@
     \Pi (a : E) -> Inv a || (\Sigma (n : Nat) (pow a n = 0))
   ) => TFAE.cycle $ later (
         \lam s => (s.1, LocalRing.local=>connected s.2),
-        \lam s a => \case zeroDimensional-char.1 s.1 a \with {
+        \lam s a => \case zeroDimensional-char 0 2 s.1 a \with {
           | inP r => \case s.2 r.1 r.4 \with {
             | byLeft r1=0 => byRight (r.2, inv (LDiv.inv-right {r.6}) *> pmap (`* _) r1=0 *> zro_*-left)
             | byRight r1=1 => byLeft $ Inv.cfactor-right $ rewriteF (inv $ suc_pred r.3) $ Inv.lmake (LDiv.inv {r.5}) $ *-comm *> LDiv.inv-right {r.5} *> r1=1
