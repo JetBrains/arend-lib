@@ -7,6 +7,7 @@
 \import Function.Meta
 \import HLevel
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.Lattice
 \import Order.PartialOrder
@@ -109,6 +110,18 @@
     | d :: l => \case coprime_BigProd_div-left (\lam i j i/=j => p (suc i) (suc j) (fsuc/= i/=j)) (\lam j => l|a (suc j)) \with {
       | inP d' => coprime_*_div-left (IsCoprime_BigProd-right \lam j => p 0 (suc j) \case __) (l|a 0) d'
     }
+
+  \lemma split-equiv {a b c : E} (a|bc : LDiv a (b * c)) : ∃ (a1 a2 : E) (LDiv a (a1 * a2)) (LDiv (a1 * a2) a) (LDiv a1 b) (LDiv a2 c)
+    => \have | (inP (g : GCD)) => isGCD a b
+             | (inP (g' : GCD)) => isGCD g.gcd|val1.inv c
+             | (inP (g'' : GCD)) => rewrite g.gcd|val1.inv-right (gcd-ldistr g g')
+             | (inP (g''' : GCD)) => gcd-rdistr c g
+       \in inP (g, g', g''.gcd-univ a LDiv.id-div $ g'''.gcd-univ a (LDiv.make c idp) a|bc, g''.gcd|val1, g.gcd|val2, g'.gcd|val2)
+
+  \lemma split-regular {a b c : E} (ar : IsRegular a) (a|bc : LDiv a (b * c)) : ∃ (a1 a2 : E) (a = a1 * a2) (LDiv a1 b) (LDiv a2 c)
+    => \have | (inP (a1,a2,a|a1a2,a1a2|a,a1|b,a2|c)) => split-equiv a|bc
+             | (u : Inv, p) => DivQuotient.regular_equivalent-areAssociates a (a1 * a2) ar a|a1a2 a1a2|a
+       \in inP (u * a1, a2, p *> inv *-assoc, LDiv.trans (LDiv.make u.inv $ *-comm *> inv *-assoc *> pmap (`* _) u.inv-left *> ide-left) a1|b, a2|c)
 } \where {
   \func gcd-ldistr_cancel {M : CMonoid} {c x y z : M} (cancel : IsRegular c) (gcd : GCD x y z) (gcd' : GCD (c * x) (c * y)) : GCD (c * x) (c * y) (c * z)
     => \let | cz|gcd' : LDiv (c * z) gcd' => gcd'.gcd-univ (c * z) (LDiv.product-left c gcd.gcd|val1) (LDiv.product-left c gcd.gcd|val2)
@@ -210,12 +223,11 @@
     \lemma make~ {M : CMonoid} {x y : M} (p : inD x = inD y) : x ~ y =>
       Quotient.equalityEquiv (Preorder.EquivRel {DivPreoder M}) p
 
+    \func regular_equivalent-areAssociates {M : CMonoid} (x y : M) (xr : M.IsRegular x) (x|y : LDiv x y) (y|x : LDiv y x) : areAssociates x y
+      => (Inv.lmake x|y.inv $ xr $ inv *-assoc *> pmap (`* _) x|y.inv-right *> y|x.inv-right *> inv ide-right, inv y|x.inv-right *> *-comm)
+
     \lemma equivalent-areAssociates {M : CancelCMonoid} (x y : M) (p : x ~ y) : areAssociates x y \elim p
-       | (inP (y|x : LDiv y x), inP (x|y : LDiv x y)) =>
-           (\new Inv y|x.inv x|y.inv {
-             | inv-left => cancel_*-left x (inv *-assoc *> pmap (`* _) x|y.inv-right *> y|x.inv-right *> inv ide-right)
-             | inv-right => cancel_*-left y (inv *-assoc *> pmap (`* _) y|x.inv-right *> x|y.inv-right *> inv ide-right)
-           }, inv y|x.inv-right *> *-comm)
+       | (inP y|x, inP x|y) => regular_equivalent-areAssociates x y (cancel_*-left x) x|y y|x
 
     -- | The quotient monoid is indeed a monoid.
     \instance DivQuotientMonoid (M : CMonoid) : OrderedCMonoid (DivQuotient M)
@@ -239,6 +251,11 @@
           | (inP x'|x, inP x|x') => (inP (LDiv.product-right y x'|x), inP (LDiv.product-right y x|x'))
         }) i
     }
+
+    \func inDHom (M : CMonoid) : MonoidHom M (DivQuotientMonoid M) \cowith
+      | func => inD
+      | func-ide => idp
+      | func-* => idp
 
     -- | If the original monoid is cancellative, then so is the quotient monoid.
     \instance DivQuotientCancelMonoid (M : CancelCMonoid) : UnitlessMonoid
