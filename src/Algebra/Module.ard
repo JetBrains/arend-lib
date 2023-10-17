@@ -1,5 +1,6 @@
 \import Algebra.Group
 \import Algebra.Group.Product
+\import Algebra.Linear.Matrix
 \import Algebra.Meta
 \import Algebra.Module.Category
 \import Algebra.Monoid
@@ -10,11 +11,14 @@
 \import Data.Array
 \import Equiv \hiding (Map)
 \import Function.Meta
+\import HLevel
 \import Logic
 \import Logic.Classical
 \import Logic.Meta
+\import Meta
 \import Paths
 \import Paths.Meta
+\import Set
 \import Set.Fin
 
 \class LModule (R : Ring) \extends AbGroup {
@@ -69,8 +73,37 @@
   \type IsGenerated (l : Array E) : \Prop
     => \Pi (x : E) -> ∃ (c : Array R l.len) (x = BigSum (\lam i => c i *c l i))
 
-  \func IsBasis (l : Array E) : \Prop
+  \type IsBasis (l : Array E) : \Prop
     => \Sigma (IsIndependent l) (IsGenerated l)
+
+  \lemma independent-split-unique {l : Array E} (li : IsIndependent l) {c d : Array R l.len} (p : BigSum (\lam j => c j *c l j) = BigSum (\lam j => d j *c l j)) (j : Fin l.len) : c j = d j
+    => R.fromZero $ li (\lam i => c i - d i) (cancel-right _ $ inv (BigSum_+ {_} {_} {\lam j => (c j - d j) *c l j}) *> pmap BigSum (exts \lam j => pmap (`+ _) *c-rdistr *> +-assoc *> pmap (_ +) (pmap (`+ _) *c_negative-left *> negative-left) *> zro-right) *> p *> inv zro-left) j
+
+  \lemma basis-split-pair {l : Array E} (lb : IsBasis l) (x : E) : \Sigma (c : Array R l.len) (x = BigSum (\lam j => c j *c l j))
+    \level basis-split-unique lb.1 x
+    => \case lb.2 x \with {
+      | inP r => r
+    }
+    \where {
+      \lemma basis-split-unique {l : Array E} (li : IsIndependent l) (x : E) : isProp (\Sigma (c : Array R l.len) (x = BigSum (\lam j => c j *c l j)))
+        => \lam s t => ext $ exts $ independent-split-unique li (inv s.2 *> t.2)
+    }
+
+  \func basis-split {l : Array E} (lb : IsBasis l) (x : E) : Array R l.len
+    => (basis-split-pair lb x).1
+
+  \lemma basis-split-char {l : Array E} {lb : IsBasis l} {x : E} : x = BigSum (\lam j => basis-split lb x j *c l j)
+    => (basis-split-pair lb x).2
+
+  \lemma basis_split_basis {l : Array E} {lb : IsBasis l} {j k : Fin l.len} : basis-split lb (l j) k = (\case decideEq j k \with { | yes _ => 1 | no _ => 0 })
+    => \let f : Array R l.len => \case decideEq j __ \with { | yes _ => 1 | no _ => 0 }
+       \in independent-split-unique lb.1 {_} {f} (inv $ BigSum-unique {_} {\lam k => f k *c l k} j (\lam k j/=k => rewrite (decideEq/=_reduce j/=k) *c_zro-left) *> rewrite (decideEq=_reduce idp) ide_*c *> basis-split-char) k
+
+  \lemma basis_split_= {l : Array E} {lb : IsBasis l} {j : Fin l.len} : basis-split lb (l j) j = 1
+    => basis_split_basis *> rewrite (decideEq=_reduce idp) idp
+
+  \lemma basis_split_/= {l : Array E} {lb : IsBasis l} {j k : Fin l.len} (j/=k : j /= k) : basis-split lb (l j) k = 0
+    => basis_split_basis *> rewrite (decideEq/=_reduce j/=k) idp
 
   \type IsGeneratedFin {J : FinSet} (f : J -> E) : \Prop
     => \Pi (x : E) -> ∃ (c : J -> R) (x = FinSum (\lam j => c j *c f j))
@@ -138,8 +171,8 @@
       | func-+ => rdistr
       | func-*c => *-assoc
 
-    \lemma generated {R : Ring} : LModule.IsGenerated {RingLModule R} (1 :: nil)
-      => \lam x => inP (x :: nil, simplify)
+    \lemma basis {R : Ring} : LModule.IsBasis {RingLModule R} (1 :: nil)
+      => (\lam c p (0) => inv ide-right *> inv zro-right *> p, \lam x => inP (x :: nil, simplify))
   }
 
 \instance PowerLModule {R : Ring} (J : \Set) (M : LModule' R) : LModule (J -> M) { | R => R }
@@ -188,6 +221,10 @@
       : AddMonoid.BigSum {ArrayLModule n M} l i = M.BigSum (map {Array M n} (__ i) l) \elim l
       | nil => idp
       | a :: l => pmap (_ +) BigSum-index
+
+    \lemma basis {R : Ring} {n : Nat} : LModule.IsBasis {ArrayLModule n (RingLModule R)} MatrixRing.ide
+      => (\lam c p j => inv ide-right *> rewriteF (decideEq=_reduce idp) (inv (R.BigSum-unique j \lam k j/=k => later $ rewrite (decideEq/=_reduce $ /=-sym j/=k) zro_*-right) *> inv BigSum-index *> path (\lam i => p i j)),
+          \lam x => inP (x, exts \lam j => inv $ BigSum-index *> R.BigSum-unique j (\lam k j/=k => later $ rewrite (decideEq/=_reduce $ /=-sym j/=k) zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right))
   }
 
 \func homLModule (f : RingHom) : LModule' f.Dom \cowith

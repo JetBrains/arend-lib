@@ -21,6 +21,7 @@
 \import Logic
 \import Meta
 \import Order.LinearOrder
+\import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
@@ -128,6 +129,12 @@
       => mkMatrix $ \lam i j => a *c A i j
   }
 
+\lemma block12_21_* {R : Ring} {n m k k' : Nat} (A : Matrix R k n) (B : Matrix R k m) (C : Matrix R n k') (D : Matrix R m k')
+  : block12Matrix A B MatrixRing.product block21Matrix C D = A MatrixRing.product C + B MatrixRing.product D
+  => matrixExt \lam i j => R.BigSum-split *> pmap2 (R.BigSum __ + R.BigSum __)
+      (exts \lam k => pmap2 (*) ++'.++'_index-left  (path \lam i => ++'.++'_index-left  {Array R k'} i j))
+      (exts \lam k => pmap2 (*) ++'.++'_index-right (path \lam i => ++'.++'_index-right {Array R k'} i j))
+
 \func diagonal {R : AddPointed} (l : Array R) : Matrix R l.len l.len
   => mkMatrix \lam i j => \case decideEq i j \with {
     | yes _ => l i
@@ -160,6 +167,12 @@
 
     \lemma product_ide-right {R : Ring} {n m : Nat} {M : Matrix R n m} : M product ide = M
       => matrixExt $ \lam i j => BigSum-unique j (\lam k j/=k => later $ rewrite (decideEq/=_reduce (\lam t => j/=k (inv t))) R.zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right
+
+    \lemma product_zro-left {R : Ring} {n m k : Nat} (A : Matrix R m k) : zro product A = {Matrix R n k} zro
+      => matrixExt \lam i j => BigSum_zro \lam k => zro_*-left
+
+    \lemma product_zro-right {R : Ring} {n m k : Nat} (A : Matrix R n m) : A product zro = {Matrix R n k} zro
+      => matrixExt \lam i j => BigSum_zro \lam k => zro_*-right
 
     \lemma product-gen-assoc {R : Ring} {M : LModule' R} {n m k l : Nat} {A : Matrix R n m} {B : Matrix R m k} {C : Matrix M k l} : product-gen (A product B) C = product-gen A (product-gen B C)
       => matrixExt $ \lam j1 j2 => path (\lam i => BigSum (\lam j3 => M.*c_BigSum-rdistr {\lam j4 => A j1 j4 * B j4 j3} {C j3 j2} i)) *>
@@ -589,3 +602,28 @@
 
 \lemma determinant_diagonal {R : CRing} {l : Array R} : determinant (diagonal l) = R.BigProd l
   => determinant_IsDiagonal {R} {l.len} {diagonal l} diagonal-isDiagonal *> pmap R.BigProd (exts \lam j => rewrite (decideEq=_reduce idp) idp)
+
+\lemma determinant-nonSquare {R : CRing} {n m : Nat} (m<n : m < n) {A : Matrix R n m} {B : Matrix R m n} : determinant (A MatrixRing.product B) = 0
+  => \have r : \Pi (A : Matrix R n m) (B : Matrix R m n) -> determinant (A MatrixRing.product B) = 0
+             => rewriteI (<=_exists (LinearOrder.<_<= m<n), NatSemiring.+-comm) \lam A B => determinant-nonSquare_+ \lam p => linarith (-'_<= p)
+     \in r A B
+  \where {
+    \lemma determinant-nonSquare_+ {R : CRing} {n k : Nat} (k/=0 : k /= 0) {A : Matrix R (k + n) n} {B : Matrix R n (k + n)} : determinant (A MatrixRing.product B) = 0 =>
+      \let | A' => block12Matrix 0 A
+           | B' => block21Matrix 0 B
+           | p : A' * B' = A MatrixRing.product B => block12_21_* 0 A 0 B *> cong (MatrixRing.product_zro-left 0) *> zro-left
+      \in pmap determinant (inv p) *> determinant_* {_} {_} {A'} {B'} *> pmap (`* _) (determinant_block12 k/=0 A) *> zro_*-left
+
+    \lemma determinant_block12 {R : CRing} {n k : Nat} (k/=0 : k /= 0) (A : Matrix R (k + n) n) : determinant (block12Matrix 0 A) = 0 \elim k
+      | 0 => absurd (k/=0 idp)
+      | suc k => inv (determinantN.=determinant {_} {suc k + n} {0} {block12Matrix {R} {suc k} 0 A}) *> pmap2 (+) (*-assoc *> zro_*-left) (R.BigSum_zro \lam j => *-assoc *> zro_*-left) *> zro-left
+  }
+
+\lemma matrix-split-trivial {R : CRing} {n m : Nat} (m<n : m < n) {A : Matrix R n m} {B : Matrix R m n} (p : A MatrixRing.product B = ide) : 0 = {R} 1
+  => inv (determinant-nonSquare m<n) *> pmap determinant p *> determinant_ide
+
+\lemma matrix-split_<= {R : NonZeroCRing} {n m : Nat} {A : Matrix R n m} {B : Matrix R m n} (p : A MatrixRing.product B = ide) : n <= m
+  => \case LinearOrder.dec<_<= m n \with {
+    | inl m<n => absurd $ zro/=ide $ matrix-split-trivial m<n p
+    | inr n<=m => n<=m
+  }

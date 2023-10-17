@@ -1,17 +1,63 @@
 \import Algebra.Field
 \import Algebra.Linear.Matrix
+\import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Module.Category
 \import Algebra.Pointed
+\import Algebra.Ring
 \import Arith.Nat
+\import Category
 \import Data.Or
+\import Function \hiding (id, o)
 \import Function.Meta
 \import Logic
 \import Logic.Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
+\import Paths
+\import Paths.Meta
 \import Set
+\import Set.Fin
+
+\class FinModule \extends LModule {
+  \override R : NonZeroCRing
+  | isFinModule : ∃ (l : Array E) (IsBasis l)
+} \where {
+  \open LinearMap
+
+  \lemma surj-lift {R : Ring} {F U V : LModule' R} (f : LinearMap' F V) (g : LinearMap' U V) (gs : isSurj g) {l : Array F} (lb : IsBasis l)
+    : ∃ (h : LinearMap' F U) (\Pi (x : F) -> g (h x) = f x)
+    => \case FinSet.finiteAC (\lam j => gs (f (l j))) \with {
+      | inP s =>
+        \let h => extend lb \lam j => (s j).1
+        \in inP (h, basis-ext (g ∘ {LModuleCat R} h) f lb.2 \lam j => pmap g (BigSum-unique {_} {\lam k => basis-split lb (l j) k *c (s k).1} j (\lam k j/=k => pmap (`*c _) (basis_split_/= j/=k) *> *c_zro-left) *> pmap (`*c _) basis_split_= *> ide_*c) *> (s j).2)
+    }
+
+  \lemma surj-split {R : Ring} {U V : LModule' R} (g : LinearMap' U V) (gs : isSurj g) {l : Array V} (lb : IsBasis l)
+    : ∃ (h : LinearMap' V U) (\Pi (x : V) -> g (h x) = x)
+    => surj-lift (id V) g gs lb
+
+  \lemma basis<=generating {R : NonZeroCRing} {U : LModule' R} (l l' : Array U) (lb : U.IsBasis l) (l'g : U.IsGenerated l') : l.len <= l'.len
+    => \let | g => arrayLinearMap l'
+            | (inP (f,gf=id)) => surj-split {R} g (arrayLinearMap.surj-char.2 l'g) lb
+            | A => toMatrix f lb ArrayLModule.basis
+            | B => toMatrix {R} g ArrayLModule.basis lb
+       \in matrix-split_<= {R} {_} {_} {A} {B} $ inv (toMatrix_* f g lb ArrayLModule.basis lb) *> cong (exts gf=id) *> toMatrix_ide lb
+
+  \lemma dimension-pair (U : FinModule) : \Sigma (d : Nat) (∃ (l : Array U d) (U.IsBasis l))
+    \level \lam s t => ext \case s.2, t.2 \with {
+      | inP (l,lb), inP (l',l'b) => <=-antisymmetric (basis<=generating l l' lb l'b.2) (basis<=generating l' l l'b lb.2)
+    } => \case U.isFinModule \with {
+      | inP (l : Array, lb) => (l.len, inP (\new l, lb))
+    }
+
+  \func dimension (U : FinModule) => (dimension-pair U).1
+
+  \lemma dimension-char (U : FinModule) => (dimension-pair U).2
+}
+
+\meta FinModule' R => FinModule { | R => R }
 
 \class VectorSpace \extends LModule {
   \override R : DiscreteField
