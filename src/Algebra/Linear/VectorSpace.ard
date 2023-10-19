@@ -1,29 +1,34 @@
 \import Algebra.Field
 \import Algebra.Linear.Matrix
+\import Algebra.Linear.Matrix.Smith
 \import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Module.Category
+\import Algebra.Monoid
 \import Algebra.Pointed
 \import Algebra.Ring
 \import Arith.Nat
 \import Category
+\import Data.Array
 \import Data.Or
+\import Equiv (Equiv)
 \import Function \hiding (id, o)
 \import Function.Meta
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
 \import Set
 \import Set.Fin
 
-\class FinModule \extends LModule {
-  \override R : NonZeroCRing
+\class FinModule \extends LModule
   | isFinModule : ∃ (l : Array E) (IsBasis l)
-} \where {
+  \where {
   \open LinearMap
 
   \lemma surj-lift {R : Ring} {F U V : LModule' R} (f : LinearMap' F V) (g : LinearMap' U V) (gs : isSurj g) {l : Array F} (lb : IsBasis l)
@@ -41,20 +46,20 @@
   \lemma basis<=generating {R : NonZeroCRing} {U : LModule' R} (l l' : Array U) (lb : U.IsBasis l) (l'g : U.IsGenerated l') : l.len <= l'.len
     => \let | g => arrayLinearMap l'
             | (inP (f,gf=id)) => surj-split {R} g (arrayLinearMap.surj-char.2 l'g) lb
-            | A => toMatrix f lb ArrayLModule.basis
-            | B => toMatrix {R} g ArrayLModule.basis lb
-       \in matrix-split_<= {R} {_} {_} {A} {B} $ inv (toMatrix_* f g lb ArrayLModule.basis lb) *> cong (exts gf=id) *> toMatrix_ide lb
+            | A => toMatrix l ArrayLModule.basis f
+            | B => toMatrix {R} MatrixRing.ide lb g
+       \in matrix-split_<= {R} {_} {_} {A} {B} $ inv (toMatrix_* f g l ArrayLModule.basis lb) *> cong (exts gf=id) *> toMatrix_ide lb
 
-  \lemma dimension-pair (U : FinModule) : \Sigma (d : Nat) (∃ (l : Array U d) (U.IsBasis l))
+  \lemma dimension-pair {R : NonZeroCRing} (U : FinModule' R) : \Sigma (d : Nat) (∃ (l : Array U d) (U.IsBasis l))
     \level \lam s t => ext \case s.2, t.2 \with {
       | inP (l,lb), inP (l',l'b) => <=-antisymmetric (basis<=generating l l' lb l'b.2) (basis<=generating l' l l'b lb.2)
     } => \case U.isFinModule \with {
       | inP (l : Array, lb) => (l.len, inP (\new l, lb))
     }
 
-  \func dimension (U : FinModule) => (dimension-pair U).1
+  \func dimension {R : NonZeroCRing} (U : FinModule' R) => (dimension-pair U).1
 
-  \lemma dimension-char (U : FinModule) => (dimension-pair U).2
+  \lemma dimension-char {R : NonZeroCRing} (U : FinModule' R) => (dimension-pair U).2
 }
 
 \meta FinModule' R => FinModule { | R => R }
@@ -63,26 +68,54 @@
   \override R : DiscreteField
 }
 
-\class FinVectorSpace \extends VectorSpace
-  | isFreeVectorSpace : ∃ (l : Array E) (IsBasis l)
+\class FinVectorSpace \extends VectorSpace, FinModule
 
 \meta VectorSpace' K => VectorSpace { | R => K }
 
 \meta FinVectorSpace' K => FinVectorSpace { | R => K }
 
-\lemma vectorSpace-bases {K : DiscreteField} {U V : VectorSpace' K} (f : LinearMap' U V) (lU' : Array U) (bU : U.IsBasis lU') (lV' : Array V) (bV : V.IsBasis lV')
-  : ∃ (lU : Array U lU'.len) (U.IsBasis lU) (lV : Array V lV'.len) (V.IsBasis lV) (k : Nat) (k <= lU'.len) (k<=V : k <= lV'.len)
-      (\Pi (i : Fin lU'.len) (i<k : i < k) -> f (lU i) = lV (toFin i $ <-transitive-left i<k k<=V))
-      (\Pi (i : Fin lU'.len) -> k <= i -> f (lU i) = 0)
-  => {?}
-
-\lemma vectorSpace-bases' {K : DiscreteField} {n m : Nat} (A : Matrix K n m)
-  : ∃ (B : Matrix K n n) (determinant B /= 0) (C : Matrix K m m) (determinant C /= 0) (k : Nat) (B MatrixRing.product A MatrixRing.product C = partialId k)
-  => {?}
+\lemma smith-bases {R : SmithRing} {U V : FinModule' R} (f : LinearMap' U V)
+  : ∃ (lu : Array U) (U.IsBasis lu) (lv : Array V) (V.IsBasis lv) (d : Array R lu.len)
+      (\Pi {i j : Fin lu.len} -> j = {Nat} suc i -> Monoid.LDiv (d i) (d j))
+      (\Pi (j : Fin lu.len) -> f (lu j) = d j *c fit V.zro lv j)
+  => \have | (inP (lu : Array, bu)) => U.isFinModule
+           | (inP (lv : Array, bv)) => V.isFinModule
+           | (inP (B, Bs, A~B)) => R.toSmith (toMatrix lu bv f)
+           | (inP Bs2) => IsSmith.div-func Bs
+           | (inP (lu',lv',bu',bv',p)) => M~_toLinearMap bu bv A~B
+           | q : f = toLinearMap bu' lv' B => inv (Equiv.ret_f {matrix-equiv bu bv} f) *> p
+     \in inP (lu', bu', lv', bv', \lam j =>
+          \case LinearOrder.dec<_<= j lv.len \with {
+            | inl p => B j (toFin j p)
+            | inr _ => zro
+          }, \lam {i} {j} j=i+1 => mcases \with {
+            | inl i<lv, inl j<lv => transport2 (\lam x y => LDiv _ (B x y))
+                (fin_nat-inj $ toFin=id {suc i} {lu.len} {rewriteI j=i+1 (fin_< j)} *> inv j=i+1)
+                (fin_nat-inj $ toFin=id *> later (inv j=i+1) *> inv toFin=id)
+                (rewriteF toFin=fin $ Bs2 i (rewriteI j=i+1 $ fin_< j) (rewriteI j=i+1 j<lv))
+            | inl i<lv, inr lv<=j => LDiv.make zro R.zro_*-right
+            | inr lv<=i, inl j<lv => absurd linarith
+            | inr lv<=i, inr lv<=j => LDiv.id-div
+          }, \lam j => path (\lam i => q i (lu' j)) *> LinearMap.toLinearMap-basis bu' lv' *> mcases \with {
+            | inl j<lv => V.BigSum-unique {\lam k => B j k *c lv' k} (toFin j j<lv) (\lam k j/=k => pmap (`*c _) (Bs.1 j k \lam j=k => j/=k $ fin_nat-inj $ toFin=id *> j=k) *> V.*c_zro-left) *> pmap (_ *c) (inv $ fit_< lv' j<lv)
+            | inr lv<=j => V.BigSum_zro (\lam k => pmap (`*c _) (later $ Bs.1 j k \lam j=k => linarith (fin_< k)) *> V.*c_zro-left) *> inv V.*c_zro-left
+          })
   \where {
-    \func partialId {K : DiscreteField} {n m : Nat} (k : Nat) : Matrix K n m
-      => mkMatrix \lam i j => \case decideEq (i : Nat) j, LinearOrder.dec<_<= (i : Nat) k \with {
-        | yes _, inl _ => ide
-        | _, _ => zro
-      }
+    \func fit {A : \Type} (a : A) {n : Nat} (l : Array A) : Array A n \elim n, l
+      | 0, _ => nil
+      | suc n, nil => replicate (suc n) a
+      | suc n, b :: l => b :: fit a l
+
+    \func fit_< {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin n} (p : j < l.len) : fit a l j = l (toFin j p) \elim n, l, j, p
+      | suc n, b :: l, 0, _ => idp
+      | suc n, b :: l, suc j, NatSemiring.suc<suc p => fit_< _ p
+
+    \open LinearMap
+    \open Monoid
+
+    \lemma M~_toLinearMap {R : Ring} {U V : LModule' R} {lu : Array U} {lv : Array V} (bu : U.IsBasis lu) (bv : V.IsBasis lv) {A B : Matrix R lu.len lv.len} (A~B : A M~ B)
+      : ∃ (lu' : Array U lu.len) (lv' : Array V lv.len) (bu' : U.IsBasis lu') (bv' : V.IsBasis lv') (toLinearMap bu lv A = toLinearMap bu' lv' B)
+      => \let | (inP (C : Inv, D : Inv, A=CBD)) => ~-symmetric A~B
+              | t => pmap (toLinearMap bu lv) A=CBD *> toLinearMap_* (C.val MatrixRing.product B) D.val bu bv bv *> pmap (_ ∘ {LModuleCat R}) (toLinearMap_* C.val B bu bu bv) *> pmap (_ ∘ {LModuleCat R}) (change-basis-right (toLinearMapIso bu C) bu bv B) *> change-basis-left (toLinearMap bv lv D.val) (iso-basis (Iso.reverse {toLinearMapIso bu C}) bu) bv B
+         \in inP (_, _, _, iso-basis (toLinearMapIso bv D) bv, t)
   }
