@@ -110,6 +110,10 @@
       }
   }
 
+\func ++_++' {A : \Type} {l : Array A} {n : Nat} {l' : Array A n} : l ++ l' = l ++' l' \elim l
+  | nil => idp
+  | a :: l => pmap (a ::) ++_++'
+
 \func map_++ {A B : \Type} (f : A -> B) {l l' : Array A} : map f (l ++ l') = map f l ++ map f l' \elim l
   | nil => idp
   | :: a l => pmap (f a ::) (map_++ f)
@@ -223,39 +227,73 @@
 \func replicate {A : \Type} (n : Nat) (a : A)
   => \new Array A n (\lam _ => a)
 
-\func remove {A : DecSet} (a : A) (l : Array A) : Array A \elim l
+\func keep {A : \Type} {P : A -> \Prop} (D : \Pi (a : A) -> Dec (P a)) (l : Array A) : Array A \elim l
   | nil => nil
-  | a' :: l => \case decideEq a a' \with {
-    | yes _ => remove a l
-    | no _ => a' :: remove a l
+  | a :: l => \case D a \with {
+    | yes _ => a :: keep D l
+    | no _ => keep D l
   }
   \where {
-    \lemma no-element {A : DecSet} {a : A} {l : Array A} {i : Fin (DArray.len {remove a l})} (p : remove a l i = a) : Empty \elim l
+    \lemma element {A : \Type} {P : A -> \Prop} (D : \Pi (a : A) -> Dec (P a)) {l : Array A} {i : Fin (DArray.len {keep D l})} : P (keep D l i) \elim l
+      | a :: l => cases (D a, i) \with {
+        | yes e, 0 => e
+        | yes e, suc i => element D
+        | no n, i => element D
+      }
+  }
+
+\func remove {A : \Type} {P : A -> \Prop} (D : \Pi (a : A) -> Dec (P a)) (l : Array A) : Array A \elim l
+  | nil => nil
+  | a :: l => \case D a \with {
+    | yes _ => remove D l
+    | no _ => a :: remove D l
+  }
+  \where {
+    \lemma no-element {A : \Type} {P : A -> \Prop} (D : \Pi (a : A) -> Dec (P a)) {l : Array A} {i : Fin (DArray.len {remove D l})} (p : P (remove D l i)) : Empty \elim l
       | nil => \case i
-      | a' :: l => cases (decideEq a a', i, p) \with {
-        | yes e, i, p => no-element p
-        | no q, 0, p => q (inv p)
-        | no q, suc i, p => no-element p
+      | a :: l => cases (D a, i, p) \with {
+        | yes e, i, p => no-element D p
+        | no q, 0, p => q p
+        | no q, suc i, p => no-element D p
       }
 
-    \func preimage {A : DecSet} (a : A) (l : Array A) (i : Fin (DArray.len {remove a l})) : \Sigma (j : Fin l.len) (remove a l i = l j) \elim l
+    \func preimage {A : \Type} {P : A -> \Prop} (D : \Pi (a : A) -> Dec (P a)) (l : Array A) (i : Fin (DArray.len {remove D l})) : \Sigma (j : Fin l.len) (remove D l i = l j) \elim l
       | nil => (i,idp)
-      | a' :: l => cases (decideEq a a', i) \with {
-        | yes e, i => \let t => preimage a l i \in (suc t.1, t.2)
+      | a :: l => cases (D a, i) \with {
+        | yes e, i => \let t => preimage D l i \in (suc t.1, t.2)
         | no q, 0 => (0,idp)
-        | no q, suc i => \let t => preimage a l i \in (suc t.1, t.2)
+        | no q, suc i => \let t => preimage D l i \in (suc t.1, t.2)
       }
 
-    \lemma no-repeats {A : DecSet} {l : Array A} (p : \Pi {i j : Fin l.len} -> l i = l j -> i = j) {a : A} {i j : Fin (DArray.len {remove a l})} (q : remove a l i = remove a l j) : i = j \elim l
+    \lemma no-repeats {A : \Type} {l : Array A} (p : \Pi {i j : Fin l.len} -> l i = l j -> i = j) {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {i j : Fin (DArray.len {remove D l})} (q : remove D l i = remove D l j) : i = j \elim l
       | nil => \case i
-      | a' :: l => cases (decideEq a a', i, j, q) \with {
+      | a :: l => cases (D a, i, j, q) \with {
         | yes _, i, j, q => no-repeats (\lam {i'} {j'} s => pmap (fpred i') $ p {suc i'} {suc j'} s) q
         | no _, 0, 0, q => idp
-        | no s, 0, suc j, q => \let t => preimage a l j \in \case p {0} {suc t.1} (q *> t.2)
-        | no _, suc i, 0, q => \let t => preimage a l i \in \case p {suc t.1} {0} (inv t.2 *> q)
+        | no s, 0, suc j, q => \let t => preimage D l j \in \case p {0} {suc t.1} (q *> t.2)
+        | no _, suc i, 0, q => \let t => preimage D l i \in \case p {suc t.1} {0} (inv t.2 *> q)
         | no s, suc i, suc j, q => pmap fsuc (no-repeats (\lam {i'} {j'} s => pmap (fpred i') $ p {suc i'} {suc j'} s) q)
       }
   }
+
+\func keep_remove=keep {A : \Type} {P Q : A -> \Prop} {DP : \Pi (a : A) -> Dec (P a)} {DQ : \Pi (a : A) -> Dec (Q a)} (PQ : \Pi {a : A} -> P a -> Q a -> Empty) {l : Array A} : keep DP (remove DQ l) = keep DP l \elim l
+  | nil => idp
+  | a :: l => mcases \with {
+    | yes q, yes p => absurd (PQ p q)
+    | yes q, no n => keep_remove=keep PQ
+    | no n, yes p => rewrite (dec_yes_reduce p) $ pmap (a ::) (keep_remove=keep PQ)
+    | no n, no n1 => rewrite (dec_no_reduce n1) (keep_remove=keep PQ)
+  }
+
+\func keep_remove-split {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l : Array A} : EPerm l (keep D l ++ remove D l) \elim l
+  | nil => eperm-nil
+  | a :: l => mcases \with {
+    | yes p => eperm-:: idp (keep_remove-split {_} {_} {D})
+    | no n => eperm-trans (eperm-:: idp (keep_remove-split {_} {_} {D})) (EPerm.eperm-sym EPerm.EPerm_++-swap)
+  }
+
+\func removeElem {A : DecSet} (a : A) (l : Array A) : Array A
+  => remove (decideEq a) l
 
 \func remove1 {A : DecSet} (a : A) {n : Nat} (l : Array A (suc n)) : Array A n \elim n, l
   | 0, l => nil
@@ -298,22 +336,22 @@
 
 \func nub {A : DecSet} (l : Array A) : Array A \elim l
   | nil => nil
-  | a :: l => a :: remove a (nub l)
+  | a :: l => a :: removeElem a (nub l)
 
-\func nub-isSruj {A : DecSet} (l : Array A) (i : Fin l.len) : \Sigma (j : Fin (DArray.len {nub l})) (nub l j = l i) \elim l, i
+\func nub-isSurj {A : DecSet} (l : Array A) (i : Fin l.len) : \Sigma (j : Fin (DArray.len {nub l})) (nub l j = l i) \elim l, i
   | a :: l, 0 => (0,idp)
   | a :: l, suc i =>
     \case decideEq a (l i) \with {
       | yes e => (0,e)
       | no q =>
-        \have | t => nub-isSruj l i
+        \have | t => nub-isSurj l i
               | s => remove-isSurj a (nub l) t.1 $ \lam p => q $ inv p *> t.2
         \in (suc s.1, s.2 *> t.2)
     }
   \where {
-    \func remove-isSurj {A : DecSet} (a : A) (l : Array A) (i : Fin l.len) (p : l i /= a) : \Sigma (j : Fin (DArray.len {remove a l})) (remove a l j = l i) \elim l
+    \func remove-isSurj {A : DecSet} (a : A) (l : Array A) (i : Fin l.len) (p : l i /= a) : \Sigma (j : Fin (DArray.len {removeElem a l})) (removeElem a l j = l i) \elim l
       | nil => \case i
-      | a' :: l => mcases \with {
+      | a' :: l => unfold removeElem $ mcases \with {
         | yes e => cases (i,p) \with {
           | 0, p => absurd $ p (inv e)
           | suc i, p => remove-isSurj a l i p
@@ -325,11 +363,29 @@
       }
   }
 
-\lemma nub-isInj {A : DecSet} (l : Array A) {i j : Fin (DArray.len {nub l})} (p : nub l i = nub l j) : i = j \elim l, i, j
+\lemma nub-isInj {A : DecSet} {l : Array A} {i j : Fin (DArray.len {nub l})} (p : nub l i = nub l j) : i = j \elim l, i, j
   | a :: l, 0, 0 => idp
-  | a :: l, 0, suc j => absurd $ remove.no-element (inv p)
-  | a :: l, suc i, 0 => absurd (remove.no-element p)
-  | a :: l, suc i, suc j => pmap fsuc $ remove.no-repeats (nub-isInj l) p
+  | a :: l, 0, suc j => absurd $ remove.no-element (decideEq a) p
+  | a :: l, suc i, 0 => absurd (remove.no-element (decideEq a) (inv p))
+  | a :: l, suc i, suc j => pmap fsuc $ remove.no-repeats nub-isInj p
+
+\func nub-split {A : \Type} {B : DecSet} {l : Array (\Sigma A B)} : EPerm l (Big (++) nil (map (\lam b => keep (\lam s => decideEq b s.2) l) (nub (map __.2 l))))
+  => aux (nub (map __.2 l)) nub-isInj (later $ nub-isSurj (map __.2 l))
+  \where
+    \func aux {A : \Type} {B : DecSet} {l : Array (\Sigma A B)} (bs : Array B) (inj : isInj bs) (l<bs : \Pi (j : Fin l.len) -> \Sigma (k : Fin bs.len) (bs k = (l j).2))
+      : EPerm l (Big (++) nil (map (\lam b => keep (\lam s => decideEq b s.2) l) bs)) \elim bs
+      | nil => \case \elim l, \elim l<bs \with {
+        | nil, _ => eperm-nil
+        | s :: l, p => \case (p 0).1
+      }
+      | b :: bs => eperm-trans keep_remove-split $ EPerm.eperm-++-right $
+                   eperm-trans (aux bs (\lam p => unfsuc (inj p)) (\lam j =>
+                      \have t => remove.preimage _ l j
+                      \in \case l<bs t.1 \with {
+                        | (0, p) => absurd $ remove.no-element (\lam s => decideEq b s.2) {l} $ inv (pmap __.2 t.2 *> inv p)
+                        | (suc k, p) => (k, p *> inv (pmap __.2 t.2))
+                      })) $
+                    EPerm.eperm-= $ pmap (Big (++) nil) $ exts \lam j => keep_remove=keep \lam p q => \case inj {0} {suc j} (q *> inv p)
 
 \func insert {A : \Type} (a : A) (l : Array A) (j : Fin (suc l.len)) : Array A (suc l.len) \elim l, j
   | nil, j => a :: nil
