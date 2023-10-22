@@ -257,12 +257,12 @@
         | no q, suc i, p => no-element D p
       }
 
-    \func preimage {A : \Type} {P : A -> \Prop} (D : \Pi (a : A) -> Dec (P a)) (l : Array A) (i : Fin (DArray.len {remove D l})) : \Sigma (j : Fin l.len) (remove D l i = l j) \elim l
+    \func preimage {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l : Array A} (i : Fin (DArray.len {remove D l})) : \Sigma (j : Fin l.len) (remove D l i = l j) \elim l
       | nil => (i,idp)
       | a :: l => cases (D a, i) \with {
-        | yes e, i => \let t => preimage D l i \in (suc t.1, t.2)
+        | yes e, i => \let t => preimage i \in (suc t.1, t.2)
         | no q, 0 => (0,idp)
-        | no q, suc i => \let t => preimage D l i \in (suc t.1, t.2)
+        | no q, suc i => \let t => preimage i \in (suc t.1, t.2)
       }
 
     \lemma no-repeats {A : \Type} {l : Array A} (p : \Pi {i j : Fin l.len} -> l i = l j -> i = j) {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {i j : Fin (DArray.len {remove D l})} (q : remove D l i = remove D l j) : i = j \elim l
@@ -270,8 +270,8 @@
       | a :: l => cases (D a, i, j, q) \with {
         | yes _, i, j, q => no-repeats (\lam {i'} {j'} s => pmap (fpred i') $ p {suc i'} {suc j'} s) q
         | no _, 0, 0, q => idp
-        | no s, 0, suc j, q => \let t => preimage D l j \in \case p {0} {suc t.1} (q *> t.2)
-        | no _, suc i, 0, q => \let t => preimage D l i \in \case p {suc t.1} {0} (inv t.2 *> q)
+        | no s, 0, suc j, q => \let t => preimage j \in \case p {0} {suc t.1} (q *> t.2)
+        | no _, suc i, 0, q => \let t => preimage i \in \case p {suc t.1} {0} (inv t.2 *> q)
         | no s, suc i, suc j, q => pmap fsuc (no-repeats (\lam {i'} {j'} s => pmap (fpred i') $ p {suc i'} {suc j'} s) q)
       }
   }
@@ -363,6 +363,12 @@
       }
   }
 
+\func nub-preimage {A : DecSet} {l : Array A} (j : Fin (DArray.len {nub l})) : \Sigma (i : Fin l.len) (nub l j = l i) \elim l, j
+  | a :: l, 0 => (0, idp)
+  | a :: l, suc j => \have | (k,p) => remove.preimage j
+                           | (i,q) => nub-preimage k
+                     \in (suc i, p *> q)
+
 \lemma nub-isInj {A : DecSet} {l : Array A} {i j : Fin (DArray.len {nub l})} (p : nub l i = nub l j) : i = j \elim l, i, j
   | a :: l, 0, 0 => idp
   | a :: l, 0, suc j => absurd $ remove.no-element (decideEq a) p
@@ -380,7 +386,7 @@
       }
       | b :: bs => eperm-trans keep_remove-split $ EPerm.eperm-++-right $
                    eperm-trans (aux bs (\lam p => unfsuc (inj p)) (\lam j =>
-                      \have t => remove.preimage _ l j
+                      \have t => remove.preimage j
                       \in \case l<bs t.1 \with {
                         | (0, p) => absurd $ remove.no-element (\lam s => decideEq b s.2) {l} $ inv (pmap __.2 t.2 *> inv p)
                         | (suc k, p) => (k, p *> inv (pmap __.2 t.2))

@@ -125,16 +125,28 @@
                        \in ~-sym $ count_~ \lam j => inv (t j))
 
   \lemma IsIndependent<->IsIndependentSet {l : Array E} : IsIndependent l <-> IsIndependentSet l
-    => <->trans (later (\lam li l' c l'inj p j =>
-        \let | cl' => mkArray \lam j => (c j, l' j)
-             | t => li (count cl') (inv FinSum=BigSum *> FinSum-inj l' l'inj (\lam b q => pmap (`*c _) (count_zro {R} {_} {l'} {c} b \lam k => /=-sym (q k)) *> *c_zro-left) *> pmap FinSum (ext \lam k => pmap (`*c _) $ count-unique {R} {_} {l'} l'inj k) *> FinSum=BigSum *> p)
-        \in inv (count-unique {R} {_} {l'} l'inj j) *> t (l' j), \lam li c p j => li (mkArray \lam j => j) c (\lam q => q) p j)) (<->sym IsIndependentSet<->IsIndependentDec)
+    => (\lam li c p => count_~ \lam j => li (count c) (inv sum_BigSum *> p) _,
+        \lam li c p j => IsIndependentSet<->IsIndependentDec.1 li (mkArray \lam j => j) c (\lam q => q) p j)
+    \where
+      \lemma sum_BigSum {l : Array E} {c : Array (\Sigma R (Fin l.len))} : sum l c = BigSum (\lam j => count c j *c l j)
+        => BigSum_EPerm (EPerm.EPerm_map (\lam s => s.1 *c l s.2) nub-split) *> sum_Big++ l *> inv FinSum=BigSum *>
+            inv (FinSum-inj (nub (map __.2 c)) nub-isInj (\lam j q => pmap (`*c _) (count_zro j \lam k => /=-sym \let (i,p) => nub-isSurj (map __.2 c) k \in later $ rewriteI p (q i)) *> *c_zro-left) *> pmap FinSum (exts \lam j =>
+              \let (i,q) => nub-preimage j
+              \in rewrite q $ pmap (`*c _) count-char *> *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c l __) $ keep.element (\lam s => decideEq (c i).2 s.2) {c} {k}))) *> FinSum=BigSum
 
   \type IsGeneratingSet {J : \Set} (g : J -> E) : \Prop
     => \Pi (x : E) -> ∃ (c : Array (\Sigma R J)) (x = IsIndependentSet.sum g c)
 
+  \lemma IsGenerated<->IsGeneratingSet {l : Array E} : IsGenerated l <-> IsGeneratingSet l
+    => (\lam lg x => TruncP.map (lg x) \lam s => (\lam j => (s.1 j, j), s.2),
+        \lam lg x => TruncP.map (lg x) \lam s => (count s.1, s.2 *> IsIndependent<->IsIndependentSet.sum_BigSum))
+
   \type IsBasisSet {J : \Set} (g : J -> E) : \Prop
     => \Sigma (IsIndependentSet g) (IsGeneratingSet g)
+
+  \lemma IsBasis<->IsBasisSet {l : Array E} : IsBasis l <-> IsBasisSet l
+    => (\lam b => (IsIndependent<->IsIndependentSet.1 b.1, IsGenerated<->IsGeneratingSet.1 b.2),
+        \lam b => (IsIndependent<->IsIndependentSet.2 b.1, IsGenerated<->IsGeneratingSet.2 b.2))
 
   \lemma independent-split-unique {l : Array E} (li : IsIndependent l) {c d : Array R l.len} (p : BigSum (\lam j => c j *c l j) = BigSum (\lam j => d j *c l j)) (j : Fin l.len) : c j = d j
     => R.fromZero $ li (\lam i => c i - d i) (cancel-right _ $ inv (BigSum_+ {_} {_} {\lam j => (c j - d j) *c l j}) *> pmap BigSum (exts \lam j => pmap (`+ _) *c-rdistr *> +-assoc *> pmap (_ +) (pmap (`+ _) *c_negative-left *> negative-left) *> zro-right) *> p *> inv zro-left) j
@@ -200,9 +212,9 @@
       | no n, no n1 => count-char
     }
 
-  \lemma count_zro {R : Semiring} {J : DecSet} {l : Array J} {c : Array R l.len} (j : J) (p : \Pi (k : Fin c.len) -> j /= l k) : count {R} (\lam j => (c j, l j)) j = 0 \elim l, c
-    | nil, nil => idp
-    | a :: c, j' :: l => mcases \with {
+  \lemma count_zro {R : Semiring} {J : DecSet} {c : Array (\Sigma R J)} (j : J) (p : \Pi (k : Fin c.len) -> j /= (c k).2) : count {R} c j = 0 \elim c
+    | nil => idp
+    | s :: c => mcases \with {
       | yes q => absurd (p 0 (inv q))
       | no q => count_zro j \lam k => p (suc k)
     }
