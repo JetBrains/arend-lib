@@ -1,4 +1,7 @@
+\import Algebra.Domain
 \import Algebra.Field
+\import Algebra.Group
+\import Algebra.Group.Category
 \import Algebra.Linear.Matrix
 \import Algebra.Linear.Matrix.Smith
 \import Algebra.Meta
@@ -6,7 +9,9 @@
 \import Algebra.Module.Category
 \import Algebra.Monoid
 \import Algebra.Pointed
+\import Algebra.Pointed.Category
 \import Algebra.Ring
+\import Algebra.Semiring
 \import Arith.Nat
 \import Category
 \import Data.Array
@@ -31,24 +36,23 @@
   \where {
   \open LinearMap
 
-  \lemma surj-lift {R : Ring} {F U V : LModule' R} (f : LinearMap' F V) (g : LinearMap' U V) (gs : isSurj g) {l : Array F} (lb : IsBasis l)
+  \lemma surj-lift {R : Ring} {F : FinModule' R} {U V : LModule' R} (f : LinearMap' F V) (g : LinearMap' U V) (gs : isSurj g)
     : ∃ (h : LinearMap' F U) (\Pi (x : F) -> g (h x) = f x)
-    => \case FinSet.finiteAC (\lam j => gs (f (l j))) \with {
-      | inP s =>
-        \let h => extend lb \lam j => (s j).1
-        \in inP (h, basis-ext (g ∘ {LModuleCat R} h) f lb.2 \lam j => pmap g (BigSum-unique {_} {\lam k => basis-split lb (l j) k *c (s k).1} j (\lam k j/=k => pmap (`*c _) (basis_split_/= j/=k) *> *c_zro-left) *> pmap (`*c _) basis_split_= *> ide_*c) *> (s j).2)
-    }
+    => \have | (inP (l,lb)) => F.isFinModule
+             | (inP s) => FinSet.finiteAC (\lam j => gs (f (l j)))
+             | h => extend lb \lam j => (s j).1
+       \in inP (h, basis-ext (g ∘ {LModuleCat R} h) f lb.2 \lam j => pmap g (BigSum-unique {_} {\lam k => basis-split lb (l j) k *c (s k).1} j (\lam k j/=k => pmap (`*c _) (basis_split_/= j/=k) *> *c_zro-left) *> pmap (`*c _) basis_split_= *> ide_*c) *> (s j).2)
 
-  \lemma surj-split {R : Ring} {U V : LModule' R} (g : LinearMap' U V) (gs : isSurj g) {l : Array V} (lb : IsBasis l)
+  \lemma surj-split {R : Ring} {U : LModule' R} {V : FinModule' R} (g : LinearMap' U V) (gs : isSurj g)
     : ∃ (h : LinearMap' V U) (\Pi (x : V) -> g (h x) = x)
-    => surj-lift (id V) g gs lb
+    => surj-lift (id {LModuleCat R} V) g gs
 
-  \lemma basis<=generating {R : NonZeroCRing} {U : LModule' R} (l l' : Array U) (lb : U.IsBasis l) (l'g : U.IsGenerated l') : l.len <= l'.len
+    \lemma basis<=generating {R : NonZeroCRing} {U : LModule' R} (l l' : Array U) (lb : U.IsBasis l) (l'g : U.IsGenerated l') : l.len <= l'.len
     => \let | g => arrayLinearMap l'
-            | (inP (f,gf=id)) => surj-split {R} g (arrayLinearMap.surj-char.2 l'g) lb
+            | (inP (f : LinearMap' U _, gf=id)) => surj-split {R} {_} {\new FinModule { | LModule => U | isFinModule => inP (l,lb) }} g (arrayLinearMap.surj-char.2 l'g)
             | A => toMatrix l ArrayLModule.basis f
             | B => toMatrix {R} MatrixRing.ide lb g
-       \in matrix-split_<= {R} {_} {_} {A} {B} $ inv (toMatrix_* f g l ArrayLModule.basis lb) *> cong (exts gf=id) *> toMatrix_ide lb
+       \in matrix-split_<= {R} {_} {_} {A} {B} $ inv (toMatrix_* {R} {U} f g l ArrayLModule.basis lb) *> cong (exts gf=id) *> toMatrix_ide lb
 
   \lemma dimension-pair {R : NonZeroCRing} (U : FinModule' R) : \Sigma (d : Nat) (∃ (l : Array U d) (U.IsBasis l))
     \level \lam s t => ext \case s.2, t.2 \with {
@@ -77,6 +81,7 @@
 \lemma smith-bases {R : SmithRing} {U V : FinModule' R} (f : LinearMap' U V)
   : ∃ (lu : Array U) (U.IsBasis lu) (lv : Array V) (V.IsBasis lv) (d : Array R lu.len)
       (\Pi {i j : Fin lu.len} -> j = {Nat} suc i -> Monoid.LDiv (d i) (d j))
+      (\Pi (j : Fin lu.len) -> lv.len <= j -> d j = 0)
       (\Pi (j : Fin lu.len) -> f (lu j) = d j *c fit V.zro lv j)
   => \have | (inP (lu : Array, bu)) => U.isFinModule
            | (inP (lv : Array, bv)) => V.isFinModule
@@ -96,7 +101,8 @@
             | inl i<lv, inr lv<=j => LDiv.make zro R.zro_*-right
             | inr lv<=i, inl j<lv => absurd linarith
             | inr lv<=i, inr lv<=j => LDiv.id-div
-          }, \lam j => path (\lam i => q i (lu' j)) *> LinearMap.toLinearMap-basis bu' lv' *> mcases \with {
+          }, \lam j lv<=j => rewrite (LinearOrder.dec<=_reduce lv<=j) idp,
+             \lam j => path (\lam i => q i (lu' j)) *> LinearMap.toLinearMap-basis bu' lv' *> mcases \with {
             | inl j<lv => V.BigSum-unique {\lam k => B j k *c lv' k} (toFin j j<lv) (\lam k j/=k => pmap (`*c _) (Bs.1 j k \lam j=k => j/=k $ fin_nat-inj $ toFin=id *> j=k) *> V.*c_zro-left) *> pmap (_ *c) (inv $ fit_< lv' j<lv)
             | inr lv<=j => V.BigSum_zro (\lam k => pmap (`*c _) (later $ Bs.1 j k \lam j=k => linarith (fin_< k)) *> V.*c_zro-left) *> inv V.*c_zro-left
           })
@@ -110,6 +116,31 @@
       | suc n, b :: l, 0, _ => idp
       | suc n, b :: l, suc j, NatSemiring.suc<suc p => fit_< _ p
 
+    \func fit_>= {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin n} (p : l.len <= j) : fit a l j = a \elim n, l, j
+      | suc n, nil, j => idp
+      | suc n, b :: l, 0 => absurd linarith
+      | suc n, b :: l, suc j => fit_>= l (suc<=suc.conv p)
+
+    \func fit_<' {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin l.len} (p : j < n) : fit a l (toFin j p) = l j \elim n, l, j, p
+      | suc n, b :: l, 0, _ => idp
+      | suc n, b :: l, suc j, NatSemiring.suc<suc p => fit_<' _ p
+
+    \lemma fit_BigSum {A : AddMonoid} {n : Nat} {l : Array A} (p : \Pi (j : Fin l.len) -> n <= j -> l j = 0) : A.BigSum (fit 0 {n} l) = A.BigSum l \elim n, l
+      | 0, l => inv $ A.BigSum_zro \lam j => p j zero<=_
+      | suc n, nil => A.BigSum_replicate0 {suc n}
+      | suc n, a :: l => pmap (a +) $ fit_BigSum \lam j n<=j => p (suc j) (suc<=suc n<=j)
+
+    \lemma fit-transpose {A : AddMonoid} {n m : Nat} (l : Array (Array A m) n) : A.BigSum (\lam j => fit zro (l j) j) = A.BigSum (\lam k => fit A.zro (l __ k) k) \elim n, m, l
+      | 0, 0, nil => idp
+      | 0, suc m, nil => inv $ A.BigSum_replicate0 {suc m}
+      | suc n, 0, c :: l => A.BigSum_replicate0 {suc n}
+      | suc n, suc m, c :: l => pmap (c 0 +) $ fit-transpose \lam i => \lam j => l i (suc j)
+
+    \func fit_map {A B : \Type} (f : A -> B) {a : A} {b : B} (p : f a = b) {n : Nat} {l : Array A} : map f (fit a {n} l) = fit b (map f l) \elim n, l
+      | 0, l => idp
+      | suc n, nil => pmap (replicate (suc n)) p
+      | suc n, a' :: l => path (\lam i => f a' :: fit_map f p i)
+
     \open LinearMap
     \open Monoid
 
@@ -118,4 +149,50 @@
       => \let | (inP (C : Inv, D : Inv, A=CBD)) => ~-symmetric A~B
               | t => pmap (toLinearMap bu lv) A=CBD *> toLinearMap_* (C.val MatrixRing.product B) D.val bu bv bv *> pmap (_ ∘ {LModuleCat R}) (toLinearMap_* C.val B bu bu bv) *> pmap (_ ∘ {LModuleCat R}) (change-basis-right (toLinearMapIso bu C) bu bv B) *> change-basis-left (toLinearMap bv lv D.val) (iso-basis (Iso.reverse {toLinearMapIso bu C}) bu) bv B
          \in inP (_, _, _, iso-basis (toLinearMapIso bv D) bv, t)
+  }
+
+\open LModule
+
+\instance kernel-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
+  | LModule => KerLModule f
+  | isFinModule => \case smith-bases f \with {
+    | inP (lu : Array, bu, lv : Array, bv, d, _, h, g) =>
+      \have | KerFin : FinSet (\Sigma (j : Fin lu.len) (d j = 0)) => SigmaFin (FinFin lu.len) (\lam j => DecFin (decideEq (d j) 0))
+            | kb : LModule.IsBasisSet {KerLModule f} (\lam s => (lu s.1, g s.1 *> pmap (`*c _) s.2 *> V.*c_zro-left))
+                => (LinearMap.IsIndependentSet_func {KerLModuleHom f} $ LModule.IsIndependentSet-inj (\lam p => ext p) (U.IsIndependent<->IsIndependentSet.1 bu.1),
+                    \lam x => inP (map (\lam s => (U.basis-split bu x.1 s.1, s)) (filter0 d), ext $ U.basis-split-char {_} {bu} *> filter0_BigSum d (\lam j => basis-split bu x.1 j *c lu j) (\lam j dj/=0 => pmap (`*c _) (
+                      \case LinearOrder.dec<_<= j lv.len \with {
+                        | inl j<lv => Domain.nonZero-right dj/=0 $ inv (fit_<' (\lam j => basis-split bu x.1 j R.* d j) j<lv) *>
+                                      bv.1 (fit zro $ \lam j => U.basis-split bu x.1 j * d j) (path (\lam i => V.BigSum \lam j => fit_map (`*c lv j) {zro} V.*c_zro-left {_} {\lam j => basis-split bu x.1 j R.* d j} i j) *>
+                                        fit-transpose (\lam j k => basis-split bu x.1 k * d k *c lv j) *> pmap V.BigSum (exts \lam k => later (\case LinearOrder.dec<_<= k lv.len \with {
+                                          | inl k<lv => fit_< (\lam i => basis-split bu x.1 k * d k *c lv i) k<lv *> pmap (_ *c) (inv (fit_< _ k<lv))
+                                          | inr lv<=k => fit_>= (\lam i => basis-split bu x.1 k * d k *c lv i) lv<=k *> inv (pmap (`*c _) (pmap (_ *) (h k lv<=k) *> R.zro_*-right) *> V.*c_zro-left)
+                                        }) *> *c-assoc *> inv (func-*c *> pmap (_ *c) (g k))) *> inv (pmap f (U.basis-split-char {_} {bu}) *> f.func-BigSum) *> x.2) (toFin j j<lv)
+                        | inr lv<=j => absurd $ dj/=0 (h j lv<=j)
+                      }) *> *c_zro-left) *> inv (AddMonoidHom.func-BigSum {KerLModuleHom f})))
+      \in free-char.2 $ inP (KerFin, _, kb)
+  }
+  \where {
+    \open smith-bases
+
+    \func filter0 {R : AddGroup.Dec} (ds : Array R) : Array (\Sigma (j : Fin ds.len) (ds j = 0)) \elim ds
+      | nil => nil
+      | d :: ds => \case decideEq d 0 \with {
+        | yes d=0 => (0,d=0) :: map (later \lam s => (suc s.1, s.2)) (filter0 ds)
+        | no d/=0 => map (later \lam s => (suc s.1, s.2)) (filter0 ds)
+      }
+
+    \lemma filter0_BigSum {R : AddGroup.Dec} {A : AddMonoid} (ds : Array R) (f : Fin ds.len -> A) (p : \Pi (j : Fin ds.len) -> ds j /= 0 -> f j = 0)
+      : A.BigSum f = A.BigSum (\lam j => f (filter0 ds j).1) \elim ds
+      | nil => idp
+      | d :: ds => mcases \with {
+        | yes d=0 => pmap (_ +) (filter0_BigSum ds (\lam j => f (suc j)) \lam j => p (suc j))
+        | no d/=0 => pmap2 (+) (p 0 d/=0) (filter0_BigSum ds (\lam j => f (suc j)) \lam j => p (suc j)) *> zro-left
+      }
+  }
+
+\instance image-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
+  | LModule => ImageLModule f
+  | isFinModule => \case smith-bases f \with {
+    | inP (lu,bu,lv,bv,d,_,h,g) => {?}
   }

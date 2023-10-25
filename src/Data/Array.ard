@@ -1,3 +1,4 @@
+\import Algebra.Group.Symmetric
 \import Algebra.Meta
 \import Algebra.Ordered
 \import Algebra.Ring
@@ -25,6 +26,9 @@
 
 \func arrayExt {A : \Type} {n : Nat} {l l' : Array A n} (p : \Pi (j : Fin n) -> l j = l' j) : l = l'
   => path (\lam i => \new Array A n (\lam j => p j i))
+
+\func array-unext {A : \Type} {n : Nat} {l l' : Array A n} (p : l = {Array A} l') (j : Fin n) : l j = l' j \elim p
+  | idp => idp
 
 \func tail {n : Nat} {A : Fin (suc n) -> \Type} (a : DArray A) : DArray (\lam j => A (suc j)) \elim a
   | _ :: a => a
@@ -108,6 +112,14 @@
         | inl r => inl (suc r.1, \lam i => suc (r.2 i))
         | inr r => inr (r.1, \lam i => suc (r.2 i))
       }
+
+    \func index-big {A : \Type} {ls : Array (Array A)} (i : Fin ls.len) (j : Fin (DArray.len {ls i})) : Fin (DArray.len {Big (++) nil ls}) \elim ls, i
+      | l :: ls, 0 => index-left j
+      | l :: ls, suc i => index-right (index-big i j)
+
+    \func Big++-index {A : \Type} {ls : Array (Array A)} {i : Fin ls.len} {j : Fin (DArray.len {ls i})} : Big (++) nil ls (index-big i j) = ls i j \elim ls, i
+      | ls :: l, 0 => ++_index-left j
+      | ls :: l, suc i => ++_index-right *> Big++-index
   }
 
 \func ++_++' {A : \Type} {l : Array A} {n : Nat} {l' : Array A n} : l ++ l' = l ++' l' \elim l
@@ -203,6 +215,10 @@
   | nil => b
   | :: a l => op a (Big op b l)
 
+\func Big++_map {A B : \Type} (f : A -> B) {ls : Array (Array A)} : Big (++) nil (map (map f) ls) = map f (Big (++) nil ls) \elim ls
+  | nil => idp
+  | l :: ls => pmap (_ ++) (Big++_map f) *> inv (map_++ f)
+
 \func filterMap {A B : \Type} (f : A -> Maybe B) (l : Array A) : Array B \elim l
   | nil => nil
   | :: a l => \case f a \with {
@@ -239,6 +255,22 @@
         | yes e, 0 => e
         | yes e, suc i => element D
         | no n, i => element D
+      }
+
+    \func all-elements {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l : Array A} (p : \Pi (j : Fin l.len) -> P (l j)) : keep D l = l \elim l
+      | nil => idp
+      | a :: l => rewrite (dec_yes_reduce (p 0)) $ pmap (a ::) $ all-elements \lam j => p (suc j)
+
+    \func no-elements {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l : Array A} (p : \Pi (j : Fin l.len) -> Not (P (l j))) : keep D l = nil \elim l
+      | nil => idp
+      | a :: l => rewrite (dec_no_reduce (p 0)) $ no-elements (\lam j => p (suc j))
+
+    \func preimage {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l : Array A} (i : Fin (DArray.len {keep D l})) : \Sigma (j : Fin l.len) (keep D l i = l j) \elim l
+      | nil => (i,idp)
+      | a :: l => cases (D a, i) \with {
+        | yes e, 0 => (0,idp)
+        | yes e, suc i => \let t => preimage i \in (suc t.1, t.2)
+        | no q, i => \let t => preimage i \in (suc t.1, t.2)
       }
   }
 
@@ -555,6 +587,10 @@
       | suc n, a1 :: l1, a2 :: l2, perm-:: p q => perm-:: (pmap f p) (perm-map f q)
       | suc (suc n), a1 :: (a1' :: l), a2 :: (a2' :: _), perm-swap p1 p2 idp => perm-swap (pmap f p1) (pmap f p2) idp
       | n, l1, l2, perm-trans p1 p2 => perm-trans (perm-map f p1) (perm-map f p2)
+      \where
+        \func conv {A B : \Set} (f : A -> B) (inj : isInj f) {n : Nat} {l1 l2 : Array A n} (p : Perm (map f l1) (map f l2)) : Perm l1 l2
+          => \have (e,f) => perm_equiv {_} {_} {map f l1} p
+             \in transport (Perm l1) (exts \lam j => inj $ inv $ f j) (equiv_perm e)
 
     \func perm-remove {A : DecSet} {n : Nat} (l : Array A (suc n)) (j : Fin (suc n)) : Perm l (l j :: remove1 (l j) l) \elim n, l, j
       | 0, a :: nil, 0 => perm-refl
@@ -581,6 +617,9 @@
 
     \func equiv_perm {A : \Type} {n : Nat} {l : Array A n} (e : Equiv {Fin n} {Fin n}) : Perm l (\lam j => l (e j))
       => perm-map l $ perm-sym $ perm-fin (\lam j => e j) e.isInj
+
+    \func perm_equiv {A : \Type} {n : Nat} {l l' : Array A n} (p : Perm l l') : \Sigma (e : Equiv {Fin n} {Fin n}) (\Pi (j : Fin n) -> l' j = l (e j))
+      => EPerm.eperm_equiv (EPerm.Perm_EPerm p)
   }
 
 \data EPerm {A : \Type} (l1 l2 : Array A) \elim l1, l2
@@ -626,6 +665,26 @@
       | x :: l, y :: l', eperm-:: p e => eperm-:: (pmap f p) (EPerm_map f e)
       | x :: (x' :: l), y :: (y' :: l'), eperm-swap idp idp idp => eperm-swap idp idp idp
       | l, l', eperm-trans e1 e2 => eperm-trans (EPerm_map f e1) (EPerm_map f e2)
+      \where
+        \func conv {A B : \Set} (f : A -> B) (inj : isInj f) {l l' : Array A} (e : EPerm (map f l) (map f l')) : EPerm l l'
+          => aux f inj (EPerm_len e) e
+          \where
+            \private \func aux {A B : \Set} (f : A -> B) (inj : isInj f) {n m : Nat} (p : n = m) {l : Array A n} {l' : Array A m} (e : EPerm (map f l) (map f l')) : EPerm l l' \elim p
+              | idp => Perm_EPerm $ Perm.perm-map.conv f inj $ EPerm_Perm {B} {_} {map f l} e
+
+    \func EPerm_keep {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l l' : Array A} (p : EPerm l l') : EPerm (keep D l) (keep D l') \elim l, l', p
+      | nil, nil, eperm-nil => eperm-nil
+      | x :: l, _ :: l', eperm-:: idp q => mcases \with {
+        | yes _ => eperm-:: idp (EPerm_keep q)
+        | no _ => EPerm_keep q
+      }
+      | x :: (x' :: l), _ :: (_ :: _), eperm-swap idp idp idp => mcases \with {
+        | yes p, yes q => rewrite (dec_yes_reduce q, dec_yes_reduce p) (eperm-swap idp idp idp)
+        | yes p, no q => rewrite (dec_yes_reduce p, dec_no_reduce q) eperm-refl
+        | no p, yes q => rewrite (dec_no_reduce p, dec_yes_reduce q) eperm-refl
+        | no p, no q => rewrite (dec_no_reduce p, dec_no_reduce q) eperm-refl
+      }
+      | l, l', eperm-trans p1 p2 => eperm-trans (EPerm_keep p1) (EPerm_keep p2)
 
     \func EPerm_filter {A : \Type} (f : A -> Bool) {l l' : Array A} (e : EPerm l l') : EPerm (filter f l) (filter f l') \elim l, l', e
       | nil, nil, eperm-nil => eperm-nil
@@ -647,6 +706,28 @@
       | suc n, x :: l, y :: l', perm-:: p q => eperm-:: p (Perm_EPerm q)
       | suc (suc n), x :: (x' :: l), y :: (y' :: l'), perm-swap p1 p2 q => eperm-swap p1 p2 q
       | n, l, l', perm-trans p1 p2 => eperm-trans (Perm_EPerm p1) (Perm_EPerm p2)
+
+    \func EPerm_Perm {A : \Type} {n : Nat} {l l' : Array A n} (p : EPerm l l') : Perm l l'
+      => \have (e,f) => eperm_equiv p
+         \in transport (Perm l) (exts \lam j => inv (f j)) (Perm.equiv_perm e)
+
+    \func eperm_equiv {A : \Type} {l l' : Array A} (p : EPerm l l') : \Sigma (e : Equiv {Fin l'.len} {Fin l.len}) (\Pi (j : Fin l'.len) -> l' j = l (e j)) \elim l, l', p
+      | nil, nil, eperm-nil => (idEquiv, \case __)
+      | x :: l3, y :: l4, eperm-:: p q =>
+        \have (e,f) => eperm_equiv q
+        \in (lift.aux e, \case \elim __ \with {
+          | 0 => inv p
+          | suc j => f j
+        })
+      | x :: (x' :: (l : Array)), y :: (y' :: _), eperm-swap p1 p2 idp => (transposition1 (0 : Fin (suc l.len)), \case \elim __ \with {
+          | 0 => rewrite transposition1.transposition1-left (inv p2)
+          | 1 => rewrite transposition1.transposition1-right (inv p1)
+          | suc (suc j) => rewrite (transposition1.transposition1_/= (later $ \case __) (later $ \case __)) idp
+        })
+      | l, l', eperm-trans p1 p2 =>
+        \have | (e1,f1) => eperm_equiv p1
+              | (e2,f2) => eperm_equiv p2
+        \in (transEquiv e2 e1, \lam j => f2 j *> f1 (e2 j))
 
     \lemma EPerm_len {A : \Type} {l l' : Array A} (e : EPerm l l') : l.len = l'.len \elim l, l', e
       | nil, nil, eperm-nil => idp

@@ -7,12 +7,12 @@
 \import Algebra.Ring
 \import Algebra.Ring.Category
 \import Algebra.Semiring
+\import Arith.Nat
 \import Category
 \import Data.Array
-\import Data.Fin \hiding (Index)
-\import Data.Or
+\import Data.Fin (unfsuc)
 \import Equiv \hiding (Map)
-\import Function (isInj)
+\import Function (isInj, isSurj)
 \import Function.Meta
 \import HLevel
 \import Logic
@@ -80,62 +80,75 @@
     => \Sigma (IsIndependent l) (IsGenerated l)
 
   \type IsIndependentSet {J : \Set} (g : J -> E) : \Prop
-    => \Pi (c : Array (\Sigma R J)) -> sum g c = 0 -> c ~ nil
+    => \Pi (c : Array (\Sigma R J)) -> sum g c = 0 -> IsZeroSum c
     \where {
       \func sum {J : \Set} (g : J -> E) (c : Array (\Sigma R J)) => BigSum (\lam j => (c j).1 *c g (c j).2)
 
-      \lemma sum-ldistr {J : \Set} (g : J -> E) {r : R} {c : Array (\Sigma R J)} : r *c sum g c = sum g (map (\lam s => (r * s.1, s.2)) c)
+      \lemma sum-ldistr {r : R} {c : Array (\Sigma R J)} : r *c sum g c = sum g (map (\lam s => (r * s.1, s.2)) c)
         => *c_BigSum-ldistr *> pmap BigSum (exts \lam j => inv *c-assoc)
 
       \lemma sum_++ {c d : Array (\Sigma R J)} : sum g (c ++ d) = sum g c + sum g d
-        => pmap (sum g) ++_++' *> pmap BigSum (exts \case ++'.split-index __ \with {
-          | inl (j,p) => rewrite (p, ++'.++'_index-left, ++'.++'_index-left {_} {_} {d.len}) idp
-          | inr (j,p) => rewrite (p, ++'.++'_index-right, ++'.++'_index-right {_} {_} {d.len}) idp
-        }) *> BigSum_++'
+        => pmap BigSum (map_++ (\lam s => s.1 *c g s.2)) *> BigSum_++
 
       \lemma sum_negative {c : Array (\Sigma R J)} : negative (sum g c) = sum g (map (\lam s => (R.negative s.1, s.2)) c)
         => BigSum_negative *> pmap BigSum (exts \lam j => inv *c_negative-left)
 
-      \lemma sum_EPerm {J : \Set} (g : J -> E) {l l' : Array (\Sigma R J)} (p : EPerm l l') : sum g l = sum g l' \elim l, l', p
-        | nil, nil, eperm-nil => idp
-        | x :: l1, _ :: l2, eperm-:: idp q => pmap (_ +) (sum_EPerm g q)
-        | x :: (x' :: l1), _ :: (_ :: _), eperm-swap idp idp idp => inv +-assoc *> pmap (`+ _) +-comm *> +-assoc
-        | l, l', eperm-trans p1 p2 => sum_EPerm g p1 *> sum_EPerm g p2
+      \lemma sum_EPerm {l l' : Array (\Sigma R J)} (p : EPerm l l') : sum g l = sum g l'
+        => BigSum_EPerm $ EPerm.EPerm_map (\lam s => s.1 *c g s.2) p
 
-      \lemma =_~ (gi : IsIndependentSet g) {c d : Array (\Sigma R J)} (p : sum g c = sum g d) : c ~ d
-        => ~-trans (transport2 (~) ++_nil (inv ++-assoc) (~_++-right ~_negative)) $ ~_++-left $ gi (c ++ map (\lam s => (R.negative s.1, s.2)) d) $ (sum_++ *> pmap (_ +) (inv sum_negative)) *> toZero p
+      \lemma =_~ (gi : IsIndependentSet g) {c d : Array (\Sigma R J)} (p : sum g c = sum g d) : c Z~ d
+        => gi _ $ sum_++ *> pmap2 (+) (inv sum_negative) p *> negative-left
 
-      \lemma ~_= {J : \Set} (g : J -> E) {c d : Array (\Sigma R J)} (p : c ~ d) : sum g c = sum g d \elim c, d, p
-        | nil, nil, ~-nil => idp
-        | x :: l1, y :: l2, ~-:: idp q => pmap (_ +) (~_= g q)
-        | x :: (x' :: l), _ :: (_ :: _), ~-swap idp idp idp => inv +-assoc *> pmap (`+ _) +-comm *> +-assoc
-        | x :: l, d, ~-0 p q => unfold sum $ unfold BigSum $ rewrite (p,*c_zro-left) $ zro-left *> pmap (sum g) q
-        | x :: (y :: l1), z :: _, ~-+ p1 p2 p3 idp => inv +-assoc *> pmap (`+ _) (later $ rewrite (p2, p3, inv p1) $ inv *c-rdistr)
-        | c, d, ~-sym p => inv (~_= g p)
-        | c, d, ~-trans p1 p2 => ~_= g p1 *> ~_= g p2
+      \lemma IsZeroSum_= {c : Array (\Sigma R J)} (p : IsZeroSum c) : sum g c = 0 \elim p
+        | inP (l',e,f) => sum_EPerm e *> sum_Big++ g *> BigSum_zro \lam j => unfold sum $ inv *c_BigSum-rdistr *> pmap (`*c _) (f j) *> *c_zro-left
+
+      \lemma ~_= {c d : Array (\Sigma R J)} (p : c Z~ d) : sum g c = sum g d
+        => fromZero $ +-comm *> pmap (`+ _) sum_negative *> inv sum_++ *> IsZeroSum_= p
     }
+
+  \lemma IsIndependentSet-inj {J K : \Set} {f : J -> K} (inj : isInj f) {g : K -> E} (gi : IsIndependentSet g) : IsIndependentSet (\lam j => g (f j))
+    => \lam c p => \case IsZeroSum.nonEmpty $ gi (map (\lam s => (s.1, f s.2)) c) p \with {
+         | inP (l1 : Array, e, h) => inP
+           \let | g (s : \Sigma R J) => (s.1, f s.2)
+                | pi (i : Fin l1.len) : \Sigma (j : J) (f j = (l1 i).2) =>
+                  \let | i' => ++.index-big {_} {map (\lam s => map (\lam p0 => (p0, s.2)) s.1) l1} i $ toFin 0 (nonZero>0 (l1 i).3)
+                       | (e',g) => EPerm.eperm_equiv e
+                  \in ((c (e' i')).2, pmap __.2 (inv (g i') *> ++.Big++-index))
+                | l2 => mkArray \lam i => ((l1 i).1, (pi i).1)
+                | l2p : map (\lam s => (s.1, f s.2)) l2 = map (\lam s => (s.1,s.2)) l1
+                      => exts \lam i => ext (idp, (pi i).2)
+           \in (l2, EPerm.EPerm_map.conv g (\lam p => ext (pmap __.1 p, inj $ pmap __.2 p)) $ transport (EPerm _) (Big++_map g {map (\lam s => map (__,s.2) s.1) l2}) $ transportInv (\lam x => EPerm _ (Big (++) nil (map {\Sigma (Array R) K} (\lam s => map (__,s.2) s.1) x))) l2p e,
+                transportInv (\lam (l : Array (Array R)) => \Pi (j : Fin l.len) -> R.BigSum (l j) = 0) (pmap (map __.1) l2p) h)
+       }
 
   \type IsIndependentDec {J : \Set} (g : J -> E) : \Prop
     => \Pi (l : Array J) (c : Array R l.len) -> isInj l -> BigSum (\lam j => c j *c g (l j)) = 0 -> \Pi (j : Fin c.len) -> c j = 0
 
   \lemma IsIndependentSet<->IsIndependentDec {J : DecSet} {g : J -> E} : IsIndependentSet g <-> IsIndependentDec g
-    => (\lam li l c inj p j => inv (count-unique {_} {J} {_} {c} inj j) *> ~_count (li (\lam j => (c j, l j)) p) (l j),
-        \lam li c p => \let | js => nub (map __.2 c)
-                            | t => li js (map (count c) js) nub-isInj $ pmap BigSum (exts \lam j => rewrite count-char $ *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c g __) $ keep.element (\lam s => decideEq (nub (map (\lam p0 => p0.2) c) j) s.2) {c} {k})) *> inv (sum_Big++ g) *> inv (sum_EPerm g nub-split) *> p
-                       \in ~-sym $ count_~ \lam j => inv (t j))
+    => (\lam li l c inj p j => inv (count-unique {_} {J} {_} {c} inj j) *> IsZeroSum_count (li (\lam j => (c j, l j)) p) (l j),
+        \lam li c p => count_IsZeroSum $ li _ (map (count c) $ nub (map __.2 c)) nub-isInj $ pmap BigSum (exts \lam j => *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c g __) $ keep.element (\lam s => decideEq (nub (map (\lam p0 => p0.2) c) j) s.2) {c} {k})) *> inv (sum_Big++ g) *> inv (sum_EPerm g nub-split) *> p)
 
   \lemma IsIndependent<->IsIndependentSet {l : Array E} : IsIndependent l <-> IsIndependentSet l
-    => (\lam li c p => count_~ \lam j => li (count c) (inv sum_BigSum *> p) _,
+    => (\lam li c p => count_IsZeroSum \lam j => li (count c) (inv sum_BigSum *> p) _,
         \lam li c p j => IsIndependentSet<->IsIndependentDec.1 li (mkArray \lam j => j) c (\lam q => q) p j)
     \where
       \lemma sum_BigSum {l : Array E} {c : Array (\Sigma R (Fin l.len))} : sum l c = BigSum (\lam j => count c j *c l j)
         => BigSum_EPerm (EPerm.EPerm_map (\lam s => s.1 *c l s.2) nub-split) *> sum_Big++ l *> inv FinSum=BigSum *>
             inv (FinSum-inj (nub (map __.2 c)) nub-isInj (\lam j q => pmap (`*c _) (count_zro j \lam k => /=-sym \let (i,p) => nub-isSurj (map __.2 c) k \in later $ rewriteI p (q i)) *> *c_zro-left) *> pmap FinSum (exts \lam j =>
               \let (i,q) => nub-preimage j
-              \in rewrite q $ pmap (`*c _) count-char *> *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c l __) $ keep.element (\lam s => decideEq (c i).2 s.2) {c} {k}))) *> FinSum=BigSum
+              \in rewrite q $ *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c l __) $ keep.element (\lam s => decideEq (c i).2 s.2) {c} {k}))) *> FinSum=BigSum
 
   \type IsGeneratingSet {J : \Set} (g : J -> E) : \Prop
     => \Pi (x : E) -> ∃ (c : Array (\Sigma R J)) (x = IsIndependentSet.sum g c)
+
+  \lemma IsGeneratingSet-surj {J K : \Set} {f : J -> K} (surj : isSurj f) {g : K -> E} (gi : IsGeneratingSet g) : IsGeneratingSet (\lam j => g (f j))
+    => \lam x =>
+        \have | (inP s) => gi x
+              | (inP h) => FinSet.finiteAC (\lam i => surj (s.1 i).2)
+        \in inP (mkArray \lam i => ((s.1 i).1, (h i).1), s.2 *> pmap BigSum (exts \lam i => cong (inv (h i).2)))
+
+  \lemma IsBasisSet-equiv {J K : \Set} (e : Equiv {J} {K}) {g : K -> E} (gb : IsBasisSet g) : IsBasisSet (\lam j => g (e j))
+    => (IsIndependentSet-inj e.isInj gb.1, IsGeneratingSet-surj e.isSurj gb.2)
 
   \lemma IsGenerated<->IsGeneratingSet {l : Array E} : IsGenerated l <-> IsGeneratingSet l
     => (\lam lg x => TruncP.map (lg x) \lam s => (\lam j => (s.1 j, j), s.2),
@@ -186,6 +199,13 @@
   \func IsFinitelyGenerated : \Prop
     => ∃ (l : Array E) (IsGenerated l)
 
+  \lemma free-char : ∃ (l : Array E) (IsBasis l) <-> ∃ (J : FinSet) (g : J -> E) (IsBasisSet g)
+    => (TruncP.map __ \lam s => (FinFin (DArray.len {s.1}), s.1, IsBasis<->IsBasisSet.1 s.2), \case \elim __ \with {
+          | inP (J,g,gb) => \case FinSet.finEq \with {
+            | inP e => inP (\lam j => g (e j), IsBasis<->IsBasisSet.2 $ IsBasisSet-equiv e gb)
+          }
+       })
+
   \lemma generated-array-fin {l : Array E} (g : IsGenerated l) : IsGeneratedFin l
     => \lam x => TruncP.map (g x) $ \lam t => (t.1, t.2 *> inv FinSum=BigSum)
 
@@ -196,124 +216,71 @@
   \func IsFaithful : \Prop
     => \Pi (r : R) -> (\Pi (m : E) -> r *c m = 0) -> r = 0
 } \where {
-  \func count {R : Semiring} {J : DecSet} (l : Array (\Sigma R J)) (j : J) : R \elim l
-    | nil => 0
-    | s :: l => \case decideEq s.2 j \with {
-      | yes _ => s.1 R.+ count l j
-      | no _ => count l j
+  \func count {R : Semiring} {J : DecSet} (l : Array (\Sigma R J)) (j : J) : R
+    => R.BigSum (map __.1 $ keep (\lam s => decideEq j s.2) l)
+
+  \lemma count_zro {R : Semiring} {J : DecSet} {l : Array (\Sigma R J)} (j : J) (p : \Pi (k : Fin l.len) -> j /= (l k).2) : count {R} l j = 0
+    => R.BigSum_zro \lam k => later \let t => keep.preimage k
+                                    \in absurd $ p t.1 $ keep.element (\lam s => decideEq j s.2) {l} *> pmap __.2 t.2
+
+  \lemma count-unique {R : Semiring} {J : DecSet} {l : Array J} {c : Array R l.len} (inj : isInj l) (k : Fin l.len) : count (\lam j => (c j, l j)) (l k) = c k \elim l, k
+    | j :: l, 0 => unfold count $ rewrite (decideEq=_reduce idp) $ pmap (_ +) (pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) (keep.no-elements $ \lam k p => \case inj {0} {suc k} p)) *> zro-right
+    | j :: l, suc k => unfold count $ mcases \with {
+      | yes p => \case inj {suc k} {0} p
+      | no q => count-unique {R} {J} {l} {\lam j => c (suc j)} (\lam p => unfsuc (inj p)) k
     }
 
-  \lemma count-char {R : Semiring} {J : DecSet} {l : Array (\Sigma R J)} {j : J} : count l j = R.BigSum (map __.1 $ keep (\lam s => decideEq j s.2) l) \elim l
-    | nil => idp
-    | s :: l => mcases \with {
-      | yes p, yes p1 => pmap (_ R.+) count-char
-      | yes p, no n => \case n (inv p)
-      | no n, yes p => \case n (inv p)
-      | no n, no n1 => count-char
-    }
-
-  \lemma count_zro {R : Semiring} {J : DecSet} {c : Array (\Sigma R J)} (j : J) (p : \Pi (k : Fin c.len) -> j /= (c k).2) : count {R} c j = 0 \elim c
-    | nil => idp
-    | s :: c => mcases \with {
-      | yes q => absurd (p 0 (inv q))
-      | no q => count_zro j \lam k => p (suc k)
-    }
-
-  \lemma count-unique {R : Semiring} {J : DecSet} {l : Array J} {c : Array R l.len} (inj : isInj l) (k : Fin l.len) : count (\lam j => (c j, l j)) (l k) = c k \elim l, c, k
-    | j :: l, a :: c, 0 => rewrite (decideEq=_reduce idp) $ pmap (a R.+) (count_zro j \lam k j=lk => \case inj {0} {suc k} j=lk) *> R.zro-right
-    | j :: l, a :: c, suc k => mcases \with {
-      | yes p => \case inj {0} {suc k} p
-      | no q => count-unique (\lam p => unfsuc (inj p)) k
-    }
-
-  \truncated \data \infix 4 ~ {R : Semiring} {J : \Set} (l1 l2 : Array (\Sigma R J)) : \Prop \elim l1, l2
-    | nil, nil => ~-nil
-    | x :: l1, y :: l2 => ~-:: (x = y) (l1 ~ l2)
-    | x :: x' :: l1, y :: y' :: l2 => ~-swap (x = y') (x' = y) (l1 = l2)
-    | x :: l1, l2 => ~-0 (x.1 = 0) (l1 = l2)
-    | x :: y :: l1, z :: l2 => ~-+ (x.1 R.+ y.1 = z.1) (y.2 = z.2) (x.2 = z.2) (l1 = l2)
-    | l1, l2 => ~-sym (l2 ~ l1)
-    | l1, l2 => ~-trans {l : Array (\Sigma R J)} (l1 ~ l) (l ~ l2)
-
-  \lemma EPerm_~ {R : Semiring} {J : \Set} {l l' : Array (\Sigma R J)} (p : EPerm l l') : l ~ l' \elim l, l', p
-    | nil, nil, eperm-nil => ~-nil
-    | x :: l1, y :: l2, eperm-:: p q => ~-:: p (EPerm_~ q)
-    | x :: (x' :: l1), y :: (y' :: l2), eperm-swap p1 p2 q => ~-swap p1 p2 q
-    | l, l', eperm-trans p1 p2 => ~-trans (EPerm_~ p1) (EPerm_~ p2)
-
-  \lemma ~_++-left {R : Semiring} {J : \Set} {l1 l2 l : Array (\Sigma R J)} (p : l1 ~ l2) : l1 ++ l ~ l2 ++ l \elim l1, l2, p
-    | nil, nil, ~-nil => EPerm_~ EPerm.eperm-refl
-    | x :: l1, y :: l2, ~-:: p q => ~-:: p (~_++-left q)
-    | x :: (x' :: l1), y :: (y' :: l2), ~-swap p1 p2 idp => ~-swap p1 p2 idp
-    | x :: l1, l2, ~-0 p q => ~-0 p (pmap (`++ l) q)
-    | x :: (y :: l1), z :: l2, ~-+ p1 p2 p3 idp => ~-+ p1 p2 p3 idp
-    | l1, l2, ~-sym p => ~-sym (~_++-left p)
-    | l1, l2, ~-trans p1 p2 => ~-trans (~_++-left p1) (~_++-left p2)
-
-  \lemma ~_++-right {R : Semiring} {J : \Set} {l l1 l2 : Array (\Sigma R J)} (p : l1 ~ l2) : l ++ l1 ~ l ++ l2 \elim l
-    | nil => p
-    | a :: l => ~-:: idp (~_++-right p)
-
-  \lemma ~-+' {R : Semiring} {J : \Set} {x y : R} {j : J} {l : Array (\Sigma R J)} : (x,j) :: (y,j) :: l ~ (x R.+ y, j) :: l
-    => ~-+ idp idp idp idp
-
-  \lemma ~-0' {R : Semiring} {J : \Set} {j : J} {l : Array (\Sigma R J)} : (0,j) :: l ~ l
-    => ~-0 idp idp
-
-  \lemma ~_negative {R : Ring} {J : \Set} {c : Array (\Sigma R J)} : nil ~ map (\lam s => (R.negative s.1, s.2)) c ++ c \elim c
-    | nil => ~-nil
-    | a :: c =>
-      ~_negative {_} {_} {c} `~-trans`
-      ~-sym (~-trans ~-+' $ later $ rewrite R.negative-left $ ~-trans ~-0' $ EPerm_~ EPerm.eperm-++-comm) `~-trans`
-      EPerm_~ {_} {_} {_ :: a :: c ++ map (\lam s => (R.negative s.1, s.2)) c} (eperm-:: idp EPerm.eperm-++-comm)
-
-  \lemma ~_Big++ {R : Semiring} {J : DecSet} {n : Nat} {cs ds : Array (Array (\Sigma R J)) n} (p : \Pi (j : Fin n) -> cs j ~ ds j) : Big (++) nil cs ~ Big (++) nil ds \elim n, cs, ds
-    | 0, nil, nil => ~-nil
-    | suc n, c :: cs, d :: ds => ~-trans (~_++-left (p 0)) (~_++-right (~_Big++ \lam j => p (suc j)))
-
-  \lemma count_~ {R : Semiring} {J : DecSet} {l l' : Array (\Sigma R J)} (p : \Pi (j : Fin (DArray.len {nub $ map __.2 $ l ++ l'})) -> count l (nub (map __.2 $ l ++ l') j) = count l' (nub (map __.2 $ l ++ l') j)) : l ~ l'
-    => \let ll' => map __.2 $ l ++ l'
-       \in aux (nub-isInj {J} {ll'}) (\lam i => \let (k,p) => nub-isSurj ll' (++.index-left i) \in (k, p *> path \lam i' => (++.++_index-left i i').2)) `~-trans`
-           EPerm_~ (EPerm.eperm-= $ path \lam i j => (p j i, nub ll' j)) `~-trans`
-           ~-sym (aux (nub-isInj {J} {ll'}) \lam i => \let (k,p) => nub-isSurj ll' (++.index-right i) \in (k, p *> path \lam i' => (++.++_index-right {_} {_} {_} {i} i').2))
+  \type IsZeroSum {R : Semiring} {J : \Set} (l : Array (\Sigma R J)) : \Prop
+    => ∃ (l' : Array (\Sigma (Array R) J)) (EPerm l (Big (++) nil $ map (\lam s => map (__, s.2) s.1) l')) (\Pi (j : Fin l'.len) -> R.BigSum (l' j).1 = 0)
     \where {
-      \private \lemma aux {R : Semiring} {J : DecSet} {l : Array (\Sigma R J)} {js : Array J} (inj : isInj js) (p : \Pi (i : Fin l.len) -> \Sigma (k : Fin js.len) (js k = (l i).2)) : l ~ map (\lam j => (count l j, j)) js
-        => ~-trans (EPerm_~ $ nub-split.aux js inj p) $ transportInv (_ ~) Big_++-singleton $ later $ ~_Big++ {R} {J} {js.len} \lam i => aux2
-
-      \private \lemma aux2 {R : Semiring} {J : DecSet} {l : Array (\Sigma R J)} {j : J} : keep (\lam s => decideEq j s.2) l ~ (count l j, j) :: nil \elim l
-        | nil => ~-sym ~-0'
+      \private \lemma aux {l : Array (\Sigma (Array R) J)}
+        : Big (++) nil (map (\lam s => map (__, s.2) s.1) l) =
+          Big (++) nil (mkArray \lam i => map (__, (remove (\lam s => decideEq (DArray.len {s.1}) 0) l i).2) (remove (\lam s => decideEq (DArray.len {s.1}) 0) l i).1) \elim l
+        | nil => idp
         | s :: l => mcases {1} \with {
-          | yes q => rewrite (decideEq=_reduce $ inv q) $ mkcon ~-trans {s :: (count l j, j) :: nil} (~-:: idp aux2) $ later $ rewrite q $ ~-+ idp idp idp idp
-          | no q => rewrite (decideEq/=_reduce $ /=-sym q) aux2
+          | yes p => pmap2 (++) {_} {nil} (later $ cases (s.1,p) \with {
+            | nil, _ => idp
+          }) aux
+          | no n => pmap (_ ++) aux
         }
 
-      \func Big_++-singleton {A : \Type} {l : Array A} : l = Big (++) nil (map (\lam a => a :: nil) l) \elim l
-        | nil => idp
-        | a :: l => pmap (a ::) Big_++-singleton
+      \lemma nonEmpty {l : Array (\Sigma R J)} (zs : IsZeroSum l) : ∃ (l' : Array (\Sigma (c : Array R) J (c.len /= 0))) (EPerm l (Big (++) nil $ map (\lam s => map (__, s.2) s.1) l')) (\Pi (j : Fin l'.len) -> R.BigSum (l' j).1 = 0) \elim zs
+        | inP (l1,e,f) =>
+          \let l2 => remove (\lam s => decideEq (DArray.len {s.1}) 0) l1
+          \in inP (mkArray \lam i => later ((l2 i).1, (l2 i).2, remove.no-element (\lam s => decideEq (DArray.len {s.1}) 0) {l1} {i}),
+                   eperm-trans e $ EPerm.eperm-= aux,
+                   \lam i => \let (k,p) => remove.preimage i \in pmap (\lam x => BigSum x.1) p *> f k)
     }
 
-  \lemma ~_count {R : Semiring} {J : DecSet} {l l' : Array (\Sigma R J)} (p : l ~ l') (j : J) : count l j = count l' j \elim l, l', p
-    | nil, nil, ~-nil => idp
-    | x :: l1, _ :: l2, ~-:: idp q => mcases \with {
-      | yes _ => pmap (x.1 R.+) (~_count q j)
-      | no _ => ~_count q j
+  \type \infix 4 Z~ {R : Ring} {J : \Set} (l1 l2 : Array (\Sigma R J)) : \Prop
+    => IsZeroSum (map (\lam s => (R.negative s.1, s.2)) l2 ++ l1)
+
+  \lemma count_IsZeroSum {R : Semiring} {J : DecSet} {l : Array (\Sigma R J)} (p : \Pi (j : Fin (DArray.len {nub $ map __.2 l})) -> count l (nub (map __.2 l) j) = 0) : IsZeroSum l
+    => inP (map (\lam j => (map __.1 $ keep (\lam s => decideEq j s.2) l, j)) (nub $ map __.2 l), eperm-trans nub-split $ EPerm.eperm-= $ pmap (Big (++) nil) $ exts \lam i =>
+        \let | j => nub (map __.2 l) i
+             | l' => \new keep (\lam s => decideEq j s.2) l
+        \in (exts (\lam k => ext (idp, inv $ keep.element (\lam s => decideEq j s.2) {l})) : l' = map (\lam s => (s.1,j)) l'), p)
+
+  \lemma IsZeroSum_count {R : Semiring} {J : DecSet} {l : Array (\Sigma R J)} (p : IsZeroSum l) (j : J) : count l j = 0 \elim p
+    | inP (l',e,f) => count_EPerm e *> count_Big++ *> BigSum_zro \lam i => later \case decideEq j (l' i).2 \with {
+      | yes p => pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) (keep.all-elements \lam k => later p) *> f i
+      | no p => pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) $ keep.no-elements \lam k => later p
     }
-    | x :: (x' :: l), _ :: (_ :: _), ~-swap idp idp idp => mcases \with {
-      | yes r, yes r' => rewrite (decideEq=_reduce r, decideEq=_reduce r') equation
-      | yes r, no r' => rewrite (decideEq=_reduce r, decideEq/=_reduce r') idp
-      | no r, yes r' => rewrite (decideEq/=_reduce r, decideEq=_reduce r') idp
-      | no r, no r' => rewrite (decideEq/=_reduce r, decideEq/=_reduce r') idp
+    \where {
+      \lemma count_EPerm {l l' : Array (\Sigma R J)} (p : EPerm l l') {j : J} : count l j = count l' j
+        => BigSum_EPerm $ EPerm.EPerm_map __.1 (EPerm.EPerm_keep p)
+
+      \lemma count_++ {l l' : Array (\Sigma R J)} {j : J} : count (l ++ l') j = count l j + count l' j \elim l
+        | nil => inv zro-left
+        | s :: l => unfold count $ mcases \with {
+          | yes q => pmap (s.1 +) count_++ *> inv +-assoc
+          | no q => count_++
+        }
+
+      \lemma count_Big++ {ls : Array (Array (\Sigma R J))} {j : J} : count (Big (++) nil ls) j = BigSum (\lam i => count (ls i) j) \elim ls
+        | nil => idp
+        | l :: ls => count_++ *> pmap (_ +) count_Big++
     }
-    | x :: l, l', ~-0 p q => mcases \with {
-      | yes _ => pmap2 (\lam x y => x R.+ count y j) p q *> R.zro-left
-      | no _ => pmap (count __ j) q
-    }
-    | (x1,x2) :: ((y1,_) :: l), (_,_) :: _, ~-+ idp idp idp idp => mcases \with {
-      | yes p => rewrite (decideEq=_reduce p) (inv R.+-assoc)
-      | no q => rewrite (decideEq/=_reduce q) idp
-    }
-    | l, l', ~-sym p => inv (~_count p j)
-    | l, l', ~-trans p1 p2 => ~_count p1 j *> ~_count p2 j
 
   \open IsIndependentSet
 
