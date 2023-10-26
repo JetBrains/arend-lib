@@ -63,7 +63,16 @@
 
   \func dimension {R : NonZeroCRing} (U : FinModule' R) => (dimension-pair U).1
 
-  \lemma dimension-char {R : NonZeroCRing} (U : FinModule' R) => (dimension-pair U).2
+  \lemma dimension-char {R : NonZeroCRing} (U : FinModule' R) : ∃ (l : Array U (dimension U)) (U.IsBasis l)
+    => (dimension-pair U).2
+
+  \lemma dimension=0 {R : NonZeroCRing} {U : FinModule' R} : (dimension U = 0) <-> (\Pi (a : U) -> a = 0)
+    => (\lam p a => \case rewriteF p (dimension-char U) \with {
+      | inP (l,lb) => basis-split-char {_} {_} {lb}
+    }, \lam f => cases (dimension U, dimension-char U) \with {
+      | 0, _ => idp
+      | suc n, inP (l,lb) => absurd $ zro/=ide $ inv $ lb.1 (replicate (suc n) (1 : R)) (f _) 0
+    })
 
   \lemma surj-iso {R : NonZeroCRing} {U V : FinModule' R} (p : dimension U = dimension V) (g : LinearMap' U V) (gs : isSurj g) : Iso {LModuleCat R} g
     => \case dimension-char U, dimension-char V \with {
@@ -165,6 +174,22 @@
         | no d/=0 => pmap2 (+) (p 0 d/=0) (filter0_BigSum ds (\lam j => f (suc j)) \lam j => p (suc j)) *> zro-left
       }
   }
+
+\instance ArrayFinModule {R : Ring} (n : Nat) : FinModule (Array R n) { | R => R }
+  | LModule => ArrayLModule n (RingLModule R)
+  | isFinModule => inP (_, ArrayLModule.basis)
+
+\func dependency-dec {R : SmithDomain} {U : FinModule' R} (l : Array U) : Or (U.IsDependent l) (U.IsIndependent l)
+  => \let K => kernel-fin {R} {ArrayFinModule l.len} (arrayLinearMap l)
+     \in cases (FinModule.dimension {R} K arg addPath) \with {
+       | 0, p => inr $ arrayLinearMap.inj-char.1 $ (kernel=0<->inj {arrayLinearMap l}).2 (FinModule.dimension=0.1 p)
+       | suc n, p => inl \case rewriteF p (FinModule.dimension-char _) \with {
+         | inP (l',l'b) => inP
+             \let | (a,p) => l' 0
+                  | (j,q) => array/= {R} {l.len} \lam q => zro/=ide $ LModule.independent-nonZero {K} {l'} l'b.1 (ext q)
+             \in (a, p, j, q)
+       }
+     }
 
 \instance image-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
   | LModule => ImageLModule f
