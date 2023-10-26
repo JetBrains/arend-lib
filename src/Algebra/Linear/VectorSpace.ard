@@ -118,40 +118,6 @@
             | inr lv<=j => V.BigSum_zro (\lam k => pmap (`*c _) (later $ Bs.1 j k \lam j=k => linarith (fin_< k)) *> V.*c_zro-left) *> inv V.*c_zro-left
           })
   \where {
-    \func fit {A : \Type} (a : A) {n : Nat} (l : Array A) : Array A n \elim n, l
-      | 0, _ => nil
-      | suc n, nil => replicate (suc n) a
-      | suc n, b :: l => b :: fit a l
-
-    \func fit_< {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin n} (p : j < l.len) : fit a l j = l (toFin j p) \elim n, l, j, p
-      | suc n, b :: l, 0, _ => idp
-      | suc n, b :: l, suc j, NatSemiring.suc<suc p => fit_< _ p
-
-    \func fit_>= {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin n} (p : l.len <= j) : fit a l j = a \elim n, l, j
-      | suc n, nil, j => idp
-      | suc n, b :: l, 0 => absurd linarith
-      | suc n, b :: l, suc j => fit_>= l (suc<=suc.conv p)
-
-    \func fit_<' {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin l.len} (p : j < n) : fit a l (toFin j p) = l j \elim n, l, j, p
-      | suc n, b :: l, 0, _ => idp
-      | suc n, b :: l, suc j, NatSemiring.suc<suc p => fit_<' _ p
-
-    \lemma fit_BigSum {A : AddMonoid} {n : Nat} {l : Array A} (p : \Pi (j : Fin l.len) -> n <= j -> l j = 0) : A.BigSum (fit 0 {n} l) = A.BigSum l \elim n, l
-      | 0, l => inv $ A.BigSum_zro \lam j => p j zero<=_
-      | suc n, nil => A.BigSum_replicate0 {suc n}
-      | suc n, a :: l => pmap (a +) $ fit_BigSum \lam j n<=j => p (suc j) (suc<=suc n<=j)
-
-    \lemma fit-transpose {A : AddMonoid} {n m : Nat} (l : Array (Array A m) n) : A.BigSum (\lam j => fit zro (l j) j) = A.BigSum (\lam k => fit A.zro (l __ k) k) \elim n, m, l
-      | 0, 0, nil => idp
-      | 0, suc m, nil => inv $ A.BigSum_replicate0 {suc m}
-      | suc n, 0, c :: l => A.BigSum_replicate0 {suc n}
-      | suc n, suc m, c :: l => pmap (c 0 +) $ fit-transpose \lam i => \lam j => l i (suc j)
-
-    \func fit_map {A B : \Type} (f : A -> B) {a : A} {b : B} (p : f a = b) {n : Nat} {l : Array A} : map f (fit a {n} l) = fit b (map f l) \elim n, l
-      | 0, l => idp
-      | suc n, nil => pmap (replicate (suc n)) p
-      | suc n, a' :: l => path (\lam i => f a' :: fit_map f p i)
-
     \open LinearMap
     \open Monoid
 
@@ -184,8 +150,6 @@
       \in free-char.2 $ inP (KerFin, _, kb)
   }
   \where {
-    \open smith-bases
-
     \func filter0 {R : AddGroup.Dec} (ds : Array R) : Array (\Sigma (j : Fin ds.len) (ds j = 0)) \elim ds
       | nil => nil
       | d :: ds => \case decideEq d 0 \with {
@@ -205,5 +169,26 @@
 \instance image-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
   | LModule => ImageLModule f
   | isFinModule => \case smith-bases f \with {
-    | inP (lu,bu,lv,bv,d,_,h,g) => {?}
+    | inP (lu : Array, bu, lv : Array, bv, ds, _, h, g) =>
+      \have | ImFin : FinSet (\Sigma (j : Fin lu.len) (ds j /= 0)) => SigmaFin (FinFin lu.len) (\lam j => DecFin (decide {NotDecide (EqualityDecide R (ds j) 0)}))
+            | kb : LModule.IsBasisSet {ImageLModule f} (\lam s => (f (lu s.1), inP (lu s.1, idp)))
+                 => (IsIndependentSet-fin.2 \lam c p j => later
+                      \have q (i : ImFin) : i.1 < lv.len => \case LinearOrder.dec<_<= i.1 lv.len \with {
+                              | inl r => r
+                              | inr r => absurd $ i.2 (h i.1 r)
+                            }
+                      \in Domain.nonZero-right j.2 $ (IsIndependentSet-fin {_} {ImFin}).1 (IsIndependentSet-inj {_} {_} {_} {\lam i => toFin i.1 (q i)} (\lam {i} {i'} q => ext $ fin_nat-inj $ inv toFin=id *> q *> toFin=id) (IsIndependent<->IsIndependentSet.1 bv.1)) (\lam i => c i * ds i.1) (pmap AbMonoid.FinSum (ext \lam i => *c-assoc *> pmap (_ *c) (inv $ g i.1 *> pmap (_ *c) (fit_< _ \case LinearOrder.dec<_<= i.1 lv.len \with {
+                        | inl r => r
+                        | inr r => absurd $ i.2 (h i.1 r)
+                      }))) *> inv (AddMonoidHom.func-FinSum (ImageLModuleRightHom f)) *> pmap __.1 p) j,
+                     IsGeneratingSet-fin.2 $ later \lam v => \case v.2 \with {
+                      | inP (u,fu=v) => inP (ImFin, \lam k => (basis-split bu u k.1, k), ext $
+                          inv fu=v *> pmap f (basis-split-char {_} {_} {bu}) *> f.func-BigSum *> inv AbMonoid.FinSum=BigSum *>
+                          pmap AbMonoid.FinSum (ext \lam j => f.func-*c) *> AbMonoid.FinSum-inj {_} {ImFin} (\lam k => k.1) (\lam p => ext p)
+                            {\lam j => basis-split bu u j *c f (lu j)} (\lam j c => pmap (_ *c) (g j *> \case decideEq (ds j) 0 \with {
+                              | yes q => pmap (`*c _) q *> *c_zro-left
+                              | no q => absurd $ c (j,q) idp
+                            }) *> *c_zro-right) *> inv (AddMonoidHom.func-FinSum (ImageLModuleRightHom f)))
+                    })
+      \in free-char.2 $ inP (ImFin, _, kb)
   }

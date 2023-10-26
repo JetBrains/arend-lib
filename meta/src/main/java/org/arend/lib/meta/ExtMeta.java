@@ -170,7 +170,7 @@ public class ExtMeta extends BaseMetaDefinition {
               substitution.add(new SubstitutionPair(param.getBinding(), sigmaRefs.get(param.getBinding()).applyAt(coeRef, factory, ext)));
             }
           }
-          CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr(), LevelSubstitution.EMPTY, substitution);
+          CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr().normalize(NormalizationMode.WHNF), LevelSubstitution.EMPTY, substitution);
           return result == null ? null : result.computeTyped(true);
         }
       }));

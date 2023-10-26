@@ -12,6 +12,7 @@
 \import Data.Array
 \import Data.Fin (unfsuc)
 \import Equiv \hiding (Map)
+\import Equiv.Univalence (Equiv-to-=)
 \import Function (isInj, isSurj)
 \import Function.Meta
 \import HLevel
@@ -138,8 +139,20 @@
               \let (i,q) => nub-preimage j
               \in rewrite q $ *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c l __) $ keep.element (\lam s => decideEq (c i).2 s.2) {c} {k}))) *> FinSum=BigSum
 
+  \lemma IsIndependentSet-fin {J : FinSet} {g : J -> E} : IsIndependentSet g <-> (\Pi (c : J -> R) -> FinSum (\lam j => c j *c g j) = 0 -> \Pi (j : J) -> c j = 0)
+    => \case J.finEq \with {
+      | inP (e : Equiv) => transport {FinSet} (\lam X => \Pi (g : X -> E) -> IsIndependentSet g <-> (\Pi (c : X -> R) -> FinSum (\lam j => c j *c g j) = 0 -> \Pi (j : X) -> c j = 0)) {FinFin J.finCard} {J} (ext (Equiv-to-= e, idp))
+          (\lam g => <->sym (IsIndependent<->IsIndependentSet {_} {g}) `<->trans` later (\lam f c p j => f c (inv FinSum=BigSum *> p) j, \lam f c p j => f c (FinSum=BigSum *> p) j)) g
+    }
+
   \type IsGeneratingSet {J : \Set} (g : J -> E) : \Prop
     => \Pi (x : E) -> ∃ (c : Array (\Sigma R J)) (x = IsIndependentSet.sum g c)
+
+  \lemma IsGeneratingSet-fin {J : \Set} {g : J -> E} : IsGeneratingSet g <-> (\Pi (x : E) -> ∃ (K : FinSet) (c : K -> \Sigma R J) (x = FinSum (\lam k => (c k).1 *c g (c k).2)))
+    => (\lam gs x => TruncP.map (gs x) \lam s => (_, s.1, s.2 *> inv FinSum=BigSum), \lam gs x =>
+         \have | (inP (K, c, p)) => gs x
+               | (inP e) => finEq {K}
+         \in inP (\lam j => c (e j), p *> FinSum_Equiv e *> FinSum=BigSum))
 
   \lemma IsGeneratingSet-surj {J K : \Set} {f : J -> K} (surj : isSurj f) {g : K -> E} (gi : IsGeneratingSet g) : IsGeneratingSet (\lam j => g (f j))
     => \lam x =>

@@ -1,5 +1,6 @@
 \import Algebra.Group.Symmetric
 \import Algebra.Meta
+\import Algebra.Monoid
 \import Algebra.Ordered
 \import Algebra.Ring
 \import Algebra.Semiring
@@ -16,6 +17,7 @@
 \import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -840,3 +842,37 @@
 \lemma forall-char {A : \Type} {p : A -> Bool} {l : Array A} (s : forall p l = true) (j : Fin l.len) : p (l j) = true \elim l, j
   | a :: l, 0 => (and.toSigma s).1
   | a :: l, suc j => forall-char (and.toSigma s).2 j
+
+\func fit {A : \Type} (a : A) {n : Nat} (l : Array A) : Array A n \elim n, l
+  | 0, _ => nil
+  | suc n, nil => replicate (suc n) a
+  | suc n, b :: l => b :: fit a l
+
+\func fit_< {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin n} (p : j < l.len) : fit a l j = l (toFin j p) \elim n, l, j, p
+  | suc n, b :: l, 0, _ => idp
+  | suc n, b :: l, suc j, NatSemiring.suc<suc p => fit_< _ p
+
+\func fit_>= {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin n} (p : l.len <= j) : fit a l j = a \elim n, l, j
+  | suc n, nil, j => idp
+  | suc n, b :: l, 0 => absurd linarith
+  | suc n, b :: l, suc j => fit_>= l (suc<=suc.conv p)
+
+\func fit_<' {A : \Type} {a : A} {n : Nat} (l : Array A) {j : Fin l.len} (p : j < n) : fit a l (toFin j p) = l j \elim n, l, j, p
+  | suc n, b :: l, 0, _ => idp
+  | suc n, b :: l, suc j, NatSemiring.suc<suc p => fit_<' _ p
+
+\lemma fit_BigSum {A : AddMonoid} {n : Nat} {l : Array A} (p : \Pi (j : Fin l.len) -> n <= j -> l j = 0) : A.BigSum (fit 0 {n} l) = A.BigSum l \elim n, l
+  | 0, l => inv $ A.BigSum_zro \lam j => p j zero<=_
+  | suc n, nil => A.BigSum_replicate0 {suc n}
+  | suc n, a :: l => pmap (a +) $ fit_BigSum \lam j n<=j => p (suc j) (suc<=suc n<=j)
+
+\lemma fit-transpose {A : AddMonoid} {n m : Nat} (l : Array (Array A m) n) : A.BigSum (\lam j => fit A.zro (l j) j) = A.BigSum (\lam k => fit A.zro (l __ k) k) \elim n, m, l
+  | 0, 0, nil => idp
+  | 0, suc m, nil => inv $ A.BigSum_replicate0 {suc m}
+  | suc n, 0, c :: l => A.BigSum_replicate0 {suc n}
+  | suc n, suc m, c :: l => pmap (c 0 +) $ fit-transpose \lam i => \lam j => l i (suc j)
+
+\func fit_map {A B : \Type} (f : A -> B) {a : A} {b : B} (p : f a = b) {n : Nat} {l : Array A} : map f (fit a {n} l) = fit b (map f l) \elim n, l
+  | 0, l => idp
+  | suc n, nil => pmap (replicate (suc n)) p
+  | suc n, a' :: l => path (\lam i => f a' :: fit_map f p i)
