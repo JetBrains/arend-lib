@@ -5,6 +5,7 @@
 
 \import Algebra.Domain.Bezout
 \import Algebra.Linear.Matrix
+\import Algebra.Linear.VectorSpace
 \import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Module.Category
@@ -393,3 +394,18 @@
   }
 
 \class SmithDomain \extends BezoutDomain.Dec, SmithRing
+
+\func subMatrix {R : \Type} {n m : Nat} (A : Matrix R n m) (li : Array (Fin n)) (lj : Array (Fin m)) : Matrix R li.len lj.len
+  => mkMatrix \lam i j => A (li i) (lj j)
+
+\open isMultiLinear
+
+\func subMatrix-div {R : CRing} {n m k : Nat} (B : Matrix R n m) (A : Matrix R m k) (d : R)
+                    (p : \Pi {l : Nat} (li : Array (Fin m) l) (lj : Array (Fin k) l) -> LDiv d (determinant (subMatrix A li lj)))
+                    {l : Nat} (li : Array (Fin n) l) (lj : Array (Fin k) l) : LDiv d (determinant (subMatrix (B MatrixRing.product A) li lj))
+  => \let | args : Array _ l => \lam i => makeLinearComb {R} {ArrayFinModule l} (\lam i j => A i (lj j)) (\lam j => (B (li i) j, j))
+          | q : mkMatrix (\lam i j => (args i).1 j) = subMatrix (B MatrixRing.product A) li lj
+              => matrixExt \lam i j => ArrayLModule.BigSum-index
+          | c : IsLinearComb (determinant $ subMatrix (B MatrixRing.product A) li lj) (\lam (g : Fin l -> Fin m) => determinant (subMatrix A g lj))
+              => rewriteF q $ multiLinear-comb {R} {ArrayFinModule l} {RingLModule R} args (\lam l => determinant l) determinant.multilinear
+     \in linearComb-div c \lam j => p j lj

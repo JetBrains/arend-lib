@@ -5,6 +5,7 @@
 \import Algebra.Module
 \import Algebra.Monoid
 \import Algebra.Ring
+\import Algebra.Semiring
 \import Arith.Fin
 \import Arith.Nat
 \import Category
@@ -22,6 +23,7 @@
 \import Paths
 \import Paths.Meta
 \import Set
+\import Set.Fin
 \open AddMonoid
 
 \record LinearMap {R : Ring} \extends AddGroupHom {
@@ -196,6 +198,9 @@
       | 0 => ()
       | suc n => \lam l j => fl (a :: l) (suc j)
 
+    \lemma reduce0 {n : Nat} (f : Array A (suc n) -> B) (fm : isMultiLinear f) {as : Array A n} : LinearMap' A B { | func a => f (a :: as) }
+      => coe (\lam i => LinearMap' A B { | func a => f (insert_zro {_} {_} {a} i) }) (fm as 0) right
+
     \lemma fromReplace {n : Nat} {f : Array A n -> B} (p : \Pi (l : Array A n) (j : Fin n) -> LinearMap' A B { | func x => f (replace l j x) }) : isMultiLinear f \elim n
       | 0 => ()
       | suc n => \lam l j => \new LinearMap {
@@ -209,6 +214,36 @@
         | func-+ => inv (pmap f insert_skip) *> func-+ {fl _ j} *> pmap2 (f __ + f __) insert_skip insert_skip
         | func-*c => inv (pmap f insert_skip) *> func-*c {fl _ j} *> pmap (_ *c f __) insert_skip
       }
+
+    \type IsLinearComb {R : Ring} {U : LModule' R} (x : U) {J : \Set} (g : J -> U)
+      => \Sigma (c : Array (\Sigma R J)) (x = U.BigSum \lam j => (c j).1 *c g (c j).2)
+
+    \func makeLinearComb {R : Ring} {U : LModule' R} {J : \Set} (g : J -> U) (c : Array (\Sigma R J)) : \Sigma (x : U) (J : \Set) (g : J -> U) (IsLinearComb x g)
+      => (_, J, g, (c,idp))
+
+    \func linearComb-map (f : LinearMap' A B) {x : A} {J : \Set} {g : J -> A} (xg : IsLinearComb x g) : IsLinearComb (f x) (\lam j => f (g j))
+      => (xg.1, pmap f xg.2 *> f.func-BigSum *> pmap BigSum (exts \lam j => func-*c))
+
+    \func linearComb-trans {R : Ring} {U : LModule' R} {x : U} {n : Nat} {K : Fin (suc n) -> \Set} {H : (\Pi (i : Fin (suc n)) -> K i) -> U} {g : K 0 -> U} (xc : IsLinearComb x g)
+                           (k : \Pi (j : K 0) -> IsLinearComb (g j) (\lam (f : \Pi (i : Fin n) -> K (suc i)) => H (j :: f))) : IsLinearComb x H
+      => \let | y j l => ((k (xc.1 j).2).1 l).1
+              | z j l => (xc.1 j).2 :: ((k (xc.1 j).2).1 l).2
+              | t => xc.2 *> path (\lam i => BigSum \lam j => (xc.1 j).1 *c (k (xc.1 j).2).2 i) *>
+                             path (\lam i => BigSum \lam j => U.*c_BigSum-ldistr {(xc.1 j).1} {\lam l => y j l *c H (z j l)} i) *>
+                             U.BigSum-double-dep _ (\lam s => (xc.1 s.1).1 *c (y s.1 s.2 *c H (z s.1 s.2)))
+         \in (mkArray \lam s =>
+            \let (j,l) => SigmaFin.aux.f s \in later ((xc.1 j).1 R.* y j l, z j l), t *> path \lam i => BigSum \lam s =>
+            \let (j,l) => SigmaFin.aux.f s \in inv (U.*c-assoc {(xc.1 j).1} {y j l} {H (z j l)}) i)
+
+    \func linearComb-div {R : CRing} {x : R} {J : \Set} {g : J -> R} (c : IsLinearComb {R} {RingLModule R} x g) {d : R} (p : \Pi (j : J) -> Monoid.LDiv d (g j)) : Monoid.LDiv d x
+      => rewrite c.2 $ Semiring.LDiv_BigSum \lam j => unfold $ Monoid.LDiv.factor-right $ p (c.1 j).2
+
+    \func multiLinear-comb (args : Array (\Sigma (x : A) (J : \Set) (g : J -> A) (IsLinearComb x g))) (f : Array A args.len -> B) (fm : isMultiLinear f)
+      : IsLinearComb (f (map __.1 args)) {\Pi (i : Fin args.len) -> (args i).2} \lam g => f \lam i => (args i).3 (g i) \elim args
+      | nil => ((1, \case __) :: nil, inv $ zro-right *> ide_*c)
+      | (x,J,g,xg) :: args => \let | t a => multiLinear-comb args (\lam l => f (a :: l)) (reduce f fm)
+                                   | s : IsLinearComb (f (x :: map __.1 args)) (\lam j => f (g j :: map __.1 args)) => linearComb-map (reduce0 f fm {map __.1 args}) xg
+                              \in linearComb-trans s \lam j => t (g j)
   }
 
 \lemma isMultilinear_zro {R : Ring} {n : Nat} {A B : LModule' R} : isMultiLinear {R} {n} {A} {B} (\lam x => 0) \elim n
