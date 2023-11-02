@@ -52,9 +52,7 @@
   | finv : E -> E
   | finv_zro : finv 0 = 0
   | finv-right {x : E} (x/=0 : x /= 0) : x * finv x = 1
-
-  \field eitherZeroOrInv (x : E) : (x = 0) `Or` Inv x
-    \level Or.levelProp (\lam x=0 j => inv-nonZero j x=0)
+  \field eitherZeroOrInv (x : E) : (x = 0) || Inv x
 
   | isEuclidean => inP $ \new EuclideanRingData {
     | euclideanMap x => 0
@@ -72,7 +70,7 @@
     }
   }
 
-  \default finv \as finv-impl x => \case eitherZeroOrInv x \with {
+  \default finv \as finv-impl x => \case decideZeroOrInv.aux zro/=ide x (eitherZeroOrInv x) \with {
     | inl _ => 0
     | inr (j : Inv) => j.inv
   }
@@ -85,21 +83,21 @@
     | inr (j : Inv) => j.inv-right
   })
   \default eitherZeroOrInv x => \case decideEq x 0 \with {
-    | yes x=0 => inl x=0
-    | no x/=0 => inr (Inv.rmake (finv x) (finv-right x/=0))
+    | yes x=0 => byLeft x=0
+    | no x/=0 => byRight (Inv.rmake (finv x) (finv-right x/=0))
   }
 
   | locality x => \case eitherZeroOrInv x \with {
-    | inl x=0 => byRight (Inv.lmake ide equation)
-    | inr xInv => byLeft xInv
+    | byLeft x=0 => byRight (Inv.lmake ide equation)
+    | byRight xInv => byLeft xInv
   }
   \default decideEq x y => \case eitherZeroOrInv (x - y) \with {
-    | inl x-y=0 => yes (fromZero x-y=0)
-    | inr x-y-isInv => no (\lam x=y => #-irreflexive (rewriteF x=y x-y-isInv))
+    | byLeft x-y=0 => yes (fromZero x-y=0)
+    | byRight x-y-isInv => no (\lam x=y => #-irreflexive (rewriteF x=y x-y-isInv))
   }
   | nonZeroApart {x} x/=0 => \case eitherZeroOrInv x \with {
-    | inl x=0 => absurd (x/=0 x=0)
-    | inr x#0 => x#0
+    | byLeft x=0 => absurd (x/=0 x=0)
+    | byRight x#0 => x#0
   }
 
   \lemma finv-left {x : E} (x/=0 : x /= 0) : finv x * x = 1
@@ -130,22 +128,28 @@
 
   \lemma zeroDimensional : IsZeroDimensional
     => \lam a => \case eitherZeroOrInv a \with {
-      | inl a=0 => inP (0, 1, rewrite a=0 simplify)
-      | inr (r : Inv) => inP (r.inv, 0, simplify $ inv r.inv-right)
+      | byLeft a=0 => inP (0, 1, rewrite a=0 simplify)
+      | byRight (r : Inv) => inP (r.inv, 0, simplify $ inv r.inv-right)
     }
 } \where {
-  \func from-|| {R : CRing} (q : 0 /= {R} 1) (p : \Pi (a : R) -> (a = zro) || Inv a) : DiscreteField { | CRing => R } \cowith
-    | zro/=ide => q
-    | eitherZeroOrInv a => TruncP.remove (Or.levelProp (\lam a=0 e => inv-nonZero {\new NonZeroSemiring { | Semiring => R | zro/=ide => q }} e a=0)) (||.toOr (p a))
+  \lemma decideZeroOrInv {K : DiscreteField} (x : K) : (x = 0) `Or` Inv x
+    => aux zro/=ide x (eitherZeroOrInv x)
+    \where
+      \protected \lemma aux {R : CRing} (p : zro /= {R} ide) (x : R) (q : (x = 0) || Inv x) : (x = 0) `Or` Inv x
+        \level Or.levelProp (\lam x=0 (j : Inv x) => p $ inv zro_*-left *> pmap (`* _) (inv x=0) *> j.inv-right)
+        => \case q \with {
+             | byLeft r => inl r
+             | byRight r => inr r
+           }
 
   \func backwards (f : RingHom) (e : Equiv f) (D : DiscreteField { | Ring => f.Cod }) : DiscreteField { | Ring => f.Dom } \cowith
     | *-comm => e.isInj $ f.func-* *> *-comm *> inv f.func-*
     | zro/=ide q => D.zro/=ide $ inv f.func-zro *> pmap f q *> f.func-ide
-    | eitherZeroOrInv a => Or.map (D.eitherZeroOrInv (f a)) (\lam q => e.isInj $ q *> inv f.func-zro) \lam (fai : Inv (f a)) => \new Inv a {
+    | eitherZeroOrInv a => ||.map (\lam q => e.isInj $ q *> inv f.func-zro) (\lam (fai : Inv (f a)) => \new Inv a {
       | inv => e.ret fai.inv
       | inv-left => e.isInj $ f.func-* *> pmap (`* _) (e.f_ret _) *> fai.inv-left *> inv f.func-ide
       | inv-right => e.isInj $ f.func-* *> pmap (_ *) (e.f_ret _) *> fai.inv-right *> inv f.func-ide
-    }
+    }) (D.eitherZeroOrInv (f a))
 
   \func forward {f : RingHom} (e : Equiv f) (D : DiscreteField { | Ring => f.Dom }) : DiscreteField { | Ring => f.Cod }
     => backwards (\new RingHom f.Cod f.Dom e.ret {
@@ -155,8 +159,10 @@
     }) (symQEquiv e) D
 }
 
-\instance FactorIrrField (R : BezoutRing) (p : Irr {R})
-  => DiscreteField.from-|| (\lam q => p.notInv (trivial_Inv.1 q)) $ zeroOrInv-char.2 \lam a => \case isBezout p a \with {
+\instance FactorIrrField (R : BezoutRing) (p : Irr {R}) : DiscreteField
+  | CRing => FactorRing (Ideal.closure1 p)
+  | zro/=ide q => p.notInv (trivial_Inv.1 q)
+  | eitherZeroOrInv => zeroOrInv-char.2 \lam a => \case isBezout p a \with {
     | inP (s, t, d|p : Monoid.LDiv, d|a : Monoid.LDiv) => \case p.isIrr (inv d|p.inv-right) \with {
       | byLeft (c : Inv) => byRight (t * c.inv, s * c.inv, equation {usingOnly c.inv-right})
       | byRight (c : Inv) => byLeft \new Monoid.LDiv {
@@ -192,7 +198,7 @@
     \lemma conv {R : CRing} {p : R} (c : \Pi {x y : R} -> p * x = p * y -> x = y) (d : DiscreteField { | CRing => FactorRing (Ideal.closure1 p) }) : Prime p \cowith
       | notInv pi => zro/=ide (trivial_Inv.2 pi)
       | isCancelable-left => c
-      | isPrime {x} {y} (z,pz=xy) => \case zeroOrInv-char.1 (\lam a => ||.fromOr (d.eitherZeroOrInv a)) x, zeroOrInv-char.1 (later \lam a => ||.fromOr (d.eitherZeroOrInv a)) y \with {
+      | isPrime {x} {y} (z,pz=xy) => \case zeroOrInv-char.1 d.eitherZeroOrInv x, zeroOrInv-char.1 d.eitherZeroOrInv y \with {
         | byLeft p|x, _ => byLeft p|x
         | _, byLeft p|y => byRight p|y
         | byRight (s,t,sx+tp=1), byRight (u,v,uy+vp=1) => byLeft \new Monoid.LDiv {
