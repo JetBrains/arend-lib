@@ -14,6 +14,7 @@
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
+\import Set
 \open Monoid(LDiv,Inv)
 \open Preorder(PreorderC,EquivRel)
 
@@ -120,7 +121,7 @@
 
   \lemma split-regular {a b c : E} (ar : IsRegular a) (a|bc : LDiv a (b * c)) : ∃ (a1 a2 : E) (a = a1 * a2) (LDiv a1 b) (LDiv a2 c)
     => \have | (inP (a1,a2,a|a1a2,a1a2|a,a1|b,a2|c)) => split-equiv a|bc
-             | (u : Inv, p) => DivQuotient.regular_equivalent-areAssociates a (a1 * a2) ar a|a1a2 a1a2|a
+             | (u : Inv, p) => DivQuotient.regular_equivalent-associates a (a1 * a2) ar a|a1a2 a1a2|a
        \in inP (u * a1, a2, p *> inv *-assoc, LDiv.trans (LDiv.make u.inv $ *-comm *> inv *-assoc *> pmap (`* _) u.inv-left *> ide-left) a1|b, a2|c)
 } \where {
   \func gcd-ldistr_cancel {M : CMonoid} {c x y z : M} (cancel : IsRegular c) (gcd : GCD x y z) (gcd' : GCD (c * x) (c * y)) : GCD (c * x) (c * y) (c * z)
@@ -143,6 +144,19 @@
 
   \lemma gcd_pow_div {a b : E} {n : Nat} (a|bc : LDiv a (pow b n)) (a_b : IsCoprime a b) : LDiv a b
     => TruncP.remove (LDiv.levelProp _ _) (GCDMonoid.gcd_pow_div a|bc a_b)
+
+  \lemma div_unit : (\Pi (a b : E) -> Dec (LDiv a b)) <-> (\Pi (a : E) -> Dec (Inv a))
+    => (\lam f a => \case f a 1 \with {
+      | yes r => yes (Inv.ldiv r)
+      | no r => no \lam p => r p
+    }, \lam f a b => \case isGCD a b \with {
+      | inP (g : GCD) => \case f g.gcd|val1.inv \with {
+        | yes (r : Inv) => yes $ LDiv.trans (LDiv.make r.inv $ pmap (`* _) (inv g.gcd|val1.inv-right) *> *-assoc *> pmap (g *) r.inv-right *> ide-right) g.gcd|val2
+        | no r => no \lam a|b => r
+            \let a|g : LDiv a g => g.gcd-univ a LDiv.id-div a|b
+            \in Inv.lmake a|g.inv $ cancel_*-left a $ inv *-assoc *> pmap (`* _) a|g.inv-right *> g.gcd|val1.inv-right *> inv ide-right
+      }
+    })
 }
 
 -- | Monoids with a unique unit. This is useful because the GCD relation on them is functional.
@@ -223,11 +237,11 @@
     \lemma make~ {M : CMonoid} {x y : M} (p : inD x = inD y) : x ~ y =>
       Quotient.equalityEquiv (Preorder.EquivRel {DivPreoder M}) p
 
-    \func regular_equivalent-areAssociates {M : CMonoid} (x y : M) (xr : M.IsRegular x) (x|y : LDiv x y) (y|x : LDiv y x) : areAssociates x y
+    \func regular_equivalent-associates {M : CMonoid} (x y : M) (xr : M.IsRegular x) (x|y : LDiv x y) (y|x : LDiv y x) : associates x y
       => (Inv.lmake x|y.inv $ xr $ inv *-assoc *> pmap (`* _) x|y.inv-right *> y|x.inv-right *> inv ide-right, inv y|x.inv-right *> *-comm)
 
-    \lemma equivalent-areAssociates {M : CancelCMonoid} (x y : M) (p : x ~ y) : areAssociates x y \elim p
-       | (inP y|x, inP x|y) => regular_equivalent-areAssociates x y (cancel_*-left x) x|y y|x
+    \lemma equivalent-associates {M : CancelCMonoid} (x y : M) (p : x ~ y) : associates x y \elim p
+       | (inP y|x, inP x|y) => regular_equivalent-associates x y (cancel_*-left x) x|y y|x
 
     -- | The quotient monoid is indeed a monoid.
     \instance DivQuotientMonoid (M : CMonoid) : OrderedCMonoid (DivQuotient M)
@@ -336,8 +350,8 @@
 \func gcd_reduced=1 {M : CancelCMonoid} (gcd : GCD {M}) : GCD gcd.gcd|val1.inv gcd.gcd|val2.inv 1
   => gcd.reduce (cancel_*-left gcd.gcd)
 
-\lemma gcd-isUnique {M : CancelCMonoid} {a b : M} (g1 g2 : GCD a b) : areAssociates g1.gcd g2.gcd
-  => equivalent-areAssociates g1.gcd g2.gcd (DivQuotient.make~ (gcd-isUnique (gcd-to~ g1) (gcd-to~ g2)))
+\lemma gcd-isUnique {M : CancelCMonoid} {a b : M} (g1 g2 : GCD a b) : associates g1.gcd g2.gcd
+  => equivalent-associates g1.gcd g2.gcd (DivQuotient.make~ (gcd-isUnique (gcd-to~ g1) (gcd-to~ g2)))
   \where {
     \open DivQuotient
     \open UnitlessMonoid

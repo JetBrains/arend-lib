@@ -884,3 +884,28 @@
                   \in (suc j, q)
     | no a/=a' => (0, a/=a')
   }
+
+\func find {A : DecSet} (a : A) (l : Array A) : Or (\Sigma (i : Fin l.len) (l i = a)) (\Pi {i : Fin l.len} -> l i /= a) \elim l
+  | nil => inr \lam {i} => \case i
+  | b :: l => \case decideEq b a \with {
+    | yes b=a => inl (0, b=a)
+    | no b/=a => Or.map (find a l) (\lam s => (suc s.1, s.2)) \lam r {i} => \case \elim i \with {
+      | 0 => b/=a
+      | suc i => r
+    }
+  }
+
+\func findDuplicates {A : DecSet} (l : Array A) : Or (\Sigma (i j : Fin l.len) (i /= j) (l i = l j)) (\Pi {i j : Fin l.len} -> l i = l j -> i = j) \elim l
+  | nil => inr \lam {i} => \case i
+  | a :: l => \case find a l \with {
+    | inl r => inl (suc r.1, 0, (\case __), r.2)
+    | inr r => \case findDuplicates l \with {
+      | inl s => inl (suc s.1, suc s.2, fsuc/= s.3, s.4)
+      | inr s => inr \lam {i} {j} => \case \elim i, \elim j \with {
+        | 0, 0 => \lam _ => idp
+        | 0, suc j => \lam p => absurd (r (inv p))
+        | suc i, 0 => \lam p => absurd (r p)
+        | suc i, suc j => \lam p => pmap fsuc (s p)
+      }
+    }
+  }

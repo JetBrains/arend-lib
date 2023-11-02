@@ -1,3 +1,4 @@
+\import Algebra.Field
 \import Algebra.Group
 \import Algebra.Group.Sub
 \import Algebra.Meta
@@ -107,6 +108,8 @@
 
   \lemma principal->finitelyGenerated (p : IsPrincipal) : IsFinitelyGenerated
     | inP s => inP (s.1 :: nil, (\lam _ => s.2.1, \lam {a} c => TruncP.map (s.2.2 c) \lam (d : Monoid.LDiv s.1 a) => (d.inv :: nil, simplify $ inv d.inv-right *> *-comm)))
+
+  \func IsMaximal => \Sigma (Not (contains 1)) (\Pi (x : S) -> contains x || (\Sigma (y : S) (contains (1 - y * x))))
 } \where {
   \func closure {R : CRing} {J : \Set} (g : J -> R) : Ideal R \cowith
     | contains e => ∃ (l : Array (\Sigma R J)) (e = BigSum (map (\lam p => p.1 * g p.2) l))
@@ -211,6 +214,58 @@
             | inP d|d', inP d'|a => ldiv d'|a (ldiv d|d' d.1.2.1)
           }
         })
+
+  \func union {R : CRing} (I : Nat -> Ideal R) (\property inc : \Pi {n : Nat} {a : R} -> I n a -> I (suc n) a) : Ideal R \cowith
+    | contains a => ∃ (n : Nat) (I n a)
+    | contains_zro => inP (0, contains_zro)
+    | contains_+ (inP (n,c)) (inP (m,d)) => inP (n + m, contains_+ (include c) $ rewrite +-comm (include d))
+    | ideal-left (inP (n,c)) => inP (n, ideal-left c)
+    \where {
+      \lemma include {n m : Nat} {a : R} (Ia : I n a) : I (n + m) a \elim m
+        | 0 => Ia
+        | suc m => inc (include Ia)
+    }
+
+  \func countable-maximal {R : CRing} (f : Nat -> R) (fs : \Pi (x : R) -> ∃ (n : Nat) (f n = x))
+                          (Id : \Pi (I : Ideal R) -> I.IsFinitelyGenerated -> \Pi (x : R) -> Dec (I x))
+                          {I : Ideal R} (Ig : I.IsFinitelyGenerated) (Ip : Not (I 1))
+    : \Sigma (M : Ideal R) M.IsMaximal (\Pi {a : R} -> I a -> M a)
+    => (union (\lam n => (ideal n).1) \lam {_} {a} c => mcases \with {
+      | yes _ => c
+      | no _ => inP (a, 0, c, simplify)
+    }, (\lam (inP c) => ideal-proper c.1 c.2, \lam a => \case fs a \with {
+      | inP (n,fn=a) => \case Id (next n (ideal n)) (next-fg n (ideal n)) 1 \with {
+        | yes (inP (x,y,Ix,p)) => byRight (y, inP (n, transport (ideal n).1 equation Ix))
+        | no r => byLeft $ inP (suc n, rewrite (dec_no_reduce r) $ inP (0, 1, contains_zro, equation))
+      }
+    }), \lam c => inP (0,c))
+    \where {
+      \func next (n : Nat) (I : \Sigma (I : Ideal R) I.IsFinitelyGenerated) : Ideal R \cowith
+        | contains z => ∃ (x y : R) (I.1 x) (z = x + y * f n)
+        | contains_zro => inP (0, 0, contains_zro, simplify)
+        | contains_+ (inP (x1,y1,Ix1,p1)) (inP (x2,y2,Ix2,p2)) => inP (x1 + x2, y1 + y2, contains_+ Ix1 Ix2, equation)
+        | ideal-left {r} (inP (x,y,Ix,p)) => inP (r * x, r * y, ideal-left Ix, equation)
+
+      \lemma next-fg (n : Nat) (I : \Sigma (I : Ideal R) I.IsFinitelyGenerated) : Ideal.IsFinitelyGenerated {next n I}
+        => TruncP.map I.2 \lam (l,lg) => (f n :: l, (\case \elim __ \with {
+             | 0 => inP (0, 1, contains_zro, simplify)
+             | suc j => inP (l j, 0, lg.1 j, equation)
+           }, \lam (inP (x,y,I1x,p)) => TruncP.map (lg.2 I1x) \lam (l',q) => (y :: l', equation)))
+
+      \func ideal (n : Nat) : \Sigma (I : Ideal R) I.IsFinitelyGenerated \elim n
+        | 0 => (I,Ig)
+        | suc n => \case Id (next n (ideal n)) (next-fg n (ideal n)) 1 \with {
+                     | yes r => ideal n
+                     | no r => (next n (ideal n), next-fg n (ideal n))
+                   }
+
+      \lemma ideal-proper (n : Nat) (c : (ideal n).1 1) : Empty \elim n
+        | 0 => Ip c
+        | suc n => mcases c _ \with {
+          | yes _, c => ideal-proper n c
+          | no r, c => r c
+        }
+    }
 }
 
 \instance IdealLattice {R : CRing} : Bounded.Lattice (Ideal R)
@@ -334,11 +389,18 @@
     \lemma fequiv {I : Ideal} {a b : I.S} (p : I (a - b)) : inF a = inF b
       => path (\lam i => ~-equiv a b p i)
 
-    \lemma unfequiv {I : Ideal} {a b : I.S} (p : inF a = inF b ) : I (a - b) => Quotient.equalityEquiv (\new Equivalence I.S (\lam a b => I (a - b)) {
-      | ~-transitive c d => transport I equation (contains_+ c d)
-      | ~-reflexive => simplify contains_zro
-      | ~-symmetric c => transport I equation (I.ideal-left { -1} c)
-    }) $ path (\lam i => p i)
+    \lemma fequiv0 {I : Ideal} {a : I.S} (p : I a) : inF a = inF 0
+      => fequiv $ transportInv I (pmap (a Ring.+) AddGroup.negative_zro *> zro-right) p
+
+    \lemma unfequiv {I : Ideal} {a b : I.S} (p : inF a = inF b) : I (a - b)
+      => Quotient.equalityEquiv (\new Equivalence I.S (\lam a b => I (a - b)) {
+        | ~-transitive c d => transport I equation (contains_+ c d)
+        | ~-reflexive => simplify contains_zro
+        | ~-symmetric c => transport I equation (I.ideal-left { -1} c)
+      }) $ path (\lam i => p i)
+
+    \lemma unfequiv0 {I : Ideal} {a : I.S} (p : inF a = inF 0) : I a
+      => transport I (pmap (a Ring.+) AddGroup.negative_zro *> zro-right) (unfequiv p)
   }
 
 \func factorMap (I : Ideal) : RingHom I.S (FactorRing I) \cowith
@@ -358,4 +420,21 @@
   | func-ide => f.func-ide
   | func-* {x} {y} => \case \elim x, \elim y \with {
     | in~ a, in~ b => f.func-*
+  }
+
+\instance FactorField {I : Ideal} (Im : I.IsMaximal) : DiscreteField
+  => DiscreteField.from-|| (\lam p => Im.1 $ unfequiv0 (inv p)) \case \elim __ \with {
+    | in~ a => \case Im.2 a \with {
+      | byLeft r => byLeft $ fequiv0 r
+      | byRight s => byRight $ Monoid.Inv.lmake (inF s.1) $ inv $ later $ fequiv s.2
+    }
+  }
+  \where {
+    \open FactorRing
+
+    \lemma conv {I : Ideal} (p : 0 /= {FactorRing I} 1) (q : \Pi (x : FactorRing I) -> (x = 0) || Monoid.Inv x) : I.IsMaximal
+      => (\lam c => p $ inv $ fequiv0 c, \lam x => \case q (inF x) \with {
+            | byLeft r => byLeft $ unfequiv0 r
+            | byRight (in~ y, s, _) => byRight $ (y, unfequiv $ inv s)
+          })
   }
