@@ -13,12 +13,14 @@
 \import Algebra.Monoid.GCD
 \import Algebra.Pointed
 \import Algebra.Ring
+\import Algebra.Ring.Reduced
 \import Algebra.Semiring
 \import Arith.Nat
 \import Data.Array
 \import Data.Fin (fsuc, fsuc/=)
 \import Data.Or
 \import Function.Meta
+\import HLevel
 \import Logic
 \import Logic.Classical
 \import Logic.Meta
@@ -395,17 +397,30 @@
 
 \class SmithDomain \extends BezoutDomain.Dec, SmithRing
 
-\func subMatrix {R : \Type} {n m : Nat} (A : Matrix R n m) (li : Array (Fin n)) (lj : Array (Fin m)) : Matrix R li.len lj.len
-  => mkMatrix \lam i j => A (li i) (lj j)
+{-
+\lemma smith-subMatrix {R : SmithRing} {m k : Nat} (A : Matrix R m k) (n : Nat)
+  : Contr (\Sigma (D : DivQuotient R) (TruncP (InfGCD {DivQuotient.DivQuotientMonoid R} (values A) D)))
+  => \case R.toSmith A \with {
+       | inP (B,Bs,A~B) => isProp=>isContr (\lam s s' => ext {?}) {?}
+     }
+  \where {
+    \func values (B : Matrix R m k) (j : \Sigma (Array (Fin m) n) (Array (Fin k) n)) : DivQuotient R => in~ $ determinant (subMatrix B j.1 j.2)
+  }
 
-\open isMultiLinear
+\lemma smith-unique {R : SmithDomain} {n m : Nat} (A : Matrix R n m)
+  : Contr (\Sigma (d : Array (DivQuotient R) n)
+                  (\Pi {i j : Fin n} -> j = {Nat} suc i -> TruncP (Monoid.LDiv {DivQuotient.DivQuotientMonoid R} (d i) (d j)))
+                  (\Pi (j : Fin n) -> m <= j -> d j = in~ 0))
+  => \case R.toSmith A \with {
+       | inP (B,Bs,A~B) => isProp=>isContr (\lam s s' => ext $ exts \lam j => {?}) {?}
+     }
 
-\func subMatrix-div {R : CRing} {n m k : Nat} (B : Matrix R n m) (A : Matrix R m k) (d : R)
-                    (p : \Pi {l : Nat} (li : Array (Fin m) l) (lj : Array (Fin k) l) -> LDiv d (determinant (subMatrix A li lj)))
-                    {l : Nat} (li : Array (Fin n) l) (lj : Array (Fin k) l) : LDiv d (determinant (subMatrix (B MatrixRing.product A) li lj))
-  => \let | args : Array _ l => \lam i => makeLinearComb {R} {ArrayFinModule l} (\lam i j => A i (lj j)) (\lam j => (B (li i) j, j))
-          | q : mkMatrix (\lam i j => (args i).1 j) = subMatrix (B MatrixRing.product A) li lj
-              => matrixExt \lam i j => ArrayLModule.BigSum-index
-          | c : IsLinearComb (determinant $ subMatrix (B MatrixRing.product A) li lj) (\lam (g : Fin l -> Fin m) => determinant (subMatrix A g lj))
-              => rewriteF q $ multiLinear-comb {R} {ArrayFinModule l} {RingLModule R} args (\lam l => determinant l) determinant.multilinear
-     \in linearComb-div c \lam j => p j lj
+\lemma smith-unique' {R : SmithDomain} {n m : Nat} (A : Matrix R n m)
+  : Contr (\Sigma (d : Array (DivQuotient R)) (p : d.len < n) (q : d.len < m) (\Pi (j : Fin d.len) -> d j /= in~ 0)
+                  (∃ (B : Matrix R n m) (IsSmith B) (A M~ B)
+                     (\Pi (j : Fin d.len) -> d j = in~ (B (toFin d.len p) (toFin d.len q)))
+                     (\Pi (i : Fin n) (j : Fin m) -> d.len < i -> B i j = 0)))
+  => \case R.toSmith A \with {
+       | inP (B,Bs,A~B) => isProp=>isContr (\lam s s' => ext {?}) {?}
+     }
+ -}

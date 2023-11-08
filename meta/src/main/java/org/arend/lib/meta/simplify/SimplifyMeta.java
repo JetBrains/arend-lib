@@ -10,6 +10,7 @@ import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.expr.*;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
+import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.util.Pair;
@@ -248,7 +249,10 @@ public class SimplifyMeta extends BaseMetaDefinition {
     var occurrences = processor.getSimplificationOccurrences().stream().map(x -> x.proj1).collect(Collectors.toList());
     var lamParams = new ArrayList<ConcreteParameter>();
 
-    if (occurrences.isEmpty()) return expression; //factory.core(expression.computeTyped());
+    if (occurrences.isEmpty()) {
+      errorReporter.report(new TypecheckingError("Nothing to simplify", refExpr));
+      return expression;
+    }
 
     for (int i = 0; i < occurrences.size(); ++i) {
       var var = factory.local("y" + i);

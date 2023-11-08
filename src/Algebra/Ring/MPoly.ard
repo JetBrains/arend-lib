@@ -10,10 +10,11 @@
 \import Algebra.Ring.Category
 \import Algebra.Ring.MonoidRing
 \import Algebra.Ring.Poly
-\import Category (id)
+\import Category
 \import Data.Array
 \import Data.Fin \hiding (Index)
-\import Equiv
+\import Equiv \hiding (Map)
+\import Function (isSurj)
 \import Function.Meta ($)
 \import Logic
 \import Meta
@@ -21,20 +22,35 @@
 \import Paths.Meta
 \import Relation.Equivalence
 \import Set
+\import Set.Fin
 
 \func MPoly (J : \Set) (R : CRing) => MonoidAlgebra (PermSetAbMonoid J) R
 
 \func mPoly-map {J : \Set} {R S : CRing} (f : AddMonoidHom R S) (p : MPoly J R) : MPoly J S
   => monoidSet-map (\lam x => x) f p
 
+\lemma mPoly-map-comp {J : \Set} {R E S : CRing} {f : AddMonoidHom R E} {g : AddMonoidHom E S} {p : MPoly J R}
+  : mPoly-map (g AddMonoidCat.∘ f) p = mPoly-map g (mPoly-map f p) \elim p
+  | in~ l => idp
+
 \func mPoly-mapHom {J : \Set} {R S : CRing} (f : RingHom R S) : RingHom (MPoly J R) (MPoly J S) (mPoly-map f)
   => monoidSet-ringHom (AddMonoidCat.id _) f
+
+\lemma mPoly-map_permSet-univ {I J : \Set} {R S : CRing} (f : RingHom R S) (g : I -> MPoly J R) {a : PermSet I}
+  : mPoly-map f (permSet-univ {I} {AbMonoid.fromCMonoid (MPoly J R)} g a) = permSet-univ {I} {AbMonoid.fromCMonoid (MPoly J S)} (\lam i => mPoly-map f (g i)) a \elim a
+  | in~ a => MonoidHom.func-BigProd {mPoly-mapHom f}
 
 \func mPolyEval {J : \Set} {R : CRing} (f : J -> R) : RingHom (MPoly J R) R
   => evalMSRingHom (permSet-univ {J} {AbMonoid.fromCMonoid R} f)
 
+\func mPolyMapEval {J : \Set} {R S : CRing} (f : AddMonoidHom R S) (p : MPoly J R) (a : J -> S) : S
+  => mPolyEval a (mPoly-map f p)
+
 \func mVar {J : \Set} {R : CRing} (j : J) : MPoly J R
   => msMonomial 1 $ PermSet.inPS (j :: nil)
+
+\func mConst {J : \Set} {R : CRing} (a : R) : MPoly J R
+  => msMonomial a zro
 
 \func mLastCoef {J : \Set} {R : CRing} (p : MPoly J R) => monoidSet-coefs (\lam x => decToBool (permSet-zro-dec x)) p
 
@@ -153,4 +169,29 @@
           | suc j => pmap (padd pzero) (g-var j)
         })
       }))
+  }
+
+\lemma MPoly-surj {J : \Set} {R S : CRing} (f : AddMonoidHom R S) (fs : isSurj f) : isSurj (mPoly-map {J} f)
+  => \case \elim __ \with {
+       | in~ l => \case FinSet.finiteAC (\lam j => fs (l j).1) \with {
+         | inP g => inP (MonoidSet.inMS \lam j => ((g j).1, (l j).2), pmap MonoidSet.inMS $ exts \lam j => ext ((g j).2, idp))
+       }
+  }
+
+\func MPoly_Fin-suc' {n : Nat} {R : CRing} (p : MPoly (Fin n) (PolyAlgebra R)) : MPoly (Fin (suc n)) R
+  => mPolyMapEval (polyToMonoidSetHom $ PermSet.inPS $ (0 : Fin (suc n)) :: nil) p \lam j => mVar (suc j)
+  \where {
+    \lemma map_polyToMonoidSet {J : \Set} {R S : CRing} (f : RingHom R S) {p : Poly R} {m : PermSet J} : mPoly-map f (polyToMonoidSet m p) = polyToMonoidSet m (polyMap f p) \elim p
+      | pzero => idp
+      | padd p e => func-+ {mPoly-mapHom f} *> pmap (`+ _) (func-* {mPoly-mapHom f} *> pmap2 (\lam x y => x * MonoidSet.inMS (y :: nil)) (map_polyToMonoidSet f) (ext (f.func-ide, idp)))
+
+    \lemma map-comm {R S : CRing} (f : RingHom R S) {p : MPoly (Fin n) (PolyAlgebra R)} : mPoly-map f (MPoly_Fin-suc' p) = MPoly_Fin-suc' (mPoly-map (polyMapRingHom f) p) \elim p
+      | in~ l => AddMonoidHom.func-BigSum {mPoly-mapHom f} *> pmap AddMonoid.BigSum (exts \lam j => MonoidHom.func-* {mPoly-mapHom f} *> pmap2 (*) (map_polyToMonoidSet f)
+                  (mPoly-map_permSet-univ f (\lam j => mVar (fsuc j)) *> pmap (permSet-univ {Fin n} {AbMonoid.fromCMonoid (MPoly (Fin (suc n)) S)} __ _) (ext \lam j => pmap (\lam x => MonoidSet.inMS (x :: nil)) (ext (f.func-ide, idp)))))
+
+    \lemma eval-comm {p : MPoly (Fin n) (PolyAlgebra R)} {a : R} {l : Array R n} : mPolyEval (a :: l) (MPoly_Fin-suc' p) = mPolyEval l (mPoly-map (polyEvalRingHom a) p) \elim p
+      | in~ l' => AddMonoidHom.func-BigSum {evalMSRingHom _} *> pmap R.BigSum (exts \lam j => func-* *> pmap2 (*) (polyToMonoidSet-eval *> simplify)
+          (later $ cases (l' j).2 \with {
+            | in~ l'' => MonoidHom.func-BigProd {evalMSRingHom _} *> pmap R.BigProd (exts \lam i => simplify)
+          }))
   }

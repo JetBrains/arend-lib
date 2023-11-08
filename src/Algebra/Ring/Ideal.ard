@@ -27,6 +27,7 @@
 \import Paths.Meta
 \import Relation.Equivalence
 \import Set
+\import Set.Countable
 \import Set.Fin
 \open AddMonoid
 \open AbMonoid
@@ -226,14 +227,14 @@
         | suc m => inc (include Ia)
     }
 
-  \func countable-maximal {R : CRing} (f : Nat -> R) (fs : \Pi (x : R) -> ∃ (n : Nat) (f n = x))
+  \func countable-maximal {R : CRing} (c : Countable R)
                           (Id : \Pi (I : Ideal R) -> I.IsFinitelyGenerated -> \Pi (x : R) -> Dec (I x))
                           {I : Ideal R} (Ig : I.IsFinitelyGenerated) (Ip : Not (I 1))
     : \Sigma (M : Ideal R) M.IsMaximal (\Pi {a : R} -> I a -> M a)
     => (union (\lam n => (ideal n).1) \lam {_} {a} c => mcases \with {
       | yes _ => c
       | no _ => inP (a, 0, c, simplify)
-    }, (\lam (inP c) => ideal-proper c.1 c.2, \lam a => \case fs a \with {
+    }, (\lam (inP c) => ideal-proper c.1 c.2, \lam a => \case pointed-countable-surj R.zro c a \with {
       | inP (n,fn=a) => \case Id (next n (ideal n)) (next-fg n (ideal n)) 1 \with {
         | yes (inP (x,y,Ix,p)) => byRight (y, inP (n, transport (ideal n).1 equation Ix))
         | no r => byLeft $ inP (suc n, rewrite (dec_no_reduce r) $ inP (0, 1, contains_zro, equation))
@@ -241,14 +242,14 @@
     }), \lam c => inP (0,c))
     \where {
       \func next (n : Nat) (I : \Sigma (I : Ideal R) I.IsFinitelyGenerated) : Ideal R \cowith
-        | contains z => ∃ (x y : R) (I.1 x) (z = x + y * f n)
+        | contains z => ∃ (x y : R) (I.1 x) (z = x + y * pointed-countable R.zro c n)
         | contains_zro => inP (0, 0, contains_zro, simplify)
         | contains_+ (inP (x1,y1,Ix1,p1)) (inP (x2,y2,Ix2,p2)) => inP (x1 + x2, y1 + y2, contains_+ Ix1 Ix2, equation)
         | ideal-left {r} (inP (x,y,Ix,p)) => inP (r * x, r * y, ideal-left Ix, equation)
 
       \lemma next-fg (n : Nat) (I : \Sigma (I : Ideal R) I.IsFinitelyGenerated) : Ideal.IsFinitelyGenerated {next n I}
-        => TruncP.map I.2 \lam (l,lg) => (f n :: l, (\case \elim __ \with {
-             | 0 => inP (0, 1, contains_zro, simplify)
+        => TruncP.map I.2 \lam (l,lg) => (pointed-countable R.zro c n :: l, (\case \elim __ \with {
+             | 0 => inP (0, 1, contains_zro, equation)
              | suc j => inP (l j, 0, lg.1 j, equation)
            }, \lam (inP (x,y,I1x,p)) => TruncP.map (lg.2 I1x) \lam (l',q) => (y :: l', equation)))
 
@@ -403,7 +404,7 @@
       => transport I (pmap (a Ring.+) AddGroup.negative_zro *> zro-right) (unfequiv p)
   }
 
-\func factorMap (I : Ideal) : RingHom I.S (FactorRing I) \cowith
+\func factorHom {I : Ideal} : RingHom I.S (FactorRing I) \cowith
   | func => FactorRing.inF
   | func-+ => idp
   | func-ide => idp

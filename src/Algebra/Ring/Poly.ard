@@ -1,5 +1,6 @@
 \import Algebra.Algebra
 \import Algebra.Domain
+\import Algebra.Domain.Bezout
 \import Algebra.Domain.Euclidean
 \import Algebra.Domain.GCD
 \import Algebra.Field
@@ -7,11 +8,13 @@
 \import Algebra.Group.Category
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Ordered
 \import Algebra.Pointed
 \import Algebra.Pointed.Category
 \import Algebra.Ring
 \import Algebra.Ring.Category
+\import Algebra.Ring.Ideal
 \import Algebra.Ring.QPoly
 \import Algebra.Semiring
 \import Arith.Nat
@@ -34,6 +37,7 @@
 \import Paths.Meta
 \import Relation.Equivalence
 \import Set
+\import Set.Countable
 \import Set.Fin
 \open Monoid \hiding (equals)
 
@@ -83,6 +87,9 @@
 
     \use \level levelSet {R : AddPointed} : isSet (Poly R)
       => transportInv isSet (Equiv-to-= toQPoly-equiv) (\lam _ _ _ _ => setPath)
+
+    \func poly-countable {R : AddPointed} (c : Countable R) : Countable (Poly R)
+      => surj-countable (quotient-countable (array-countable c)) (Equiv.isSurj {symQEquiv toQPoly-equiv})
   }
 
 \func polyMap (f : AddPointedHom) (p : Poly f.Dom) : Poly f.Cod \elim p
@@ -93,6 +100,12 @@
 \lemma polyMap-comp {A B C : AddPointed} (f : AddPointedHom A B) (g : AddPointedHom B C) {p : Poly A} : polyMap g (polyMap f p) = polyMap (g ∘ f) p \elim p
   | pzero => idp
   | padd p e => pmap (padd __ _) (polyMap-comp f g)
+
+\lemma polyMap-inj {A B : AddPointed} {f : AddPointedHom A B} (inj : isInj f) {p q : Poly A} (s : polyMap f p = polyMap f q) : p = q \elim p, q
+  | pzero, pzero => idp
+  | pzero, padd q b => inv peq *> pmap2 padd (polyMap-inj {_} {_} {f} inj $ pmap polyShift s) (inj $ func-zro *> pmap (polyCoef __ 0) s)
+  | padd p a, pzero => pmap2 padd (polyMap-inj {_} {_} {f} inj $ pmap polyShift s) (inj $ pmap (polyCoef __ 0) s *> inv func-zro) *> peq
+  | padd p a, padd q b => pmap2 padd (later $ polyMap-inj {_} {_} {f} inj $ pmap polyShift s) (inj $ pmap (polyCoef __ 0) s)
 
 \lemma polyMap_fromArray {f : AddPointedHom} {l : Array f.Dom} : polyMap f (Poly.fromArray l) = Poly.fromArray (map f l) \elim l
   | nil => idp
@@ -554,6 +567,13 @@
     \in rewrite (t.1, t.2, f.func-zro) $ transportInv (degree< __ 0) peq $ \lam _ => idp
   | padd p e, suc n => degree<_padd $ degree<_polyMap (degree<_padd.conv d)
 
+\lemma degree_polyMap {R S : Ring.Dec} {f : RingHom R S} (inj : isInj f) {p : Poly R} : degree (polyMap f p) = degree p \elim p
+  | pzero => idp
+  | padd p e => mcases {2} \with {
+    | yes p=0 => rewrite (decideEq=_reduce $ later $ rewrite p=0 idp) idp
+    | no p/=0 => rewrite (decideEq/=_reduce \lam q => p/=0 $ polyMap-inj inj q) $ pmap suc (degree_polyMap inj)
+  }
+
 \lemma polyEval_polyCoef {R : Ring} {p : Poly R} {a : R} {n : Nat} (d : degree< p n) : polyEval p a = R.BigSum (\new Array R n (\lam i => polyCoef p i * R.pow a i)) \elim p, n
   | pzero, n => inv $ R.BigSum_zro $ \lam j => R.zro_*-left
   | p, 0 => rewrite (degree<0 d) idp
@@ -621,6 +641,9 @@
 \lemma degree-exists {R : AddPointed} (p : Poly R) : ∃ (n : Nat) (degree<= p n) \elim p
   | pzero => inP (0, ())
   | padd p e => TruncP.map (degree-exists p) $ \lam s => (suc s.1, s.2)
+
+\lemma degree<-exists {R : AddPointed} (p : Poly R) : ∃ (n : Nat) (degree< p n)
+  => TruncP.map (degree-exists p) \lam s => (suc s.1, degree<=_degree< s.2)
 
 \lemma degree<=-trans {R : AddPointed} {p : Poly R} {n m : Nat} (d : degree<= p n) (n<=m : n <= m) : degree<= p m \elim p, n, m
   | pzero, n, m => ()
@@ -833,6 +856,29 @@
   : \Sigma (q r : Poly R) (f = q * g + r) (degree< r n) \level monicPolyDivision-unique f g n dg dm
   => Contr.center {monicPolyDivisionContr f g n dg dm}
 
+\lemma degree1PolyDivision-unique {R : CRing} (f : Poly R) (a : R) {q1 q2 : Poly R} (p1 : f = q1 * padd 1 (negative a) + padd pzero (polyEval f a)) (p2 : f = q2 * padd 1 (negative a) + padd pzero (polyEval f a)) : q1 = q2
+  => pmap __.1 $ monicPolyDivision-unique f (padd 1 (negative a)) 1 idp idp  (q1, padd pzero (polyEval f a), p1, degree<=_degree< idp) (q2, padd pzero (polyEval f a), p2, degree<=_degree< idp)
+
+\lemma degree1PolyDivision {R : CRing} (f : Poly R) (a : R)
+  : \Sigma (q : Poly R) (f = q * padd 1 (negative a) + padd pzero (polyEval f a)) \level \lam s1 s2 => ext (degree1PolyDivision-unique f a s1.2 s2.2)
+  => \have t => monicPolyDivision f (padd 1 (negative a)) 1 idp idp
+     \in (t.1, t.3 *> pmap (_ +) (fromArray_polyCoef t.4 *> pmap (padd pzero) (later (repeat simplify (rewrite (fromArray_polyCoef t.4) simplify)) *> inv (pmap (polyEval __ a) t.3 *> func-+ {polyEvalRingHom a} *> pmap (`+ _) func-*))))
+
+\lemma rootPolyDivision-unique {R : CRing} (f : Poly R) (a : R) (p : polyEval f a = 0) : isProp (LDiv (padd 1 (negative a)) f)
+  => \lam s1 s2 => ext $ degree1PolyDivision-unique f a
+       (inv (LDiv.inv-right {s1}) *> rewrite p (*-comm *> inv zro-right *> pmap (_ +) (inv peq)))
+       (inv (LDiv.inv-right {s2}) *> rewrite p (*-comm *> inv zro-right *> pmap (_ +) (inv peq)))
+
+\func rootDiv {R : CRing} (f : Poly R) (a : R) : Poly R
+  => (degree1PolyDivision f a).1
+
+\lemma rootDiv_* {R : CRing} {f : Poly R} {a : R} (p : polyEval f a = 0)
+  : f = rootDiv f a * padd 1 (negative a)
+  => (degree1PolyDivision f a).2 *> pmap (_ +) (later $ rewrite p peq) *> zro-right
+
+\lemma rootPolyDivision_degree {R : IntegralDomain.Dec} {f : Poly R} (f/=0 : f /= 0) {a : R} (p : polyEval f a = 0) {n : Nat} : degree f = suc (degree (rootDiv f a))
+  => rewrite {1} (rootDiv_* p *> *-comm) $ degree_* {_} {padd 1 (negative a)} (\lam p => R.zro/=ide $ inv $ pmap (polyCoef __ 1) p) (\lam q => f/=0 $ rootDiv_* p *> *-comm *> cong q *> zro_*-right) *> rewrite (decideEq/=_reduce $ /=-sym zro/=ide) idp
+
 \func leadCoef {R : Ring.Dec} (p : Poly R) : R \elim p
   | pzero => 0
   | padd p e => \case decideEq p 0 \with {
@@ -947,6 +993,9 @@
         | yes a=0 => rewrite (a=0,PolyRing.zro_*c) NatSemiring.zero<suc
         | no a/=0 => rewrite (degree_*c a/=0, degree_* p/=0 q/=0) $ <-transitive-right (LinearlyOrderedSemiring.<=_+ zero<=_ <=-refl) id<suc
       }
+
+\lemma degree_*_= {R : Domain.Dec} {p q s : Poly R} (s/=0 : s /= 0) (t : s = p * q) : degree s = degree p + degree q
+  => pmap degree t *> degree_* (\lam p=0 => s/=0 $ t *> pmap (`* q) p=0) (\lam q=0 => s/=0 $ t *> pmap (p *) q=0 *> zro_*-right)
 
 \lemma leadCoef_*c {R : Domain.Dec} {a : R} {p : Poly R} : leadCoef (a PolyRing.*c p) = a * leadCoef p \elim p
   | pzero => inv R.zro_*-right
@@ -1074,3 +1123,8 @@
 
 \lemma poly-dec-div {R : DiscreteField} (a b : Poly R) : Dec (TruncP (LDiv a b))
   => GCDDomain.Dec.div_unit.2 poly-dec-unit a b
+
+\func poly-maximal-ideal {K : DiscreteField} (c : Countable K) (p : Poly K) (pc : Not (Inv p))
+  : \Sigma (M : Ideal (PolyAlgebra K)) M.IsMaximal (M p)
+  => \let (M,Mm,g) => BezoutRing.maximal-ideal (Poly.poly-countable c) poly-dec-div (p :: nil) (\lam c => pc $ c p \lam (0) => LDiv.id-div)
+     \in (M, Mm, g 0)

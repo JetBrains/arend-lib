@@ -8,6 +8,7 @@
 \import Algebra.Pointed.Category
 \import Algebra.Ring
 \import Algebra.Ring.Category
+\import Algebra.Ring.Poly
 \import Algebra.Semiring
 \import Category
 \import Data.Array
@@ -219,6 +220,9 @@
 \lemma msMonomial_+ {M : \Set} {R : AddMonoid} {a b : R} {m : M} : msMonomial (a + b) m = msMonomial a m + msMonomial b m
   => monoidSet-ext $ ~-pequiv $ mkcon ~-+ {nil} m idp idp
 
+\lemma msMonomial_0 {M : \Set} {R : AddMonoid} {m : M} : msMonomial R.zro m = 0
+  => monoidSet-ext $ ~-pequiv $ MonoidSet.~-zro idp
+
 \lemma msMonomial_* {M : AddMonoid} {R : Semiring} {a b : R} : msMonomial (a * b) M.zro = msMonomial a M.zro * msMonomial b M.zro
   => monoidSet-ext $ unfold MonoidSemiring.func $ rewrite zro-left idp
 
@@ -277,3 +281,34 @@
 \lemma evalMS_map2 {M : \Set} {R S : Semiring} {x : MonoidSet M R} {f : M -> R} (g : SemiringHom R S)
   : evalMS (monoidSet-map (\lam y => y) g x) (\lam m => g (f m)) = g (evalMS x f) \elim x
   | in~ l => inv $ g.func-BigSum *> pmap AddMonoid.BigSum (exts \lam j => g.func-*)
+
+\func polyToMonoidSet {M : AddMonoid} {R : Semiring} (m : M) (p : Poly R) : MonoidSet M R \elim p
+  | pzero => 0
+  | padd p a => polyToMonoidSet m p * msMonomial 1 m + msMonomial a zro
+  | peq i => ~-pequiv {_} {_} {(R.zro,M.zro) :: nil} {nil} (MonoidSet.~-zro idp) i
+
+\func polyToMonoidSetHom {M : AddMonoid} {R : Ring} (m : M) : AddMonoidHom (PolyRing R) (MonoidRing M R) \cowith
+  | func => polyToMonoidSet m
+  | func-zro => idp
+  | func-+ {p q : Poly R} : polyToMonoidSet m (p + q) = polyToMonoidSet m p + polyToMonoidSet m q \elim p, q {
+    | pzero, q => inv zro-left
+    | p, pzero => pmap (polyToMonoidSet m) +-comm *> inv zro-right
+    | padd p a, padd q b => rewrite (func-+,rdistr,msMonomial_+) $ +-assoc *> pmap (_ +) (later (inv +-assoc) *> pmap (`+ _) +-comm *> +-assoc) *> inv +-assoc
+  }
+
+\func polyToMonoidSetRingHom {M : AbMonoid} {R : CRing} (m : M) : RingHom (PolyRing R) (MonoidRing M R) \cowith
+  | AddMonoidHom => polyToMonoidSetHom m
+  | func-ide => idp
+  | func-* {p q : Poly R} : polyToMonoidSet m (p * q) = polyToMonoidSet m p * polyToMonoidSet m q \elim p {
+    | pzero => inv zro_*-left
+    | padd p a => polyToMonoidSetHom.func-+ *> pmap2 (+) (pmap (_ +) msMonomial_0 *> zro-right *> pmap (`* _) func-* *> *-assoc *> pmap (_ *) *-comm *> inv *-assoc) func-*c *> inv rdistr
+  }
+  \where {
+    \lemma func-*c {m : M} {a : R} {p : Poly R} : polyToMonoidSet m (a PolyRing.*c p) = msMonomial a zro * polyToMonoidSet m p \elim p
+      | pzero => idp
+      | padd p b => pmap (__ * _ + _) func-*c *> pmap2 (+) *-assoc simplify *> inv ldistr
+  }
+
+\lemma polyToMonoidSet-eval {R : CRing} {M : AddMonoid} {p : Poly R} {f : MonoidHom M R} {m : M} : evalMS (polyToMonoidSet m p) f = polyEval p (f m) \elim p
+  | pzero => idp
+  | padd p a => func-+ {evalMSRingHom f} *> pmap2 (+) (func-* *> pmap2 (*) polyToMonoidSet-eval simplify) (unfold $ rewrite f.func-ide simplify)
