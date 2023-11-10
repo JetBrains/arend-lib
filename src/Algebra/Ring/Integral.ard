@@ -1,4 +1,3 @@
-\import Algebra.Algebra
 \import Algebra.Domain
 \import Algebra.Domain.Bezout
 \import Algebra.Field
@@ -28,7 +27,6 @@
 \import Arith.Nat
 \import Category
 \import Data.Array
-\import Data.Or
 \import Equiv (Equiv)
 \import Function (isInj, isSurj)
 \import Function.Meta
@@ -116,6 +114,9 @@
 \func isIntegralExt (f : RingHom) : \Prop
   => \Pi (a : f.Cod) -> isIntegral f a
 
+\lemma finite-integralExt {R E : CRing} {f : RingHom R E} (gen : LModule.IsFinitelyGenerated {homLModule f}) : isIntegralExt f \elim gen
+  | inP gen => \lam a => module-integral f a SubRing.max (\lam _ => ()) (inP (map (__,()) gen.1, \lam x => TruncP.map (gen.2 x.1) \lam s => (s.1, ext (s.2 *> inv SubRing.max.struct_BigSum)))) ()
+
 \lemma integral-generated {R E : CRing} (f : RingHom R E) (a : E) (ai : isIntegral f a) : LModule.IsFinitelyGenerated {homLModule (polyImageHom f a)} \elim ai
   | inP (p, inP t, pc) => inP (_, monic-generated f a p t.1 t.2 t.3 pc)
 
@@ -153,18 +154,20 @@
 \lemma integralExt-right {R S E : Ring} (f : RingHom R S) (g : RingHom S E) (int : isIntegralExt (g ∘ f)) : isIntegralExt g
   => \lam x => integral-right f g x (int x)
 
-\lemma integralExt-generated {R S : CRing} (f : RingHom R S) (fi : isIntegralExt f) {l : Array S} (gen : CAlgebra.isGenerated {homAlgebra f} l)
+\lemma integralExt-generated {R S : CRing} (f : RingHom R S) (fi : isIntegralExt f) {l : Array S} (gen : RingHom.isAlgebraGenerated f l)
   : LModule.IsFinitelyGenerated {homLModule f} \elim l
   | nil => inP (1 :: nil, \lam x => TruncP.map (gen x) $ \lam t => (mLastCoef t.1 :: nil, t.2 *> unfold (rewriteI {1} (Equiv.ret_f {MPoly_Empty {Fin 0} $ \case __} t.1) $ pmap (`+ 0) simplify)))
   | a :: (l : Array) =>
     \let | g => polyImageHom f a
          | h => SubRing.embed {polyImage f a}
     \in LModule.generated-pullback g (integral-generated f a (fi a)) $ integralExt-generated h (integralExt-right g h fi) \lam x => TruncP.map (gen x) \lam t =>
-          (polyEval (MPoly_Fin-suc (mPoly-map (polyImageHom f a) t.1)) (msMonomial (later (a, polyImage-element)) zro),
-           t.2 *> pmap {AddMonoidHom R S} (\lam f => mPolyEval _ $ monoidSet-map _ f t.1) (later $ exts \lam a => ide-right) *>
-           inv (MPoly_Fin-suc.f_eval (mPoly-map f t.1) l) *> pmap (mPolyEval l) (pmap2 polyEval (pmap MPoly_Fin-suc.f (later $ cases t.1 \with {
-             | in~ l' => pmap MonoidSet.inMS $ exts \lam j => ext (inv ide-right, idp)
-           }) *> inv (MPoly_Fin-suc.f_polyMap (\lam j => pmap (msMonomial __ _) ide-right) $ \lam b => idp)) (pmap (msMonomial __ _) (inv ide-right)) *> polyEval_polyMap {monoidSet-ringHom (AddMonoidCat.id _) _}))
+          (polyEval (MPoly_Fin-suc (mPoly-map (polyImageHom f a) t.1)) (msMonomial (later (a * 1, rewrite ide-right polyImage-element)) zro),
+           t.2 *> inv (MPoly_Fin-suc.f_eval (mPoly-map f t.1) l) *> pmap (mPolyEval l) (pmap2 polyEval (pmap MPoly_Fin-suc.f (later $ cases t.1 \with {
+             | in~ l' => idp
+           }) *> inv (MPoly_Fin-suc.f_polyMap h (\lam j => pmap (msMonomial __ _) (func-ide {h})) $ \lam b => idp)) (pmap (msMonomial __ _) (inv ide-right)) *> polyEval_polyMap {monoidSet-ringHom (AddMonoidCat.id _) _}))
+
+\lemma integralExt-finite-char {R E : CRing} {f : RingHom R E} (gen : ∃ (l : Array E) (RingHom.isAlgebraGenerated f l)) : isIntegralExt f <-> LModule.IsFinitelyGenerated {homLModule f} \elim gen
+  | inP (l,gen) => (\lam ie => integralExt-generated f ie gen, finite-integralExt)
 
 \lemma integral-comp {R S T : CRing} {f : RingHom R S} {g : RingHom S T} (fi : isIntegralExt f) {a : T} (ai : isIntegral g a) : isIntegral (g ∘ f) a \elim ai
   | inP (p, inP (d,dp,dc), pa=0) =>
@@ -178,7 +181,7 @@
              | l' => \new Array S' d' (\lam j => (polyCoef p j, mPolyImage-element f (\new Array S d' (\lam j => polyCoef p j)) j))
         \in module-integral (g' ∘ f') a (polyImage g' a) (\lam y => polyImage-ext (g ∘ SR.embed) a (f y, inP (msMonomial y zro, simplify))) (LModule.generated-comp f' (polyImageHom g' a) (integralExt-generated f' fi' {l'}
             (\lam x => TruncP.map x.2 \lam t => (t.1, ext $ inv t.2 *> unfold (unfold $ unfold $ pmap2 evalMS (later $ cases t.1 \with {
-              | in~ l'' => pmap MonoidSet.inMS $ exts \lam j => ext (inv ide-right, idp)
+              | in~ l'' => idp
             }) (ext \case \elim __ \with {
               | in~ l'' => inv SR.embed.func-BigProd
             }) *> evalMS_map2 SR.embed)))) $
