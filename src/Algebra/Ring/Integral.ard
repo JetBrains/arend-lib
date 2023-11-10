@@ -235,65 +235,26 @@
     | inP (d,q=pd) => rewrite (q=pd, func-* {polyMapEvalRingHom f a}) equation
   }
 
+{- | If `f : K -> R` is integral and {K} is a field, then {R} is 0-dimensional.
+ -
+ -   It is actually enough to assume that {K} is 0-dimensional, but this is harder to prove.
+-}
+\func integralExt-zeroDim {K : DiscreteField} {R : CRing} {f : RingHom K R} (fi : isIntegralExt f) : R.IsZeroDimensional
+  => \lam a => \case fi a \with {
+       | inP (p, inP pm, pe) => poly-zeroDim p pm.1 pm.3 a 0 (ide-right *> pe)
+     }
+  \where {
+    \lemma poly-zeroDim (p : Poly K) (i : Nat) (pi : polyCoef p i = 1) (a : R) (k : Nat) (pe : polyMapEval f p a * pow a k = 0) : ∃ (b : R) (n : Nat) (pow a n = pow a (suc n) * b) \elim p
+      | pzero => absurd (zro/=ide pi)
+      | padd p e => \case eitherZeroOrInv e \with {
+        | byLeft e=0 => \case \elim i, \elim pi \with {
+          | 0, pi => absurd $ zro/=ide (inv e=0 *> pi)
+          | suc i, pi => poly-zeroDim p i pi a (suc k) (unfold polyMapEval (rewrite (e=0,f.func-zro) equation) *> pe)
+        }
+        | byRight (x,q,_) => inP (negative (f x * polyMapEval f p a), k, equation {using (inv func-* *> pmap f q *> func-ide)})
+      }
+  }
+
 \func polyImage_field {K : DiscreteField} {E : ImpotentCRing} (f : RingHom K E) (a : E) (ai : isIntegral f a)
   : DiscreteField { | CRing => SubRing.cStruct (polyImage f a) }
-  => \let D : DiscreteField => polyImage_field-equiv {K} {PolyImage-impotent f a} (polyImageHom f a) (a,polyImage-element)
-                                (Equiv.fromInjSurj _ (\lam q => ext q) (\lam (x, inP (p,q)) => inP (((x, inP (p,q)), inP (p, ext $ embed-natural *> q)), idp)))
-                                (TruncP.map ai \lam s => (s.1, s.2, ext $ embed-natural *> s.3))
-     \in \new DiscreteField {
-      | zro/=ide q => D.zro/=ide (ext q)
-      | eitherZeroOrInv x => \case D.eitherZeroOrInv (x, TruncP.map x.2 \lam s => (s.1, ext $ embed-natural *> s.2)) \with {
-        | byLeft r => byLeft (pmap __.1 r)
-        | byRight (r : Inv) => byRight $ Inv.lmake r.inv.1 (pmap __.1 r.inv-left)
-      }
-    }
-  \where {
-    \func PolyImage-impotent {K : Ring} {E : ImpotentCRing} (f : RingHom K E) (a : E) : ImpotentCRing \cowith
-      | CRing => SubRing.cStruct (polyImage f a)
-      | isReduced q => ext $ isReduced (pmap __.1 q)
-      | zro/=ide q => zro/=ide (pmap __.1 q)
-      | isImpotent q => ||.map (\lam s => ext s) (\lam s => ext s) $ isImpotent (pmap __.1 q)
-
-    \lemma embed-natural {R : Ring} {E : CRing} {f : RingHom R E} {p : Poly f.Dom} {a : f.Cod}
-      : (polyMapEval (polyImageHom f a) p (a, polyImage-element)).1 = polyMapEval f p a \elim p
-      | pzero => idp
-      | padd p e => pmap (__ * _ + _) embed-natural
-
-    \func polyImage_field-equiv {K : DiscreteField} {E : ImpotentCRing} (f : RingHom K E) (a : E) (eq : Equiv (SubRing.embed {polyImage f a})) (ai : isIntegral f a) : DiscreteField \cowith
-      | CRing => SubRing.cStruct (polyImage f a)
-      | zro/=ide p => zro/=ide (pmap __.1 p)
-      | eitherZeroOrInv x =>
-          \have x-inv (xi : Inv x.1) => Inv.lmake (eq.ret xi.inv) $ eq.isInj $ func-* *> pmap (`* _) (eq.f_ret _) *> xi.inv-left
-          \in \case polyImage_integral f a ai x.2 \with {
-            | inP (p,pm,pe) => \case poly-factor-monomial (\lam p=0 => K.zro/=ide (monic/=0 pm p=0)) \with {
-              | (0, pzero, p=0, c) => absurd (c idp)
-              | (0, padd q e, p=qX+e, e/=0) => byRight $ x-inv $ Inv.lmake (negative $ polyEval (polyMap f q) x.1 * f (finv e)) $
-                  equation {usingOnly (inv ldistr *> pmap (f (finv e) *) (rewriteF p=qX+e pe) *> zro_*-right, inv func-* *> pmap f (K.finv-left e/=0) *> func-ide)}
-              | (suc n,q,p=X^n*q,lcq/=0) => \case aux f (monomial 1 (suc n)) q (BezoutRing.gcd_bezout \new GCD {
-                | gcd|val1 => LDiv.ide-div
-                | gcd|val2 => LDiv.ide-div
-                | gcd-univ u d (u|q : LDiv) => LDiv.fromTruncP (\lam s => Domain.nonZero-cancel-left (\lam u=0 => lcq/=0 $ pmap lastCoef $ inv u|q.inv-right *> pmap (`* _) u=0) s)
-                    \case monomial_div {K} {suc n} {u} d \with {
-                      | inP (c, c/=0, 0, t) => rewrite t $ inP \new LDiv {
-                        | inv => padd pzero (finv c)
-                        | inv-right => pmap (padd pzero) $ zro-left *> finv-right c/=0
-                      }
-                      | inP (c, c/=0, suc n, t) => absurd $ lcq/=0 $ monomial_div2 \new LDiv {
-                                                                       | inv => u|q.inv
-                                                                       | inv-right => pmap (`* _) (inv t) *> u|q.inv-right
-                                                                     }
-                    }
-              }) x.1 $ inv (func-* {polyMapEvalRingHom f x.1} {padd (monomial 1 n) 0}) *> inv (pmap (polyMapEval f __ x.1) (p=X^n*q *> inv (poly-monomial-char {K} {suc n}))) *> pe
-                \with {
-                  | byLeft (r,_) => byRight $ x-inv $ Inv.cfactor-right $ transport Inv (polyMapEval_monomial {f} {x.1} {suc n}) r
-                  | byRight (_,r) => byLeft $ ext $ E.noNilpotent {x.1} {suc n} $ inv (polyMapEval_monomial {f} {x.1} {suc n}) *> r
-                }
-            }
-          }
-
-    \func aux {K : Ring} {E : ImpotentCRing} (f : RingHom K E) (p q : Poly K) (c : ∃ (s t : Poly K) (s * p + t * q = 1)) (a : E) (d : polyEval (polyMap f p) a * polyEval (polyMap f q) a = 0)
-      : (\Sigma (Inv (polyMapEval f p a)) (polyMapEval f q a = 0)) || (\Sigma (Inv (polyMapEval f q a)) (polyMapEval f p a = 0)) \elim c
-      | inP (s,t,c) => \let h : RingHom => polyMapEvalRingHom f a
-                       \in ||.map (\lam (u,_) => (Inv.lmake (h s) u, equation)) (\lam (_,u) => (Inv.lmake (h t) u, equation)) $
-                            E.decomp (inv (h.func-+ *> pmap2 (+) h.func-* h.func-*) *> pmap (polyMapEvalRingHom f a) c *> h.func-ide) equation
-  }
+  => ImpotentCRing.zeroDim->field {ImpotentCRing.subring {SubRing.cStruct (polyImage f a)} SubRing.embed (\lam p => ext p)} (integralExt-zeroDim (polyImage_integralExt a ai))
