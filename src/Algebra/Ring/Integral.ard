@@ -258,3 +258,20 @@
 \func polyImage_field {K : DiscreteField} {E : ImpotentCRing} (f : RingHom K E) (a : E) (ai : isIntegral f a)
   : DiscreteField { | CRing => SubRing.cStruct (polyImage f a) }
   => ImpotentCRing.zeroDim->field {ImpotentCRing.subring {SubRing.cStruct (polyImage f a)} SubRing.embed (\lam p => ext p)} (integralExt-zeroDim (polyImage_integralExt a ai))
+
+\lemma integral_dom-zeroDim {R S : CRing} (f : RingHom R S) (inj : isInj f) (fi : isIntegralExt f) (Sd : S.IsZeroDimensional) : R.IsZeroDimensional
+  => \lam x => \case Sd (f x) \with {
+    | inP (y,k,s) => \case fi y \with {
+      | inP (p, inP (d,pd,pm), pe) => TruncP.map (aux pd pm s 0 $ rewrite (pe,f.func-zro) simplify) \lam s => (s.1, k, inj $ f.func-pow *> s.2 *> pmap (`* _) (pmap (`* _) (inv f.func-pow) *> inv f.func-*) *> inv f.func-*)
+    }
+  }
+  \where {
+    \private \func aux {p : Poly R} {k d : Nat} (pd : degree<= p d) (pm : polyCoef p d = 1) {x : R} {y : S} (c : S.pow (f x) k = S.pow (f x) (suc k) * y) (a : R) (pe : S.pow (f x) (k Nat.+ d) * polyMapEval f p y = S.pow (f x) (suc k) * f a) : ∃ (b : R) (S.pow (f x) k = S.pow (f x) (suc k) * f b) \elim p, d
+      | pzero, _ => inP (0, \have t {z : S} => inv ide-right *> pmap (z *) (inv f.func-ide *> pmap f (inv pm) *> f.func-zro) *> S.zro_*-right
+                            \in t *> inv t)
+      | padd p e, 0 => inP (a, inv ide-right *> pmap (_ *) (simplify (inv f.func-ide)) *> rewriteF (pd,pm) pe)
+      | padd p e, suc d =>
+        \have | t1 : S.pow (f x) (k Nat.+ d) * f x * y = S.pow (f x) (k Nat.+ d) => rewrite S.pow_+ equation
+              | t2 : S.pow (f x) (k Nat.+ d) * f e = S.pow (f x) k * (f (R.pow x d) * f e) => rewrite S.pow_+ $ *-assoc *> pmap (\lam x => _ * (x * _)) (inv f.func-pow)
+        \in unfold polyMapEval at pe $ aux pd pm c (a - e * R.pow x d) $ rewrite (f.func-+,f.func-negative,f.func-*) equation
+  }
