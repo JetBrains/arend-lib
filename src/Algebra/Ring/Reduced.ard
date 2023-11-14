@@ -4,6 +4,7 @@
 \import Algebra.Monoid
 \import Algebra.Ring
 \import Algebra.Ring.Category
+\import Algebra.Ring.Ideal
 \import Arith.Nat
 \import Function
 \import Function.Meta
@@ -13,6 +14,7 @@
 \import Order.LinearOrder
 \import Paths
 \import Paths.Meta
+\open Monoid(LDiv,Inv)
 
 \class ReducedRing \extends Ring {
   | isReduced {a : E} : a * a = 0 -> a = 0
@@ -25,7 +27,29 @@
         | suc n => aux $ isReduced (inv pow_+ *> p)
 }
 
-\class ReducedCRing \extends ReducedRing, CRing
+\class ReducedCRing \extends ReducedRing, CRing {
+  \lemma div_zero {a b : E} (d : LDiv a b) (p : a * b = 0) : b = 0
+    => isReduced $ pmap (`* b) (inv d.inv-right *> *-comm) *> *-assoc *> pmap (d.inv *) p *> zro_*-right
+
+  \lemma div_pow_zero {a b : E} {n : Nat} (d : LDiv a (pow b n)) (p : a * b = 0) : b = 0 \elim n
+    | 0 => inv ide-left *> pmap (`* b) (inv d.inv-right *> *-comm) *> *-assoc *> pmap (d.inv *) p *> zro_*-right
+    | suc n => noNilpotent {_} {_} {suc n} $ div_zero d $ pmap (a *) *-comm *> inv *-assoc *> pmap (`* _) p *> zro_*-left
+
+  \lemma div-cancel {a b b' : E} (d : LDiv a b) (d' : LDiv a b') (p : a * b = a * b') : b = b'
+    => div_pow-cancel {_} {a} {b} {b'} {1} {1} (rewrite ide-left d) (rewrite ide-left d') p
+
+  \lemma div_pow-cancel {a b b' : E} {n n' : Nat} (d : LDiv a (pow b n)) (d' : LDiv a (pow b' n')) (p : a * b = a * b') : b = b'
+    => \let | I : Ideal => Ideal.radical {Ideal.closure1 a}
+            | (inP (k,c)) => I.contains_- (inP (n, Ideal.closure1_LDiv.2 $ inP d)) (inP (n', Ideal.closure1_LDiv.2 $ inP d'))
+            | (inP dd) => Ideal.closure1_LDiv.1 c
+       \in fromZero $ div_pow_zero dd $ ldistr *> pmap (_ +) negative_*-right *> toZero p
+
+  \lemma div_div-cancel {a b b' : E} (d : LDiv a b) (d' : LDiv a b') (p : LDiv (a * b) (a * b')) : LDiv b b' p.inv
+    => div_pow_div-cancel {_} {a} {b} {b'} {1} {1} (rewrite ide-left d) (rewrite ide-left d') p
+
+  \lemma div_pow_div-cancel {a b b' : E} {n n' : Nat} (d : LDiv a (pow b n)) (d' : LDiv a (pow b' n')) (p : LDiv (a * b) (a * b')) : LDiv b b' p.inv \cowith
+    | inv-right => div_pow-cancel {_} {a} (rewrite pow_*-comm $ LDiv.factor-left d) d' $ inv *-assoc *> p.inv-right
+}
 
 \class PPRing \extends ReducedCRing {
   | isPPRing (a : E) : ∃ (u : E) (a = u * a) (\Pi {x : E} -> a * x = 0 -> u * x = 0)
@@ -62,13 +86,13 @@
 }
 
 \class ImpotentCRing \extends ImpotentRing, ReducedCRing, NonZeroCRing {
-  \lemma zeroDim->inv (zd : IsZeroDimensional) (x : E) : (x = 0) || Monoid.Inv x
+  \lemma zeroDim->inv (zd : IsZeroDimensional) (x : E) : (x = 0) || Inv x
     => \case zeroDimensional-char 0 2 zd x \with {
          | inP (u,k,k/=0,uu=u,x^k|u,u|x^k) => \case isImpotent uu=u \with {
            | byLeft u=0 => byLeft $ noNilpotent $ ldiv=0 u|x^k u=0
            | byRight u=1 => byRight \case \elim k, \elim x^k|u, \elim k/=0 \with {
              | 0, d, p => absurd (p idp)
-             | suc k, d, _ => Monoid.Inv.cfactor-right $ Monoid.Inv.ldiv (rewriteF u=1 d)
+             | suc k, d, _ => Inv.cfactor-right $ Inv.ldiv (rewriteF u=1 d)
            }
          }
     }

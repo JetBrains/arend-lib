@@ -3,7 +3,9 @@
  -   Guillaume Cano, Cyril Cohen, Maxime Dénès, Anders Mörtberg, Vincent Siles, Formalized linear algebra over Elementary Divisor Rings in Coq, 2016, https://arxiv.org/abs/1601.07472
  -}
 
+\import Algebra.Domain
 \import Algebra.Domain.Bezout
+\import Algebra.Group.Symmetric
 \import Algebra.Linear.Matrix
 \import Algebra.Linear.VectorSpace
 \import Algebra.Meta
@@ -15,10 +17,12 @@
 \import Algebra.Ring
 \import Algebra.Ring.Reduced
 \import Algebra.Semiring
+\import Arith.Fin
 \import Arith.Nat
 \import Data.Array
-\import Data.Fin (fsuc, fsuc/=)
+\import Data.Fin (fsuc, fsuc/=, nat_fin_=)
 \import Data.Or
+\import Function
 \import Function.Meta
 \import HLevel
 \import Logic
@@ -62,6 +66,19 @@
     \lemma transposed {R : Semiring} {n m : Nat} {A : Matrix R n m} (s : IsSmith A) : IsSmith (transpose A)
       => (IsDiagonal.transposed s.1, \lam i p q => s.2 i q p)
 
+    \lemma smith-diag {R : CRing} {n m : Nat} {A : Matrix R n m} (As : IsSmith A) {i i' : Fin n} {j j' : Fin m} (p : i = {Nat} j) (q : (i : Nat) <= i') : TruncP (LDiv (A i j) (A i' j'))
+      => \case decideEq (i' : Nat) j' \with {
+        | yes r => transport2 (\lam x y => TruncP (LDiv _ (A x y))) (fin_nat-inj $ toFin=id *> <=_exists q) (fin_nat-inj $ toFin=id *> later (rewriteI p $ <=_exists q *> r)) $ aux As p {i' -' i} (transportInv (`< n) (<=_exists q) (fin_< i')) $ rewriteI p $ transportInv (`< m) (<=_exists q *> r) (fin_< j')
+        | no r => inP $ transportInv (LDiv _) (As.1 r) R.zero-div
+      }
+      \where
+        \private \lemma aux {R : CRing} {n m : Nat} {A : Matrix R n m} (As : IsSmith A) {i : Fin n} {j : Fin m} (i=j : i = {Nat} j) {k : Nat} (p : i + k < n) (q : j + k < m)
+          : TruncP (LDiv (A i j) (A (toFin _ p) (toFin _ q))) \elim k
+          | 0 => inP $ LDiv.make 1 $ ide-right *> inv (pmap2 (\lam l => A l) toFin=fin toFin=fin)
+          | suc k => \case aux As i=j (<-transitive id<suc p) (<-transitive id<suc q), As.2 (i + k) p (rewrite i=j q) \with {
+            | inP d1, inP d2 => inP $ LDiv.trans d1 $ transport2 (\lam x y => LDiv (A _ x) (A _ y)) (fin_nat-inj $ toFin=id *> pmap (Nat.`+ k) i=j *> inv toFin=id) (fin_nat-inj $ toFin=id *> pmap (\lam x => suc (x Nat.+ k)) (later i=j) *> inv toFin=id) d2
+          }
+
     \lemma div-func {R : Semiring} {n m : Nat} {A : Matrix R n m} (As : IsSmith A)
       : TruncP (\Pi (i : Nat) (p : suc i < n) (q : suc i < m) -> LDiv (A ((\lam {k} => toFin k) $ <-transitive id<suc p) ((\lam {k} => toFin k) $ <-transitive id<suc q)) (A (toFin _ p) (toFin _ q)))
       => \case choice {NatFinSubset _ (\lam i => decide {ProductDecide (LinearOrder.<-dec (suc i) n) (LinearOrder.<-dec (suc i) m)}) n \lam i p => <-transitive id<suc p.1} (\lam s => As.2 s.1 s.2.1 s.2.2) \with {
@@ -73,7 +90,7 @@
         | yes i=j => transport2 (\lam x y => TruncP (LDiv (A 0 0) (A x y))) toFin=fin (fin_nat-inj $ toFin=id {i} {suc m} {rewrite i=j (fin_< j)} *> i=j) $ aux (fin_< i) $ rewrite i=j (fin_< j)
         | no i/=j => inP \new LDiv {
           | inv => 0
-          | inv-right => zro_*-right *> inv (As.1 i j i/=j)
+          | inv-right => zro_*-right *> inv (As.1 i/=j)
         }
       }
       \where \private \lemma aux {i : Nat} (p : i < suc n) (q : i < suc m) : TruncP (LDiv (A 0 0) (A (toFin i p) (toFin i q))) \elim i
@@ -101,7 +118,7 @@
            | (inP (x1,y1,kd)) => gcd_bezout {\new StrictBezoutRing { | CRing => R | isStrictBezout => bez }} (IsCoprime.=>gcd kc)
            | C => makeMatrix ((t, s), (negative (A 1 1 * y1), A 0 0 * x1 + A 0 1 * y1))
            | D => makeMatrix ((x1, negative (t * A 0 1 + s * A 1 1)), (y1, t * A 0 0))
-      \in inP (makeMatrix {E} ((1, 0), (0, A 0 0 * A 1 1)), \case \elim __, \elim __ \with {
+      \in inP (makeMatrix {E} ((1, 0), (0, A 0 0 * A 1 1)), \lam {i} {j} => \case \elim i, \elim j \with {
         | 0, 0 => \lam p => absurd (p idp)
         | 0, 1 => \lam _ => idp
         | 1, 0 => \lam _ => idp
@@ -113,11 +130,11 @@
         | 1, 1 => equation
       }))
   ), \lam (bez,diag) {n} {m} => \case \elim n, \elim m \with {
-    | 0, m => \lam _ _ A => inP (A, \case __ \with {}, ~-reflexive)
-    | n, 0 => \lam _ _ A => inP (A, \lam _ => \case __ \with {}, ~-reflexive)
-    | 1, 1 => \lam _ _ A => inP (A, \lam (0) (0) p => absurd (p idp), ~-reflexive)
+    | 0, m => \lam _ _ A => inP (A, \lam {i} => \case i \with {}, ~-reflexive)
+    | n, 0 => \lam _ _ A => inP (A, \lam {_} {j} => \case j \with {}, ~-reflexive)
+    | 1, 1 => \lam _ _ A => inP (A, \lam {0} {0} p => absurd (p idp), ~-reflexive)
     | 1, 2 => \lam _ _ A => TruncP.map (bez (A 0 0) (A 0 1)) \lam (s,t,u,v,au=bv,su+tv=1) =>
-        (makeMatrix ((s * A 0 1 + t * A 0 0, zro) :: nil), \case \elim __, \elim __ \with {
+        (makeMatrix ((s * A 0 1 + t * A 0 0, zro) :: nil), \lam {i} {j} => \case \elim i, \elim j \with {
           | 0, 0 => \lam p => absurd (p idp)
           | 0, 1 => \lam _ => idp
         }, inP (determinant1_Inv MatrixRing.ide (determinant11 MatrixRing.ide),
@@ -134,10 +151,10 @@
              | (inP (s',t',u',v',p',q')) => bez (B 0 0) (B 1 1)
              | C => makeMatrix ((t', s'), (negative u', v'))
              | D => makeMatrix ((ide, negative (s' * u')), (ide, t' * v'))
-        \in inP (C MatrixRing.product B MatrixRing.product D, \lam i j => unfold BigSum \case \elim i, \elim j \with {
+        \in inP (C MatrixRing.product B MatrixRing.product D, \lam {i} {j} => unfold BigSum \case \elim i, \elim j \with {
           | 0, 0 => \lam p => absurd (p idp)
-          | 0, 1 => \lam _ => rewrite (Bd 0 1 (\case __), Bd 1 0 \case __) equation
-          | 1, 0 => \lam _ => rewrite (Bd 0 1 (\case __), Bd 1 0 \case __) equation
+          | 0, 1 => \lam _ => rewrite (Bd {0} {1} (\case __), Bd {1} {0} \case __) equation
+          | 1, 0 => \lam _ => rewrite (Bd {0} {1} (\case __), Bd {1} {0} \case __) equation
           | 1, 1 => \lam p => absurd (p idp)
         }, inP (determinant1_Inv F (determinant22 {_} {F} *> equation), Inv.ide-isInv,
                 inv MatrixRing.product_ide-right) `~-transitive` A~B `~-transitive`
@@ -164,7 +181,7 @@
         | inP (B, Bd, inP (C : Inv, D : Inv, e)) =>
           \have detD-inv : Inv => determinant-inv.1 D
           \in inP (detD-inv.inv * D.val 1 0, detD-inv.inv * D.val 0 0, negative (D.val 0 1), D.val 1 1,
-                   equation {usingOnly (inv (Bd 0 1 \case __) *> pmap (__ 0 1) e, pmap (__ 0 0) C.inv-left)},
+                   equation {usingOnly (inv (Bd {0} {1} \case __) *> pmap (__ 0 1) e, pmap (__ 0 0) C.inv-left)},
                    equation {usingOnly (rewriteF determinant22 detD-inv.inv-left)})
       }
 
@@ -181,26 +198,26 @@
 
     \lemma aux {R : CRing} {k m n : Nat} (S : \Pi {n m : Nat} -> n <= m -> m <= 2 -> \Pi (A : Matrix R n m) -> ∃ (B : Matrix R n m) (IsDiagonal B) (A M~ B))
                (p : 2 Nat.* n Nat.+ m < k) (A : Matrix R n m) : ∃ (B : Matrix R n m) (IsSmith B) (A M~ B) \elim k, m, n
-      | _, 0, _ => inP (A, (\lam _ => \case __ \with {}, \lam _ _ => \case __), ~-reflexive)
-      | _, _, 0 => inP (A, (\case __ \with {}, \lam _ => \case __), ~-reflexive)
-      | _, 1, 1 => inP (A, (\lam (0) (0) p => absurd (p idp), \lam n q => absurd linarith), ~-reflexive)
+      | _, 0, _ => inP (A, (\lam {_} {j} => \case j \with {}, \lam _ _ => \case __), ~-reflexive)
+      | _, _, 0 => inP (A, (\lam {i} => \case i \with {}, \lam _ => \case __), ~-reflexive)
+      | _, 1, 1 => inP (A, (\lam {0} {0} p => absurd (p idp), \lam n q => absurd linarith), ~-reflexive)
       | suc k, 1, suc (suc n) => transposed $ aux {_} {k} S linarith (transpose A)
       | suc k, 2, suc (suc (suc n)) => transposed $ aux {_} {k} S linarith (transpose A)
-      | _, 2, 1 => TruncP.map (S linarith <=-refl A) \lam (B,Bd,A~B) => (B, (Bd, \lam i (NatSemiring.suc<suc ())), A~B)
+      | _, 2, 1 => TruncP.map (S linarith <=-refl A) \lam (B,Bd,A~B) => (B, (\lam q => Bd q, \lam i (NatSemiring.suc<suc ())), A~B)
       | _, 2, 2 =>
           \let | (inP (B,Bd,A~B)) => S <=-refl <=-refl A
                | (inP (s,t,u,v,p,q)) => smith-isBezout (S linarith <=-refl) (B 0 0) (B 1 1)
                | C => makeMatrix ((t, s), (negative u, v))
                | D => makeMatrix ((ide, negative (s * u)), (ide, t * v))
-          \in inP (C MatrixRing.product B MatrixRing.product D, (\case \elim __, \elim __ \with {
+          \in inP (C MatrixRing.product B MatrixRing.product D, (\lam {i} {j} => \case \elim i, \elim j \with {
             | 0, 0 => \lam p => absurd (p idp)
-            | 0, 1 => \lam _ => unfold BigSum $ rewrite (Bd 1 0 \case __ \with {}, Bd 0 1 \case __) equation
-            | 1, 0 => \lam _ => unfold BigSum $ rewrite (Bd 1 0 \case __ \with {}, Bd 0 1 \case __) equation
+            | 0, 1 => \lam _ => unfold BigSum $ rewrite (Bd {1} {0} \case __ \with {}, Bd {0} {1} \case __) equation
+            | 1, 0 => \lam _ => unfold BigSum $ rewrite (Bd {1} {0} \case __ \with {}, Bd {0} {1} \case __) equation
             | 1, 1 => \lam p => absurd (p idp)
           }, \case \elim __, \elim __, \elim __ \with {
             | 0, p, q => inP \new LDiv {
               | inv => u * v
-              | inv-right => unfold BigSum $ rewrite (Bd 1 0 \case __ \with {}, Bd 0 1 \case __) equation
+              | inv-right => unfold BigSum $ rewrite (Bd {1} {0} \case __ \with {}, Bd {0} {1} \case __) equation
             }
             | suc i, NatSemiring.suc<suc (NatSemiring.suc<suc ()), _
           }), ~-transitive A~B $ inP (determinant1_Inv C $ determinant22 {_} {C} *> equation, determinant1_Inv D $ determinant22 {_} {D} *> equation, idp))
@@ -228,12 +245,12 @@
                                                      *> pmap2 (+) (cong $ ext \lam i' => pmap2 (*) (cong $ ext \lam k => pmap (P2.val i k *) $ \case \elim i', \elim k \with {
                                         | 0, k => idp
                                         | 1, 0 => idp
-                                        | 1, suc k => Bs.1 (suc k) 0 \case __
+                                        | 1, suc k => Bs.1 {suc k} {0} \case __
                                       }) (blockMatrix.elem00 {_} {2} {2} {suc m} {suc m} {Q2.val} {MatrixRing.ide} i' 0)) (BigSum_zro {_} {\new Array E (suc m) \lam j => BigSum (\lam k => P2.val i k * B k (suc j)) * zro} \lam j => zro_*-right) *> zro-right
                                       | 1 => inv $ BigSum-split {_} {2} {suc m} {\lam j => BigSum (\lam k => P2.val i k * (::) (BigSum (\lam j => P1.val k j * A j 0)) (B k) j) * blockMatrix Q2.val MatrixRing.ide j 1} *> pmap2 (+) (cong $ ext \lam j => pmap2 (*) (cong $ ext \lam k => pmap (_ *) \case \elim j, \elim k \with {
                                         | 0, k => idp
                                         | 1, 0 => idp
-                                        | 1, suc k => Bs.1 (suc k) 0 \case __
+                                        | 1, suc k => Bs.1 {suc k} {0} \case __
                                       }) (blockMatrix.elem00 {_} {2} {2} {suc m} {suc m} {Q2.val} {MatrixRing.ide} j 1)) (BigSum_zro {_} {\new Array E (suc m) \lam j => BigSum (\lam k => P2.val i k * B k (suc j)) * zro} \lam j => zro_*-right) *> zro-right
                                       | suc (suc j) => inv ide-right *> pmap (_ *) (later $ rewrite (decideEq=_reduce idp) idp) *> inv (BigSum-unique {_} {\lam k => BigSum (\lam j => P2.val i j * (::) (BigSum (\lam k => P1.val j k * A k 0)) (B j) k) * blockMatrix Q2.val MatrixRing.ide k (suc (suc j))} (suc (suc j)) \lam k j+2/=k => pmap (_ *) (later \case ++'.split-index {2} k \with {
                                         | inl (k',p) => rewrite p $ blockMatrix.elem01 {_} {2} {2} {suc m} {suc m} {Q2.val} {MatrixRing.ide} k' j
@@ -309,11 +326,11 @@
             }
             | (inP (C,Cs,B'~C)) => IH B'
             | A~C : A M~ blockMatrix M11 C => ~-transitive A~B $ transportInv (`~ _) B=B' $ blockMatrix_M~ {_} {_} {_} {_} {_} {M11} {M11} {B'} {C} ~-reflexive B'~C
-       \in inP (blockMatrix M11 C, (\case \elim __, \elim __ \with {
+       \in inP (blockMatrix M11 C, (\lam {i} {j} => \case \elim i, \elim j \with {
          | 0, 0 => \lam p => absurd (p idp)
          | 0, suc j => \lam _ => idp
          | suc i, 0 => \lam _ => idp
-         | suc i, suc j => \lam p => Cs.1 i j \lam i=j => p (pmap suc i=j)
+         | suc i, suc j => \lam p => Cs.1 \lam i=j => p (pmap suc i=j)
        }, \case \elim __ \with {
          | 0 => \case \elim n, \elim m, \elim C, \elim A, \elim A~C, \elim d00 \with {
            | 0, m, _, _, _, _ => \lam p => absurd (<-irreflexive p)
@@ -396,6 +413,121 @@
   }
 
 \class SmithDomain \extends BezoutDomain.Dec, SmithRing
+
+\lemma smith-unique {R : StrictIntegralDomain} {n m : Nat} {A B : Matrix R n m} (As : IsSmith A) (Bs : IsSmith B) (A~B : A M~ B)
+                    (i : Fin n) (j : Fin m) : TruncP (associates (A i j) (B i j))
+  => \case smith-div-equiv As Bs A~B i j \with {
+       | inP (d,d') => R.div-associates d d'
+     }
+  \where \private {
+    \func subMatrix {R : \Type} {n m : Nat} (A : Matrix R n m) (li : Array (Fin n)) (lj : Array (Fin m)) : Matrix R li.len lj.len
+      => mkMatrix \lam i j => A (li i) (lj j)
+
+    \func subMatrix_perm {R : \Type} {n m : Nat} {A : Matrix R n m} {k : Nat} {li li' : Array (Fin n) k} {lj : Array (Fin m)} (p : Perm li li')
+      : Perm (subMatrix A li lj) (subMatrix A li' lj) \elim k, li, li', p
+      | 0, nil, nil, perm-nil => perm-nil
+      | suc k, x :: li, _ :: li', perm-:: idp q => perm-:: idp (subMatrix_perm q)
+      | suc (suc k), x :: (x' :: li), _ :: (_ :: _), perm-swap idp idp idp => perm-swap idp idp idp
+      | k, li, li', perm-trans p1 p2 => perm-trans (subMatrix_perm p1) (subMatrix_perm p2)
+
+    \open isMultiLinear
+    \open FinLinearOrder (FinLinearOrderInst)
+
+    \lemma subMatrix-div {R : CRing} {n m k s : Nat} {B : Matrix R n m} {A : Matrix R m k} {C : Matrix R k s} {d : R}
+                         {l : Nat} (p : \Pi (li : Array (Fin m) l) (lj : Array (Fin k) l) -> TruncP (LDiv d (determinant (subMatrix A li lj))))
+                         (li : Array (Fin n) l) (lj : Array (Fin s) l) : TruncP (LDiv d (determinant (subMatrix (B MatrixRing.product A MatrixRing.product C) li lj)))
+      => rewriteI determinant_transpose $ transportInv (\lam x => TruncP (LDiv d (determinant (subMatrix x lj li)))) (transpose_*.product {_} {_} {_} {_} {B MatrixRing.product A}) $
+          subMatrix-div-left (transpose C) (transpose (B MatrixRing.product A)) lj li \lam lk => transportInv (\lam x => TruncP (LDiv d x)) (determinant_transpose (subMatrix (B MatrixRing.product A) li lk)) $
+          subMatrix-div-left B A li lk \lam lm => p lm lk
+      \where
+        \lemma subMatrix-div-left {R : CRing} {n m k : Nat} (B : Matrix R n m) (A : Matrix R m k) {d : R}
+                                  {l : Nat} (li : Array (Fin n) l) (lj : Array (Fin k) l)
+                                  (p : \Pi (li : Array (Fin m) l) -> TruncP (LDiv d (determinant (subMatrix A li lj))))
+          : TruncP (LDiv d (determinant (subMatrix (B MatrixRing.product A) li lj)))
+          => \let | args : Array _ l => \lam i => makeLinearComb {R} {ArrayFinModule l} (\lam i j => A i (lj j)) (\lam j => (B (li i) j, j))
+                  | q : mkMatrix (\lam i j => (args i).1 j) = subMatrix (B MatrixRing.product A) li lj
+                      => matrixExt \lam i j => ArrayLModule.BigSum-index
+                  | c : IsLinearComb (determinant $ subMatrix (B MatrixRing.product A) li lj) (\lam (g : Fin l -> Fin m) => determinant (subMatrix A g lj))
+                      => rewriteF q $ multiLinear-comb {R} {ArrayFinModule l} {RingLModule R} args (\lam l => determinant l) determinant.multilinear
+             \in linearComb-div c \lam j => p j
+
+    \func index {n k : Nat} (p : k <= n) (i : Fin k) => toFin i (NatSemiring.<-transitive-left (fin_< i) p)
+
+    \func diagProd {M : Monoid} {n m k : Nat} (A : Matrix M n m) (p : k <= n) (q : k <= m) : M
+      => BigProd \lam (j : Fin k) => A (index p j) (index q j)
+
+    \lemma diagProd_suc {M : Monoid} {n m k : Nat} {A : Matrix M n m} {p : suc k <= n} {q : suc k <= m}
+      : diagProd A p q = diagProd A (id<=suc <=∘ p) (id<=suc <=∘ q) * A (toFin k $ <-transitive-left id<suc p) (toFin k $ <-transitive-left id<suc q)
+      => M.BigProd_suc {k} {\lam j => A (index p j) (index q j)} *> pmap2 (_ * A __ __)
+          (nat_fin_= $ toFin=id *> later (mod_< id<suc) *> inv toFin=id)
+          (nat_fin_= $ toFin=id *> later (mod_< id<suc) *> inv toFin=id)
+
+    \lemma diag-sub {R : CRing} {n m k : Nat} {A : Matrix R n m} (Ad : IsDiagonal A) (p : k <= n) (q : k <= m)
+      : diagProd A p q = determinant (subMatrix A (index p) (index q))
+      => inv $ determinant_IsDiagonal {_} {_} {subMatrix A (index p) (index q)} \lam i/=j => Ad \lam p => i/=j $ inv toFin=id *> p *> toFin=id
+
+    \func determinant_subMatrix {R : CRing} {n m k : Nat} {A : Matrix R n m} (Ad : IsDiagonal A) {li : Array (Fin n) k} {lj : Array (Fin m) k}
+                                (lis : sort.IsSorted li) (ljs : sort.IsSorted lj) (inj : isInj li)
+      : determinant (subMatrix A li lj) = BigProd \lam j => A (li j) (lj j)
+      => AbMonoid.FinSum-unique 1 (later \lam e e/=1 => pmap (_ *) (\case decideEq {ArrayDec NatSemiring k} (\lam j => li (e j)) (\lam j => lj j) \with {
+           | yes p => \have | t => sort.perm_= {NatSemiring} {k} {\lam i => li i} (transport (Perm {Nat} li) p (Perm.equiv_perm {Nat} {_} {li} e)) (\lam p q => lis p q) (\lam p q => ljs p q)
+                            | (j,ej/=j) => array/= {_} {_} {\lam j => e j} {\lam j => j} (\lam p => e/=1 $ Sym.equals \lam j i => p i j)
+                      \in R.BigProd_zro j $ later $ Ad \lam p => ej/=j $ inj $ nat_fin_= $ p *> inv (pmap {Array Nat k} (__ j) t)
+           | no q => \have s => array/= q
+                     \in R.BigProd_zro s.1 $ later (Ad s.2)
+      }) *> R.zro_*-right) *> pmap (`* _) sign_ide *> ide-left
+
+    \lemma diag-div {R : CRing} {n m k : Nat} {A : Matrix R n m} (As : IsSmith A) (p : k <= n) (q : k <= m) (li : Array (Fin n) k) (lj : Array (Fin m) k)
+      : TruncP (LDiv (diagProd A p q) (determinant (subMatrix A li lj)))
+      => rewrite (isAlternating.alternating_perm {R} determinant.alternatingT {subMatrix (transpose A) lj li} (subMatrix_perm {_} {_} {_} {transpose A} sort.sort-perm),
+                  isAlternating.alternating_perm {R} determinant.alternating {subMatrix A li (sort lj)} (subMatrix_perm sort.sort-perm)) $
+         TruncP.map (TruncP.map (\case repeats-dec (sort li) \with {
+           | inl s => inP $ transportInv (LDiv _) (isAlternating.to/= {R} determinant.alternating (subMatrix A (sort li) (sort lj)) (s.1, s.2, s.3, exts \lam j => pmap (A __ _) s.4)) R.zero-div
+           | inr inj => transportInv (\lam x => TruncP (LDiv _ x)) (determinant_subMatrix As.1 sort.sort-sorted sort.sort-sorted inj) $ R.LDiv_BigProd_TruncP {k} {\lam j => A (index p j) (index q j)} \lam j => \case decideEq (sort li j : Nat) (sort lj j) \with {
+             | yes q => later $ IsSmith.smith-diag As (toFin=id *> inv toFin=id) $ rewrite toFin=id (sorted-monotone sort.sort-sorted inj)
+             | no q => inP $ transportInv (LDiv _) (later $ As.1 q) R.zero-div
+           }
+         }) LDiv.factor-right) LDiv.factor-right
+      \where {
+        \lemma sorted-monotone {n : Nat} {l : Array (Fin n)} (s : sort.IsSorted l) (inj : isInj l) {j : Fin l.len} : j NatSemiring.<= l j
+          => aux (\lam _ => zero<=_) \lam {i} {j} p => \case LinearOrder.dec<_<= (l i) (l j) \with {
+            | inl r => r
+            | inr r => absurd $ <-irreflexive $ rewriteF (inj $ <=-antisymmetric (s p) r) p
+          }
+          \where {
+            \private \lemma aux {n k : Nat} {l : Array (Fin n)} (p : \Pi (j : Fin l.len) -> k <= l j) (q : \Pi {i j : Fin l.len} -> i < j -> l i < l j) {j : Fin l.len} : k + j NatSemiring.<= l j \elim l, j
+              | a :: l, 0 => p 0
+              | a :: l, suc j => aux (\lam j => suc_<_<= $ <-transitive-right (p 0) $ q {0} {suc j} NatSemiring.zero<suc) (\lam s => q (NatSemiring.suc<suc s))
+          }
+      }
+
+    \lemma prod-div {R : CRing} {n m k : Nat} {A B : Matrix R n m} (As : IsSmith A) (Bs : IsSmith B) (A~B : A M~ B) (p : k <= n) (q : k <= m)
+                    : TruncP (LDiv (diagProd A p q) (diagProd B p q)) \elim A~B
+      | inP (C,D,B=CAD) => rewrite {2} (diag-sub Bs.1 p q) $ rewrite B=CAD $ subMatrix-div (diag-div As p q) (index p) (index q)
+
+    \lemma smith-div {R : ReducedCRing} {n m : Nat} {A B : Matrix R n m} (As : IsSmith A) (Bs : IsSmith B) (A~B : A M~ B)
+                     (i : Fin n) (j : Fin m) : TruncP (LDiv (A i j) (B i j))
+      => \case decideEq (i : Nat) j \with {
+           | no i/=j => inP $ transportInv (LDiv _) (Bs.1 i/=j) R.zero-div
+           | yes i=j =>
+             \have | i<=n : (i : Nat) <= n => LinearOrder.<_<= $ later (fin_< i)
+                   | i<=m : (i : Nat) <= m => rewrite i=j $ LinearOrder.<_<= $ later (fin_< j)
+                   | (inP A'|B') => prod-div As Bs A~B (suc_<_<= (fin_< i)) (rewrite i=j $ suc_<_<= (fin_< j))
+                   | (inP A|B) => prod-div As Bs A~B i<=n i<=m
+                   | (inP B|A) => prod-div Bs As (~-symmetric A~B) i<=n i<=m
+                   | (inP d1) => R.LDiv_BigProd_TruncP {_} {\lam k => A (index i<=n k) (index i<=m k)} {replicate i (A i j)} \lam k => IsSmith.smith-diag As (toFin=id *> inv toFin=id) $ rewrite toFin=id $ LinearOrder.<_<= $ later (fin_< k)
+                   | (inP d2) => R.LDiv_BigProd_TruncP {_} {\lam k => B (index i<=n k) (index i<=m k)} {replicate i (B i j)} \lam k => IsSmith.smith-diag Bs (toFin=id *> inv toFin=id) $ rewrite toFin=id $ LinearOrder.<_<= $ later (fin_< k)
+                   | d => transport2 LDiv (diagProd_suc *> pmap2 (\lam x y => _ * A x y) toFin=fin (nat_fin_= $ toFin=id *> i=j))
+                                          (diagProd_suc *> pmap2 (\lam x y => _ * B x y) toFin=fin (nat_fin_= $ toFin=id *> i=j)) A'|B'
+             \in inP $ R.div_pow_div-cancel {diagProd A i<=n i<=m} (rewriteI BigProd_replicate d1) (LDiv.trans A|B $ rewriteI BigProd_replicate d2) $ LDiv.trans d $ LDiv.product-right (B i j) B|A
+         }
+
+    \lemma smith-div-equiv {R : ReducedCRing} {n m : Nat} {A B : Matrix R n m} (As : IsSmith A) (Bs : IsSmith B) (A~B : A M~ B)
+                           (i : Fin n) (j : Fin m) : ∃ (LDiv (A i j) (B i j)) (LDiv (B i j) (A i j))
+      => \case smith-div As Bs A~B i j, smith-div Bs As (~-symmetric A~B) i j \with {
+           | inP r1, inP r2 => inP (r1,r2)
+         }
+  }
 
 {-
 \lemma smith-subMatrix {R : SmithRing} {m k : Nat} (A : Matrix R m k) (n : Nat)

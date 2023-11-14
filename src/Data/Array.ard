@@ -8,6 +8,7 @@
 \import Arith.Nat
 \import Data.Bool
 \import Data.Fin
+\import Data.List(List, Sort, headDef, length)
 \import Data.Maybe
 \import Data.Or
 \import Equiv
@@ -622,6 +623,12 @@
 
     \func perm_equiv {A : \Type} {n : Nat} {l l' : Array A n} (p : Perm l l') : \Sigma (e : Equiv {Fin n} {Fin n}) (\Pi (j : Fin n) -> l' j = l (e j))
       => EPerm.eperm_equiv (EPerm.Perm_EPerm p)
+
+    \func perm_list {A : \Type} {n : Nat} {l l' : Array A n} (p : Perm l l') : Sort.Perm (toList l) (toList l') \elim n, l, l', p
+      | 0, nil, nil, perm-nil => Sort.perm-nil
+      | suc n, x :: l, y :: l', perm-:: p q => Sort.perm-:: p (perm_list q)
+      | suc (suc n), x :: (x' :: l), y :: (y' :: l'), perm-swap p1 p2 q => Sort.perm-swap p1 p2 (pmap toList q)
+      | n, l, l', perm-trans p1 p2 => Sort.perm-trans (perm_list p1) (perm_list p2)
   }
 
 \data EPerm {A : \Type} (l1 l2 : Array A) \elim l1, l2
@@ -712,6 +719,9 @@
     \func EPerm_Perm {A : \Type} {n : Nat} {l l' : Array A n} (p : EPerm l l') : Perm l l'
       => \have (e,f) => eperm_equiv p
          \in transport (Perm l) (exts \lam j => inv (f j)) (Perm.equiv_perm e)
+
+    \func EPerm_Perm_transport {A : \Type} {n m : Nat} {l : Array A n} {l' : Array A m} (e : EPerm l l') (p : n = m) : Perm (transport (\lam n => Array A n) p l) l' \elim p
+      | idp => EPerm_Perm e
 
     \func eperm_equiv {A : \Type} {l l' : Array A} (p : EPerm l l') : \Sigma (e : Equiv {Fin l'.len} {Fin l.len}) (\Pi (j : Fin l'.len) -> l' j = l (e j)) \elim l, l', p
       | nil, nil, eperm-nil => (idEquiv, \case __)
@@ -895,17 +905,77 @@
     }
   }
 
-\func findDuplicates {A : DecSet} (l : Array A) : Or (\Sigma (i j : Fin l.len) (i /= j) (l i = l j)) (\Pi {i j : Fin l.len} -> l i = l j -> i = j) \elim l
-  | nil => inr \lam {i} => \case i
-  | a :: l => \case find a l \with {
-    | inl r => inl (suc r.1, 0, (\case __), r.2)
-    | inr r => \case findDuplicates l \with {
-      | inl s => inl (suc s.1, suc s.2, fsuc/= s.3, s.4)
-      | inr s => inr \lam {i} {j} => \case \elim i, \elim j \with {
-        | 0, 0 => \lam _ => idp
-        | 0, suc j => \lam p => absurd (r (inv p))
-        | suc i, 0 => \lam p => absurd (r p)
-        | suc i, suc j => \lam p => pmap fsuc (s p)
+\func toList {A : \Type} (l : Array A) : List A \elim l
+  | nil => List.nil
+  | a :: l => a List.:: toList l
+
+\lemma toList_length {A : \Type} {l : Array A} : length (toList l) = l.len \elim l
+  | nil => idp
+  | a :: l => pmap suc toList_length
+
+\func fromList {A : \Type} (l : List A) : Array A (length l) \elim l
+  | List.nil => nil
+  | a List.:: l => a :: fromList l
+
+\func fromList_toList {A : \Type} {l : Array A} : fromList (toList l) = l \elim l
+  | nil => idp
+  | a :: l => pmap (a ::) fromList_toList
+
+\func sort {A : LinearOrder.Dec} (l : Array A) : Array A l.len
+  => transport (\lam n => Array A n) (inv (Sort.Perm.perm_length (Sort.Insertion.sort-perm _)) *> toList_length) $ fromList (Sort.Insertion.sort (toList l))
+  \where {
+    \func IsSorted {A : Preorder} (l : Array A) => \Pi {i j : Fin l.len} -> i NatSemiring.< j -> l i <= l j
+
+    \lemma sorted_transport {A : Preorder} {n m : Nat} {l : Array A n} (p : n = m) (s : IsSorted l) : IsSorted (transport (\lam n => Array A n) p l) \elim p
+      | idp => s
+
+    \lemma list_sorted {A : Preorder} {l : List A} (s : Sort.Sorted l) : IsSorted (fromList l) \elim l, s
+      | List.nil, Sort.sorted-nil => \lam {i} => \case i
+      | x List.:: l, Sort.sorted-cons p s => \lam {i} {j} p => \case \elim i, \elim j, \elim p \with {
+        | 0, suc j, NatSemiring.zero<suc => p <=∘ headDef_fromList s
+        | suc i, suc j, NatSemiring.suc<suc p => list_sorted s p
       }
-    }
+      \where {
+        \lemma headDef_fromList {a : A} {l : List A} {j : Fin (length l)} (s : Sort.Sorted l) : headDef a l <= fromList l j \elim l, j, s
+          | b List.:: l, 0, _ => <=-refl
+          | b List.:: l, suc j, Sort.sorted-cons p s => p <=∘ headDef_fromList s
+      }
+
+    \lemma sorted_list {A : Preorder} {l : Array A} (s : IsSorted l) : Sort.Sorted (toList l) \elim l
+      | nil => Sort.sorted-nil
+      | a :: l => Sort.sorted-cons (\case \elim l, \elim s \with {
+        | nil, s => <=-refl
+        | b :: l, s => s {0} {1} NatSemiring.zero<suc
+      }) $ sorted_list \lam p => s (NatSemiring.suc<suc p)
+
+    \lemma sort-sorted {A : LinearOrder.Dec} {l : Array A} : IsSorted (sort l)
+      => sorted_transport _ (list_sorted (Sort.Insertion.sort-sorted _))
+
+    \sfunc sort-perm {A : LinearOrder.Dec} {n : Nat} {l : Array A n} : Perm l (sort l)
+      => Perm.perm-sym $ EPerm.EPerm_Perm_transport (EPerm.eperm-sym sort-eperm) _
+      \where {
+        \func list_perm {A : \Type} {l l' : List A} (p : Sort.Perm l l') : EPerm (fromList l) (fromList l') \elim l, l', p
+          | List.nil, List.nil, Sort.perm-nil => eperm-nil
+          | x List.:: l, y List.:: l', Sort.perm-:: p q => eperm-:: p (list_perm q)
+          | x List.:: (x' List.:: l), y List.:: (y' List.:: l'), Sort.perm-swap p1 p2 q => eperm-swap p1 p2 (pmap fromList q)
+          | l, l', Sort.perm-trans p1 p2 => eperm-trans (list_perm p1) (list_perm p2)
+
+        \func sort-eperm {A : LinearOrder.Dec} {l : Array A} : EPerm l (fromList (Sort.Insertion.sort (toList l)))
+          => transport (EPerm __ _) fromList_toList $ list_perm (Sort.Insertion.sort-perm _)
+      }
+
+    \lemma perm_= {A : LinearOrder.Dec} {n : Nat} {l l' : Array A n} (p : Perm l l') (s : IsSorted l) (s' : IsSorted l') : l = l'
+      => exts $ array-unext $ inv fromList_toList *> pmap fromList (inv (Sort.Insertion.sorted_sort (sorted_list s)) *> Sort.Insertion.perm_sort (Perm.perm_list p) *> Sort.Insertion.sorted_sort (sorted_list s')) *> fromList_toList
+  }
+
+\instance ArrayDec (A : DecSet) (n : Nat) : DecSet (Array A n)
+  | decideEq => aux
+  \where {
+    \private \lemma aux {n : Nat} (l l' : Array A n) : Dec (l = l') \elim n, l, l'
+      | 0, nil, nil => yes idp
+      | suc n, a :: l, a' :: l' => \case decideEq a a', aux l l' \with {
+        | yes e, yes e' => yes $ pmap2 (::) e e'
+        | _, no q => no \lam p => q (pmap tail p)
+        | no q, _ => no \lam p => q (unhead p)
+      }
   }

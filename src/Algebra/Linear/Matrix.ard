@@ -2,6 +2,7 @@
 \import Algebra.Group
 \import Algebra.Group.Category
 \import Algebra.Group.Symmetric
+\import Algebra.Linear.VectorSpace
 \import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Module.Category
@@ -206,7 +207,7 @@
     \lemma product_negative-right {R : Ring} {n m k : Nat} {M : Matrix R n m} {N : Matrix R m k} : M product negative N = negative (M product N)
       => product-gen_negative-right {_} {RingLModule R} _ _
 
-    \lemma ide_generates {R : Ring} {n : Nat} : LModule.IsGenerated {ArrayLModule n (RingLModule R)} ide
+    \lemma ide_generates {R : Ring} {n : Nat} : LModule.IsGenerated {ArrayFinModule {R} n} ide
       => \lam l => inP (l, arrayExt $ \lam j => inv $ ArrayLModule.BigSum-index *> R.BigSum-unique j (\lam i j/=i => later $ rewrite (decideEq/=_reduce $ \lam p => j/=i (inv p)) zro_*-right) *> rewrite (decideEq=_reduce idp) ide-right)
 
     -- | A recursive definition of the identity matrix is sometimes more convenient.
@@ -295,6 +296,9 @@
       | 0 => ((), \lam _ (t,_,_,_) => \case t)
       | suc n => transportInv (\lam d => isAlternating {R} (\lam M => d M)) (path $ \lam i M => determinantN.determinant=determinant0 {R} {n} {M} i) (determinantN.alternating {R} {suc n} 0)
 
+    \lemma alternatingT {R : CRing} {n : Nat} : isAlternating {R} {n} (\lam M => determinant (transpose M))
+      => transportInv (isAlternating {R}) (ext \lam M => determinant_transpose M) alternating
+
     \func minor00 {R : \Type} {n m : Nat} (M : Matrix R (suc n) (suc m)) : minor M 0 0 = mkMatrix \lam i j => M (suc i) (suc j)
       => matrixExt \lam i j => skip_0 *> rewrite skip_0 idp
   }
@@ -322,9 +326,9 @@
       : minor (replace M j x) i k = replace (minor M i k) (newIndex p) (skip x k)
       => path (\lam i => map (skip __ k) (skip_replace_/= p i)) *> pmap makeMatrix (map_replace (skip __ k))
 
-    \lemma multilinear {R : CRing} {n : Nat} (k : Fin n) : isMultiLinear {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinantN k M) \elim n
+    \lemma multilinear {R : CRing} {n : Nat} (k : Fin n) : isMultiLinear {R} {n} {ArrayFinModule n} {RingLModule R} (\lam M => determinantN k M) \elim n
       | 0 => ()
-      | suc n => isMultilinear_BigSum {R} {suc n} {ArrayLModule (suc n) (RingLModule R)} (\lam i M => M i k * R.pow -1 (i Nat.+ k) * determinant (minor M i k)) $ \lam i M j => \case decideEq j i \with {
+      | suc n => isMultilinear_BigSum {R} {suc n} {ArrayFinModule (suc n)} (\lam i M => M i k * R.pow -1 (i Nat.+ k) * determinant (minor M i k)) $ \lam i M j => \case decideEq j i \with {
         | yes e => \new LinearMap {
           | func-+ {a} {b} => rewrite e $ *-assoc *> pmap {Array R (suc n)} (__ k * _) (insert-index {Array R (suc n)}) *> rdistr *> pmap2 (+)
                                 (pmap (\lam x => _ * (_ * determinant x)) (minor_insert *> inv minor_insert) *> inv (*-assoc *> pmap {Array R (suc n)} (__ k * _) (insert-index {Array R (suc n)})))
@@ -337,7 +341,7 @@
         }
       }
 
-    \lemma alternating {R : CRing} {n : Nat} (k : Fin n) : isAlternating {R} {n} {ArrayLModule n (RingLModule R)} {RingLModule R} (\lam M => determinantN k M) \elim n
+    \lemma alternating {R : CRing} {n : Nat} (k : Fin n) : isAlternating {R} {n} {ArrayFinModule n} {RingLModule R} (\lam M => determinantN k M) \elim n
       | 0 => ((), \lam _ => \case __.1)
       | suc n => (multilinear k, \lam M => aux k M)
       \where {
@@ -567,20 +571,20 @@
   \where \open MatrixRing
 
 \type IsDiagonal {R : AddPointed} {n m : Nat} (A : Matrix R n m) : \Prop
-  => \Pi (i : Fin n) (j : Fin m) -> i /= {Nat} j -> A i j = 0
+  => \Pi {i : Fin n} {j : Fin m} -> i /= {Nat} j -> A i j = 0
   \where {
     \lemma transposed {R : AddPointed} {n m : Nat} {A : Matrix R n m} (d : IsDiagonal A) : IsDiagonal (transpose A)
-      => \lam i j i/=j => d j i (/=-sym i/=j)
+      => \lam i/=j => d (/=-sym i/=j)
 
     \lemma =>upperTriangular {R : AddPointed} {n m : Nat} {A : Matrix R n m} (d : IsDiagonal A) : IsUpperTriangular A
-      => \lam i j j<i => d i j \lam p => linarith
+      => \lam i j j<i => d \lam p => linarith
 
     \lemma =>lowerTriangular {R : AddPointed} {n m : Nat} {A : Matrix R n m} (d : IsDiagonal A) : IsLowerTriangular A
-      => \lam i j j<i => d i j \lam p => linarith
+      => \lam i j j<i => d \lam p => linarith
   }
 
 \lemma *c_IsDiagonal {R : Ring} {n m : Nat} {A : Matrix R n m} {a : R} (Ad : IsDiagonal A) : IsDiagonal (a *c A)
-  => \lam i j i/=j => pmap (a *) (Ad i j i/=j) *> zro_*-right
+  => \lam i/=j => pmap (a *) (Ad i/=j) *> zro_*-right
 
 \type IsUpperTriangular {R : AddPointed} {n m : Nat} (A : Matrix R n m) : \Prop
   => \Pi (i : Fin n) (j : Fin m) -> (j : Nat) < i -> A i j = 0
@@ -589,7 +593,7 @@
   => \Pi (i : Fin n) (j : Fin m) -> (i : Nat) < j -> A i j = 0
 
 \lemma diagonal-isDiagonal {R : AddPointed} {l : Array R} : IsDiagonal (diagonal l)
-  => \lam i j q => rewrite (decideEq/=_reduce \lam (p : i = j) => q p) idp
+  => \lam {i} {j} q => rewrite (decideEq/=_reduce \lam (p : i = j) => q p) idp
 
 \lemma determinant_IsUpperTriangular {R : CRing} {n : Nat} {A : Matrix R n n} (d : IsUpperTriangular A) : determinant A = R.BigProd (\lam j => A j j) \elim n
   | 0 => determinant00 A

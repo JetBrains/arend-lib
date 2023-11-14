@@ -2,7 +2,6 @@
 \import Algebra.Monoid
 \import Arith.Nat
 \import Data.Bool
-\import Data.Fin
 \import Data.Or
 \import Function
 \import Function.Meta \hiding (#)
@@ -253,25 +252,31 @@
   }
 
 \module Sort \where {
-  \truncated \data Perm {A : \Type} (xs ys : List A) : \Prop \elim xs, ys
+  \data Perm {A : \Type} (xs ys : List A) \elim xs, ys
     | nil, nil => perm-nil
     | :: x xs, :: y ys => perm-:: (x = y) (Perm xs ys)
     | :: x (:: x' xs), :: y (:: y' ys) => perm-swap (x = y') (x' = y) (xs = ys)
     | xs, ys => perm-trans {zs : List A} (Perm xs zs) (Perm zs ys)
     \where {
-      \lemma perm-refl {A : \Type} {xs : List A} : Perm xs xs \elim xs
+      \func perm-refl {A : \Type} {xs : List A} : Perm xs xs \elim xs
         | nil => perm-nil
         | :: a l => perm-:: idp perm-refl
 
-      \lemma perm-sym {A : \Type} {xs ys : List A} (p : Perm xs ys) : Perm ys xs \elim xs, ys, p
+      \func perm-sym {A : \Type} {xs ys : List A} (p : Perm xs ys) : Perm ys xs \elim xs, ys, p
         | nil, nil, perm-nil => perm-nil
         | :: x xs, :: y ys, perm-:: p p1 => perm-:: (inv p) (perm-sym p1)
         | :: x (:: x' xs), :: y (:: y' ys), perm-swap p p1 p2 => perm-swap (inv p1) (inv p) (inv p2)
         | xs, ys, perm-trans p1 p2 => perm-trans (perm-sym p2) (perm-sym p1)
 
-      \lemma perm-head {A : \Type} {a : A} {xs ys : List A} : Perm (a :: xs ++ ys) (xs ++ a :: ys) \elim xs
+      \func perm-head {A : \Type} {a : A} {xs ys : List A} : Perm (a :: xs ++ ys) (xs ++ a :: ys) \elim xs
         | nil => perm-refl
         | :: a1 xs => perm-trans (perm-swap idp idp idp) (perm-:: idp perm-head)
+
+      \lemma perm_length {A : \Type} {xs ys : List A} (p : Perm xs ys) : length xs = length ys \elim xs, ys, p
+        | nil, nil, perm-nil => idp
+        | x :: xs, y :: ys, perm-:: _ q => pmap suc (perm_length q)
+        | x :: (x' :: xs), y :: (y' :: _), perm-swap _ _ idp => idp
+        | xs, ys, perm-trans p1 p2 => perm_length p1 *> perm_length p2
     }
 
   \data Sorted {A : Preorder} (xs : List A) \elim xs
@@ -332,12 +337,11 @@
           }
       }
 
-    \lemma sort-perm {A : Dec} (xs : List A) : Perm xs (sort xs) \elim xs
+    \func sort-perm {A : Dec} (xs : List A) : Perm xs (sort xs) \elim xs
       | nil => perm-nil
       | :: a l => perm-trans (perm-:: idp (sort-perm l)) (insert-perm a (sort l))
       \where {
-        \lemma insert-perm {A : Dec} (a : A) (xs : List A)
-          : Perm (a :: xs) (insert a xs) \elim xs
+        \func insert-perm {A : Dec} (a : A) (xs : List A) : Perm (a :: xs) (insert a xs) \elim xs
           | nil => perm-:: idp perm-nil
           | :: b xs => mcases \with {
             | inl b<=a => perm-trans (perm-swap idp idp idp) (perm-:: idp (insert-perm a xs))
@@ -354,6 +358,22 @@
               | nil => mcases (idp <|> contradiction)
               | :: a1 l => repeat {3} mcases (idp <|> contradiction <|> pmap (a1 ::) (aux a<a' l))
           }
+      }
+
+    \lemma perm_sort {A : Dec} {xs ys : List A} (p : Perm xs ys) : sort xs = sort ys \elim xs, ys, p
+      | nil, nil, perm-nil => idp
+      | x :: xs, y :: ys, perm-:: p q => pmap2 insert p (perm_sort q)
+      | x :: (x' :: xs), _ :: (_ :: _), perm-swap idp idp idp => sort-perm.insert-comm x x' (sort xs)
+      | xs, ys, perm-trans p1 p2 => perm_sort p1 *> perm_sort p2
+
+    \lemma sorted_sort {A : Dec} {xs : List A} (s : Sorted xs) : sort xs = xs \elim xs, s
+      | nil, sorted-nil => idp
+      | x :: xs, sorted-cons p s => pmap (insert x) (sorted_sort s) *> \case \elim xs, \elim p \with {
+        | nil, p => idp
+        | a :: xs, x<=a => mcases \with {
+          | inl a<x => absurd $ <-irreflexive (<-transitive-left a<x x<=a)
+          | inr x<=a => idp
+        }
       }
   }
 

@@ -1,9 +1,11 @@
+\import Arith.Nat
 \import Category
 \import Category.Functor
 \import Category.Limit
 \import Equiv \hiding (Map)
 \import Function.Meta ($)
 \import Meta
+\import Order.PartialOrder
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
@@ -78,4 +80,39 @@
                 \have t => e.f_ret (coneMap z c')
                 \in path (\lam i => Cone.coneMap {t i} j ())
           }
+  }
+
+\type DirectLimit {A : Nat -> BaseSet} (f : \Pi {n : Nat} -> SetHom (A n) (A (suc n)))
+  => Quotient {\Sigma (n : Nat) (A n)} \lam s s' => s' = (suc s.1, f s.2)
+  \where {
+    \func inDL {f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))} (s : \Sigma (n : Nat) (A n)) : DirectLimit f
+      => in~ s
+
+    \func include_+-left (f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))) {n m : Nat} (a : A n) : A (n Nat.+ m) \elim m
+      | 0 => a
+      | suc m => f (include_+-left f a)
+
+    \func include_+-right (f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))) {n m : Nat} (a : A m) : A (n Nat.+ m) \elim n
+      | 0 => a
+      | suc n => f (include_+-right f a)
+
+    \lemma include_+-left-comm {f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))} {n m : Nat} {a : A n} : include_+-left f (f a) = f (include_+-left f {n} {m} a) \elim m
+      | 0 => idp
+      | suc m => pmap f include_+-left-comm
+
+    \lemma include_+-right-comm {f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))} {n m : Nat} {a : A m} : include_+-right f {n} (f a) = f (include_+-right f a) \elim n
+      | 0 => idp
+      | suc n => pmap f include_+-right-comm
+
+    \func include (f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))) {n m : Nat} (p : n <= m) (a : A n) : A m
+      => rewriteI (<=_exists p) (include_+-left f a)
+
+    \lemma include_refl {f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))} {n : Nat} {p : n <= n} {a : A n} : include f p a = a
+      => unfold include {?}
+
+    \lemma dequiv {f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))} {s : \Sigma (n : Nat) (A n)} {a' : A (suc s.1)} (p : a' = f s.2) : in~ s = {DirectLimit f} in~ (suc s.1, a')
+      => path (\lam i => ~-equiv _ _ (ext (idp,p)) i)
+
+    \lemma dequiv2 {f : \Pi {n : Nat} -> SetHom (A n) (A (suc n))} {s s' : \Sigma (n : Nat) (A n)} (p : s.1 = s'.1) (q : include f (Preorder.=_<= p) s.2 = s'.2) : in~ s = {DirectLimit f} in~ s'
+      => Jl (\lam x p' => \Pi {y : A x} -> include f (Preorder.=_<= p') s.2 = y -> inDL s = inDL (x,y)) (\lam q' => pmap (\lam x => inDL (s.1,x)) ({?} *> q')) p q
   }
