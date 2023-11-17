@@ -1,0 +1,36 @@
+\import Algebra.Meta
+\import Category
+\import Category.Functor
+\import Paths
+\import Paths.Meta
+
+\func commaPrecat {C D E : Precat} (F : Functor C E) (G : Functor D E) : Precat \cowith
+  | Ob => \Sigma (x : C) (y : D) (Hom (F x) (G y))
+  | Hom (x,y,a) (x',y',a') => \Sigma (f : Hom x x') (g : Hom y y') (a' ∘ F.Func f = G.Func g ∘ a)
+  | id (x,y,a) => (id x, id y, pmap (a ∘) Func-id *> id-right *> inv (pmap (`∘ a) Func-id *> id-left))
+  | o (f,g,p) (f',g',p') => (f ∘ f', g ∘ g', pmap (_ ∘) Func-o *> inv o-assoc *> pmap (`∘ _) p *> o-assoc *> pmap (_ ∘) p' *> inv o-assoc *> pmap (`∘ _) (inv Func-o))
+  | id-left => ext (id-left,id-left)
+  | id-right => ext (id-right,id-right)
+  | o-assoc => ext (o-assoc,o-assoc)
+  \where {
+    \lemma leftForget {C D E : Precat} (F : Functor C E) (G : Functor D E) : Functor (commaPrecat F G) C __.1 __.1 \cowith
+      | Func-id => idp
+      | Func-o => idp
+
+    \lemma rightForget {C D E : Precat} (F : Functor C E) (G : Functor D E) : Functor (commaPrecat F G) D __.2 __.2 \cowith
+      | Func-id => idp
+      | Func-o => idp
+
+    \func functor {C D E : Precat} (F F' : Functor C E) (G G' : Functor D E) (a : NatTrans F' F) (b : NatTrans G G') : Functor (commaPrecat F G) (commaPrecat F' G') \cowith
+      | F (x,y,s) => (x, y, b y ∘ s ∘ a x)
+      | Func (f,g,c) => (f, g, rewriteEq (inv (b.natural g), inv c, a.natural f) equation)
+      | Func-id => ext (idp, idp)
+      | Func-o => ext (idp, idp)
+  }
+
+\func commaCat {C D : Cat} {E : Precat} (F : Functor C E) (G : Functor D E) : Cat \cowith
+  | Precat => commaPrecat F G
+  | univalence => Cat.makeUnivalence \lam (e : Iso) =>
+      \have | e1 => Functor.Func-iso {commaPrecat.leftForget F G} e
+            | e2 => Functor.Func-iso {commaPrecat.rightForget F G} e
+      \in (ext (Cat.isotoid e1, Cat.isotoid e2, Cat.transport_Hom_Func_iso e1 e2 F G (inv e.f.3)), simp_coe (Cat.transport_Hom_iso-right e1 _ id-right, Cat.transport_Hom_iso-right e2 _ id-right))
