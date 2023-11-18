@@ -1,3 +1,4 @@
+\import Algebra.Domain.Bezout
 \import Algebra.Field
 \import Algebra.Group
 \import Algebra.Group.Sub
@@ -5,10 +6,11 @@
 \import Algebra.Module
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
+\import Algebra.Monoid.Prime
 \import Algebra.Monoid.Sub
 \import Algebra.Pointed.Sub
 \import Algebra.Ring
-\import Algebra.Ring.Category
+\import Algebra.Ring.RingHom
 \import Algebra.Semiring
 \import Arith.Int
 \import Arith.Nat
@@ -31,6 +33,7 @@
 \import Set.Fin
 \open AddMonoid
 \open AbMonoid
+\open Monoid \hiding (op)
 
 -- | Left ideal
 \record LIdeal \extends SubAddGroup {
@@ -440,4 +443,53 @@
             | byLeft r => byLeft $ unfequiv0 r
             | byRight (in~ y, s, _) => byRight $ (y, unfequiv $ inv s)
           })
+  }
+
+\instance FactorIrrField (R : BezoutRing) (p : Irr {R}) : DiscreteField
+  | CRing => FactorRing (Ideal.closure1 p)
+  | zro/=ide q => p.notInv (trivial_Inv.1 q)
+  | eitherZeroOrInv => zeroOrInv-char.2 \lam a => \case isBezout p a \with {
+    | inP (s, t, d|p : Monoid.LDiv, d|a : Monoid.LDiv) => \case p.isIrr (inv d|p.inv-right) \with {
+      | byLeft (c : Inv) => byRight (t * c.inv, s * c.inv, equation {usingOnly c.inv-right})
+      | byRight (c : Inv) => byLeft \new Monoid.LDiv {
+        | inv => c.inv * d|a.inv
+        | inv-right => equation {usingOnly (d|a.inv-right, c.inv-right, d|p.inv-right)}
+      }
+    }
+  }
+  \where {
+    \open FactorRing \hiding (+,*,negative)
+
+    \lemma trivial_Inv {R : CRing} {p : R} : (0 = {FactorRing (Ideal.closure1 p)} 1) <-> Inv p
+      => (\lam q => \case Ideal.closure1-lem.1 $ unfequiv (inv q) \with {
+        | inP t => Inv.lmake t.1 (*-comm *> inv t.2 *> simplify)
+      }, \lam (e : Inv p) => inv $ fequiv $ Ideal.closure1-lem.2 $ simplify $ inP (e.inv, inv e.inv-right))
+
+    \lemma zeroOrInv-char {R : CRing} {p : R} : (\Pi (a : FactorRing (Ideal.closure1 p)) -> (a = 0) || Inv a) <-> (\Pi (a : R) -> Monoid.LDiv p a || (\Sigma (s t : R) (s * a + t * p = 1)))
+      => (\lam f a => \case f (in~ a) \with {
+        | byLeft a~0 => \case Ideal.closure1-lem.1 (unfequiv a~0) \with {
+          | inP s => byLeft (\new Monoid.LDiv {
+            | inv => s.1
+            | inv-right => inv s.2 *> simplify
+          })
+        }
+        | byRight (in~ b, q, _) => \case Ideal.closure1-lem.1 (unfequiv q) \with {
+          | inP (c,u) => byRight (b, negative c, equation)
+        }
+      }, \lam f => \case \elim __ \with {
+        | in~ a => ||.map (\lam (p|a : Monoid.LDiv p a) => fequiv $ Ideal.closure1-lem.2 $ inP (p|a.inv, simplify $ inv p|a.inv-right))
+            (\lam (s,t,q) => Inv.lmake {_} {inF a} (inF s) $ fequiv $ (Ideal.closure1-lem {R} {p} {s * a - 1}).2 $ inP (negative t, equation)) (f a)
+      })
+
+    \lemma conv {R : CRing} {p : R} (c : \Pi {x y : R} -> p * x = p * y -> x = y) (d : DiscreteField { | CRing => FactorRing (Ideal.closure1 p) }) : Prime p \cowith
+      | notInv pi => zro/=ide (trivial_Inv.2 pi)
+      | isCancelable-left => c
+      | isPrime {x} {y} (z,pz=xy) => \case zeroOrInv-char.1 d.eitherZeroOrInv x, zeroOrInv-char.1 d.eitherZeroOrInv y \with {
+        | byLeft p|x, _ => byLeft p|x
+        | _, byLeft p|y => byRight p|y
+        | byRight (s,t,sx+tp=1), byRight (u,v,uy+vp=1) => byLeft \new Monoid.LDiv {
+          | inv => x * (s * u * z + v + t - v * t * p)
+          | inv-right => equation
+        }
+      }
   }

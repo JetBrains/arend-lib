@@ -44,7 +44,7 @@ public class SIPMeta extends BaseMetaDefinition {
   @Dependency(module = "Category", name = "Precat.Hom")       public CoreClassField catHom;
   @Dependency(module = "Category", name = "Precat.id")        public CoreClassField catId;
   @Dependency(module = "Category", name = "Precat.o")         public CoreClassField catComp;
-  @Dependency(module = "Category")                            public CoreFunctionDefinition SIP_Set;
+  @Dependency(module = "Set.Category")                        public CoreFunctionDefinition SIP_Set;
   @Dependency(module = "Set.Category")                        public CoreClassDefinition SetHom;
   @Dependency(module = "Set.Category", name = "SetHom.func")  public CoreClassField homFunc;
   @Dependency(module = "Category", name = "Cat.makeUnivalence") public CoreFunctionDefinition makeUnivalence;
