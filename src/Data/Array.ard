@@ -817,6 +817,22 @@
       => inv R.FinSum=BigSum *> R.FinSum_Equiv pairs.pairs-index-equiv *> pmap R.FinSum (ext $ \lam s => rewrite (pairs.pairs-index s.1 s.2).2 p) *> inv R.FinSum-distr *> pmap2 (R.*) R.FinSum=BigSum R.FinSum=BigSum
   }
 
+\func find {A : \Type} (P : A -> Decide) (l : Array A) : Or (\Sigma (j : Fin l.len) (P (l j)) (\Pi {i : Fin l.len} -> i NatSemiring.< j -> P (l i) -> Empty)) (\Pi {j : Fin l.len} -> P (l j) -> Empty) \elim l
+  | nil => inr \lam {j} => \case j
+  | a :: l => \case decide {P a} \with {
+    | yes e => inl (0, e, \case __)
+    | no q => \case find P l \with {
+      | inl e => inl (suc e.1, e.2, \lam {i} => \case \elim i \with {
+        | 0 => \lam _ => q
+        | suc i => \lam (NatSemiring.suc<suc p) => e.3 p
+      })
+      | inr p => inr \lam {j} => \case \elim j \with {
+        | 0 => q
+        | suc j => p
+      }
+    }
+  }
+
 \sfunc index-dec {A : DecSet} (l : Array A) (a : A) : Or (Index a l) (Not (Index a l)) \elim l
   | nil => inr $ \case __.1
   | b :: l => \case decideEq b a \with {
@@ -893,16 +909,6 @@
     | yes a=a' => \have (j,q) => array/= (\lam s => p $ pmap2 (::) a=a' s)
                   \in (suc j, q)
     | no a/=a' => (0, a/=a')
-  }
-
-\func find {A : DecSet} (a : A) (l : Array A) : Or (\Sigma (i : Fin l.len) (l i = a)) (\Pi {i : Fin l.len} -> l i /= a) \elim l
-  | nil => inr \lam {i} => \case i
-  | b :: l => \case decideEq b a \with {
-    | yes b=a => inl (0, b=a)
-    | no b/=a => Or.map (find a l) (\lam s => (suc s.1, s.2)) \lam r {i} => \case \elim i \with {
-      | 0 => b/=a
-      | suc i => r
-    }
   }
 
 \func toList {A : \Type} (l : Array A) : List A \elim l

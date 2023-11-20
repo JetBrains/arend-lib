@@ -10,6 +10,7 @@
 \import Algebra.Module.FinModule
 \import Algebra.Module.LinearMap
 \import Algebra.Monoid
+\import Algebra.Monoid.GCD
 \import Algebra.Pointed
 \import Algebra.Pointed.Category
 \import Algebra.Ring
@@ -23,6 +24,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -41,6 +43,82 @@
 \meta VectorSpace' K => VectorSpace { | R => K }
 
 \meta FinVectorSpace' K => FinVectorSpace { | R => K }
+
+\func rank {R : SmithDomain} {n m : Nat} (A : Matrix R n m) : Nat
+  => firstNonZero (rank-array A).1
+  \where {
+    \func firstNonZero {R : CRing.Dec} (l : Array (DivQuotient R)) : Nat
+      => \case find (\lam a => dec_decide (R.divQuotient_dec0 a)) l \with {
+           | inl s => s.1
+           | inr _ => l.len
+         }
+
+    \lemma firstNonZero_<= {R : CRing.Dec} {l : Array (DivQuotient R)} (c : \Pi {i j : Fin l.len} -> i NatSemiring.<= j -> l i = in~ 0 -> l j = in~ 0) {k : Fin l.len} : firstNonZero l <= k <-> l k = in~ 0
+      => unfold firstNonZero $ mcases \with {
+           | inl s => (\lam q => c q s.2, \lam q => \case LinearOrder.dec<_<= k s.1 \with {
+             | inl r => absurd $ s.3 r q
+             | inr r => r
+           })
+           | inr c => (\lam q => absurd $ linarith (fin_< k), \lam q => absurd $ c q)
+         }
+
+    \lemma firstNonZero<=len {R : CRing.Dec} {l : Array (DivQuotient R)} : firstNonZero l <= l.len
+      => unfold firstNonZero $ mcases \with {
+           | inl s => LinearOrder.<_<= (fin_< s.1)
+           | inr _ => <=-refl
+         }
+
+    \lemma rank-array {R : SmithDomain} {n m : Nat} (A : Matrix R n m)
+      : \Sigma (d : Array (DivQuotient R) (n ∧ m)) (∃ (B : Matrix R n m) (A M~ B) (IsSmith B) (\Pi (j : Fin (n ∧ m)) -> d j = in~ (B (fin-inc_<= meet-left j) (fin-inc_<= meet-right j))))
+        \level \lam (d, inP (B,A~B,Bs,q)) (d', inP (B',A~B',B's,q')) => ext $ exts \lam j => q j *> ~-pequiv (smith-unique.smith-div-equiv B's Bs (~-transitive (~-symmetric A~B') A~B) _ _) *> inv (q' j)
+      => \case R.toSmith A \with {
+           | inP (B,Bs,A~B) => (\lam j => in~ $ B (fin-inc_<= meet-left j) (fin-inc_<= meet-right j), inP (B, A~B, Bs, \lam j => idp))
+         }
+
+    \lemma rank-array_M~ {R : SmithDomain} {n m : Nat} {A B : Matrix R n m} (A~B : A M~ B) : (rank-array A).1 = (rank-array B).1
+      => \case (rank-array A).2, (rank-array B).2 \with {
+           | inP (A',A~A',A's,d), inP (B',B~B',B's,e) => exts \lam j => d j *> ~-pequiv (smith-unique.smith-div-equiv B's A's (~-symmetric B~B' `~-transitive` ~-symmetric A~B `~-transitive` A~A') _ _) *> inv (e j)
+         }
+
+    \lemma rank_M~ {R : SmithDomain} {n m : Nat} {A B : Matrix R n m} (A~B : A M~ B) : rank A = rank B
+      => pmap firstNonZero (rank-array_M~ A~B)
+
+    \lemma rank-array_smith {R : SmithDomain} {n m : Nat} {A : Matrix R n m} (As : IsSmith A)
+      : (rank-array A).1 = mkArray \lam (j : Fin (n ∧ m)) => DivQuotient.inD (A (fin-inc_<= meet-left j) (fin-inc_<= meet-right j))
+      => \case (rank-array A).2 \with {
+        | inP (B,A~B,Bs,e) => exts \lam j => e j *> ~-pequiv (smith-unique.smith-div-equiv As Bs A~B _ _)
+      }
+
+    \lemma rank_smith {R : SmithDomain} {n m : Nat} {A : Matrix R n m} (As : IsSmith A)
+      : rank A = firstNonZero \lam (j : Fin (n ∧ m)) => DivQuotient.inD (A (fin-inc_<= meet-left j) (fin-inc_<= meet-right j))
+      => pmap firstNonZero (rank-array_smith As)
+
+    \lemma rank_transpose {R : SmithDomain} {n m : Nat} {A : Matrix R n m} : rank (transpose A) = rank A
+      => \case (rank-array A).2 \with {
+           | inP (B,A~B,Bs,_) => rank_M~ (M~.transposed A~B) *> rank_smith (IsSmith.transposed Bs) *> pmap firstNonZero (exts (NatSemiring.meet-comm, \lam j => pmap2 (\lam x y => DivQuotient.inD (B x y)) (fin_nat-inj $ toFin=id *> inv fin_transport *> inv toFin=id) (fin_nat-inj $ toFin=id *> inv fin_transport *> inv toFin=id))) *> inv (rank_smith Bs) *> rank_M~ (~-symmetric A~B)
+         }
+
+    \lemma rank<=rows {R : SmithDomain} {n m : Nat} {A : Matrix R n m} : rank A <= n
+      => firstNonZero<=len <=∘ meet-left
+
+    \lemma rank<=columns {R : SmithDomain} {n m : Nat} {A : Matrix R n m} : rank A <= m
+      => firstNonZero<=len <=∘ meet-right
+
+    \lemma rank_<= {R : SmithDomain} {n m : Nat} {A : Matrix R n m} {k : Nat} (p : k < n) (q : k < m)
+      : rank A <= k <-> ((rank-array A).1 (toFin k $ LinearOrder.<_meet-univ p q) = in~ 0)
+      => \case (rank-array A).2 \with {
+           | inP (B,A~B,Bs,e) => transport (\lam x => _ <= x <-> _) toFin=id $
+              firstNonZero_<= (\lam {i} {j} s c => \case IsSmith.smith-diag Bs (toFin=id *> inv toFin=id) (transport2 (<=) (inv toFin=id) (inv toFin=id) s) \with {
+                | inP d => e j *> pmap in~ (R.ldiv=0 d $ R.divQuotient_un0 $ inv (e i) *> c)
+              }) {toFin k (LinearOrder.<_meet-univ p q)}
+         }
+
+    \lemma rank_smith_<= {R : SmithDomain} {n m : Nat} {A : Matrix R n m} (As : IsSmith A) {k : Nat} (p : k < n) (q : k < m)
+      : rank A <= k <-> (A (toFin k p) (toFin k q) = 0)
+      => <->trans (rank_<= p q) $ rewrite (path \lam i => rank-array_smith As i (toFin k (LinearOrder.<_meet-univ p q)))
+          (\lam c => pmap2 (\lam i => A i) (later $ fin_nat-inj $ toFin=id *> inv toFin=id *> inv toFin=id) (later $ fin_nat-inj $ toFin=id *> inv toFin=id *> inv toFin=id) *> R.divQuotient_un0 c,
+           \lam c => pmap in~ (pmap2 (\lam i => A i) (later $ fin_nat-inj $ toFin=id *> toFin=id *> inv toFin=id) (later $ fin_nat-inj $ toFin=id *> toFin=id *> inv toFin=id) *> c))
+  }
 
 \lemma smith-bases {R : SmithRing} {U V : FinModule' R} (f : LinearMap' U V)
   : ∃ (lu : Array U) (U.IsBasis lu) (lv : Array V) (V.IsBasis lv) (d : Array R lu.len)
@@ -100,7 +178,7 @@
                                         }) *> *c-assoc *> inv (func-*c *> pmap (_ *c) (g k))) *> inv (pmap f (U.basis-split-char {_} {bu}) *> f.func-BigSum) *> x.2) (toFin j j<lv)
                         | inr lv<=j => absurd $ dj/=0 (h j lv<=j)
                       }) *> *c_zro-left) *> inv (AddMonoidHom.func-BigSum {KerLModuleHom f})))
-      \in free-char.2 $ inP (KerFin, _, kb)
+      \in basisSet_basis KerFin kb
   }
   \where {
     \func filter0 {R : AddGroup.Dec} (ds : Array R) : Array (\Sigma (j : Fin ds.len) (ds j = 0)) \elim ds
@@ -123,7 +201,7 @@
   => \let K => kernel-fin {R} {ArrayFinModule l.len} (arrayLinearMap l)
      \in cases (FinModule.dimension {R} K arg addPath) \with {
        | 0, p => inr $ arrayLinearMap.inj-char.1 $ (kernel=0<->inj {arrayLinearMap l}).2 (FinModule.dimension=0.1 p)
-       | suc n, p => inl \case rewriteF p (FinModule.dimension-char _) \with {
+       | suc n, p => inl \case rewriteF p FinModule.dimension-char \with {
          | inP (l',l'b) => inP
              \let | (a,p) => l' 0
                   | (j,q) => array/= {R} {l.len} \lam q => zro/=ide $ LModule.independent-nonZero {K} {l'} l'b.1 (ext q)
