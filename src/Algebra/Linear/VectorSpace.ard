@@ -20,6 +20,7 @@
 \import Data.Array
 \import Data.Or
 \import Equiv (Equiv)
+\import Function (Image)
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -33,6 +34,7 @@
 \import Relation.Equivalence
 \import Set
 \import Set.Fin
+\open LModule
 
 \class VectorSpace \extends LModule {
   \override R : DiscreteField
@@ -98,12 +100,6 @@
            | inP (B,A~B,Bs,_) => rank_M~ (M~.transposed A~B) *> rank_smith (IsSmith.transposed Bs) *> pmap firstNonZero (exts (NatSemiring.meet-comm, \lam j => pmap2 (\lam x y => DivQuotient.inD (B x y)) (fin_nat-inj $ toFin=id *> inv fin_transport *> inv toFin=id) (fin_nat-inj $ toFin=id *> inv fin_transport *> inv toFin=id))) *> inv (rank_smith Bs) *> rank_M~ (~-symmetric A~B)
          }
 
-    \lemma rank<=rows {R : SmithDomain} {n m : Nat} {A : Matrix R n m} : rank A <= n
-      => firstNonZero<=len <=∘ meet-left
-
-    \lemma rank<=columns {R : SmithDomain} {n m : Nat} {A : Matrix R n m} : rank A <= m
-      => firstNonZero<=len <=∘ meet-right
-
     \lemma rank_<= {R : SmithDomain} {n m : Nat} {A : Matrix R n m} {k : Nat} (p : k < n) (q : k < m)
       : rank A <= k <-> ((rank-array A).1 (toFin k $ LinearOrder.<_meet-univ p q) = in~ 0)
       => \case (rank-array A).2 \with {
@@ -120,34 +116,32 @@
            \lam c => pmap in~ (pmap2 (\lam i => A i) (later $ fin_nat-inj $ toFin=id *> toFin=id *> inv toFin=id) (later $ fin_nat-inj $ toFin=id *> toFin=id *> inv toFin=id) *> c))
   }
 
-\lemma smith-bases {R : SmithRing} {U V : FinModule' R} (f : LinearMap' U V)
-  : ∃ (lu : Array U) (U.IsBasis lu) (lv : Array V) (V.IsBasis lv) (d : Array R lu.len)
-      (\Pi {i j : Fin lu.len} -> j = {Nat} suc i -> Monoid.LDiv (d i) (d j))
-      (\Pi (j : Fin lu.len) -> lv.len <= j -> d j = 0)
-      (\Pi (j : Fin lu.len) -> f (lu j) = d j *c fit V.zro lv j)
-  => \have | (inP (lu : Array, bu)) => U.isFinModule
-           | (inP (lv : Array, bv)) => V.isFinModule
-           | (inP (B, Bs, A~B)) => R.toSmith (toMatrix lu bv f)
-           | (inP Bs2) => IsSmith.div-func Bs
+\lemma rank<=rows {R : SmithDomain} {n m : Nat} {A : Matrix R n m} : rank A <= n
+  => rank.firstNonZero<=len <=∘ meet-left
+
+\lemma rank<=columns {R : SmithDomain} {n m : Nat} {A : Matrix R n m} : rank A <= m
+  => rank.firstNonZero<=len <=∘ meet-right
+
+\lemma smith-bases {R : SmithDomain} {U V : LModule' R} {lu : Array U} (bu : U.IsBasis lu) {lv : Array V} (bv : V.IsBasis lv) (f : LinearMap' U V)
+  : ∃ (lu' : Array U lu.len) (U.IsBasis lu') (lv' : Array V lv.len) (bv' : V.IsBasis lv') (d : Array R lu.len)
+      (\Pi (j : Fin lu.len) -> f (lu' j) = d j *c fit V.zro lv' j)
+      (\Pi (j : Fin lu.len) -> (d j = 0) <-> rank (toMatrix lu' bv' f) <= j)
+  => \have | (inP (B, Bs, A~B)) => R.toSmith (toMatrix lu bv f)
+           | (inP Bs2) => IsSmith.smith-diag-func Bs
            | (inP (lu',lv',bu',bv',p)) => M~_toLinearMap bu bv A~B
            | q : f = toLinearMap bu' lv' B => inv (Equiv.ret_f {matrix-equiv bu bv} f) *> p
      \in inP (lu', bu', lv', bv', \lam j =>
           \case LinearOrder.dec<_<= j lv.len \with {
             | inl p => B j (toFin j p)
             | inr _ => zro
-          }, \lam {i} {j} j=i+1 => mcases \with {
-            | inl i<lv, inl j<lv => transport2 (\lam x y => LDiv _ (B x y))
-                (fin_nat-inj $ toFin=id {suc i} {lu.len} {rewriteI j=i+1 (fin_< j)} *> inv j=i+1)
-                (fin_nat-inj $ toFin=id *> later (inv j=i+1) *> inv toFin=id)
-                (rewriteF toFin=fin $ Bs2 i (rewriteI j=i+1 $ fin_< j) (rewriteI j=i+1 j<lv))
-            | inl i<lv, inr lv<=j => LDiv.make zro R.zro_*-right
-            | inr lv<=i, inl j<lv => absurd linarith
-            | inr lv<=i, inr lv<=j => LDiv.id-div
-          }, \lam j lv<=j => rewrite (LinearOrder.dec<=_reduce lv<=j) idp,
-             \lam j => path (\lam i => q i (lu' j)) *> LinearMap.toLinearMap-basis bu' lv' *> mcases \with {
-            | inl j<lv => V.BigSum-unique {\lam k => B j k *c lv' k} (toFin j j<lv) (\lam k j/=k => pmap (`*c _) (Bs.1 \lam j=k => j/=k $ fin_nat-inj $ toFin=id *> j=k) *> V.*c_zro-left) *> pmap (_ *c) (inv $ fit_< lv' j<lv)
-            | inr lv<=j => V.BigSum_zro (\lam k => pmap (`*c _) (later $ Bs.1 \lam j=k => linarith (fin_< k)) *> V.*c_zro-left) *> inv V.*c_zro-left
-          })
+          }, \lam j => path (\lam i => q i (lu' j)) *> LinearMap.toLinearMap-basis bu' lv' *> mcases \with {
+             | inl j<lv => V.BigSum-unique {\lam k => B j k *c lv' k} (toFin j j<lv) (\lam k j/=k => pmap (`*c _) (Bs.1 \lam j=k => j/=k $ fin_nat-inj $ toFin=id *> j=k) *> V.*c_zro-left) *> pmap (_ *c) (inv $ fit_< lv' j<lv)
+             | inr lv<=j => V.BigSum_zro (\lam k => pmap (`*c _) (later $ Bs.1 \lam j=k => linarith (fin_< k)) *> V.*c_zro-left) *> inv V.*c_zro-left
+           }, \lam j => mcases \with {
+             | inl j<lv => \have r => rank.rank_smith_<= Bs (fin_< j) j<lv
+                           \in rewrite (Equiv.adjointInv {matrix-equiv bu' bv'} q) (\lam c => r.2 $ pmap (B __ _) toFin=fin *> c, \lam c => pmap (B __ _) (inv toFin=fin) *> r.1 c)
+             | inr lv<=j => (\lam _ => rank<=columns <=∘ lv<=j, \lam _ => idp)
+           })
   \where {
     \open LinearMap
     \open Monoid
@@ -159,26 +153,57 @@
          \in inP (_, _, _, iso-basis (toLinearMapIso bv bv D) bv, t)
   }
 
-\open LModule
+\instance image-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
+  | LModule => ImageLModule f
+  | isFinModule => \case U.isFinModule, V.isFinModule \with {
+    | inP (lu,bu), inP (lv,bv) => TruncP.map (basis f bu bv) \lam s => (s.1,s.2)
+  }
+  \where {
+    \protected \lemma basis {U V : LModule' R} (f : LinearMap' U V) {lu' : Array U} (bu' : U.IsBasis lu') {lv' : Array V} (bv' : V.IsBasis lv')
+      : ∃ (l : Array (Image f)) (IsBasis {ImageLModule f} l) (l.len = rank (LinearMap.toMatrix lu' bv' f))
+      => \let | (inP (lu, bu, lv, bv, d, g, d0)) => smith-bases bu' bv' f
+              | r => rank (LinearMap.toMatrix lu bv f)
+              | lic j : Image f => (f (take r lu rank<=rows j), inP (_, idp))
+         \in inP (lic,
+                  (\lam c p j => R.nonZero-right (\lam c => NatSemiring.<-irreflexive $ <-transitive-left (fin_< j) $ rewriteF toFin=id $ (d0 _).1 c) $
+                                  V.independent-subset {lv} bv.1 rank<=columns (\lam i => c i * d (fin-inc_<= rank<=rows i))
+                                    (pmap V.BigSum (exts \lam j => *c-assoc *> pmap (_ *c) (inv $ pmap f take-index *> g (fin-inc_<= rank<=rows j) *>
+                                      pmap (_ *c) (fit_< lv (later $ rewrite toFin=id $ <-transitive-left (fin_< j) rank<=columns) *>
+                                        pmap lv (fin_nat-inj $ later $ toFin=id *> toFin=id *> inv toFin=id)))) *>
+                                     inv (AddMonoidHom.func-BigSum {ImageLModuleRightHom f}) *> pmap __.1 p) j,
+                   \lam v => \have | (inP (u,fu=v)) => v.2
+                                   | (inP (c,s)) => bu.2 u
+                             \in inP (mkArray \lam j => c (fin-inc_<= rank<=rows j), ext $ inv fu=v *> pmap f s *> f.func-BigSum *>
+                                    inv (V.BigSum-subset {_} {\lam j => f (c j *c lu j)} rank<=rows (\lam j => pmap (_ *c f __) take-index *> inv func-*c)
+                                          \lam j r<=j => func-*c *> pmap (_ *c) (g j *> pmap (`*c _) ((d0 j).2 r<=j) *> *c_zro-left) *> *c_zro-right) *> inv (AddMonoidHom.func-BigSum {ImageLModuleRightHom f}))),
+                  rank.rank_M~ $ LinearMap.change-basis_M~ f bu bu' bv bv')
+
+    \lemma dimension_rank {f : LinearMap' U V} {lu : Array U} (bu : U.IsBasis lu) {lv : Array V} (bv : V.IsBasis lv) : FinModule.dimension (image-fin f) = rank (LinearMap.toMatrix lu bv f)
+      => \case basis f bu bv \with {
+           | inP (li,bi,p) => FinModule.dimension-unique bi *> p
+         }
+  }
 
 \instance kernel-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
   | LModule => KerLModule f
-  | isFinModule => \case smith-bases f \with {
-    | inP (lu : Array, bu, lv : Array, bv, d, _, h, g) =>
-      \have | KerFin : FinSet (\Sigma (j : Fin lu.len) (d j = 0)) => SigmaFin (FinFin lu.len) (\lam j => DecFin (decideEq (d j) 0))
-            | kb : LModule.IsBasisSet {KerLModule f} (\lam s => (lu s.1, g s.1 *> pmap (`*c _) s.2 *> V.*c_zro-left))
-                => (LinearMap.IsIndependentSet_func {KerLModuleHom f} $ LModule.IsIndependentSet-inj (\lam p => ext p) (U.IsIndependent<->IsIndependentSet.1 bu.1),
+  | isFinModule => \case U.isFinModule, V.isFinModule \with {
+    | inP (_,bu'), inP (_,bv') => \case smith-bases bu' bv' f \with {
+        | inP (lu : Array, bu, lv : Array, bv, d, g, d0) =>
+          \have | KerFin : FinSet (\Sigma (j : Fin lu.len) (d j = 0)) => SigmaFin (FinFin lu.len) (\lam j => DecFin (decideEq (d j) 0))
+                | kb : LModule.IsBasisSet {KerLModule f} (\lam s => (lu s.1, g s.1 *> pmap (`*c _) s.2 *> V.*c_zro-left))
+                => (LinearMap.IsIndependentSet_func {KerLModuleHom f} $ LModule.IsIndependentSet-inj (\lam p => ext p) ((U.IsIndependent<->IsIndependentSet {lu}).1 bu.1),
                     \lam x => inP (map (\lam s => (U.basis-split bu x.1 s.1, s)) (filter0 d), ext $ U.basis-split-char {_} {bu} *> filter0_BigSum d (\lam j => basis-split bu x.1 j *c lu j) (\lam j dj/=0 => pmap (`*c _) (
                       \case LinearOrder.dec<_<= j lv.len \with {
                         | inl j<lv => Domain.nonZero-right dj/=0 $ inv (fit_<' (\lam j => basis-split bu x.1 j R.* d j) j<lv) *>
-                                      bv.1 (fit zro $ \lam j => U.basis-split bu x.1 j * d j) (path (\lam i => V.BigSum \lam j => fit_map (`*c lv j) {zro} V.*c_zro-left {_} {\lam j => basis-split bu x.1 j R.* d j} i j) *>
-                                        fit-transpose (\lam j k => basis-split bu x.1 k * d k *c lv j) *> pmap V.BigSum (exts \lam k => later (\case LinearOrder.dec<_<= k lv.len \with {
-                                          | inl k<lv => fit_< (\lam i => basis-split bu x.1 k * d k *c lv i) k<lv *> pmap (_ *c) (inv (fit_< _ k<lv))
-                                          | inr lv<=k => fit_>= (\lam i => basis-split bu x.1 k * d k *c lv i) lv<=k *> inv (pmap (`*c _) (pmap (_ *) (h k lv<=k) *> R.zro_*-right) *> V.*c_zro-left)
-                                        }) *> *c-assoc *> inv (func-*c *> pmap (_ *c) (g k))) *> inv (pmap f (U.basis-split-char {_} {bu}) *> f.func-BigSum) *> x.2) (toFin j j<lv)
-                        | inr lv<=j => absurd $ dj/=0 (h j lv<=j)
+                                                                   bv.1 (fit zro $ \lam j => U.basis-split bu x.1 j * d j) (path (\lam i => V.BigSum \lam j => fit_map (`*c lv j) {zro} V.*c_zro-left {_} {\lam j => basis-split bu x.1 j R.* d j} i j) *>
+                                                                   fit-transpose (\lam j k => basis-split bu x.1 k * d k *c lv j) *> pmap V.BigSum (exts \lam k => later (\case LinearOrder.dec<_<= k lv.len \with {
+                                                                     | inl k<lv => fit_< (\lam i => basis-split bu x.1 k * d k *c lv i) k<lv *> pmap (_ *c) (inv (fit_< lv k<lv))
+                                                                     | inr lv<=k => fit_>= (\lam i => basis-split bu x.1 k * d k *c lv i) lv<=k *> inv (pmap (`*c _) (pmap (_ *) ((d0 k).2 $ rank<=columns <=∘ lv<=k) *> R.zro_*-right) *> V.*c_zro-left)
+                                                                   }) *> *c-assoc *> inv (func-*c *> pmap (_ *c) (g k))) *> inv (pmap f (U.basis-split-char {_} {bu}) *> f.func-BigSum) *> x.2) (toFin j j<lv)
+                        | inr lv<=j => absurd $ dj/=0 ((d0 j).2 $ rank<=columns <=∘ lv<=j)
                       }) *> *c_zro-left) *> inv (AddMonoidHom.func-BigSum {KerLModuleHom f})))
-      \in basisSet_basis KerFin kb
+          \in basisSet_basis KerFin kb
+      }
   }
   \where {
     \func filter0 {R : AddGroup.Dec} (ds : Array R) : Array (\Sigma (j : Fin ds.len) (ds j = 0)) \elim ds
@@ -208,30 +233,3 @@
              \in (a, p, j, q)
        }
      }
-
-\instance image-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
-  | LModule => ImageLModule f
-  | isFinModule => \case smith-bases f \with {
-    | inP (lu : Array, bu, lv : Array, bv, ds, _, h, g) =>
-      \have | ImFin : FinSet (\Sigma (j : Fin lu.len) (ds j /= 0)) => SigmaFin (FinFin lu.len) (\lam j => DecFin (decide {NotDecide (EqualityDecide R (ds j) 0)}))
-            | kb : LModule.IsBasisSet {ImageLModule f} (\lam s => (f (lu s.1), inP (lu s.1, idp)))
-                 => (IsIndependentSet-fin.2 \lam c p j => later
-                      \have q (i : ImFin) : i.1 < lv.len => \case LinearOrder.dec<_<= i.1 lv.len \with {
-                              | inl r => r
-                              | inr r => absurd $ i.2 (h i.1 r)
-                            }
-                      \in Domain.nonZero-right j.2 $ (IsIndependentSet-fin {_} {ImFin}).1 (IsIndependentSet-inj {_} {_} {_} {\lam i => toFin i.1 (q i)} (\lam {i} {i'} q => ext $ fin_nat-inj $ inv toFin=id *> q *> toFin=id) (IsIndependent<->IsIndependentSet.1 bv.1)) (\lam i => c i * ds i.1) (pmap AbMonoid.FinSum (ext \lam i => *c-assoc *> pmap (_ *c) (inv $ g i.1 *> pmap (_ *c) (fit_< _ \case LinearOrder.dec<_<= i.1 lv.len \with {
-                        | inl r => r
-                        | inr r => absurd $ i.2 (h i.1 r)
-                      }))) *> inv (AddMonoidHom.func-FinSum (ImageLModuleRightHom f)) *> pmap __.1 p) j,
-                     IsGeneratingSet-fin.2 $ later \lam v => \case v.2 \with {
-                      | inP (u,fu=v) => inP (ImFin, \lam k => (basis-split bu u k.1, k), ext $
-                          inv fu=v *> pmap f (basis-split-char {_} {_} {bu}) *> f.func-BigSum *> inv AbMonoid.FinSum=BigSum *>
-                          pmap AbMonoid.FinSum (ext \lam j => f.func-*c) *> AbMonoid.FinSum-inj {_} {ImFin} (\lam k => k.1) (\lam p => ext p)
-                            {\lam j => basis-split bu u j *c f (lu j)} (\lam j c => pmap (_ *c) (g j *> \case decideEq (ds j) 0 \with {
-                              | yes q => pmap (`*c _) q *> *c_zro-left
-                              | no q => absurd $ c (j,q) idp
-                            }) *> *c_zro-right) *> inv (AddMonoidHom.func-FinSum (ImageLModuleRightHom f)))
-                    })
-      \in free-char.2 $ inP (ImFin, _, kb)
-  }
