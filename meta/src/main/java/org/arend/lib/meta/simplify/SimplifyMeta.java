@@ -14,8 +14,10 @@ import org.arend.ext.error.TypecheckingError;
 import org.arend.ext.instance.InstanceSearchParameters;
 import org.arend.ext.typechecking.*;
 import org.arend.ext.util.Pair;
+import org.arend.ext.util.Wrapper;
 import org.arend.lib.StdExtension;
 import org.arend.lib.error.SimplifyError;
+import org.arend.lib.error.TypeError;
 import org.arend.lib.meta.RewriteMeta;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
@@ -54,7 +56,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
   private class SimplifyExpressionProcessor implements Function<CoreExpression, CoreExpression.FindAction> {
 
     private final List<Pair<CoreExpression, RewriteMeta.EqProofConcrete>> simplificationOccurrences = new ArrayList<>();
-    private final Map<CoreExpression, CoreExpression> exprsToNormalize = new HashMap<>();
+    private final Map<Wrapper<CoreExpression>, CoreExpression> exprsToNormalize = new HashMap<>();
     private boolean isFirstLaunch = true;
     private boolean skipRoot = false;
 
@@ -62,7 +64,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
       return simplificationOccurrences;
     }
 
-    public Map<CoreExpression, CoreExpression> getExprsToNormalize() {
+    public Map<Wrapper<CoreExpression>, CoreExpression> getExprsToNormalize() {
       return exprsToNormalize;
     }
 
@@ -88,7 +90,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
       }
 
       var simplificationRules = new TreeSet<SimplificationRule>((o1, o2) -> o1.equals(o2) ? 0 : o1.hashCode() - o2.hashCode()); //getSimplificationRulesForType(expression.computeType());
-      var normExpr = expression.normalize(NormalizationMode.WHNF);
+      var normExpr = expression.normalize(NormalizationMode.ENF);
       var simplifiedExpr = normExpr.computeTyped();
 
       if (normExpr instanceof CoreLamExpression) {
@@ -146,13 +148,13 @@ public class SimplifyMeta extends BaseMetaDefinition {
         simplificationOccurrences.addAll(processor.getSimplificationOccurrences());
         isFirstLaunch = false;
         if (!processor.getSimplificationOccurrences().isEmpty() && expression != normExpr) {
-          exprsToNormalize.put(expression, normExpr);
+          exprsToNormalize.put(new Wrapper<>(expression), normExpr);
         }
         exprsToNormalize.putAll(processor.exprsToNormalize);
         return CoreExpression.FindAction.SKIP;
       }
       if (expression != normExpr) {
-        exprsToNormalize.put(expression, normExpr);
+        exprsToNormalize.put(new Wrapper<>(expression), normExpr);
       }
       isFirstLaunch = false;
       simplificationOccurrences.add(new Pair<>(normExpr, new RewriteMeta.EqProofConcrete(path, factory.core(expression.computeTyped()), right)));
@@ -217,16 +219,12 @@ public class SimplifyMeta extends BaseMetaDefinition {
     return rules;
   }
 
-  private UncheckedExpression replaceSubexpr(CoreExpression expr, List<TypedExpression> checkedVars, Map<CoreExpression, Integer> indexOfSubExpr, Map<CoreExpression, CoreExpression> subexprsToNormalize, List<CoreExpression> occurrences) {
-    var normExpr = expr;
-    if (subexprsToNormalize.containsKey(expr)) {
-      normExpr = subexprsToNormalize.get(expr); //expr.normalize(NormalizationMode.WHNF);
-    }
-    CoreExpression finalNormExpr = normExpr;
+  private UncheckedExpression replaceSubexpr(CoreExpression expr, List<TypedExpression> checkedVars, Map<Wrapper<CoreExpression>, Integer> indexOfSubExpr, Map<Wrapper<CoreExpression>, CoreExpression> subexprsToNormalize, List<CoreExpression> occurrences) {
+    CoreExpression normExpr = subexprsToNormalize.getOrDefault(new Wrapper<>(expr), expr);
     var uncheckedRes = normExpr.replaceSubexpressions(expression -> {
-      Integer occurInd = indexOfSubExpr.get(expression);
+      Integer occurInd = indexOfSubExpr.get(new Wrapper<>(expression));
       if (occurInd == null) {
-        if (expression != finalNormExpr && subexprsToNormalize.containsKey(expression)) {
+        if (expression != normExpr && subexprsToNormalize.containsKey(new Wrapper<>(expression))) {
           return replaceSubexpr(expression, checkedVars, indexOfSubExpr, subexprsToNormalize, occurrences);
           // return subExprRes == null ? null : subExprRes.getExpression();
         }
@@ -271,10 +269,10 @@ public class SimplifyMeta extends BaseMetaDefinition {
           checkedVars.add(checkedVar);
         }
 
-        Map<CoreExpression, Integer> indexOfSubExpr = new HashMap<>();
+        Map<Wrapper<CoreExpression>, Integer> indexOfSubExpr = new HashMap<>();
 
         for (int i = 0; i < occurrences.size(); ++i) {
-          indexOfSubExpr.put(occurrences.get(i), i);
+          indexOfSubExpr.put(new Wrapper<>(occurrences.get(i)), i);
         }
 
         UncheckedExpression typeWithOccur = replaceSubexpr(normType, checkedVars, indexOfSubExpr, processor.getExprsToNormalize(), occurrences);
@@ -289,7 +287,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
               subexprNormalized[0] = true;
               newSubexpr = processor.getExprsToNormalize().get(expression);
             }
-            Integer occurInd = indexOfSubExpr.get(newSubexpr);
+            Integer occurInd = indexOfSubExpr.get(new Wrapper<>(newSubexpr));
             if (occurInd != null) {
               return newSubexpr;
             }
@@ -299,15 +297,14 @@ public class SimplifyMeta extends BaseMetaDefinition {
         }
 
         typeWithOccur = typeWithOccur == null ? null : typeWithOccur.replaceSubexpressions(expression -> {
-          Integer occurInd = indexOfSubExpr.get(expression);
+          Integer occurInd = indexOfSubExpr.get(new Wrapper<>(expression));
           if (occurInd == null) return null;
           return checkedVars.get(occurInd).getExpression();
         }, false); /**/
 
-        UncheckedExpression finalTypeWithOccur = typeWithOccur;
-        TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(finalTypeWithOccur, refExpr)) : null;
+        TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {
-          errorReporter.report(new SimplifyError(occurrences, normType, refExpr));
+          errorReporter.report(typeWithOccur == null ? new SimplifyError(occurrences, normType, refExpr) : new TypeError("Cannot substitute a variable. The resulting type is invalid", typeWithOccur, refExpr));
         }/**/
         return result;
         // return typeWithOccur;

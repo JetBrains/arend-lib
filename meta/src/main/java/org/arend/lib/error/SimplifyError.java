@@ -8,7 +8,6 @@ import org.arend.ext.prettyprinting.doc.Doc;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.arend.ext.prettyprinting.doc.DocFactory.*;
 import static org.arend.ext.prettyprinting.doc.DocFactory.termDoc;
@@ -25,11 +24,9 @@ public class SimplifyError extends TypecheckingError {
 
   @Override
   public Doc getBodyDoc(PrettyPrinterConfig ppConfig) {
-    Doc subexprDoc = hang(text("Subexpressions:"), hList(subexprList.stream().map(x -> termLine(x, ppConfig)).collect(Collectors.toList())));
     return vList(
-            subexprDoc,
-         //   hang(text("Expression:"), termDoc(expr, ppConfig)),
-            hang(text("Type:"), termDoc(type, ppConfig)));
+        hang(text("Subexpressions:"), hSep(text(", "), subexprList.stream().map(x -> termLine(x, ppConfig)).toList())),
+        hang(text("Type:"), termDoc(type, ppConfig)));
   }
 
   @Override
