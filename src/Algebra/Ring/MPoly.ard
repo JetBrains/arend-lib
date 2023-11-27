@@ -11,6 +11,8 @@
 \import Algebra.Ring.RingHom
 \import Algebra.Ring.MonoidRing
 \import Algebra.Ring.Poly
+\import Algebra.Semiring
+\import Arith.Nat
 \import Category
 \import Data.Array
 \import Data.Fin \hiding (Index)
@@ -18,14 +20,21 @@
 \import Function (isSurj)
 \import Function.Meta ($)
 \import Logic
+\import Logic.Meta
 \import Meta
+\import Order.Lattice
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
 \import Set
 \import Set.Fin
+\open MonoidSet \hiding (~)
 
 \func MPoly (J : \Set) (R : CRing) => MonoidAlgebra (PermSetAbMonoid J) R
+
+\func mPolyHom {J : \Set} {R : CRing} : RingHom R (MPoly J R)
+  => monoidRingHom
 
 \func mPoly-map {J : \Set} {R S : CRing} (f : AddMonoidHom R S) (p : MPoly J R) : MPoly J S
   => monoidSet-map (\lam x => x) f p
@@ -47,11 +56,22 @@
 \func mPolyMapEval {J : \Set} {R S : CRing} (f : AddMonoidHom R S) (p : MPoly J R) (a : J -> S) : S
   => mPolyEval a (mPoly-map f p)
 
+\func mPolyMapEvalRingHom {J : \Set} {R S : CRing} (f : RingHom R S) (a : J -> S) : RingHom (MPoly J R) S
+  => mPolyEval a RingCat.∘ mPoly-mapHom f
+
 \func mVar {J : \Set} {R : CRing} (j : J) : MPoly J R
   => msMonomial 1 $ PermSet.inPS (j :: nil)
 
 \func mConst {J : \Set} {R : CRing} (a : R) : MPoly J R
   => msMonomial a zro
+
+\lemma mPolyMapEval-var {J : \Set} {R S : CRing} (f : RingHom R S) (a : J -> S) (j : J) : mPolyMapEvalRingHom f a (mVar j) = a j
+  => simplify $ pmap (`* _) f.func-ide *> ide-left
+
+\lemma mPolyRingHom-unique {J : \Set} {R S : CRing} (f g : RingHom (MPoly J R) S) (p : \Pi (r : R) -> f (mConst r) = g (mConst r)) (q : \Pi (j : J) -> f (mVar j) = g (mVar j)) (x : MPoly J R) : f x = g x
+  => monoidRingHom-unique p (\case \elim __ \with {
+       | in~ l => pmap (\lam x => f (msMonomial 1 x)) (inv permSet-split) *> pmap f (inv msMonomial_BigProd_ide) *> f.func-BigProd {\lam j => msMonomial 1 (PermSet.inPS (l j :: nil))} *> pmap Monoid.BigProd (exts \lam j => q (l j)) *> inv (g.func-BigProd {\lam j => msMonomial 1 (PermSet.inPS (l j :: nil))}) *> pmap g (later idp *> msMonomial_BigProd_ide) *> pmap (\lam x => g (msMonomial 1 x)) permSet-split
+     }) x
 
 \func mLastCoef {J : \Set} {R : CRing} (p : MPoly J R) => monoidSet-coefs (\lam x => decToBool (permSet-zro-dec x)) p
 
@@ -64,7 +84,7 @@
         | in~ nil => idp
         | in~ (j :: _) => absurd (e j)
       }
-    }) $ inv $ MonoidSet.unique-sum {PermSet J} (in~ nil) $ \lam j => cases (l j).2 \with {
+    }) $ inv $ unique-sum {PermSet J} (in~ nil) $ \lam j => cases (l j).2 \with {
       | in~ nil => idp
       | in~ (j :: _) => absurd (e j)
     }
@@ -175,24 +195,53 @@
 \lemma MPoly-surj {J : \Set} {R S : CRing} (f : AddMonoidHom R S) (fs : isSurj f) : isSurj (mPoly-map {J} f)
   => \case \elim __ \with {
        | in~ l => \case FinSet.finiteAC (\lam j => fs (l j).1) \with {
-         | inP g => inP (MonoidSet.inMS \lam j => ((g j).1, (l j).2), pmap MonoidSet.inMS $ exts \lam j => ext ((g j).2, idp))
+         | inP g => inP (inMS \lam j => ((g j).1, (l j).2), pmap inMS $ exts \lam j => ext ((g j).2, idp))
        }
   }
 
-\func MPoly_Fin-suc' {n : Nat} {R : CRing} (p : MPoly (Fin n) (PolyAlgebra R)) : MPoly (Fin (suc n)) R
-  => mPolyMapEval (polyToMonoidSetHom $ PermSet.inPS $ (0 : Fin (suc n)) :: nil) p \lam j => mVar (suc j)
+\func MPoly_Fin-suc' {n : Nat} {R : CRing} : QEquiv {MPoly (Fin (suc n)) R} {MPoly (Fin n) (PolyAlgebra R)} \cowith
+  | f => fHom
+  | ret => retHom
+  | ret_f => mPolyRingHom-unique (retHom RingCat.∘ fHom) (RingCat.id _) (\lam r => simplify) (\case \elim __ \with {
+    | 0 => simplify $ monoidSet-ext $ ~-pequiv (~-perm $ later $ eperm-swap idp idp idp) *> ~-pequiv (~-zro idp)
+    | suc j => simplify
+  })
+  | f_sec => mPolyRingHom-unique (fHom RingCat.∘ retHom) (RingCat.id _) (polyMapEval-unique (fHom ∘ retHom ∘ mPolyHom) mPolyHom (\lam r => simplify) (pmap fHom retHom_mConst *> fHom_mVar)) (\lam j => simplify)
   \where {
-    \lemma map_polyToMonoidSet {J : \Set} {R S : CRing} (f : RingHom R S) {p : Poly R} {m : PermSet J} : mPoly-map f (polyToMonoidSet m p) = polyToMonoidSet m (polyMap f p) \elim p
-      | pzero => idp
-      | padd p e => func-+ {mPoly-mapHom f} *> pmap (`+ _) (func-* {mPoly-mapHom f} *> pmap2 (\lam x y => x * MonoidSet.inMS (y :: nil)) (map_polyToMonoidSet f) (ext (f.func-ide, idp)))
+    \func fHom {R : CRing} : RingHom (MPoly (Fin (suc n)) R) (MPoly (Fin n) (PolyAlgebra R))
+      => mPolyMapEvalRingHom (mPolyHom RingCat.∘ polyHom) $ later (mConst (padd 1 0) :: mkArray \lam j => mVar j)
 
-    \lemma map-comm {R S : CRing} (f : RingHom R S) {p : MPoly (Fin n) (PolyAlgebra R)} : mPoly-map f (MPoly_Fin-suc' p) = MPoly_Fin-suc' (mPoly-map (polyMapRingHom f) p) \elim p
-      | in~ l => AddMonoidHom.func-BigSum {mPoly-mapHom f} *> pmap AddMonoid.BigSum (exts \lam j => MonoidHom.func-* {mPoly-mapHom f} *> pmap2 (*) (map_polyToMonoidSet f)
-                  (mPoly-map_permSet-univ f (\lam j => mVar (fsuc j)) *> pmap (permSet-univ {Fin n} {AbMonoid.fromCMonoid (MPoly (Fin (suc n)) S)} __ _) (ext \lam j => pmap (\lam x => MonoidSet.inMS (x :: nil)) (ext (f.func-ide, idp)))))
+    \func retHom {R : CRing} : RingHom (MPoly (Fin n) (PolyAlgebra R)) (MPoly (Fin (suc n)) R)
+      => mPolyMapEvalRingHom (polyMapEvalRingHom mPolyHom (mVar (0 : Fin (suc n)))) \lam j => mVar (fsuc j)
 
-    \lemma eval-comm {p : MPoly (Fin n) (PolyAlgebra R)} {a : R} {l : Array R n} : mPolyEval (a :: l) (MPoly_Fin-suc' p) = mPolyEval l (mPoly-map (polyEvalRingHom a) p) \elim p
-      | in~ l' => AddMonoidHom.func-BigSum {evalMSRingHom _} *> pmap R.BigSum (exts \lam j => func-* *> pmap2 (*) (polyToMonoidSet-eval *> simplify)
-          (later $ cases (l' j).2 \with {
-            | in~ l'' => MonoidHom.func-BigProd {evalMSRingHom _} *> pmap R.BigProd (exts \lam i => simplify)
-          }))
+    \private \lemma retHom_mConst : retHom (mConst (padd 1 R.zro)) = mVar (0 : Fin (suc n))
+      => simplify $ monoidSet-ext $ ~-pequiv (~-perm $ later $ eperm-swap idp idp idp) *> ~-pequiv (~-zro idp)
+
+    \private \lemma fHom_mVar : fHom (mVar (0 : Fin (suc n))) = mConst (padd 1 R.zro)
+      => mPolyMapEval-var (mPolyHom RingCat.∘ polyHom) (mConst (padd 1 0) :: mkArray \lam j => mVar j) 0
+
+    \lemma map-comm {R S : CRing} (f : RingHom R S) {p : MPoly (Fin n) (PolyAlgebra R)}
+      : mPoly-map f (retHom p) = retHom (mPoly-map (polyMapRingHom f) p)
+      => mPolyRingHom-unique (mPoly-mapHom f RingCat.∘ retHom) (retHom RingCat.∘ mPoly-mapHom {_} {PolyAlgebra R} {PolyAlgebra S} (polyMapRingHom f))
+          (polyMapEval-unique (mPoly-mapHom f ∘ retHom ∘ mPolyHom) (retHom ∘ mPoly-mapHom {_} {PolyAlgebra R} {PolyAlgebra S} (polyMapRingHom f) ∘ mPolyHom {_} {PolyAlgebra R}) (\lam r => simplify) simplify) (\lam j => simplify) p
+
+    \lemma eval-comm {R : CRing} {p : MPoly (Fin n) (PolyAlgebra R)} {a : R} {l : Array R n}
+      : mPolyEval (a :: l) (retHom p) = mPolyEval l (mPoly-map (polyEvalRingHom a) p)
+      => mPolyRingHom-unique (mPolyEval (a :: l) RingCat.∘ retHom) (mPolyEval l RingCat.∘ mPoly-mapHom {_} {PolyAlgebra R} (polyEvalRingHom a))
+          (polyMapEval-unique (mPolyEval (a :: l) ∘ retHom ∘ mPolyHom) (mPolyEval l ∘ mPoly-mapHom {_} {PolyAlgebra R} (polyEvalRingHom a) ∘ mPolyHom {_} {PolyAlgebra R})
+              (\lam r => simplify simplify) (simplify $ simplify $ inv ide-left)) (\lam j => simplify $ simplify $ inv ide-left) p
+
+    \lemma mapEval-comm {R S : CRing} (f : RingHom R S) {p : MPoly (Fin (suc n)) R} {a : S} {l : Array (Poly R) n}
+      : polyMapEval f (mPolyEval l (fHom p)) a = mPolyMapEval f p (a :: map (polyMapEval f __ a) l)
+      => mPolyRingHom-unique (polyMapEvalRingHom f a ∘ mPolyEval l RingCat.∘ fHom) (mPolyMapEvalRingHom f _) (\lam r => simplify simplify) (\case \elim __ \with {
+           | 0 => simplify $ simplify $ rewrite (f.func-ide,f.func-zro) simplify
+           | suc j => simplify $ rewrite f.func-ide $ simplify $ pmap (polyMapEval f __ a) (pmap2 (+) peq ide_*c)
+         }) p
   }
+
+\func mdegree< {J : \Set} {R : CRing} (p : MPoly J R) (d : Nat) : \Prop \elim p
+  | in~ (l : Array) => ∃ (l' : Array (\Sigma R (PermSetAbMonoid J))) (inMS~ l = inMS~ l') (∀ (s : l') (permSet-length s.2 < d))
+  | ~-equiv l l' r => ext (TruncP.map __ \lam s => (s.1, inv (~-pequiv r) *> s.2, s.3), TruncP.map __ \lam s => (s.1, ~-pequiv r *> s.2, s.3))
+
+\lemma mdegree<-exists {J : \Set} {R : CRing} (p : MPoly J R) : ∃ (d : Nat) (mdegree< p d) \elim p
+  | in~ l => inP (suc $ Big (∨) 0 $ map (\lam s => permSet-length s.2) l, inP (l, idp, \lam j => suc_<=_< $ suc<=suc $ later $ NatSemiring.Big1_<=_fold {map (\lam s => permSet-length s.2) l} j))

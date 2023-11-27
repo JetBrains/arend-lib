@@ -190,13 +190,14 @@
     | in~ l, in~ l' => monoidSet-ext $ ~-pequiv (~-perm pairs.pairs-flip) *> cong (ext $ \lam t s => ext (*-comm, +-comm))
   }
 
+\func monoidRingHom {M : AddMonoid} {R : Ring} : RingHom R (MonoidRing M R) \cowith
+  | func a => inMS~ ((a,M.zro) :: nil)
+  | func-+ => monoidSet-ext $ ~-pequiv $ mkcon ~-+ {nil} M.zro idp idp
+  | func-ide => idp
+  | func-* => rewriteI {1} M.zro-left idp
+
 \instance MonoidAlgebra (M : AbMonoid) (R : CRing) : CAlgebra { | R => R }
-  => homAlgebra {R} {\new CRing { | Ring => MonoidRing M R | *-comm => *-comm }} $ \new RingHom {
-    | func a => inMS~ ((a,M.zro) :: nil)
-    | func-+ => monoidSet-ext $ ~-pequiv $ mkcon ~-+ {nil} M.zro idp idp
-    | func-ide => idp
-    | func-* => rewriteI {1} M.zro-left idp
-  }
+  => homAlgebra {R} {\new CRing { | Ring => MonoidRing M R | *-comm => *-comm }} monoidRingHom
 
 \func monoidSet-map {M N : \Set} (f : M -> N) (g : AddMonoidHom) (x : MonoidSet M g.Dom) : MonoidSet N g.Cod \elim x
   | in~ l => inMS~ $ map (\lam s => (g s.1, f s.2)) l
@@ -313,3 +314,11 @@
 \lemma polyToMonoidSet-eval {R : CRing} {M : AddMonoid} {p : Poly R} {f : MonoidHom M R} {m : M} : evalMS (polyToMonoidSet m p) f = polyEval p (f m) \elim p
   | pzero => idp
   | padd p a => func-+ {evalMSRingHom f} *> pmap2 (+) (func-* *> pmap2 (*) polyToMonoidSet-eval simplify) (unfold $ rewrite f.func-ide simplify)
+
+\lemma monoidRingHom-unique {M : AddMonoid} {R S : CRing} {f g : RingHom (MonoidRing M R) S} (p : \Pi (r : R) -> f (msMonomial r zro) = g (msMonomial r zro)) (q : \Pi (m : M) -> f (msMonomial 1 m) = g (msMonomial 1 m)) (x : MonoidSet M R) : f x = g x \elim x
+  | in~ l => pmap f monoidSet-list *> f.func-BigSum *> pmap AddMonoid.BigSum (exts \lam j => simplify *> f.func-* *> pmap2 (*) (p (l j).1) (q (l j).2) *> inv g.func-* *> simplify) *> inv g.func-BigSum *> inv (pmap g monoidSet-list)
+  \where {
+    \lemma monoidSet-list {M : \Set} {R : AddMonoid} {l : Array (\Sigma R M)} : inMS l = AddMonoid.BigSum \lam j => msMonomial (l j).1 (l j).2 \elim l
+      | nil => idp
+      | a :: l => pmap (_ +) monoidSet-list
+  }
