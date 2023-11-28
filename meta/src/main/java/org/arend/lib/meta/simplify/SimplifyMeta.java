@@ -33,9 +33,11 @@ public class SimplifyMeta extends BaseMetaDefinition {
   private ConcreteReferenceExpression refExpr;
   private ConcreteFactory factory;
   private ErrorReporter errorReporter;
+  private final boolean isForward;
 
-  public SimplifyMeta(StdExtension ext) {
+  public SimplifyMeta(StdExtension ext, boolean isForward) {
     this.ext = ext;
+    this.isForward = isForward;
   }
 
   @Override
@@ -316,7 +318,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
     if (checkedLam == null || checkedLam instanceof CoreErrorExpression) {
       return null;
     }
-    var proofs = processor.simplificationOccurrences.stream().map(x -> x.proj2.inverse(factory, ext)).collect(Collectors.toList());
+    var proofs = processor.simplificationOccurrences.stream().map(x -> isForward ? x.proj2 : x.proj2.inverse(factory, ext)).collect(Collectors.toList());
     return RewriteMeta.chainOfTransports(factory.ref(ext.transport.getRef(), refExpr.getPLevels(), refExpr.getHLevels()),
             checkedLam.getExpression(), proofs, expression, factory, ext);
   }
@@ -327,10 +329,21 @@ public class SimplifyMeta extends BaseMetaDefinition {
     var expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().getUnderlyingExpression();
     List<? extends ConcreteArgument> args = contextData.getArguments();
 
+    if (isForward && args.isEmpty()) {
+      return null;
+    }
+
     this.factory = ext.factory.withData(refExpr.getData());
     var expression = args.isEmpty() ? factory.ref(ext.prelude.getIdp().getRef()) : args.get(0).getExpression();
+    var type = expectedType;
 
-    if (expectedType == null) {
+    if (isForward) {
+      var checkedExpr = typechecker.typecheck(expression, null);
+      if (checkedExpr == null) type = null;
+      else type = checkedExpr.getType();
+    }
+
+    if (type == null) {
       return Utils.typecheckWithAdditionalArguments(expression, typechecker, ext, 0, false);
     }
 
@@ -338,7 +351,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
     this.refExpr = refExpr;
     this.errorReporter = typechecker.getErrorReporter();
 
-    var transportedExpr = simplifyTypeOfExpression(expression, expectedType);
+    var transportedExpr = simplifyTypeOfExpression(expression, type);
     return transportedExpr == null ? null : typechecker.typecheck(transportedExpr, expectedType);
   }
 }
