@@ -7,6 +7,8 @@
 \import Algebra.Group
 \import Algebra.Group.Category
 \import Algebra.Meta
+\import Algebra.Module
+\import Algebra.Module.LinearMap
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
 \import Algebra.Ordered
@@ -441,8 +443,6 @@
     }
   }
 
-\open PolyRing(*c)
-
 \lemma polyCoef_+ {R : Ring} {p q : Poly R} {n : Nat} : polyCoef (p + q) n = polyCoef p n + polyCoef q n \elim p, q, n
   | pzero, q, n => rewrite zro-left (inv zro-left)
   | padd p x, padd q y, 0 => idp
@@ -457,7 +457,7 @@
 \lemma polyCoef_negative {R : Ring} {p : Poly R} {n : Nat} : polyCoef (negative p) n = negative (polyCoef p n)
   => polyCoefHom.func-negative
 
-\lemma polyCoef_*c {R : Ring} {a : R} {p : Poly R} {n : Nat} : polyCoef (a *c p) n = a * polyCoef p n \elim p, n
+\lemma polyCoef_*c {R : Ring} {a : R} {p : Poly R} {n : Nat} : polyCoef (a PolyRing.*c p) n = a * polyCoef p n \elim p, n
   | pzero, n => inv zro_*-right
   | padd p e, 0 => idp
   | padd p e, suc n => polyCoef_*c
@@ -492,7 +492,7 @@
     | padd p e => func-+ *> pmap2 (+) (pmap2 padd func-* func-zro) polyMap_*c
   }
   \where
-    \func polyMap_*c {f : RingHom} {a : f.Dom} {q : Poly f.Dom} : polyMap f (a *c q) = f a *c polyMap f q \elim q
+    \func polyMap_*c {f : RingHom} {a : f.Dom} {q : Poly f.Dom} : polyMap f (a PolyRing.*c q) = f a PolyRing.*c polyMap f q \elim q
       | pzero => idp
       | padd q b => pmap2 padd polyMap_*c f.func-*
 
@@ -509,14 +509,14 @@
     | padd p x => func-+ *> rewrite (func-*,polyEval_*c) equation
   }
   \where
-    \lemma polyEval_*c {R : Ring} {x a : R} {p : Poly R} : polyEval (x *c p) a = x * polyEval p a \elim p
+    \lemma polyEval_*c {R : Ring} {x a : R} {p : Poly R} : polyEval (x PolyRing.*c p) a = x * polyEval p a \elim p
       | pzero => inv zro_*-right
       | padd p y => rewrite polyEval_*c equation
 
 \func polyMapEvalRingHom {R : Ring} {S : CRing} (f : RingHom R S) (a : S) : RingHom (PolyRing f.Dom) S
   => polyEvalRingHom a ∘ polyMapRingHom f
   \where
-    \lemma polyMapEval_*c {R : Ring} {S : CRing} {f : RingHom R S} {x : R} {a : S} {p : Poly R} : polyMapEval f (x *c p) a = f x * polyMapEval f p a
+    \lemma polyMapEval_*c {R : Ring} {S : CRing} {f : RingHom R S} {x : R} {a : S} {p : Poly R} : polyMapEval f (x PolyRing.*c p) a = f x * polyMapEval f p a
       => pmap (polyEval __ a) polyMapRingHom.polyMap_*c *> polyEvalRingHom.polyEval_*c
 
 \func polyMapEval-unique {R S : Ring} (f g : RingHom (PolyRing R) S) (p : \Pi (r : R) -> f (padd pzero r) = g (padd pzero r)) (q : f (padd 1 0) = g (padd 1 0)) (x : PolyRing R) : f x = g x \elim x
@@ -673,9 +673,9 @@
 \lemma degree<=_FinSum {R : Ring} {J : FinSet} {a : J -> Poly R} {n : Nat} (d : \Pi (j : J) -> degree<= (a j) n) : degree<= (AbMonoid.FinSum a) n
   => AbMonoid.FinSum-pred {_} {degree<= __ n} () (\lam {p} {q} => degree<=_+) d
 
-\lemma degree<=_*c {R : Ring} {a : R} {p : Poly R} {n : Nat} (d : degree<= p n) : degree<= (a *c p) n \elim p, n
+\lemma degree<=_*c {R : Ring} {a : R} {p : Poly R} {n : Nat} (d : degree<= p n) : degree<= (a PolyRing.*c p) n \elim p, n
   | pzero, n => ()
-  | padd p e, 0 => pmap (a *c) d
+  | padd p e, 0 => pmap (a PolyRing.*c) d
   | padd p e, suc n => degree<=_*c d
 
 \lemma degree<=_negative {R : Ring} {p : Poly R} {n : Nat} (d : degree<= p n) : degree<= (negative p) n \elim p, n
@@ -715,7 +715,7 @@
        | byRight d => lem (coefInv $ rewriteF (degree<=0 pi.inv d, inv PolyRing.*c_*) pi.inv-left) d
      }
   \where {
-    \lemma coefInv {R : StrictDomain} {c : R} {p : Poly R} (q : c *c p = 1) : degree<= p 0 \elim p
+    \lemma coefInv {R : StrictDomain} {c : R} {p : Poly R} (q : c PolyRing.*c p = 1) : degree<= p 0 \elim p
       | pzero => ()
       | padd p a => \case zeroProduct {_} {padd pzero c} (pmap (`+ _) peq *> zro-left *> pmap polyShift q) \with {
         | byLeft r => \have t => pmap lastCoef $ inv peq *> rewriteF (pmap (polyCoef __ 0) r, zro_*-left, PolyRing.zro_*c) q
@@ -783,7 +783,7 @@
     | suc k => \lam d => fromArray_degree< (suc<=suc.conv d)
   }
 
-\lemma *c_monomial {R : Ring} {a c : R} {n : Nat} : a *c monomial c n = monomial (a * c) n \elim n
+\lemma *c_monomial {R : Ring} {a c : R} {n : Nat} : a PolyRing.*c monomial c n = monomial (a * c) n \elim n
   | 0 => idp
   | suc n => pmap2 padd *c_monomial zro_*-right
 
@@ -1127,3 +1127,42 @@
   : \Sigma (M : Ideal (PolyAlgebra K)) M.IsMaximal (M p)
   => \let (M,Mm,g) => BezoutRing.maximal-ideal (Poly.poly-countable c) poly-dec-div (p :: nil) (\lam c => pc $ c p \lam (0) => LDiv.id-div)
      \in (M, Mm, g 0)
+
+\func polyModule {R : Ring} {U : LModule' R} (f : LinearMap' U U) : LModule' (PolyRing R) \cowith
+  | AbGroup => U
+  | *c p u => poly_func p f u
+  | *c-assoc {p q : Poly R} {a : U} : poly_func (p * q) f a = poly_func p f (poly_func q f a) \elim p {
+    | pzero => idp
+    | padd p e => *c-rdistr *> rewrite (U.*c_zro-left,zro-right) (pmap2 (+) (*c-assoc *> pmap (poly_func p f) (inv poly_func-comm)) poly_func_*c)
+  }
+  | *c-ldistr {p : Poly R} {a b : U} : poly_func p f (a + b) = poly_func p f a + poly_func p f b \elim p {
+    | pzero => inv zro-left
+    | padd p e => rewrite f.func-+ $ pmap2 (+) *c-ldistr U.*c-ldistr *> equation
+  }
+  | *c-rdistr {p q : Poly R} {a : U} : poly_func (p + q) f a = poly_func p f a + poly_func q f a \elim p, q {
+    | pzero, q => inv zro-left
+    | padd p b, pzero => simplify
+    | padd p b, padd q c => pmap2 (+) *c-rdistr U.*c-rdistr *> equation
+  }
+  | ide_*c => zro-left *> ide_*c
+  \where {
+    \func poly_func {R : Ring} {U : LModule' R} (p : Poly R) (f : U -> U) (u : U) : U \elim p
+      | pzero => 0
+      | padd p e => poly_func p f (f u) + e *c u
+      | peq => zro-left *> U.*c_zro-left
+
+    \lemma poly_func_zro {R : Ring} {U : LModule' R} {p : Poly R} {f : AddPointedHom U U} : poly_func p f 0 = 0 \elim p
+      | pzero => idp
+      | padd p e => rewrite (f.func-zro,U.*c_zro-right) $ zro-right *> poly_func_zro
+
+    \lemma poly_func_*c {R : Ring} {U : LModule' R} {a : R} {p : Poly R} {f : U -> U} {u : U} : poly_func (a PolyRing.*c p) f u = a *c poly_func p f u \elim p
+      | pzero => inv U.*c_zro-right
+      | padd p e => pmap2 (+) poly_func_*c U.*c-assoc *> inv U.*c-ldistr
+
+    \lemma poly_func-comm {R : Ring} {U : LModule' R} {p : Poly R} {f : LinearMap' U U} {u : U} : f (poly_func p f u) = poly_func p f (f u) \elim p
+      | pzero => f.func-zro
+      | padd p e => f.func-+ *> pmap2 (+) poly_func-comm f.func-*c
+
+    \lemma finitelyGenerated {R : Ring} {U : LModule' R} {f : LinearMap' U U} (fg : U.IsFinitelyGenerated) : LModule.IsFinitelyGenerated {polyModule f} \elim fg
+      | inP (l,lg) => inP (l, \lam x => TruncP.map (lg x) \lam s => (map (padd pzero) s.1, s.2 *> pmap U.BigSum (exts \lam j => inv zro-left)))
+  }

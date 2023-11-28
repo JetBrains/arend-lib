@@ -47,7 +47,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
   @Override
   public boolean requireExpectedType() {
-    return true;
+    return !isForward;
   }
 
   @Override

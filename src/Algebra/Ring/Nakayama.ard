@@ -3,12 +3,16 @@
 \import Algebra.Linear.Matrix
 \import Algebra.Meta
 \import Algebra.Module
+\import Algebra.Module.LinearMap
 \import Algebra.Module.Sub
 \import Algebra.Monoid
 \import Algebra.Monoid.Sub
 \import Algebra.Ring
 \import Algebra.Ring.Ideal
+\import Algebra.Ring.Poly
 \import Data.Array
+\import Equiv
+\import Function
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -35,11 +39,21 @@
     })
   \where \open MatrixRing
 
+\lemma nakayama' {R : CRing} {M : LModule' R} {I : Ideal R} (fg : M.IsFinitelyGenerated)
+                 (c : topSubLModule M <= I *m topSubLModule M) : ∃ (e : R) (I e) (\Pi (m : M) -> e *c m = m)
+  => TruncP.map (nakayama fg c) \lam (e,d,q) => (1 - e, d, \lam m => *c-rdistr *> pmap2 (+) ide_*c M.*c_negative-left *> pmap (m +) (pmap negative (q m) *> M.negative_zro) *> zro-right) -- equation {usingOnly (q m)}
+
 \lemma nakayama-ideal {R : CRing} {I : Ideal R} (Ifg : I.IsFinitelyGenerated) (p : I <= I * I) : ∃ (u : R) (u * u = u) (I.IsGeneratedBy1 u)
-  => TruncP.map (nakayama {R} {I.module} (Ideal.module.finitelyGenerated Ifg) \lam {s} _ => TruncP.map (p s.2)
+  => TruncP.map (nakayama' {R} {I.module} (Ideal.module.finitelyGenerated Ifg) \lam {s} _ => TruncP.map (p s.2)
         \lam t => (map (later \lam s => (s.1 * s.2.1, ideal-left s.2.3, (s.2.2, s.2.4))) t.1,
                    ext $ t.2 *> pmap R.BigSum (exts \lam j => inv *-assoc) *> inv SubAddMonoid.struct_BigSum))
-      \lam s => (1 - s.1, equation {usingOnly (pmap __.1 $ s.3 (1 - s.1, s.2) )}, (s.2, \lam {b} Ib => inP \new Monoid.LDiv {
+      \lam s => (s.1, equation {usingOnly (pmap __.1 $ s.3 (s.1, s.2) )}, (s.2, \lam {b} Ib => inP \new Monoid.LDiv {
         | inv => b
         | inv-right => equation {usingOnly (pmap __.1 $ s.3 (b,Ib))}
       }))
+
+\lemma linear-surj-equiv {R : CRing} {U : LModule' R} (fg : U.IsFinitelyGenerated) {f : LinearMap' U U} (fs : isSurj f) : Equiv f
+  => Equiv.fromInjSurj f (f.injective \lam {u} fu=0 =>
+      \let | (inP (p,c,g)) => nakayama' {_} {polyModule f} {Ideal.closure1 (padd 1 0)} (polyModule.finitelyGenerated fg) (\lam {a} _ => TruncP.map (fs a) \lam s => ((padd 1 0, Ideal.closure1-lem.2 $ inP (1, inv ide-right), s.1) :: nil, simplify $ simplify $ rewrite (ide_*c,U.*c_zro-left) (inv $ zro-right *> s.2)))
+           | (inP (p',q)) => Ideal.closure1_LDiv.1 c
+      \in inv (rewriteF (ide_*c,U.*c_zro-left,zro-right,fu=0) $ simplifyF $ inv (*c-assoc {polyModule f}) *> rewriteF (inv (*-comm {_} {p'} {padd 1 0} *> q)) (g u)) *> polyModule.poly_func_zro) fs
