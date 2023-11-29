@@ -47,7 +47,7 @@ public class MonoidSolverError extends EquationSolverError {
   private static List<Assumption> rulesToAssumptions(List<? extends MonoidSolver.Rule> rules, boolean isMultiplicative) {
     List<Assumption> result = new ArrayList<>(rules.size());
     for (MonoidSolver.Rule rule : rules) {
-      result.add(new Assumption(rule.expression.getExpression(), rule.binding, rule.direction == MonoidSolver.Direction.BACKWARD, toMonomials(rule.lhs, isMultiplicative), toMonomials(rule.rhs, isMultiplicative)));
+      result.add(new Assumption(rule.expression == null ? null : rule.expression.getExpression(), rule.binding, rule.direction == MonoidSolver.Direction.BACKWARD, toMonomials(rule.lhs, isMultiplicative), toMonomials(rule.rhs, isMultiplicative)));
     }
     return result;
   }
