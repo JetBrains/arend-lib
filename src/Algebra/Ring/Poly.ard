@@ -1133,36 +1133,32 @@
   | *c p u => poly_func p f u
   | *c-assoc {p q : Poly R} {a : U} : poly_func (p * q) f a = poly_func p f (poly_func q f a) \elim p {
     | pzero => idp
-    | padd p e => *c-rdistr *> rewrite (U.*c_zro-left,zro-right) (pmap2 (+) (*c-assoc *> pmap (poly_func p f) (inv poly_func-comm)) poly_func_*c)
+    | padd p e => *c-rdistr *> rewrite (U.*c_zro-left,zro-right) (pmap2 (+) (pmap f *c-assoc) poly_func_poly-*c)
   }
   | *c-ldistr {p : Poly R} {a b : U} : poly_func p f (a + b) = poly_func p f a + poly_func p f b \elim p {
     | pzero => inv zro-left
-    | padd p e => rewrite f.func-+ $ pmap2 (+) *c-ldistr U.*c-ldistr *> equation
+    | padd p e => pmap (f __ + _) *c-ldistr *> pmap2 (+) f.func-+ U.*c-ldistr *> equation
   }
   | *c-rdistr {p q : Poly R} {a : U} : poly_func (p + q) f a = poly_func p f a + poly_func q f a \elim p, q {
     | pzero, q => inv zro-left
-    | padd p b, pzero => simplify
-    | padd p b, padd q c => pmap2 (+) *c-rdistr U.*c-rdistr *> equation
+    | padd p b, pzero => inv zro-right
+    | padd p b, padd q c => pmap (f __ + _) *c-rdistr *> pmap2 (+) f.func-+ U.*c-rdistr *> equation
   }
-  | ide_*c => zro-left *> ide_*c
+  | ide_*c => pmap2 (+) f.func-zro ide_*c *> zro-left
   \where {
-    \func poly_func {R : Ring} {U : LModule' R} (p : Poly R) (f : U -> U) (u : U) : U \elim p
+    \func poly_func {R : Ring} {U : LModule' R} (p : Poly R) (f : AddPointedHom U U) (u : U) : U \elim p
       | pzero => 0
-      | padd p e => poly_func p f (f u) + e *c u
-      | peq => zro-left *> U.*c_zro-left
+      | padd p e => f (poly_func p f u) + e *c u
+      | peq => pmap2 (+) f.func-zro U.*c_zro-left *> zro-left
 
     \lemma poly_func_zro {R : Ring} {U : LModule' R} {p : Poly R} {f : AddPointedHom U U} : poly_func p f 0 = 0 \elim p
       | pzero => idp
-      | padd p e => rewrite (f.func-zro,U.*c_zro-right) $ zro-right *> poly_func_zro
+      | padd p e => pmap2 (f __ + __) poly_func_zro U.*c_zro-right *> zro-right *> f.func-zro
 
-    \lemma poly_func_*c {R : Ring} {U : LModule' R} {a : R} {p : Poly R} {f : U -> U} {u : U} : poly_func (a PolyRing.*c p) f u = a *c poly_func p f u \elim p
+    \lemma poly_func_poly-*c {R : Ring} {U : LModule' R} {a : R} {p : Poly R} {f : LinearMap' U U} {u : U} : poly_func (a PolyRing.*c p) f u = a *c poly_func p f u \elim p
       | pzero => inv U.*c_zro-right
-      | padd p e => pmap2 (+) poly_func_*c U.*c-assoc *> inv U.*c-ldistr
-
-    \lemma poly_func-comm {R : Ring} {U : LModule' R} {p : Poly R} {f : LinearMap' U U} {u : U} : f (poly_func p f u) = poly_func p f (f u) \elim p
-      | pzero => f.func-zro
-      | padd p e => f.func-+ *> pmap2 (+) poly_func-comm f.func-*c
+      | padd p e => pmap2 (+) (pmap f poly_func_poly-*c *> f.func-*c) U.*c-assoc *> inv U.*c-ldistr
 
     \lemma finitelyGenerated {R : Ring} {U : LModule' R} {f : LinearMap' U U} (fg : U.IsFinitelyGenerated) : LModule.IsFinitelyGenerated {polyModule f} \elim fg
-      | inP (l,lg) => inP (l, \lam x => TruncP.map (lg x) \lam s => (map (padd pzero) s.1, s.2 *> pmap U.BigSum (exts \lam j => inv zro-left)))
+      | inP (l,lg) => inP (l, \lam x => TruncP.map (lg x) \lam s => (map (padd pzero) s.1, s.2 *> pmap U.BigSum (exts \lam j => inv $ pmap (`+ _) f.func-zro *> zro-left)))
   }
