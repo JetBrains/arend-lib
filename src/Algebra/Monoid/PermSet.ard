@@ -1,5 +1,5 @@
-\import Algebra.Group.Category
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Data.Array
 \import Function.Meta
 \import Logic
@@ -24,20 +24,20 @@
 \lemma permSet-ext {A : \Set} {x y : PermSet A} (p : x = {Quotient EPerm} y) : x = y
   => path (\lam i => p i)
 
-\instance PermSetAbMonoid (A : \Set) : AbMonoid (PermSet A)
-  | zro => in~ nil
-  | + (x y : PermSet A) : PermSet A \with {
+\instance PermSetMonoid (A : \Set) : CMonoid (PermSet A)
+  | ide => in~ nil
+  | * (x y : PermSet A) : PermSet A \with {
     | in~ l, in~ l' => in~ (l ++ l')
     | in~ l, ~-equiv l1 l2 r => permSet-ext $ ~-pequiv (EPerm.eperm-++-right r)
     | ~-equiv l1 l2 r, in~ l => permSet-ext $ ~-pequiv (EPerm.eperm-++-left r)
   }
-  | zro-left {x} => \case \elim x \with {
+  | ide-left {x} => \case \elim x \with {
     | in~ l => idp
   }
-  | +-assoc {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+  | *-assoc {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
     | in~ l1, in~ l2, in~ l3 => permSet-ext (pmap in~ ++-assoc)
   }
-  | +-comm {x} {y} => \case \elim x, \elim y \with {
+  | *-comm {x} {y} => \case \elim x, \elim y \with {
     | in~ l, in~ l' => permSet-ext (~-pequiv EPerm.eperm-++-comm)
   }
 
@@ -49,42 +49,42 @@
   : permSet-map g (permSet-map f s) = permSet-map (\lam a => g (f a)) s \elim s
   | in~ l => idp
 
-\func permSet-hom {A B : \Set} (f : A -> B) : AddMonoidHom (PermSetAbMonoid A) (PermSetAbMonoid B) (permSet-map f) \cowith
-  | func-zro => idp
-  | func-+ {x} {y} => \case \elim x, \elim y \with {
+\func permSet-hom {A B : \Set} (f : A -> B) : MonoidHom (PermSetMonoid A) (PermSetMonoid B) (permSet-map f) \cowith
+  | func-ide => idp
+  | func-* {x} {y} => \case \elim x, \elim y \with {
     | in~ l, in~ l' => pmap PermSet.inPS (map_++ f)
   }
 
-\lemma permSet-map_+ {A B : \Set} {f : A -> B} {x y : PermSet A} : permSet-map f (x + y) = permSet-map f x + permSet-map f y \elim x, y
+\lemma permSet-map_+ {A B : \Set} {f : A -> B} {x y : PermSet A} : permSet-map f (x * y) = permSet-map f x * permSet-map f y \elim x, y
   | in~ l, in~ l' => permSet-ext $ pmap in~ (map_++ f)
 
-\func permSet-sum {A : AbMonoid} (x : PermSet A) : A \elim x
-  | in~ l => A.BigSum l
-  | ~-equiv x y r => A.BigSum_EPerm r
+\func permSet-sum {A : CMonoid} (x : PermSet A) : A \elim x
+  | in~ l => A.BigProd l
+  | ~-equiv x y r => A.BigProd_EPerm r
 
-\lemma permSet-sum-natural {A B : AbMonoid} (f : AddMonoidHom A B) {x : PermSet A} : f (permSet-sum x) = permSet-sum (permSet-map f x) \elim x
-  | in~ l => f.func-BigSum
+\lemma permSet-sum-natural {A B : CMonoid} (f : MonoidHom A B) {x : PermSet A} : f (permSet-sum x) = permSet-sum (permSet-map f x) \elim x
+  | in~ l => f.func-BigProd
 
-\lemma permSet-sum_+ {A : AbMonoid} {x y : PermSet A} : permSet-sum (x + y) = permSet-sum x + permSet-sum y \elim x, y
-  | in~ l, in~ l' => A.BigSum_++
+\lemma permSet-sum_+ {A : CMonoid} {x y : PermSet A} : permSet-sum (x * y) = permSet-sum x * permSet-sum y \elim x, y
+  | in~ l, in~ l' => A.BigProd_++
 
-\func permSet-univ {A : \Set} {B : AbMonoid} (f : A -> B) : AddMonoidHom (PermSetAbMonoid A) B \cowith
+\func permSet-univ {A : \Set} {B : CMonoid} (f : A -> B) : MonoidHom (PermSetMonoid A) B \cowith
   | func x => permSet-sum (permSet-map f x)
-  | func-zro => idp
-  | func-+ => pmap permSet-sum permSet-map_+ *> permSet-sum_+
+  | func-ide => idp
+  | func-* => pmap permSet-sum permSet-map_+ *> permSet-sum_+
 
-\lemma permSet-univ-natural {A B : AbMonoid} (f : AddMonoidHom A B) {x : PermSet A} : f (permSet-sum x) = permSet-sum (permSet-map f x) \elim x
-  | in~ l => f.func-BigSum
+\lemma permSet-univ-natural {A B : CMonoid} (f : MonoidHom A B) {x : PermSet A} : f (permSet-sum x) = permSet-sum (permSet-map f x) \elim x
+  | in~ l => f.func-BigProd
 
-\func permSet-zro-dec {A : \Set} (x : PermSet A) : Dec (x = 0) \elim x
+\func permSet-zro-dec {A : \Set} (x : PermSet A) : Dec (x = 1) \elim x
   | in~ nil => yes idp
   | in~ (_ :: _) => no $ \lam p => \case PermSet.unext p \with {
     | inP e => \case EPerm.EPerm_len e
   }
 
-\lemma permSet-split {A : \Set} {l : Array A} : AddMonoid.BigSum (map (\lam a => PermSet.inPS (a :: nil)) l) = PermSet.inPS l \elim l
+\lemma permSet-split {A : \Set} {l : Array A} : Monoid.BigProd (map (\lam a => PermSet.inPS (a :: nil)) l) = PermSet.inPS l \elim l
   | nil => idp
-  | a :: l => pmap (_ +) permSet-split
+  | a :: l => pmap (_ *) permSet-split
 
 \func permSet-length {A : \Set} (p : PermSet A) : Nat \elim p
   | in~ (l : Array) => l.len
