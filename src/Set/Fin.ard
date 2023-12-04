@@ -98,7 +98,14 @@
         }
       }
 
-    \lemma searchFin-unique {n : Nat} (A : Fin n -> \Prop) (d : \Pi (j : Fin n) -> Dec (A j)) (c : ∃ (j : Fin n) (A j))
+  \func searchFin-equiv {B : \Type} {n : Nat} (e : Equiv {Fin n} {B}) (A : B -> \Prop) (d : \Pi (b : B) -> Dec (A b))
+    : Or (\Sigma (b : B) (A b)) (\Pi (b : B) -> Not (A b))
+    => \case searchFin (\lam j => A (e j)) (\lam j => d (e j)) \with {
+         | inl p => inl (e p.1, p.2)
+         | inr q => inr \lam b Ab => q (e.ret b) $ transportInv A (e.f_ret b) Ab
+       }
+
+  \lemma searchFin-unique {n : Nat} (A : Fin n -> \Prop) (d : \Pi (j : Fin n) -> Dec (A j)) (c : ∃ (j : Fin n) (A j))
       : Contr (\Sigma (j0 : Fin n) (A j0) (\Pi (j : Fin n) -> A j -> (j0 : Nat) <= j))
       => \case \elim c \with {
         | inP (j,Aj) => isProp=>isContr (\lam t s => ext $ nat_fin_= $ <=-antisymmetric (t.3 s.1 s.2) (s.3 t.1 t.2)) $ \case searchFin A d \with {
@@ -364,6 +371,10 @@
 
 \instance ProdFin (A B : FinSet) : FinSet (\Sigma A B) (A.finCard Nat.* B.finCard)
   => transport (FinSet _) Semiring.FinSum_replicate $ SigmaFin A (\lam _ => B)
+  \where {
+    \func prod_equiv {n m : Nat} : Equiv {Fin (n Nat.* m)} {\Sigma (Fin n) (Fin m)}
+      => transport (\lam x => Equiv {Fin x} {_}) Semiring.BigSum_replicate $ SigmaFin.aux {n} {\lam _ => m}
+  }
 
 \func DecFin {P : \Prop} (d : Dec P) : FinSet P \cowith
   | finCard => Dec.rec (\lam _ => 1) (\lam _ => 0) d
@@ -384,3 +395,23 @@
 
 \lemma fin_transport {n m : Nat} {j : Fin n} {p : n = m} : transport Fin p j = {Nat} j \elim p
   | idp => idp
+
+\instance FunDec {A : FinSet} (B : A -> Decide) : Decide (\Pi (a : A) -> B a)
+  | decide => \case A.finEq \with {
+    | inP (e : Equiv) => \case fin-dec (\lam j => B (e j)) \with {
+      | yes p => yes \lam a => transport (B __) (e.f_ret a) $ p (e.ret a)
+      | no q => no \lam f => q \lam j => f (e j)
+    }
+  }
+  \where {
+    \func fin-dec {n : Nat} (B : Fin n -> Decide) : Dec (\Pi (j : Fin n) -> B j) \elim n
+      | 0 => yes \case __
+      | suc n => \case decide {B 0}, fin-dec (\lam j => B (suc j)) \with {
+        | yes p, yes q => yes \case \elim __ \with {
+          | 0 => p
+          | suc j => q j
+        }
+        | _, no q => no \lam f => q \lam j => f (suc j)
+        | no p, _ => no \lam f => p (f 0)
+      }
+  }

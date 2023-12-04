@@ -619,6 +619,10 @@
 
     \func perm_equiv {A : \Type} {n : Nat} {l l' : Array A n} (p : Perm l l') : \Sigma (e : Equiv {Fin n} {Fin n}) (\Pi (j : Fin n) -> l' j = l (e j))
       => EPerm.eperm_equiv (EPerm.Perm_EPerm p)
+      \where {
+        \func conv {A : \Type} {n : Nat} {l l' : Array A n} (s : \Sigma (e : Equiv {Fin n} {Fin n}) (\Pi (j : Fin n) -> l' j = l (e j))) : Perm l l'
+          => transportInv (Perm l) (exts s.2) (equiv_perm s.1)
+      }
 
     \func perm_list {A : \Type} {n : Nat} {l l' : Array A n} (p : Perm l l') : Sort.Perm (toList l) (toList l') \elim n, l, l', p
       | 0, nil, nil, perm-nil => Sort.perm-nil
@@ -736,12 +740,22 @@
         \have | (e1,f1) => eperm_equiv p1
               | (e2,f2) => eperm_equiv p2
         \in (transEquiv e2 e1, \lam j => f2 j *> f1 (e2 j))
+      \where {
+        \func conv {A : \Type} {l l' : Array A} (s : \Sigma (e : Equiv {Fin l'.len} {Fin l.len}) (\Pi (j : Fin l'.len) -> l' j = l (e j))) : EPerm l l'
+          => transportInv (\lam n => \Pi (l' : Array A n) -> \Sigma (e : Equiv {Fin l'.len} {Fin l.len}) (\Pi (j : Fin l'.len) -> l' j = l (e j)) -> EPerm l l') (FinSet.FinCardBij s.1) (\lam l' s => Perm_EPerm {_} {l.len} {\new l} (Perm.perm_equiv.conv {_} {_} {\new l} s)) (\new l') s
+      }
 
     \lemma EPerm_len {A : \Type} {l l' : Array A} (e : EPerm l l') : l.len = l'.len \elim l, l', e
       | nil, nil, eperm-nil => idp
       | x :: l, y :: l', eperm-:: p e => pmap suc (EPerm_len e)
       | x :: (x' :: l), y :: (y' :: l'), eperm-swap _ _ idp => idp
       | l, l', eperm-trans e1 e2 => EPerm_len e1 *> EPerm_len e2
+
+    \func EPermDec {A : DecSet} {l l' : Array A} : Or (EPerm l l') (Not (EPerm l l'))
+      => \case FinSet.searchFin-equiv {EquivFin (FinFin l'.len) (FinFin l.len)} (symQEquiv EquivFin.equiv_fin.2) (\lam e => \Pi (j : Fin l'.len) -> l' j = l (e j)) (\lam e => decide {FunDec \lam j => EqualityDecide A (l' j) (l (e j))}) \with {
+           | inl p => inl (eperm_equiv.conv p)
+           | inr q => inr \lam e => q (eperm_equiv e).1 (eperm_equiv e).2
+         }
   }
 
 \func pairs {A B C : \Type} (f : A -> B -> C) (l : Array A) (l' : Array B) : Array C \elim l
