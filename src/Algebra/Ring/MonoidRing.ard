@@ -13,14 +13,22 @@
 \import Algebra.Semiring
 \import Category
 \import Data.Array
-\import Data.Bool
+\import Data.Fin (fsuc)
+\import Data.Or
+\import Function (isInj)
 \import Function.Meta
+\import Logic
+\import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence \hiding (~)
+\import Set
+\import Set.Fin
+\import Set.Fin.KFin
 \open EPerm
 \open Transitive(Closure,cin,ctrans)
+\open AddMonoid
 
 \type MonoidSet (M : \Set) (R : AddMonoid) => Quotient {Array (\Sigma R M)} (~)
   \where {
@@ -33,6 +41,9 @@
     \func inMS~ {M : \Set} {R : AddMonoid} (l : Array (\Sigma R M)) : Quotient (~) => in~ l
 
     \func inMS {M : \Set} {R : AddMonoid} (l : Array (\Sigma R M)) : MonoidSet M R => in~ l
+
+    \lemma ~-msequiv {M : \Set} {R : AddMonoid} {l l' : Array (\Sigma R M)} (p : l ~ l') : inMS l = inMS l'
+      => path \lam i => ~-pequiv p i
 
     \func ~_++-left {M : \Set} {R : AddMonoid} {l1 l2 l : Array (\Sigma R M)} (e : l1 ~ l2) : (l1 ++ l) ~ (l2 ++ l) \elim e
       | ~-perm e => ~-perm (eperm-++-left e)
@@ -75,21 +86,39 @@
 \lemma monoidSet-ext {M : \Set} {R : AddMonoid} {x y : Quotient {Array (\Sigma R M)} (~)} (p : x = y) : x = {MonoidSet M R} y
   => path (\lam i => p i)
 
-\func monoidSet-coefs {M : \Set} {R : AbMonoid} (f : M -> Bool) (x : MonoidSet M R) : R \elim x
-  | in~ l => R.BigSum $ map __.1 $ filter (\lam s => f s.2) l
+\func monoidSet-coefs {M : \Set} {R : AbMonoid} {P : M -> \Prop} (d : \Pi (m : M) -> Dec (P m)) (x : MonoidSet M R) : R \elim x
+  | in~ l => R.BigSum $ map __.1 $ keep (\lam s => d s.2) l
   | ~-equiv l l' r => monoidSet-coefs-coh r
   \where {
     \lemma monoidSet-coefs-coh {l l' : Array (\Sigma R M)} (e : l ~ l')
-      : R.BigSum (map __.1 $ filter (\lam s => f s.2) l) = R.BigSum (map __.1 $ filter (\lam s => f s.2) l') \elim e
-      | ~-perm e => R.BigSum_EPerm $ EPerm_map __.1 $ EPerm_filter (\lam s => f s.2) e
+      : R.BigSum (map __.1 $ keep (\lam s => d s.2) l) = R.BigSum (map __.1 $ keep (\lam s => d s.2) l') \elim e
+      | ~-perm e => R.BigSum_EPerm $ EPerm_map __.1 (EPerm_keep e)
       | ~-sym e => inv (monoidSet-coefs-coh e)
-      | ~-zro {m} idp => cases (f m) \with {
-        | false => idp
-        | true => zro-left
+      | ~-zro {m} idp => cases (d m) \with {
+        | yes e => zro-left
+        | no q => idp
       }
-      | ~-+ m idp idp => cases (f m) \with {
-        | false => idp
-        | true => +-assoc
+      | ~-+ m idp idp => cases (d m) \with {
+        | yes e => +-assoc
+        | no q => idp
+      }
+  }
+
+\func msCoef {M : DecSet} {R : AbMonoid} (p : MonoidSet M R) (m : M) : R
+  => monoidSet-coefs (decideEq m) p
+
+\lemma msCoef_monomial {M : DecSet} {R : AbMonoid} {r : R} {m : M} : msCoef (msMonomial r m) m = r
+  => unfold msCoef $ rewrite (decideEq=_reduce idp) zro-right
+
+\lemma msCoef_map {M N : DecSet} {f : M -> N} (inj : isInj f) {R E : AbMonoid} {g : AddMonoidHom R E} {p : MonoidSet M R} {m : M} : msCoef (monoidSet-map f g p) (f m) = g (msCoef p m) \elim p
+  | in~ l => pmap E.BigSum (keep-lem inj g) *> inv g.func-BigSum
+  \where {
+    \private \lemma keep-lem {A D : \Set} {B C : DecSet} {f : B -> C} (inj : isInj f) (g : A -> D) {l : Array (\Sigma A B)} {b : B}
+      : map __.1 (keep (\lam s => decideEq (f b) s.2) (map (\lam s => (g s.1, f s.2)) l)) = {Array D} \lam j => g (keep (\lam s => decideEq b s.2) l j).1 \elim l
+      | nil => idp
+      | s :: l => cases (decideEq b s.2) \with {
+        | yes e => rewrite (decideEq=_reduce $ pmap f e) $ pmap (g s.1 ::) (keep-lem inj g)
+        | no q => rewrite (decideEq/=_reduce \lam p => q (inj p)) (keep-lem inj g)
       }
   }
 
@@ -222,18 +251,26 @@
 \lemma msMonomial_+ {M : \Set} {R : AddMonoid} {a b : R} {m : M} : msMonomial (a + b) m = msMonomial a m + msMonomial b m
   => monoidSet-ext $ ~-pequiv $ mkcon ~-+ {nil} m idp idp
 
+\lemma msMonomial_BigSum {M : \Set} {R : AddMonoid} {l : Array R} {m : M} : msMonomial (R.BigSum l) m = BigSum (map (msMonomial __ m) l) \elim l
+  | nil => msMonomial_0
+  | a :: l => msMonomial_+ *> pmap (_ +) msMonomial_BigSum
+
 \lemma msMonomial_0 {M : \Set} {R : AddMonoid} {m : M} : msMonomial R.zro m = 0
   => monoidSet-ext $ ~-pequiv $ MonoidSet.~-zro idp
 
 \lemma msMonomial_* {M : Monoid} {R : Semiring} {a b : R} : msMonomial (a * b) M.ide = msMonomial a M.ide * msMonomial b M.ide
   => monoidSet-ext $ unfold MonoidSemiring.func $ rewrite ide-left idp
 
+\lemma msMonomial_pow {M : Monoid} {R : Semiring} {r : R} {m : M} {n : Nat} : Monoid.pow (msMonomial r m) n = msMonomial (Monoid.pow r n) (Monoid.pow m n) \elim n
+  | 0 => idp
+  | suc n => rewrite msMonomial_pow idp
+
 \lemma msMonomial-split {M : Monoid} {R : Semiring} {a : R} {m : M} : msMonomial a M.ide * msMonomial R.ide m = msMonomial a m
   => pmap2 (\lam x y => inMS ((x,y) :: nil)) ide-right ide-left
 
-\lemma msMonomial_BigSum {M : \Set} {R : AddMonoid} {l : Array (\Sigma R M)} : AddMonoid.BigSum (map (\lam s => msMonomial s.1 s.2) l) = inMS l \elim l
+\lemma msMonomial_BigSum-split {M : \Set} {R : AddMonoid} {l : Array (\Sigma R M)} : BigSum (map (\lam s => msMonomial s.1 s.2) l) = inMS l \elim l
   | nil => idp
-  | s :: l => pmap (_ +) msMonomial_BigSum
+  | s :: l => pmap (_ +) msMonomial_BigSum-split
 
 \lemma msMonomial_BigProd {M : Monoid} {R : Semiring} (l : Array (\Sigma R M))
   : Monoid.BigProd (map (\lam s => msMonomial s.1 s.2) l) = msMonomial (Monoid.BigProd $ map __.1 l) (Monoid.BigProd $ map __.2 l) \elim l
@@ -243,6 +280,87 @@
 \lemma msMonomial_BigProd_ide {M : Monoid} {R : Semiring} {l : Array M}
   : Monoid.BigProd (map (\lam m => msMonomial R.ide m) l) = msMonomial R.ide (Monoid.BigProd l)
   => msMonomial_BigProd (map (\lam m => (R.ide,m)) l) *> pmap (msMonomial __ _) Monoid.BigProd_replicate1
+
+\lemma monoidSet-coefs_+ {M : \Set} {R : AbMonoid} {P : M -> \Prop} {d : \Pi (m : M) -> Dec (P m)} {x y : MonoidSet M R}
+  : monoidSet-coefs d (x + y) = monoidSet-coefs d x + monoidSet-coefs d y \elim x, y
+  | in~ l, in~ l' => pmap R.BigSum (pmap (map __.1) keep_++ *> map_++ __.1) *> R.BigSum_++
+
+\lemma monoidSet-coefs_BigSum {M : \Set} {R : AbMonoid} {P : M -> \Prop} {d : \Pi (m : M) -> Dec (P m)} {l : Array (MonoidSet M R)}
+  : monoidSet-coefs d (BigSum l) = BigSum (map (monoidSet-coefs d) l) \elim l
+  | nil => idp
+  | a :: l => monoidSet-coefs_+ *> pmap (_ +) monoidSet-coefs_BigSum
+
+\lemma msCoef-split {M : DecSet} {R : AbMonoid} (p : MonoidSet M R)
+  : ∃ (l : Array M) (\Pi {i j : Fin l.len} -> l i = l j -> i = j) (p = BigSum (map (\lam m => msMonomial (msCoef p m) m) l)) \elim p
+  | in~ l => inP (nub (map __.2 l), nub-isInj, inv msMonomial_BigSum-split *> AbMonoid.BigSum_EPerm (EPerm_map (\lam s => msMonomial s.1 s.2) nub-split) *>
+      pmap BigSum (inv (Big++_map (\lam s => msMonomial s.1 s.2))) *> BigSum_Big++ *>
+      (pmap (\lam x => BigSum (map x _)) {\lam m => BigSum (map (\lam s => msMonomial s.1 s.2) (keep (\lam s => M.decideEq m s.2) l))}
+          (ext \lam m => msMonomial_BigSum-split *> unique-sum m \lam j => inv $ keep.element {\Sigma R M} (\lam s => decideEq m s.2)) : BigSum (map _ (nub (map __.2 l))) = _))
+
+\lemma msCoefs-fin {M : DecSet} {R : AbMonoid} {Rd : DecSet R} (p : MonoidSet M R) : FinSet (\Sigma (m : M) (msCoef p m /= 0))
+  => \case msCoef-split p \with {
+       | inP (l, inj, q) =>
+        \let l' : Array M => remove (\lam m => decideEq (msCoef p m) 0) l
+        \in KFinSet.KFin+Dec=>Fin (\new KFinSet {
+         | finCard => l'.len
+         | finSurj => inP (\lam j => (l' j, remove.no-element \lam m => decideEq (msCoef p m) 0), \lam x => \case index-dec l' x.1 \with {
+           | inl s => inP (s.1, ext s.2)
+           | inr r => absurd $ x.2 $ rewrite q $ monoidSet-coefs_BigSum *> BigSum_zro \lam j => BigSum_zro $ later $ rewrite (decideEq/=_reduce \lam p' => r $ rewrite p' $ remove.element $ later $ rewriteI p' x.2) $ \case __
+         })
+       }) {SubDecSet}
+     }
+
+\lemma msCoef/=0 {M : DecSet} {R : AbMonoid} {Rd : DecSet R} {p : MonoidSet M R} (p/=0 : p /= 0) : ∃ (m : M) (msCoef p m /= 0)
+  => \case KFinSet.dec {msCoefs-fin p} \with {
+       | yes e => e
+       | no q => absurd $ p/=0 $ \case msCoef-split p \with {
+         | inP (l,_,r) => r *> BigSum_zro \lam j => pmap (msMonomial __ _) (separatedEq \lam s => q $ inP $ later (l j, s)) *> msMonomial_0
+       }
+  }
+
+\func msCoef/=0_Index {M : DecSet} {R : AbMonoid} {l : Array (\Sigma R M)} {m : M} (p : msCoef (inMS l) m /= 0) : Index m (map __.2 l)
+  => \case index-dec (map __.2 l) m \with {
+    | inl r => r
+    | inr q => absurd $ p $ pmap (\lam (l : Array (\Sigma R M)) => BigSum $ map __.1 l) $ keep.no-elements \lam j p => q (j, inv p)
+  }
+
+\lemma msCoef_nonZero-split {M : DecSet} {R : AbMonoid} {Rd : DecSet R} (p : MonoidSet M R)
+  : Quotient {\Sigma (l : Array M) (\Pi {i j : Fin l.len} -> l i = l j -> i = j) (\Pi (j : Fin l.len) -> msCoef p (l j) /= 0) (p = inMS (map (\lam m => (msCoef p m, m)) l))} (\lam s t => EPerm s.1 t.1)
+    \level \lam (in~ s) (in~ t) => \case Transitive.Closure.univ {_} {_} (\new Transitive {
+      | ~ l l' => TruncP (EPerm (msNorm (inMS l) l) (msNorm (inMS l') l'))
+      | ~-transitive (inP e1) (inP e2) => inP (eperm-trans e1 e2)
+    }) (\lam c => inP $ msNorm_~' c) $ toClosure $ inv s.4 *> t.4
+      \with {
+        | inP r => ~-pequiv $ transport2 EPerm (pmap (msNorm __ _) (inv s.4) *> msNorm-norm s.2 s.3) (pmap (msNorm __ _) (inv t.4) *> msNorm-norm t.2 t.3) r
+      }
+  => \case msCoef-split p \with {
+       | inP (l,inj,q) => in~ (remove (\lam m => decideEq (msCoef p m) 0) l,
+                               remove.no-repeats inj,
+                               \lam j => remove.no-element (\lam m => decideEq (msCoef p m) 0),
+                               q *> AbMonoid.BigSum_EPerm (EPerm_map (\lam m => msMonomial (msCoef p m) m) (keep_remove-split {_} {_} {\lam m => decideEq (msCoef p m) 0})) *>
+                                    pmap BigSum (map_++ (\lam m => msMonomial (msCoef p m) m)) *> BigSum_++ *> pmap (`+ _) (BigSum_zro \lam j => pmap (msMonomial __ _) (keep.element (\lam m => decideEq (msCoef p m) 0)) *> msMonomial_0) *> zro-left *> msMonomial_BigSum-split {M} {R} {map (\lam m => (msCoef p m, m)) _})
+     }
+  \where \private {
+    \func msNorm {Rd : DecSet R} (p : MonoidSet M R) (l : Array (\Sigma R M)) => remove (\lam m => decideEq (msCoef p m) 0) $ nub (map __.2 l)
+
+    \lemma msNorm-norm {Rd : DecSet R} {p : MonoidSet M R} {l : Array M} (inj : isInj l) (s : \Pi (j : Fin l.len) -> msCoef p (l j) /= 0) : msNorm p (map (\lam m => (msCoef p m, m)) l) = l
+      => pmap (remove _) (nub_id inj) *> remove.no-elements s
+
+    \func msNorm_~' {Rd : DecSet R} {l l' : Array (\Sigma R M)} (e : l ~ l') : EPerm (msNorm (inMS l) l) (msNorm (inMS l') l')
+      => transport (EPerm _) (pmap (msNorm __ l') (~-msequiv e)) (msNorm_~ e idp)
+
+    \func msNorm_~ {Rd : DecSet R} {p : MonoidSet M R} {l l' : Array (\Sigma R M)} (e : l ~ l') (pp : p = inMS l) : EPerm (msNorm p l) (msNorm p l') \elim e
+      | ~-perm e => EPerm_remove $ EPerm_nub $ EPerm_map __.2 e
+      | ~-sym e => eperm-sym $ msNorm_~ e $ pp *> ~-msequiv (~-sym e)
+      | ~-zro {m} idp => unfold msNorm $ mcases {1} \with {
+        | yes e => eperm-= $ remove_remove *> remove.equals (\lam {a} => ||.rec' (\lam x => x) \lam p => later $ rewriteI p e) (\lam {a} => byLeft)
+        | no q => rewrite remove-swap \have | i1 => msCoef/=0_Index (rewriteF (pp *> ~-msequiv (~-zro idp)) q)
+                                            | i2 => nub-isSurj (map __.2 l') i1.1
+                                            | i : Index m (msNorm p l') => transport (Index __ _) (i2.2 *> i1.2) $ remove.element \lam r => q $ inv (pmap (msCoef p) $ i2.2 *> i1.2) *> r
+                                      \in rewriteI i.2 $ eperm-sym $ eperm-remove (remove.no-repeats nub-isInj) i.1
+      }
+      | ~-+ m q1 q2 => EPerm_remove $ later $ rewrite (q1, q2) $ eperm-= $ pmap (m ::) $ later $ rewrite (decideEq=_reduce idp) $ remove.equals (\lam {a} => byLeft) (\lam {a} => ||.rec' (\lam x => x) (\lam x => x)) *> inv remove_remove
+  }
 
 \func evalMS {M : \Set} {R : Semiring} (x : MonoidSet M R) (f : M -> R) : R \elim x
   | in~ l => R.BigSum $ map (\lam s => s.1 * f s.2) l
@@ -282,7 +400,7 @@
 
 \lemma evalMS_map2 {M : \Set} {R S : Semiring} {x : MonoidSet M R} {f : M -> R} (g : SemiringHom R S)
   : evalMS (monoidSet-map (\lam y => y) g x) (\lam m => g (f m)) = g (evalMS x f) \elim x
-  | in~ l => inv $ g.func-BigSum *> pmap AddMonoid.BigSum (exts \lam j => g.func-*)
+  | in~ l => inv $ g.func-BigSum *> pmap BigSum (exts \lam j => g.func-*)
 
 \func polyToMonoidSet {M : Monoid} {R : Semiring} (m : M) (p : Poly R) : MonoidSet M R \elim p
   | pzero => 0
@@ -316,9 +434,9 @@
   | padd p a => func-+ {evalMSRingHom f} *> pmap2 (+) (func-* *> pmap2 (*) polyToMonoidSet-eval simplify) (unfold $ rewrite f.func-ide simplify)
 
 \lemma monoidRingHom-unique {M : Monoid} {R S : CRing} {f g : RingHom (MonoidRing M R) S} (p : \Pi (r : R) -> f (msMonomial r ide) = g (msMonomial r ide)) (q : \Pi (m : M) -> f (msMonomial 1 m) = g (msMonomial 1 m)) (x : MonoidSet M R) : f x = g x \elim x
-  | in~ l => pmap f monoidSet-list *> f.func-BigSum *> pmap AddMonoid.BigSum (exts \lam j => simplify *> f.func-* *> pmap2 (*) (p (l j).1) (q (l j).2) *> inv g.func-* *> simplify) *> inv g.func-BigSum *> inv (pmap g monoidSet-list)
+  | in~ l => pmap f monoidSet-list *> f.func-BigSum *> pmap BigSum (exts \lam j => simplify *> f.func-* *> pmap2 (*) (p (l j).1) (q (l j).2) *> inv g.func-* *> simplify) *> inv g.func-BigSum *> inv (pmap g monoidSet-list)
   \where {
-    \lemma monoidSet-list {M : \Set} {R : AddMonoid} {l : Array (\Sigma R M)} : inMS l = AddMonoid.BigSum \lam j => msMonomial (l j).1 (l j).2 \elim l
+    \lemma monoidSet-list {M : \Set} {R : AddMonoid} {l : Array (\Sigma R M)} : inMS l = BigSum \lam j => msMonomial (l j).1 (l j).2 \elim l
       | nil => idp
       | a :: l => pmap (_ +) monoidSet-list
   }

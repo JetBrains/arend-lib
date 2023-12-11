@@ -15,6 +15,7 @@
 \import Function
 \import Function.Meta ($)
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.LinearOrder
 \import Order.PartialOrder
@@ -198,9 +199,13 @@
     | true, q, suc i => filter-sat p l i
   }
 
-\func filter_true {A : \Type} {p : A -> Bool} (c : \Pi (a : A) -> p a = true) {l : Array A} : filter p l = l \elim l
+\func filter_true {A : \Type} {p : A -> Bool} {l : Array A} (c : \Pi (j : Fin l.len) -> p (l j) = true) : filter p l = l \elim l
   | nil => idp
-  | a :: l => rewrite (c a) $ pmap (a ::) (filter_true c)
+  | a :: l => rewrite (c 0) $ pmap (a ::) $ filter_true \lam j => c (suc j)
+
+\func filter_false {A : \Type} {p : A -> Bool} {l : Array A} (c : \Pi (j : Fin l.len) -> p (l j) = false) : filter p l = nil \elim l
+  | nil => idp
+  | a :: l => rewrite (c 0) $ filter_false \lam j => c (suc j)
 
 \func filter-index {A : \Type} (p : A -> Bool) (l : Array A) (i : Fin l.len) (px : p (l i) = true) : Index (l i) (filter p l) \elim l, i
   | nil, ()
@@ -273,6 +278,13 @@
       }
   }
 
+\func keep_++ {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l l' : Array A} : keep D (l ++ l') = keep D l ++ keep D l' \elim l
+  | nil => idp
+  | a :: l => mcases \with {
+    | yes p => pmap (a ::) keep_++
+    | no n => keep_++
+  }
+
 \func remove {A : \Type} {P : A -> \Prop} (D : \Pi (a : A) -> Dec (P a)) (l : Array A) : Array A \elim l
   | nil => nil
   | a :: l => \case D a \with {
@@ -287,6 +299,23 @@
         | no q, 0, p => q p
         | no q, suc i, p => no-element D p
       }
+
+    \func element {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l : Array A} {j : Fin l.len} (p : Not (P (l j))) : Index (l j) (remove D l) \elim l
+      | a :: l => \case \elim j, \elim p \with {
+        | 0, p => mcases \with {
+          | yes e => absurd (p e)
+          | no q => (0,idp)
+        }
+        | suc j, p => mcases \with {
+          | yes e => element p
+          | no q => \let t => element p
+                    \in (suc t.1, t.2)
+        }
+      }
+
+    \func no-elements {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l : Array A} (p : \Pi (j : Fin l.len) -> Not (P (l j))) : remove D l = l \elim l
+      | nil => idp
+      | a :: l => rewrite (dec_no_reduce (p 0)) $ pmap (a ::) $ no-elements \lam j => p (suc j)
 
     \func preimage {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l : Array A} (i : Fin (DArray.len {remove D l})) : \Sigma (j : Fin l.len) (remove D l i = l j) \elim l
       | nil => (i,idp)
@@ -305,7 +334,35 @@
         | no _, suc i, 0, q => \let t => preimage i \in \case p {suc t.1} {0} (inv t.2 *> q)
         | no s, suc i, suc j, q => pmap fsuc (no-repeats (\lam {i'} {j'} s => pmap (fpred i') $ p {suc i'} {suc j'} s) q)
       }
+
+    \func equals {A : \Type} {P Q : A -> \Prop} (pq : \Pi {a : A} -> P a -> Q a) (qp : \Pi {a : A} -> Q a -> P a)
+                 {DP : \Pi (a : A) -> Dec (P a)} {DQ : \Pi (a : A) -> Dec (Q a)} {l : Array A} : remove DP l = remove DQ l \elim l
+      | nil => idp
+      | a :: l => cases (DP a) \with {
+        | yes e => rewrite (dec_yes_reduce (pq e)) (equals pq qp)
+        | no p => rewrite (dec_no_reduce \lam q => p (qp q)) $ pmap (a ::) (equals pq qp)
+      }
   }
+
+\func remove_remove {A : \Type} {P Q : A -> \Prop} {DP : \Pi (a : A) -> Dec (P a)} {DQ : \Pi (a : A) -> Dec (Q a)} {l : Array A}
+  : remove DP (remove DQ l) = remove (\lam a => Dec_|| (DP a) (DQ a)) l \elim l
+  | nil => idp
+  | a :: l => mcases \with {
+    | yes q, yes _x => remove_remove
+    | yes q, no p => absurd $ p (byRight q)
+    | no q, yes e => mcases \with {
+      | yes p => remove_remove
+      | no p => absurd $ ||.rec' p q e
+    }
+    | no q, no r => mcases \with {
+      | yes p => absurd $ r (byLeft p)
+      | no n => pmap (a ::) remove_remove
+    }
+  }
+
+\func remove-swap {A : \Type} {P Q : A -> \Prop} {DP : \Pi (a : A) -> Dec (P a)} {DQ : \Pi (a : A) -> Dec (Q a)} {l : Array A}
+  : remove DP (remove DQ l) = remove DQ (remove DP l)
+  => remove_remove *> remove.equals (\lam {a} => ||.rec' byRight byLeft) (\lam {a} => ||.rec' byRight byLeft) *> inv remove_remove
 
 \func keep_remove=keep {A : \Type} {P Q : A -> \Prop} {DP : \Pi (a : A) -> Dec (P a)} {DQ : \Pi (a : A) -> Dec (Q a)} (PQ : \Pi {a : A} -> P a -> Q a -> Empty) {l : Array A} : keep DP (remove DQ l) = keep DP l \elim l
   | nil => idp
@@ -423,6 +480,10 @@
                         | (suc k, p) => (k, p *> inv (pmap __.2 t.2))
                       })) $
                     EPerm.eperm-= $ pmap (Big (++) nil) $ exts \lam j => keep_remove=keep \lam p q => \case inj {0} {suc j} (q *> inv p)
+
+\func nub_id {A : DecSet} {l : Array A} (inj : isInj l) : nub l = l \elim l
+  | nil => idp
+  | a :: l => pmap (a ::) $ remove.no-elements (\lam j p => \case inj {0} {suc (nub-preimage j).1} $ p *> (nub-preimage j).2) *> nub_id \lam p => unfsuc (inj p)
 
 \func insert {A : \Type} (a : A) (l : Array A) (j : Fin (suc l.len)) : Array A (suc l.len) \elim l, j
   | nil, j => a :: nil
@@ -695,6 +756,36 @@
       }
       | l, l', eperm-trans p1 p2 => eperm-trans (EPerm_keep p1) (EPerm_keep p2)
 
+    \func EPerm_remove {A : \Type} {P : A -> \Prop} {D : \Pi (a : A) -> Dec (P a)} {l l' : Array A} (p : EPerm l l') : EPerm (remove D l) (remove D l') \elim l, l', p
+      | nil, nil, eperm-nil => eperm-nil
+      | x :: l, y :: l', eperm-:: idp q => mcases \with {
+        | yes p => EPerm_remove q
+        | no n => eperm-:: idp (EPerm_remove q)
+      }
+      | x :: (x' :: l), _ :: (_ :: _), eperm-swap idp idp idp => mcases \with {
+        | yes p, yes q => rewrite (dec_yes_reduce p, dec_yes_reduce q) eperm-refl
+        | yes p, no q => rewrite (dec_yes_reduce p, dec_no_reduce q) eperm-refl
+        | no p, yes q => rewrite (dec_no_reduce p, dec_yes_reduce q) eperm-refl
+        | no p, no q => rewrite (dec_no_reduce p, dec_no_reduce q) (eperm-swap idp idp idp)
+      }
+      | l, l', eperm-trans p1 p2 => eperm-trans (EPerm_remove p1) (EPerm_remove p2)
+
+    \func EPerm_nub {A : DecSet} {l l' : Array A} (p : EPerm l l') : EPerm (nub l) (nub l') \elim l, l', p
+      | nil, nil, eperm-nil => eperm-nil
+      | x :: l, _ :: l', eperm-:: idp q => eperm-:: idp $ EPerm_remove (EPerm_nub q)
+      | x :: (x' :: l), _ :: (_ :: _), eperm-swap idp idp idp => mcases contradiction \with {
+        | yes p, yes _ => eperm-:: p (eperm-= remove-swap)
+        | no q, no _ => eperm-swap idp idp remove-swap
+      }
+      | l, l', eperm-trans p1 p2 => eperm-trans (EPerm_nub p1) (EPerm_nub p2)
+
+    \func eperm-remove {A : DecSet} {l : Array A} (inj : isInj l) (j : Fin l.len) : EPerm l (l j :: removeElem (l j) l) \elim l, j
+      | a :: l, 0 => eperm-= $ pmap (a ::) $ later $ rewrite (decideEq=_reduce idp) $ inv $ remove.no-elements \lam j p => \case inj {0} {suc j} p
+      | a :: l, suc j => unfold removeElem $ mcases \with {
+        | yes p => \case inj {suc j} {0} p
+        | no q => mkcon eperm-trans {a :: l j :: removeElem (l j) l} (eperm-:: idp $ eperm-remove (\lam p => unfsuc $ inj p) j) (eperm-swap idp idp idp)
+      }
+
     \func EPerm_filter {A : \Type} (f : A -> Bool) {l l' : Array A} (e : EPerm l l') : EPerm (filter f l) (filter f l') \elim l, l', e
       | nil, nil, eperm-nil => eperm-nil
       | x :: l, _ :: l', eperm-:: idp e => cases (f x) \with {
@@ -843,18 +934,11 @@
     }
   }
 
-\sfunc index-dec {A : DecSet} (l : Array A) (a : A) : Or (Index a l) (Not (Index a l)) \elim l
-  | nil => inr $ \case __.1
-  | b :: l => \case decideEq b a \with {
-    | yes e => inl (0, e)
-    | no q => \case index-dec l a \with {
-      | inl e => inl (suc e.1, e.2)
-      | inr p => inr $ \case __ \with {
-        | (0, c) => q c
-        | (suc i, c) => p (i,c)
-      }
-    }
-  }
+\sfunc index-dec {A : DecSet} (l : Array A) (a : A) : Or (Index a l) (Not (Index a l))
+  => \case find (EqualityDecide A __ a) l \with {
+       | inl p => inl (p.1,p.2)
+       | inr q => inr \lam p => q p.2
+     }
 
 \func repeats-dec {A : DecSet} (l : Array A) : Or (\Sigma (i j : Fin l.len) (i /= j) (l i = l j)) (isInj l) \elim l
   | nil => inr $ \lam {i} => \case i
