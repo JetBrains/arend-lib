@@ -15,12 +15,13 @@
     \func inPS {A : \Set} (l : Array A) : PermSet A => in~ l
 
     \lemma unext {A : \Set} {l l' : Array A} (p : inPS~ l = {PermSet A} inPS~ l') : TruncP (EPerm l l')
-      => Quotient.equalityClosure (\new Equivalence (Array A) (\lam l l' => TruncP (EPerm l l')) {
-        | ~-reflexive => inP EPerm.eperm-refl
-        | ~-symmetric (inP e) => inP (EPerm.eperm-sym e)
-        | ~-transitive (inP e1) (inP e2) => inP (eperm-trans e1 e2)
-      }) (\lam e => inP e) (path (\lam i => p i))
+      => Quotient.equalityClosure EPerm.EPerm-equivalence (\lam e => inP e) (path (\lam i => p i))
+
+    \lemma ~-psequiv {A : \Set} {l l' : Array A} (e : EPerm l l') : inPS l = inPS l'
+      => permSet-ext (~-pequiv e)
   }
+
+\open PermSet
 
 \lemma permSet-ext {A : \Set} {x y : PermSet A} (p : x = {Quotient EPerm} y) : x = y
   => path (\lam i => p i)
@@ -28,8 +29,8 @@
 \instance PermSetDec (A : DecSet) : DecSet (PermSet A)
   | decideEq => \case \elim __, \elim __ \with {
     | in~ l, in~ l' => \case EPerm.EPermDec {A} {l} {l'} \with {
-      | inl e => yes $ permSet-ext (~-pequiv e)
-      | inr q => no \lam p => \case PermSet.unext p \with {
+      | inl e => yes (~-psequiv e)
+      | inr q => no \lam p => \case unext p \with {
         | inP p' => q p'
       }
     }
@@ -39,8 +40,8 @@
   | ide => in~ nil
   | * (x y : PermSet A) : PermSet A \with {
     | in~ l, in~ l' => in~ (l ++ l')
-    | in~ l, ~-equiv l1 l2 r => permSet-ext $ ~-pequiv (EPerm.eperm-++-right r)
-    | ~-equiv l1 l2 r, in~ l => permSet-ext $ ~-pequiv (EPerm.eperm-++-left r)
+    | in~ l, ~-equiv l1 l2 r => ~-psequiv (EPerm.eperm-++-right r)
+    | ~-equiv l1 l2 r, in~ l => ~-psequiv (EPerm.eperm-++-left r)
   }
   | ide-left {x} => \case \elim x \with {
     | in~ l => idp
@@ -49,12 +50,12 @@
     | in~ l1, in~ l2, in~ l3 => permSet-ext (pmap in~ ++-assoc)
   }
   | *-comm {x} {y} => \case \elim x, \elim y \with {
-    | in~ l, in~ l' => permSet-ext (~-pequiv EPerm.eperm-++-comm)
+    | in~ l, in~ l' => ~-psequiv EPerm.eperm-++-comm
   }
 
 \func permSet-map {A B : \Set} (f : A -> B) (s : PermSet A) : PermSet B \elim s
   | in~ l => in~ (map f l)
-  | ~-equiv x y r => permSet-ext $ ~-pequiv (EPerm.EPerm_map f r)
+  | ~-equiv x y r => ~-psequiv (EPerm.EPerm_map f r)
 
 \lemma permSet-map-comp {A B C : \Set} {f : A -> B} {g : B -> C} {s : PermSet A}
   : permSet-map g (permSet-map f s) = permSet-map (\lam a => g (f a)) s \elim s
@@ -63,7 +64,7 @@
 \func permSet-hom {A B : \Set} (f : A -> B) : MonoidHom (PermSetMonoid A) (PermSetMonoid B) (permSet-map f) \cowith
   | func-ide => idp
   | func-* {x} {y} => \case \elim x, \elim y \with {
-    | in~ l, in~ l' => pmap PermSet.inPS (map_++ f)
+    | in~ l, in~ l' => pmap inPS (map_++ f)
   }
 
 \lemma permSet-map_+ {A B : \Set} {f : A -> B} {x y : PermSet A} : permSet-map f (x * y) = permSet-map f x * permSet-map f y \elim x, y
@@ -89,15 +90,15 @@
 
 \func permSet-zro-dec {A : \Set} (x : PermSet A) : Dec (x = 1) \elim x
   | in~ nil => yes idp
-  | in~ (_ :: _) => no $ \lam p => \case PermSet.unext p \with {
+  | in~ (_ :: _) => no $ \lam p => \case unext p \with {
     | inP e => \case EPerm.EPerm_len e
   }
 
-\lemma permSet-split {A : \Set} {l : Array A} : Monoid.BigProd (map (\lam a => PermSet.inPS (a :: nil)) l) = PermSet.inPS l \elim l
+\lemma permSet-split {A : \Set} {l : Array A} : Monoid.BigProd (map (\lam a => inPS (a :: nil)) l) = inPS l \elim l
   | nil => idp
   | a :: l => pmap (_ *) permSet-split
 
-\lemma permSet-pow {A : \Set} {a : A} {n : Nat} : Monoid.pow (PermSet.inPS (a :: nil)) n = PermSet.inPS (replicate n a)
+\lemma permSet-pow {A : \Set} {a : A} {n : Nat} : Monoid.pow (inPS (a :: nil)) n = inPS (replicate n a)
   => inv Monoid.BigProd_replicate *> permSet-split
 
 \func permSet-length {A : \Set} (p : PermSet A) : Nat \elim p

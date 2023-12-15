@@ -19,7 +19,6 @@
 \import Algebra.Ring.MPoly
 \import Algebra.Ring.MonoidRing
 \import Algebra.Ring.Poly
-\import Algebra.Ring.Reduced
 \import Algebra.Ring.Sub
 \import Algebra.Semiring
 \import Arith.Nat
@@ -245,45 +244,4 @@
   : RingHom (FactorRing (Ideal.closure1 p)) (SubRing.cStruct (polyImage f a))
   => factor-lift (polyImageHomPoly f a) \lam {q} c => ext $ unfold \case Ideal.closure1-lem.1 c \with {
     | inP (d,q=pd) => rewrite (q=pd, func-* {polyMapEvalRingHom f a}) equation
-  }
-
-{- | If `f : K -> R` is integral and {K} is a field, then {R} is 0-dimensional.
- -
- -   It is actually enough to assume that {K} is 0-dimensional, but this is harder to prove.
--}
-\func integralExt-zeroDim {K : DiscreteField} {R : CRing} {f : RingHom K R} (fi : isIntegralExt f) : R.IsZeroDimensional
-  => \lam a => \case fi a \with {
-       | inP (p, inP pm, pe) => poly-zeroDim p pm.1 pm.3 a 0 (ide-right *> pe)
-     }
-  \where {
-    \lemma poly-zeroDim (p : Poly K) (i : Nat) (pi : polyCoef p i = 1) (a : R) (k : Nat) (pe : polyMapEval f p a * pow a k = 0) : ∃ (b : R) (n : Nat) (pow a n = pow a (suc n) * b) \elim p
-      | pzero => absurd (zro/=ide pi)
-      | padd p e => \case eitherZeroOrInv e \with {
-        | byLeft e=0 => \case \elim i, \elim pi \with {
-          | 0, pi => absurd $ zro/=ide (inv e=0 *> pi)
-          | suc i, pi => poly-zeroDim p i pi a (suc k) (unfold polyMapEval (rewrite (e=0,f.func-zro) equation) *> pe)
-        }
-        | byRight (x,q,_) => inP (negative (f x * polyMapEval f p a), k, equation {using (inv func-* *> pmap f q *> func-ide)})
-      }
-  }
-
-\func polyImage_field {K : DiscreteField} {E : ImpotentCRing} (f : RingHom K E) (a : E) (ai : isIntegral f a)
-  : DiscreteField { | CRing => SubRing.cStruct (polyImage f a) }
-  => ImpotentCRing.zeroDim->field {ImpotentCRing.subring {SubRing.cStruct (polyImage f a)} SubRing.embed (\lam p => ext p)} (integralExt-zeroDim (polyImage_integralExt a ai))
-
-\lemma integral_dom-zeroDim {R S : CRing} (f : RingHom R S) (inj : isInj f) (fi : isIntegralExt f) (Sd : S.IsZeroDimensional) : R.IsZeroDimensional
-  => \lam x => \case Sd (f x) \with {
-    | inP (y,k,s) => \case fi y \with {
-      | inP (p, inP (d,pd,pm), pe) => TruncP.map (aux pd pm s 0 $ rewrite (pe,f.func-zro) simplify) \lam s => (s.1, k, inj $ f.func-pow *> s.2 *> pmap (`* _) (pmap (`* _) (inv f.func-pow) *> inv f.func-*) *> inv f.func-*)
-    }
-  }
-  \where {
-    \private \func aux {p : Poly R} {k d : Nat} (pd : degree<= p d) (pm : polyCoef p d = 1) {x : R} {y : S} (c : S.pow (f x) k = S.pow (f x) (suc k) * y) (a : R) (pe : S.pow (f x) (k Nat.+ d) * polyMapEval f p y = S.pow (f x) (suc k) * f a) : ∃ (b : R) (S.pow (f x) k = S.pow (f x) (suc k) * f b) \elim p, d
-      | pzero, _ => inP (0, \have t {z : S} => inv ide-right *> pmap (z *) (inv f.func-ide *> pmap f (inv pm) *> f.func-zro) *> S.zro_*-right
-                            \in t *> inv t)
-      | padd p e, 0 => inP (a, inv ide-right *> pmap (_ *) (simplify (inv f.func-ide)) *> rewriteF (pd,pm) pe)
-      | padd p e, suc d =>
-        \have | t1 : S.pow (f x) (k Nat.+ d) * f x * y = S.pow (f x) (k Nat.+ d) => rewrite S.pow_+ equation
-              | t2 : S.pow (f x) (k Nat.+ d) * f e = S.pow (f x) k * (f (R.pow x d) * f e) => rewrite S.pow_+ $ *-assoc *> pmap (\lam x => _ * (x * _)) (inv f.func-pow)
-        \in aux pd pm c (a - e * R.pow x d) $ rewrite (f.func-+,f.func-negative,f.func-*) equation
   }

@@ -72,7 +72,7 @@
 
 \lemma msCoef_mVar=0 {J : DecSet} {R : CRing} {j : J} {n m : Nat} {p : MPoly J R} (q : n < m) : msCoef (pow (mVar j) m * p) (pow (PermSet.inPS (j :: nil)) n) = 0 \elim p
   | in~ l => rewrite mVar_pow $ pmap {Array (\Sigma R (PermSet J))} (\lam l => R.BigSum (map __.1 l)) {_} {nil} $ later $ rewrite ++_nil $
-      keep.no-elements \lam k => unfold MonoidSemiring.func $ cases (l k).2 \with {
+      keep-none \lam k => unfold MonoidSemiring.func $ cases (l k).2 \with {
         | in~ l => rewrite (permSet-pow,permSet-pow) $ \case PermSet.unext __ \with {
           | inP e => linarith (EPerm.EPerm_len e *> len_++)
         }
@@ -99,7 +99,7 @@
         | in~ nil => idp
         | in~ (j :: _) => absurd (e j)
       }
-      \in unfold mLastCoef $ rewrite (keep.all-elements t) $ inv $ unique-sum (PermSet.inPS nil) t
+      \in unfold mLastCoef $ rewrite (keep-all t) $ inv $ fromClosure $ unique-sum (PermSet.inPS nil) t
   }
   | f_sec a => zro-right
 
@@ -259,15 +259,20 @@
   | in~ l, inP (l',p,q) => inP (map (\lam s => (f s.1, s.2)) l', Transitive.Closure.toEquality (\lam l => inMS~ $ map (\lam s => later (f s.1, s.2)) l) (\lam q => ~-pequiv $ MonoidSet.~_map f (\lam x => x) q) $ MonoidSet.toClosure (path \lam i => p i), q)
 
 \lemma mdegree<-exists {J : \Set} {R : CRing} (p : MPoly J R) : ∃ (d : Nat) (mdegree< p d) \elim p
-  | in~ l => inP (suc $ Big (∨) 0 $ map (\lam s => permSet-length s.2) l, inP (l, idp, \lam j => suc_<=_< $ suc<=suc $ later $ NatSemiring.Big1_<=_fold {map (\lam s => permSet-length s.2) l} j))
+  | in~ l => inP (suc $ Big (∨) 0 $ map (\lam s => permSet-length s.2) l, inP (l, idp, \lam j => suc_<=_< $ suc<=suc $ later $ NatSemiring.Big_<=_join1 {map (\lam s => permSet-length s.2) l} j))
 
-\sfunc mdegree {J : DecSet} {R : CRing.Dec} (p : MPoly J R) : Nat
-  => \case msCoef_nonZero-split p \with {
-       | in~ s => Big (∨) 0 (map permSet-length s.1)
-       | ~-equiv l l' r => AbMonoid.BigSum_EPerm {Bounded.JoinSemilattice.toMonoid NatBSemilattice} $ EPerm.EPerm_map permSet-length r
-  }
+\lemma mdegree<0 {J : \Set} {R : CRing} {p : MPoly J R} (d : mdegree< p 0) : p = 0 \elim p, d
+  | in~ l, inP (nil, q, _) => path \lam i => q i
+  | in~ l, inP (a :: l', _, q) => \case q 0
+
+\func decMdegree {J : DecSet} {R : CRing.Dec} (p : DecMonoidSet (PermSet J) R) : Nat \elim p
+  | in~ s => Big (∨) 0 (map (\lam t => permSet-length t.2) s.1)
+  | ~-equiv x y r => AbMonoid.BigSum_EPerm {Bounded.JoinSemilattice.toMonoid NatBSemilattice} $ EPerm.EPerm_map (\lam t => permSet-length t.2) r
+
+\func mdegree {J : DecSet} {R : CRing.Dec} (p : MPoly J R) : Nat
+  => decMdegree (monoidSetDec-equiv.ret p)
 
 \lemma mdegree_mdegree< {J : DecSet} {R : CRing.Dec} {p : MPoly J R} : mdegree< p (suc (mdegree p))
-  => rewrite (\peval mdegree p) $ cases (msCoef_nonZero-split p) \with {
-    | in~ s => rewrite s.4 $ inP (_, idp, \lam j => <-transitive-right (NatBSemilattice.Big1_<=_fold {map permSet-length s.1} j) id<suc)
+  => transport (mdegree< __ _) (monoidSetDec-equiv.f_ret p) $ unfold mdegree $ cases (monoidSetDec-equiv.ret p) \with {
+    | in~ s => inP (_, idp, \lam j => <-transitive-right (NatBSemilattice.Big_<=_join1 {map (\lam t => permSet-length t.2) s.1} j) id<suc)
   }

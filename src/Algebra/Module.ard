@@ -141,7 +141,7 @@
 
   \lemma IsIndependentSet<->IsIndependentDec {J : DecSet} {g : J -> E} : IsIndependentSet g <-> IsIndependentDec g
     => (\lam li l c inj p j => inv (count-unique {_} {J} {_} {c} inj j) *> IsZeroSum_count (li (\lam j => (c j, l j)) p) (l j),
-        \lam li c p => count_IsZeroSum $ li _ (map (count c) $ nub (map __.2 c)) nub-isInj $ pmap BigSum (exts \lam j => *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c g __) $ keep.element (\lam s => decideEq (nub (map (\lam p0 => p0.2) c) j) s.2) {c} {k})) *> inv (sum_Big++ g) *> inv (sum_EPerm g nub-split) *> p)
+        \lam li c p => count_IsZeroSum $ li _ (map (count c) $ nub (map __.2 c)) nub-isInj $ pmap BigSum (exts \lam j => *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c g __) $ keep.satisfies (\lam s => decideEq (nub (map (\lam p0 => p0.2) c) j) s.2) {c} {k})) *> inv (sum_Big++ g) *> inv (sum_EPerm g nub-split) *> p)
 
   \lemma IsIndependent<->IsIndependentSet {l : Array E} : IsIndependent l <-> IsIndependentSet l
     => (\lam li c p => count_IsZeroSum \lam j => li (count c) (inv sum_BigSum *> p) _,
@@ -151,7 +151,7 @@
         => BigSum_EPerm (EPerm.EPerm_map (\lam s => s.1 *c l s.2) nub-split) *> sum_Big++ l *> inv FinSum=BigSum *>
             inv (FinSum-inj (nub (map __.2 c)) nub-isInj (\lam j q => pmap (`*c _) (count_zro j \lam k => /=-sym \let (i,p) => nub-isSurj (map __.2 c) k \in later $ rewriteI p (q i)) *> *c_zro-left) *> pmap FinSum (exts \lam j =>
               \let (i,q) => nub-preimage j
-              \in rewrite q $ *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c l __) $ keep.element (\lam s => decideEq (c i).2 s.2) {c} {k}))) *> FinSum=BigSum
+              \in rewrite q $ *c_BigSum-rdistr *> pmap BigSum (exts \lam k => pmap (_ *c l __) $ keep.satisfies (\lam s => decideEq (c i).2 s.2) {c} {k}))) *> FinSum=BigSum
 
   \lemma IsIndependentSet-fin {J : FinSet} {g : J -> E} : IsIndependentSet g <-> (\Pi (c : J -> R) -> FinSum (\lam j => c j *c g j) = 0 -> \Pi (j : J) -> c j = 0)
     => \case J.finEq \with {
@@ -251,10 +251,10 @@
 
   \lemma count_zro {R : Semiring} {J : DecSet} {l : Array (\Sigma R J)} (j : J) (p : \Pi (k : Fin l.len) -> j /= (l k).2) : count {R} l j = 0
     => R.BigSum_zro \lam k => later \let t => keep.preimage k
-                                    \in absurd $ p t.1 $ keep.element (\lam s => decideEq j s.2) {l} *> pmap __.2 t.2
+                                    \in absurd $ p t.1 $ keep.satisfies (\lam s => decideEq j s.2) {l} *> pmap __.2 t.2
 
   \lemma count-unique {R : Semiring} {J : DecSet} {l : Array J} {c : Array R l.len} (inj : isInj l) (k : Fin l.len) : count (\lam j => (c j, l j)) (l k) = c k \elim l, k
-    | j :: l, 0 => unfold count $ rewrite (decideEq=_reduce idp) $ pmap (_ +) (pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) (keep.no-elements $ \lam k p => \case inj {0} {suc k} p)) *> zro-right
+    | j :: l, 0 => unfold count $ rewrite (decideEq=_reduce idp) $ pmap (_ +) (pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) (keep-none $ \lam k p => \case inj {0} {suc k} p)) *> zro-right
     | j :: l, suc k => unfold count $ mcases \with {
       | yes p => \case inj {suc k} {0} p
       | no q => count-unique {R} {J} {l} {\lam j => c (suc j)} (\lam p => unfsuc (inj p)) k
@@ -289,12 +289,12 @@
     => inP (map (\lam j => (map __.1 $ keep (\lam s => decideEq j s.2) l, j)) (nub $ map __.2 l), eperm-trans nub-split $ EPerm.eperm-= $ pmap (Big (++) nil) $ exts \lam i =>
         \let | j => nub (map __.2 l) i
              | l' => \new keep (\lam s => decideEq j s.2) l
-        \in (exts (\lam k => ext (idp, inv $ keep.element (\lam s => decideEq j s.2) {l})) : l' = map (\lam s => (s.1,j)) l'), p)
+        \in (exts (\lam k => ext (idp, inv $ keep.satisfies (\lam s => decideEq j s.2) {l})) : l' = map (\lam s => (s.1,j)) l'), p)
 
   \lemma IsZeroSum_count {R : Semiring} {J : DecSet} {l : Array (\Sigma R J)} (p : IsZeroSum l) (j : J) : count l j = 0 \elim p
     | inP (l',e,f) => count_EPerm e *> count_Big++ *> BigSum_zro \lam i => later \case decideEq j (l' i).2 \with {
-      | yes p => pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) (keep.all-elements \lam k => later p) *> f i
-      | no p => pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) $ keep.no-elements \lam k => later p
+      | yes p => pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) (keep-all \lam k => later p) *> f i
+      | no p => pmap (\lam x => BigSum (map {\Sigma R J} __.1 x)) $ keep-none \lam k => later p
     }
     \where {
       \lemma count_EPerm {l l' : Array (\Sigma R J)} (p : EPerm l l') {j : J} : count l j = count l' j
