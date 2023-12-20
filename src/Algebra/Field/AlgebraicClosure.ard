@@ -1,0 +1,96 @@
+\import Algebra.Domain
+\import Algebra.Field
+\import Algebra.Field.Splitting
+\import Algebra.Group
+\import Algebra.LatticeColimit
+\import Algebra.Monoid
+\import Algebra.Monoid.Category
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Ring.Category
+\import Algebra.Ring.RingHom
+\import Algebra.Ring.Integral
+\import Algebra.Ring.Poly
+\import Algebra.Semiring
+\import Arith.Nat
+\import Category
+\import Data.Array
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set
+\import Set.Category
+\import Set.Countable
+
+-- | A ring {K} is algebraically closed if every monic polynomial over {K} of non-zero degree has a root.
+\type IsAlgebraicallyClosed (K : Ring)
+  => \Pi {p : Poly K} -> ∃ (n : Nat) (n /= 0) (degree<= p n) (polyCoef p n = 1) -> ∃ (a : K) (polyEval p a = 0)
+
+{- | The following conditions are equivalent for a ring {K}:
+ -   1. {K} is algebraically closed.
+ -   2. Every monic polynomial over {K} splits into linear factors.
+ -   2. Every monic polynomial of degree `n` over {K} splits into `n` linear factors.
+ -}
+\lemma algebraicallyClosed<->split {K : CRing} : TFAE (
+    IsAlgebraicallyClosed K,
+    \Pi {p : Poly K} -> isMonic p -> ∃ (l : Array K) (p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l)),
+    \Pi {p : Poly K} (n : Nat) -> degree<= p n -> polyCoef p n = 1 -> ∃ (l : Array K n) (p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l))
+  ) => TFAE.cycle $ later (
+    \lam ac (inP (n,pd,pc)) => aux ac pd pc,
+    \lam c n pd pc => \case c (inP (n,pd,pc)) \with {
+      | inP (l : Array, q) => \case decideEq n l.len \with {
+        | yes e => rewrite e $ inP (\new l, q)
+        | no r => \have t x => inv $ inv K.zro_*-right *> pmap (x *) (monic-unique r pd pc
+                                (rewrite q $ transport (degree<= _) Semiring.BigSum_replicate1 $ degree<=_BigProd {K} {map (\lam a => padd 1 (negative a)) l} (replicate l.len 1) \lam _ => idp)
+                                (rewrite q $ pmap (polyCoef _) (inv Semiring.BigSum_replicate1) *> leadCoef_BigProd {K} {map (\lam a => padd 1 (negative a)) l} (replicate l.len 1) (\lam _ => idp) *> K.BigProd_replicate1)) *> ide-right
+                  \in inP (replicate n K.zro, Poly.poly-trivial t _ *> inv (Poly.poly-trivial t _))
+      }
+    },
+    \lam c => \case \elim __ \with {
+      | inP (0, n/=0, pd, pc) => absurd (n/=0 idp)
+      | inP (suc n, _, pd, pc) => TruncP.map (c (suc n) pd pc) \lam s => (s.1 0, rewrite s.2 $ func-* {polyEvalRingHom _} {padd 1 (negative (s.1 0))} *> pmap (`* _) (simplify simplify) *> K.zro_*-left)
+    })
+  \where {
+    \private \lemma aux {K : CRing} (ac : IsAlgebraicallyClosed K) {p : Poly K} {n : Nat} (pd : degree<= p n) (pc : polyCoef p n = 1) : ∃ (l : Array K n) (p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l)) \elim n
+      | 0 => inP (nil, degree<=0 p pd *> pmap (padd pzero) pc)
+      | suc n => \case ac (inP (suc n, \case __ \with {}, pd, pc)) \with {
+        | inP (a,pa) =>
+          \have pd' : degree<= (rootDiv p a) n => degree-monic-reduce _ _ n $ rewriteF (rootDiv_* pa) pd
+          \in \case aux ac pd' (inv ide-right *> inv (leadCoef-product {_} {_} {_} {n} {1} pd' idp) *> rewriteF (rootDiv_* pa) pc) \with {
+            | inP r => inP (a :: r.1, rootDiv_* pa *> pmap (`* _) r.2 *> *-comm)
+          }
+      }
+  }
+
+{- | An algebraically closed ring is integrally closed in any extension which is a strict domain.
+ -
+ -   In particular, this implies that such a ring does not have non-trivial integral extensions which are strict domains.
+ -   Also, this implies that algebraically closed strict domains are integrally closed (in their field of fractions).
+ -}
+\lemma algebraicallyClosed-integrallyClosed {K : CRing} (ac : IsAlgebraicallyClosed K) {E : StrictIntegralDomain} (f : RingHom K E) : isIntegrallyClosed f
+  => \lam a => \case \elim __ \with {
+    | inP (p, inP (n, pd, pc), pe) => \case algebraicallyClosed<->split 0 2 ac n pd pc \with {
+      | inP s => \case E.zeroBigProd $ inv (MonoidHom.func-BigProd {polyMapEvalRingHom f a}) *> rewriteF s.2 pe \with {
+        | inP (j,q) => inP (s.1 j, inv $ E.fromZero $ simplify (rewrite (f.func-ide,f.func-negative) simplify) *> q)
+      }
+    }
+  }
+
+\type IsAlgebraicClosure (f : RingHom) => \Sigma (IsAlgebraicallyClosed f.Cod) (isIntegralExt f)
+
+-- | If `E` is a strict domain, `f : K -> E` is integral, and every monic polynomial in {K} splits into linear factors in {E}, then {f} is an algebraic closure.
+\lemma algebraicClosure-split {K : CRing} {E : StrictIntegralDomain} (f : RingHom K E) (fi : isIntegralExt f) (c : \Pi {p : Poly K} -> isMonic p -> ∃ (l : Array E) (polyMap f p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l))) : IsAlgebraicClosure f
+  => (\lam {p} (inP (n,n/=0,pd,pc)) => \case integralExt_polyDiv fi (inP (n,pd,pc)) \with {
+    | inP (q, qm, p|q : Monoid.LDiv) => \case c qm \with {
+      | inP (l,r) => \case polyDiv-linear (*-comm *> p|q.inv-right *> r) \with {
+        | byLeft r => inP (l r.1, r.2)
+        | byRight r => absurd \case polyInv r, \elim n, \elim n/=0, \elim pc \with {
+          | _, 0, n/=0, pc => n/=0 idp
+          | inP t, suc n, _, pc => E.zro/=ide $ inv (pmap (polyCoef __ _) t.2) *> pc
+        }
+      }
+    }
+  }, fi)

@@ -93,6 +93,10 @@
 
     \func poly-countable {R : AddPointed} (c : Countable R) : Countable (Poly R)
       => surj-countable (quotient-countable (array-countable c)) (Equiv.isSurj {symQEquiv toQPoly-equiv})
+
+    \lemma poly-trivial {R : AddPointed} (p : \Pi (x : R) -> x = zro) (p : Poly R) : p = pzero \elim p
+      | pzero => idp
+      | padd q e => pmap2 padd (poly-trivial p q) (p e) *> peq
   }
 
 \func polyMap (f : AddPointedHom) (p : Poly f.Dom) : Poly f.Cod \elim p
@@ -313,6 +317,10 @@
   | func-+ => idp
   | func-ide => idp
   | func-* => pmap (padd pzero) (inv zro-left)
+
+\lemma polyHom_polyMapEval {R : Ring} {p : Poly R} : polyMapEval polyHom p (padd 1 0) = p \elim p
+  | pzero => idp
+  | padd p e => unfold polyMapEval $ rewrite polyHom_polyMapEval $ inv padd-expand
 
 \instance PolyAlgebra (R : CRing) : CAlgebra { | R => R }
   | Ring => PolyRing R
@@ -664,6 +672,19 @@
   | padd (padd p x) y, 0 => pmap2 padd d c *> peq
   | padd p e, suc n => degree-reduce p n d c
 
+\lemma degree-monic-reduce {R : Ring} (p : Poly R) (a : R) (n : Nat) (d : degree<= (p * padd 1 a) (suc n)) : degree<= p n \elim p, n
+  | pzero, n => ()
+  | padd p e, 0 => \let t => degree<=0 _ $ transport (degree<= __ _) (+-assoc *> pmap (_ +) negative-right *> zro-right) $ degree<=_+ {_} {_} {negative (padd pzero (e * 1))} d idp
+                   \in (aux a _ 0 (pmap (_ +) peq *> zro-right *> t)).1
+  | padd p e, suc n => degree-monic-reduce p a n $ transport (degree<= __ _) (+-assoc *> pmap (_ +) negative-right *> zro-right) $ degree<=_+ {_} {_} {negative (padd pzero (e * 1))} d ()
+  \where \private \lemma aux {p : Poly R} (a b c : R) (q : p * padd 1 a + padd pzero c = padd pzero b) : \Sigma (p = pzero) (c = b) \elim p
+    | pzero => (idp, pmap (polyCoef __ 0) q)
+    | padd p e => \let t => aux _ _ _ $ inv zro-right *> pmap polyShift q *> inv peq
+                  \in (pmap2 padd t.1 (inv ide-right *> t.2) *> peq, inv zro-left *> pmap (`+ c) (inv $ zro-left *> pmap (`* _) (inv ide-right *> t.2) *> R.zro_*-left) *> pmap (polyCoef __ 0) q)
+
+\lemma polyCoef-linear-* {R : Ring} (p q : Poly R) (a : R) (n : Nat) : polyCoef (padd q a * p) (suc n) = polyCoef (q * p) n + a * polyCoef p (suc n)
+  => polyCoef_+ *> pmap (_ +) polyCoef_*c
+
 \lemma degree<=0 {R : AddPointed} (p : Poly R) (d : degree<= p 0) : p = padd pzero (polyCoef p 0) \elim p
   | pzero => inv peq
   | padd p e => pmap (padd __ e) d
@@ -743,6 +764,18 @@
             inv zro-left *> pmap lastCoef (inv (pmap2 (*) v u) *> d))
       }
     }
+  }
+
+\lemma polyDiv-linear {R : StrictIntegralDomain} {p q : Poly R} {l : Array R} (s : p * q = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l))
+  : (\Sigma (j : Fin l.len) (polyEval q (l j) = 0)) || Monoid.Inv q \elim l
+  | nil => byRight (Monoid.Inv.lmake p s)
+  | a :: l => \case R.zeroProduct {polyEval p a} {polyEval q a} (inv (func-* {polyEvalRingHom a}) *> pmap (polyEval __ a) s *> MonoidHom.func-BigProd {polyEvalRingHom a} {map (\lam a => padd 1 (negative a)) (a :: l)} *> pmap (`* _) (simplify simplify) *> zro_*-left) \with {
+    | byLeft r => \have t => inv *-assoc *> pmap (`* _) *-comm *> rewriteF (rootDiv_* r) s
+                  \in \case polyDiv-linear $ StrictDomain.nonZero-cancel-left {PolyStrictDomain R} {padd 1 (negative a)} (\lam c => R.zro/=ide $ inv $ pmap (polyCoef __ 1) c) t \with {
+                    | byLeft r => byLeft (suc r.1, r.2)
+                    | byRight r => byRight r
+                  }
+    | byRight r => byLeft (0,r)
   }
 
 \lemma monomial-factor {R : StrictIntegralDomain} {p q s : Poly R} (t : p * q = padd s 0)
@@ -827,6 +860,13 @@
 
 \lemma monic/=0 {R : Ring} {p : Poly R} (pm : isMonic p) (p=0 : p = 0) : 0 = {R} 1 \elim pm
   | inP (n,d,q) => rewriteF p=0 q
+
+\lemma monic-unique {R : Ring} {p : Poly R} {n m : Nat} (n/=m : n /= m) (d1 : degree<= p n) (c1 : polyCoef p n = 1) (d2 : degree<= p m) (c2 : polyCoef p m = 1) : 0 = {R} 1
+  => \case LinearOrder.trichotomy n m \with {
+    | less n<m => inv (degree<=.toCoefs p n d1 n<m) *> c2
+    | equals n=m => absurd (n/=m n=m)
+    | greater m<n => inv (degree<=.toCoefs p m d2 m<n) *> c1
+  }
 
 \lemma monic-coef {R : Ring.Dec} {p : Poly R} (pm : isMonic p) : polyCoef p (degree p) = 1 \elim pm
   | inP (n,d,q) => \case LinearOrder.dec<_<= (degree p) n \with {
