@@ -1,6 +1,7 @@
 \import Algebra.Field
 \import Algebra.Group
 \import Algebra.Group.Category
+\import Algebra.LatticeColimit
 \import Algebra.Linear.Matrix
 \import Algebra.Linear.Matrix.CharPoly
 \import Algebra.Meta
@@ -23,6 +24,7 @@
 \import Algebra.Semiring
 \import Arith.Nat
 \import Category
+\import Category.Functor
 \import Data.Array
 \import Equiv (Equiv)
 \import Function (isInj, isSurj)
@@ -30,9 +32,11 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
+\import Set.Category
 \import Set.Fin
 \open Monoid
 
@@ -150,6 +154,9 @@
 \lemma integralExt-surj (f : RingHom) (s : isSurj f) : isIntegralExt f
   => \lam a => TruncP.map (s a) \lam (b,fb=a) => (padd 1 (negative b), inP (1, idp, idp), rewrite (f.func-ide,f.func-negative,fb=a) simplify)
 
+\lemma integralExt_id {R : Ring} : isIntegralExt (id R)
+  => integralExt-surj _ \lam a => inP (a,idp)
+
 \lemma integral_image (f : RingHom) (a : f.Dom) : isIntegral f (f a)
   => integral_image-comp {_} {_} {_} {id f.Dom} f {a} $ integralExt-surj (id f.Dom) (\lam y => inP (y, idp)) a
 
@@ -256,3 +263,10 @@
   => factor-lift (polyImageHomPoly f a) \lam {q} c => ext $ unfold \case Ideal.closure1-lem.1 c \with {
     | inP (d,q=pd) => rewrite (q=pd, func-* {polyMapEvalRingHom f a}) equation
   }
+
+\lemma integralExt-directColimit {J : Bounded.JoinSemilattice} (F : Functor J RingCat) (p : \Pi {j j' : J} (f : Hom j j') -> isIntegralExt (F.Func f)) (j : J) : isIntegralExt (RingLatticeColimit.inMap F j)
+  => \lam (in~ (j',a)) =>
+      \let b => F.Func (join-right {_} {j}) a
+      \in rewrite (SetColimit.~-cequiv {_} {Comp RingCat.forget F} {j', a} {j ∨ j', b} join-right idp) $
+            transportInv {RingHom (F j) (RingLatticeColimit F)} (isIntegral __ _) (RingLatticeColimit.inMap-coh F _) $
+            integral_image-comp (RingLatticeColimit.inMap F (j ∨ j')) (p join-left b)

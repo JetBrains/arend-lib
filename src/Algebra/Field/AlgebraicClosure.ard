@@ -2,10 +2,12 @@
 \import Algebra.Field
 \import Algebra.Field.Splitting
 \import Algebra.Group
+\import Algebra.Group.Category
 \import Algebra.LatticeColimit
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
 \import Algebra.Pointed
+\import Algebra.Pointed.Category
 \import Algebra.Ring
 \import Algebra.Ring.Category
 \import Algebra.Ring.RingHom
@@ -21,6 +23,7 @@
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
 \import Set
 \import Set.Category
 \import Set.Countable
@@ -44,8 +47,8 @@
       | inP (l : Array, q) => \case decideEq n l.len \with {
         | yes e => rewrite e $ inP (\new l, q)
         | no r => \have t x => inv $ inv K.zro_*-right *> pmap (x *) (monic-unique r pd pc
-                                (rewrite q $ transport (degree<= _) Semiring.BigSum_replicate1 $ degree<=_BigProd {K} {map (\lam a => padd 1 (negative a)) l} (replicate l.len 1) \lam _ => idp)
-                                (rewrite q $ pmap (polyCoef _) (inv Semiring.BigSum_replicate1) *> leadCoef_BigProd {K} {map (\lam a => padd 1 (negative a)) l} (replicate l.len 1) (\lam _ => idp) *> K.BigProd_replicate1)) *> ide-right
+                                (rewrite q $ degree<=_BigProd1 \lam _ => idp)
+                                (rewrite q $ leadCoef_BigProd1 (\lam _ => idp) \lam _ => idp)) *> ide-right
                   \in inP (replicate n K.zro, Poly.poly-trivial t _ *> inv (Poly.poly-trivial t _))
       }
     },
@@ -94,3 +97,34 @@
       }
     }
   }, fi)
+
+-- | Every countable discrete field has an algebraic closure.
+\sfunc countableAlgebraicClosure {k : DiscreteField} (c : Countable k) : \Sigma (K : DiscreteField) (f : RingHom k K) (IsAlgebraicClosure f)
+  => \let | ps n => pointed-countable zro (Poly.poly-countable c) n
+          | S => sequence c ps
+          | sf n => countableSplittingField (S n).2 {polyMap (S n).3 (ps n)}
+          | F => NatFunctor (\lam n => (S n).1) \lam {n} => (sf n).3
+          | E => DiscreteFieldLatticeColimit {NatBSemilattice} F \lam n => (S n).1
+          | h n => RingLatticeColimit.inMap F n
+     \in (E, h 0, algebraicClosure-split {_} {E} _ (later \lam (in~ (n,a)) =>
+        \let t => integral_image-comp (RingLatticeColimit.inMap F n) ((S n).4 a)
+        \in transportInv {RingHom k E} (isIntegral __ _) (later $ exts \lam a => SetColimit.~-cequiv zero<=_ $ pmap (NatFunctor.natHom {CRingCat} _ _ __ _) (NatFunctor.sigma-isProp _ _) *> sequence3) t)
+            \lam {p} pm => \case pointed-countable-surj zro (Poly.poly-countable c) p \with {
+              | inP (n,q) => \case splitting-monic {_} {_} {polyMap (S n).3 (ps n)} (rewrite q $ polyMap_isMonic pm) (sf n).4 \with {
+                | inP (l,_,lq) => inP (map (h (suc n)) l, later rewrite q (
+                    pmap {RingHom (F 0) (CRingLatticeColimit F)} (polyMap __ p) {h 0} {h (suc n) ∘ ((sf n).3 ∘ (S n).3)} (exts \lam a => SetColimit.~-cequiv zero<=_ $ pmap (sf n).3 $ pmap (NatFunctor.natHom {CRingCat} _ _ __ a) (NatFunctor.sigma-isProp _ _) *> sequence3)
+                      *> inv (polyMap-comp _ _) *> pmap (polyMap _) (inv (polyMap-comp _ _))) *> pmap (polyMapRingHom _) lq *> MonoidHom.func-BigProd {polyMapRingHom (h (suc n))} *> pmap Monoid.BigProd (exts \lam j => pmap2 (\lam x y => padd (padd pzero x) y) func-ide AddGroupHom.func-negative))
+              }
+            })
+  \where \private {
+    \func sequence {k : DiscreteField} (kc : Countable k) (f : Nat -> Poly k) (n : Nat) : \Sigma (K : DiscreteField) (Countable K) (g : RingHom k K) (isIntegralExt g) \elim n
+      | 0 => (k, kc, RingCat.id k, integralExt_id)
+      | suc n => \let | (K,Kc,g,gi) => sequence kc f n
+                      | t => countableSplittingField Kc {polyMap g (f n)}
+                 \in (t.1, t.2, t.3 RingCat.∘ g, integralExt-comp _ _ gi $ splitting-integral (countableSplittingField Kc).4)
+
+    \lemma sequence3 {k : DiscreteField} {kc : Countable k} {f : Nat -> Poly k} {n : Nat} {a : k}
+      : NatFunctor.natHom {CRingCat} (\lam n => (sequence kc f n).1) (\lam {n} => (countableSplittingField (sequence kc f n).2 {polyMap (sequence kc f n).3 (f n)}).3) {0} (n,idp) a = (sequence kc f n).3 a \elim n
+      | 0 => idp
+      | suc n => pmap (countableSplittingField (sequence kc f n).2).3 sequence3
+  }

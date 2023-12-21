@@ -1,8 +1,12 @@
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Arith.Nat
 \import Category
 \import Category.Functor
 \import Category.Limit
 \import Equiv \hiding (Map)
 \import Function.Meta ($)
+\import HLevel
 \import Logic
 \import Logic.Meta
 \import Meta
@@ -116,4 +120,36 @@
 
     \lemma poset-id {J : Poset} {F : Functor J SetCat} {j : J} {p : j <= j} {a : F j} : F.Func p a = a
       => poset-app *> pmap (__ a) F.Func-id
+
+    \func inMap (j : J) (a : F j) : SetColimit F
+      => in~ (j,a)
+
+    \lemma inMap-coh {j j' : J} (f : Hom j j') (a : F j) : inMap j a = inMap j' (F.Func f a)
+      => ~-cequiv f idp
+  }
+
+\func NatFunctor {C : Precat} (F : Nat -> C) (f : \Pi {n : Nat} -> Hom (F n) (F (suc n))) : Functor NatSemiring C \cowith
+  | F => F
+  | Func p => natHom (_, <=_exists p)
+  | Func-id => pmap natHom (sigma-isProp _ (0,idp)) *> natHom_id
+  | Func-o => pmap natHom (sigma-isProp _ _) *> natHom-comp
+  \where {
+    \lemma sigma-isProp {n m : Nat} : isProp (\Sigma (k : Nat) (n + k = m))
+      => \lam s t => ext $ NatSemiring.cancel-left n $ s.2 *> inv t.2
+
+    \func natHom {n m : Nat} (s : \Sigma (k : Nat) (n + k = m)) : Hom (F n) (F m) \elim m, s
+      | _, (0, idp) => id (F n)
+      | 0, (suc k, ())
+      | suc m, (suc k, q) => f ∘ natHom (k, pmap pred q)
+
+    \lemma natHom_id {n : Nat} : natHom (0,idp) = id (F n) \elim n
+      | 0 => idp
+      | suc n => idp
+
+    \lemma natHom-comp {n m k : Nat} {s : \Sigma (l : Nat) (n + l = m)} {t : \Sigma (l : Nat) (m + l = k)}
+      : natHom (s.1 + t.1, inv +-assoc *> pmap (`+ _) s.2 *> t.2) = natHom t ∘ natHom s \elim k, t
+      | 0, (0, idp) => pmap natHom (sigma-isProp _ _) *> inv id-left
+      | suc k, (0, idp) => pmap natHom (sigma-isProp _ _) *> inv id-left
+      | 0, (suc m, ())
+      | suc k, (suc m, q) => pmap (f ∘) (pmap natHom (sigma-isProp _ _) *> natHom-comp) *> inv o-assoc
   }
