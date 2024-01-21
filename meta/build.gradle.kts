@@ -33,7 +33,7 @@ java {
 }
 
 tasks.withType<Wrapper>().configureEach {
-    gradleVersion = "7.6"
+    gradleVersion = "8.5"
 }
 
 tasks.compileJava {
