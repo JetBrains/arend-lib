@@ -1,9 +1,9 @@
 \import Algebra.Group
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
-\import Algebra.Pointed
 \import Algebra.Pointed.Category
 \import Category (Cat)
+\import Category.Functor
 \import Category.Meta
 \import Category.Subcat
 \import Equiv
@@ -13,7 +13,6 @@
 \import Paths
 \import Paths.Meta
 \import Set.Category
-\import Set.Fin
 
 \instance GroupCat : Cat Group
   => subCat (\new Embedding {
@@ -24,82 +23,6 @@
     }
   })
 
-\record AddMonoidHom \extends AddPointedHom {
-  \override Dom : AddMonoid
-  \override Cod : AddMonoid
-  | func-+ {x y : Dom} : func (x + y) = func x + func y
-
-  \lemma func-BigSum {l : Array Dom} : func (AddMonoid.BigSum l) = AddMonoid.BigSum (\lam j => func (l j)) \elim l
-    | nil => func-zro
-    | a :: l => func-+ *> pmap (_ +) func-BigSum
-} \where {
-  \use \coerce toMonoidHom (f : AddMonoidHom) : MonoidHom \cowith
-    | Dom => f.Dom
-    | Cod => f.Cod
-    | func => f
-    | func-* => func-+
-    | func-ide => func-zro
-
-  \lemma func-FinSum {A B : AbMonoid} (f : AddMonoidHom A B) {J : FinSet} {a : J -> A} : f (A.FinSum a) = B.FinSum (\lam j => f (a j))
-    => \case A.FinSum_char a \with {
-         | inP (e,q) => pmap f q *> func-BigSum *> inv (B.FinSum_char2 _ e)
-       }
-}
-
-\instance AddMonoidCat : Cat AddMonoid
-  | Hom M N => AddMonoidHom M N
-  | id => id
-  | o g f => \new AddMonoidHom {
-    | func x => g (f x)
-    | func-zro => pmap g func-zro *> func-zro
-    | func-+ => pmap g func-+ *> func-+
-  }
-  | id-left => idp
-  | id-right => idp
-  | o-assoc => idp
-  | univalence => sip (\lam {X} {A} {B} (p1 : AddMonoidHom) p2 => exts (p1.func-zro, \lam _ _ => p1.func-+))
-  \where
-    \func id (M : AddMonoid) : AddMonoidHom M M \cowith
-      | func x => x
-      | func-zro => idp
-      | func-+ => idp
-
-\instance KerAddMonoid (f : AddMonoidHom) : AddMonoid
-  | AddPointed => KerAddPointed f
-  | + a b => (a.1 + b.1, func-+ *> pmap2 (+) a.2 b.2 *> zro-left)
-  | zro-left => ext zro-left
-  | zro-right => ext zro-right
-  | +-assoc => ext +-assoc
-
-\func KerMonoidHom (f : AddMonoidHom) : AddMonoidHom (KerAddMonoid f) f.Dom \cowith
-  | AddPointedHom => KerPointedHom f
-  | func-+ => idp
-
-\instance KerAbMonoid {A : AbMonoid} (f : AddMonoidHom A) : AbMonoid (Kernel f)
-  | AddMonoid => KerAddMonoid f
-  | +-comm => ext +-comm
-
-\instance ImageAddMonoid (f : AddMonoidHom) : AddMonoid
-  | AddPointed => ImageAddPointed f
-  | + a b => (a.1 + b.1, \case a.2, b.2 \with {
-    | inP t, inP s => inP (t.1 + s.1, func-+ *> pmap2 (+) t.2 s.2)
-  })
-  | zro-left => ext zro-left
-  | zro-right => ext zro-right
-  | +-assoc => ext +-assoc
-
-\func ImageMonoidLeftHom (f : AddMonoidHom) : AddMonoidHom f.Dom (ImageAddMonoid f) \cowith
-  | AddPointedHom => ImagePointedLeftHom f
-  | func-+ => ext func-+
-
-\func ImageMonoidRightHom (f : AddMonoidHom) : AddMonoidHom (ImageAddMonoid f) f.Cod \cowith
-  | AddPointedHom => ImagePointedRightHom f
-  | func-+ => idp
-
-\instance ImageAbMonoid {A : AddMonoid} {B : AbMonoid} (f : AddMonoidHom A B) : AbMonoid
-  | AddMonoid => ImageAddMonoid f
-  | +-comm => ext +-comm
-
 \record AddGroupHom \extends AddMonoidHom {
   \override Dom : AddGroup
   \override Cod : AddGroup
@@ -107,6 +30,9 @@
 
   \lemma func-negative {x : Dom} : func (negative x) = negative (func x)
     => AddGroup.cancel-left (func x) (inv (negative-right *> inv (pmap func negative-right *> func-zro) *> func-+))
+
+  \lemma func-minus {x y : Dom} : func (x - y) = func x - func y
+    => func-+ *> pmap (_ +) func-negative
 
   \lemma injective (p : \Pi {a : Dom} -> func a = 0 -> a = 0) : isInj func
     => \lam q => AddGroup.fromZero $ p $ func-+ *> pmap (_ +) func-negative *> AddGroup.toZero q
@@ -123,10 +49,23 @@
   | id-right => idp
   | o-assoc => idp
   | univalence => sip (\lam {X} {A} {B} (p1 : AddGroupHom) p2 => exts (p1.func-zro, \lam _ _ => p1.func-+, AddGroup.negative-equality A B p1.func-zro p1.func-+))
-  \where
+  \where {
     \func id (G : AddGroup) : AddGroupHom G G \cowith
       | func x => x
       | func-+ => idp
+
+    \func forgetToAddMonoid : Functor AddGroupCat AddMonoidCat \cowith
+      | F A => A
+      | Func f => f
+      | Func-id => idp
+      | Func-o => idp
+
+    \func forget : Functor AddGroupCat SetCat \cowith
+      | F R => R
+      | Func f => func {f}
+      | Func-id => idp
+      | Func-o => idp
+  }
 
 \instance AbGroupCat : Cat AbGroup
   => subCat (\new Embedding {AbGroup} {AddGroup} {
@@ -136,6 +75,19 @@
       | f_sec => idpe
     }
   })
+  \where {
+    \func forgetToAddGroup : Functor AbGroupCat AddGroupCat \cowith
+      | F A => A
+      | Func f => f
+      | Func-id => idp
+      | Func-o => idp
+
+    \func forget : Functor AbGroupCat SetCat \cowith
+      | F R => R
+      | Func f => func {f}
+      | Func-id => idp
+      | Func-o => idp
+  }
 
 \instance KerAddGroup (f : AddGroupHom) : AddGroup
   | AddMonoid => KerAddMonoid f

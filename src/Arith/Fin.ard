@@ -18,9 +18,11 @@
 \import Paths.Meta
 \import Set \hiding (#)
 \open Nat(div,mod,divModProp)
+\open AddMonoid
 
-\lemma n*_+_mod_n {n q r : Nat} (r<=n : r < suc n) : (suc n * q + r) mod suc n = {Nat} r
-  => mod-unique (fin_< _) r<=n (divModProp (suc n * q + r) (suc n))
+\lemma n*_+_mod_n {n q r : Nat} (r<n : r < n) : (n * q + r) mod n = {Nat} r \elim n
+  | 0 => pmap (`+ r) zro_*-left
+  | suc n => mod-unique (fin_< _) r<n (divModProp (suc n * q + r) (suc n))
 
 \lemma n*_+_mod_n=mod {n q r : Nat} : (suc n * q + r) mod suc n = r mod suc n
   => run {
@@ -113,6 +115,15 @@
         }
       }
 
+\func base-digit (n b j : Nat) : Nat \elim j
+  | 0 => n mod b
+  | suc j => base-digit (n div b) b j
+
+\lemma base-digit-sum {l : Array Nat} {b : Nat} (p : \Pi (j : Fin l.len) -> l j < b) {j : Fin l.len}
+  : l j = base-digit (BigSum (\lam j => l j * Monoid.pow b j)) b j \elim l, j
+  | a :: l, 0 => inv $ pmap (`mod b) +-comm *> pmap (\lam x => (x + a) mod b) (inv $ *-comm *> Semiring.BigSum-rdistr *> pmap BigSum (exts \lam j => *-assoc)) *> n*_+_mod_n {b} {BigSum (\lam j => l j * Monoid.pow b j)} (p 0)
+  | a :: l, suc j => base-digit-sum (\lam j => p (suc j)) *> pmap (base-digit __ b j) (unfold BigSum $ inv $ pmap (`div b) +-comm *> pmap (\lam x => (x + a) div b) (inv $ *-comm *> Semiring.BigSum-rdistr *> pmap BigSum (exts \lam j => *-assoc)) *> n*_+_div_n=div (later \lam b=0 => \case rewriteF b=0 (p 0)) *> pmap (_ +) (div_< (p 0)) *> zro-right)
+
 \instance FinRing {n : Nat} : CRing.Dec (Fin (suc n))
   | zro => 0
   | + x y => (x + y : Nat)
@@ -127,7 +138,7 @@
   | negative x => iabs (suc n Nat.- x)
   | negative-left {x} =>
     \let t => pmap (`+ pos x) (pos_iabs (<=-less (fin_< x))) *> IntRing.+-assoc {pos (suc n)} {neg x} *> pmap (_ +) (IntRing.negative-left {pos x})
-    \in mod_+-left *> transport (__ mod suc n = 0) (inv (pmap iabs t)) (fin_nat-inj (n*_+_mod_n {n} {1} NatSemiring.zero<suc))
+    \in mod_+-left *> transport (__ mod suc n = 0) (inv (pmap iabs t)) (fin_nat-inj (n*_+_mod_n {_} {1} NatSemiring.zero<suc))
   | decideEq x y => \case NatSemiring.decideEq x y \with {
     | yes x=y => yes (fin_nat-inj x=y)
     | no x/=y => no (\lam p => x/=y p)

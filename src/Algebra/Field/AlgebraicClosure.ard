@@ -1,0 +1,130 @@
+\import Algebra.Domain
+\import Algebra.Field
+\import Algebra.Field.Splitting
+\import Algebra.Group
+\import Algebra.Group.Category
+\import Algebra.LatticeColimit
+\import Algebra.Monoid
+\import Algebra.Monoid.Category
+\import Algebra.Pointed
+\import Algebra.Pointed.Category
+\import Algebra.Ring
+\import Algebra.Ring.Category
+\import Algebra.Ring.RingHom
+\import Algebra.Ring.Integral
+\import Algebra.Ring.Poly
+\import Algebra.Semiring
+\import Arith.Nat
+\import Category
+\import Data.Array
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set
+\import Set.Category
+\import Set.Countable
+
+-- | A ring {K} is algebraically closed if every monic polynomial over {K} of non-zero degree has a root.
+\type IsAlgebraicallyClosed (K : Ring)
+  => \Pi {p : Poly K} -> ∃ (n : Nat) (n /= 0) (degree<= p n) (polyCoef p n = 1) -> ∃ (a : K) (polyEval p a = 0)
+
+{- | The following conditions are equivalent for a ring {K}:
+ -   1. {K} is algebraically closed.
+ -   2. Every monic polynomial over {K} splits into linear factors.
+ -   2. Every monic polynomial of degree `n` over {K} splits into `n` linear factors.
+ -}
+\lemma algebraicallyClosed<->split {K : CRing} : TFAE (
+    IsAlgebraicallyClosed K,
+    \Pi {p : Poly K} -> isMonic p -> ∃ (l : Array K) (p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l)),
+    \Pi {p : Poly K} (n : Nat) -> degree<= p n -> polyCoef p n = 1 -> ∃ (l : Array K n) (p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l))
+  ) => TFAE.cycle $ later (
+    \lam ac (inP (n,pd,pc)) => aux ac pd pc,
+    \lam c n pd pc => \case c (inP (n,pd,pc)) \with {
+      | inP (l : Array, q) => \case decideEq n l.len \with {
+        | yes e => rewrite e $ inP (\new l, q)
+        | no r => \have t x => inv $ inv K.zro_*-right *> pmap (x *) (monic-unique r pd pc
+                                (rewrite q $ degree<=_BigProd1 \lam _ => idp)
+                                (rewrite q $ leadCoef_BigProd1 (\lam _ => idp) \lam _ => idp)) *> ide-right
+                  \in inP (replicate n K.zro, Poly.poly-trivial t _ *> inv (Poly.poly-trivial t _))
+      }
+    },
+    \lam c => \case \elim __ \with {
+      | inP (0, n/=0, pd, pc) => absurd (n/=0 idp)
+      | inP (suc n, _, pd, pc) => TruncP.map (c (suc n) pd pc) \lam s => (s.1 0, rewrite s.2 $ func-* {polyEvalRingHom _} {padd 1 (negative (s.1 0))} *> pmap (`* _) (simplify simplify) *> K.zro_*-left)
+    })
+  \where {
+    \private \lemma aux {K : CRing} (ac : IsAlgebraicallyClosed K) {p : Poly K} {n : Nat} (pd : degree<= p n) (pc : polyCoef p n = 1) : ∃ (l : Array K n) (p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l)) \elim n
+      | 0 => inP (nil, degree<=0 p pd *> pmap (padd pzero) pc)
+      | suc n => \case ac (inP (suc n, \case __ \with {}, pd, pc)) \with {
+        | inP (a,pa) =>
+          \have pd' : degree<= (rootDiv p a) n => degree-monic-reduce _ _ n $ rewriteF (rootDiv_* pa) pd
+          \in \case aux ac pd' (inv ide-right *> inv (leadCoef-product {_} {_} {_} {n} {1} pd' idp) *> rewriteF (rootDiv_* pa) pc) \with {
+            | inP r => inP (a :: r.1, rootDiv_* pa *> pmap (`* _) r.2 *> *-comm)
+          }
+      }
+  }
+
+{- | An algebraically closed ring is integrally closed in any extension which is a strict domain.
+ -
+ -   In particular, this implies that such a ring does not have non-trivial integral extensions which are strict domains.
+ -   Also, this implies that algebraically closed strict domains are integrally closed (in their field of fractions).
+ -}
+\lemma algebraicallyClosed-integrallyClosed {K : CRing} (ac : IsAlgebraicallyClosed K) {E : StrictIntegralDomain} (f : RingHom K E) : isIntegrallyClosed f
+  => \lam a => \case \elim __ \with {
+    | inP (p, inP (n, pd, pc), pe) => \case algebraicallyClosed<->split 0 2 ac n pd pc \with {
+      | inP s => \case E.zeroBigProd $ inv (MonoidHom.func-BigProd {polyMapEvalRingHom f a}) *> rewriteF s.2 pe \with {
+        | inP (j,q) => inP (s.1 j, inv $ E.fromZero $ simplify (rewrite (f.func-ide,f.func-negative) simplify) *> q)
+      }
+    }
+  }
+
+\type IsAlgebraicClosure (f : RingHom) => \Sigma (IsAlgebraicallyClosed f.Cod) (isIntegralExt f)
+
+-- | If `E` is a strict domain, `f : K -> E` is integral, and every monic polynomial in {K} splits into linear factors in {E}, then {f} is an algebraic closure.
+\lemma algebraicClosure-split {K : CRing} {E : StrictIntegralDomain} (f : RingHom K E) (fi : isIntegralExt f) (c : \Pi {p : Poly K} -> isMonic p -> ∃ (l : Array E) (polyMap f p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l))) : IsAlgebraicClosure f
+  => (\lam {p} (inP (n,n/=0,pd,pc)) => \case integralExt_polyDiv fi (inP (n,pd,pc)) \with {
+    | inP (q, qm, p|q : Monoid.LDiv) => \case c qm \with {
+      | inP (l,r) => \case polyDiv-linear (*-comm *> p|q.inv-right *> r) \with {
+        | byLeft r => inP (l r.1, r.2)
+        | byRight r => absurd \case polyInv r, \elim n, \elim n/=0, \elim pc \with {
+          | _, 0, n/=0, pc => n/=0 idp
+          | inP t, suc n, _, pc => E.zro/=ide $ inv (pmap (polyCoef __ _) t.2) *> pc
+        }
+      }
+    }
+  }, fi)
+
+-- | Every countable discrete field has an algebraic closure.
+\sfunc countableAlgebraicClosure {k : DiscreteField} (c : Countable k) : \Sigma (K : DiscreteField) (f : RingHom k K) (IsAlgebraicClosure f)
+  => \let | ps n => pointed-countable zro (Poly.poly-countable c) n
+          | S => sequence c ps
+          | sf n => countableSplittingField (S n).2 {polyMap (S n).3 (ps n)}
+          | F => NatFunctor (\lam n => (S n).1) \lam {n} => (sf n).3
+          | E => DiscreteFieldLatticeColimit {NatBSemilattice} F \lam n => (S n).1
+          | h n => RingLatticeColimit.inMap F n
+     \in (E, h 0, algebraicClosure-split {_} {E} _ (later \lam (in~ (n,a)) =>
+        \let t => integral_image-comp (RingLatticeColimit.inMap F n) ((S n).4 a)
+        \in transportInv {RingHom k E} (isIntegral __ _) (later $ exts \lam a => SetColimit.~-cequiv zero<=_ $ pmap (NatFunctor.natHom {CRingCat} _ _ __ _) (NatFunctor.sigma-isProp _ _) *> sequence3) t)
+            \lam {p} pm => \case pointed-countable-surj zro (Poly.poly-countable c) p \with {
+              | inP (n,q) => \case splitting-monic {_} {_} {polyMap (S n).3 (ps n)} (rewrite q $ polyMap_isMonic pm) (sf n).4 \with {
+                | inP (l,_,lq) => inP (map (h (suc n)) l, later rewrite q (
+                    pmap {RingHom (F 0) (CRingLatticeColimit F)} (polyMap __ p) {h 0} {h (suc n) ∘ ((sf n).3 ∘ (S n).3)} (exts \lam a => SetColimit.~-cequiv zero<=_ $ pmap (sf n).3 $ pmap (NatFunctor.natHom {CRingCat} _ _ __ a) (NatFunctor.sigma-isProp _ _) *> sequence3)
+                      *> inv (polyMap-comp _ _) *> pmap (polyMap _) (inv (polyMap-comp _ _))) *> pmap (polyMapRingHom _) lq *> MonoidHom.func-BigProd {polyMapRingHom (h (suc n))} *> pmap Monoid.BigProd (exts \lam j => pmap2 (\lam x y => padd (padd pzero x) y) func-ide AddGroupHom.func-negative))
+              }
+            })
+  \where \private {
+    \func sequence {k : DiscreteField} (kc : Countable k) (f : Nat -> Poly k) (n : Nat) : \Sigma (K : DiscreteField) (Countable K) (g : RingHom k K) (isIntegralExt g) \elim n
+      | 0 => (k, kc, RingCat.id k, integralExt_id)
+      | suc n => \let | (K,Kc,g,gi) => sequence kc f n
+                      | t => countableSplittingField Kc {polyMap g (f n)}
+                 \in (t.1, t.2, t.3 RingCat.∘ g, integralExt-comp _ _ gi $ splitting-integral (countableSplittingField Kc).4)
+
+    \lemma sequence3 {k : DiscreteField} {kc : Countable k} {f : Nat -> Poly k} {n : Nat} {a : k}
+      : NatFunctor.natHom {CRingCat} (\lam n => (sequence kc f n).1) (\lam {n} => (countableSplittingField (sequence kc f n).2 {polyMap (sequence kc f n).3 (f n)}).3) {0} (n,idp) a = (sequence kc f n).3 a \elim n
+      | 0 => idp
+      | suc n => pmap (countableSplittingField (sequence kc f n).2).3 sequence3
+  }

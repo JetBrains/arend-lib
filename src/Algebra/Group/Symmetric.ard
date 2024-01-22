@@ -12,6 +12,7 @@
 \import Data.Or
 \import Equiv
 \import Equiv.Sigma
+\import Equiv.Univalence
 \import Function
 \import Function.Meta
 \import HLevel
@@ -272,19 +273,45 @@
   }
   | f_sec s => pmap (s.1,__) $ Sym.equals $ \lam j => FinSet.skip_sface
 
-\instance SymFin (n : Nat) : FinSet (Sym n) (fac n) \elim n
-  | 0 => \new FinSet {
-    | finEq => inP $ \new QEquiv {
-      | f _ => 1
-      | ret _ => 0
-      | ret_f (0) => idp
-      | f_sec e => Sym.equals (\case __)
+\instance SymFin (n : Nat) : FinSet (Sym n) (fac n)
+  | finEq => inP fin_equiv
+  \where {
+    \func fin_equiv {n : Nat} : Equiv {Fin (fac n)} {Sym n} \elim n
+      | 0 => \new QEquiv {
+        | f _ => idEquiv
+        | ret _ => 0
+        | ret_f (0) => idp
+        | f_sec e => Sym.equals (\case __)
+      }
+      | suc n => ProdFin.prod_equiv `transEquiv` sigma-right (\lam _ => fin_equiv) `transEquiv` symQEquiv symmetric-rec
+  }
+
+\instance EquivFin (A B : FinSet) : FinSet (Equiv {A} {B})
+  => \case decideEq A.finCard B.finCard, A.finEq, B.finEq \with {
+    | yes e, inP Ae, inP Be => transport FinSet (QEquiv-to-= (later \new QEquiv {
+      | f e => e
+      | ret e => e
+      | ret_f => idpe
+      | f_sec => idpe
+    }) *> pmap2 (Equiv {__} {__}) (Equiv-to-= $ transport (\lam x => Equiv {Fin x} {A}) e Ae) (Equiv-to-= Be)) (SymFin B.finCard)
+    | no q, _, _ => \new FinSet {
+      | finCard => 0
+      | finEq => inP $ emptyEquiv (later \case __) \lam e => q \case A.finEq, B.finEq \with {
+        | inP p1, inP p2 => FinSet.FinCardBij $ p1 `transEquiv` e `transEquiv` symQEquiv p2
+      }
     }
   }
-  | suc n => \new FinSet {
-    | finEq => \case finEq, finEq {SymFin n} \with {
-      | inP e, inP e' => inP $ e `transEquiv` sigma-right (\lam _ => e') `transEquiv` symQEquiv symmetric-rec
-    }
+  \where {
+    \sfunc equiv_fin {n m : Nat} : \Sigma (k : Nat) (Equiv {Equiv {Fin n} {Fin m}} {Fin k})
+      => \case decideEq n m \with {
+           | yes p => (fac m, rewrite p $ later \new QEquiv {
+             | f e => e
+             | ret e => e
+             | ret_f => idpe
+             | f_sec => idpe
+           } `transEquiv` symQEquiv SymFin.fin_equiv)
+           | no q => (0, emptyEquiv (\lam e => q $ FinSet.FinCardBij e) (later \case __))
+         }
   }
 
 \func lift {n : Nat} (e : Sym n) : Sym (suc n)

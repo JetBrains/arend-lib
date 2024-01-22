@@ -1,6 +1,7 @@
 \import Algebra.Group
 \import Algebra.Group.Sub
 \import Algebra.Monoid
+\import Arith.Nat
 \import Equiv
 \import Equiv.Univalence
 \import Function.Meta
@@ -10,14 +11,30 @@
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
+\import Set.Fin
+\import Set.Fin.KFin
+\import Set.Fin.Pigeonhole
 \open Group
+\open Monoid(LDiv)
 
-\lemma lagrange-gen (H : SubGroup) (c : Choice H.Cosets) : TruncP (H.S = {\Set} (\Sigma H.Cosets H.struct))
-  => TruncP.map (c.choice {\lam x => \Sigma (y : H.S) (x = in~ y)} (\case \elim __ \with { | in~ y => inP (y,idp) })) $ \lam e => QEquiv-to-= $
-      \new QEquiv {
-        | f x => (in~ x, \let t => e (in~ x) \in (inverse x * t.1, Quotient.equalityEquiv SubGroup.equivalence t.2))
-        | ret s => (e s.1).1 * inverse s.2.1
-        | ret_f x => rewrite (inverse_*, inverse-isInv, inv *-assoc, inverse-right) ide-left
-        | f_sec s => \have p : in~ ((e s.1).1 * inverse s.2.1) = s.1 => ~-pequiv (later $ rewrite (inverse_*, inverse-isInv, *-assoc, inverse-left, ide-right) s.2.2) *> inv (e s.1).2
-                     \in unfold_let $ pmap2 (__,__) p $ ext $ rewrite (p, inverse_*, inverse-isInv, *-assoc, inverse-left) ide-right
-      }
+\lemma lagrange-gen (H : SubGroup) (c : Choice H.Cosets) : TruncP (QEquiv {H.S} {\Sigma H.Cosets H.struct})
+  => \case c.choice {\lam x => \Sigma (y : H.S) (x = in~ y)} (\case \elim __ \with { | in~ y => inP (y,idp) }) \with {
+    | inP e => inP \new QEquiv {
+      | f x => (in~ x, \let t => e (in~ x) \in (inverse x * t.1, Quotient.equalityEquiv SubGroup.equivalence t.2))
+      | ret s => (e s.1).1 * inverse s.2.1
+      | ret_f x => rewrite (inverse_*, inverse-isInv, inv *-assoc, inverse-right) ide-left
+      | f_sec s =>
+        \have p : in~ ((e s.1).1 * inverse s.2.1) = s.1 => ~-pequiv (later $ rewrite (inverse_*, inverse-isInv, *-assoc, inverse-left, ide-right) s.2.2) *> inv (e s.1).2
+        \in unfold_let $ pmap2 (__,__) p $ ext $ rewrite (p, inverse_*, inverse-isInv, *-assoc, inverse-left) ide-right
+    }
+  }
+
+\func lagrange (H : FinSubGroup) : LDiv (finCard {H.struct}) (finCard {H.S}) \cowith
+  | inv => finCard {Cosets-fin H H.S}
+  | inv-right => \case lagrange-gen H (Cosets-fin H H.S) \with {
+    | inP p => inv $ finCard_Equiv {H.S} {ProdFin (Cosets-fin H H.S) H.struct} p *> *-comm
+  }
+  \where {
+    \lemma Cosets-fin (H : DecSubGroup) (_ : KFinSet H.S) : FinSet H.Cosets
+      => KFinSet.KFin+Dec=>Fin QuotientKFin {QuotientDec \lam g g' => later $ H.isDec _}
+  }

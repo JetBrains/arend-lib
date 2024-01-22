@@ -1,32 +1,62 @@
 \import Arith.Nat
 \import Data.Array
+\import Data.Or
 \import Function
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Paths
+\import Relation.Equivalence
 \import Set
 \import Set.Fin
 \import Set.Fin.Pigeonhole
 
-\class KFinSet \extends BoundedPigeonholeSet
+\class KFinSet \extends BoundedPigeonholeSet {
   | finSurj : ∃ (f : Fin finCard -> E) (isSurj f)
   | boundedPigeonhole => \case finSurj \with {
     | inP (f,s) => boundedPigeonhole {pigeonhole-surj (\new BoundedPigeonholeSet (Fin finCard) finCard (pigeonhole-fin __ id<suc)) f s}
   }
-  \where {
+
+  \lemma search (A : E -> \Prop) (d : \Pi (e : E) -> Dec (A e)) : Dec (∃ (e : E) (A e))
+    => \case finSurj \with {
+      | inP (f,fs) => \case FinSet.searchFin (\lam j => A (f j)) (\lam j => d (f j)) \with {
+        | inl a => yes (inP (f a.1, a.2))
+        | inr q => no \lam (inP t) => \case fs t.1 \with {
+          | inP (j,p) => q j (transportInv A p t.2)
+        }
+      }
+    }
+
+  \lemma search_yes_reduce {A : E -> \Prop} (d : \Pi (e : E) -> Dec (A e)) (e : ∃ (e : E) (A e)) : search A d = yes e
+    => Path.inProp _ _
+
+  \lemma search_no_reduce {A : E -> \Prop} (d : \Pi (e : E) -> Dec (A e)) (q : Not (∃ (e : E) (A e))) : search A d = no q
+    => Path.inProp _ _
+
+  \lemma dec : Dec (TruncP E)
+    => cases (finCard,finSurj) \with {
+      | 0, inP (f,fs) => no \lam (inP x) => \case fs x \with {
+        | inP ((),_)
+      }
+      | suc n, inP (f,fs) => yes $ inP (f 0)
+    }
+} \where {
     \lemma fromArray {A : \Set} (l : Array A) (p : \Pi (a : A) -> ∃ (i : Fin l.len) (l i = a)) : KFinSet A l.len \cowith
       | finSurj => inP (l,p)
 
     \lemma toArray (A : KFinSet) : ∃ (l : Array A) (\Pi (a : A) -> ∃ (i : Fin l.len) (l i = a))
       => TruncP.map A.finSurj $ \lam (f,p) => (f,p)
 
-    \lemma KFin+Dec=>Fin (A : KFinSet) {d : DecSet A} : FinSet A
-      => \case toArray A \with {
+    \lemma KFin+Dec=>Fin {A : \Set} (k : KFinSet A) {d : DecSet A} : FinSet A
+      => \case toArray k \with {
         | inP (l,q) =>
           \let l' => nub l
           \in FinSet.fromArray l' (\lam a => TruncP.map (q a) $ \lam p =>
               \let t => nub-isSurj l p.1
               \in (t.1, t.2 *> p.2)) nub-isInj
       }
-  }
+}
+
+\lemma QuotientKFin {A : KFinSet} {R : A -> A -> \Type} : KFinSet (Quotient R) A.finCard \cowith
+  | finSurj => TruncP.map A.finSurj \lam s => (\lam j => in~ (s.1 j), \lam (in~ x) => TruncP.map (s.2 x) \lam r => (r.1, pmap in~ r.2))

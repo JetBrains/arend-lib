@@ -1,11 +1,12 @@
 \import Algebra.Field
+\import Algebra.Field.Algebraic
 \import Algebra.Group
 \import Algebra.Group.Category
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
 \import Algebra.Pointed.Category
-\import Algebra.Ring
 \import Algebra.Ring.Category
+\import Algebra.Ring.Integral
 \import Algebra.Ring.RingHom
 \import Algebra.Ring.Ideal
 \import Algebra.Ring.MPoly
@@ -18,6 +19,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.LinearOrder
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
@@ -25,8 +27,22 @@
 \import Set.Countable
 \open Monoid \hiding (equals)
 
-\type IsSplitting {k : DiscreteField} {R : CRing} (p : Poly k) (f : RingHom k R)
-  => ∃ (l : Array R) (c : R) (RingHom.isAlgebraGenerated f l) (polyMap f p = c PolyRing.*c Monoid.BigProd (map (\lam a => padd 1 (negative a)) l))
+\type IsSplittingField {k K : DiscreteField} (p : Poly k) (f : RingHom k K)
+  => ∃ (l : Array K) (c : K) (RingHom.isAlgebraGenerated f l) (polyMap f p = c PolyRing.*c Monoid.BigProd (map (\lam a => padd 1 (negative a)) l))
+
+\lemma splitting-integral {k K : DiscreteField} {p : Poly k} {f : RingHom k K} (s : IsSplittingField p f) : isIntegralExt f \elim s
+  | inP s => (finGenExt-char $ inP (s.1,s.3)).2 K.zeroDimensional
+
+\lemma splitting-monic {k K : DiscreteField} {p : Poly k} (pm : isMonic p) {f : RingHom k K} (s : IsSplittingField p f)
+  : ∃ (l : Array K) (RingHom.isAlgebraGenerated f l) (polyMap f p = Monoid.BigProd (map (\lam a => padd 1 (negative a)) l)) \elim pm, s
+  | inP (n,pd,pc), inP (l : Array, c, lg, lq) => inP (l, lg, lq *> pmap (PolyRing.`*c _) (
+    \have | pc1 : polyCoef (polyMap f p) n = 1 => polyCoef_polyMap *> pmap f pc *> func-ide
+          | pc2 : polyCoef (polyMap f p) l.len = c => rewrite lq $ polyCoef_*c *> pmap (c *) (leadCoef_BigProd1 (\lam _ => idp) \lam _ => idp) *> ide-right
+    \in \case LinearOrder.trichotomy l.len n \with {
+      | less q => absurd $ K.zro/=ide $ inv (degree<=.toCoefs _ _ (rewrite lq $ degree<=_*c $ degree<=_BigProd1 \lam _ => idp) q) *> pc1
+      | equals q => inv pc2 *> pmap (polyCoef _) q *> pc1
+      | greater q => absurd $ K.zro/=ide $ pmap (polyCoef __ n) {pzero} (inv $ lq *> pmap (PolyRing.`*c _) (inv pc2 *> degree<=.toCoefs _ _ (degree<=_polyMap pd) q) *> PolyRing.zro_*c) *> pc1
+    }) *> PolyRing.ide_*c)
 
 \private \record RootFieldData (P : DiscreteField -> \Set) (k : DiscreteField) (p : Poly k)
   | RootField : DiscreteField
@@ -42,23 +58,23 @@
   (S-factor : \Pi {K : DiscreteField} {p q : Poly K} -> S (p * q) -> S p)
   (nextField : \Pi {K : DiscreteField} {p : Poly K} -> P K -> p /= 0 -> Not (Inv p) -> RootFieldData P K p) {
 
-  \func makeSplittingField {k : DiscreteField} (Pk : P k) {p : Poly k} (Sp : S p) : \Sigma (K : DiscreteField) (f : RingHom k K) (IsSplitting p f)
+  \func makeSplittingField {k : DiscreteField} (Pk : P k) {p : Poly k} (Sp : S p) : \Sigma (K : DiscreteField) (P K) (f : RingHom k K) (IsSplittingField p f)
     => aux Pk idp Sp
     \where
-      \func aux {k : DiscreteField} (Pk : P k) {p : Poly k} {n : Nat} (d : degree p = n) (Sp : S p) : \Sigma (K : DiscreteField) (f : RingHom k K) (IsSplitting p f) \elim n
-        | 0 => (k, RingCat.id k, inP (nil, polyCoef p 0, \lam x => inP (mConst x, simplify), rewrite {1} (degree=0-lem d) $ pmap (padd pzero) $ leadCoef_polyCoef *> pmap (polyCoef p) d *> inv ide-right))
+      \func aux {k : DiscreteField} (Pk : P k) {p : Poly k} {n : Nat} (d : degree p = n) (Sp : S p) : \Sigma (K : DiscreteField) (P K) (f : RingHom k K) (IsSplittingField p f) \elim n
+        | 0 => (k, Pk, RingCat.id k, inP (nil, polyCoef p 0, \lam x => inP (mConst x, simplify), rewrite {1} (degree=0-lem d) $ pmap (padd pzero) $ leadCoef_polyCoef *> pmap (polyCoef p) d *> inv ide-right))
         | suc n => \let | p/=0 : p /= 0 => \case rewriteF __ d
                         | rfd : RootFieldData P k p => nextField Pk p/=0 \lam pi => \case polyInv pi \with {
                                                          | inP (r,q,_) => \case rewriteF q d
                                                        }
-                        | (K,f,Ks) => aux rfd.RootFieldP {_} {n} (pmap pred (inv (rewriteF (decideEq/=_reduce $ /=-sym zro/=ide) (inv (degree_polyMap RingHom.field-isInj) *> degree_*_= (\lam q => p/=0 $ polyMap-inj RingHom.field-isInj q) (rootDiv_* rfd.isRoot))) *> d)) $ S-factor $ transport S (rootDiv_* rfd.isRoot) (S-hom rfd.rootFieldHom Sp)
-                   \in (K, f RingCat.∘ rfd.rootFieldHom, TruncP.map Ks \lam (l,c,fl,q) => later
+                        | (K,PK,f,Ks) => aux rfd.RootFieldP {_} {n} (pmap pred (inv (rewriteF (decideEq/=_reduce $ /=-sym zro/=ide) (inv (degree_polyMap RingHom.field-isInj) *> degree_*_= (\lam q => p/=0 $ polyMap-inj RingHom.field-isInj q) (rootDiv_* rfd.isRoot))) *> d)) $ S-factor $ transport S (rootDiv_* rfd.isRoot) (S-hom rfd.rootFieldHom Sp)
+                   \in (K, PK, f RingCat.∘ rfd.rootFieldHom, TruncP.map Ks \lam (l,c,fl,q) => later
                         (f rfd.root :: l, c, RingHom.isAlgebraGenerated-comp rfd.RootField-gen fl,
                          inv (polyMap-comp rfd.rootFieldHom f) *> pmap (polyMap f) (rootDiv_* rfd.isRoot) *> func-* {polyMapRingHom f} *> pmap (`* _) q *> inv PolyRing.*c-comm-left *>
                          pmap (c PolyRing.*c) (pmap (_ *) (pmap2 (\lam x y => padd (padd pzero x) y) func-ide AddGroupHom.func-negative) *> *-comm {_} {_} {padd 1 (negative (f root))})))
 }
 
-\sfunc countableSplittingField {k : DiscreteField} (c : Countable k) {p : Poly k} : \Sigma (K : DiscreteField) (f : RingHom k K) (IsSplitting p f)
+\sfunc countableSplittingField {k : DiscreteField} (c : Countable k) {p : Poly k} : \Sigma (K : DiscreteField) (Countable K) (f : RingHom k K) (IsSplittingField p f)
   => CountableSplittingFieldData.makeSplittingField c ()
   \where {
     \private \func CountableSplittingFieldData : SplittingFieldData \cowith

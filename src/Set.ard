@@ -5,6 +5,7 @@
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Set.Fin
 
 \data Dec (E : \Prop)
   | yes E
@@ -33,6 +34,14 @@
 \lemma dec_no_reduce {E : \Prop} {d : Dec E} (q : Not E) : d = no q
   => propPath
 
+\lemma Dec_|| {A B : \Prop} (d : Dec A) (e : Dec B) : Dec (A || B) \elim d, e
+  | yes e, _ => yes (byLeft e)
+  | _, yes e => yes (byRight e)
+  | no q, no q' => no \case __ \with {
+    | byLeft a => q a
+    | byRight b => q' b
+  }
+
 \func SigmaDecide {A : Decide} (B : A -> Decide) : Decide (\Sigma (a : A) (B a)) \cowith
   | decide => \case A.decide \with {
     | yes a => \case decide {B a} \with {
@@ -44,11 +53,12 @@
 
 \instance ProductDecide (A B : Decide) => SigmaDecide {A} (\lam _ => B)
 
+\lemma NotDec {P : \Prop} (d : Dec P) : Dec (Not P) \elim d
+  | yes a => no $ \lam f => f a
+  | no q => yes q
+
 \instance NotDecide (A : Decide) : Decide (Not A)
-  | decide => \case A.decide \with {
-    | yes a => no $ \lam f => f a
-    | no q => yes q
-  }
+  | decide => NotDec A.decide
 
 \class BaseSet (E : \Set)
 
@@ -63,6 +73,9 @@
     \func max {S : BaseSet} : DecSubSet S \cowith
       | contains _ => \Sigma
       | isDec _ => yes ()
+
+    \lemma isFin (S : FinSet) (D : DecSubSet S) : FinSet D.struct
+      => SigmaFin S (\lam x => DecFin (D.isDec x))
   }
 
 \class SeparatedSet \extends BaseSet
@@ -108,6 +121,11 @@
       | no n => no (\lam e' => n (rewrite (Path.inProp e (pmap __.1 e')) (pmapd __.2 e')))
     }
     | no n => no (\lam e => n (pmap __.1 e))
+  }
+
+\func SubDecSet {A : DecSet} {B : A -> \Prop} : DecSet (\Sigma (a : A) (B a))
+  => SigmaDecSet \lam a => \new DecSet (B a) {
+    | decideEq b b' => yes (Path.inProp b b')
   }
 
 \instance ProductDecSet (A B : DecSet) : DecSet (\Sigma A B)
