@@ -7,7 +7,7 @@ plugins {
 tasks.register<JavaExec>("cliCheck") {
     group = "verification"
     dependsOn(projectArend.task(":cli:jarDep"), tasks.named("classes"))
-    main = "-jar"
+    mainClass.set("-jar")
     val jarDepPath = projectArend.projectDir.resolve("cli/build/libs/cli-1.9.0-full.jar").absolutePath
     args(jarDepPath, "-tcr")
     workingDir(projectDir.parent)
