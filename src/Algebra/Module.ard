@@ -98,28 +98,32 @@
   \type IsIndependentSet {J : \Set} (g : J -> E) : \Prop
     => \Pi (c : Array (\Sigma R J)) -> sum g c = 0 -> IsZeroSum c
     \where {
-      \func sum {J : \Set} (g : J -> E) (c : Array (\Sigma R J)) => BigSum (\lam j => (c j).1 *c g (c j).2)
+      \func sum (g : J -> E) (c : Array (\Sigma R J)) => BigSum (\lam j => (c j).1 *c g (c j).2)
 
-      \lemma sum-ldistr {r : R} {c : Array (\Sigma R J)} : r *c sum g c = sum g (map (\lam s => (r * s.1, s.2)) c)
+      \lemma sum-ldistr (g : J -> E) {r : R} {c : Array (\Sigma R J)} : r *c sum g c = sum g (map (\lam s => (r * s.1, s.2)) c)
         => *c_BigSum-ldistr *> pmap BigSum (exts \lam j => inv *c-assoc)
 
-      \lemma sum_++ {c d : Array (\Sigma R J)} : sum g (c ++ d) = sum g c + sum g d
+      \lemma sum_++ (g : J -> E) {c d : Array (\Sigma R J)} : sum g (c ++ d) = sum g c + sum g d
         => pmap BigSum (map_++ (\lam s => s.1 *c g s.2)) *> BigSum_++
 
-      \lemma sum_negative {c : Array (\Sigma R J)} : negative (sum g c) = sum g (map (\lam s => (R.negative s.1, s.2)) c)
+      \lemma sum_Big++ (g : J -> E) {l : Array (Array (\Sigma R J))} : sum g (Big (++) nil l) = BigSum (map (sum g) l) \elim l
+        | nil => idp
+        | c :: l => sum_++ g *> pmap (_ +) (sum_Big++ g)
+
+      \lemma sum_negative (g : J -> E) {c : Array (\Sigma R J)} : negative (sum g c) = sum g (map (\lam s => (R.negative s.1, s.2)) c)
         => BigSum_negative *> pmap BigSum (exts \lam j => inv *c_negative-left)
 
-      \lemma sum_EPerm {l l' : Array (\Sigma R J)} (p : EPerm l l') : sum g l = sum g l'
+      \lemma sum_EPerm (g : J -> E) {l l' : Array (\Sigma R J)} (p : EPerm l l') : sum g l = sum g l'
         => BigSum_EPerm $ EPerm.EPerm_map (\lam s => s.1 *c g s.2) p
 
       \lemma =_~ (gi : IsIndependentSet g) {c d : Array (\Sigma R J)} (p : sum g c = sum g d) : c Z~ d
-        => gi _ $ sum_++ *> pmap2 (+) (inv sum_negative) p *> negative-left
+        => gi _ $ sum_++ g *> pmap2 (+) (inv (sum_negative g)) p *> negative-left
 
-      \lemma IsZeroSum_= {c : Array (\Sigma R J)} (p : IsZeroSum c) : sum g c = 0 \elim p
-        | inP (l',e,f) => sum_EPerm e *> sum_Big++ g *> BigSum_zro \lam j => unfold sum $ inv *c_BigSum-rdistr *> pmap (`*c _) (f j) *> *c_zro-left
+      \lemma IsZeroSum_= (g : J -> E) {c : Array (\Sigma R J)} (p : IsZeroSum c) : sum g c = 0 \elim p
+        | inP (l',e,f) => sum_EPerm g e *> sum_Big++ g *> BigSum_zro \lam j => unfold sum $ inv *c_BigSum-rdistr *> pmap (`*c _) (f j) *> *c_zro-left
 
-      \lemma ~_= {c d : Array (\Sigma R J)} (p : c Z~ d) : sum g c = sum g d
-        => fromZero $ +-comm *> pmap (`+ _) sum_negative *> later (inv sum_++) *> IsZeroSum_= p
+      \lemma ~_= (g : J -> E) {c d : Array (\Sigma R J)} (p : c Z~ d) : sum g c = sum g d
+        => fromZero $ +-comm *> pmap (`+ _) (sum_negative g) *> later (inv (sum_++ g)) *> IsZeroSum_= g p
     }
 
   \lemma IsIndependentSet-inj {J K : \Set} {f : J -> K} (inj : isInj f) {g : K -> E} (gi : IsIndependentSet g) : IsIndependentSet (\lam j => g (f j))
@@ -317,13 +321,9 @@
 
   \sfunc basisSet-split {R : Ring} {U V : LModule' R} {J : \Set} {u : J -> U} (ub : IsBasisSet u) (v : J -> V) (x : U)
     : \Sigma (y : V) (∃ (c : Array (\Sigma R J)) (x = sum u c) (y = sum v c))
-    => \case TruncP.rec-set (ub.2 x) (\lam s => sum v s.1) (\lam s s' => ~_= v $ =_~ u ub.1 $ inv s.2 *> s'.2) \with {
+    => \case TruncP.rec-set (ub.2 x) (\lam s => sum v s.1) (\lam s s' => ~_= v $ =_~ ub.1 $ inv s.2 *> s'.2) \with {
       | (y, t) => (y, TruncP.map t \lam s => (s.1.1, s.1.2, inv s.2))
     }
-
-  \lemma sum_Big++ {R : Ring} {U : LModule' R} {J : \Set} (g : J -> U) {l : Array (Array (\Sigma R J))} : sum g (Big (++) nil l) = BigSum (map (sum g) l) \elim l
-    | nil => idp
-    | c :: l => sum_++ g *> pmap (_ +) (sum_Big++ g)
 
   \func pullback (f : RingHom) (M : LModule' f.Cod) : LModule' f.Dom \cowith
     | AbGroup => M

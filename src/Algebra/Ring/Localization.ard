@@ -83,24 +83,24 @@
   | natCoefZero => path (\lam i => in~ (natCoefZero i, 1, contains_ide))
   | natCoefSuc n => pmap in~ $ ext (natCoefSuc n *> equation, inv ide-left)
   \where {
-    \func SType => \Sigma (x y : R) (S y)
+    \func SType (S : SubMonoid R) => \Sigma (x y : R) (S y)
 
-    \func Type => Quotient {SType} (\lam a b => a.1 * b.2 = b.1 * a.2)
+    \func Type => Quotient {SType S} (\lam a b => a.1 * b.2 = b.1 * a.2)
 
     \lemma inl-surj : isSurj (inl~ {R} {S})
       => Quotient.in-surj
 
-    \lemma equals-lem {a b : SType} (c : R) (s : S c) (p : a.1 * b.2 * c = b.1 * a.2 * c) : inl~ a = inl~ b
-      => \let a' : SType => (a.1 * c, a.2 * c, contains_* a.3 s)
-         \in path (~-equiv {SType} a a' equation) *>
-             path (~-equiv {SType} a' b equation)
+    \lemma equals-lem {a b : SType S} (c : R) (s : S c) (p : a.1 * b.2 * c = b.1 * a.2 * c) : inl~ a = inl~ b
+      => \let a' : SType S => (a.1 * c, a.2 * c, contains_* a.3 s)
+         \in path (~-equiv a a' equation) *>
+             path (~-equiv a' b equation)
 
-    \lemma equals1 {a b : SType} (p : a.1 * b.2 = b.1 * a.2) : inl~ a = inl~ b
+    \lemma equals1 {a b : SType S} (p : a.1 * b.2 = b.1 * a.2) : inl~ a = inl~ b
       => equals-lem 1 S.contains_ide (simplify p)
 
-    \lemma unequals {a b : SType} (p : inl~ a = inl~ b)
+    \lemma unequals {a b : SType S} (p : inl~ a = inl~ b)
       : TruncP (\Sigma (c : R) (S c) (a.1 * b.2 * c = b.1 * a.2 * c))
-      => Equivalence.Closure.univ (\new Equivalence SType {
+      => Equivalence.Closure.univ (\new Equivalence (SType S) {
         | ~ x y => TruncP (\Sigma (z : R) (S z) (x.1 * y.2 * z = y.1 * x.2 * z))
         | ~-reflexive => inP (ide, contains_ide, idp)
         | ~-symmetric (inP (z,c,p)) => inP (z, c, inv p)
@@ -108,7 +108,7 @@
       }) (\lam x~y => inP (ide, contains_ide, simplify x~y))
          (Quotient.equality p)
 
-    \lemma equality {a b : SType} : (inl~ a = inl~ b) = TruncP (\Sigma (c : R) (S c) (a.1 * b.2 * c = b.1 * a.2 * c))
+    \lemma equality {a b : SType S} : (inl~ a = inl~ b) = TruncP (\Sigma (c : R) (S c) (a.1 * b.2 * c = b.1 * a.2 * c))
       => propExt unequals (\lam (inP (c,s,p)) => equals-lem c s p)
 
     \lemma swap {R : CMonoid} {r1 r2 s1 s2 : R} : (r1 * r2) * (s1 * s2) = (r1 * s1) * (r2 * s2)
@@ -159,10 +159,10 @@
       }) $ inl~ (0,b,Sb)
   }
 
-\func inl~ {R : CRing} {S : SubMonoid R} (x : LocRing.SType S) : LocRing.Type S => in~ x
+\func inl~ {R : CRing} {S : SubMonoid R} (x : LocRing.SType S) : LocRing.Type => in~ x
 
 \lemma loc_unequals_domain {D : IntegralDomain} (S : SubMonoid D) (nz : \Pi (x : D) -> S x -> x /= 0) {a b : LocRing.SType S} (p : inl~ a = inl~ b) : a.1 * b.2 = b.1 * a.2
-  => \case LocRing.unequals S p \with {
+  => \case LocRing.unequals p \with {
     | inP (c,c1,p) => Domain.nonZero-cancel-right (nz c c1) p
   }
 
@@ -173,7 +173,7 @@
   | func-* => path (~-equiv _ _ simplify)
 
 \lemma locMap-inj {R : CRing} {S : SubMonoid R} (p : \Pi {a : R} -> S a -> \Pi {x y : R} -> x * a = y * a -> x = y) : isInj (locMap {R} {S})
-  => \lam {a} {b} q => \case LocRing.unequals S q \with {
+  => \lam {a} {b} q => \case LocRing.unequals q \with {
     | inP (c,Sc,d) => p Sc $ rewriteF (ide-right,ide-right) d
   }
 
@@ -182,7 +182,7 @@
   | inL => locMap
   | local => elem-inv
   | local-univ {R''} (f : RingHom R R'') l => Contr.make (later (liftHom f l, liftHom-loc f l)) $
-      \lam q => ext $ locMap-epi {_} {liftHom f l} $ RingHom.equals $ \lam x => liftHom-loc f l x *> inv (q.2 x)
+      \lam q => ext $ locMap-epi {_} {_} {_} {liftHom f l} $ RingHom.equals $ \lam x => liftHom-loc f l x *> inv (q.2 x)
   \where {
     \open LocRing
 
@@ -190,8 +190,8 @@
       => \new Inv {LocRing S} {
         | val => in~ (s, ide, contains_ide)
         | inv => in~ (ide, s, p)
-        | inv-left => path (~-equiv {SType S} _ _ (*-comm *> pmap (ide *) *-comm))
-        | inv-right => path (~-equiv {SType S} _ _ (*-comm *> pmap (ide *) *-comm))
+        | inv-left => equals1 (*-comm *> pmap (ide *) *-comm)
+        | inv-right => equals1 (*-comm *> pmap (ide *) *-comm)
       }
 
     \lemma locMap-epi : isEpi locMap => \lam {Q} {g h : RingHom} q =>
@@ -207,7 +207,7 @@
             h (in~ (r * ide, ide * s, contains_* contains_ide p)) ==< inv (pmap h j) >==
             h (in~ (r,s,p))                                       `qed
 
-    \func lift {R' : CRing} (f : RingHom R R') (l : \Pi (x : R) -> S x -> Inv (f x)) (a : Type S) : R' \elim a
+    \func lift {R' : CRing} (f : RingHom R R') (l : \Pi (x : R) -> S x -> Inv (f x)) (a : Type {R} {S}) : R' \elim a
       | in~ (r,s,p) => f r * Inv.inv {l s p}
       | ~-equiv (r,s,p) (r',s',p') rs~rs' =>
           f r * Inv.inv {l s p}                                ==< pmap (`* Inv.inv {l s p}) (inv ide-right) >==
@@ -252,7 +252,7 @@
                           | inv-left => pmap (Inv.inv {l (s1 * s2) (contains_* p1 p2)} *) (inv f.func-*) *> Inv.inv-left {l (s1 * s2) (contains_* p1 p2)}
                           | inv-right => pmap (`* Inv.inv {l (s1 * s2) (contains_* p1 p2)}) (inv f.func-*) *> Inv.inv-right {l (s1 * s2) (contains_* p1 p2)}
                         }
-             \in pmap (\lam (t : Inv (f s1 * f s2)) => t.inv) (Inv.levelProp e (Inv.product.func (l s1 p1) (l s2 p2)))
+             \in pmap (\lam (t : Inv (f s1 * f s2)) => t.inv) (Inv.levelProp e Inv.product.func)
 
     \lemma liftHom-loc {R' : CRing} (f : RingHom R R') (l : \Pi (x : R) -> S x -> Inv (f x)) (x : R) : liftHom f l (locMap x) = f x
       => pmap (f x *) (inv ide-right *> pmap (Inv.inv {l ide contains_ide} *) (inv f.func-ide) *> Inv.inv-left {l ide contains_ide}) *> ide-right
@@ -315,12 +315,12 @@
   }
 
 \lemma div_loc {R : CRing} {S : SubMonoid R} {a b : R} {Sb : S b} (a|b : Monoid.LDiv b a) : inl~ (a,b,Sb) = locMap a|b.inv
-  => LocRing.equals1 S $ ide-right *> inv a|b.inv-right *> *-comm
+  => LocRing.equals1 $ ide-right *> inv a|b.inv-right *> *-comm
 
 \open localization
 
 \func loc_change-of-base1 {R S : CRing} (f : RingHom R S) {a : R} : RingHom (LocRing (SubMonoid.powers a)) (LocRing (SubMonoid.powers (f a)))
-  => liftHom _ (locMap ∘ f) $ powers-inv (locMap ∘ f) $ elem-inv (SubMonoid.powers (f a)) (f a) (inP (1, ide-left))
+  => liftHom (locMap ∘ f) $ powers-inv (locMap ∘ f) $ elem-inv {_} {SubMonoid.powers (f a)} (f a) (inP (1, ide-left))
 
 \lemma loc_change-of-base1-loc {R S : CRing} (f : RingHom R S) {a : R} : loc_change-of-base1 f {a} ∘ locMap = locMap ∘ f
-  => exts (liftHom-loc (SubMonoid.powers a) (locMap ∘ f) (powers-inv _ _))
+  => exts (liftHom-loc (locMap ∘ f) (powers-inv _ _))
