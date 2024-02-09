@@ -13,6 +13,9 @@ import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.error.InstanceInferenceError;
+import org.arend.ext.prettyprinting.PrettyPrinterConfig;
+import org.arend.ext.prettyprinting.doc.DocFactory;
+import org.arend.ext.prettyprinting.doc.LineDoc;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.ext.util.Pair;
@@ -89,10 +92,22 @@ public class LinearSolver {
       if (reportError) reportTypeError(type);
       return null;
     }
-    if (relationData.defCall instanceof CoreFieldCallExpression) {
-      CoreClassField field = ((CoreFieldCallExpression) relationData.defCall).getDefinition();
+    if (relationData.defCall instanceof CoreFieldCallExpression fieldCall) {
+      CoreClassField field = fieldCall.getDefinition();
       if (field == ext.equationMeta.less || field == ext.equationMeta.lessOrEquals) {
-        return new Hypothesis<>(expr, ((CoreFieldCallExpression) relationData.defCall).getArgument(), field == ext.equationMeta.less ? Equation.Operation.LESS : Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
+        CoreExpression arg = fieldCall.getArgument();
+        CoreExpression argType = arg.computeType().normalize(NormalizationMode.WHNF);
+        if (argType instanceof CoreClassCallExpression classCall && classCall.getDefinition().isSubClassOf(ext.equationMeta.LinearlyOrderedSemiring)) {
+          return new Hypothesis<>(expr, arg, field == ext.equationMeta.less ? Equation.Operation.LESS : Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
+        } else {
+          if (reportError) errorReporter.report(new TypeError("", argType, marker) {
+            @Override
+            public LineDoc getShortHeaderDoc(PrettyPrinterConfig ppConfig) {
+              return DocFactory.hList(DocFactory.text("The type of the equation should be "), DocFactory.refDoc(ext.equationMeta.LinearlyOrderedSemiring.getRef()));
+            }
+          });
+          return null;
+        }
       }
       if (reportError) reportTypeError(type);
       return null;
