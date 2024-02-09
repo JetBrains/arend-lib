@@ -589,7 +589,7 @@ public class ExtMeta extends BaseMetaDefinition {
             field = applyPath(pRef, pathExpr.applyAt(pRef, factory, ext));
             useLet = false;
           } else if (propBindings.contains(paramBinding)) {
-            field = factory.app(factory.ref(ext.pathInProp.getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, usedList.get(i), fieldsMap, factory), makeProj(factory, left, i, classFields), makeProj(factory, right, i, classFields)));
+            field = factory.app(factory.ref(ext.propDPI.getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, usedList.get(i), fieldsMap, factory), makeProj(factory, left, i, classFields), makeProj(factory, right, i, classFields)));
             useLet = true;
           } else {
             boolean isDependent = dependentBindings.contains(paramBinding);
@@ -761,7 +761,7 @@ public class ExtMeta extends BaseMetaDefinition {
       if (!args.isEmpty()) {
         errorReporter.report(new IgnoredArgumentError(args.get(0).getExpression()));
       }
-      return typechecker.typecheck(factory.app(factory.ref(ext.prelude.getInProp().getRef()), true, Arrays.asList(factory.hole(), factory.hole())), contextData.getExpectedType());
+      return typechecker.typecheck(factory.app(factory.ref(ext.propIsProp.getRef()), true, Arrays.asList(factory.hole(), factory.hole())), contextData.getExpectedType());
     }
 
     if (args.isEmpty()) {

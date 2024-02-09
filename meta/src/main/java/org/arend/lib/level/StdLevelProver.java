@@ -48,7 +48,7 @@ public class StdLevelProver implements LevelProver {
     CoreExpression type = expression.normalize(NormalizationMode.WHNF);
     CoreExpression typeType = type.computeType().normalize(NormalizationMode.WHNF);
     if (typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp()) {
-      return factory.app(factory.ref(ext.prelude.getInProp().getRef()), true, Arrays.asList(leftExpr, rightExpr));
+      return factory.app(factory.ref(ext.propIsProp.getRef()), true, Arrays.asList(leftExpr, rightExpr));
     }
 
     if (type instanceof CoreDataCallExpression) {

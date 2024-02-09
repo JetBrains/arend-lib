@@ -50,16 +50,17 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Paths")              public CoreFunctionDefinition inv;
   @Dependency(module = "Paths")              public CoreFunctionDefinition Jl;
   @Dependency(module = "Paths")              public CoreFunctionDefinition pathOver;
-  @Dependency(module = "Paths")              public CoreFunctionDefinition pathInProp;
   @Dependency(module = "Paths")              public CoreFunctionDefinition pmap;
 
   @Dependency(module = "Data.List", name = "List.nil") public CoreConstructor nil;
   @Dependency(module = "Data.List", name = "List.::")  public CoreConstructor cons;
   @Dependency(module = "Data.List", name = "++")       public CoreFunctionDefinition append;
 
-  @Dependency(module = "Logic") public CoreDataDefinition Empty;
-  @Dependency(module = "Logic") public CoreDataDefinition TruncP;
-  @Dependency(module = "Logic") public CoreFunctionDefinition propExt;
+  @Dependency(module = "Logic")                       public CoreDataDefinition Empty;
+  @Dependency(module = "Logic")                       public CoreDataDefinition TruncP;
+  @Dependency(module = "Logic")                       public CoreFunctionDefinition propExt;
+  @Dependency(module = "Logic", name = "prop-isProp") public CoreFunctionDefinition propIsProp;
+  @Dependency(module = "Logic", name = "prop-dpi")    public CoreFunctionDefinition propDPI;
 
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition Pointed;
   @Dependency(module = "Algebra.Pointed")                          public CoreClassDefinition AddPointed;
