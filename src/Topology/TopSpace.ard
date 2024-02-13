@@ -1,33 +1,35 @@
 \import Category
 \import Category.Meta
 \import Logic.Meta
+\import Order.Lattice
 \import Paths.Meta
 \import Set
 \import Set.Category
+\import Set.Subset
 
 \class TopSpace \extends BaseSet
-  | topology : (E -> \Prop) -> \Prop
-  | top-top : topology (\lam _ => \Sigma)
-  | top-meet {P Q : E -> \Prop} : topology P -> topology Q -> topology (\lam x => \Sigma (P x) (Q x))
-  | top-Join (S : (E -> \Prop) -> \Prop) : (\Pi (P : E -> \Prop) -> S P -> topology P) -> topology (\lam x => ∃ (P : E -> \Prop) (S P) (P x))
+  | isOpen : Set E -> \Prop
+  | open-top : isOpen Bounded.top
+  | open-inter {U V : Set E} : isOpen U -> isOpen V -> isOpen (U ∧ V)
+  | open-Union {S : Set (Set E)} : ∀ (U : S) (isOpen U) -> isOpen (Set.Union S)
 
-\class TopHom \extends SetHom {
+\class ContMap \extends SetHom {
   \override Dom : TopSpace
   \override Cod : TopSpace
-  | func-topology (U : Cod -> \Prop) : topology U -> topology (\lam x => U (func x))
+  | func-cont {U : Cod -> \Prop} : isOpen U -> isOpen (\lam x => U (func x))
 }
 
 \instance TopCat : Cat TopSpace
-  | Hom => TopHom
-  | id X => \new TopHom {
+  | Hom => ContMap
+  | id X => \new ContMap {
     | func x => x
-    | func-topology U t => t
+    | func-cont t => t
   }
-  | o g f => \new TopHom {
+  | o g f => \new ContMap {
     | func x => g (f x)
-    | func-topology U t => func-topology {f} (\lam y => U (g y)) (func-topology {g} U t)
+    | func-cont t => func-cont {f} (func-cont {g} t)
   }
   | id-left => idp
   | id-right => idp
   | o-assoc => idp
-  | univalence => sip (\lam {X} {S1} {S2} h1 h2 => exts (\lam U => ext (func-topology {h2} U, func-topology {h1} U)))
+  | univalence => sip (\lam {X} {S1} {S2} h1 h2 => exts (\lam U => ext (func-cont {h2} {U}, func-cont {h1} {U})))

@@ -2,10 +2,14 @@
 \import Algebra.Semiring
 \import Category.Limit
 \import Data.Array
+\import Data.Bool
 \import Equiv
 \import Function.Meta
 \import HLevel
+\import Homotopy.Fibration
 \import Logic
+\import Logic.Meta
+\import Meta
 \import Paths
 \import Order.PartialOrder
 \import Paths.Meta
@@ -56,11 +60,11 @@
     | nil => p
     | :: a l => meet-univ (f 0) (Big_meet-univ p (\lam i => f (suc i)))
 } \where {
-  -- | ``Meet x y`` is the type of elements which are meets of {x} and {y}.
-  \func Meet {E : Poset} (x y : E) =>
+  -- | ``Meets x y`` is the type of elements which are meets of {x} and {y}.
+  \func Meets {E : Poset} (x y : E) =>
     \Sigma (j : E) (j <= x) (j <= y) (\Pi (z : E) -> z <= x -> z <= y -> z <= j)
 
-  \lemma Meet-isProp {E : Poset} {x y : E} : isProp (Meet x y) => \lam p1 p2 =>
+  \lemma Meets-isProp {E : Poset} {x y : E} : isProp (Meets x y) => \lam p1 p2 =>
       ext (<=-antisymmetric (p2.4 p1.1 p1.2 p1.3) (p1.4 p2.1 p2.2 p2.3))
 }
 
@@ -111,11 +115,11 @@
     | nil => p
     | :: a l => join-univ (f 0) (Big_join-univ p (\lam i => f (suc i)))
 } \where {
-  -- | ``Join x y`` is the type of elements which are joins of {x} and {y}.
-  \func Join {E : Poset} (x y : E) =>
+  -- | ``Joins x y`` is the type of elements which are joins of {x} and {y}.
+  \func Joins {E : Poset} (x y : E) =>
     \Sigma (m : E) (x <= m) (y <= m) (\Pi (z : E) -> x <= z -> y <= z -> m <= z)
 
-  \lemma Join-isProp {E : Poset} {x y : E} : isProp (Join x y) => \lam p1 p2 =>
+  \lemma Joins-isProp {E : Poset} {x y : E} : isProp (Joins x y) => \lam p1 p2 =>
       ext (<=-antisymmetric (p1.4 p2.1 p2.2 p2.3) (p2.4 p1.1 p1.2 p1.3))
 }
 
@@ -234,4 +238,74 @@
         | zro_*-left {x} => <=-antisymmetric meet-left bottom-univ
         | *-comm => meet-comm
     }
+}
+
+\class CompleteLattice \extends Bounded.Lattice, CompleteCat (\lp,\lp) {
+  | Join {J : \Set} : (J -> E) -> E
+  | Join-cond {J : \Set} (j : J) {f : J -> E} : f j <= Join f
+  | Join-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> f j <= e) -> Join f <= e
+
+  | bottom => Join absurd
+  | bottom-univ {x} => Join-univ \case __
+  | join x y => Join (if __ x y)
+  | join-left {x} {y} => Join-cond true
+  | join-right {x} {y} => Join-cond false
+  | join-univ x<=z y<=z => Join-univ \case \elim __ \with {
+    | true => x<=z
+    | false => y<=z
+  }
+
+  | Meet {J : \Set} : (J -> E) -> E
+  | Meet-cond {J : \Set} (j : J) {f : J -> E} : Meet f <= f j
+  | Meet-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> e <= f j) -> e <= Meet f
+
+  \default Meet \as Meet-impl {J} g => Join (\lam (t : Total (\Pi (j : J) -> __ <= g j)) => t.1)
+  \default Meet-cond \as Meet-cond-impl {J} j {f} : Meet-impl f <= f j => Join-univ (__.2 j)
+  \default Meet-univ \as Meet-univ-impl {J} {f} {e} p : e <= Meet-impl f => Join-cond (later (e,p))
+
+  \default meet \as meet-impl x y => Meet (if __ x y)
+  \default meet-left \as meet-left-impl {x} {y} : meet-impl x y <= x => Meet-cond true
+  \default meet-right \as meet-right-impl {x} {y} : meet-impl x y <= y => Meet-cond false
+  \default meet-univ \as meet-univ-impl {x} {y} {z} z<=x z<=y : z <= meet-impl x y => Meet-univ \case \elim __ \with {
+    | true => z<=x
+    | false => z<=y
+  }
+
+  \default top \as top-impl => Meet absurd
+  \default top-univ \as top-univ-impl {x} : x <= top-impl => Meet-univ \case __
+
+  | limit {J} G => \new Limit {
+    | apex => Meet (Total.proj (\lam x => ∃ (j : J) (G j = x)))
+    | coneMap j => Meet-cond (later (G j, inP (j, idp)))
+    | coneCoh _ => prop-pi
+    | isLimit x => \new QEquiv {
+      | ret (c : Cone) => Meet-univ (\lam (y, inP (j,p)) => transport (x <=) p (c.coneMap j))
+      | ret_f h => prop-pi
+      | f_sec c => exts (\lam j => prop-pi)
+    }
+  }
+  | pullback {x} {y} f g => \new Pullback {
+    | apex => x ∧ y
+    | pbProj1 => meet-left
+    | pbProj2 => meet-right
+    | pbCoh => prop-pi
+    | pbMap p1 p2 _ => meet-univ p1 p2
+    | pbBeta1 => prop-pi
+    | pbBeta2 => prop-pi
+    | pbEta _ _ => prop-pi
+  }
+
+  \lemma Join-double {I J : \Set} {f : I -> J -> E} : Join (\lam i => Join (\lam j => f i j)) = Join (\lam (p : \Sigma I J) => f p.1 p.2)
+    => <=-antisymmetric (Join-univ (\lam i => Join-univ (\lam j => Join-cond (i,j)))) (Join-univ (\lam p => Join-cond p.2 <=∘ Join-cond p.1))
+
+  \lemma Join_= {J : \Set} {f g : J -> E} (p : \Pi (j : J) -> f j = g j) : Join f = Join g
+    => path (\lam i => Join (p __ i))
+
+  \func SJoin (U : E -> \Prop) => Join (\lam (t : Total U) => t.1)
+
+  \lemma SJoin-cond {U : E -> \Prop} {x : E} (Ux : U x) : x <= SJoin U
+    => Join-cond {_} {Total U} (x,Ux)
+
+  \lemma SJoin-univ {U : E -> \Prop} {e : E} (c : \Pi {x : E} -> U x -> x <= e) : SJoin U <= e
+    => Join-univ \lam s => c s.2
 }

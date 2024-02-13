@@ -39,61 +39,25 @@
 \import Set.Category
 \import Set.Fin
 \open Bounded(top,top-univ,bottom,bottom-univ)
+\open CompleteLattice(SJoin)
 \open MeetSemilattice
 \open JoinSemilattice
 \open PresentedFrame \hiding (<=)
 \open Locale
 \open Preorder (=_<=)
 
-\class Locale \extends Bounded.DistributiveLattice, SiteWithBasis, CompleteCat (\lp,\lp) {
-  | Join {J : \Set} : (J -> E) -> E
-  | Join-cond {J : \Set} (j : J) {f : J -> E} : f j <= Join f
-  | Join-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> f j <= e) -> Join f <= e
+\class Locale \extends CompleteLattice, Bounded.DistributiveLattice, SiteWithBasis {
   | Join-ldistr>= {J : \Set} {f : J -> E} {e : E} : e ∧ Join f <= Join (\lam (j : J) => e ∧ f j)
-
-  | bottom => Join absurd
-  | bottom-univ {x} => Join-univ (\case __)
-  | join x y => Join (if __ x y)
-  | join-left {x} {y} => Join-cond true
-  | join-right {x} {y} => Join-cond false
-  | join-univ x<=z y<=z => Join-univ $ \case \elim __ \with {
-    | true => x<=z
-    | false => y<=z
-  }
   | ldistr>= {x} {y} {z} =>
     \have t : (\lam b => if b (x ∧ y) (x ∧ z)) = (\lam b => x ∧ if b y z)
             => ext (\lam b => cases b idp)
     \in unfold (rewrite t Join-ldistr>=)
-
-  | Meet {J : \Set} : (J -> E) -> E
-  | Meet {J} g => Join (\lam (t : Total (\Pi (j : J) -> __ <= g j)) => t.1)
-  | Meet-cond {J : \Set} (j : J) {f : J -> E} : Meet f <= f j
-  | Meet-cond {J} j {f} => Join-univ (__.2 j)
-  | Meet-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> e <= f j) -> e <= Meet f
-  | Meet-univ {J} {f} {e} p => Join-cond (later (e,p))
-
-  | limit {J} G => \new Limit {
-    | apex => Meet (Total.proj (\lam x => ∃ (j : J) (G j = x)))
-    | coneMap j => Meet-cond (later (G j, inP (j, idp)))
-    | coneCoh _ => prop-pi
-    | isLimit x => \new QEquiv {
-      | ret (c : Cone) => Meet-univ (\lam (y, inP (j,p)) => transport (x <=) p (c.coneMap j))
-      | ret_f h => prop-pi
-      | f_sec c => exts (\lam j => prop-pi)
-    }
-  }
-  | pullback {x} {y} f g => \new Pullback {
-    | apex => x ∧ y
-    | pbProj1 => meet-left
-    | pbProj2 => meet-right
-    | pbCoh => prop-pi
-    | pbMap p1 p2 _ => meet-univ p1 p2
-    | pbBeta1 => prop-pi
-    | pbBeta2 => prop-pi
-    | pbEta _ _ => prop-pi
-  }
   | isBasicCover x g => x <= Join (\lam j => (g j).1)
   | basicCover-stable {x} {y} x<=y c => meet-univ <=-refl (x<=y <=∘ c) <=∘ Join-ldistr>=
+
+  | Meet {J} g => Join (\lam (t : Total (\Pi (j : J) -> __ <= g j)) => t.1)
+  | Meet-cond {J} j {f} => Join-univ (__.2 j)
+  | Meet-univ {J} {f} {e} p => Join-cond (later (e,p))
 
   \lemma Join-ldistr {J : \Set} {f : J -> E} {e : E} : e ∧ Join f = Join (\lam (j : J) => e ∧ f j)
     => <=-antisymmetric Join-ldistr>= (Join-univ (\lam j => meet-monotone <=-refl (Join-cond j)))
@@ -104,19 +68,11 @@
   \lemma Join-rdistr>= {J : \Set} {f : J -> E} {e : E} : Join f ∧ e <= Join (\lam (j : J) => f j ∧ e)
     => =_<= Join-rdistr
 
-  \lemma Join-double {I J : \Set} {f : I -> J -> E} : Join (\lam i => Join (\lam j => f i j)) = Join (\lam (p : \Sigma I J) => f p.1 p.2)
-    => <=-antisymmetric (Join-univ (\lam i => Join-univ (\lam j => Join-cond (i,j)))) (Join-univ (\lam p => Join-cond p.2 <=∘ Join-cond p.1))
-
   \lemma Join-distr {I J : \Set} {f : I -> E} {g : J -> E} : Join f ∧ Join g = Join (\lam (p : \Sigma I J) => f p.1 ∧ g p.2)
     => Join-rdistr *> path (\lam i => Join (\lam i' => Join-ldistr {_} {J} {g} {f i'} @ i)) *> Join-double {_} {I} {J} {\lam i j => f i ∧ g j}
 
   \lemma Join-distr>= {I J : \Set} {f : I -> E} {g : J -> E} : Join f ∧ Join g <= Join (\lam (p : \Sigma I J) => f p.1 ∧ g p.2)
     => =_<= Join-distr
-
-  \lemma Join_= {J : \Set} {f g : J -> E} (p : \Pi (j : J) -> f j = g j) : Join f = Join g
-    => path (\lam i => Join (p __ i))
-
-  \func SJoin (U : E -> \Prop) => Join (\lam (t : Total U) => t.1)
 
   \type \infix 4 << (x y : E) => \Pi {J : \Set} {g : J -> E} -> y <= Join g -> ∃ (l : Array J) (x <= Join (\lam i => g (l i)))
 
