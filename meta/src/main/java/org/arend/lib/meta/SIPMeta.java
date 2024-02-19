@@ -107,9 +107,9 @@ public class SIPMeta extends BaseMetaDefinition {
       typechecker.getErrorReporter().report(new TypeError("The Hom-set must be a subclass of 'SetHom'", homBody, contextData.getMarker()));
       return null;
     }
-    for (CoreClassField field : ((CoreClassCallExpression) homBody).getDefinition().getFields()) {
+    for (CoreClassField field : ((CoreClassCallExpression) homBody).getDefinition().getNotImplementedFields()) {
       boolean ok = true;
-      if (!(field == homFunc || field.isProperty() || ((CoreClassCallExpression) homBody).isImplemented(field) || Utils.isProp(field.getResultType()))) {
+      if (!(field == homFunc || field.isProperty() || ((CoreClassCallExpression) homBody).isImplementedHere(field) || Utils.isProp(field.getResultType()))) {
         typechecker.getErrorReporter().report(new FieldNotPropError(field, contextData.getMarker()));
         ok = false;
       }
@@ -143,8 +143,8 @@ public class SIPMeta extends BaseMetaDefinition {
     ConcreteExpression eInvFuncPath = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(homFunc.getRef()), false, Collections.singletonList(factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(eInvFunc, factory.ref(iRef))))))));
 
     List<ConcreteClassElement> obFields = new ArrayList<>();
-    for (CoreClassField field : ((CoreClassCallExpression) ob).getDefinition().getFields()) {
-      if (!((CoreClassCallExpression) ob).isImplemented(field)) {
+    for (CoreClassField field : ((CoreClassCallExpression) ob).getDefinition().getNotImplementedFields()) {
+      if (!((CoreClassCallExpression) ob).isImplementedHere(field)) {
         ConcreteExpression arg = factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(factory.proj(factory.ref(sipRef), field == homFunc ? 0 : 1), factory.ref(iRef)));
         obFields.add(factory.implementation(field.getRef(), field == homFunc ? arg : factory.app(factory.ref(field.getRef()), false, Collections.singletonList(arg))));
       }

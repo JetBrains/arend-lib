@@ -289,8 +289,8 @@ public class ExtMeta extends BaseMetaDefinition {
                   }
 
                   boolean added = false;
-                  for (CoreClassField field : implClass.getFields()) {
-                    if (!classCall.isImplemented(field) && !propFields.contains(field)) {
+                  for (CoreClassField field : implClass.getNotImplementedFields()) {
+                    if (!classCall.isImplementedHere(field) && !propFields.contains(field)) {
                       if (implMap.putIfAbsent(field.getRef(), new CoclauseData(coclause, false)) == null) {
                         superFields.put(field, new FieldPathExpression(field, factory.core(coclauseResult)));
                         added = true;

@@ -312,8 +312,8 @@ public class Utils {
 
   public static List<CoreClassField> getNotImplementedField(CoreClassCallExpression classCall) {
     List<CoreClassField> classFields = new ArrayList<>();
-    for (CoreClassField field : classCall.getDefinition().getFields()) {
-      if (!classCall.isImplemented(field)) {
+    for (CoreClassField field : classCall.getDefinition().getNotImplementedFields()) {
+      if (!classCall.isImplementedHere(field)) {
         classFields.add(field);
       }
     }

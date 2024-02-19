@@ -73,8 +73,8 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
       if (isEmptyArray == null) {
         CoreClassCallExpression classCall = (CoreClassCallExpression) type;
         List<ConcreteClassElement> classElements = new ArrayList<>();
-        for (CoreClassField field : classCall.getDefinition().getFields()) {
-          if (!classCall.isImplemented(field)) {
+        for (CoreClassField field : classCall.getDefinition().getNotImplementedFields()) {
+          if (!classCall.isImplementedHere(field)) {
             classElements.add(factory.implementation(field.getRef(), factory.goal()));
           }
         }
@@ -84,8 +84,7 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
       } else {
         result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, Arrays.asList(factory.goal(), factory.goal()));
       }
-    } else if (type instanceof CoreDataCallExpression) {
-      CoreDataCallExpression dataCall = (CoreDataCallExpression) type;
+    } else if (type instanceof CoreDataCallExpression dataCall) {
       if (dataCall.getDefinition() == ext.prelude.getPath()) {
         CoreFunCallExpression eq = dataCall.toEquality();
         if (eq != null && eq.getDefCallArguments().get(1).compare(eq.getDefCallArguments().get(2), CMP.EQ)) {

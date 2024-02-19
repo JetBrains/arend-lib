@@ -63,8 +63,7 @@ public class ConstructorMeta extends BaseMetaDefinition {
       return typechecker.typecheck(factory.tuple(args), type);
     }
 
-    if (type instanceof CoreClassCallExpression) {
-      CoreClassCallExpression classCall = (CoreClassCallExpression) type;
+    if (type instanceof CoreClassCallExpression classCall) {
       List<? extends ConcreteArgument> args = contextData.getArguments();
       Boolean isEmpty = Utils.isArrayEmpty(classCall, ext);
       if (isEmpty != null) {
@@ -98,13 +97,13 @@ public class ConstructorMeta extends BaseMetaDefinition {
 
       List<ConcreteClassElement> elements = new ArrayList<>();
       int i = 0;
-      for (Iterator<? extends CoreClassField> iterator = classCall.getDefinition().getFields().iterator(); iterator.hasNext(); ) {
+      for (Iterator<? extends CoreClassField> iterator = classCall.getDefinition().getNotImplementedFields().iterator(); iterator.hasNext(); ) {
         CoreClassField field = iterator.next();
-        if (!classCall.isImplemented(field)) {
+        if (!classCall.isImplementedHere(field)) {
           if (i >= args.size()) {
             int c = 1;
             while (iterator.hasNext()) {
-              if (!classCall.isImplemented(iterator.next())) {
+              if (!classCall.isImplementedHere(iterator.next())) {
                 c++;
               }
             }

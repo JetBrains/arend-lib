@@ -55,7 +55,14 @@ public class TransitivitySolver implements EquationSolver {
     @Override
     protected List<CoreClassField> getRelationFields(CoreClassDefinition classDef) {
       List<CoreClassField> relationFields = Collections.emptyList();
-      for (CoreClassField field : classDef.getFields()) {
+      for (CoreClassField field : classDef.getNotImplementedFields()) {
+        transFieldData = field.getUserData(meta.ext.transitivityKey);
+        if (transFieldData != null) {
+          if (relationFields.isEmpty()) relationFields = new ArrayList<>();
+          relationFields.add(field);
+        }
+      }
+      for (CoreClassField field : classDef.getImplementedFields()) {
         transFieldData = field.getUserData(meta.ext.transitivityKey);
         if (transFieldData != null) {
           if (relationFields.isEmpty()) relationFields = new ArrayList<>();
@@ -75,8 +82,7 @@ public class TransitivitySolver implements EquationSolver {
 
     leftValue = relationData.leftExpr;
     rightValue = relationData.rightExpr;
-    if (relationData.defCall instanceof CoreFieldCallExpression) {
-      CoreFieldCallExpression fieldCall = (CoreFieldCallExpression) relationData.defCall;
+    if (relationData.defCall instanceof CoreFieldCallExpression fieldCall) {
       transFieldData = fieldCall.getDefinition().getUserData(meta.ext.transitivityKey);
       if (transFieldData == null) {
         return false;
