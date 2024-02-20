@@ -11,19 +11,24 @@
 \open Bounded(top)
 \open Set
 
-\class PrecoverSpace \extends TopSpace
+\class PrecoverSpace \extends TopSpace {
   | isCauchy : Set (Set E) -> \Prop
   | cauchy-covers {C : Set (Set E)} : isCauchy C -> \Pi (x : E) -> ∃ (U : C) (U x)
   | cauchy-top : isCauchy (single top)
   | cauchy-extend {C D : Set (Set E)} : isCauchy C -> (\Pi {U : Set E} -> C U -> ∃ (V : D) (U ⊆ V)) -> isCauchy D
-  | cauchy-trans {C : Set (Set E)} {D : \Pi {U : Set E} -> C U -> Set (Set E)} : isCauchy C -> (\Pi {U : Set E} (c : C U) -> isCauchy (D c))
-    -> isCauchy (\lam U => ∃ (V W : Set E) (c : C V) (D c W) (U = V ∧ W))
+  | cauchy-trans {C : Set (Set E)} {D : Set E -> Set (Set E)} : isCauchy C -> (\Pi {U : Set E} -> C U -> isCauchy (D U))
+    -> isCauchy (\lam U => ∃ (V W : Set E) (C V) (D V W) (U = V ∧ W))
 
   | isOpen S => ∀ {x : S} (isCauchy \lam U => U x -> U ⊆ S)
   | open-top _ => cauchy-extend cauchy-top \lam {U} _ => inP (U, \lam _ _ => (), <=-refl)
   | open-inter Uo Vo => \lam {x} (Ux,Vx) => cauchy-extend (cauchy-trans (Uo Ux) (\lam _ => Vo Vx))
       \lam (inP (U',V',Uc,Vc,W=U'V')) => inP (U' ∧ V', \lam (U'x,V'x) {y} (U'y,V'y) => (Uc U'x U'y, Vc V'x V'y), Preorder.=_<= W=U'V')
   | open-Union So {x} (inP (U,SU,Ux)) => cauchy-extend (So U SU Ux) \lam {V} Vc => inP (V, \lam Vx => Vc Vx <=∘ Set.Union-cond SU, <=-refl)
+
+  \lemma cauchy-trans-dep {C : Set (Set E)} {D : \Pi {U : Set E} -> C U -> Set (Set E)} (Cc : isCauchy C) (Dc : \Pi {U : Set E} (c : C U) -> isCauchy (D c))
+    : isCauchy (\lam U => ∃ (V W : Set E) (c : C V) (D c W) (U = V ∧ W))
+    => transport isCauchy (ext \lam U => ext (\lam (inP (V,W,CV,DW,p)) => inP (V, W, CV, transport (D __ W) prop-pi DW.2, p), \lam (inP (V,W,c,DW,p)) => inP (V, W, c, (c,DW), p))) $ cauchy-trans {_} {C} {\lam U V => \Sigma (c : C U) (D c V)} Cc \lam CU => transport isCauchy (ext \lam V => ext (\lam d => (CU,d), \lam s => transport (D __ V) prop-pi s.2)) (Dc CU)
+}
 
 \lemma cauchy-subset {X : PrecoverSpace} {C D : Set (Set X)} (Cc : isCauchy C) (e : \Pi {U : Set X} -> C U -> D U) : isCauchy D
   => cauchy-extend Cc \lam {U} CU => inP (U, e CU, <=-refl)
@@ -45,6 +50,11 @@
 
 \type \infix 4 <=< {X : PrecoverSpace} (V U : Set X) : \Prop
   => isCauchy \lam W => ∃ (V ∧ W) -> W ⊆ U
+
+\lemma <=<_<= {X : PrecoverSpace} {V U : Set X} (p : V <=< U) : V <= U
+  => unfolds at p $ \lam {x} Vx => \case cauchy-covers p x \with {
+    | inP (W,f,Wx) => f (inP (x, (Vx, Wx))) Wx
+  }
 
 \lemma <=<-left {X : PrecoverSpace} {W V U : Set X} (p : W <=< V) (q : V ⊆ U) : W <=< U
   => unfolds at p $ cauchy-subset p \lam {Z} f t => f t <=∘ q
@@ -74,7 +84,7 @@
             | (inP (W,DW,q)) => e CU
       \in inP (W, DW, p <=∘ q))
   | cauchy-trans {C} {D} (inP (C',C'c,C'e)) d =>
-    \have t => Y.cauchy-trans {C'} {\lam {c'} _ V => ∃ (c : Set X) (Cc : C c) (f ^-1 c' <= c) (D' : Set (Set Y)) (isCauchy D') (\Pi {W : Set Y} -> D' W -> ∃ (U' : D Cc) (f ^-1 W ⊆ U')) (D' V)} C'c \lam {V} C'V =>
+    \have t => Y.cauchy-trans {C'} {\lam c' V => ∃ (c : Set X) (C c) (f ^-1 c' <= c) (D' : Set (Set Y)) (isCauchy D') (\Pi {W : Set Y} -> D' W -> ∃ (U' : D c) (f ^-1 W ⊆ U')) (D' V)} C'c \lam {V} C'V =>
                 \have | (inP (U,CU,p)) => C'e C'V
                       | (inP (D',D'c,D'e)) => d CU
                 \in cauchy-subset D'c \lam {V} D'V => later $ inP (U,CU,p,D',D'c,D'e,D'V)
@@ -111,8 +121,8 @@
     \truncated \data Closure (A : Set (Set X) -> \Prop) (C : Set (Set X)) : \Prop
       | closure (A C)
       | extends {D : Set (Set X)} (Closure A D) (\Pi {U : Set X} -> D U -> ∃ (V : Set X) (C V) (U ⊆ V))
-      | transitive {D : Set (Set X)} (Closure A D) {E : \Pi {U : Set X} -> D U -> Set (Set X)} (\Pi {U : Set X} (DU : D U) -> Closure A (E DU))
-                   (C = \lam U => ∃ (V W : Set X) (d : D V) (E d W) (U = V ∧ W))
+      | transitive {D : Set (Set X)} (Closure A D) {E : \Pi (U : Set X) -> Set (Set X)} (\Pi {U : Set X} -> D U -> Closure A (E U))
+                   (C = \lam U => ∃ (V W : Set X) (D V) (E V W) (U = V ∧ W))
 
     \lemma closure-covers {A : Set (Set X) -> \Prop} (CA : \Pi {C : Set (Set X)} -> A C -> \Pi (x : X) -> ∃ (U : C) (U x)) {C : Set (Set X)} (CC : Closure A C) (x : X) : ∃ (U : C) (U x) \elim CC
       | closure AC => CA AC x
@@ -128,7 +138,7 @@
     \lemma closure-cauchy {S : PrecoverSpace X} {A : Set (Set X) -> \Prop} (AS : \Pi {C : Set (Set X)} -> A C -> S.isCauchy C) {C : Set (Set X)} (CC : Closure A C) : S.isCauchy C \elim CC
       | closure AC => AS AC
       | extends CD e => cauchy-extend (closure-cauchy AS CD) e
-      | transitive CD CE idp => cauchy-trans (closure-cauchy AS CD) \lam DU => closure-cauchy AS (CE DU)
+      | transitive CD CE idp => S.cauchy-trans-dep (closure-cauchy AS CD) \lam DU => closure-cauchy AS (CE DU)
   }
 
 \func CoverTransfer {X : \Set} {Y : CoverSpace} (f : X -> Y) : CoverSpace X \cowith
@@ -161,7 +171,7 @@
         | inP (W,CW,U<=W) => inP (V, inP (W, CW, <=<-left V<=<U U<=W), <=-refl)
       }
       | transitive {D} CD {E} CE idp => extends
-          (transitive (closure-regular AS CD) {\lam {U} _ V => ∃ (U' : Set X) (DU' : D U') (U <=< U') (V' : E DU') (V <=< V')}
+          (transitive (closure-regular AS CD) {\lam U V => ∃ (U' : Set X) (D U') (U <=< U') (V' : E U') (V <=< V')}
             (\lam (inP (U',DU',U<=<U')) => extends (closure-regular AS (CE DU')) \lam {V} (inP (V',EV',V<=<V')) => inP (V, inP (U', DU', U<=<U', V', EV', V<=<V'), <=-refl)) idp)
           \lam {U} (inP (V, W, _, inP (V',DV',V<=<V',W',EW',W<=<W'), U=VW)) => inP (U, inP (V' ∧ W', inP (V',W',DV',EW',idp), rewrite U=VW $ <=<_meet V<=<V' W<=<W'), <=-refl)
   }

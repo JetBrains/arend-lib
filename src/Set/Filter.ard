@@ -1,14 +1,32 @@
 \import Logic.Meta
+\import Order.Lattice
 \import Order.PartialOrder
+\import Paths.Meta
 \import Set.Subset
 
-\record Filter {A : Poset} (\coerce F : A -> \Prop)
+\record Filter {A : Bounded.MeetSemilattice} (\coerce F : A -> \Prop)
   | filter-mono {a b : A} : a <= b -> F a -> F b
-  | filter-inh : ∃ (a : A) (F a)
-  | filter-lb {a b : A} : F a -> F b -> ∃ (c : A) (F c) (c <= a) (c <= b)
+  | filter-top : F Bounded.top
+  | filter-meet {a b : A} : F a -> F b -> F (a ∧ b)
 
 \record SetFilter (X : \Set) \extends Filter
-  | A => SetPoset X
+  | A => SetLattice X
 
 \record ProperFilter \extends SetFilter
   | isProper {U : Set X} : F U -> ∃ U
+
+\instance ProperFilterSemilattice (X : \Set) : MeetSemilattice (ProperFilter { | X => X })
+  | <= F G => F ⊆ G
+  | <=-refl c => c
+  | <=-transitive f g c => g (f c)
+  | <=-antisymmetric f g => exts \lam U => ext (f,g)
+  | meet F G => \new ProperFilter {
+    | F U => \Sigma (F U) (G U)
+    | filter-mono p s => (filter-mono p s.1, filter-mono p s.2)
+    | filter-top => (filter-top, filter-top)
+    | filter-meet s t => (filter-meet s.1 t.1, filter-meet s.2 t.2)
+    | isProper s => isProper s.1
+  }
+  | meet-left s => s.1
+  | meet-right s => s.2
+  | meet-univ f g c => (f c, g c)
