@@ -20,7 +20,7 @@
 \import Category
 \import Data.Array
 \import Data.Or
-\import Equiv (Equiv)
+\import Equiv
 \import Function (Image)
 \import Function.Meta
 \import Logic
@@ -35,17 +35,13 @@
 \import Relation.Equivalence
 \import Set
 \import Set.Fin
-\open LModule
+\open LModule \hiding (count)
 
 \class VectorSpace \extends LModule {
   \override R : DiscreteField
 }
 
 \class FinVectorSpace \extends VectorSpace, FinModule
-
-\meta VectorSpace' K => VectorSpace { | R => K }
-
-\meta FinVectorSpace' K => FinVectorSpace { | R => K }
 
 \func rank {R : SmithDomain} {n m : Nat} (A : Matrix R n m) : Nat
   => firstNonZero (rank-array A).1
@@ -123,14 +119,14 @@
 \lemma rank<=columns {R : SmithDomain} {n m : Nat} {A : Matrix R n m} : rank A <= m
   => rank.firstNonZero<=len <=∘ meet-right
 
-\lemma smith-bases {R : SmithDomain} {U V : LModule' R} {lu : Array U} (bu : U.IsBasis lu) {lv : Array V} (bv : V.IsBasis lv) (f : LinearMap' U V)
+\lemma smith-bases {R : SmithDomain} {U V : LModule R} {lu : Array U} (bu : U.IsBasis lu) {lv : Array V} (bv : V.IsBasis lv) (f : LinearMap U V)
   : ∃ (lu' : Array U lu.len) (U.IsBasis lu') (lv' : Array V lv.len) (bv' : V.IsBasis lv') (d : Array R lu.len)
       (\Pi (j : Fin lu.len) -> f (lu' j) = d j *c fit V.zro lv' j)
       (\Pi (j : Fin lu.len) -> (d j = 0) <-> rank (toMatrix lu' bv' f) <= j)
   => \have | (inP (B, Bs, A~B)) => R.toSmith (toMatrix lu bv f)
            | (inP Bs2) => IsSmith.smith-diag-func Bs
            | (inP (lu',lv',bu',bv',p)) => M~_toLinearMap bu bv A~B
-           | q : f = toLinearMap bu' lv' B => inv (Equiv.ret_f {matrix-equiv bu bv} f) *> p
+           | q : f = toLinearMap bu' lv' B => inv (ret_f {matrix-equiv bu bv} f) *> p
      \in inP (lu', bu', lv', bv', \lam j =>
           \case LinearOrder.dec<_<= j lv.len \with {
             | inl p => B j (toFin j p)
@@ -147,20 +143,20 @@
     \open LinearMap
     \open Monoid
 
-    \lemma M~_toLinearMap {R : Ring} {U V : LModule' R} {lu : Array U} {lv : Array V} (bu : U.IsBasis lu) (bv : V.IsBasis lv) {A B : Matrix R lu.len lv.len} (A~B : A M~ B)
+    \lemma M~_toLinearMap {R : Ring} {U V : LModule R} {lu : Array U} {lv : Array V} (bu : U.IsBasis lu) (bv : V.IsBasis lv) {A B : Matrix R lu.len lv.len} (A~B : A M~ B)
       : ∃ (lu' : Array U lu.len) (lv' : Array V lv.len) (bu' : U.IsBasis lu') (bv' : V.IsBasis lv') (toLinearMap bu lv A = toLinearMap bu' lv' B)
       => \let | (inP (C : Inv, D : Inv, A=CBD)) => ~-symmetric A~B
               | t => pmap (toLinearMap bu lv) A=CBD *> toLinearMap_* (C.val MatrixRing.product B) D.val bu bv bv *> pmap (_ ∘ {LModuleCat R}) (toLinearMap_* C.val B bu bu bv) *> pmap (_ ∘ {LModuleCat R}) (change-basis-right (toLinearMapIso bu bu C) bu bv B) *> change-basis-left (toLinearMap bv lv D.val) (iso-basis (Iso.reverse {toLinearMapIso bu bu C}) bu) bv B
          \in inP (_, _, _, iso-basis (toLinearMapIso bv bv D) bv, t)
   }
 
-\instance image-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
+\instance image-fin {R : SmithDomain} {U V : FinModule R} (f : LinearMap U V) : FinModule
   | LModule => ImageLModule f
   | isFinModule => \case U.isFinModule, V.isFinModule \with {
     | inP (lu,bu), inP (lv,bv) => TruncP.map (basis f bu bv) \lam s => (s.1,s.2)
   }
   \where {
-    \protected \lemma basis {U V : LModule' R} (f : LinearMap' U V) {lu' : Array U} (bu' : U.IsBasis lu') {lv' : Array V} (bv' : V.IsBasis lv')
+    \protected \lemma basis {U V : LModule R} (f : LinearMap U V) {lu' : Array U} (bu' : U.IsBasis lu') {lv' : Array V} (bv' : V.IsBasis lv')
       : ∃ (l : Array (Image f)) (IsBasis {ImageLModule f} l) (l.len = rank (LinearMap.toMatrix lu' bv' f))
       => \let | (inP (lu, bu, lv, bv, d, g, d0)) => smith-bases bu' bv' f
               | r => rank (LinearMap.toMatrix lu bv f)
@@ -179,13 +175,13 @@
                                           \lam j r<=j => func-*c *> pmap (_ *c) (g j *> pmap (`*c _) ((d0 j).2 r<=j) *> *c_zro-left) *> *c_zro-right) *> inv (AddMonoidHom.func-BigSum {ImageLModuleRightHom f}))),
                   rank.rank_M~ $ LinearMap.change-basis_M~ f bu bu' bv bv')
 
-    \lemma dimension_rank {f : LinearMap' U V} {lu : Array U} (bu : U.IsBasis lu) {lv : Array V} (bv : V.IsBasis lv) : FinModule.dimension (image-fin f) = rank (LinearMap.toMatrix lu bv f)
+    \lemma dimension_rank {f : LinearMap U V} {lu : Array U} (bu : U.IsBasis lu) {lv : Array V} (bv : V.IsBasis lv) : FinModule.dimension (image-fin f) = rank (LinearMap.toMatrix lu bv f)
       => \case basis f bu bv \with {
            | inP (li,bi,p) => FinModule.dimension-unique bi *> p
          }
   }
 
-\instance kernel-fin {R : SmithDomain} {U V : FinModule' R} (f : LinearMap' U V) : FinModule
+\instance kernel-fin {R : SmithDomain} {U V : FinModule R} (f : LinearMap U V) : FinModule
   | LModule => KerLModule f
   | isFinModule => \case U.isFinModule, V.isFinModule \with {
     | inP (_,bu'), inP (_,bv') => \case smith-bases bu' bv' f \with {
@@ -223,7 +219,7 @@
       }
   }
 
-\func dependency-dec {R : SmithDomain} {U : FinModule' R} (l : Array U) : Or (U.IsDependent l) (U.IsIndependent l)
+\func dependency-dec {R : SmithDomain} {U : FinModule R} (l : Array U) : Or (U.IsDependent l) (U.IsIndependent l)
   => \let K => kernel-fin {R} {ArrayFinModule l.len} (arrayLinearMap l)
      \in cases (FinModule.dimension {R} K arg addPath) \with {
        | 0, p => inr $ arrayLinearMap.inj-char.1 $ (kernel=0<->inj {arrayLinearMap l}).2 (FinModule.dimension=0.1 p)

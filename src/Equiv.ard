@@ -10,9 +10,11 @@
 
 -- # Definition of equivalences
 
-\record Map {A B : \Type} (\coerce f : A -> B)
+\protected \record Map {A B : \Type} (\coerce f : A -> B)
 
-\record Section (ret : B -> A) (ret_f : \Pi (x : A) -> ret (f x) = x) \extends Map
+\record Section \extends Map
+  | ret : B -> A
+  | ret_f : \Pi (x : A) -> ret (f x) = x
   \where {
     \func =Fiber {A B : \Type} (f : A -> B) : Section f = Fib (-o f) id
       => path (iso (\lam (s : Section f) => Fib.make s.ret (path (\lam i x => s.ret_f x @ i)))
@@ -27,7 +29,9 @@
       => \lam s => isContr=>isProp (isContr (\new Equiv { | Section => s | Retraction => r })) s
   }
 
-\record Retraction (sec : B -> A) (f_sec : \Pi (y : B) -> f (sec y) = y) \extends Map
+\record Retraction \extends Map
+  | sec : B -> A
+  | f_sec : \Pi (y : B) -> f (sec y) = y
   \where {
     \func =Fiber {A B : \Type} (f : A -> B) : Retraction f = Fib (f `o-) id
       => path (iso (\lam (s : Retraction f) => Fib.make s.sec (path (\lam i x => s.f_sec x @ i)))
@@ -78,7 +82,7 @@
     \lemma fromInjSurj {A B : \Set} (f : A -> B) (inj : Function.isInj f) (surj : Function.isSurj f) : Equiv {A} {B} f
       => \new ESEquiv {
         | Embedding => Embedding.fromInjection inj
-        | isSurj => surj
+        | isSurjMap => surj
       }
   }
 
@@ -145,7 +149,7 @@
   \lemma rightEmbedding {A B C : \Type} (f : A -> B) (e2 : B >-> C) (e3 : QEquiv (e2 `o` f)) : Equiv f
     => rightFactor f (\new ESEquiv e2 {
       | isEmb => e2.isEmb
-      | isSurj c => inP (f (e3.ret c), e3.f_sec c)
+      | isSurjMap c => inP (f (e3.ret c), e3.f_sec c)
     }) e3
 
   \lemma parallelEquiv {A B C D : \Type} (ab : A -> B) (cd : C -> D) (ac : Equiv {A} {C}) (bd : Equiv {B} {D}) (h : \Pi (a : A) -> bd (ab a) = cd (ac a)) : Equiv ab = Equiv cd
@@ -228,7 +232,8 @@
 
 -- # Embeddings and surjections
 
-\record Embedding (isEmb : \Pi (a a' : A) -> Retraction (pmap f {a} {a'})) \extends Map {
+\record Embedding \extends Map {
+  | isEmb : \Pi (a a' : A) -> Retraction (pmap f {a} {a'})
   \func pmap-isEquiv {a a' : A} : QEquiv (pmap f {a} {a'}) => pathEquiv (f __ = f __) (\lam {a} {a'} => isEmb a a')
 } \where {
   \use \level levelProp {A B : \Type} {f : A -> B} (e e' : Embedding f) : e = e'
@@ -287,21 +292,22 @@
 \func transEmbedding {A B C : \Type} (e1 : Embedding {A} {B}) (e2 : Embedding {B} {C}) : Embedding {A} {C} \cowith
   | f a => e2 (e1 a)
   | isEmb a a' => \new Retraction {
-    | sec p => Retraction.sec {e1.isEmb a a'} (Retraction.sec {e2.isEmb (e1 a) (e1 a')} p)
-    | f_sec p => pmap (pmap e2) (Retraction.f_sec {e1.isEmb a a'} (Retraction.sec {e2.isEmb (e1 a) (e1 a')} p)) *> Retraction.f_sec {e2.isEmb (e1 a) (e1 a')} p
+    | sec p => sec {e1.isEmb a a'} (sec {e2.isEmb (e1 a) (e1 a')} p)
+    | f_sec p => pmap (pmap e2) (f_sec {e1.isEmb a a'} (sec {e2.isEmb (e1 a) (e1 a')} p)) *> f_sec {e2.isEmb (e1 a) (e1 a')} p
   }
 
 \func \infixr 1 >-> (A B : \Type) => Embedding {A} {B}
 
-\record Surjection (isSurj : \Pi (y : B) -> ∃ (x : A) (f x = y)) \extends Map
+\record Surjection \extends Map
+  | isSurjMap (y : B) : ∃ (x : A) (f x = y)
 
 \func \infixr 1 ->> (A B : \Type) => Surjection {A} {B}
 
 \record ESEquiv \extends Embedding, Surjection, Equiv
-  | ret y => (aux \this isSurj y).1
-  | sec y => (aux \this isSurj y).1
-  | ret_f x => Retraction.sec {isEmb _ _} (aux \this isSurj (f x)).2
-  | f_sec y => (aux \this isSurj y).2
+  | ret y => (aux \this isSurjMap y).1
+  | sec y => (aux \this isSurjMap y).1
+  | ret_f x => sec {isEmb _ _} (aux \this isSurjMap (f x)).2
+  | f_sec y => (aux \this isSurjMap y).2
   \where {
     \use \level levelProp {A B : \Type} {f : A -> B} (e e' : ESEquiv f) : e = e' =>
       path (\lam i => \new ESEquiv { | Embedding  => Embedding.levelProp  e e' @ i
@@ -309,7 +315,7 @@
 
     \use \coerce fromEquiv (e : Equiv) : ESEquiv e.f \cowith
       | isEmb a a' => pmapEquiv e {a} {a'}
-      | isSurj y => inP (e.sec y, e.f_sec y)
+      | isSurjMap y => inP (e.sec y, e.f_sec y)
 
     \lemma aux (e : Embedding) (s : \Pi (y : e.B) -> ∃ (x : e.A) (f x = y)) (y : e.B)
       => TruncP.remove (Embedding.embeddingFiber-isProp e y) (s y)
