@@ -1,3 +1,4 @@
+\import Function
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -43,9 +44,28 @@
 \record CoverMap \extends ContMap {
   \override Dom : PrecoverSpace
   \override Cod : PrecoverSpace
-  | func-cover {D : Set (Set Cod)} : isCauchy D -> isCauchy (\lam U => ∃ (V : D) (U = func ^-1 V))
-
+  | func-cover {D : Set (Set Cod)} : isCauchy D -> isCauchy \lam U => ∃ (V : D) (U = func ^-1 V)
   | func-cont Uo {x} Ufx => cauchy-extend (func-cover (Uo Ufx)) \lam (inP (W,c,d)) => inP (func ^-1 W, \lam a {_} => c a, Preorder.=_<= d)
+
+  \func IsEmbedding : \Prop
+    => \Pi {C : Set (Set Dom)} -> isCauchy C -> isCauchy \lam V => ∃ (U : C) (func ^-1 V ⊆ U)
+
+  -- | A map is an embedding if and only if the structure on the domain is the smallest compatible with the map.
+  \lemma embedding-char : TFAE (
+    {- 0 -} IsEmbedding,
+    {- 1 -} \Pi {X : PrecoverSpace Dom} -> CoverMap X Cod func -> \Pi {C : Set (Set Dom)} -> isCauchy C -> X.isCauchy C,
+    {- 2 -} \Pi {C : Set (Set Dom)} -> isCauchy C -> isCauchy {PrecoverTransfer func} C,
+    {- 3 -} Dom = {PrecoverSpace Dom} PrecoverTransfer func
+  ) => TFAE.cycle (
+    \lam p f Cc => cauchy-extend (func-cover {f} $ p Cc) \lam (inP (V, inP (U',CU',p), q)) => inP (U', CU', rewrite q p),
+    \lam f => f PrecoverTransfer-map,
+    \lam f => exts \lam C => ext (f, PrecoverTransfer-char),
+    \lam p => unfolds $ rewrite p \lam (inP (D,Dc,f)) => cauchy-subset Dc f)
+} \where {
+  \lemma embedding-inj {X : SeparatedCoverSpace} {Y : PrecoverSpace} {f : CoverMap X Y} (fe : f.IsEmbedding) : isInj f
+    => \lam {x} {y} p => isSeparatedCoverSpace \lam Cc => \case cauchy-covers (fe Cc) (f y) \with {
+      | inP (V, inP (U,CU,q), Vfy) => inP (U, CU, (q $ unfolds $ rewrite p Vfy, q Vfy))
+    }
 }
 
 \type \infix 4 <=< {X : PrecoverSpace} (V U : Set X) : \Prop
@@ -72,6 +92,29 @@
 \class CoverSpace \extends PrecoverSpace
   | isRegular {C : Set (Set E)} : isCauchy C -> isCauchy \lam V => ∃ (U : C) (V <=< U)
 
+\class SeparatedCoverSpace \extends CoverSpace
+  | isSeparatedCoverSpace {x y : E} : (\Pi {C : Set (Set E)} -> isCauchy C -> ∃ (U : C) (\Sigma (U x) (U y))) -> x = y
+  \where {
+    \lemma separated-char {S : CoverSpace} {x y : S} : TFAE (
+      {- 0 -} \Pi {U : Set S} -> single x <=< U <-> single y <=< U,
+      {- 1 -} \Pi {U : Set S} -> single x <=< U -> U y,
+      {- 2 -} \Pi {U V : Set S} -> single x <=< U -> single y <=< V -> ∃ (U ∧ V),
+      {- 3 -} \Pi {C : Set (Set S)} -> isCauchy C -> ∃ (U : C) (\Sigma (U x) (U y))
+    ) => TFAE.cycle (
+      \lam f p => <=<_<= (f.1 p) idp,
+      \lam f p q => inP (y, (f p, <=<_<= q idp)),
+      \lam f Cc => \case cauchy-covers (isRegular $ isRegular Cc) x \with {
+        | inP (U, inP (U', inP (W, CW, U'<=<W), U<=<U'), Ux) => \case cauchy-covers (unfolds at U'<=<W $ isRegular U'<=<W) y \with {
+          | inP (V, inP (V',g,V<=<V'), Vy) => inP (W, CW, (<=<_<= U'<=<W $ <=<_<= U<=<U' Ux, g (f (<=<-right (single_<= Ux) U<=<U') (<=<-right (single_<= Vy) V<=<V')) $ <=<_<= V<=<V' Vy))
+        }
+      },
+      \have lem {x y : S} (f : \Pi {C : Set (Set S)} -> isCauchy C -> ∃ (U : C) (\Sigma (U x) (U y))) {U : Set S} (p : single x <=< U) : single y <=< U
+            => \case f (isRegular p) \with {
+                 | inP (V, inP (W,g,V<=<W), (Vx,Vy)) => <=<-left (<=<-right (single_<= Vy) V<=<W) $ g $ inP (x, (idp, <=<_<= V<=<W Vx))
+               }
+      \in \lam f {U} => (lem f, lem \lam Cc => TruncP.map (f Cc) \lam s => (s.1,s.2,(s.3.2,s.3.1))))
+  }
+
 \func PrecoverTransfer {X : \Set} {Y : PrecoverSpace} (f : X -> Y) : PrecoverSpace X \cowith
   | isCauchy C => ∃ (D : Set (Set Y)) (Y.isCauchy D) (\Pi {V : Set Y} -> D V -> ∃ (U : C) (f ^-1 V ⊆ U))
   | cauchy-covers (inP (D,Dc,d)) x =>
@@ -91,6 +134,9 @@
     \in inP (_, t, \lam (inP (U, V, C'U, inP (c,Cc,q,D',D'c,D'e,D'V), W=UV)) => \case D'e D'V \with {
       | inP (d,Dd,s) => inP (c ∧ d, inP (c, d, Cc, Dd, idp), rewrite W=UV \lam e => (q e.1, s e.2))
     })
+
+\lemma PrecoverTransfer-map {X : \Set} {Y : PrecoverSpace} {f : X -> Y} : CoverMap (PrecoverTransfer f) Y f \cowith
+  | func-cover {D} Dc => inP (D, Dc, \lam {V} DV => inP (f ^-1 V, inP (V, DV, idp), <=-refl))
 
 \lemma PrecoverTransfer-char {X Y : PrecoverSpace} {f : CoverMap X Y} {C : Set (Set X)} (c : isCauchy {PrecoverTransfer f} C) : X.isCauchy C \elim c
   | inP (D,Dc,De) => cauchy-extend (f.func-cover Dc) \lam {U} (inP (V,DV,p)) => \case De DV \with {
