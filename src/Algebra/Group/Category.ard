@@ -1,6 +1,9 @@
 \import Algebra.Group
+\import Algebra.Group.Sub
+\import Algebra.Group.SimpleProperties
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Algebra.Pointed
 \import Algebra.Pointed.Category
 \import Category (Cat)
 \import Category.Functor
@@ -14,14 +17,83 @@
 \import Paths.Meta
 \import Set.Category
 
+\record GroupHom \extends MonoidHom {
+  \override Dom : Group
+  \override Cod : Group
+
+  \lemma inverse-image (x : Dom) : func (inverse x) = inverse (func x) => check-for-inv (
+    func x * func (inverse x)   ==< inv func-* >==
+    func (x * inverse x)        ==< pmap func inverse-right >==
+    func ide                    ==< func-ide >==
+    ide `qed
+  )
+
+  \func Kernel : NormalSubGroup Dom \cowith
+    | contains x => func x = ide
+    | contains_ide => func-ide
+    | contains_inverse {x : Dom} (p : func x = ide) =>
+      func (inverse x)     ==< inverse-image x >==
+      inverse (func x)     ==< pmap inverse p >==
+      inverse ide          ==< Group.inverse_ide >==
+      ide `qed
+
+    | isNormal (g : Dom) {h : Dom} (p : func h = ide) =>
+      func (inverse g * h * g)                 ==< func-* >==
+      func (inverse g * h) * func g            ==< pmap (right-shift (func g)) func-* >==
+      (func (inverse g) * func h ) * func g    ==< *-assoc >==
+      func (inverse g) *(func h * func g)      ==< pmap (\lam (ee : Cod) => func (inverse g) * (ee * func g)) p >==
+      func (inverse g) * (ide * func g)        ==< pmap (left-shift (func (inverse g))) ide-left >==
+      func (inverse g) * func g                ==< pmap (right-shift (func g)) (inverse-image g) >==
+      inverse (func g) * func g                ==< inverse-left >==
+      ide `qed
+
+
+    | contains_* {x y : Dom} (p : func x = ide) (q : func y = ide) =>
+      func (x * y)     ==< func-* >==
+      func x * func y  ==< pmap (right-shift (func y)) p >==
+      ide * func y     ==< ide-left >==
+      func y           ==< q >==
+      ide `qed
+
+  \func TrivialKernel : \Prop =>  \Pi (g : Dom) -> Kernel.contains g -> g = ide
+
+  \func same-images-test {a b : Dom} (p : func a = func b) : Kernel.contains ((inverse a) * b) =>
+    func ((inverse a) * b)            ==< func-* >==
+    (func (inverse a)) * (func b)     ==< pmap (right-shift (func b)) (inverse-image a) >==
+    (inverse (func a)) * (func b)     ==< equality-corrolary (func a) (func b) p >==
+    ide `qed
+
+  \lemma Kernel-injectivity-test (p : TrivialKernel) : isInj func =>
+    \lam {a b : Dom} (q : func a = func b) => equality-check (p (inverse a * b) (same-images-test q))
+
+  \lemma Kernel-injectivity-corrolary (p : isInj func) : TrivialKernel =>
+    \lam (g : Dom) (q : Kernel.contains g) =>
+        p (func g ==< q >==
+        ide {Cod} ==< inv func-ide >==
+        func (ide {Dom}) `qed)
+
+  \func isIsomorphism : \Prop =>  \Sigma (isInj func) (isSurj func)
+}
+
 \instance GroupCat : Cat Group
-  => subCat (\new Embedding {
-    | f G => G
-    | isEmb G H => \new Retraction {
-      | sec => Group.equals G H
-      | f_sec => idpe
-    }
-  })
+  | Hom => GroupHom
+  | id => id
+  | o {x y z : Group} (g : GroupHom y z) (f : GroupHom x y) => \new GroupHom {
+    | func x => g (f x)
+    | func-ide => pmap g f.func-ide *> g.func-ide
+    | func-* => pmap g f.func-* *> g.func-*
+  }
+  | id-left => idp
+  | id-right => idp
+  | o-assoc => idp
+  | univalence => {?} -- sip (\lam p1 p2 => exts (func-ide {p1}, \lam _ _ => func-* {p1}))
+  \where {
+    \func id (M : Group) : GroupHom M M \cowith
+      | func x => x
+      | func-ide => idp
+      | func-* => idp
+  }
+
 
 \record AddGroupHom \extends AddMonoidHom {
   \override Dom : AddGroup
