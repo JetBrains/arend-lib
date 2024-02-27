@@ -301,7 +301,7 @@ public class LinearSolver {
     for (int i = certificate.size() - 1; i >= 1; i--) {
       result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.number(certificate.get(i).multiply(equations.get(i).getLCM())), result);
     }
-    return factory.tuple(result, factory.number(certificate.get(0)), factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.prelude.getIdp().getRef()));
+    return factory.tuple(result, factory.number(certificate.get(0)), factory.ref(ext.prelude.getIdp().getRef()), factory.app(factory.ref(ext.prelude.getIdp().getRef()), factory.arg(factory.ref(ext.Bool.getRef()), false), factory.arg(factory.ref(ext.true_.getRef()), false)));
   }
 
   private ConcreteExpression makeData(CoreClassCallExpression classCall, ConcreteExpression instanceArg, boolean isRat, List<CoreExpression> valueList) {
