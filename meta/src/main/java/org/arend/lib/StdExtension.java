@@ -67,6 +67,9 @@ public class StdExtension implements ArendExtension {
   @Dependency(module = "Algebra.Pointed", name = "Pointed.ide")    public CoreClassField ide;
   @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
 
+  @Dependency(module = "Data.Bool")                       public CoreDataDefinition Bool;
+  @Dependency(module = "Data.Bool", name = "Bool.true")   public CoreConstructor true_;
+
   public final EquationMeta equationMeta = new EquationMeta(this);
   public final LinearSolverMeta linearSolverMeta = new LinearSolverMeta(this);
   public final ContradictionMeta contradictionMeta = new ContradictionMeta(this);
