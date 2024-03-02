@@ -12,6 +12,7 @@ import org.arend.ext.core.definition.CoreClassDefinition;
 import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.*;
+import org.arend.ext.core.ops.CMP;
 import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.error.ErrorReporter;
 import org.arend.ext.reference.ArendRef;
@@ -546,7 +547,7 @@ public class MonoidSolver extends BaseEqualitySolver {
     CoreExpression type = binding != null ? binding.getTypeExpr() : typed.getType();
     CoreFunCallExpression eq = Utils.toEquality(type, null, null);
     if (eq == null) {
-      CoreExpression typeNorm = type.normalize(NormalizationMode.WHNF).getUnderlyingExpression();
+      CoreExpression typeNorm = type.normalize(NormalizationMode.WHNF);
       if (!(typeNorm instanceof CoreClassCallExpression classCall)) {
         return false;
       }
@@ -558,6 +559,10 @@ public class MonoidSolver extends BaseEqualitySolver {
       List<ConcreteExpression> args = singletonList(binding != null ? factory.ref(binding) : factory.core(null, typed));
       return (!isLDiv || typeToRule(typechecker.typecheck(factory.app(factory.ref(meta.ldiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules)) &&
         (!isRDiv || typeToRule(typechecker.typecheck(factory.app(factory.ref(meta.rdiv.getPersonalFields().get(0).getRef()), false, args), null), null, true, rules));
+    }
+
+    if (!typechecker.compare(eq.getDefCallArguments().get(0), getValuesType(), CMP.EQ, refExpr, false, true, false)) {
+      return false;
     }
 
     List<Integer> lhs = new ArrayList<>();
