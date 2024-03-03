@@ -159,7 +159,7 @@ public class ExtMeta extends BaseMetaDefinition {
       return binding == null ? typechecker.typecheck(expr, type) : checkGoals(typechecker.withFreeBindings(new FreeBindingsModifier().remove(binding), tc -> tc.typecheck(expr, type)));
     }
 
-    private ConcreteExpression makeCoeLambda(CoreParameter typeParams, CoreBinding paramBinding, Set<CoreBinding> used, Map<CoreBinding, PathExpression> sigmaRefs, ConcreteFactory factory) {
+    private ConcreteExpression makeCoeLambda(CoreParameter typeParams, CoreBinding paramBinding, CoreExpression paramType, Set<CoreBinding> used, Map<CoreBinding, PathExpression> sigmaRefs, ConcreteFactory factory) {
       ArendRef coeRef = factory.local("i");
       return factory.lam(Collections.singletonList(factory.param(coeRef)), factory.meta("ext_coe", new MetaDefinition() {
         @Override
@@ -170,7 +170,7 @@ public class ExtMeta extends BaseMetaDefinition {
               substitution.add(new SubstitutionPair(param.getBinding(), sigmaRefs.get(param.getBinding()).applyAt(coeRef, factory, ext)));
             }
           }
-          CoreExpression result = typechecker.substitute(paramBinding.getTypeExpr().normalize(NormalizationMode.WHNF), LevelSubstitution.EMPTY, substitution);
+          CoreExpression result = typechecker.substitute((paramType == null ? paramBinding.getTypeExpr() : paramType).normalize(NormalizationMode.WHNF), LevelSubstitution.EMPTY, substitution);
           return result == null ? null : result.computeTyped(true);
         }
       }));
@@ -239,12 +239,15 @@ public class ExtMeta extends BaseMetaDefinition {
         }
 
         Set<CoreClassField> propFields = new HashSet<>();
-        Set<CoreBinding> propBindings = new HashSet<>();
+        Map<CoreBinding, CoreExpression> propBindings = new HashMap<>();
         int i = 0;
         for (CoreParameter param = typeParams; param.hasNext(); param = param.getNext(), i++) {
-          boolean isProp = classFields != null && classFields.get(i).isProperty() || Utils.isProp(param.getTypeExpr());
-          if (isProp) {
-            propBindings.add(param.getBinding());
+          CoreExpression propType = classFields != null && classFields.get(i).isProperty() ? param.getTypeExpr() : null;
+          if (propType == null) {
+            propType = Utils.minimizeToProp(param.getTypeExpr());
+          }
+          if (propType != null) {
+            propBindings.put(param.getBinding(), propType);
             if (classFields != null) {
               propFields.add(classFields.get(i));
             }
@@ -353,7 +356,7 @@ public class ExtMeta extends BaseMetaDefinition {
         for (CoreParameter param = typeParams; param.hasNext(); param = param.getNext(), i++) {
           Set<CoreBinding> used = new HashSet<>();
           CoreBinding paramBinding = param.getBinding();
-          boolean isProp = propBindings.contains(paramBinding);
+          boolean isProp = propBindings.containsKey(paramBinding);
           if (!bindings.isEmpty()) {
             if (param.getTypeExpr().processSubexpression(e -> {
               if (!(e instanceof CoreReferenceExpression)) {
@@ -362,7 +365,7 @@ public class ExtMeta extends BaseMetaDefinition {
               CoreBinding binding = ((CoreReferenceExpression) e).getBinding();
               if (bindings.contains(binding)) {
                 if (!isProp) {
-                  if (propBindings.contains(binding)) {
+                  if (propBindings.containsKey(binding)) {
                     typechecker.getErrorReporter().report(new TypecheckingError("Non-propositional fields cannot depend on propositional ones", marker));
                     return CoreExpression.FindAction.STOP;
                   }
@@ -453,7 +456,7 @@ public class ExtMeta extends BaseMetaDefinition {
               CoreBinding binding = used.size() > 1 ? null : used.iterator().next();
               PathExpression pathExpr = binding == null ? null : sigmaRefs.get(binding);
               if (pathExpr == null || !pathExpr.getClass().equals(PathExpression.class)) {
-                leftExpr = factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, used, sigmaRefs, factory), leftExpr, factory.ref(ext.prelude.getRight().getRef())));
+                leftExpr = factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, propBindings.get(paramBinding), used, sigmaRefs, factory), leftExpr, factory.ref(ext.prelude.getRight().getRef())));
               } else {
                 leftExpr = factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(SubstitutionMeta.makeLambda(paramBinding.getTypeExpr(), binding, factory), pathExpr.pathExpression, leftExpr));
               }
@@ -588,8 +591,8 @@ public class ExtMeta extends BaseMetaDefinition {
             ArendRef pRef = factory.local("i");
             field = applyPath(pRef, pathExpr.applyAt(pRef, factory, ext));
             useLet = false;
-          } else if (propBindings.contains(paramBinding)) {
-            field = factory.app(factory.ref(ext.propDPI.getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, usedList.get(i), fieldsMap, factory), makeProj(factory, left, i, classFields), makeProj(factory, right, i, classFields)));
+          } else if (propBindings.containsKey(paramBinding)) {
+            field = factory.app(factory.ref(ext.propDPI.getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, propBindings.get(paramBinding), usedList.get(i), fieldsMap, factory), makeProj(factory, left, i, classFields), makeProj(factory, right, i, classFields)));
             useLet = true;
           } else {
             boolean isDependent = dependentBindings.contains(paramBinding);
@@ -664,7 +667,7 @@ public class ExtMeta extends BaseMetaDefinition {
               }
             }
 
-            field = isDependent ? factory.appBuilder(factory.ref(ext.pathOver.getRef())).app(makeCoeLambda(typeParams, paramBinding, usedList.get(i), fieldsMap, factory), false).app(proj).build() : proj;
+            field = isDependent ? factory.appBuilder(factory.ref(ext.pathOver.getRef())).app(makeCoeLambda(typeParams, paramBinding, propBindings.get(paramBinding), usedList.get(i), fieldsMap, factory), false).app(proj).build() : proj;
             i1++;
           }
 

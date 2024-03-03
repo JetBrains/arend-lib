@@ -306,8 +306,14 @@ public class Utils {
   }
 
   public static boolean isProp(CoreExpression type) {
-    CoreExpression typeType = type.normalize(NormalizationMode.WHNF).computeType(true).normalize(NormalizationMode.WHNF);
+    CoreExpression typeType = type.normalize(NormalizationMode.WHNF).computeType().normalize(NormalizationMode.WHNF);
     return typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp();
+  }
+
+  public static CoreExpression minimizeToProp(CoreExpression type) {
+    type = type.normalize(NormalizationMode.WHNF).minimizeLevels();
+    CoreExpression typeType = type.computeType().normalize(NormalizationMode.WHNF);
+    return typeType instanceof CoreUniverseExpression && ((CoreUniverseExpression) typeType).getSort().isProp() ? type : null;
   }
 
   public static List<CoreClassField> getNotImplementedField(CoreClassCallExpression classCall) {
