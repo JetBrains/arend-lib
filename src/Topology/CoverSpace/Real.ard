@@ -2,18 +2,151 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Arith.Rat
+\import Arith.Real
+\import Data.Or
 \import Function.Meta
 \import Logic
 \import Logic.Meta
+\import Meta
+\import Order.Lattice
+\import Order.LinearOrder
+\import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Set.Filter
+\import Set.Subset
 \import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\open Set
 
 \instance RatRealCoverSpace : CoverSpace Rat
-  => interClosureCoverSpace (\lam C => ∃ (eps : Rat) (0 < eps) (C = \lam U => ∃ (a : Rat) (U = open-int a (a + eps))))
-      (\lam (inP (eps,eps>0,p)) x => rewrite p $ inP (_, inP (x - eps * ratio 1 3, idp), (linarith, linarith)))
+  => ClosureRegularCoverSpace Cover covers
       (\lam (inP (eps,eps>0,p)) => inP (\lam U => ∃ (a : Rat) (U = open-int a (a + eps * ratio 1 3)), inP (eps * ratio 1 3, linarith, idp),
         \lam (inP (a,q)) => inP (open-int (a - eps * ratio 1 3) (a + eps * ratio 2 3), rewrite p $ inP (a - eps * ratio 1 3, pmap (open-int _) linarith),
                                  \lam (inP (b,r)) => rewrite (q,r) \lam (x,((s,s'),(t,t'))) (u,v) => (linarith, linarith))))
+  \where {
+    \func Cover (C : Set (Set Rat)) => ∃ (eps : Rat) (0 < eps) (C = \lam U => ∃ (a : Rat) (U = open-int a (a + eps)))
 
+    \lemma covers {C : Set (Set Rat)} (Cc : Cover C) (x : Rat) : ∃ (U : Set Rat) (C U) (U x) \elim Cc
+      | inP (eps,eps>0,p) => rewrite p $ inP (_, inP (x - eps * ratio 1 3, idp), (linarith, linarith))
+
+    \func makeCover (eps : Rat) (eps>0 : 0 < eps) : Closure Cover \lam U => ∃ (a : Rat) (U = open-int a (a + eps))
+      => closure $ inP (eps, eps>0, idp)
+
+    \func NFilter (x : Rat) : SetFilter Rat \cowith
+      | F U => ∃ (a b : Rat) (a < x) (x < b) (\Pi (y : Rat) -> a < y -> y < b -> U y)
+      | filter-mono p (inP (a,b,q,q',f)) => inP (a, b, q, q', \lam y r r' => p (f y r r'))
+      | filter-top => inP (x - 1, x + 1, linarith, linarith, \lam _ _ _ => ())
+      | filter-meet (inP (a,b,a<x,x<b,f)) (inP (c,d,c<x,x<d,g)) => inP
+          (a ∨ c, b ∧ d, TotalOrder.join-prop (`< x) a<x c<x, TotalOrder.meet-prop (x <) x<b x<d,
+           \lam y ac<y y<bd => (f y (<-transitive-right join-left ac<y) (<-transitive-left y<bd meet-left),
+                                g y (<-transitive-right join-right ac<y) (<-transitive-left y<bd meet-right)))
+
+    \lemma <=<-open {x : Rat} {U : Set Rat} (p : single x <=< {RatRealCoverSpace} U) : ∃ (a b : Rat) (a < x) (x < b) (\Pi (y : Rat) -> a < y -> y < b -> U y)
+      => \case closure-filter (NFilter x) (\lam (inP (eps,eps>0,p)) => rewrite p \let a => x - eps * ratio 1 2 \in inP (_, inP (a, idp), inP (a, a + eps, linarith, linarith, \lam y p q => (p,q)))) p \with {
+        | inP (V, f, inP (a,b,a<x,x<b,g)) => inP (a, b, a<x, x<b, \lam y a<y y<b => f (x, (idp, g x a<x x<b)) (g y a<y y<b))
+      }
+  }
+
+\instance RealCoverSpace : CompleteCoverSpace Real
+  | CoverSpace => coverSpace
+  | isSeparatedCoverSpace p =>
+    \let q => SeparatedCoverSpace.separated-char 6 3 p
+    \in Real.real_ext \lam {a} {b} => (
+      \lam s => \let t => <=<_<= (q.1 (point_<=< s.1 s.2)) idp
+                \in (real_<_L t.1, real_<_U t.2),
+      \lam s => \let t => <=<_<= (q.2 (point_<=< s.1 s.2)) idp
+                \in (real_<_L t.1, real_<_U t.2))
+  | isCompleteCoverSpace => dense-regular-complete rat_real-dense \lam F => inP (fromCF F, \lam {U} => \case <=<-open __ \with {
+    | inP (a, b, inP (c,Fac), inP (d,Fdb), f) => filter-mono {F} (later \lam {x} ((a<x,_),(_,x<b)) => f x a<x x<b) (filter-meet {F} Fac Fdb)
+  })
+  \where {
+    \func Cover (C : Set (Set Real)) => ∃ (eps : Rat) (0 < eps) (C = \lam U => ∃ (a : Rat) (U = \lam (x : Real) => \Sigma (x.L a) (x.U (a + eps))))
+
+    \lemma covers {C : Set (Set Real)} (Cc : Cover C) (x : Real) : ∃ (U : Set Real) (C U) (U x) \elim Cc
+      | inP (eps,eps>0,p) => TruncP.map (LU-focus {x} eps eps>0) \lam (a,a<x,x<a+eps) => rewrite p (_, inP (a,idp), (a<x, x<a+eps))
+
+    \func NFilter (x : Real) : SetFilter Real \cowith
+      | F U => ∃ (a b : Rat) (x.L a) (x.U b) (\Pi (y : Real) -> y.L a -> y.U b -> U y)
+      | filter-mono p (inP (a,b,q,q',f)) => inP (a, b, q, q', \lam y r r' => p (f y r r'))
+      | filter-top => \case x.L-inh, x.U-inh \with {
+        | inP (a,p), inP (b,q) => inP (a, b, p, q, \lam _ _ _ => ())
+      }
+      | filter-meet (inP (a,b,a<x,x<b,f)) (inP (c,d,c<x,x<d,g)) => inP (a ∨ c, b ∧ d,
+          TotalOrder.join-prop x.L a<x c<x, TotalOrder.meet-prop x.U x<b x<d,
+          \lam (y : Real) l u => (f y (y.L_<= l join-left) (y.U_<= u meet-left), g y (y.L_<= l join-right) (y.U_<= u meet-right)))
+
+    \instance coverSpace : CoverSpace Real
+      => ClosureRegularCoverSpace Cover covers
+          (\lam (inP (eps,eps>0,p)) => inP (
+            \lam U => ∃ (a : Rat) (U = \lam (x : Real) => \Sigma (x.L a) (x.U (a + eps * ratio 1 3))),
+            inP (eps * ratio 1 3, linarith, idp), \lam (inP (a,q)) => inP
+                (_, rewrite p $ inP (a - eps * ratio 1 3, idp),
+                 \lam (inP (b,r)) => rewrite (q,r) $ \lam (y : Real, ((a<y,y<a+eps/3),(b<y,y<b+eps/3))) {x : Real} V'x => (x.L-closed V'x.1 $ linarith (y.LU-less a<y y<b+eps/3), x.U-closed V'x.2 $ linarith (y.LU-less b<y y<a+eps/3)))))
+
+    \lemma point_<=< {x : Real} {a b : Rat} (a<x : x.L a) (x<b : x.U b) : single x <=< open-int (a : Real) b
+      => \case x.L-rounded a<x, x.U-rounded x<b \with {
+        | inP (a',a'<x,a<a'), inP (b',x<b',b'<b) =>
+          \let eps => (a' - a) ∧ (b - b')
+          \in closure-subset (closure $ inP $ later (eps, LinearOrder.<_meet-univ linarith linarith, idp)) $
+            later \lam (inP (c,p)) => rewrite p \lam (y,(x=y,(c<y,y<c+eps))) {z} (c<z,z<c+eps) =>
+                (inP (c, linarith (meet-left : eps <= a' - a, x.LU-less a'<x $ rewrite x=y y<c+eps), c<z),
+                 inP (c + eps, z<c+eps, linarith (meet-right : eps <= b - b', x.LU-less (rewrite x=y c<y) x<b')))
+      }
+
+    \lemma <=<-open {x : Real} {U : Set Real} (p : single x <=< U) : ∃ (a b : Rat) (x.L a) (x.U b) (\Pi (y : Real) -> y.L a -> y.U b -> U y)
+      => \case closure-filter (NFilter x) (\lam (inP (eps,eps>0,p)) => TruncP.map (LU-focus {x} eps eps>0) \lam (a,a<y,y<a+eps) => (_, rewrite p $ inP (a, idp), inP (a, a + eps, a<y, y<a+eps, \lam x p q => (p,q)))) p \with {
+        | inP (V, f, inP (a,b,a<x,x<b,g)) => inP (a, b, a<x, x<b, \lam y a<y y<b => f (x, (idp, g x a<x x<b)) (g y a<y y<b))
+      }
+
+    \func fromCF (F : RegularCauchyFilter RatRealCoverSpace) : Real \cowith
+      | L a => ∃ (b : Rat) (F (open-int a b))
+      | L-inh => \case F.isCauchyFilter (RatRealCoverSpace.makeCover 1 idp) \with {
+        | inP (U, inP (a,p), FU) => inP (a, inP (a + 1, rewriteF p FU))
+      }
+      | L-closed (inP (b,Fqb)) q'<q => inP (b, filter-mono (later \lam s => (<-transitive q'<q s.1, s.2)) Fqb)
+      | L-rounded {a} (inP (b,Fab)) => \case isRegularFilter Fab \with {
+        | inP (V,V<=<ab,FV) => \case cauchy-cover (isRegular $ unfolds at V<=<ab $ V<=<ab) a \with {
+          | inP (W', inP (W,f,W'<=<W), W'a) => \case RatRealCoverSpace.<=<-open (<=<-right (single_<= W'a) W'<=<W) \with {
+            | inP (c,d,c<a,a<d,g) => inP ((a + d) * ratio 1 2, inP (b, filter-mono (\lam {x} Vx => (\case LinearOrder.dec<_<= x d \with {
+              | inl x<d => absurd $ <-irreflexive {_} {a} (f (x, (Vx, g x (<-transitive c<a (<=<_<= V<=<ab Vx).1) x<d)) $ <=<_<= W'<=<W W'a).1
+              | inr d<=x => linarith
+            }, (<=<_<= V<=<ab Vx).2)) FV), linarith)
+          }
+        }
+      }
+      | U b => ∃ (a : Rat) (F (open-int a b))
+      | U-inh => \case F.isCauchyFilter (RatRealCoverSpace.makeCover 1 idp) \with {
+        | inP (U, inP (a,p), FU) => inP (a + 1, inP (a, rewriteF p FU))
+      }
+      | U-closed (inP (a,Faq)) q<q' => inP (a, filter-mono (later \lam s => (s.1, <-transitive s.2 q<q')) Faq)
+      | U-rounded {b} (inP (a,Fab)) => \case isRegularFilter Fab \with {
+        | inP (V,V<=<ab,FV) => \case cauchy-cover (isRegular $ unfolds at V<=<ab $ V<=<ab) b \with {
+          | inP (W', inP (W,f,W'<=<W), W'b) => \case RatRealCoverSpace.<=<-open (<=<-right (single_<= W'b) W'<=<W) \with {
+            | inP (c,d,c<b,b<d,g) => inP ((c + b) * ratio 1 2, inP (a, filter-mono (\lam {x} Vx => ((<=<_<= V<=<ab Vx).1, \case LinearOrder.dec<_<= c x \with {
+              | inl c<x => absurd $ <-irreflexive (f (x, (Vx, g x c<x $ <-transitive (<=<_<= V<=<ab Vx).2 b<d)) $ <=<_<= W'<=<W W'b).2
+              | inr x<=c => linarith
+            })) FV), linarith)
+          }
+        }
+      }
+      | LU-disjoint (inP (b,Fqb)) (inP (a,Faq)) => \case isProper (filter-meet Faq Fqb) \with {
+        | inP (x,((_,x<q),(q<x,_))) => linarith
+      }
+      | LU-focus eps eps>0 => \case F.isCauchyFilter (RatRealCoverSpace.makeCover eps eps>0) \with {
+        | inP (_, inP (a,idp), e) => inP (a, inP (a + eps, e), inP (a, e))
+      }
+  }
+
+\open ClosurePrecoverSpace
+
+\func rat_real : CoverMap RatRealCoverSpace RealCoverSpace.coverSpace
+  => closure-univ {_} {RealCoverSpace.Cover} {RealCoverSpace.covers} Real.fromRat
+      \lam (inP (eps,eps>0,p)) => closure-subset (closure $ inP (eps, eps>0, idp)) \lam (inP (a,q)) => inP (_, rewrite p $ inP (a, idp), q)
+
+\lemma rat_real-dense : rat_real.IsDenseEmbedding
+  => (\lam {y : Real} y<=<U => \case RealCoverSpace.<=<-open y<=<U \with {
+        | inP (a,b,a<y,y<b,f) => \have a<b => y.LU-less a<y y<b \in inP ((a + b) * ratio 1 2, f _ linarith linarith)
+      }, ClosurePrecoverSpace.closure-embedding {_} {RatRealCoverSpace.Cover} {RatRealCoverSpace.covers} rat_real \lam (inP (eps,eps>0,p)) =>
+          closure-subset (closure $ inP (eps, eps>0, idp)) \lam (inP (a,q)) => inP (_, rewrite p $ inP (a, idp), rewrite q \lam s => s))

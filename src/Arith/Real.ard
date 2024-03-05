@@ -10,7 +10,6 @@
 \import Logic
 \import Logic.Meta
 \import Meta
-\import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -44,10 +43,10 @@
 
 \record Real \extends LowerReal, UpperReal {
   | LU-disjoint {q : Rat} : L q -> U q -> Empty
-  | LU-located (q r : Rat) : q < r -> L q || U r
+  | LU-located {q r : Rat} : q < r -> L q || U r
   | LU-focus (eps : Rat) : eps > 0 -> ∃ (a : L) (U (a + eps))
 
-  \default LU-located q r q<r => \case LU-focus (r - q) (RatField.pos_>0 q<r) \with {
+  \default LU-located {q} {r} q<r => \case LU-focus (r - q) (RatField.pos_>0 q<r) \with {
     | inP (s,Ls,Us+r-q) => \case trichotomy q s \with {
       | less q<s => byLeft (L-closed Ls q<s)
       | equals q=s => byLeft (transportInv L q=s Ls)
@@ -66,7 +65,7 @@
              | inl q<r => q<r
              | inr r<=q => absurd $ LU-disjoint Lq (U_<= Ur r<=q)
            }
-      \in \case focus-iter (ratio 3 2) rat_<=-dec (\lam q r => \Sigma (L q) (U r)) (\lam q r (Lq,Ur) => \case LU-located (q + m r q) (r - m r q) (linarith (usingOnly (LU-less Lq Ur))) \with {
+      \in \case focus-iter (ratio 3 2) rat_<=-dec (\lam q r => \Sigma (L q) (U r)) (\lam q r (Lq,Ur) => \case LU-located (linarith (usingOnly (LU-less Lq Ur))) \with {
         | byLeft Lq+m => inP (q + m r q, r, (Lq+m,Ur), linarith)
         | byRight Ur-m => inP (q, r - m r q, (Lq,Ur-m), linarith)
       }) (iabs $ rat_ceiling $ finv eps * (r - q)) q r (Lq,Ur) \with {
@@ -113,305 +112,66 @@
     | U-rounded => isDense
     | LU-disjoint q<x x<q => <-irreflexive (<-transitive q<x x<q)
     | LU-focus eps eps>0 => inP (x - eps * finv 2, linarith, linarith)
+
+  \lemma real_ext {x y : Real} (p : \Pi {a b : Rat} -> (\Sigma (x.L a) (x.U b)) <-> (\Sigma (y.L a) (y.U b))) : x = y
+    => \case x.L-inh, x.U-inh, y.L-inh, y.U-inh \with {
+      | inP (x1,x1<x), inP (x2,x<x2), inP (y1,y1<y), inP (y2,y<y2) =>
+          ext (ext \lam z => ext (\lam z<x => (p.1 (z<x,x<x2)).1, \lam z<y => (p.2 (z<y,y<y2)).1),
+               ext \lam z => ext (\lam x<z => (p.1 (x1<x,x<z)).2, \lam y<z => (p.2 (y1<y,y<z)).2))
+    }
 }
 
-\instance RealField : OrderedField Real
-  | zro => Real.fromRat 0
-  | + (x y : Real) : Real \cowith {
-    | L q => ∃ (r : x.L) (s : y.L) (q = r +' s)
-    | L-closed {q} {q'} (inP (r,xLr,s,yLs,q=r+s)) q'<q => inP (r - q +' q', x.L-closed xLr linarith, s, yLs, linarith)
-    | L-rounded {q} (inP (r,xLr,s,yLs,q=r+s)) => TruncP.map (x.L-rounded xLr) (\lam t => (q +' t.1 - r, inP (t.1,t.2,s,yLs,linarith), linarith t.3))
-    | U q => ∃ (r : x.U) (s : y.U) (q = r +' s)
-    | U-closed {q} {q'} (inP (r,xUr,s,yUs,q=r+s)) q<q' => inP (r +' q' - q, x.U-closed xUr linarith, s, yUs, linarith)
-    | U-rounded {q} (inP (r,xUr,s,yUs,q=r+s)) => TruncP.map (y.U-rounded yUs) (\lam t => (q - s +' t.1, inP (r,xUr,t.1,t.2,linarith), linarith t.3))
-    | LU-disjoint {q} (inP (r,xLr,s,yLs,q=r+s)) (inP (r',xUr',s',yUs',q=r+s')) => linarith (x.LU-less xLr xUr', y.LU-less yLs yUs')
-    | LU-focus eps eps>0 =>
-      \let | eps' => eps *' finv 2
-           | eps'>0 : eps' > 0 => OrderedSemiring.<_*_positive_positive eps>0 idp
-      \in \case x.LU-focus eps' eps'>0, y.LU-focus eps' eps'>0 \with {
-        | inP (a,xLa,xU[a+e']), inP (b,yLb,yU[b+e']) => inP (a +' b, inP (a,xLa,b,yLb,idp), inP (a +' eps', xU[a+e'], b +' eps', yU[b+e'], linarith))
-      }
-  }
-  | zro-left {x : Real} => exts (\lam q => ext (\lam (inP (r,r<0,s,xLs,q=r+s)) => x.L-closed xLs linarith, \lam xLq => TruncP.map (x.L-rounded xLq) (\lam t => (q - t.1, linarith t.3, t.1, t.2, linarith))),
-                                 \lam q => ext (\lam (inP (r,r>0,s,xUs,q=r+s)) => x.U-closed xUs linarith, \lam xUq => TruncP.map (x.U-rounded xUq) (\lam t => (q - t.1, linarith t.3, t.1, t.2, linarith))))
-  | +-assoc {x y z : Real} =>
-    \have | lr {q} {P Q R : Rat -> \Prop}
-            : ∃ (r : Rat) (∃ (r' : P) (s' : Q) (r = r' +' s')) (s : R) (q = r +' s) -> ∃ (r : P) (s : Rat) (∃ (r' : Q) (s' : R) (s = r' +' s')) (q = r +' s)
-            => \lam (inP (r,inP (r',xUr',s',yUs',r=r'+s'),s,zUs,q=r+s)) => inP (r', xUr', s' +' s, inP (s', yUs', s, zUs, idp), q=r+s *> pmap (`+' s) r=r'+s' *> +-assoc)
-          | rl {q} {P Q R : Rat -> \Prop}
-            : ∃ (r : P) (s : Rat) (∃ (r' : Q) (s' : R) (s = r' +' s')) (q = r +' s) -> ∃ (r : Rat) (∃ (r' : P) (s' : Q) (r = r' +' s')) (s : R) (q = r +' s)
-            => \lam (inP (r,Pr,s,inP (r',Qr',s',Rs',s=r'+s'),q=r+s)) => inP (r +' r', inP (r,Pr,r',Qr',idp), s', Rs', q=r+s *> pmap (r +') s=r'+s' *> inv +-assoc)
-    \in exts (\lam q => ext (lr, rl), \lam q => ext (lr, rl))
-  | +-comm =>
-    \have lem {q : Rat} {P Q : Rat -> \Prop} : ∃ (r : P) (s : Q) (q = r +' s) -> ∃ (s : Q) (r : P) (q = s +' r)
-      => TruncP.map __ (\lam t => (t.3, t.4, t.1, t.2, t.5 *> +-comm))
-    \in exts (\lam q => ext (lem, lem), \lam q => ext (lem, lem))
-  | ide => Real.fromRat 1
-  | * (x y : Real) : Real \cowith {
-    | L q => ∃ (a : x.L) (b : x.U) (c : y.L) (d : y.U) (q < a *' c) (q < a *' d) (q < b *' c) (q < b *' d)
-    | L-closed {q} {q'} (inP (a,xLa,b,xUb,c,yLc,d,yUd,q<ac,q<ad,q<bc,q<bd)) q'<q => inP (a,xLa,b,xUb,c,yLc,d,yUd, <-transitive q'<q q<ac, <-transitive q'<q q<ad, <-transitive q'<q q<bc, <-transitive q'<q q<bd)
-    | L-rounded {q} (inP (a,xLa,b,xUb,c,yLc,d,yUd,q<ac,q<ad,q<bc,q<bd)) =>
-      \let | m => (a *' c) ∧ (a *' d) ∧ (b *' c) ∧ (b *' d)
-           | q<m => <_meet-univ (<_meet-univ (<_meet-univ q<ac q<ad) q<bc) q<bd
-           | mid<m => mid<right suc-inv q<m
-      \in inP (mid suc-inv q m, inP (a,xLa,b,xUb,c,yLc,d,yUd, <-transitive-left mid<m (meet-left <=∘ meet-left <=∘ meet-left), <-transitive-left mid<m (meet-left <=∘ meet-left <=∘ meet-right), <-transitive-left mid<m (meet-left <=∘ meet-right), <-transitive-left mid<m meet-right), mid>left suc-inv q<m)
-    | U q => ∃ (a : x.L) (b : x.U) (c : y.L) (d : y.U) (a *' c < q) (a *' d < q) (b *' c < q) (b *' d < q)
-    | U-closed {q} {q'} (inP (a,xLa,b,xUb,c,yLc,d,yUd,ac<q,ad<q,bc<q,bd<q)) q<q' => inP (a,xLa,b,xUb,c,yLc,d,yUd, <-transitive ac<q q<q', <-transitive ad<q q<q', <-transitive bc<q q<q', <-transitive bd<q q<q')
-    | U-rounded {q} (inP (a,xLa,b,xUb,c,yLc,d,yUd,ac<q,ad<q,bc<q,bd<q)) =>
-      \let | m => (a *' c) ∨ (a *' d) ∨ (b *' c) ∨ (b *' d)
-           | m<q => <_join-univ (<_join-univ (<_join-univ ac<q ad<q) bc<q) bd<q
-           | m<mid => mid>left suc-inv m<q
-      \in inP (mid suc-inv m q, inP (a,xLa,b,xUb,c,yLc,d,yUd, <-transitive-right (join-left <=∘ join-left <=∘ join-left) m<mid, <-transitive-right (join-right <=∘ join-left <=∘ join-left) m<mid, <-transitive-right (join-right <=∘ join-left) m<mid, <-transitive-right join-right m<mid), mid<right suc-inv m<q)
-    | LU-disjoint {q} (inP (a,xLa,b,xUb,c,yLc,d,yUd,q<ac,q<ad,q<bc,q<bd)) (inP (a',xLa',b',xUb',c',yLc',d',yUd',a'c'<q,a'd'<q,b'c'<q,b'd'<q)) =>
-      \have | d'>=0 : 0 <= d' => \case dec<_<= d' 0 \with {
-              | inl d'<0 => absurd $ \case dec<_<= b 0 \with {
-                | inl b<0 => <-irreflexive $ <-transitive (<-transitive a'c'<q q<bd) $ <-transitive (RatField.<_*_negative-right b<0 (y.LU-less yLc' yUd)) $ RatField.<_*_negative-left (x.LU-less xLa' xUb) (<-transitive (y.LU-less yLc' yUd') d'<0)
-                | inr b>=0 => <-irreflexive $ <-transitive (<-transitive a'd'<q q<bc) $ <-transitive-right (RatField.<=_*_positive-right b>=0 $ <=-less $ y.LU-less yLc yUd') (RatField.<_*_negative-left (x.LU-less xLa' xUb) d'<0)
-              }
-              | inr d'>=0 => d'>=0
-            }
-            | b'>=0 : 0 <= b' => \case dec<_<= b' 0 \with {
-              | inl b'<0 => absurd $ \case dec<_<= d 0 \with {
-                | inl d<0 => <-irreflexive $ <-transitive (<-transitive a'c'<q q<bd) $ <-transitive (RatField.<_*_negative-left (x.LU-less xLa' xUb) d<0) (RatField.<_*_negative-right (<-transitive (x.LU-less xLa' xUb') b'<0) (y.LU-less yLc' yUd))
-                | inr d>=0 => <-irreflexive $ <-transitive (<-transitive b'c'<q q<ad) $ <-transitive-right (<=_*_positive-left (<=-less $ x.LU-less xLa xUb') d>=0) (RatField.<_*_negative-right b'<0 (y.LU-less yLc' yUd))
-              }
-              | inr b'>=0 => b'>=0
-            }
-            | a<0 : a < 0 => \case dec<_<= a 0 \with {
-              | inl a<0 => a<0
-              | inr a>=0 => absurd $ <-irreflexive $ <-transitive-left (<-transitive b'd'<q q<ac) $ <=_*_positive-right a>=0 (<=-less $ y.LU-less yLc yUd') <=∘ <=_*_positive-left (<=-less $ x.LU-less xLa xUb') d'>=0
-            }
-            | d>=0 : 0 <= d => \case dec<_<= d 0 \with {
-              | inl d<0 => absurd $ \case dec<_<= a' 0 \with {
-                | inl a'<0 => <-irreflexive $ <-transitive (<-transitive a'c'<q q<bd) $ <-transitive (RatField.<_*_negative-left (x.LU-less xLa' xUb) d<0) (RatField.<_*_negative-right a'<0 (y.LU-less yLc' yUd))
-                | inr a'>=0 => <-irreflexive $ <-transitive (<-transitive a'd'<q q<bc) $ <-transitive-left (RatField.<_*_negative-left (x.LU-less xLa' xUb) (<-transitive (y.LU-less yLc yUd) d<0)) $ RatField.<=_*_positive-right a'>=0 $ <=-less (y.LU-less yLc yUd')
-              }
-              | inr d>=0 => d>=0
-            }
-      \in RatField.<-irreflexive $ <-transitive-left (<-transitive b'd'<q q<ad) $ RatField.<=_*_positive-left (<=-less a<0) d>=0 <=∘ simplify <=-refl <=∘ RatField.<=_*_positive-left b'>=0 d'>=0
-    | LU-focus eps eps>0 => {?} {- \case x.LU-focus eps eps>0, y.LU-focus eps eps>0 \with {
-      | inP (x0,xLx0,xUx0'), inP (y0,yLy0,yUy0') =>
-        \let | delta => eps *' (finv (rabs x0 +' rabs y0 +' 2 *' eps) ∧ 1)
-             | delta>0 : delta > 0 => RatField.<_*_positive_positive eps>0 $ <_meet-univ (RatField.finv>0 $ RatField.<=_+-left (RatField.<=_+ rabs.>=0 rabs.>=0) (RatField.<_*_positive_positive idp eps>0)) zro<ide
-        \in \case x.LU-focus delta delta>0, y.LU-focus delta delta>0 \with {
-          | inP (x1,xLx1,xUx1'), inP (y1,yLy1,yUy1') =>
-            \let | x2 => x0 ∨ x1
-                 | xLx2 => ||.rec' (transportInv x.L __ xLx0) (transportInv x.L __ xLx1) (RatField.join-isMax x0 x1)
-                 | y2 => y0 ∨ y1
-                 | yLy2 => ||.rec' (transportInv y.L __ yLy0) (transportInv y.L __ yLy1) (RatField.join-isMax y0 y1)
-                 | x2' => (x0 +' eps) ∧ (x1 +' delta)
-                 | xUx2' => ||.rec' (transportInv x.U __ xUx0') (transportInv x.U __ xUx1') (RatField.meet-isMin (x0 +' eps) (x1 +' delta))
-                 | y2' => (y0 +' eps) ∧ (y1 +' delta)
-                 | yUy2' => ||.rec' (transportInv y.U __ yUy0') (transportInv y.U __ yUy1') (RatField.meet-isMin (y0 +' eps) (y1 +' delta))
-                 | m => (x2 *' y2) ∧ (x2 *' y2') ∧ (x2' *' y2) ∧ (x2' *' y2')
-            \in inP (m, L-product-lem x y m $ inP (x2, xLx2, x2', xUx2', y2, yLy2, y2', yUy2', meet-left <=∘ meet-left <=∘ meet-left, meet-left <=∘ meet-left <=∘ meet-right, meet-left <=∘ meet-right, meet-right),
-                        U-product-lem x y (m +' eps) $ inP (x2, xLx2, x2', xUx2', y2, yLy2, y2', yUy2', {?}, {?}, {?}, {?}))
-        }
-    } -}
-  }
-  | ide-left => {?}
-  | ide-right => {?}
-  | *-comm => {?}
-  | *-assoc => {?}
-  | ldistr => {?}
-  | negative (x : Real) : Real \cowith {
-    | L q => x.U (negative' q)
-    | L-closed xU-q q'<q => x.U-closed xU-q (RatField.negative_< q'<q)
-    | L-rounded xU-q => TruncP.map (x.U-rounded xU-q) $ \lam t => (negative' t.1, transportInv x.U negative-isInv t.2, rewriteF negative-isInv (RatField.negative_< t.3))
-    | U q => x.L (negative' q)
-    | U-closed xL-q q<q' => x.L-closed xL-q (RatField.negative_< q<q')
-    | U-rounded xL-q => TruncP.map (x.L-rounded xL-q) $ \lam t => (negative' t.1, transportInv x.L negative-isInv t.2, rewriteF negative-isInv (RatField.negative_< t.3))
-    | LU-disjoint xU-q xL-q => LU-disjoint xL-q xU-q
-    | LU-focus eps eps>0 => TruncP.map (x.LU-focus eps eps>0) $ \lam t => (negative' (t.1 +' eps), transportInv x.U negative-isInv t.3, transport x.L linarith t.2)
-  }
-  | negative-left {x : Real} => exts (\lam q => ext (\lam (inP (r,xU-r,s,xLs,q=r+s)) => linarith (using (Real.LU-less xLs xU-r)),
-                                                     \lam q<0 => TruncP.map (x.LU-focus (negative' q) (RatField.negative_< q<0)) (\lam t => (q - t.1, transport x.U linarith t.3, t.1, t.2, linarith))),
-                                      \lam q => ext (\lam (inP (r,xL-r,s,xUs,q=r+s)) => linarith (using (Real.LU-less xL-r xUs)),
-                                                     \lam q>0 => TruncP.map (x.LU-focus q q>0) (\lam t => (negative' t.1, transportInv x.L negative-isInv t.2, t.1 +' q, t.3, linarith))))
-  | isPos (x : Real) => x.L 0
-  | zro/>0 => <-irreflexive
-  | positive_+ x>0 y>0 => inP (0, x>0, 0, y>0, idp)
-  | ide>zro => idp
-  | <_+-comparison (x y : Real) (inP (r,xLr,s,yLs,zro=r+s)) => \case dec<_<= 0 r \with {
-    | inl r>0 => byLeft (x.L-closed xLr r>0)
-    | inr r<0 => byRight (y.L_<= yLs linarith)
-  }
-  | <_+-connectedness {x : Real} x/<0 x/>0 =>
-    exts (\lam q => ext (\lam xLq => \case dec<_<= q 0 \with {
-      | inl q<0 => q<0
-      | inr q>=0 => absurd $ x/<0 $ x.L_<= xLq q>=0
-    }, \case x.LU-located q 0 __ \with {
-      | byLeft xLq => xLq
-      | byRight xU0 => absurd (x/>0 xU0)
-    }), \lam q => ext (\lam xUq => \case dec<_<= 0 q \with {
-      | inl q>0 => q>0
-      | inr q<=0 => absurd $ x/>0 $ x.U_<= xUq q<=0
-    }, \case x.LU-located 0 q __ \with {
-      | byLeft xL0 => absurd (x/<0 xL0)
-      | byRight xUq => xUq
-    }))
-  | positive_* {x y : Real} x>0 y>0 => \case x.L-rounded x>0, x.U-inh, y.L-rounded y>0, y.U-inh \with {
-    | inP (a,xLa,a>0), inP (b,xUb), inP (c,yLc,c>0), inP (d,yUd) =>
-      \have | b>0 => x.LU-less x>0 xUb
-            | d>0 => y.LU-less y>0 yUd
-      \in inP (a,xLa,b,xUb,c,yLc,d,yUd, RatField.<_*_positive_positive a>0 c>0, RatField.<_*_positive_positive a>0 d>0, RatField.<_*_positive_positive b>0 c>0, RatField.<_*_positive_positive b>0 d>0)
-  }
-  | positive=>#0 {x : Real} x>0 => Monoid.Inv.lmake (pinv x>0) {?}
-  | #0=>eitherPosOrNeg {x : Real} (xInv : Monoid.Inv x) => \case propExt.conv (pmap (Real.L {__} 0) xInv.inv-right) zro<ide \with {
-    | inP (a,xLa,b,xUb,c,yLc,d,yUd,ac>0,ad>0,bc>0,bd>0) => \case dec<_<= a 0, dec<_<= 0 b, dec<_<= c 0 \with {
-      | inr a>=0, _, _ => byLeft (x.L_<= xLa a>=0)
-      | _, inr b<=0, _ => byRight (x.U_<= xUb b<=0)
-      | inl a<0, inl b>0, inl c<0 => absurd $ <-irreflexive $ <-transitive bc>0 $ RatField.<_*_positive_negative b>0 c<0
-      | inl a<0, inl b>0, inr c>=0 => absurd $ <-irreflexive $ <-transitive-left ac>0 $ RatField.<=_*_negative_positive (<=-less a<0) c>=0
+\instance RealPoset : UnboundedDenseLinearOrder Real
+  | < (x y : Real) => ∃ (a : Rat) (x.U a) (y.L a)
+  | <-irreflexive (inP (a,x<a,a<x)) => <-irreflexive (Real.LU-less a<x x<a)
+  | <-transitive (inP (a,x<a,a<y)) (inP (b,y<b,b<z)) => inP (a, x<a, L-closed b<z $ Real.LU-less a<y y<b)
+  | <-comparison y (inP (a,x<a,a<z)) => \case L-rounded a<z \with {
+    | inP (b,b<z,a<b) => \case LU-located a<b \with {
+      | byLeft a<y => byLeft $ inP (a, x<a, a<y)
+      | byRight y<b => byRight $ inP (b, y<b, b<z)
     }
   }
-  \where {
-    \open AddMonoid(+ \as \infixl 6 +')
-    \open Monoid(* \as \infixl 7 *')
-    \open AddGroup(negative \as negative')
-    \open LinearlyOrderedSemiring
-    \open RatField(suc-inv)
-    \open AddGroup(negative-isInv)
+  | <-connectedness p q => ext (ext \lam a => ext (\lam a<x => \case L-rounded a<x \with {
+    | inP (b,b<x,a<b) => \case LU-located a<b \with {
+      | byLeft a<y => a<y
+      | byRight y<b => absurd $ q $ inP (b, y<b, b<x)
+    }
+  }, \lam a<y => \case L-rounded a<y \with {
+    | inP (b,b<y,a<b) => \case LU-located a<b \with {
+      | byLeft a<x => a<x
+      | byRight x<b => absurd $ p $ inP (b, x<b, b<y)
+    }
+  }), ext \lam b => ext (\lam x<b => \case U-rounded x<b \with {
+    | inP (a,x<a,a<b) => \case LU-located a<b \with {
+      | byLeft a<y => absurd $ p $ inP (a, x<a, a<y)
+      | byRight y<b => y<b
+    }
+  }, \lam y<b => \case U-rounded y<b \with {
+    | inP (a,y<a,a<b) => \case LU-located a<b \with {
+      | byLeft a<x => absurd $ q $ inP (a, y<a, a<x)
+      | byRight x<b => x<b
+    }
+  }))
+  | isDense (inP (a,x<a,a<z)) => inP (a, U-rounded x<a, TruncP.map (L-rounded a<z) \lam s => (s.1, s.3, s.2))
+  | withoutUpperBound x => \case U-inh {x} \with {
+    | inP (a,x<a) => inP (a, U-rounded x<a)
+  }
+  | withoutLowerBound x => \case L-inh {x} \with {
+    | inP (a,a<x) => inP (a, TruncP.map (L-rounded a<x) \lam s => (s.1, s.3, s.2))
+  }
 
-    \func pinv {x : Real} (x>0 : x.L 0) : Real \cowith
-      | L q => 0 < q -> ∃ (r : x.U) (q *' r < 1)
-      | L-closed f q'<q q'>0 => TruncP.map (f (<-transitive q'>0 q'<q)) $ \lam (r,xUr,qr<1) => (r, xUr, <-transitive (RatField.<_*_positive-left q'<q (x.LU-less x>0 xUr)) qr<1)
-      | L-rounded {q} f => \case trichotomy q 0 \with {
-        | less q<0 => inP (0, \lam c => absurd (<-irreflexive c), q<0)
-        | equals q=0 => TruncP.map x.U-inh $ \lam (r,xUr) =>
-                                                 \have | r>0 => x.LU-less x>0 xUr
-                                                       | r+1>0 : 0 < r +' 1 => linarith
-                                                 \in (finv (r +' 1), \lam _ => inP (r, xUr, RatField.<_rotate-left r+1>0 $ transportInv (r <) ide-right linarith), transportInv (`< _) q=0 $ RatField.finv>0 r+1>0)
-        | greater q>0 =>
-          \have | (inP (r,xUr,qr<1)) => f q>0
-                | (inP (r',xUr',r'<r)) => x.U-rounded xUr
-                | r'/=0 => RatField.>_/= (x.LU-less x>0 xUr')
-          \in inP ((q *' r) *' finv r', \lam _ => inP (r', xUr', transportInv (`< 1) (*-assoc *> pmap (_ *') (RatField.finv-left r'/=0) *> ide-right) qr<1), transport (`< _) (*-assoc *> pmap (q *') (finv-right r'/=0) *> ide-right) $ RatField.<_*_positive-left (RatField.<_*_positive-right q>0 r'<r) $ RatField.finv>0 $ x.LU-less x>0 xUr')
-      }
-      | U q => ∃ (r : x.L) (1 < q *' r) (0 < q)
-      | U-closed (inP (r,xLr,qr>1,q>0)) q<q' => inP (r, xLr, <-transitive qr>1 $ RatField.<_*_positive-left q<q' $ \case dec<_<= 0 r \with {
-        | inl r>0 => r>0
-        | inr r<=0 => absurd $ <-irreflexive $ <-transitive qr>1 $ <-transitive-right (RatField.<=_*_positive_negative (<=-less q>0) r<=0) zro<ide
-      }, <-transitive q>0 q<q')
-      | U-rounded {q} (inP (r,xLr,qr>1,q>0)) => TruncP.map (x.L-rounded xLr) $ \lam (r',xLr',r<r') =>
-                                                                                   \have | r>0 : 0 < r => \case dec<_<= 0 r \with {
-                                                                                     | inl r>0 => r>0
-                                                                                     | inr r<=0 => absurd $ <-irreflexive $ <-transitive-left (<-transitive zro<ide qr>1) $ RatField.<=_*_positive_negative (<=-less q>0) r<=0
-                                                                                   }
-                                                                                         | r'>0 => <-transitive r>0 r<r'
-                                                                                         | r'/=0 => RatField.>_/= r'>0
-                                                                                   \in (q *' r *' finv r', inP (r', xLr', transportInv (1 <) (*-assoc *> pmap (_ *') (RatField.finv-left r'/=0) *> ide-right) qr>1, RatField.<_*_positive_positive (RatField.<_*_positive_positive q>0 r>0) $ RatField.finv>0 r'>0), transport (_ <) (*-assoc *> pmap (q *') (finv-right r'/=0) *> ide-right) $ RatField.<_*_positive-left (RatField.<_*_positive-right q>0 r<r') $ RatField.finv>0 r'>0)
-      | LU-disjoint f (inP (s,xLs,qs>1,q>0)) => \case f q>0 \with {
-        | inP (r,xUr,qr<1) => <-irreflexive $ <-transitive qs>1 $ <-transitive (RatField.<_*_positive-right q>0 $ x.LU-less xLs xUr) qr<1
-      }
-      | LU-focus => {?}
+\lemma real_<_L {a : Rat} {x : Real} (p : (a : Real) < x) : x.L a \elim p
+  | inP (b,a<b,b<x) => L-closed b<x a<b
 
-    {-
-    \lemma L-product-lem (x y : Real) (q : Rat) (p : ∃ (a : x.L) (b : x.U) (c : y.L) (d : y.U) (q <= a *' c) (q <= a *' d) (q <= b *' c) (q <= b *' d))
-      : ∃ (a : x.L) (b : x.U) (c : y.L) (d : y.U) (q < a *' c) (q < a *' d) (q < b *' c) (q < b *' d) \elim p
-      | inP (a,xLa,b,xUb,c,yLc,d,yUd,q<=ac,q<=ad,q<=bc,q<=bd) => \case dec<_<= a 0, dec<_<= c 0 \with {
-        | inl a<0, inl c<0 => \case dec<_<= 0 b, dec<_<= 0 d \with {
-          | inl b>0, inl d>0 =>
-            \have | (inP (b1,xUb1,b1<b)) => x.U-rounded xUb
-                  | (inP (d1,yUd1,d1<d)) => y.U-rounded yUd
-                  | q<0 => <-transitive-right q<=bc $ RatField.<_*_positive_negative b>0 c<0
-            \in inP (a, xLa, b1 ∨ 0, x.U_<= xUb1 join-left, c, yLc, d1 ∨ 0, y.U_<= yUd1 join-left,
-                     <-transitive q<0 $ RatField.<_*_negative_negative a<0 c<0,
-                     <-transitive-right q<=ad $ RatField.<_*_negative-right a<0 (<_join-univ d1<d d>0),
-                     <-transitive-right q<=bc $ RatField.<_*_negative-left (<_join-univ b1<b b>0) c<0,
-                     <-transitive-left q<0 $ <=_*_positive_positive join-right join-right)
-          | _, inr d<=0 => TruncP.map (aux2 yLc yUd xLa xUb (transport (q <=) *-comm q<=ac) (transport (q <=) *-comm q<=bc) (transport (q <=) *-comm q<=ad) (transport (q <=) *-comm q<=bd) c<0 a<0 d<=0) $
-            \lam (a,yLa,b,yUb,c,xLc,d,xUd,q<ac,q<ad,q<bc,q<bd) => (c,xLc,d,xUd,a,yLa,b,yUb, transport (q <) *-comm q<ac, transport (q <) *-comm q<bc, transport (q <) *-comm q<ad, transport (q <) *-comm q<bd)
-          | inr b<=0, _ => aux2 xLa xUb yLc yUd q<=ac q<=ad q<=bc q<=bd a<0 c<0 b<=0
-        }
-        | _, inr c>=0 => TruncP.map (aux yLc yUd xLa xUb (transport (q <=) *-comm q<=ac) (transport (q <=) *-comm q<=bc) (transport (q <=) *-comm q<=ad) (transport (q <=) *-comm q<=bd) c>=0) $
-            \lam (a,yLa,b,yUb,c,xLc,d,xUd,q<ac,q<ad,q<bc,q<bd) => (c,xLc,d,xUd,a,yLa,b,yUb, transport (q <) *-comm q<ac, transport (q <) *-comm q<bc, transport (q <) *-comm q<ad, transport (q <) *-comm q<bd)
-        | inr a>=0, _ => aux xLa xUb yLc yUd q<=ac q<=ad q<=bc q<=bd a>=0
-      }
-      \where {
-        \lemma aux {x y : Real} {q : Rat} {a : Rat} (xLa : x.L a) {b : Rat} (xUb : x.U b) {c : Rat} (yLc : y.L c) {d : Rat} (yUd : y.U d)
-                   (q<=ac : q <= a *' c) (q<=ad : q <= a *' d) (q<=bc : q <= b *' c) (q<=bd : q <= b *' d) (a>=0 : 0 <= a)
-          : ∃ (a : x.L) (b : x.U) (c : y.L) (d : y.U) (q < a *' c) (q < a *' d) (q < b *' c) (q < b *' d) =>
-          \let | (inP (c2,yLc2,c<c2)) => y.L-rounded yLc
-               | d2 => d +' 1
-               | d<d2 : d < d2 => linarith
-               | yUd2 => y.U-closed yUd d<d2
-          \in \case <=-dec a>=0 \with {
-            | inl a>0 =>
-              \have b>0 => <-transitive a>0 (x.LU-less xLa xUb)
-              \in inP (a, xLa, b, xUb, c2, yLc2, d2, yUd2,
-                       <-transitive-right q<=ac $ <_*_positive-right a>0 c<c2,
-                       <-transitive-right q<=ad $ <_*_positive-right a>0 d<d2,
-                       <-transitive-right q<=bc $ <_*_positive-right b>0 c<c2,
-                       <-transitive-right q<=bd $ <_*_positive-right b>0 d<d2)
-            | inr a=0 =>
-              \have b>0 => transportInv (`< _) a=0 (x.LU-less xLa xUb)
-              \in \case dec<_<= c 0 \with {
-                | inl c<0 =>
-                  \have q<0 => <-transitive-right q<=bc $ RatField.<_*_positive_negative b>0 c<0
-                  \in inP (a, xLa, b, xUb, c2, yLc2, d2, yUd2,
-                           transportInv (q <) (pmap (`*' _) (inv a=0) *> RatField.zro_*-left) q<0,
-                           transportInv (q <) (pmap (`*' _) (inv a=0) *> RatField.zro_*-left) q<0,
-                           <-transitive-right q<=bc $ <_*_positive-right b>0 c<c2,
-                           <-transitive-right q<=bd $ <_*_positive-right b>0 d<d2)
-                | inr c>=0 =>
-                  \let | b2 => b +' 1
-                       | b<b2 : b < b2 => linarith
-                       | d>0 => <-transitive-right c>=0 (y.LU-less yLc yUd)
-                       | (inP (a2,xLa2,a<a2)) => x.L-rounded xLa
-                  \in inP (a2, xLa2, b2, x.U-closed xUb b<b2, c2, yLc2, d, yUd,
-                           <-transitive-right q<=ac $ transport (`< _) (later $ rewriteI a=0 $ RatField.zro_*-left *> inv RatField.zro_*-left) (<_*_positive-left a<a2 (<-transitive-right c>=0 c<c2)),
-                           <-transitive-right q<=ad $ <_*_positive-left a<a2 d>0,
-                           <-transitive-right q<=bc $ <-transitive (<_*_positive-right b>0 c<c2) (<_*_positive-left b<b2 (<-transitive-right c>=0 c<c2)),
-                           <-transitive-right q<=bd $ <_*_positive-left b<b2 d>0)
-              }
-          }
+\lemma real_<_U {a : Rat} {x : Real} (p : x < a) : x.U a \elim p
+  | inP (b,x<b,b<a) => U-closed x<b b<a
 
-        \lemma aux2 {q : Rat} {x y : Real} {a : Rat} (xLa : x.L a) {b : Rat} (xUb : x.U b) {c : Rat} (yLc : y.L c) {d : Rat} (yUd : y.U d)
-                    (q<=ac : q <= a *' c) (q<=ad : q <= a *' d) (q<=bc : q <= b *' c) (q<=bd : q <= b *' d) (a<0 : a < 0) (c<0 : c < 0) (b<=0 : b <= 0)
-          : ∃ (a : x.L) (b : x.U) (c : y.L) (d : y.U) (q < a *' c) (q < a *' d) (q < b *' c) (q < b *' d) =>
-            \let | a1 => a - 1
-                 | a1<a : a1 < a => linarith
-                 | xLa1 => x.L-closed xLa a1<a
-                 | (inP (b1,xUb1,b1<b)) => x.U-rounded xUb
-                 | c1 => c - 1
-                 | c1<c : c1 < c => linarith
-                 | yLc1 => y.L-closed yLc c1<c
-                 | (inP (d1,yUd1,d1<d)) => y.U-rounded yUd
-            \in \case dec<_<= 0 d \with {
-              | inl d>0 =>
-                \have q<0 : q < 0 => <-transitive-right q<=ad $ RatField.<_*_negative_positive a<0 d>0
-                \in inP (a,xLa,b,xUb,c1,yLc1,d1,yUd1,
-                         <-transitive-right q<=ac $ RatField.<_*_negative-right a<0 c1<c,
-                         <-transitive-right q<=ad $ RatField.<_*_negative-right a<0 d1<d,
-                         <-transitive-left q<0 $ RatField.<=_*_negative_negative b<=0 $ <=-less (<-transitive c1<c c<0),
-                         \case <=-dec b<=0 \with {
-                           | inl b<0 => <-transitive-right q<=bd (RatField.<_*_negative-right b<0 d1<d)
-                           | inr b=0 => rewrite (b=0,RatField.zro_*-left) q<0
-                         })
-              | inr d<=0 => inP (a1,xLa1,b1,xUb1,c1,yLc1,d1,yUd1,
-                  <-transitive-right q<=ac $ <-transitive (RatField.<_*_negative-right a<0 c1<c) (RatField.<_*_negative-left a1<a (<-transitive c1<c c<0)),
-                  <-transitive-right q<=ad $ <-transitive (RatField.<_*_negative-right a<0 d1<d) (RatField.<_*_negative-left a1<a (<-transitive-left d1<d d<=0)),
-                  <-transitive-right q<=bc $ <-transitive (RatField.<_*_negative-left b1<b c<0) (RatField.<_*_negative-right (<-transitive-left b1<b b<=0) c1<c),
-                  <-transitive-right q<=bd $ <-transitive-right (RatField.<=_*_negative-left (<=-less b1<b) d<=0) (RatField.<_*_negative-right (<-transitive-left b1<b b<=0) d1<d))
-            }
-      }
+\lemma real_L_< {a : Rat} {x : Real} (a<x : x.L a) : (a : Real) < x
+  => \case L-rounded a<x \with {
+    | inP (b,b<x,a<b) => inP (b, a<b, b<x)
+  }
 
-    \lemma U-product-lem (x y : Real) (q : Rat) (p : ∃ (a : x.L) (b : x.U) (c : y.L) (d : y.U) (a *' c <= q) (a *' d <= q) (b *' c <= q) (b *' d <= q))
-      : ∃ (a : x.L) (b : x.U) (c : y.L) (d : y.U) (a *' c < q) (a *' d < q) (b *' c < q) (b *' d < q) \elim p
-      | inP (a,xLa,b,xUb,c,yLc,d,yUd,ac<=q,ad<=q,bc<=q,bd<=q) =>
-        TruncP.map (L-product-lem (negative x) y (negative' q) (inP
-          (negative' b, transportInv x.U negative-isInv xUb,
-           negative' a, transportInv x.L negative-isInv xLa,
-           c, yLc, d, yUd,
-           rewrite Ring.negative_*-left $ RatField.negative_<= bc<=q,
-           rewrite Ring.negative_*-left $ RatField.negative_<= bd<=q,
-           rewrite Ring.negative_*-left $ RatField.negative_<= ac<=q,
-           rewrite Ring.negative_*-left $ RatField.negative_<= ad<=q))) $
-        \lam (a,xU-a,b,xL-b,c,yLc,d,yUd,-q<ac,-q<ad,-q<bc,-q<bd) => (negative' b, xL-b, negative' a, xU-a, c, yLc, d, yUd,
-          transportInv (`< q) Ring.negative_*-left $ RatField.negative_<-left -q<bc,
-          transportInv (`< q) Ring.negative_*-left $ RatField.negative_<-left -q<bd,
-          transportInv (`< q) Ring.negative_*-left $ RatField.negative_<-left -q<ac,
-          transportInv (`< q) Ring.negative_*-left $ RatField.negative_<-left -q<ad)
-     -}
+\lemma real_U_< {a : Rat} {x : Real} (x<a : x.U a) : x < a
+  => \case U-rounded x<a \with {
+    | inP (b,x<b,b<a) => inP (b, x<b, b<a)
   }

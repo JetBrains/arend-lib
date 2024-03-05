@@ -84,18 +84,34 @@
   }
   | isMinFilter p q => q \lam GU => p GU \lam c => c
 
-\lemma minCauchyFilter_CF~ {S : CoverSpace} {F : CauchyFilter S} : minCF F CF~ F
-  => CF~_<= {_} {minCF F} \lam u => u <=-refl
+\lemma minCF_<= {S : CoverSpace} {F : CauchyFilter S} : minCF F ⊆ F
+  => \lam u => u <=-refl
 
 \record RegularCauchyFilter \extends MinCauchyFilter
-  | isRegularCauchyFilter {U : Set S} : F U -> ∃ (V : Set S) (V <=< U) (F V)
-  | isMinFilter {G} p FU => \case isRegularCauchyFilter FU \with {
+  | isRegularFilter {U : Set S} : F U -> ∃ (V : Set S) (V <=< U) (F V)
+  | isMinFilter {G} p FU => \case isRegularFilter FU \with {
     | inP (V,V<=<U,FV) => CF~_<=< {_} {_} {G} (CF~-sym {_} {G} $ CF~_<= {S} p) V<=<U FV
   }
   \where {
     \lemma equality {S : CoverSpace} {F G : RegularCauchyFilter S} (p : F CF~ G) : F = G
       => exts (MinCauchyFilter.equiv p)
   }
+
+\func regCF {S : OmegaRegularCoverSpace} (F : CauchyFilter S) : RegularCauchyFilter S \cowith
+  | F U => ∃ (V : F.F) (V <=<o U)
+  | filter-mono U<=V (inP (W,FW,W<=<oU)) => inP (W, FW, <=<o-left W<=<oU U<=V)
+  | filter-top => inP (top, filter-top, <=<o_top)
+  | filter-meet (inP (W,FW,W<=<oU)) (inP (W',FW',W'<=<oV)) => inP (W ∧ W', filter-meet FW FW', <=<o_meet W<=<oU W'<=<oV)
+  | isProper (inP (V,FV,V<=<oU)) => TruncP.map (isProper FV) \lam (x,Vx) => (x, <=<_<= (<=<o_<=< V<=<oU) Vx)
+  | isCauchyFilter Cc => \case F.isCauchyFilter (isOmegaRegular Cc) \with {
+    | inP (U, inP (V, CV, U<=<oV), FU) => inP (V, CV, inP (U, FU, U<=<oV))
+  }
+  | isRegularFilter (inP (V,FV,V<=<oU)) => \case <=<o-inter V<=<oU \with {
+    | inP (W,V<=<oW,W<=<U) => inP (W, W<=<U, inP (V, FV, V<=<oW))
+  }
+
+\lemma regCF_<= {S : OmegaRegularCoverSpace} {F : CauchyFilter S} : regCF F ⊆ F
+  => \lam (inP (V,FV,V<=<oU)) => filter-mono (<=<_<= (<=<o_<=< V<=<oU)) FV
 
 \func pointCF {S : CoverSpace} (x : S) : RegularCauchyFilter S \cowith
   | F U => single x <=< U
@@ -104,7 +120,7 @@
   | filter-meet p q => <=<-right (meet-univ <=-refl <=-refl) (<=<_meet p q)
   | isProper p => inP (x, <=<_<= p idp)
   | isCauchyFilter c => S.cauchy-regular-cover c x
-  | isRegularCauchyFilter p => unfolds at p $ \case S.cauchy-regular-cover (isRegular p) x \with {
+  | isRegularFilter p => unfolds at p $ \case S.cauchy-regular-cover (isRegular p) x \with {
     | inP (V, inP (W, f, V<=<W), x<=<V) => inP (V, <=<-left V<=<W $ f (x, (idp, <=<_<= V<=<W $ <=<_<= x<=<V idp)), x<=<V)
   }
 
@@ -222,6 +238,11 @@
     | inP (y,q) => inP (y, MinCauchyFilter.Min_CF~_<= {_} {pointCF y} $ ~-transitive {_} {pointCF y} (CF~_<= {_} {pointCF y} $ q <=∘ CF-map_<= (minCF $ dense-filter-lift f fd F) (dense-filter-lift f fd F) \lam u => u <=-refl) $ dense-filter-lift.map-equiv fd)
   }
 
+\lemma dense-regular-complete {X : OmegaRegularCoverSpace} {Y : CoverSpace} {f : CoverMap X Y} (fd : f.IsDenseEmbedding) (p : \Pi (F : RegularCauchyFilter X) -> ∃ (y : Y) (pointCF y ⊆ CF-map f F)) : IsCompleteCoverSpace Y
+  => dense-complete fd \lam F => \case p (regCF F) \with {
+    | inP (y,q) => inP (y, q <=∘ CF-map_<= (regCF F) F regCF_<=)
+  }
+
 \instance CompletionCoverSpace (S : CoverSpace) : CompleteCoverSpace (MinCauchyFilter S)
   | CoverSpace => coverSpace
   | isSeparatedCoverSpace p => MinCauchyFilter.equality \lam Cc => \case p (mkCover-cauchy Cc) \with {
@@ -261,7 +282,7 @@
           \have | (inP (V,CV,p)) => g EU
                 | (inP (W,DW,q)) => f CV
           \in inP (W, DW, p <=∘ q))
-      | cauchy-trans {C} {D} (inP (C',C'c,f)) Dc => inP (_, S.cauchy-trans {C'} {\lam U' V' => ∃ (U : C) (V : D U) (mkSet U' ⊆ U) (mkSet V' ⊆ V)} C'c \lam {U'} C'U' =>
+      | cauchy-trans {C} (inP (C',C'c,f)) {D} Dc => inP (_, cauchy-trans C'c {\lam U' V' => ∃ (U : C) (V : D U) (mkSet U' ⊆ U) (mkSet V' ⊆ V)} \lam {U'} C'U' =>
           \have | (inP (U,CU,U'<=U)) => f C'U'
                 | (inP (D',D'c,g)) => Dc CU
           \in cauchy-extend D'c \lam {V'} D'V' => \case g D'V' \with {
