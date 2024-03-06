@@ -151,6 +151,15 @@
       })
   }
 
+\instance ProductSeparatedCoverSpace (X Y : SeparatedCoverSpace) : SeparatedCoverSpace (\Sigma X Y)
+  | CoverSpace => ProductCoverSpace X Y
+  | isSeparatedCoverSpace p => ext (
+      isSeparatedCoverSpace \lam Cc => \case p (ProductCoverSpace.proj1.func-cover Cc) \with {
+        | inP (U, inP (V,CV,q), s) => inP (V, CV, rewriteF q s)
+      }, isSeparatedCoverSpace \lam Cc => \case p (ProductCoverSpace.proj2.func-cover Cc) \with {
+        | inP (U, inP (V,CV,q), s) => inP (V, CV, rewriteF q s)
+      })
+
 \lemma embedding-inj {X : SeparatedCoverSpace} {Y : PrecoverSpace} {f : CoverMap X Y} (fe : f.IsEmbedding) : isInj f
   => \lam {x} {y} p => isSeparatedCoverSpace \lam Cc => \case cauchy-cover (fe Cc) (f y) \with {
     | inP (V, inP (U,CU,q), Vfy) => inP (U, CU, (q $ unfolds $ rewrite p Vfy, q Vfy))
@@ -233,6 +242,11 @@
   | func-cover Dc => cauchy-extend (isRegular $ fd.2 $ g.func-cover $ isRegular Dc) $ \lam {V'} (inP (V, inP (U, inP (W', inP (W, DW, W'<=<W), p), q), V'<=<V)) =>
                       inP (_, inP (W, DW, idp), \lam {y} V'y => <=<_<= (Z.filter-point-elem W'<=<W $ inP $ later (V, rewriteF p q, <=<-right (single_<= V'y) V'<=<V)) idp)
 
+\lemma dense-lift-char {X Y : CoverSpace} {Z : CompleteCoverSpace} {f : CoverMap X Y} {fd : f.IsDenseEmbedding} {g : CoverMap X Z} (x : X) : dense-lift f fd g (f x) = g x
+  => isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 4 6 $ later \case CompleteCoverSpace.filter-point-sub __ \with {
+    | inP (V,p,q) => p $ <=<_<= q idp
+  }
+
 \lemma dense-complete {X Y : CoverSpace} {f : CoverMap X Y} (fd : f.IsDenseEmbedding) (p : \Pi (F : MinCauchyFilter X) -> ∃ (y : Y) (pointCF y ⊆ CF-map f F)) : IsCompleteCoverSpace Y
   => \lam F => \case p $ minCF $ dense-filter-lift f fd F \with {
     | inP (y,q) => inP (y, MinCauchyFilter.Min_CF~_<= {_} {pointCF y} $ ~-transitive {_} {pointCF y} (CF~_<= {_} {pointCF y} $ q <=∘ CF-map_<= (minCF $ dense-filter-lift f fd F) (dense-filter-lift f fd F) \lam u => u <=-refl) $ dense-filter-lift.map-equiv fd)
@@ -243,12 +257,12 @@
     | inP (y,q) => inP (y, q <=∘ CF-map_<= (regCF F) F regCF_<=)
   }
 
-\instance CompletionCoverSpace (S : CoverSpace) : CompleteCoverSpace (MinCauchyFilter S)
+\instance Completion (S : CoverSpace) : CompleteCoverSpace (MinCauchyFilter S)
   | CoverSpace => coverSpace
   | isSeparatedCoverSpace p => MinCauchyFilter.equality \lam Cc => \case p (mkCover-cauchy Cc) \with {
     | inP (_, inP (U,CU,idp), r) => inP (U,CU,r)
   }
-  | isCompleteCoverSpace => dense-complete completionCoverSpace.isDenseEmbedding \lam F => inP (F, completionCoverSpace.dense-aux {_} {F} __)
+  | isCompleteCoverSpace => dense-complete completion.isDenseEmbedding \lam F => inP (F, completion.dense-aux {_} {F} __)
   \where {
     \func mkSet (U : Set S) : Set (MinCauchyFilter S)
       => \lam F => F U
@@ -298,7 +312,7 @@
         })
   }
 
-\func completionCoverSpace (S : CoverSpace) : CoverMap S CompletionCoverSpace.coverSpace \cowith
+\func completion {S : CoverSpace} : CoverMap S Completion.coverSpace \cowith
   | func => pointCF
   | func-cover (inP (C,Cc,f)) => cauchy-extend (isRegular Cc)
       \case \elim __ \with {
@@ -307,12 +321,38 @@
         }
       }
   \where {
-    \protected \lemma dense-aux {F : MinCauchyFilter S} {V : Set (MinCauchyFilter S)} (r : single F <=< {CompletionCoverSpace.coverSpace} V) : F \lam x => V (completionCoverSpace S x) \elim r
+    \protected \lemma dense-aux {F : MinCauchyFilter S} {V : Set (MinCauchyFilter S)} (r : single F <=< {Completion.coverSpace} V) : F \lam x => V (completion x) \elim r
       | inP (C,Cc,f) =>
         \have | (inP (U', inP (U, CU, U'<=<U), FU')) => isCauchyFilter {F} (isRegular Cc)
               | (inP (W,g,U<=W)) => f CU
         \in filter-mono (\lam U'x => g (F, (idp, U<=W $ filter-mono (<=<_<= U'<=<U) FU')) $ U<=W $ <=<-right (single_<= U'x) U'<=<U) FU'
 
-    \lemma isDenseEmbedding : CoverMap.IsDenseEmbedding {completionCoverSpace S}
-      => (\lam r => isProper (dense-aux r), \lam {C} Cc => inP (C, Cc, \lam {U} CU => inP (CompletionCoverSpace.mkSet U, inP (U, CU, <=<_<= __ idp), <=-refl)))
+    \lemma isDenseEmbedding : completion.IsDenseEmbedding
+      => (\lam r => isProper (dense-aux r), \lam {C} Cc => inP (C, Cc, \lam {U} CU => inP (Completion.mkSet U, inP (U, CU, <=<_<= __ idp), <=-refl)))
   }
+
+\func completion-lift {X : CoverSpace} {Z : CompleteCoverSpace} (g : CoverMap X Z) : CoverMap (Completion X) Z
+  => dense-lift completion completion.isDenseEmbedding g
+
+\lemma completion-lift-char {X : CoverSpace} {Z : CompleteCoverSpace} {g : CoverMap X Z} (x : X) : completion-lift g (pointCF x) = g x
+  => dense-lift-char {_} {_} {_} {completion} {completion.isDenseEmbedding} x
+
+\lemma completion-lift-unique {X : CoverSpace} {Z : SeparatedCoverSpace} (g h : CoverMap (Completion X) Z) (p : \Pi (x : X) -> g (pointCF x) = h (pointCF x)) (y : Completion X) : g y = h y
+  => dense-lift-unique completion completion.isDenseEmbedding.1 g h p y
+
+\lemma complete-char {X : CoverSpace} : TFAE (
+    {- 0 -} CompleteCoverSpace { | CoverSpace => X },
+    {- 1 -} ∃ (g : CoverMap (Completion X) X) (\Pi (x : X) -> g (pointCF x) = x),
+    {- 2 -} ∃ (g : CoverMap (Completion X) X) (\Pi (x : X) -> g (pointCF x) = x) (\Pi (y : Completion X) -> pointCF (g y) = y)
+  ) => TFAE.cycle (
+    \lam c => inP (completion-lift {_} {c} CoverMap.id, completion-lift-char),
+    TruncP.map __ \lam (g,p) => (g, p, completion-lift-unique (completion CoverMap.∘ g) CoverMap.id \lam x => pmap pointCF (p x)),
+    \lam (inP (g,p,q)) => \new CompleteCoverSpace {
+      | isSeparatedCoverSpace {x} {y} c => inv (p x) *> pmap g (SeparatedCoverSpace.separated-char 6 2 c) *> p y
+      | isCompleteCoverSpace F => inP (g F, transportInv {MinCauchyFilter X} (`⊆ F) (q F) <=-refl)
+    })
+
+\instance ProductCompleteCoverSpace (X Y : CompleteCoverSpace) : CompleteCoverSpace (\Sigma X Y)
+  => complete-char 1 0 $ inP (tuple (completion-lift proj1) (completion-lift proj2),
+                              \lam s => ext (completion-lift-char s, completion-lift-char s))
+  \where \open ProductCoverSpace

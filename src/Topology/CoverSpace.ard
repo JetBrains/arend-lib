@@ -1,7 +1,9 @@
+\import Data.Bool
 \import Function.Meta
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Operations
 \import Order.Lattice
 \import Order.PartialOrder
 \import Paths
@@ -42,6 +44,9 @@
   : isCauchy (\lam U => ∃ (V W : Set X) (C V) (D W) (U = V ∧ W))
   => cauchy-trans Cc \lam _ => Dc
 
+\func IsDenseSet {X : PrecoverSpace} (S : Set X) : \Prop
+  => \Pi {x : X} {U : Set X} -> single x <=< U -> ∃ (y : S) (U y)
+
 \record CoverMap \extends ContMap {
   \override Dom : PrecoverSpace
   \override Cod : PrecoverSpace
@@ -66,8 +71,27 @@
   \func IsDense : \Prop
     => \Pi {y : Cod} {U : Set Cod} -> single y <=< U -> ∃ (x : Dom) (U (func x))
 
+  \lemma dense-char : IsDense <-> IsDenseSet (\lam y => ∃ (x : Dom) (func x = y))
+    => (\lam d p => TruncP.map (d p) \lam s => (func s.1, inP (s.1, idp), s.2), \lam d p => \case d p \with {
+      | inP (_, inP (x,idp), Ufx) => inP (x, Ufx)
+    })
+
   \func IsDenseEmbedding : \Prop
     => \Sigma IsDense IsEmbedding
+} \where {
+  \func id {X : PrecoverSpace} : CoverMap X X \cowith
+    | func x => x
+    | func-cover Dc => cauchy-subset Dc \lam {U} DU => inP $ later (U, DU, idp)
+
+  \func compose \alias \infixl 8 ∘ {X Y Z : PrecoverSpace} (g : CoverMap Y Z) (f : CoverMap X Y) : CoverMap X Z \cowith
+    | func x => g (f x)
+    | func-cover Dc => cauchy-subset (f.func-cover $ g.func-cover Dc) \lam (inP (V, inP (W,DW,q), p)) => inP $ later (W, DW, p *> rewrite q idp)
+
+  \func const {Y X : PrecoverSpace} (x : X) : CoverMap Y X \cowith
+    | func _ => x
+    | func-cover Dc => top-cauchy \case cauchy-cover Dc x \with {
+      | inP (U,DU,Ux) => inP $ later (U, DU, ext \lam y => ext (\lam _ => Ux, \lam _ => ()))
+    }
 }
 
 \type \infix 4 <=< {X : PrecoverSpace} (V U : Set X) : \Prop
@@ -79,7 +103,7 @@
   }
 
 \lemma <=<-left {X : PrecoverSpace} {W V U : Set X} (p : W <=< V) (q : V ⊆ U) : W <=< U
-  => unfolds at p $ cauchy-subset p \lam {Z} f t => f t <=∘ q
+  => unfolds at p $ cauchy-subset p \lam f t => f t <=∘ q
 
 \lemma <=<-right {X : PrecoverSpace} {W V U : Set X} (p : W ⊆ V) (q : V <=< U) : W <=< U
   => unfolds at q $ cauchy-subset q $ later \lam {Z} f (x,(Wx,Zx)) => f (x, (p Wx, Zx))
@@ -171,6 +195,19 @@
       | inP (U, inP (V, CV, U<=<V), Ux) => inP (V, CV, <=<-right (single_<= Ux) U<=<V)
     }
 }
+
+\lemma <=<-inter {X : CoverSpace} {x : X} {U : Set X} (x<=<U : single x <=< U) : ∃ (V : Set X) (single x <=< V) (V <=< U)
+  => \case X.cauchy-regular-cover (isRegular x<=<U) x \with {
+    | inP (V, inP (U', f, V<=<U'), x<=<V) => inP (V, x<=<V, <=<-left V<=<U' $ f (x, (idp, <=<_<= V<=<U' $ <=<_<= x<=<V idp)))
+  }
+
+\lemma dense-char {X : CoverSpace} {S : Set X} : IsDenseSet S <-> ∀ {C : isCauchy} (isCauchy \lam V => ∃ (U : C) (V ⊆ U) (Given V -> ∃ (x : S) (U x)))
+  => (\lam d Cc => cauchy-subset (isRegular Cc) \lam (inP (V,CV,U<=<V)) => inP $ later (V, CV, <=<_<= U<=<V, \lam (x,Ux) => d $ <=<-right (single_<= Ux) U<=<V),
+      \lam d {x} {U} x<=<U => \case cauchy-cover (d x<=<U) x \with {
+        | inP (V, inP (W,f,V<=W,g), Vx) => \case g (x,Vx) \with {
+          | inP (y,Sy,Wy) => inP (y, Sy, f (x, (idp, V<=W Vx)) Wy)
+        }
+      })
 
 \class OmegaRegularCoverSpace \extends CoverSpace
   | isOmegaRegular {C : Set (Set E)} : isCauchy C -> isCauchy \lam V => ∃ (U : C) (V <=<o U)
@@ -278,12 +315,12 @@
                     \lam (inP (V,DV,q)) => cauchy-subset (closure-univ-cover {X} {A} Ap (g DV)) \lam (inP (V',EVV',r)) => inP $ later (V, q, DV, V', EVV', r)
         \in cauchy-subset t \lam (inP (W, W', _, inP (V2,p2,DV2,V2',EV2V2',p2'), U=WW')) => inP $ later $ rewrite p (_, inP (V2, V2', DV2, EV2V2', idp), U=WW' *> pmap2 (∧) p2 p2')
 
-    \lemma closure-univ {Y : PrecoverSpace} (f : Y -> X) (Ap : ∀ {C : A} (isCauchy \lam U => ∃ (V : Set X) (C V) (U = f ^-1 V))) : CoverMap Y (ClosurePrecoverSpace A CA) f \cowith
-      | func-cover => closure-univ-cover {X} {A} Ap
+    \lemma closure-univ {S : PrecoverSpace X} {Y : PrecoverSpace} (AS : \Pi {C : Set (Set X)} -> isCauchy C -> Closure A C) (f : Y -> X) (Ap : ∀ {C : A} (isCauchy \lam U => ∃ (V : Set X) (C V) (U = f ^-1 V))) : CoverMap Y S f \cowith
+      | func-cover Cc => closure-univ-cover Ap (AS Cc)
 
-    \lemma closure-embedding {Y : PrecoverSpace} (f : CoverMap (ClosurePrecoverSpace A CA) Y)
+    \lemma closure-embedding {S : PrecoverSpace X} {Y : PrecoverSpace} (AS : \Pi {C : Set (Set X)} -> isCauchy C -> Closure A C) (f : CoverMap S Y)
                              (p : \Pi {C : Set (Set X)} -> A C -> isCauchy \lam V => ∃ (U : C) (f ^-1 V ⊆ U)) : f.IsEmbedding
-      => aux
+      => \lam CC => aux (AS CC)
       \where {
         \private \lemma aux {C : Set (Set X)} (CC : Closure A C) : isCauchy \lam V => ∃ (U : C) (f ^-1 V ⊆ U) \elim CC
           | closure AC => p AC
@@ -390,14 +427,52 @@
   | func-cover {D} Dc => CompleteLattice.SJoin-cond {CoverLattice X} {\lam A => A <= {PrecoverLattice X} X} {CoverTransfer f} PrecoverTransfer-char $
       inP (D, Dc, \lam {V} DV => inP (f ^-1 V, inP (V, DV, idp), <=-refl))
 
+\instance CoverSpaceHasProduct : HasProduct CoverSpace
+  | Product => ProductCoverSpace
+
+\open CoverMap
+
 \instance ProductCoverSpace (X Y : CoverSpace) : CoverSpace (\Sigma X Y)
   => CoverTransfer __.1 ∨ CoverTransfer __.2
   \where {
-    \func proj1 {X Y : CoverSpace} : CoverMap (ProductCoverSpace X Y) X \cowith
+    \func proj1 {X Y : CoverSpace} : CoverMap (X ⨯ Y) X \cowith
       | func s => s.1
       | func-cover Dc => join-left {CoverLattice (\Sigma X Y)} $ PrecoverTransfer-map.func-cover Dc
 
-    \func proj2 {X Y : CoverSpace} : CoverMap (ProductCoverSpace X Y) Y \cowith
+    \func proj2 {X Y : CoverSpace} : CoverMap (X ⨯ Y) Y \cowith
       | func s => s.2
       | func-cover Dc => join-right {CoverLattice (\Sigma X Y)} $ PrecoverTransfer-map.func-cover Dc
+
+    \func tuple {Z : PrecoverSpace} {X Y : CoverSpace} (f : CoverMap Z X) (g : CoverMap Z Y) : CoverMap Z (X ⨯ Y) \cowith
+      | func z => (f z, g z)
+      | func-cover => closure-univ-cover $ later \case \elim __ \with {
+        | byLeft p => top-cauchy $ inP $ later (top, rewrite p idp, idp)
+        | byRight (true, inP (D,Dc,h)) => cauchy-extend (f.func-cover Dc) \lam (inP (V,DV,p)) => \case h DV \with {
+          | inP (U',CU',q) => inP (_, inP (U',CU',idp), \lam Ux => q $ rewriteF p Ux)
+        }
+        | byRight (false, inP (D,Dc,h)) => cauchy-extend (g.func-cover Dc) \lam (inP (V,DV,p)) => \case h DV \with {
+          | inP (U',CU',q) => inP (_, inP (U',CU',idp), \lam Ux => q $ rewriteF p Ux)
+        }
+      }
+
+    \func prod {X Y X' Y' : CoverSpace} (f : CoverMap X Y) (g : CoverMap X' Y') : CoverMap (X ⨯ X') (Y ⨯ Y')
+      => tuple (f ∘ proj1) (g ∘ proj2)
+      \where {
+        \lemma isDense (fd : f.IsDense) (gd : g.IsDense) : IsDense {prod f g}
+          => \lam {(y,y')} yy'<=<U =>
+              \have | (inP (V,yy'<=<V,V<=<U)) => <=<-inter yy'<=<U
+                    | (inP (x,Vfxy')) => fd {y} $ transport (`<=< _) (ext \lam z => ext (pmap __.1, \lam p => ext (p, idp))) $ <=<_^-1 {Y} {Y ⨯ Y'} {tuple id (const y')} yy'<=<V
+                    | (inP (x',Ufxfx')) => gd {y'} $ transport (`<=< _) (ext \lam z => ext (pmap __.2, \lam p => ext (idp, p))) $ <=<_^-1 {Y'} {Y ⨯ Y'} {tuple (const (f x)) id} $ <=<-right (single_<= Vfxy') V<=<U
+              \in inP ((x,x'), Ufxfx')
+
+        \lemma isEmbedding (fe : f.IsEmbedding) (ge : g.IsEmbedding) : IsEmbedding {prod f g}
+          => closure-embedding (\lam c => c) (prod f g) \case \elim __ \with {
+            | byLeft p => top-cauchy {Y ⨯ Y'} $ inP $ later (top, rewrite p idp, top-univ)
+            | byRight (true, inP (D,Dc,f)) => closure $ byRight (true, inP (_, fe Dc, \lam (inP (U,DU,p)) => TruncP.map (f DU) \lam (W,CW,q) => (_, inP (W, CW, (\lam c => p c) <=∘ q), <=-refl)))
+            | byRight (false, inP (D,Dc,f)) => closure $ byRight (false, inP (_, ge Dc, \lam (inP (U,DU,p)) => TruncP.map (f DU) \lam (W,CW,q) => (_, inP (W, CW, (\lam c => p c) <=∘ q), <=-refl)))
+          }
+
+        \lemma isDenseEmbedding (fde : f.IsDenseEmbedding) (gde : g.IsDenseEmbedding) : IsDenseEmbedding {prod f g}
+          => (isDense fde.1 gde.1, isEmbedding fde.2 gde.2)
+      }
   }
