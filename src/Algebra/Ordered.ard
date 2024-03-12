@@ -9,6 +9,7 @@
 \import Function.Meta
 \import Logic
 \import Meta
+\import Order.Lattice
 \import Order.LinearOrder
 \import Order.StrictOrder
 \import Paths
@@ -113,17 +114,17 @@
     => transport (`< _) zro_*-right (<_*_negative-right x<0 y<0)
 
   \lemma <_*_positive_negative {x y : E} (x>0 : 0 < x) (y<0 : y < 0) : x * y < 0
-    => transport (< _) zro_*-right (<_*_positive-right x>0 y<0)
+    => transport (_ <) zro_*-right (<_*_positive-right x>0 y<0)
 
   \lemma <_*_negative_positive {x y : E} (x<0 : x < 0) (y>0 : 0 < y) : x * y < 0
-    => transport (< _) zro_*-left (<_*_positive-left x<0 y>0)
+    => transport (_ <) zro_*-left (<_*_positive-left x<0 y>0)
 }
 
-\class LinearlyOrderedSemiring \extends OrderedSemiring, LinearOrder {
+\class LinearlyOrderedSemiring \extends OrderedSemiring, LinearOrder, Lattice {
   | <_+-cancel-left (x : E) {y z : E} : x + y < x + z -> y < z
   | <_+-cancel-right (z : E) {x y : E} : x + z < y + z -> x < y
-  | <_*-cancel-left (x y z : E) : x * y < x * z -> (\Sigma (x > zro) (y < z)) || (\Sigma (x < zro) (y > z))
-  | <_*-cancel-right (x y z : E) : x * z < y * z -> (\Sigma (z > zro) (x < y)) || (\Sigma (z < zro) (x > y))
+  | <_*-cancel-left {x y z : E} : x * y < x * z -> (\Sigma (x > zro) (y < z)) || (\Sigma (x < zro) (y > z))
+  | <_*-cancel-right {x y z : E} : x * z < y * z -> (\Sigma (z > zro) (x < y)) || (\Sigma (z < zro) (x > y))
 
   \lemma <=_+ {a b c d : E} (a<=b : a <= b) (c<=d : c <= d) : a + c <= b + d
     => \case <-comparison (b + c) __ \with {
@@ -138,25 +139,25 @@
     => <-transitive-left (<_+-left b p) (<=_+ <=-refl q)
 
   \lemma <=_*_positive-left {x y z : E} (x<=y : x <= y) (z>=0 : 0 <= z) : x * z <= y * z
-    => \case <_*-cancel-right _ _ _ __ \with {
+    => \case <_*-cancel-right __ \with {
       | byLeft (_,y<x) => x<=y y<x
       | byRight (z<0,_) => z>=0 z<0
     }
 
   \lemma <=_*_positive-right {x y z : E} (x>=0 : 0 <= x) (y<=z : y <= z) : x * y <= x * z
-    => \case <_*-cancel-left _ _ _ __ \with {
+    => \case <_*-cancel-left __ \with {
       | byLeft (_,z<y) => y<=z z<y
       | byRight (x<0,_) => x>=0 x<0
     }
 
   \lemma <=_*_negative-left {x y z : E} (x<=y : x <= y) (z<=0 : z <= 0) : y * z <= x * z
-    => \case <_*-cancel-right _ _ _ __ \with {
+    => \case <_*-cancel-right __ \with {
       | byLeft (z>0,_) => z<=0 z>0
       | byRight (_,x>y) => x<=y x>y
     }
 
   \lemma <=_*_negative-right {x y z : E} (x<=0 : x <= 0) (y<=z : y <= z) : x * z <= x * y
-    => \case <_*-cancel-left _ _ _ __ \with {
+    => \case <_*-cancel-left __ \with {
       | byLeft (x>0,_) => x<=0 x>0
       | byRight (_,z<y) => y<=z z<y
     }
@@ -168,10 +169,34 @@
     => transport (`<= _) zro_*-right (<=_*_negative-right x<=0 y<=0)
 
   \lemma <=_*_positive_negative {x y : E} (x>=0 : 0 <= x) (y<=0 : y <= 0) : x * y <= 0
-    => transport (<= _) zro_*-right (<=_*_positive-right x>=0 y<=0)
+    => transport (_ <=) zro_*-right (<=_*_positive-right x>=0 y<=0)
 
   \lemma <=_*_negative_positive {x y : E} (x<=0 : x <= 0) (y>=0 : 0 <= y) : x * y <= 0
-    => transport (<= _) zro_*-left (<=_*_positive-left x<=0 y>=0)
+    => transport (_ <=) zro_*-left (<=_*_positive-left x<=0 y>=0)
+
+  \lemma <_*_positive-cancel-left {x y z : E} (x>=0 : 0 <= x) (p : x * y < x * z) : y < z
+    => \case <_*-cancel-left p \with {
+      | byLeft (_,r) => r
+      | byRight (x<0,_) => absurd (x>=0 x<0)
+    }
+
+  \lemma <_*_positive-cancel-right {x y z : E} (z>=0 : 0 <= z) (p : x * z < y * z) : x < y
+    => \case <_*-cancel-right p \with {
+      | byLeft (_,r) => r
+      | byRight (z<0,_) => absurd (z>=0 z<0)
+    }
+
+  \lemma <_*_negative-cancel-left {x y z : E} (x<=0 : x <= 0) (p : x * y < x * z) : z < y
+    => \case <_*-cancel-left p \with {
+      | byLeft (x>0,_) => absurd (x<=0 x>0)
+      | byRight (_,r) => r
+    }
+
+  \lemma <_*_negative-cancel-right {x y z : E} (z<=0 : z <= 0) (p : x * z < y * z) : y < x
+    => \case <_*-cancel-right p \with {
+      | byLeft (z>0,_) => absurd (z<=0 z>0)
+      | byRight (_,r) => r
+    }
 
   \lemma <_+-invert-right {a b c d : E} (p : b + d <= a + c) (q : c < d) : b < a
     => <_+-cancel-right c $ <-transitive-left (<_+-right b q) p
@@ -184,7 +209,7 @@
     | suc n, a :: l, a' :: l' => <=_+ (p 0) $ BigSum_<= \lam j => p (suc j)
 
   \lemma inv-positive (t : Inv {\this}) (p : t > 0) : t.inv > 0
-    => \case <_*-cancel-left t 0 t.inv (transport2 (<) (inv zro_*-right) (inv t.inv-right) zro<ide) \with {
+    => \case <_*-cancel-left (transport2 (<) (inv zro_*-right) (inv t.inv-right) zro<ide) \with {
       | byLeft q => q.2
       | byRight q => absurd (<-irreflexive (<-transitive p q.1))
     }
@@ -220,6 +245,56 @@
     | 0 => zro<ide
     | suc k => <_*_positive_positive (pow>0 p) p
 
+  \lemma meet/=left {a b : E} (p : a ∧ b /= a) : a ∧ b = b
+    => <=-antisymmetric meet-right $ meet-univ (\lam a<b => p $ <=-antisymmetric meet-left $ meet-univ <=-refl $ <_<= a<b) <=-refl
+
+  \lemma meet/=right {a b : E} (p : a ∧ b /= b) : a ∧ b = a
+    => rewrite meet-comm $ meet/=left $ later $ rewrite meet-comm p
+
+  \lemma meet_+-left {a b c : E} : a + b ∧ c = (a + b) ∧ (a + c)
+    => <=-antisymmetric (meet-univ (<=_+ <=-refl meet-left) (<=_+ <=-refl meet-right)) \lam p =>
+        \have t => meet/=left $ <_/= $ <_+-cancel-left a $ <-transitive-left p meet-left
+        \in meet-right $ rewriteF t p
+
+  \lemma meet_+-right {a b c : E} : a ∧ b + c = (a + c) ∧ (b + c)
+    => +-comm *> meet_+-left *> pmap2 (∧) +-comm +-comm
+
+  \lemma meet_*-left {a b c : E} (a>=0 : 0 <= a) : a * (b ∧ c) = (a * b) ∧ (a * c)
+    => <=-antisymmetric (meet-univ (<=_*_positive-right a>=0 meet-left) (<=_*_positive-right a>=0 meet-right))
+        \lam p => \have bc=b => meet/=right $ <_/= $ <_*_positive-cancel-left a>=0 $ <-transitive-left p meet-right
+                  \in <_/= (<_*_positive-cancel-left a>=0 $ <-transitive-left p meet-left) bc=b
+
+  \lemma meet_*-right {a b c : E} (c>=0 : 0 <= c) : (a ∧ b) * c = (a * c) ∧ (b * c)
+    => <=-antisymmetric (meet-univ (<=_*_positive-left meet-left c>=0) (<=_*_positive-left meet-right c>=0))
+        \lam p => \have ab=a => meet/=right $ <_/= $ <_*_positive-cancel-right c>=0 $ <-transitive-left p meet-right
+                  \in <_/= (<_*_positive-cancel-right c>=0 $ <-transitive-left p meet-left) ab=a
+
+  \lemma join/=left {a b : E} (p : a /= a ∨ b) : a ∨ b = b
+    => <=-antisymmetric (join-univ (\lam b<a => p $ <=-antisymmetric join-left (join-univ <=-refl $ <_<= b<a)) <=-refl) join-right
+
+  \lemma join/=right {a b : E} (p : b /= a ∨ b) : a ∨ b = a
+    => rewrite join-comm $ join/=left $ later $ rewrite join-comm p
+
+  \lemma join_+-left {a b c : E} : a + (b ∨ c) = (a + b) ∨ (a + c)
+    => <=-antisymmetric (\lam p =>
+        \have t => join/=left $ <_/= $ <_+-cancel-left a $ <-transitive-right join-left p
+        \in join-right $ rewriteF t p) $ join-univ (<=_+ <=-refl join-left) (<=_+ <=-refl join-right)
+
+  \lemma join_+-right {a b c : E} : (a ∨ b) + c = (a + c) ∨ (b + c)
+    => +-comm *> join_+-left *> pmap2 (∨) +-comm +-comm
+
+  \lemma join_*-left {a b c : E} (a>=0 : 0 <= a) : a * (b ∨ c) = (a * b) ∨ (a * c)
+    => <=-antisymmetric
+        (\lam p => \have bc=c => join/=left $ <_/= $ <_*_positive-cancel-left a>=0 $ <-transitive-right join-left p
+                   \in <_/= (<_*_positive-cancel-left a>=0 $ <-transitive-right join-right p) (inv bc=c)) $
+        join-univ (<=_*_positive-right a>=0 join-left) (<=_*_positive-right a>=0 join-right)
+
+  \lemma join_*-right {a b c : E} (c>=0 : 0 <= c) : (a ∨ b) * c = (a * c) ∨ (b * c)
+    => <=-antisymmetric
+        (\lam p => \have ab=b => join/=left $ <_/= $ <_*_positive-cancel-right c>=0 $ <-transitive-right join-left p
+                   \in <_/= (<_*_positive-cancel-right c>=0 $ <-transitive-right join-right p) (inv ab=b)) $
+        join-univ (<=_*_positive-left join-left c>=0) (<=_*_positive-left join-right c>=0)
+
   \class Dec \extends LinearlyOrderedSemiring, LinearOrder.Dec {
     | <_+-cancel-left x {y} {z} x+y<x+z => \case trichotomy y z \with {
       | equals y=z => absurd (<-irreflexive (rewriteF y=z x+y<x+z))
@@ -231,7 +306,7 @@
       | less x<y => x<y
       | greater x>y => absurd (<-irreflexive (<-transitive (<_+-left z x>y) x+z<y+z))
     }
-    | <_*-cancel-left x y z x*y<x*z => \case trichotomy x zro, trichotomy y z \with {
+    | <_*-cancel-left {x} {y} {z} x*y<x*z => \case trichotomy x zro, trichotomy y z \with {
       | equals x=0, _ => absurd (<-irreflexive (transport2 (<) zro_*-left zro_*-left (rewriteF x=0 x*y<x*z)))
       | _, equals y=z => absurd (<-irreflexive (rewriteF y=z x*y<x*z))
       | less x<0, less y<z => absurd (<-irreflexive (<-transitive (<_*_negative-right x<0 y<z) x*y<x*z))
@@ -239,7 +314,7 @@
       | less x<0, greater y>z => byRight (x<0, y>z)
       | greater x>0, greater y>z => absurd (<-irreflexive (<-transitive (<_*_positive-right x>0 y>z) x*y<x*z))
     }
-    | <_*-cancel-right x y z x*z<y*z => \case trichotomy x y, trichotomy z zro \with {
+    | <_*-cancel-right {x} {y} {z} x*z<y*z => \case trichotomy x y, trichotomy z zro \with {
       | equals x=y, _ => absurd (<-irreflexive (rewriteF x=y x*z<y*z))
       | _, equals z=0 => absurd (<-irreflexive (transport2 (<) zro_*-right zro_*-right (rewriteF z=0 x*z<y*z)))
       | less x<y, less z<0 => absurd (<-irreflexive (<-transitive x*z<y*z (<_*_negative-left x<y z<0)))
@@ -254,30 +329,6 @@
            | _, inr y<=b => byRight y<=b
            | inl a<x, inl b<y => absurd (<-irreflexive (<-transitive-left (OrderedAddMonoid.<_+ a<x b<y) p))
          }
-
-    \lemma meet_+-left {a b c : E} : (a + b) ∧ (a + c) = a + b ∧ c
-      => \case totality b c \with {
-        | byLeft b<=c => rewrite (meet_<= b<=c, meet_<= $ <=_+ <=-refl b<=c) idp
-        | byRight c<=b => rewrite {2} meet-comm $ rewrite (meet-comm, meet_<= c<=b, meet_<= $ <=_+ <=-refl c<=b) idp
-      }
-
-    \lemma meet_+-right {a b c : E} : (a + c) ∧ (b + c) = a ∧ b + c
-      => \case totality a b \with {
-        | byLeft a<=b => rewrite (meet_<= a<=b, meet_<= $ <=_+ a<=b <=-refl) idp
-        | byRight b<=a => rewrite {2} meet-comm $ rewrite (meet-comm, meet_<= b<=a, meet_<= $ <=_+ b<=a <=-refl) idp
-      }
-
-    \lemma <=_*-cancel-left {x y z : E} (z>0 : zro < z) (p : z * x <= z * y) : x <= y
-      => \case dec<_<= y x \with {
-        | inl y<x => absurd $ <-irreflexive $ <-transitive-right p $ <_*_positive-right z>0 y<x
-        | inr x<=y => x<=y
-      }
-
-    \lemma <=_*-cancel-right {x y z : E} (z>0 : zro < z) (p : x * z <= y * z) : x <= y
-      => \case dec<_<= y x \with {
-        | inl y<x => absurd $ <-irreflexive $ <-transitive-right p $ <_*_positive-left y<x z>0
-        | inr x<=y => x<=y
-      }
   }
 } \where \open LinearOrder
 
@@ -287,11 +338,11 @@
 
 \class LinearlyOrderedCSemiring \extends LinearlyOrderedSemiring, OrderedCSemiring, OrderedAbMonoid
   | <_+-cancel-right z x+z<y+z => <_+-cancel-left z (transport2 (<) +-comm +-comm x+z<y+z)
-  | <_*-cancel-right x y z x*z<y*z => <_*-cancel-left z x y (transport2 (<) *-comm *-comm x*z<y*z)
+  | <_*-cancel-right x*z<y*z => <_*-cancel-left (transport2 (<) *-comm *-comm x*z<y*z)
   \where
     \class Dec \extends OrderedCSemiring, LinearlyOrderedSemiring.Dec
 
-{- | An ordered ring is a linearly ordered domain such that the product of positive elements is positive
+{- | An ordered ring is a linearly ordered domain and a distributive lattice such that the product of positive elements is positive
  -   and an element is apart from {zro} if and only if it is either positive or negative.
  -}
 \class OrderedRing \extends Domain, LinearlyOrderedSemiring, OrderedAbGroup {
@@ -305,18 +356,18 @@
   \field #0=>eitherPosOrNeg {x : E} : x `#0 -> isPos x || isNeg x
 
   | negative_*-cancel {x y : E} : isNeg (x * y) -> (\Sigma (isPos x) (isNeg y)) || (\Sigma (isNeg x) (isPos y))
-  | negative_*-cancel {x} {y} x*y<0 => ||.map (\lam t => (t.1, t.2))
-                                              (\lam t => (t.1, negative_positive' t.2))
-                                              (positive_*-cancel (transport isPos (inv Ring.negative_*-right) x*y<0))
+  | negative_*-cancel x*y<0 => ||.map (\lam t => (t.1, t.2))
+                                      (\lam t => (t.1, negative_positive' t.2))
+                                      (positive_*-cancel (transport isPos (inv Ring.negative_*-right) x*y<0))
 
   | positive_negative_* {x y : E} : isPos x -> isNeg y -> isNeg (x * y)
-  | positive_negative_* {x} {y} x>0 y<0 => transport isPos Ring.negative_*-right (positive_* x>0 y<0)
+  | positive_negative_* x>0 y<0 => transport isPos Ring.negative_*-right (positive_* x>0 y<0)
 
   | negative_positive_* {x y : E} : isNeg x -> isPos y -> isNeg (x * y)
-  | negative_positive_* {x} {y} x<0 y>0 => transport isPos Ring.negative_*-left (positive_* x<0 y>0)
+  | negative_positive_* x<0 y>0 => transport isPos Ring.negative_*-left (positive_* x<0 y>0)
 
   | negative_* {x y : E} : isNeg x -> isNeg y -> isPos (x * y)
-  | negative_* {x} {y} x<0 y<0 => transport isPos Ring.negative_* (positive_* x<0 y<0)
+  | negative_* x<0 y<0 => transport isPos Ring.negative_* (positive_* x<0 y<0)
 
   | zro<ide => transport isPos (inv minus_zro) ide>zro
 
@@ -326,18 +377,10 @@
   }
   | <-connectedness x/<y y/<x => fromZero $ <_+-connectedness (y/<x __) $ \lam p => x/<y (fromNeg p)
 
-  | <_*_positive-left {x} {y} {z} x<y z>0 =>
-    transport isPos (rdistr *> pmap (y * z +) Ring.negative_*-left)
-              (positive_* x<y (transport isPos minus_zro z>0))
-  | <_*_positive-right {x} {y} {z} x>0 y<z =>
-    transport isPos (ldistr *> pmap (x * z +) Ring.negative_*-right)
-              (positive_* (transport isPos minus_zro x>0) y<z)
-  | <_*_negative-left {x} {y} {z} x<y z<0 =>
-    transport isPos (rdistr *> pmap (x * z +) Ring.negative_*-left)
-              (negative_* (toNeg x<y) (transport isPos zro-left z<0))
-  | <_*_negative-right {x} {y} {z} x<0 y<z =>
-    transport isPos (ldistr *> pmap (x * y +) Ring.negative_*-right)
-              (negative_* (transport isPos zro-left x<0) (toNeg y<z))
+  | <_*_positive-left x<y z>0 => transport isPos rdistr_- (positive_* x<y (transport isPos minus_zro z>0))
+  | <_*_positive-right x>0 y<z => transport isPos ldistr_- (positive_* (transport isPos minus_zro x>0) y<z)
+  | <_*_negative-left x<y z<0 => transport isPos rdistr_- (negative_* (toNeg x<y) (transport isPos zro-left z<0))
+  | <_*_negative-right x<0 y<z => transport isPos ldistr_- (negative_* (transport isPos zro-left x<0) (toNeg y<z))
   | <_+-cancel-left x {y} {z} x+y<x+z =>
     transport2 (<)
                (inv +-assoc *> pmap (`+ y) negative-left *> zro-left)
@@ -348,14 +391,14 @@
                (+-assoc *> pmap (x +) negative-right *> zro-right)
                (+-assoc *> pmap (y +) negative-right *> zro-right)
                (<_+-left (negative z) x+z<y+z)
-  | <_*-cancel-left x y z x*y<x*z =>
-    \have x*[z-y]>0 => transport isPos (inv (ldistr *> pmap (x * z +) Ring.negative_*-right)) x*y<x*z
+  | <_*-cancel-left x*y<x*z =>
+    \have x*[z-y]>0 => transportInv isPos ldistr_- x*y<x*z
     \in \case positive_*-cancel x*[z-y]>0 \with {
       | byLeft (x>0, z-y>0) => byLeft (transport isPos (inv minus_zro) x>0, z-y>0)
       | byRight (x<0, z-y<0) => byRight (transport isPos (inv zro-left) x<0, fromNeg z-y<0)
     }
-  | <_*-cancel-right x y z x*z<y*z =>
-    \have [y-x]*z>0 => transport isPos (inv (rdistr *> pmap (y * z +) Ring.negative_*-left)) x*z<y*z
+  | <_*-cancel-right x*z<y*z =>
+    \have [y-x]*z>0 => transportInv isPos rdistr_- x*z<y*z
     \in \case positive_*-cancel [y-x]*z>0 \with {
       | byLeft (y-x>0, z>0) => byLeft (transport isPos (inv minus_zro) z>0, y-x>0)
       | byRight (y-x<0, z<0) => byRight (transport isPos (inv zro-left) z<0, fromNeg y-x<0)
@@ -423,6 +466,43 @@
     | DenseLinearOrder => LinearlyOrderedSemiring.denseOrder t
     | withoutUpperBound x => inP (x + 1, transport (`< _) zro-right $ <_+-right x zro<ide)
     | withoutLowerBound x => inP (x - 1, transport (_ <) zro-right $ <_+-right x (positive_negative zro<ide))
+
+  -- ## abs
+
+  \func abs (x : E) => x ∨ negative x
+
+  \lemma abs>=id {x : E} : x <= abs x
+    => join-left
+
+  \lemma abs>=0 {x : E} : 0 <= abs x
+    => \lam p => <-irreflexive $ <-transitive (negative_positive (<-transitive-right join-left p)) (<-transitive-right join-right p)
+
+  \lemma abs_negative {x : E} : abs (negative x) = abs x
+    => <=-antisymmetric (join-univ join-right $ rewrite negative-isInv join-left) (join-univ (=_<= (inv negative-isInv) <=∘ join-right) join-left)
+
+  \lemma abs-ofPos {x : E} (x>=0 : 0 <= x) : abs x = x
+    => <=-antisymmetric (join-univ <=-refl $ transport2 (<=) zro-left negative-right (<=_+ x>=0 <=-refl) <=∘ x>=0) join-left
+
+  \lemma abs-ofNeg {x : E} (x<=0 : x <= 0) : abs x = negative x
+    => inv abs_negative *> abs-ofPos (rewriteF negative_zro $ negative_<= x<=0)
+
+  \lemma abs_abs {x : E} : abs (abs x) = abs x
+    => abs-ofPos abs>=0
+
+  \lemma abs_+ {x y : E} : abs (x + y) <= abs x + abs y
+    => join-univ (<=_+ join-left join-left) $ rewrite (negative_+,+-comm) $ <=_+ join-right join-right
+
+  \lemma abs_* {x y : E} : abs (x * y) = abs x * abs y
+    => \have | lem1 {x : E} : x * y <= abs x * abs y => \lam p =>
+                \have | t : abs x * (abs y - y) < (x - abs x) * y => rewrite (ldistr_-,rdistr_-) $ <_+-left _ p
+                      | y<=0 => LinearOrder.<_<= $ <_*_negative-cancel-left {_} {x - abs x} {0} {y} (transport (_ <=) negative-right $ <=_+ abs>=id <=-refl) $ rewrite zro_*-right $ <-transitive-right (<=_*_positive_positive abs>=0 $ transport (`<= _) negative-right $ <=_+ abs>=id <=-refl) t
+                \in join-right {_} {x} {negative x} $ <_*_positive-cancel-right (rewriteF negative_zro $ negative_<= y<=0) $ later $ rewrite Ring.negative_* $ rewriteF (abs-ofNeg y<=0) p
+             | lem2 {x : E} : x * abs y <= abs (x * y) => \lam p => \case <_*-cancel-left (<-transitive-right join-left p) \with {
+               | byLeft (x>0,y<|y|) => <-irreflexive $ <-transitive-right join-right $ rewriteF (join/=left $ <_/= y<|y|, negative_*-right) p
+               | byRight (_,c) => abs>=id c
+             }
+       \in <=-antisymmetric (join-univ lem1 $ rewriteI negative_*-left $ rewriteF abs_negative $ lem1 {negative x}) $
+            rewrite (join_*-right abs>=0) $ join-univ lem2 $ transport (_ <=) (later $ rewrite negative_*-left abs_negative) lem2
 } \where {
   \class Dec \extends Domain.Dec, OrderedRing, LinearlyOrderedSemiring.Dec {
     \field +_trichotomy (x : E) : Tri x zro
@@ -478,7 +558,7 @@
   }
 }
 
-\class OrderedCRing \extends OrderedRing, IntegralDomain, OrderedCSemiring
+\class OrderedCRing \extends OrderedRing, IntegralDomain, LinearlyOrderedCSemiring
   \where
     \class Dec \extends OrderedRing.Dec, OrderedCRing, LinearlyOrderedCSemiring.Dec, IntegralDomain.Dec
 
@@ -488,7 +568,7 @@
     | byLeft x+1>0 => byRight (positive=>#0 x+1>0)
     | byRight x<0 => byLeft (negative=>#0 x<0)
   }
-  | positive_*-cancel {x} {y} x*y>0 =>
+  | positive_*-cancel x*y>0 =>
     \case #0=>eitherPosOrNeg (Inv.cfactor-left (positive=>#0 x*y>0)), #0=>eitherPosOrNeg (Inv.cfactor-right (positive=>#0 x*y>0)) \with {
       | byLeft x>0, byLeft y>0 => byLeft (x>0, y>0)
       | byLeft x>0, byRight y<0 => absurd (zro/>0 (transport isPos negative-right (positive_+ x*y>0 (positive_negative_* x>0 y<0))))
@@ -518,5 +598,5 @@
     => transport (`< _) (*-assoc *> pmap (x *) (finv-right (>_/= y>0)) *> ide-right) (<_*_positive-left xy<z (finv>0 y>0))
 
   \lemma <_rotate-left {x y z : E} (y>0 : 0 < y) (p : x < y * z) : finv y * x < z
-    => transport (< _) (inv *-assoc *> pmap (`* z) (finv-left (>_/= y>0)) *> ide-left) (<_*_positive-right (finv>0 y>0) p)
+    => transport (_ <) (inv *-assoc *> pmap (`* z) (finv-left (>_/= y>0)) *> ide-left) (<_*_positive-right (finv>0 y>0) p)
 }
