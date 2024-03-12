@@ -1,4 +1,3 @@
-\import Algebra.Domain.Euclidean
 \import Algebra.Group
 \import Algebra.Monoid
 \import Algebra.Ordered
@@ -15,7 +14,6 @@
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
-\import Set
 \open LinearOrder (trichotomy)
 
 \func isuc (x : Int) : Int
@@ -246,6 +244,16 @@
       | 0, k => neg*neg *> pmap pos (inv AddMonoid.zro-left)
       | suc m, 0 => neg*pos *> inv zro-left
       | suc m, suc k => neg_minus-ldistr {n} {m} {k} *> inv (pos_neg_+ {n Nat.* k} {n Nat.* m} {n})
+
+    -- ## <=
+
+    \lemma neg<=0 {n : Nat} : neg n IntRing.<= 0 \elim n
+      | 0 => \case __
+      | suc n => \case __
+
+    \lemma pos>=0 {n : Nat} : 0 IntRing.<= pos n \elim n
+      | 0 => \case __
+      | suc n => \case __
   }
 
 \func signum (x : Int) : Int
@@ -278,12 +286,6 @@
   | pos n => n
   | neg n => n
   \where {
-    \lemma *-comm {x y : Int} : iabs (x * y) = iabs x * iabs y \elim x, y
-      | pos n, pos m => idp
-      | pos n, neg m => idp
-      | neg (suc n), pos m => idp
-      | neg (suc n), neg m => idp
-
     \lemma signum_/=0 {x : Int} (x/=0 : Not (x = 0)) : iabs (signum x) = 1 \elim x
       | pos 0 => absurd (x/=0 idp)
       | pos (suc n) => idp
@@ -308,15 +310,26 @@
       | pos (suc _) => \case |x|=0
       | neg (suc _) => \case |x|=0
 
-    \lemma pos_iabs {x : Int} (x>0 : 0 < x) : pos (iabs x) = x \elim x
+    \lemma ofPos {x : Int} (x>=0 : 0 <= x) : pos (iabs x) = x \elim x
       | pos n => idp
-      | neg (suc n) => \case x>0
+      | neg (suc n) => absurd $ x>=0 idp
+
+    \lemma ofNeg {x : Int} (x<=0 : x <= 0) : pos (iabs x) = negative x \elim x
+      | pos 0 => idp
+      | pos (suc n) => absurd $ x<=0 idp
+      | neg (suc n) => idp
   }
+
+\lemma iabs_* {x y : Int} : iabs (x * y) = iabs x * iabs y \elim x, y
+  | pos n, pos m => idp
+  | pos n, neg m => idp
+  | neg (suc n), pos m => idp
+  | neg (suc n), neg m => idp
 
 \open Monoid(LDiv)
 
 \lemma ldiv_iabs {x y : Int} (d : LDiv x y) : LDiv (iabs x) (iabs y) (iabs d.inv) \cowith
-  | inv-right => inv iabs.*-comm *> pmap iabs d.inv-right
+  | inv-right => inv iabs_* *> pmap iabs d.inv-right
 
 \func iabs_ldiv {x y : Int} (d : LDiv (iabs x) (iabs y)) : LDiv x y \elim x, y
   | 0, 0 => \new LDiv {
@@ -441,7 +454,7 @@
   | neg (suc n), pos (suc m), (), _
 
 \func intUnits {x y : Int} (p : x * y = 1) : Or (y = 1) (y = -1)
-  => \have t : iabs y = 1 => natUnit (inv iabs.*-comm *> pmap iabs p)
+  => \have t : iabs y = 1 => natUnit (inv iabs_* *> pmap iabs p)
      \in \case \elim y, t \with {
        | pos n, p1 => inl (pmap pos p1)
        | neg (suc n), p1 => inr (pmap neg p1)

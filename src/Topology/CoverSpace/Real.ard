@@ -1,9 +1,14 @@
+\import Algebra.Field
 \import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Algebra.Semiring
 \import Arith.Rat
 \import Arith.Real
 \import Data.Or
+\import Function (flip)
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -19,6 +24,16 @@
 \import Topology.CoverSpace
 \import Topology.CoverSpace.Complete
 \open Set
+\open ProductCoverSpace
+\open RatRealCoverSpace
+\open LinearlyOrderedSemiring(<=_+)
+\open LinearOrder \hiding (<=)
+\open DiscreteOrderedField
+\open LinearlyOrderedSemiring.Dec
+\open MeetSemilattice
+\open LinearlyOrderedSemiring \hiding (Dec)
+\open OrderedSemiring
+\open OrderedRing \hiding (Dec, denseOrder)
 
 \instance RatRealCoverSpace : CoverSpace Rat
   => ClosureRegularCoverSpace Cover covers
@@ -31,7 +46,7 @@
     \lemma covers {C : Set (Set Rat)} (Cc : Cover C) (x : Rat) : ∃ (U : Set Rat) (C U) (U x) \elim Cc
       | inP (eps,eps>0,p) => rewrite p $ inP (_, inP (x - eps * ratio 1 3, idp), (linarith, linarith))
 
-    \func makeCover (eps : Rat) (eps>0 : 0 < eps) : Closure Cover \lam U => ∃ (a : Rat) (U = open-int a (a + eps))
+    \lemma makeCover (eps : Rat) (eps>0 : 0 < eps) : Closure Cover \lam U => ∃ (a : Rat) (U = open-int a (a + eps))
       => closure $ inP (eps, eps>0, idp)
 
     \func NFilter (x : Rat) : SetFilter Rat \cowith
@@ -89,7 +104,7 @@
       => \case x.L-rounded a<x, x.U-rounded x<b \with {
         | inP (a',a'<x,a<a'), inP (b',x<b',b'<b) =>
           \let eps => (a' - a) ∧ (b - b')
-          \in closure-subset (closure $ inP $ later (eps, LinearOrder.<_meet-univ linarith linarith, idp)) $
+          \in closure-subset (closure $ inP $ later (eps, <_meet-univ linarith linarith, idp)) $
             later \lam (inP (c,p)) => rewrite p \lam (y,(x=y,(c<y,y<c+eps))) {z} (c<z,z<c+eps) =>
                 (inP (c, linarith (meet-left : eps <= a' - a, x.LU-less a'<x $ rewrite x=y y<c+eps), c<z),
                  inP (c + eps, z<c+eps, linarith (meet-right : eps <= b - b', x.LU-less (rewrite x=y c<y) x<b')))
@@ -102,14 +117,14 @@
 
     \func fromCF (F : RegularCauchyFilter RatRealCoverSpace) : Real \cowith
       | L a => ∃ (b : Rat) (F (open-int a b))
-      | L-inh => \case F.isCauchyFilter (RatRealCoverSpace.makeCover 1 idp) \with {
+      | L-inh => \case F.isCauchyFilter (makeCover 1 idp) \with {
         | inP (U, inP (a,p), FU) => inP (a, inP (a + 1, rewriteF p FU))
       }
       | L-closed (inP (b,Fqb)) q'<q => inP (b, filter-mono (later \lam s => (<-transitive q'<q s.1, s.2)) Fqb)
       | L-rounded {a} (inP (b,Fab)) => \case isRegularFilter Fab \with {
         | inP (V,V<=<ab,FV) => \case cauchy-cover (isRegular $ unfolds at V<=<ab $ V<=<ab) a \with {
           | inP (W', inP (W,f,W'<=<W), W'a) => \case RatRealCoverSpace.<=<-open (<=<-right (single_<= W'a) W'<=<W) \with {
-            | inP (c,d,c<a,a<d,g) => inP ((a + d) * ratio 1 2, inP (b, filter-mono (\lam {x} Vx => (\case LinearOrder.dec<_<= x d \with {
+            | inP (c,d,c<a,a<d,g) => inP ((a + d) * ratio 1 2, inP (b, filter-mono (\lam {x} Vx => (\case dec<_<= x d \with {
               | inl x<d => absurd $ <-irreflexive {_} {a} (f (x, (Vx, g x (<-transitive c<a (<=<_<= V<=<ab Vx).1) x<d)) $ <=<_<= W'<=<W W'a).1
               | inr d<=x => linarith
             }, (<=<_<= V<=<ab Vx).2)) FV), linarith)
@@ -117,14 +132,14 @@
         }
       }
       | U b => ∃ (a : Rat) (F (open-int a b))
-      | U-inh => \case F.isCauchyFilter (RatRealCoverSpace.makeCover 1 idp) \with {
+      | U-inh => \case F.isCauchyFilter (makeCover 1 idp) \with {
         | inP (U, inP (a,p), FU) => inP (a + 1, inP (a, rewriteF p FU))
       }
       | U-closed (inP (a,Faq)) q<q' => inP (a, filter-mono (later \lam s => (s.1, <-transitive s.2 q<q')) Faq)
       | U-rounded {b} (inP (a,Fab)) => \case isRegularFilter Fab \with {
         | inP (V,V<=<ab,FV) => \case cauchy-cover (isRegular $ unfolds at V<=<ab $ V<=<ab) b \with {
           | inP (W', inP (W,f,W'<=<W), W'b) => \case RatRealCoverSpace.<=<-open (<=<-right (single_<= W'b) W'<=<W) \with {
-            | inP (c,d,c<b,b<d,g) => inP ((c + b) * ratio 1 2, inP (a, filter-mono (\lam {x} Vx => ((<=<_<= V<=<ab Vx).1, \case LinearOrder.dec<_<= c x \with {
+            | inP (c,d,c<b,b<d,g) => inP ((c + b) * ratio 1 2, inP (a, filter-mono (\lam {x} Vx => ((<=<_<= V<=<ab Vx).1, \case dec<_<= c x \with {
               | inl c<x => absurd $ <-irreflexive (f (x, (Vx, g x c<x $ <-transitive (<=<_<= V<=<ab Vx).2 b<d)) $ <=<_<= W'<=<W W'b).2
               | inr x<=c => linarith
             })) FV), linarith)
@@ -134,12 +149,63 @@
       | LU-disjoint (inP (b,Fqb)) (inP (a,Faq)) => \case isProper (filter-meet Faq Fqb) \with {
         | inP (x,((_,x<q),(q<x,_))) => linarith
       }
-      | LU-focus eps eps>0 => \case F.isCauchyFilter (RatRealCoverSpace.makeCover eps eps>0) \with {
+      | LU-focus eps eps>0 => \case F.isCauchyFilter (makeCover eps eps>0) \with {
         | inP (_, inP (a,idp), e) => inP (a, inP (a + eps, e), inP (a, e))
       }
   }
 
+\lemma real-coverMap {X : PrecoverSpace} (f : X -> Real) (Ap : \Pi (eps : Rat) -> 0 < eps -> eps < 1 -> isCauchy \lam U => ∃ (a : Rat) (U = \lam x => \Sigma (Real.L {f x} a) (Real.U {f x} (a + eps)))) : CoverMap X RealCoverSpace f \cowith
+  | func-cover Dc => flip closure-univ-cover Dc \lam (inP (eps,eps>0,p)) => cauchy-extend (Ap (eps ∧ ratio 1 2) (<_meet-univ eps>0 idp) $ <-transitive-right meet-right idp)
+                      \lam (inP (a,q)) => inP $ later (_, inP (_, rewrite p $ inP (a, idp), idp), rewrite q \lam (c,c') => (c, UpperReal.U_<= c' $ <=_+ <=-refl meet-left))
+
+\lemma rat_real-uniMap (f : Rat -> Real) (Ap : \Pi (eps : Rat) -> 0 < eps -> eps < 1 -> ∃ (d : Rat) (0 < d) (\Pi (a : Rat) -> ∃ (b : Rat) (open-int a (a + d) ⊆ \lam x => \Sigma (Real.L {f x} b) (Real.U {f x} (b + eps))))) : CoverMap RatRealCoverSpace RealCoverSpace f
+  => real-coverMap f \lam eps eps>0 eps<1 => \case Ap eps eps>0 eps<1 \with {
+    | inP (d,d>0,g) => closure-extends (makeCover d d>0) \lam (inP (a,p)) => \case g a \with {
+      | inP (b,q) => inP (_, inP (b,idp), rewrite p q)
+    }
+  }
+
+-- | A map is a cover map if, for every eps > 0, there exists e > 0 such that, for every open (w,w+e) of size e, there exists 0 < d <= e such that every open of size d inside (w,w+e) is mapped to a set of size eps.
+\lemma rat_real-coverMap (f : Rat -> Real) (Ap : \Pi (eps : Rat) -> 0 < eps -> eps < 1 -> ∃ (e : Rat) (0 < e) (\Pi (w : Rat) -> ∃ (d : Rat) (0 < d) (d <= e) (\Pi (a : Rat) -> \Sigma (w <= a) (a + d <= w + e) -> ∃ (b : Rat) (open-int a (a + d) ⊆ \lam x => \Sigma (Real.L {f x} b) (Real.U {f x} (b + eps)))))) : CoverMap RatRealCoverSpace RealCoverSpace f
+  => real-coverMap f \lam eps eps>0 eps<1 => \case Ap eps eps>0 eps<1 \with {
+    | inP (e,e>0,g) => closure-extends (closure-trans (makeCover e e>0)
+        {\lam U V => ∃ (w : Rat) (U = open-int w (w + e)) (a d : Rat) (0 < d) (d <= e) (\Pi (a : Rat) -> \Sigma (w <= a) (a + d <= w + e) -> ∃ (b : Rat) (open-int a (a + d) ⊆ (\lam x => \Sigma (LowerReal.L {f x} b) (UpperReal.U {f x} (b + eps))))) (V = open-int a (a + d))}
+        (\lam (inP (w,p)) => \case g w \with {
+          | inP (d,d>0,d<=e,h) => closure-subset (makeCover d d>0) \lam (inP (a,q)) => inP (w, p, a, d, d>0, d<=e, h, q)
+        }) idp) \lam (inP (V, W, _, inP (w,Vp,a,d,d>0,d<=e,h,Wp), q)) => \case h ((a ∨ w) ∧ (w + e - d)) (meet-univ join-right linarith, <=_+ meet-right <=-refl <=∘ linarith) \with {
+          | inP (b,r) => inP (_, inP (b,idp), rewrite (q,Vp,Wp) \lam ((w<x,x<w+e),(a<x,x<a+d)) => r (<-transitive-right meet-left $ <_join-univ a<x w<x, rewrite meet_+-right $ <_meet-univ (linarith (join-left : a <= a ∨ w)) linarith))
+        }
+  }
+
+\lemma rat2_real-uniMap (f : Rat -> Rat -> Real) (Ap : \Pi (eps : Rat) -> 0 < eps -> eps < 1 -> ∃ (d1 d2 : Rat) (0 < d1) (0 < d2) (\Pi (a b : Rat) -> ∃ (c : Rat) (\Pi {x y : Rat} -> \Sigma (a < x) (x < a + d1) -> \Sigma (b < y) (y < b + d2) -> \Sigma (Real.L {f x y} c) (Real.U {f x y} (c + eps))))) : CoverMap (ProductCoverSpace RatRealCoverSpace RatRealCoverSpace) RealCoverSpace (\lam s => f s.1 s.2)
+  => real-coverMap {ProductCoverSpace _ _} (later \lam s => f s.1 s.2) \lam eps eps>0 eps<1 => \case Ap eps eps>0 eps<1 \with {
+    | inP (d1,d2,d1>0,d2>0,g) => closure-extends (closure-inter (proj1.func-cover $ makeCover d1 d1>0) (proj2.func-cover $ makeCover d2 d2>0))
+        \lam (inP (V1, V2, inP (W1, inP (a1,p1), q1), inP (W2, inP (a2,p2), q2), r)) => \case g a1 a2 \with {
+          | inP (c,h) => inP (_, inP (c, idp), rewrite (r,q1,q2,p1,p2) \lam (s1,s2) => h s1 s2)
+        }
+  }
+
+\lemma rat2_real-uniMap' (f : Rat -> Rat -> Real) (Ap : \Pi (eps : Rat) -> 0 < eps -> eps < 1 -> ∃ (d : Rat) (0 < d) (\Pi (a b : Rat) -> ∃ (c : Rat) (\Pi {x y : Rat} -> \Sigma (a < x) (x < a + d) -> \Sigma (b < y) (y < b + d) -> \Sigma (Real.L {f x y} c) (Real.U {f x y} (c + eps))))) : CoverMap (ProductCoverSpace RatRealCoverSpace RatRealCoverSpace) RealCoverSpace (\lam s => f s.1 s.2)
+  => rat2_real-uniMap f \lam eps eps>0 eps<1 => TruncP.map (Ap eps eps>0 eps<1) \lam (d,d>0,g) => (d,d,d>0,d>0,g)
+
+-- | A map of two arguments is a cover map if, for every eps > 0, there exist e1,e2 > 0 such that, for every open U of size e1 ⨯ e2, there exist 0 < d1 < e1, 0 < d2 < e2 such that every open of size d1 ⨯ d2 inside U is mapped to a set of size eps.
+\lemma rat2_real-coverMap (f : Rat -> Rat -> Real) (Ap : \Pi (eps : Rat) -> 0 < eps -> eps < 1 -> ∃ (e1 e2 : Rat) (0 < e1) (0 < e2) (\Pi (w1 w2 : Rat) -> ∃ (d1 d2 : Rat) (0 < d1) (d1 <= e1) (0 < d2) (d2 <= e2) (\Pi (a b : Rat) -> \Sigma (w1 <= a) (a + d1 <= w1 + e1) -> \Sigma (w2 <= b) (b + d2 <= w2 + e2) -> ∃ (c : Rat) (\Pi {x y : Rat} -> \Sigma (a < x) (x < a + d1) -> \Sigma (b < y) (y < b + d2) -> \Sigma (Real.L {f x y} c) (Real.U {f x y} (c + eps)))))) : CoverMap (ProductCoverSpace RatRealCoverSpace RatRealCoverSpace) RealCoverSpace (\lam s => f s.1 s.2)
+  => real-coverMap {ProductCoverSpace _ _} (later \lam s => f s.1 s.2) \lam eps eps>0 eps<1 => \case Ap eps eps>0 eps<1 \with {
+    | inP (e1,e2,e1>0,e2>0,g) => closure-extends (closure-trans (closure-inter (proj1.func-cover $ makeCover e1 e1>0) (proj2.func-cover $ makeCover e2 e2>0))
+        {\lam U V => ∃ (w1 w2 : Rat) (U = \lam x => \Sigma (\Sigma (w1 < x.1) (x.1 < w1 + e1)) (\Sigma (w2 < x.2) (x.2 < w2 + e2))) (a1 a2 d1 d2 : Rat) (0 < d1) (d1 <= e1) (0 < d2) (d2 <= e2) (\Pi (a1 a2 : Rat) -> \Sigma (w1 <= a1) (a1 + d1 <= w1 + e1) -> \Sigma (w2 <= a2) (a2 + d2 <= w2 + e2) -> ∃ (c : Rat) (\Pi {x y : Rat} -> \Sigma (a1 < x) (x < a1 + d1) -> \Sigma (a2 < y) (y < a2 + d2) -> \Sigma (LowerReal.L {f x y} c) (UpperReal.U {f x y} (c + eps)))) (V = \lam x => \Sigma (\Sigma (a1 < x.1) (x.1 < a1 + d1)) (\Sigma (a2 < x.2) (x.2 < a2 + d2)))}
+        (\lam (inP (V1, V2, inP (W1, inP (w1,p1), q1), inP (W2, inP (w2,p2), q2), r)) => \case g w1 w2 \with {
+          | inP (d1,d2,d1>0,d1<=e1,d2>0,d2<=e2,h) => closure-subset (closure-inter (proj1.func-cover $ makeCover d1 d1>0) (proj2.func-cover $ makeCover d2 d2>0))
+              \lam {W} (inP (V1', V2', inP (W1', inP (a1,p1'), q1'), inP (W2', inP (a2,p2'), q2'), r')) => inP (w1, w2, rewrite (r,q1,q2,p1,p2) idp, a1, a2, d1, d2, d1>0, d1<=e1, d2>0, d2<=e2, h, rewrite (r',q1',q2',p1',p2') idp)
+        }) idp)
+        \lam (inP (U', V', _, inP (w1, w2, p, a1, a2, d1, d2, d1>0, d1<=e1, d2>0, d2<=e2, h, r'), r)) => hiding (Ap,eps,eps>0,eps<1,g) \case h ((a1 ∨ w1) ∧ (w1 + e1 - d1)) ((a2 ∨ w2) ∧ (w2 + e2 - d2)) (meet-univ join-right linarith, <=_+ meet-right <=-refl <=∘ linarith) (meet-univ join-right linarith, <=_+ meet-right <=-refl <=∘ linarith) \with {
+          | inP (c,k) => inP (_, inP (c,idp), rewrite (r,p,r') \lam (((w1<x,x<w1+e1),(w2<y,y<w2+e2)),((a1<x,x<a1+d1),(a2<y,y<a2+d2))) =>
+              k (<-transitive-right meet-left $ <_join-univ a1<x w1<x, rewrite meet_+-right $ <_meet-univ (linarith (join-left : a1 <= a1 ∨ w1)) linarith)
+                (<-transitive-right meet-left $ <_join-univ a2<y w2<y, rewrite meet_+-right $ <_meet-univ (linarith (join-left : a2 <= a2 ∨ w2)) linarith))
+        }
+  }
+
 \open ClosurePrecoverSpace
+\open CoverMap
 
 \func rat_real : CoverMap RatRealCoverSpace RealCoverSpace.coverSpace
   => closure-univ (\lam c => c) Real.fromRat $ later
@@ -150,3 +216,127 @@
         | inP (a,b,a<y,y<b,f) => \have a<b => y.LU-less a<y y<b \in inP ((a + b) * ratio 1 2, f _ linarith linarith)
       }, closure-embedding (\lam c => c) rat_real (\lam (inP (eps,eps>0,p)) =>
           closure-subset (closure $ inP (eps, eps>0, idp)) \lam (inP (a,q)) => inP (_, rewrite p $ inP (a, idp), rewrite q \lam s => s)))
+
+\instance RealRing : CRing Real
+  | zro => 0
+  | + => +
+  | zro-left => unique (+-cover ∘ tuple (const (0 : Real)) id) id \lam x => +-rat *> pmap Real.fromRat zro-left
+  | +-assoc => unique3 (+-cover ∘ prod +-cover id) (+-cover ∘ tuple (proj1 ∘ proj1) (+-cover ∘ prod proj2 id)) \lam x y z => unfold $ unfold $ rewrite (+-rat,+-rat,+-rat,+-rat) $ pmap Real.fromRat +-assoc
+  | negative => negative
+  | negative-left => unique (+-cover ∘ tuple negative-cover id) (const (0 : Real)) \lam x => unfold $ unfold $ rewrite negative-rat $ +-rat *> pmap Real.fromRat negative-left
+  | +-comm => unique2 +-cover (+-cover ∘ tuple proj2 proj1) \lam x y => +-rat *> pmap Real.fromRat +-comm *> inv +-rat
+  | ide => 1
+  | * => *
+  | ide-left => unique (*-cover ∘ tuple (const (1 : Real)) id) id \lam x => *-rat *> pmap Real.fromRat ide-left
+  | *-assoc => unique3 (*-cover ∘ prod *-cover id) (*-cover ∘ tuple (proj1 ∘ proj1) (*-cover ∘ prod proj2 id)) \lam x y z => unfold $ unfold $ rewrite (*-rat,*-rat,*-rat,*-rat) $ pmap Real.fromRat *-assoc
+  | ldistr => unique3 (*-cover ∘ tuple (proj1 ∘ proj1) (+-cover ∘ prod proj2 id)) (+-cover ∘ tuple (*-cover ∘ tuple (proj1 ∘ proj1) (proj2 ∘ proj1)) (*-cover ∘ tuple (proj1 ∘ proj1) proj2)) \lam x y z => unfold $ unfold $ rewrite (+-rat,*-rat,*-rat,*-rat,+-rat) $ pmap Real.fromRat ldistr
+  | *-comm => unique2 *-cover (*-cover ∘ tuple proj2 proj1) \lam x y => *-rat *> pmap Real.fromRat *-comm *> inv *-rat
+  \where {
+    \func lift {X : CompleteCoverSpace} (f : CoverMap RatRealCoverSpace X) : CoverMap RealCoverSpace X
+      => dense-lift rat_real rat_real-dense f
+
+    \lemma lift-char {X : CompleteCoverSpace} {f : CoverMap RatRealCoverSpace X} {x : Rat} : lift f x = f x
+      => dense-lift-char {_} {_} {_} {rat_real} {rat_real-dense} x
+
+    \func lift2 {X : CompleteCoverSpace} (f : CoverMap (ProductCoverSpace RatRealCoverSpace RatRealCoverSpace) X) : CoverMap (ProductCoverSpace RealCoverSpace RealCoverSpace) X
+      => dense-lift (prod rat_real rat_real) (prod.isDenseEmbedding rat_real-dense rat_real-dense) f
+
+    \lemma lift2-char {X : CompleteCoverSpace} {f : CoverMap (ProductCoverSpace RatRealCoverSpace RatRealCoverSpace) X} {x y : Rat} : lift2 f (x,y) = f (x,y)
+      => dense-lift-char {_} {_} {_} {prod rat_real rat_real} {prod.isDenseEmbedding rat_real-dense rat_real-dense} (x,y)
+
+    \lemma unique {X : SeparatedCoverSpace} (f g : CoverMap RealCoverSpace X) (p : \Pi (x : Rat) -> f x = g x) {x : Real} : f x = g x
+      => dense-lift-unique rat_real rat_real-dense.1 f g p x
+
+    \lemma unique2 {X : SeparatedCoverSpace} (f g : CoverMap (ProductCoverSpace RealCoverSpace RealCoverSpace) X) (p : \Pi (x y : Rat) -> f (x,y) = g (x,y)) {x y : Real} : f (x,y) = g (x,y)
+      => dense-lift-unique (prod rat_real rat_real) (prod.isDenseEmbedding rat_real-dense rat_real-dense).1 f g (\lam s => p s.1 s.2) (x,y)
+
+    \lemma unique3 {X : SeparatedCoverSpace} (f g : CoverMap (ProductCoverSpace (ProductCoverSpace RealCoverSpace RealCoverSpace) RealCoverSpace) X) (p : \Pi (x y z : Rat) -> f ((x,y),z) = g ((x,y),z)) {x y z : Real} : f ((x,y),z) = g ((x,y),z)
+      => dense-lift-unique (prod (prod rat_real rat_real) rat_real) (prod.isDenseEmbedding (prod.isDenseEmbedding rat_real-dense rat_real-dense) rat_real-dense).1 f g (\lam s => p s.1.1 s.1.2 s.2) ((x,y),z)
+
+    \open AddMonoid(+ \as \infixl 6 +')
+    \open Monoid(* \as \infixl 7 *')
+
+    \sfunc \infixl 6 + (x y : Real) : Real
+      => cover (x,y)
+      \where \protected {
+        \func cover => lift2 $ rat2_real-uniMap' (__ +' __) \lam eps _ _ => inP (eps *' ratio 1 2, linarith, \lam a b => inP (a +' b, \lam (s1,s2) (t1,t2) => (linarith, linarith)))
+
+        \lemma def : (\lam s => s.1 + s.2) = cover
+          => ext \lam s => later \peval s.1 + s.2
+      }
+
+    \lemma +-rat {x y : Rat} : x + y = {Real} x +' y
+      => (\peval x + y) *> lift2-char
+
+    \lemma +-cover : CoverMap (ProductCoverSpace RealCoverSpace RealCoverSpace) RealCoverSpace (\lam s => s.1 + s.2)
+      => rewrite +.def +.cover
+
+    \sfunc negative (x : Real) : Real
+      => cover x
+      \where \protected {
+        \func cover : CoverMap RealCoverSpace RealCoverSpace
+          => lift $ rat_real-uniMap (RatField.negative __) \lam eps eps>0 _ => inP (eps, eps>0, \lam a => inP (RatField.negative a - eps, \lam (s1,s2) => (linarith, linarith)))
+
+        \lemma def : negative = cover
+          => ext \lam x => later \peval negative x
+      }
+
+    \lemma negative-rat {x : Rat} : negative x = {Real} RatField.negative x
+      => (\peval negative x) *> lift-char
+
+    \lemma negative-cover : CoverMap RealCoverSpace RealCoverSpace negative
+      => rewrite negative.def negative.cover
+
+    \sfunc \infixl 7 * (x y : Real) : Real
+      => cover (x,y)
+      \where \protected {
+        \func cover => lift2 $ rat2_real-coverMap (__ *' __) \lam eps eps>0 eps<1 => inP (1, 1, idp, idp,
+          \let | d w => (eps *' finv (abs w +' 2)) *' finv 2
+               | d<=1 w : d w <= 1 => rewrite (*-assoc, inv $ RatField.finv_* {2}) $ <_<= $ <-transitive (RatField.<_*_positive-right eps>0 $ finv<1 $ linarith $ RatField.abs>=0) $ simplify eps<1
+          \in \lam w1 w2 => inP (d w2, d w1,
+            hiding d<=1 $ <_*_positive_positive (<_*_positive_positive eps>0 $ finv>0 $ linarith $ RatField.abs>=0) (RatField.finv>0 {2} idp), d<=1 w2,
+            hiding d<=1 $ <_*_positive_positive (<_*_positive_positive eps>0 $ finv>0 $ linarith $ RatField.abs>=0) (RatField.finv>0 {2} idp), d<=1 w1,
+            \lam a b (w1<=a,a+d1<=w1+1) (w2<=b,b+d2<=w2+1) => inP ((a *' b) ∧ (a *' (b +' d w1)) ∧ ((a +' d w2) *' b) ∧ ((a +' d w2) *' (b +' d w1)),
+                \lam {x} {y} (a<x,x<a+d1) (b<y,y<b+d2) => (\case trichotomy y 0 \with {
+                  | less y<0 => <-transitive-right (meet-monotone meet-right <=-refl) \case dec<_<= (a +' d w2) 0 \with {
+                    | inl a+d1<0 => <-transitive-right meet-right $ <-transitive (RatField.<_*_negative-right a+d1<0 y<b+d2) (RatField.<_*_negative-left x<a+d1 y<0)
+                    | inr a+d1>=0 => <-transitive-right meet-left $ <-transitive-right (<=_*_positive-right a+d1>=0 $ <_<= b<y) (RatField.<_*_negative-left x<a+d1 y<0)
+                  }
+                  | equals y=0 => <-transitive-right meet-left $ <-transitive-right (meet-monotone meet-right <=-refl) $ rewrite (y=0,Ring.zro_*-right) \case dec<_<= a 0 \with {
+                    | inl a<0 => <-transitive-right meet-left $ <_*_negative_positive a<0 (rewriteF y=0 y<b+d2)
+                    | inr a>=0 => <-transitive-right meet-right $ <_*_positive_negative (<-transitive (<-transitive-right a>=0 a<x) x<a+d1) (rewriteF y=0 b<y)
+                  }
+                  | greater y>0 => <-transitive-right (meet-left <=∘ meet-left) \case dec<_<= a 0 \with {
+                    | inl a<0 => <-transitive-right meet-right $ <-transitive (RatField.<_*_negative-right a<0 y<b+d2) (<_*_positive-left a<x y>0)
+                    | inr a>=0 => <-transitive-right meet-left $ <-transitive-right (<=_*_positive-right a>=0 $ <_<= b<y) (<_*_positive-left a<x y>0)
+                  }
+                }, \have | lem' {x'} {y'} (y'p : w2 <= y') (y'q : y' <= w2 +' 1) (p : abs (x - x') < d w2) (q : abs (y - y') < d w1) : x *' y < x' *' y' +' eps
+                            => \have | lem {z} {w} (p : w <= z) (q : z <= w +' 1) : abs z < abs w +' 2 => <_join-univ (<-transitive-right q $ linarith $ RatField.abs>=id {w}) (<-transitive-right (RatField.negative_<= p) $ <-transitive-right abs>=neg linarith)
+                                     | |w1|+2/=0 : abs w1 +' 2 /= 0 => RatField.>_/= $ <=_+-left {_} {_} {0} abs>=0 (later idp)
+                                     | |w2|+2/=0 : abs w2 +' 2 /= 0 => RatField.>_/= $ <=_+-left {_} {_} {0} abs>=0 (later idp)
+                                     | t : x *' (y - y') +' (x - x') *' y' < eps
+                                        => rewrite *-comm $ <-transitive-right abs>=id $ <-transitive-right abs_+ $ rewrite (abs_*,abs_*) $ transport (_ <) (
+                                              equation {usingOnly (RatField.finv-left |w1|+2/=0, RatField.finv-left |w2|+2/=0)}
+                                                       (ratio 1 2 *' eps +' ratio 1 2 *' eps)
+                                                       {linarith})
+                                              (RatField.<_+ (<-transitive-right (<=_*_positive-left (<_<= q) abs>=0) $ <_*_positive-right (<-transitive-right abs>=0 q) $ lem (w1<=a <=∘ <_<= a<x) (<_<= x<a+d1 <=∘ a+d1<=w1+1))
+                                                            (<-transitive-right (<=_*_positive-left (<_<= p) abs>=0) $ <_*_positive-right (<-transitive-right abs>=0 p) $ lem y'p y'q))
+                               \in linarith $ rewriteF (Ring.ldistr_-, Ring.rdistr_-) t
+                         | lem1 : abs (x - a) < d w2 => rewrite (abs-ofPos linarith) linarith
+                         | lem2 : abs (y - b) < d w1 => rewrite (abs-ofPos linarith) linarith
+                         | lem3 : abs (x - (a +' d w2)) < d w2 => rewrite (abs-ofNeg linarith) linarith
+                         | lem4 : abs (y - (b +' d w1)) < d w1 => rewrite (abs-ofNeg linarith) linarith
+                         | b<=w2+1 : b <= w2 +' 1 => linarith
+                         | w2<=b+d2 : w2 <= b +' d w1 => linarith
+                   \in rewrite (meet_+-right,meet_+-right,meet_+-right) $ <_meet-univ (<_meet-univ (<_meet-univ (lem' w2<=b b<=w2+1 lem1 lem2) (lem' w2<=b+d2 b+d2<=w2+1 lem1 lem4)) (lem' w2<=b b<=w2+1 lem3 lem2)) (lem' w2<=b+d2 b+d2<=w2+1 lem3 lem4)))))
+
+        \lemma def : (\lam s => s.1 * s.2) = cover
+          => ext \lam s => later \peval s.1 * s.2
+      }
+
+    \lemma *-rat {x y : Rat} : x * y = {Real} x *' y
+      => (\peval x * y) *> lift2-char
+
+    \lemma *-cover : CoverMap (ProductCoverSpace RealCoverSpace RealCoverSpace) RealCoverSpace (\lam s => s.1 * s.2)
+      => rewrite *.def *.cover
+  }
