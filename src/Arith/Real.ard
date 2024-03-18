@@ -3,6 +3,7 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Ordered
+\import Algebra.Semiring
 \import Arith.Int
 \import Arith.Rat
 \import Data.Or
@@ -10,6 +11,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -85,9 +87,27 @@
       | inl q<r => q<r
       | inr r<=q => absurd $ LU-disjoint Lq (U_<= Ur r<=q)
     }
+
+  \lemma LU_*-focus-right (x>0 : L 0) {d : Rat} (d>1 : 1 < d) : ∃ (a : Rat) (0 < a) (L a) (U (a * d))
+    => \case L-rounded x>0 \with {
+      | inP (a0,a0<x,a0>0) => \case LU-focus (a0 * (d - 1)) (OrderedSemiring.<_*_positive_positive a0>0 linarith) \with {
+        | inP (a,a<x,p) => inP (a0 ∨ a, a0>0 <∘l join-left, real_join_L a0<x a<x, U_<= p $ later $ rewrite {2} (linarith : d = 1 + (d - 1), ldistr) $ rewrite ide-right $ <=_+ join-right $ <=_*_positive-left join-left linarith)
+      }
+    }
+
+  \lemma LU_*-focus-left (x>0 : L 0) {c : Rat} (c<1 : c < 1) : ∃ (b : Rat) (L (b * c)) (U b)
+    => \case dec<_<= 0 c \with {
+      | inl c>0 => \case LU_*-focus-right x>0 {finv c} (finv>1 c>0 c<1) \with {
+        | inP (a,_,a<x,x<ac1) => inP (a * finv c, transportInv L (*-assoc *> pmap (a *) (finv-left $ RatField.>_/= c>0) *> ide-right) a<x, x<ac1)
+      }
+      | inr c<=0 => \case U-inh \with {
+        | inP (b,x<b) => inP (b, L_<= x>0 $ <=_*_positive_negative (<_<= $ LU-less x>0 x<b) c<=0, x<b)
+      }
+    }
 } \where {
   \open DiscreteOrderedField
   \open DiscreteField
+  \open LinearlyOrderedSemiring
 
   \func focus-iter (rat : Rat) (rat>=0 : 0 <= rat) (P : Rat -> Rat -> \Prop) (f : \Pi (q r : Rat) -> P q r -> ∃ (q' r' : P) ((r' - q') * rat <= r - q)) (n : Nat) (q r : Rat) (Pqr : P q r) : ∃ (q' r' : P) ((r' - q') * Monoid.pow rat n <= r - q) \elim n
     | 0 => inP (q, r, Pqr, transportInv (`<= _) ide-right <=-refl)
@@ -165,3 +185,15 @@
   \lemma real_<_U {a : Rat} {x : Real} (p : x < a) : x.U a \elim p
     | inP (b,x<b,b<a) => U-closed x<b b<a
 }
+
+\lemma real_join_L {a b : Rat} {x : Real} (a<x : x.L a) (b<x : x.L b) : x.L (a ∨ b)
+  => \case TotalOrder.join-isMax a b \with {
+    | byLeft p => rewrite p a<x
+    | byRight p => rewrite p b<x
+  }
+
+\lemma real_meet_U {a b : Rat} {x : Real} (x<a : x.U a) (x<b : x.U b) : x.U (a ∧ b)
+  => \case TotalOrder.meet-isMin a b \with {
+    | byLeft p => rewrite p x<a
+    | byRight p => rewrite p x<b
+  }
