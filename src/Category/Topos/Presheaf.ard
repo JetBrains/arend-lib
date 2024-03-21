@@ -1,0 +1,97 @@
+\import Category
+\import Category.Functor
+\import Category.Limit
+\import Category.Subobj
+\import Category.Topos.Sheaf
+\import Function.Meta
+\import Meta
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Category
+\import Topology.Locale
+
+\func functor-at-point {C : SmallPrecat} {D : Cat} (J : Precat)
+                       (G : Functor (\levels obj _) J (FunctorCat {C} {D})) (c : C) : Functor J D => \new Functor {
+  | F j => G j c
+  | Func f => G.Func f c
+  | Func-id {X} => rewrite (G.Func-id {X}) idp
+  | Func-o => rewrite G.Func-o idp
+}
+
+\func limit \plevels obj >= hom {C : SmallPrecat} {D : Cat} (J : Precat)
+                                (j-limit-in-D : \Pi (G : Functor J D) -> Limit G)
+                                (A : Functor J (FunctorCat {C} {D}))
+  : Limit A =>
+  \let L (c : C) => j-limit-in-D (functor-at-point J A c)
+       | cone {X Y : C} (f : Hom X Y) : Cone (functor-at-point J A Y)  => \new Cone {
+         | apex => Cone.apex {L X}
+         | coneMap j => Func f ∘ coneMap {L X} j
+         | coneCoh {i} {j} h => rewriteI (coneCoh {L X} h, o-assoc, o-assoc)
+             (pmap (__ ∘ coneMap i) (natural f))
+       }
+       | apex : FunctorCat {C} {D} => \new Functor {
+         | F c => L c
+         | Func {X} {Y} f => limMap (cone f)
+         | Func-id {X} => limUnique (\lam j =>
+             rewrite id-right (limBeta {L X} {Cone.apex {L X}} (cone (id X)) j) *>
+             rewrite (id-right, id-right) (unfold $ rewrite (Func-id {A j}, id-left) idp)
+         )
+         | Func-o {X} {Y} {Z} {f} {g} =>
+           limUnique (\lam j => rewrite (limBeta {L Z} (cone (f ∘ g)) j, inv o-assoc,
+                                         limBeta {L Z} (cone f) j) (unfold coneMap
+               (rewrite (Func-o {A j}, o-assoc, o-assoc) (rewrite (limBeta {L Y} (cone g) j) (unfold coneMap idp)))))
+       }
+       | cone-nat-map (j : J) : Hom apex (A j) => \new NatTrans {
+         | trans c => coneMap {L c} j
+         | natural {X} {Y} f => rewrite (limBeta {L Y} (cone f) j) idp
+       }
+       | cone-curry (X : C) (H : FunctorCat) (z-cone : Cone {J} A H)
+       : Cone (functor-at-point J A X) (H X) => \new Cone {
+           | coneMap j => coneMap {z-cone} j X
+           | coneCoh {i} {j} h => path (\lam i => ((coneCoh {z-cone} h) i) X)
+         }
+       | lim-nat-map {z : FunctorCat} (z-cone : Cone A z) : Hom z apex =>
+         \new NatTrans {
+           | trans X => unfold apex $ limMap $ cone-curry X z z-cone
+           | natural {X} {Y} f => limUnique (\lam (j : J) => unfold
+             $ rewrite (inv o-assoc, limBeta {L Y} (cone-curry Y z z-cone) j,
+                        inv o-assoc, limBeta {L Y} (cone f), o-assoc,
+                        limBeta {L X} (cone-curry X z z-cone))
+                 $ natural f
+           )
+         }
+  \in \new Limit {
+    | apex => apex
+    | coneMap => cone-nat-map
+    | coneCoh h => exts $ \lam X => coneCoh h
+    | limMap => lim-nat-map
+    | limBeta {z} z-cone j => exts $ \lam X => unfold $ unfold $ rewrite (limBeta {L X} (cone-curry X z z-cone)) idp
+    | limUnique j-unique => exts $ \lam X => limUnique $ \lam j => path (\lam i => j-unique j i X)
+  }
+
+-- there are issues with implementing apex here related to plevels that i can't solve
+-- should be easy enough to compile into CompleteCat instance once they are solved
+
+\instance FunctorCatComplete \plevels obj >= hom (C : SmallPrecat) : CompleteCat
+  | Cat => FunctorCat \levels ((\suc obj), (\suc hom)) _ {C} {SetCat \levels (obj, hom) _}
+  | limit {J} G =>
+    \let l {J : Precat} (G : Functor J (SetCat \levels (\suc obj, \suc hom) _)) : Limit G => SetBicat.limit {J} G
+    \in
+    limit J l G
+
+\func SubPresheave (C : SmallPrecat) (P : PresheafCat C) => Preorder.PosetC {SubobjPreorder {PresheafCat C} P}
+
+\instance PresheaveLocale (C : SmallPrecat) (obj : PresheafCat C)
+: Locale (SubPresheave C obj)
+  | Poset => SubPresheave C obj
+  | meet => {?}
+  | meet-left => {?}
+  | meet-right => {?}
+  | meet-univ => {?}
+  | top => {?}
+  | top-univ => {?}
+  | Join => {?}
+  | Join-cond => {?}
+  | Join-univ => {?}
+  | Join-ldistr>= => {?}
