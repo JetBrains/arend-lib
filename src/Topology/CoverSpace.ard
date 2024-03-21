@@ -27,7 +27,7 @@
   | open-top _ => cauchy-extend cauchy-top \lam {U} _ => inP (U, \lam _ _ => (), <=-refl)
   | open-inter Uo Vo => \lam {x} (Ux,Vx) => cauchy-extend (cauchy-trans (Uo Ux) (\lam _ => Vo Vx))
       \lam (inP (U',V',Uc,Vc,W=U'V')) => inP (U' ∧ V', \lam (U'x,V'x) {y} (U'y,V'y) => (Uc U'x U'y, Vc V'x V'y), Preorder.=_<= W=U'V')
-  | open-Union So {x} (inP (U,SU,Ux)) => cauchy-extend (So U SU Ux) \lam {V} Vc => inP (V, \lam Vx => Vc Vx <=∘ Set.Union-cond SU, <=-refl)
+  | open-Union So {x} (inP (U,SU,Ux)) => cauchy-extend (So SU Ux) \lam {V} Vc => inP (V, \lam Vx => Vc Vx <=∘ Set.Union-cond SU, <=-refl)
 
   \lemma cauchy-trans-dep {C : Set (Set E)} {D : \Pi {U : Set E} -> C U -> Set (Set E)} (Cc : isCauchy C) (Dc : \Pi {U : Set E} (c : C U) -> isCauchy (D c))
     : isCauchy (\lam U => ∃ (V W : Set E) (c : C V) (D c W) (U = V ∧ W))
@@ -47,6 +47,13 @@
 \lemma cauchy-inter {X : PrecoverSpace} {C D : Set (Set X)} (Cc : isCauchy C) (Dc : isCauchy D)
   : isCauchy (\lam U => ∃ (V W : Set X) (C V) (D W) (U = V ∧ W))
   => cauchy-trans Cc \lam _ => Dc
+
+\lemma cauchy-array-inter {X : PrecoverSpace} (Cs : Array (Given X.isCauchy)) : isCauchy \lam V => ∃ (Us : Array (Set X) Cs.len) (\Pi (j : Fin Cs.len) -> (Cs j).1 (Us j)) (V = MeetSemilattice.Big_∧ (top :: Us)) \elim Cs
+  | nil => top-cauchy $ inP $ later (nil, \case __ \with {}, idp)
+  | C :: Cs => cauchy-subset (cauchy-inter C.2 (cauchy-array-inter Cs)) \lam {W} (inP (U, V, CU, inP (Us,f,q), p)) => inP $ later (U :: Us, \case \elim __ \with {
+    | 0 => CU
+    | suc j => f j
+  }, p *> pmap (U ∧) q)
 
 \func IsDenseSet {X : PrecoverSpace} (S : Set X) : \Prop
   => \Pi {x : X} {U : Set X} -> single x <=< U -> ∃ (y : S) (U y)
@@ -406,6 +413,11 @@
     }
   }
 
+\func UniformlyCoverSpace {X : PrecoverSpace} (AI : \Pi {C : Set (Set X)} -> X.isCauchy C -> ∃ (D : X.isCauchy) (∀ {V : D} (∃ (U : C) (∀ {V' : D} (Given (V ∧ V') -> V' ⊆ U))))) : CompletelyRegularCoverSpace X \cowith
+  | PrecoverSpace => X
+  | isCompletelyRegular {C} => transport (\lam (S : PrecoverSpace X) => S.isCauchy C -> S.isCauchy \lam V => ∃ (U : C) (V <=<c {S} U))
+      (exts \lam U => ext (closure-cauchy \lam c => c, closure)) $ isCompletelyRegular {ClosureRegularCoverSpace X.isCauchy X.cauchy-cover AI}
+
 \instance CoverLattice (X : \Set) : CompleteLattice (CoverSpace X)
   | <= A B => \Pi {C : Set (Set X)} -> isCauchy {A} C -> isCauchy {B} C
   | <=-refl c => c
@@ -505,4 +517,9 @@
       }) xy<=<W \with {
         | inP (W, h, inP (U,V,x<=<U,y<=<V,q)) => inP (U, V, x<=<U, y<=<V, \lam Ux' Vy' => h ((x,y), (idp, q (<=<_<= x<=<U idp) (<=<_<= y<=<V idp))) (q Ux' Vy'))
       }
+
+    \lemma prodCover {C : Set (Set X)} (Cc : X.isCauchy C) {D : Set (Set Y)} (Dc : Y.isCauchy D)
+      : isCauchy {ProductCoverSpace X Y} \lam W => ∃ (U : C) (V : D) (W = \lam s => \Sigma (U s.1) (V s.2))
+      => cauchy-subset {ProductCoverSpace X Y} (cauchy-inter {ProductCoverSpace X Y} (proj1.func-cover Cc) (proj2.func-cover Dc))
+          \lam (inP (U, V, inP (U',CU',p1), inP (V',DV',p2), q)) => inP $ later (U', CU', V', DV', q *> pmap2 (∧) p1 p2)
   }
