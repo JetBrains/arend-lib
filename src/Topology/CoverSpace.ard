@@ -427,13 +427,24 @@
   | top-univ {A} c => cauchy-cover {A} c
   | Join f => \new CoverSpace {
     | PrecoverSpace => Join {PrecoverLattice X} f
-    | isRegular => ClosureCoverSpace.closure-regular (<=<) <=<_top <=<-left <=<_meet {Join f} \lam {C} => later \case \elim __ \with {
+    | isRegular => ClosureCoverSpace.closure-regular (<=<) <=<_top <=<-left <=<_meet {Join f} $ later \case \elim __ \with {
       | byLeft p => rewrite p $ closure-subset (closure $ byLeft idp) \lam q => rewriteI q $ inP (top, idp, <=<_top)
       | byRight (j,Cc) => closure $ byRight (j, cauchy-subset (isRegular {f j} Cc) $ later \lam {U} (inP (V,CV,U<=<V)) => inP (V, CV, Join-cond {PrecoverLattice X} j {f} U<=<V))
     }
   }
   | Join-cond j {f} => Join-cond {PrecoverLattice X} j
   | Join-univ => Join-univ {PrecoverLattice X}
+  | join A B => \new CoverSpace {
+    | PrecoverSpace => A ∨ {PrecoverLattice X} B
+    | isRegular => ClosureCoverSpace.closure-regular (<=<) <=<_top <=<-left <=<_meet {A ∨ B} $ later \case \elim __ \with {
+      | byLeft p => closure-subset (closure $ byLeft idp) \lam _ => inP (top, rewrite p idp, <=<_top)
+      | byRight (true, Cc) => closure $ byRight (true, cauchy-subset (isRegular Cc) $ later \lam {U} (inP (V,CV,U<=<V)) => inP (V, CV, join-left {PrecoverLattice X} {A} {B} U<=<V))
+      | byRight (false, Cc) => closure $ byRight (false, cauchy-subset (isRegular Cc) $ later \lam {U} (inP (V,CV,U<=<V)) => inP (V, CV, join-right {PrecoverLattice X} {A} {B} U<=<V))
+    }
+  }
+  | join-left => join-left {PrecoverLattice X}
+  | join-right => join-right {PrecoverLattice X}
+  | join-univ => join-univ {PrecoverLattice X}
 
 \func RegPrecoverSpace (X : PrecoverSpace) : CoverSpace X
   => CompleteLattice.SJoin {CoverLattice X} \lam A => A <= {PrecoverLattice X} X
@@ -447,23 +458,26 @@
   | func-cover {D} Dc => CompleteLattice.SJoin-cond {CoverLattice X} {\lam A => A <= {PrecoverLattice X} X} {CoverTransfer f} PrecoverTransfer-char $
       inP (D, Dc, \lam {V} DV => inP (f ^-1 V, inP (V, DV, idp), <=-refl))
 
+\instance PrecoverSpaceHasProduct : HasProduct PrecoverSpace
+  | Product => ProductPrecoverSpace
+
 \instance CoverSpaceHasProduct : HasProduct CoverSpace
   | Product => ProductCoverSpace
 
 \open CoverMap
 
-\instance ProductCoverSpace (X Y : CoverSpace) : CoverSpace (\Sigma X Y)
-  => CoverTransfer __.1 ∨ CoverTransfer __.2
+\instance ProductPrecoverSpace (X Y : PrecoverSpace) : PrecoverSpace (\Sigma X Y)
+  => PrecoverTransfer __.1 ∨ PrecoverTransfer __.2
   \where {
-    \func proj1 {X Y : CoverSpace} : CoverMap (X ⨯ Y) X \cowith
+    \func proj1 {X Y : PrecoverSpace} : CoverMap (X ⨯ Y) X \cowith
       | func s => s.1
-      | func-cover Dc => join-left {CoverLattice (\Sigma X Y)} $ PrecoverTransfer-map.func-cover Dc
+      | func-cover Dc => join-left {PrecoverLattice (\Sigma X Y)} $ PrecoverTransfer-map.func-cover Dc
 
-    \func proj2 {X Y : CoverSpace} : CoverMap (X ⨯ Y) Y \cowith
+    \func proj2 {X Y : PrecoverSpace} : CoverMap (X ⨯ Y) Y \cowith
       | func s => s.2
-      | func-cover Dc => join-right {CoverLattice (\Sigma X Y)} $ PrecoverTransfer-map.func-cover Dc
+      | func-cover Dc => join-right {PrecoverLattice (\Sigma X Y)} $ PrecoverTransfer-map.func-cover Dc
 
-    \func tuple {Z : PrecoverSpace} {X Y : CoverSpace} (f : CoverMap Z X) (g : CoverMap Z Y) : CoverMap Z (X ⨯ Y) \cowith
+    \func tuple {X Y Z : PrecoverSpace} (f : CoverMap Z X) (g : CoverMap Z Y) : CoverMap Z (X ⨯ Y) \cowith
       | func z => (f z, g z)
       | func-cover => closure-univ-cover $ later \case \elim __ \with {
         | byLeft p => top-cauchy $ inP $ later (top, rewrite p idp, idp)
@@ -475,26 +489,37 @@
         }
       }
 
-    \func prod {X Y X' Y' : CoverSpace} (f : CoverMap X Y) (g : CoverMap X' Y') : CoverMap (X ⨯ X') (Y ⨯ Y')
+    \lemma prodCover {X Y : PrecoverSpace} {C : Set (Set X)} (Cc : X.isCauchy C) {D : Set (Set Y)} (Dc : Y.isCauchy D)
+      : isCauchy {ProductPrecoverSpace X Y} \lam W => ∃ (U : C) (V : D) (W = \lam s => \Sigma (U s.1) (V s.2))
+      => cauchy-subset {ProductPrecoverSpace X Y} (cauchy-inter {ProductPrecoverSpace X Y} (proj1.func-cover Cc) (proj2.func-cover Dc))
+          \lam (inP (U, V, inP (U',CU',p1), inP (V',DV',p2), q)) => inP $ later (U', CU', V', DV', q *> pmap2 (∧) p1 p2)
+
+    \func prod {X Y X' Y' : PrecoverSpace} (f : CoverMap X Y) (g : CoverMap X' Y') : CoverMap (X ⨯ X') (Y ⨯ Y')
       => tuple (f ∘ proj1) (g ∘ proj2)
       \where {
-        \lemma isDense (fd : f.IsDense) (gd : g.IsDense) : IsDense {prod f g}
+        \lemma isDense {X X' : PrecoverSpace} {Y Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fd : f.IsDense) (gd : g.IsDense) : IsDense {prod f g}
           => \lam {(y,y')} yy'<=<U =>
               \have | (inP (V,yy'<=<V,V<=<U)) => <=<-inter yy'<=<U
                     | (inP (x,Vfxy')) => fd {y} $ transport (`<=< _) (ext \lam z => ext (pmap __.1, \lam p => ext (p, idp))) $ <=<_^-1 {Y} {Y ⨯ Y'} {tuple id (const y')} yy'<=<V
                     | (inP (x',Ufxfx')) => gd {y'} $ transport (`<=< _) (ext \lam z => ext (pmap __.2, \lam p => ext (idp, p))) $ <=<_^-1 {Y'} {Y ⨯ Y'} {tuple (const (f x)) id} $ <=<-right (single_<= Vfxy') V<=<U
               \in inP ((x,x'), Ufxfx')
 
-        \lemma isEmbedding (fe : f.IsEmbedding) (ge : g.IsEmbedding) : IsEmbedding {prod f g}
+        \lemma isEmbedding {X Y X' Y' : PrecoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fe : f.IsEmbedding) (ge : g.IsEmbedding) : IsEmbedding {prod f g}
           => closure-embedding (\lam c => c) (prod f g) \case \elim __ \with {
             | byLeft p => top-cauchy {Y ⨯ Y'} $ inP $ later (top, rewrite p idp, top-univ)
             | byRight (true, inP (D,Dc,f)) => closure $ byRight (true, inP (_, fe Dc, \lam (inP (U,DU,p)) => TruncP.map (f DU) \lam (W,CW,q) => (_, inP (W, CW, (\lam c => p c) <=∘ q), <=-refl)))
             | byRight (false, inP (D,Dc,f)) => closure $ byRight (false, inP (_, ge Dc, \lam (inP (U,DU,p)) => TruncP.map (f DU) \lam (W,CW,q) => (_, inP (W, CW, (\lam c => p c) <=∘ q), <=-refl)))
           }
 
-        \lemma isDenseEmbedding (fde : f.IsDenseEmbedding) (gde : g.IsDenseEmbedding) : IsDenseEmbedding {prod f g}
+        \lemma isDenseEmbedding {X X' : PrecoverSpace} {Y Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fde : f.IsDenseEmbedding) (gde : g.IsDenseEmbedding) : IsDenseEmbedding {prod f g}
           => (isDense fde.1 gde.1, isEmbedding fde.2 gde.2)
       }
+  }
+
+\instance ProductCoverSpace (X Y : CoverSpace) : CoverSpace (\Sigma X Y)
+  => CoverTransfer __.1 ∨ CoverTransfer __.2
+  \where {
+    \open ProductPrecoverSpace
 
     \lemma prod-neighborhood {x : X} {y : Y} {W : Set (X ⨯ Y)} (xy<=<W : single (x,y) <=< {X ⨯ Y} W) : ∃ (U : Set X) (V : Set Y) (single x <=< U) (single y <=< V) (\Pi {x : X} {y : Y} -> U x -> V y -> W (x,y))
       => \case closure-filter (\new SetFilter {
@@ -517,9 +542,4 @@
       }) xy<=<W \with {
         | inP (W, h, inP (U,V,x<=<U,y<=<V,q)) => inP (U, V, x<=<U, y<=<V, \lam Ux' Vy' => h ((x,y), (idp, q (<=<_<= x<=<U idp) (<=<_<= y<=<V idp))) (q Ux' Vy'))
       }
-
-    \lemma prodCover {C : Set (Set X)} (Cc : X.isCauchy C) {D : Set (Set Y)} (Dc : Y.isCauchy D)
-      : isCauchy {ProductCoverSpace X Y} \lam W => ∃ (U : C) (V : D) (W = \lam s => \Sigma (U s.1) (V s.2))
-      => cauchy-subset {ProductCoverSpace X Y} (cauchy-inter {ProductCoverSpace X Y} (proj1.func-cover Cc) (proj2.func-cover Dc))
-          \lam (inP (U, V, inP (U',CU',p1), inP (V',DV',p2), q)) => inP $ later (U', CU', V', DV', q *> pmap2 (∧) p1 p2)
   }
