@@ -1,3 +1,4 @@
+\import Algebra.Algebra
 \import Algebra.Domain
 \import Algebra.Field
 \import Algebra.Group
@@ -11,6 +12,7 @@
 \import Meta
 \import Order.Lattice
 \import Order.LinearOrder
+\import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
@@ -245,12 +247,6 @@
     | 0 => zro<ide
     | suc k => <_*_positive_positive (pow>0 p) p
 
-  \lemma meet/=left {a b : E} (p : a ∧ b /= a) : a ∧ b = b
-    => <=-antisymmetric meet-right $ meet-univ (\lam a<b => p $ <=-antisymmetric meet-left $ meet-univ <=-refl $ <_<= a<b) <=-refl
-
-  \lemma meet/=right {a b : E} (p : a ∧ b /= b) : a ∧ b = a
-    => rewrite meet-comm $ meet/=left $ later $ rewrite meet-comm p
-
   \lemma meet_+-left {a b c : E} : a + b ∧ c = (a + b) ∧ (a + c)
     => <=-antisymmetric (meet-univ (<=_+ <=-refl meet-left) (<=_+ <=-refl meet-right)) \lam p =>
         \have t => meet/=left $ <_/= $ <_+-cancel-left a $ p <∘l meet-left
@@ -268,12 +264,6 @@
     => <=-antisymmetric (meet-univ (<=_*_positive-left meet-left c>=0) (<=_*_positive-left meet-right c>=0))
         \lam p => \have ab=a => meet/=right $ <_/= $ <_*_positive-cancel-right c>=0 $ p <∘l meet-right
                   \in <_/= (<_*_positive-cancel-right c>=0 $ p <∘l meet-left) ab=a
-
-  \lemma join/=left {a b : E} (p : a /= a ∨ b) : a ∨ b = b
-    => <=-antisymmetric (join-univ (\lam b<a => p $ <=-antisymmetric join-left (join-univ <=-refl $ <_<= b<a)) <=-refl) join-right
-
-  \lemma join/=right {a b : E} (p : b /= a ∨ b) : a ∨ b = a
-    => rewrite join-comm $ join/=left $ later $ rewrite join-comm p
 
   \lemma join_+-left {a b c : E} : a + (b ∨ c) = (a + b) ∨ (a + c)
     => <=-antisymmetric (\lam p =>
@@ -504,7 +494,7 @@
                       | y<=0 => LinearOrder.<_<= $ <_*_negative-cancel-left {_} {x - abs x} {0} {y} (transport (_ <=) negative-right $ <=_+ abs>=id <=-refl) $ rewrite zro_*-right $ <=_*_positive_positive abs>=0 (transport (`<= _) negative-right $ <=_+ abs>=id <=-refl) <∘r t
                 \in join-right {_} {x} {negative x} $ <_*_positive-cancel-right (rewriteF negative_zro $ negative_<= y<=0) $ later $ rewrite Ring.negative_* $ rewriteF (abs-ofNeg y<=0) p
              | lem2 {x : E} : x * abs y <= abs (x * y) => \lam p => \case <_*-cancel-left (join-left <∘r p) \with {
-               | byLeft (x>0,y<|y|) => <-irreflexive $ join-right <∘r rewriteF (join/=left $ <_/= y<|y|, negative_*-right) p
+               | byLeft (x>0,y<|y|) => <-irreflexive $ join-right <∘r rewriteF (LinearOrder.join/=left $ <_/= y<|y|, negative_*-right) p
                | byRight (_,c) => abs>=id c
              }
        \in <=-antisymmetric (join-univ lem1 $ rewriteI negative_*-left $ rewriteF abs_negative $ lem1 {negative x}) $
@@ -625,3 +615,18 @@
   \lemma <_rotate-left {x y z : E} (y>0 : 0 < y) (p : x < y * z) : finv y * x < z
     => transport (_ <) (inv *-assoc *> pmap (`* z) (finv-left (>_/= y>0)) *> ide-left) (<_*_positive-right (finv>0 y>0) p)
 }
+
+\class OrderedAAlgebra \extends AAlgebra, OrderedRing {
+  \override R : OrderedCRing
+  | coef_< {x y : R} : x < {R} y -> coefMap x < coefMap y
+  | coef_<-inv {x y : R} : coefMap x < coefMap y -> x < {R} y
+
+  \lemma coef_<= {x y : R} (p : x <= {R} y) : coefMap x <= coefMap y
+    => \lam q => p (coef_<-inv q)
+}
+
+\class OrderedCAlgebra \extends OrderedAAlgebra, CAlgebra, OrderedCRing {
+  \override R : OrderedCRing
+}
+
+\class OrderedFieldAlgebra \extends OrderedCAlgebra, OrderedField

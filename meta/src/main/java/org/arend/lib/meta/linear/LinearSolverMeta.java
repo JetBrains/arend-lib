@@ -1,6 +1,7 @@
 package org.arend.lib.meta.linear;
 
 import org.arend.ext.core.definition.CoreClassDefinition;
+import org.arend.ext.core.definition.CoreClassField;
 import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.definition.CoreFunctionDefinition;
 import org.arend.ext.dependency.Dependency;
@@ -30,6 +31,14 @@ public class LinearSolverMeta extends BaseMetaDefinition {
   @Dependency(module = "Arith.Rat", name = "fromInt_<=")                                CoreFunctionDefinition fromIntLE;
   @Dependency(module = "Arith.Rat", name = "fromInt_<")                                 CoreFunctionDefinition fromIntL;
   @Dependency(module = "Order.PartialOrder", name = "Preorder.=_<=")                    CoreFunctionDefinition eqToLeq;
+
+  @Dependency(module = "Algebra.Ordered")                                               public CoreClassDefinition OrderedAAlgebra;
+  @Dependency(module = "Algebra.Module", name = "LModule.R")                            public CoreClassField moduleRing;
+  @Dependency(module = "Algebra.Linear.Solver")                                         CoreClassDefinition LinearRatAlgebraData;
+
+  @Dependency(module = "Algebra.Algebra", name = "AAlgebra.coefMap")                    public CoreClassField coefMap;
+  @Dependency(module = "Algebra.Ordered", name = "OrderedAAlgebra.coef_<")              CoreClassField coefMapL;
+  @Dependency(module = "Algebra.Ordered", name = "OrderedAAlgebra.coef_<=")             CoreFunctionDefinition coefMapLE;
 
   public LinearSolverMeta(StdExtension ext) {
     this.ext = ext;
