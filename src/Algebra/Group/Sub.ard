@@ -2,13 +2,19 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Sub
+\import Algebra.Pointed
+\import Data.Bool
+\import Equiv
 \import Function.Meta
+\import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
-\import Set
+\import Order.PartialOrder
+\import Set.Category
 \open Group
+
 
 \class SubGroup \extends SubMonoid {
   \override S : Group
@@ -27,6 +33,11 @@
     | ~-transitive {x} {y} c1 c2 => rewriteEqF (inverse-right {S} {y}, ide-left) (contains_* c1 c2)
 
   \func Cosets => Quotient (equivalence.~)
+
+  \lemma invariant-right-multiplication {x y : S} (p : 1 equivalence.~ y) : in~{S} {equivalence.~} x = in~ {S} {equivalence.~} (x * y) => {?}
+
+  \lemma equivalence-to-1 {x y : S} (p : x equivalence.~ y) : 1 equivalence.~ inverse x * y => {?}
+
 } \where {
   \func cStruct {G : CGroup} (S : SubGroup G) : CGroup \cowith
     | Group => S.struct
@@ -36,6 +47,40 @@
 \class DecSubGroup \extends SubGroup, DecSubMonoid {
   \override S : Group
 }
+
+\instance SubGroupPreorder {G : Group} : Preorder (SubGroup G)
+  | <= (H K : SubGroup G) => \Pi (g : G) -> H.contains g -> K.contains g
+  | <=-refl {H : SubGroup G} => \lam (g : G) (p : H.contains g) => p
+  | <=-transitive {H K N : SubGroup G}
+                  (p : \Pi (g : G) -> H.contains g -> K.contains g)
+                  (q : \Pi (g : G) -> K.contains g -> N.contains g)
+  => \lam (g : G) (r : H.contains g) => q g (p g r)
+
+
+\lemma pseudo-<=-antisymmetric {G : Group}{x y : SubGroup G} :
+  (\Pi (g : G) -> x g -> y g) -> (\Pi (g : G) -> y g -> x g) -> x.contains = y.contains
+  => \lam p q => funExt {G} (\lam z => \Prop) (equal-funcs p q)
+  \where \lemma equal-funcs {x y : SubGroup G} (p : \Pi (g : G) -> x g -> y g)
+                            (q : \Pi (g : G) -> y g -> x g) (g : G)  : x g = y g =>
+      ext (p g, q g)
+
+\instance SubGroupPoset {G : Group} : Poset (SubGroup G)
+  | Preorder => SubGroupPreorder
+  | <=-antisymmetric {x y : SubGroup G} : (\Pi (g : G) -> x g -> y g) -> (\Pi (g : G) -> y g -> x g) -> x = y
+  => {?}
+
+
+\func funExt {A : \Type} (B : A -> \Type) {f g : \Pi (a : A) -> B a}
+             (p : \Pi (a : A) -> f a = g a) : f = g
+  => path (\lam i => \lam a => p a @ i)
+
+
+\func conjSubGrp {G : Group} (g : G) (H : SubGroup G) : SubGroup G \cowith
+  | contains h => H.contains (conjugate (inverse g) h)
+  | contains_ide => pmap (\lam (u : \Sigma()() -> H.contains_ide)) H.contains_ide (H.contains (conjugate (inverse g) G.ide) ==< pmap H.contains (conjugate-id (inverse g)) >==
+    H.contains (G.ide) `qed)
+  | contains_* => {?}
+  | contains_inverse => {?}
 
 \class NormalSubGroup \extends SubGroup {
   | isNormal (g : S) {h : S} : contains h -> contains (conjugate g h)
@@ -69,6 +114,9 @@
     | inverse-right {x} => cases x \with {
       | in~ a => pmap in~ inverse-right
     }
+
+  \func quotient-proj-setwise : SetHom S quotient \cowith
+    | func s => in~ s
 }
 
 \class SubAddGroup \extends SubAddMonoid {
