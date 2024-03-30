@@ -21,6 +21,13 @@
 \open Group
 \open Algebra.Group.Sub
 
+\func Quot {G H : Group}(f : GroupHom G H) : Group => f.Kernel.quotient
+
+\func \infix 7 / (G : Group) (H : NormalSubGroup G) : Group => H.quotient
+
+\func kernelEquivProp {G : Group} (N : NormalSubGroup G) (a : G)(p : N.contains a) : N.quotient.ide = in~ a => {?}
+
+
 {- | a set function that having $G, H$ and $f : G \to H$ and a
  -    normal subgroup $N \leq G$ s.t. $N \leqslant \ker(f)$ produces for each element of $G/N$ an element of $H$.
  - One gets a diagram of the form
@@ -40,6 +47,7 @@
 {- | this a synonym for universalQuotientMorphismSetwise used because it is shorter-}
 \func uqms {G H : Group} (f : GroupHom G H) (N : NormalSubGroup G) (p : N SubGroupPreorder.<= f.Kernel) => universalQuotientMorphismSetwise f N p
 
+
 {- | this is a proof that in the previous assumptions the function
  - universalQuotientMorphismSetwise is multiplicative -}
 \func universalQuotientMorphismMultiplicative {G H : Group} (f : GroupHom G H) (N : NormalSubGroup G) (p : N SubGroupPreorder.<= f.Kernel)
@@ -55,7 +63,7 @@
  - that the function universalQuotientMorphismSetwise
  - indeed gives a group homomorphism. Thus the arrow $G/N \xrightarrow{\text{uqms}} H$ indeed lies in Group-}
 \func universalQuotientMorph {G H : Group} (f : GroupHom G H) (N : NormalSubGroup G)
-                             (p : N SubGroupPreorder.<= f.Kernel) : GroupHom N.quotient H \cowith
+                             (p : N SubGroupPreorder.<= f.Kernel) : GroupHom (G / N) H \cowith
   | func => uqms f N p
   | func-ide => uqms f N p N.quotient.ide ==< idp >== uqms f N p (in~ 1) ==< idp >== f ide ==< f.func-ide >== ide `qed
   | func-* {x y : N.quotient} => universalQuotientMorphismMultiplicative f N p x y
@@ -67,11 +75,54 @@
   (universalQuotientMorph f N p) (quotient-map x) ==< idp >==
   (universalQuotientMorph f N p) (in~ x) ==< idp >== f x `qed)
 
-\func help {G H : Group} (f : GroupHom G H) : GroupHom G (ImageGroup f) => {?}
 
-\func FirstIsoHom {G H : Group} (f : GroupHom G H) : GroupHom f.Kernel.quotient (ImageGroup (quotient-map {G} {f.Kernel}))
-  => help kernelMap
-  \where \func kernelMap : GroupHom f.Kernel.quotient H => universalQuotientMorph f f.Kernel SubGroupPreorder.<=-refl
+{- | Now we apply all of these universal properties to the case when N = Ker f and we get the first isomorphism theorem in the end-}
+\class FirstIsomorphismTheorem {
+  | G : Group
+  | H : Group
+  | f : GroupHom G H
+
+  \func univKer-hom : GroupHom (G / f.Kernel) H => universalQuotientMorph f (f.Kernel) SubGroupPreorder.<=-refl
+
+  \lemma universalKerProp : univKer-hom GroupCat.∘ quotient-map = f
+    => universalQuotientProperty f f.Kernel SubGroupPreorder.<=-refl
+
+  \lemma universalQuotientKernel (g : G / f.Kernel)
+                                 (q : univKer-hom g = ide) : g = f.Kernel.quotient.ide
+    => \case g \as b, idp : g = b \with{
+      | in~ a, p => {?} -- inv (kernelEquivProp f.Kernel a )
+    }
+    \where{
+      \func helper-1 (a : G)
+                     (q : univKer-hom (in~ a) = ide) : in~ a = f.Kernel.quotient.ide =>
+        inv (kernelEquivProp f.Kernel a (universalQuotientKernel' a q))
+    }
+
+
+  \func evidTrivKer : univKer-hom.TrivialKernel =>
+    \lam {g : G / f.Kernel} (p : univKer-hom.Kernel.contains g) => universalQuotientKernel g p
+
+  \lemma universalQuotientKernel'  (a : G)
+                                  (q : univKer-hom (in~ a) = ide) : f.Kernel.contains a
+    =>
+      f a ==< inv (technical-helper a) >==
+      univKer-hom (in~ a) ==< q >==
+      ide `qed
+    \where \lemma technical-helper  (a : G) : univKer-hom (in~ a) = f a =>
+      univKer-hom (in~ a) ==< pmap univKer-hom {in~ a} {quotient-map a} idp >==
+      univKer-hom (quotient-map a) ==< idp >==
+      (univKer-hom  GroupCat.∘ quotient-map) a ==< pmap (\lam (z : GroupHom G H) => z a) universalKerProp >==
+      f a `qed
+
+
+  \lemma univKer-mono : isInj univKer-hom.func => univKer-hom.Kernel-injectivity-test evidTrivKer
+
+  \func univKer-epi (p : isSurj f): isSurj univKer-hom.func => {?}
+
+
+  \func FirstIsoTheorem (p : isSurj f) : univKer-hom.isIsomorphism => (univKer-mono, univKer-epi p)
+}
+
 
 
 
