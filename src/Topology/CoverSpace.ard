@@ -130,6 +130,12 @@
 \lemma s<=<_<= {X : PrecoverSpace} {V U : Set X} (p : V s<=< U) : V <= U
   => <=<_<= (s<=<_<=< p)
 
+\lemma s<=<_^-1 {X Y : PrecoverSpace} {f : CoverMap X Y} {U V : Set Y} (U<=<V : U s<=< V) : f ^-1 U s<=< f ^-1 V
+  => cauchy-subset (f.func-cover U<=<V) \case \elim __ \with {
+    | inP (_, byLeft idp, p) => byLeft p
+    | inP (_, byRight idp, p) => byRight p
+  }
+
 \class RatherBelow {X : \Set} (R : Set X -> Set X -> \Prop) {
   | <=<-left {U V W : Set X} : R U V -> V ⊆ W -> R U W
   | <=<-right {U V W : Set X} : U ⊆ V -> R V W -> R U W
@@ -179,10 +185,16 @@
   \lemma <=<c_<=<o {V U : Set X} (p : V <=<c U) : V <=<o U \elim p
     | inP (R,p,q,r) => inP (R, p, \lam r => TruncP.map (q r) \lam (W,RVW,RWU) => (W, RVW, p RWU), r)
 
+  \lemma <=<c_<=< {V U : Set X} (p : V <=<c U) : R V U
+    => <=<o_<=< (<=<c_<=<o p)
+
   \lemma <=<c-inter {V U : Set X} (p : V <=<c U) : ∃ (W : Set X) (V <=<c W) (W <=<c U) \elim p
     | inP (R,p,q,RVU) => \case q RVU \with {
       | inP (W,RVW,RWU) => inP (W, inP (R, p, q, RVW), inP (R, p, q, RWU))
     }
+
+  \lemma <=<c-func {R2 : RatherBelow {X}} (p : \Pi {V U : Set X} -> R V U -> R2 V U) {V U : Set X} (q : V <=<c U) : V R2.<=<c U \elim q
+    | inP (R',f,g,r) => inP (R', \lam r => p (f r), g, r)
 
   \func Interpolative : RatherBelow {X} \cowith
     | R => <=<c
@@ -206,6 +218,11 @@
            },
            inP (V1, V2, U1, U2, RV1U1, R'V2U2, idp, idp))
     }
+} \where {
+  \lemma <=<c_^-1 {X Y : PrecoverSpace} {RX : RatherBelow {X}} {RY : RatherBelow {Y}} {f : CoverMap X Y} (<=<_^-1 : \Pi {U V : Set Y} -> RY U V -> RX (f ^-1 U) (f ^-1 V)) {U V : Set Y} (p : U RY.<=<c V) : f ^-1 U RX.<=<c f ^-1 V \elim p
+    | inP (R',g,h,r) => inP (\lam U V => ∃ (U' V' : R') (U = f ^-1 U') (V = f ^-1 V'), \lam (inP (U',V',R'U'V',p,q)) => rewrite (p,q) $ <=<_^-1 $ g R'U'V', \lam (inP (U',V',R'U'V',p,q)) => \case h R'U'V' \with {
+      | inP (W,R'U'W,R'WV') => inP (f ^-1 W, inP (U', W, R'U'W, p, idp), inP (W, V', R'WV', idp, q))
+    }, inP (U, V, r, idp, idp))
 }
 
 \instance RegularRatherBelow {X : PrecoverSpace} : RatherBelow {X} (<=<)
@@ -251,9 +268,9 @@
     | inP (V, inP (U', f, V<=<U'), x<=<V) => inP (V, x<=<V, <=<-left V<=<U' $ f (x, (idp, <=<_<= V<=<U' $ <=<_<= x<=<V idp)))
   }
 
-\lemma s<=<-inter {X : StronglyRegularCoverSpace} {x : X} {U : Set X} (x<=<U : single x <=< U) : ∃ (V : Set X) (single x s<=< V) (V s<=< U)
-  => unfolds at x<=<U $ \case cauchy-cover (isStronglyRegular $ isStronglyRegular x<=<U) x \with {
-    | inP (V'', inP (V', inP (V, h, V'<=<V), V''<=<V'), V''x) => inP (V', <=<-right (single_<= V''x) V''<=<V', <=<-left V'<=<V $ h (x, (idp, s<=<_<= V'<=<V $ s<=<_<= V''<=<V' V''x)))
+\lemma s<=<c-inter {X : CompletelyStronglyRegularCoverSpace} {x : X} {U : Set X} (x<=<U : single x <=< U) : ∃ (V : Set X) (single x RatherBelow.<=<c V) (V RatherBelow.<=<c U)
+  => unfolds at x<=<U $ \case cauchy-cover (isCompletelyStronglyRegular $ isCompletelyStronglyRegular x<=<U) x \with {
+    | inP (V'', inP (V', inP (V, h, V'<=<V), V''<=<V'), V''x) => inP (V', RatherBelow.Interpolative.<=<-right (single_<= V''x) V''<=<V', RatherBelow.Interpolative.<=<-left V'<=<V $ h (x, (idp, s<=<_<= (RatherBelow.<=<c_<=< V'<=<V) $ s<=<_<= (RatherBelow.<=<c_<=< V''<=<V') V''x)))
   }
 
 \lemma denseSet-char {X : CoverSpace} {S : Set X} : IsDenseSet S <-> ∀ {C : isCauchy} (isCauchy \lam V => ∃ (U : C) (V ⊆ U) (Given V -> ∃ (x : S) (U x)))
@@ -275,6 +292,11 @@
 \class CompletelyRegularCoverSpace \extends OmegaRegularCoverSpace
   | isCompletelyRegular {C : Set (Set E)} : isCauchy C -> isCauchy \lam V => ∃ (U : C) (V RegularRatherBelow.<=<c U)
   | isOmegaRegular Cc => cauchy-subset (isCompletelyRegular Cc) \lam (inP (V,CV,U<=<cV)) => inP $ later (V, CV, RatherBelow.<=<c_<=<o U<=<cV)
+
+\class CompletelyStronglyRegularCoverSpace \extends StronglyRegularCoverSpace, CompletelyRegularCoverSpace
+  | isCompletelyStronglyRegular {C : Set (Set E)} : isCauchy C -> isCauchy \lam V => ∃ (U : C) (V StronglyRatherBelow.<=<c U)
+  | isStronglyRegular Cc => cauchy-subset (isCompletelyStronglyRegular Cc) \lam {V} (inP (U,CU,V<=<U)) => inP $ later (U, CU, RatherBelow.<=<c_<=< V<=<U)
+  | isCompletelyRegular Cc => cauchy-subset (isCompletelyStronglyRegular Cc) \lam {V} (inP (U,CU,V<=<U)) => inP $ later (U, CU, StronglyRatherBelow.<=<c-func s<=<_<=< V<=<U)
 
 \func AntiDiscreteCover (X : \Set) : CompletelyRegularCoverSpace X \cowith
   | isCauchy C => C top
