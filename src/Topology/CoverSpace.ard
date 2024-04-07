@@ -10,6 +10,7 @@
 \import Paths.Meta
 \import Set.Filter
 \import Set.Subset
+\import Topology.RatherBelow
 \import Topology.TopSpace
 \open Bounded(top,top-univ)
 \open Set
@@ -136,103 +137,14 @@
     | inP (_, byRight idp, p) => byRight p
   }
 
-\class RatherBelow {X : \Set} (R : Set X -> Set X -> \Prop) {
-  | <=<-left {U V W : Set X} : R U V -> V ⊆ W -> R U W
-  | <=<-right {U V W : Set X} : U ⊆ V -> R V W -> R U W
-  | <=<_top {V : Set X} : R V top
-  | <=<_meet {U V U' V' : Set X} : R U V -> R U' V' -> R (U ∧ U') (V ∧ V')
-
-  \lemma <=<_single_meet {x : X} {U V : Set X} (p : R (single x) U) (q : R (single x) V) : R (single x) (U ∧ V)
-    => <=<-right (\lam r => later $ rewrite r (idp,idp)) (<=<_meet p q)
-
-  \type \infix 4 <=<o (V U : Set X) : \Prop
-    => ∃ (R' : Set X -> Set X -> \Prop) (\Pi {V U : Set X} -> R' V U -> R V U) (\Pi {V U : Set X} -> R' V U -> ∃ (W : Set X) (R' V W) (R W U)) (R' V U)
-
-  \lemma <=<o_<=< {V U : Set X} (p : V <=<o U) : R V U \elim p
-    | inP (R,p,q,r) => p r
-
-  \lemma <=<o-inter {V U : Set X} (p : V <=<o U) : ∃ (W : Set X) (V <=<o W) (R W U) \elim p
-    | inP (R,p,q,RVU) => \case q RVU \with {
-      | inP (W,RVW,W<=<U) => inP (W, inP (R, p, q, RVW), W<=<U)
-    }
-
-  \func Omega : RatherBelow {X} \cowith
-    | R => <=<o
-    | <=<_top => inP (\lam V U => U = {Set X} top, \lam p => rewrite p <=<_top, \lam p => inP (top, idp, rewrite p <=<_top), idp)
-    | <=<-left {W} {V} {U} p V<=U => \case \elim p \with {
-      | inP (R,p,q,RWV) => inP (\lam V U => ∃ (U' : Set X) (R V U') (U' ⊆ U), \lam (inP (U',RVU',U'<=U)) => <=<-left (p RVU') U'<=U, \lam (inP (U',RVU',U'<=U)) => \case q RVU' \with {
-        | inP (W,RVW,W<=<U') => inP (W, inP (W, RVW, <=-refl), <=<-left W<=<U' U'<=U)
-      }, inP (V, RWV, V<=U))
-    }
-    | <=<-right {W} {V} {U} W<=V => \case \elim __ \with {
-      | inP (R,p,q,RVU) => inP (\lam V U => ∃ (V' : Set X) (R V' U) (V ⊆ V'), \lam (inP (V',RV'U,V<=V')) => <=<-right V<=V' (p RV'U), \lam (inP (V',RV'U,V<=V')) => \case q RV'U \with {
-        | inP (W,RV'W,W<=<U) => inP (W, inP (V', RV'W, V<=V'), W<=<U)
-      }, inP (V, RVU, W<=V))
-    }
-    | <=<_meet {V1} {U1} {V2} {U2} => \case \elim __, \elim __ \with {
-      | inP (R,p,q,RV1U1), inP (R',p',q',R'V2U2) => inP
-          (\lam V U => ∃ (V1 V2 U1 U2 : Set X) (R V1 U1) (R' V2 U2) (V = V1 ∧ V2) (U = U1 ∧ U2),
-           \lam (inP (V1,V2,U1,U2,RV1U1,R'V2U2,Vp,Up)) => rewrite (Vp,Up) $ <=<_meet (p RV1U1) (p' R'V2U2),
-           \lam (inP (V1,V2,U1,U2,RV1U1,R'V2U2,Vp,Up)) => \case q RV1U1, q' R'V2U2 \with {
-             | inP (W1,RV1W1,W1<=<U1), inP (W2,R'V2W2,W2<=<U2) => inP (W1 ∧ W2, inP (V1, V2, W1, W2, RV1W1, R'V2W2, Vp, idp), rewrite Up $ <=<_meet W1<=<U1 W2<=<U2)
-           },
-           inP (V1, V2, U1, U2, RV1U1, R'V2U2, idp, idp))
-    }
-
-  \type \infix 4 <=<c (V U : Set X) : \Prop
-    => ∃ (R' : Set X -> Set X -> \Prop) (\Pi {V U : Set X} -> R' V U -> R V U) (\Pi {V U : Set X} -> R' V U -> ∃ (W : Set X) (R' V W) (R' W U)) (R' V U)
-
-  \lemma <=<c_<=<o {V U : Set X} (p : V <=<c U) : V <=<o U \elim p
-    | inP (R,p,q,r) => inP (R, p, \lam r => TruncP.map (q r) \lam (W,RVW,RWU) => (W, RVW, p RWU), r)
-
-  \lemma <=<c_<=< {V U : Set X} (p : V <=<c U) : R V U
-    => <=<o_<=< (<=<c_<=<o p)
-
-  \lemma <=<c-inter {V U : Set X} (p : V <=<c U) : ∃ (W : Set X) (V <=<c W) (W <=<c U) \elim p
-    | inP (R,p,q,RVU) => \case q RVU \with {
-      | inP (W,RVW,RWU) => inP (W, inP (R, p, q, RVW), inP (R, p, q, RWU))
-    }
-
-  \lemma <=<c-func {R2 : RatherBelow {X}} (p : \Pi {V U : Set X} -> R V U -> R2 V U) {V U : Set X} (q : V <=<c U) : V R2.<=<c U \elim q
-    | inP (R',f,g,r) => inP (R', \lam r => p (f r), g, r)
-
-  \func Interpolative : RatherBelow {X} \cowith
-    | R => <=<c
-    | <=<_top => inP (\lam V U => U = {Set X} top, \lam p => rewrite p <=<_top, \lam p => inP (top, idp, p), idp)
-    | <=<-left {W} {V} {U} p V<=U => \case \elim p \with {
-      | inP (R,p,q,RWV) => inP (\lam V U => ∃ (U' : Set X) (R V U') (U' ⊆ U), \lam (inP (U',RVU',U'<=U)) => <=<-left (p RVU') U'<=U, \lam (inP (U',RVU',U'<=U)) => \case q RVU' \with {
-        | inP (W,RVW,RWU') => inP (W, inP (W, RVW, <=-refl), inP (U', RWU', U'<=U))
-      }, inP (V, RWV, V<=U))
-    }
-    | <=<-right {W} {V} {U} W<=V => \case \elim __ \with {
-      | inP (R,p,q,RVU) => inP (\lam V U => ∃ (V' : Set X) (R V' U) (V ⊆ V'), \lam (inP (V',RV'U,V<=V')) => <=<-right V<=V' (p RV'U), \lam (inP (V',RV'U,V<=V')) => \case q RV'U \with {
-        | inP (W,RV'W,RWU) => inP (W, inP (V', RV'W, V<=V'), inP (W, RWU, <=-refl))
-      }, inP (V, RVU, W<=V))
-    }
-    | <=<_meet {V1} {U1} {V2} {U2} => \case \elim __, \elim __ \with {
-      | inP (R,p,q,RV1U1), inP (R',p',q',R'V2U2) => inP
-          (\lam V U => ∃ (V1 V2 U1 U2 : Set X) (R V1 U1) (R' V2 U2) (V = V1 ∧ V2) (U = U1 ∧ U2),
-           \lam (inP (V1,V2,U1,U2,RV1U1,R'V2U2,Vp,Up)) => rewrite (Vp,Up) $ <=<_meet (p RV1U1) (p' R'V2U2),
-           \lam (inP (V1,V2,U1,U2,RV1U1,R'V2U2,Vp,Up)) => \case q RV1U1, q' R'V2U2 \with {
-             | inP (W1,RV1W1,RW1U1), inP (W2,R'V2W2,R'W2U2) => inP (W1 ∧ W2, inP (V1, V2, W1, W2, RV1W1, R'V2W2, Vp, idp), inP (W1, W2, U1, U2, RW1U1, R'W2U2, idp, Up))
-           },
-           inP (V1, V2, U1, U2, RV1U1, R'V2U2, idp, idp))
-    }
-} \where {
-  \lemma <=<c_^-1 {X Y : PrecoverSpace} {RX : RatherBelow {X}} {RY : RatherBelow {Y}} {f : CoverMap X Y} (<=<_^-1 : \Pi {U V : Set Y} -> RY U V -> RX (f ^-1 U) (f ^-1 V)) {U V : Set Y} (p : U RY.<=<c V) : f ^-1 U RX.<=<c f ^-1 V \elim p
-    | inP (R',g,h,r) => inP (\lam U V => ∃ (U' V' : R') (U = f ^-1 U') (V = f ^-1 V'), \lam (inP (U',V',R'U'V',p,q)) => rewrite (p,q) $ <=<_^-1 $ g R'U'V', \lam (inP (U',V',R'U'V',p,q)) => \case h R'U'V' \with {
-      | inP (W,R'U'W,R'WV') => inP (f ^-1 W, inP (U', W, R'U'W, p, idp), inP (W, V', R'WV', idp, q))
-    }, inP (U, V, r, idp, idp))
-}
-
-\instance RegularRatherBelow {X : PrecoverSpace} : RatherBelow {X} (<=<)
+\instance RegularRatherBelow {X : PrecoverSpace} : RatherBelow {SetLattice X} (<=<)
   | <=<_top => unfolds $ top-cauchy \lam _ => <=-refl
   | <=<-left p q => unfolds at p $ cauchy-subset p \lam f t => f t <=∘ q
   | <=<-right p q => unfolds at q $ cauchy-subset q $ later \lam {Z} f (x,(Wx,Zx)) => f (x, (p Wx, Zx))
   | <=<_meet U<=<U' V<=<V' => unfolds at U<=<U' $ cauchy-subset (cauchy-inter U<=<U' V<=<V') $ later \lam (inP (U'', V'', t1, t2, p)) =>
       rewrite p \lam (x,((Ux,Vx),(U''x,V''x))) => MeetSemilattice.meet-monotone (t1 (x,(Ux,U''x))) (t2 (x,(Vx,V''x)))
 
-\instance StronglyRatherBelow {X : PrecoverSpace} : RatherBelow {X} (s<=<)
+\instance StronglyRatherBelow {X : PrecoverSpace} : RatherBelow {SetLattice X} (s<=<)
   | <=<_top => unfolds $ top-cauchy $ byRight idp
   | <=<-left p q => unfolds at p $ cauchy-extend p \lam {U'} => later \case \elim __ \with {
     | byLeft r => rewrite r $ inP (_, byLeft idp, <=-refl)
@@ -246,12 +158,6 @@
     | byLeft r, _ => inP (_, byLeft idp, rewrite r \lam (nUx,_) (Ux,_) => nUx Ux)
     | _, byLeft r => inP (_, byLeft idp, rewrite r \lam (_,nVx) (_,Vx) => nVx Vx)
     | byRight q, byRight r => inP (_, byRight $ pmap2 (∧) q r, <=-refl)
-  }
-  \where {
-    \lemma <=<_bottom {X : PrecoverSpace} {U : Set X} : Bounded.bottom s<=< U
-      => unfolds $ top-cauchy $ byLeft $ <=-antisymmetric (later \lam _ => \case \elim __ \with {
-        | inP ((),_)
-      }) top-univ
   }
 
 \class CoverSpace \extends PrecoverSpace {
@@ -448,9 +354,7 @@
   | PrecoverSpace => ClosurePrecoverSpace A CA
   | isRegular => closure-regular {ClosurePrecoverSpace A CA} RegularRatherBelow \lam AC => closure-subset (AS AC) \lam (inP (U,CU,c)) => inP (U, CU, c)
   \where {
-    \open RatherBelow
-
-    \lemma closure-regular {X : PrecoverSpace} (RB : RatherBelow {X}) {A : Set (Set X) -> \Prop} (AS : \Pi {C : Set (Set X)} -> A C -> Closure A \lam V => ∃ (U : C) (RB.R V U)) {C : Set (Set X)} (CC : Closure A C)
+    \lemma closure-regular {X : PrecoverSpace} (RB : RatherBelow {SetLattice X}) {A : Set (Set X) -> \Prop} (AS : \Pi {C : Set (Set X)} -> A C -> Closure A \lam V => ∃ (U : C) (RB.R V U)) {C : Set (Set X)} (CC : Closure A C)
       : Closure A (\lam V => ∃ (U : C) (RB.R V U)) \elim CC
       | closure AC => AS AC
       | closure-top idp => closure-subset (closure-top idp) \lam p => inP (top, idp, <=<_top)
@@ -594,7 +498,7 @@
                   | F W => ∃ (U : Set X) (V : Set Y) (single x <=< U) (single y <=< V) ∀ {x : U} {y : V} (W (x,y))
                   | filter-mono p (inP (U,V,x<=<U,y<=<V,q)) => inP (U, V, x<=<U, y<=<V, \lam Ux Vy => p (q Ux Vy))
                   | filter-top => inP (top, top, <=<_top, <=<_top, \lam _ _ => ())
-                  | filter-meet (inP (U,V,x<=<U,y<=<V,q)) (inP (U',V',x<=<U',y<=<V',q')) => inP (U ∧ U', V ∧ V', RatherBelow.<=<_single_meet x<=<U x<=<U', RatherBelow.<=<_single_meet y<=<V y<=<V', \lam (Ux,U'x) (Vy,V'y) => (q Ux Vy, q' U'x V'y))
+                  | filter-meet (inP (U,V,x<=<U,y<=<V,q)) (inP (U',V',x<=<U',y<=<V',q')) => inP (U ∧ U', V ∧ V', RatherBelow.<=<_meet-same x<=<U x<=<U', RatherBelow.<=<_meet-same y<=<V y<=<V', \lam (Ux,U'x) (Vy,V'y) => (q Ux Vy, q' U'x V'y))
                 }) (\case \elim __ \with {
                       | byLeft p => inP (top, rewrite p idp, inP (top, top, <=<_top, <=<_top, \lam _ _ => ()))
                       | byRight (true, inP (D,Dc,h)) => \case CoverSpace.cauchy-regular-cover Dc x \with {
