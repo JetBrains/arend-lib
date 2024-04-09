@@ -45,6 +45,11 @@
                | c2 => Cover.cover-trans1 (cover-idemp () idp) $ cover-ldistr idp c1 \lam _ => idp
          \in cover-trans c2 \lam (inP (x,U'x)) => Cover.cover-inj_<= (inP (x, Interpolative.<=<-right (single_<= U'x) U'<=<U)) \lam (U'x,_) => s<=<_<= (<=<c_<=< U'<=<U) U'x
 
+    \lemma cover-empty {X : PrecoverSpace} {J : \Set} {g : J -> Set X} : Cover {framePres} Bounded.bottom g
+      => cover-trans cover-inh \lam (inP (x, x<=<bot)) => \case s<=<_<= (<=<c_<=< x<=<bot) idp \with {
+        | inP ((),_)
+      }
+
     \lemma positive-inh {U : Set X} (Up : Locale.isPositive {CoverSpaceLocale X} (embed U)) : ∃ U
       => Up _ $ embed<= $ cover-basic $ byRight $ byRight $ later \lam s => inP ((top, cover-inj (inP s, top, ()) idp), idp)
 
@@ -155,6 +160,9 @@
   \where {
     \lemma points_<=< {a : L} {U : Set (CompleteFilter {L})} (p : a L.<=< points_* U) : points^* a s<=< {LocalePrecoverSpace L} U
       => unfolds $ p <=∘ join-univ (points^*-points_* (\lam {x} xna xa => CompleteFilter.isProper {x} $ filter-mono L.eval $ filter-meet xna xa) <=∘ Join-cond (later (_, byLeft idp))) (Join-cond $ later (_, byRight idp))
+
+    \lemma cover-cauchy {C : Set L} (p : top <= L.SJoin C) : isCauchy {LocalePrecoverSpace L} \lam U => ∃ (a : C) (points^* a = U)
+      => p <=∘ Join-univ \lam (a,Ca) => points-unit <=∘ Join-cond (later (_, inP (a, Ca, idp)))
   }
 
 \func CoverSpaceLocaleFunctor : Functor CompletelyStronglyRegularCoverSpaceCat LocaleCat \cowith
@@ -235,3 +243,16 @@
       | inP (((W,p),U'',WU''),x<=<U'') => p $ inP $ later (U'', WU'', x<=<U'')
     })
   }
+
+\func CoverSpaceLocale-counit {L : Locale} (Lr : L.isRegular) : FrameHom L (CoverSpaceLocale (LocalePrecoverSpace L)) \cowith
+  | func a => closure {_} {\Sigma (b : L) (b L.<=< a)} $ \lam s => points^* s.1
+  | func-<= {a} {b} a<=b => closure<= $ later \lam (c,c<=<a) => cover-inj (_, cover-inj (c, <=<-left c<=<a a<=b) idp) idp
+  | func-top>= _ => Cover.cover-inj_<= (top,<=<_top) $ top-univ <=∘ points^*_top>=
+  | func-meet>= {a} {b} => cover-trans __ \lam (U,V,Uc,Vc) => Cover.cover-conj Uc Vc \lam {(a',a'<=<a)} {(b',b'<=<b)} => inP ((a' ∧ b', <=<_meet a'<=<a b'<=<b), points^*_meet)
+  | func-Join>= {J} {f} => closure<= $ later \lam (b,b<=<Jf) =>
+      \have c => mkcon cover-ldistr {points^* b} idp (CoverSpaceLocale.cover-cauchy {LocalePrecoverSpace L} $ cover-cauchy {L} {\lam x => (x = L.neg b) || Given (j : J) (x L.<=< f j)} $ b<=<Jf <=∘ join-univ (L.SJoin-cond $ byLeft idp) (Join-univ \lam j => Lr (f j) <=∘ L.SJoin-univ \lam x<=<fj => L.SJoin-cond $ later $ byRight (j,x<=<fj))) \lam _ => idp
+      \in Cover.cover-trans1 (Cover.cover_<= $ meet-univ <=-refl top-univ) $ cover-trans c \case \elim __ \with {
+        | (_, inP (a, byLeft q, idp)) => Cover.cover-trans1 (Cover.cover_<= $ later $ rewrite q \lam (xb,xnb) => absurd $ CompleteFilter.isProper $ filter-mono Locale.eval $ filter-meet xnb xb) CoverSpaceLocale.cover-empty
+        | (_, inP (a, byRight (j,a<=<fj), idp)) => cover-inj (_, cover-inj (j, _, Cover.cover-inj_<= (a,a<=<fj) meet-right) idp) idp
+      }
+  \where \open PresentedFrame
