@@ -16,7 +16,7 @@
 \import Topology.Locale \hiding (<=<_<=, func-cover)
 \import Topology.Locale.Points
 \import Topology.RatherBelow
-\open Bounded(top,top-univ)
+\open Bounded(top,top-univ,bottom,bottom-univ)
 \open LocalePrecoverSpace
 \open Set
 \open RatherBelow
@@ -26,11 +26,9 @@
   \where {
     \open PresentedFrame
 
-    \func framePres {X : PrecoverSpace} : FrameUPres (Set X) \cowith
+    \func framePres {X : PrecoverSpace} : FramePres (Set X) \cowith
       | conj => ∧
-      | BasicCover {J} U f => Given (U = {Set X} top) (C : X.isCauchy) (∀ {V : C} ∃ (j : J) (f j = V)) || (\Pi {V : Set X} -> V s<=< U -> ∃ (j : J) (f j = V)) || (Given U -> ∃ (j : J) (f j = {Set X} top))
-      | unit => top
-      | isUnit => byRight $ byRight \lam _ => inP ((),idp)
+      | BasicCover {J} U f => Given (U = {Set X} top) (C : X.isCauchy) (∀ {V : C} ∃ (j : J) (f j = V)) || (\Pi {V : Set X} -> V s<=< U -> ∃ (j : J) (f j = V)) || (U = {Set X} bottom)
 
     \lemma cover-cauchy {X : PrecoverSpace} {C : Set (Set X)} (Cc : isCauchy C) : FramePres.SCover {framePres} top C
       => cover-basic $ byLeft (idp, C, Cc, \lam {V} CV => inP ((V,CV), idp))
@@ -38,38 +36,26 @@
     \lemma cover-reg {X : PrecoverSpace} {U : Set X} : FramePres.SCover U \lam V => V s<=< U
       => cover-trans (cover-basic {framePres} {U} {\Sigma (V : Set X) (V s<=< U)} $ byRight $ byLeft \lam p => inP ((_, p), idp)) \lam s => cover-inj s idp
 
-    \lemma cover-creg {X : CompletelyStronglyRegularCoverSpace} {U : Set X} : FramePres.SCover {framePres} U \lam V => V StronglyRatherBelow.<=<c U
+    \lemma cover-creg {X : CompletelyStronglyRegularCoverSpace} {U : Set X} : FramePres.SCover {framePres} U \lam V => V <=<c U
       => cover-trans cover-reg \lam (V,V<=<U) => unfolds at V<=<U $ cover-trans (Cover.cover-trans1 (Cover.cover_<= $ meet-univ <=-refl top-univ) $ cover-ldistr idp (cover-cauchy $ isCompletelyStronglyRegular V<=<U) \lam _ => idp) \case \elim __ \with {
-        | (W, inP (_, byLeft idp, W<=<nV)) => cover-inj (_, StronglyRatherBelow.Interpolative.<=<-right (later \lam (Vx,Wx) => absurd $ s<=<_<= (<=<c_<=< W<=<nV) Wx Vx) $ <=<c_bottom s<=<_bottom) idp
-        | (W, inP (_, byRight idp, W<=<U)) => cover-inj (_, StronglyRatherBelow.Interpolative.<=<-right (later __.2) W<=<U) idp
+        | (W, inP (_, byLeft idp, W<=<nV)) => cover-inj (_, Interpolative.<=<-right (later \lam (Vx,Wx) => absurd $ s<=<_<= (<=<c_<=< W<=<nV) Wx Vx) $ <=<c_bottom s<=<_bottom) idp
+        | (W, inP (_, byRight idp, W<=<U)) => cover-inj (_, Interpolative.<=<-right (later __.2) W<=<U) idp
       }
 
-    \lemma cover-inh {X : PrecoverSpace} {U : Set X} : Cover {framePres} U {∃ (x : X) (single x s<=< U)} \lam _ => U
-      => cover-trans cover-reg \lam (U',U'<=<U) =>
-          \have | c1 : Cover {framePres} U' {∃ U'} \lam _ => top
-                    => cover-basic $ byRight $ byRight \lam s => inP (inP s, idp)
-               | c2 => Cover.cover-trans1 (cover-idemp () idp) $ cover-ldistr idp c1 \lam _ => idp
-         \in cover-trans c2 \lam (inP (x,U'x)) => Cover.cover-inj_<= (inP (x, <=<-right (single_<= U'x) U'<=<U)) \lam (U'x,_) => s<=<_<= U'<=<U U'x
-
-    \lemma cover-empty {X : PrecoverSpace} {J : \Set} {g : J -> Set X} : Cover {framePres} Bounded.bottom g
-      => cover-trans cover-inh \lam (inP (x, x<=<bot)) => \case s<=<_<= x<=<bot idp \with {
-        | inP ((),_)
-      }
-
-    \lemma positive-inh {U : Set X} (Up : Locale.isPositive {CoverSpaceLocale X} (embed U)) : ∃ U
-      => Up _ $ embed<= $ cover-basic $ byRight $ byRight $ later \lam s => inP ((top, cover-inj (inP s, top, ()) idp), idp)
+    \lemma cover-empty {X : PrecoverSpace} {U : Set X} (Ue : \Pi {x : X} -> Not (U x)) {J : \Set} {g : J -> Set X} : Cover {framePres} U g
+      => cover-basic $ byRight $ byRight $ <=-antisymmetric (\lam Ux => absurd $ Ue Ux) bottom-univ
 
     \lemma embed_<=< {V U : Set X} (V<=<U : V s<=< U) : embed V Locale.<=< {CoverSpaceLocale X} embed U
       => \lam _ => Cover.cover-trans1 Cover.cover_top $ cover-basic $ byLeft
             (idp, _, V<=<U, \case \elim __ \with {
-              | byLeft p => inP ((true, _, cover-inj ((embed $ Compl V, rewrite embed_meet $ embed<= $ cover-basic $ byRight $ byRight $ later \lam (x,(nVx,Vx)) => absurd $ nVx Vx), _, rewrite p $ cover-inj () idp) idp), idp)
+              | byLeft p => inP ((true, _, cover-inj ((embed $ Compl V, rewrite embed_meet $ embed<= $ cover-basic $ byRight $ byRight $ <=-antisymmetric (later \lam (nVx,Vx) => absurd $ nVx Vx) bottom-univ), _, rewrite p $ cover-inj () idp) idp), idp)
               | byRight p => inP ((false, _, rewrite p $ cover-inj () idp), idp)
             })
 
     \lemma regular : Locale.isRegular {CoverSpaceLocale X}
       => regular-fromPres \lam U => cover-basic $ byRight $ byLeft $ later \lam {V} V<=<U => inP ((V, embed_<=< V<=<U), idp)
 
-    \lemma cover-char {X : StronglyRegularCoverSpace} (Xo : X.IsOvert) {U : Set X} {J : \Set} {g : J -> Set X} (c : Cover {framePres} U g) {U' : Set X} (U'<=<U : U' s<=< U)
+    \lemma cover-char {X : StronglyRegularCoverSpace} {U : Set X} {J : \Set} {g : J -> Set X} (c : Cover {framePres} U g) {U' : Set X} (U'<=<U : U' s<=< U)
       : X.isCauchy \lam V => (V = Compl U') || (\Sigma (j : J) (g j = V)) \elim c
       | cover-basic (byLeft (p,C,Cc,h)) => cauchy-subset Cc \case h __ \with {
         | inP r => byRight r
@@ -80,21 +66,18 @@
           | inP s => byRight s
         }, <=-refl)
       }
-      | cover-basic (byRight (byRight h)) => cauchy-extend (Xo U'<=<U) \lam {V'} (e, inP (x,V'x)) => \case \elim e \with {
-        | byLeft p => inP (V', byLeft p, <=-refl)
-        | byRight p => \case h (x, rewriteI p V'x) \with {
-          | inP (j,q) => inP (top, byRight (j, q), top-univ)
-        }
-      }
+      | cover-basic (byRight (byRight h)) => top-cauchy $ byLeft $ <=-antisymmetric (later \lam _ U'x => \case s<=<_<= (rewriteF h U'<=<U) U'x \with {
+        | inP ((),_)
+      }) top-univ
       | cover-inj j p => unfolds at U'<=<U $ cauchy-subset U'<=<U \case \elim __ \with {
         | byLeft q => byLeft q
         | byRight q => byRight $ later (j, p *> inv q)
       }
       | cover-trans {I} {f} c d =>
-        \have t => cauchy-trans (isStronglyRegular $ cover-char Xo c U'<=<U)
+        \have t => cauchy-trans (isStronglyRegular $ cover-char c U'<=<U)
             {\lam U1 V1 => U1 s<=< Compl U' || (\Sigma (i : I) (U1 s<=< f i) ((V1 = Compl U1) || (\Sigma (j : J) (g j = V1))))} \case \elim __ \with {
               | inP (W, byLeft e, W'<=<W) => top-cauchy $ byLeft $ rewriteF e W'<=<W
-              | inP (W, byRight (i,fi=W), W'<=<W) => cauchy-subset (cover-char Xo (d i) (rewriteF (inv fi=W) W'<=<W)) \lam e => byRight $ later (i, rewrite fi=W W'<=<W, e)
+              | inP (W, byRight (i,fi=W), W'<=<W) => cauchy-subset (cover-char (d i) (rewriteF (inv fi=W) W'<=<W)) \lam e => byRight $ later (i, rewrite fi=W W'<=<W, e)
             }
         \in cauchy-extend t \case \elim __ \with {
           | inP (V, W, inP (U, byLeft e, V<=<U), _, Z=VW) => inP (_, byLeft idp, rewrite Z=VW $ meet-left <=∘ s<=<_<= V<=<U <=∘ Preorder.=_<= e)
@@ -115,7 +98,7 @@
         | byRight r => byRight $ later (j, q *> MeetSemilattice.meet-comm *> inv (r *> p))
       }
       | cover-ldistr {W} p c q =>
-        \have | t1 => cover-char Xo c (<=<-left U'<=<U $ later $ rewrite p meet-right)
+        \have | t1 => cover-char c (<=<-left U'<=<U $ later $ rewrite p meet-right)
               | t2 : U' s<=< W => <=<-left U'<=<U $ later $ rewrite p meet-left
         \in cauchy-extend (cauchy-inter t1 t2) \case \elim __ \with {
           | inP (V1, V2, byLeft e1, _, r) => inP (_, byLeft idp, rewrite (r,e1) meet-left)
@@ -123,29 +106,12 @@
           | inP (_, _, byRight (j,idp), byRight idp, r) => inP (_, byRight (j, idp), rewrite (r, q j) $ Preorder.=_<= MeetSemilattice.meet-comm)
         }
 
-    \lemma cover-point-char {X : StronglyRegularCoverSpace} {U : Set X} {J : \Set} {g : J -> Set X} (c : Cover {framePres} U g) {x : X} (x<=<U : single x <=< U) : ∃ (j : J) (single x <=< g j) \elim c
-      | cover-basic (byLeft (p,C,Cc,h)) => \case cauchy-cover (isRegular Cc) x \with {
-        | inP (V', inP (V,CV,V'<=<V), V'x) => \case h CV \with {
-          | inP (j,gj=V) => inP (j, rewrite gj=V $ <=<-right (single_<= V'x) V'<=<V)
+    \lemma cover-point-char {X : StronglyRegularCoverSpace} {U : Set X} {J : \Set} {g : J -> Set X} (c : Cover {framePres} U g) {x : X} (x<=<U : single x <=< U) : ∃ (j : J) (single x <=< g j)
+      => \case s<=<-inter x<=<U \with {
+        | inP (V,x<=<V,V<=<U) => \case CoverSpace.cauchy-regular-cover (cover-char c V<=<U) x \with {
+          | inP (W, byLeft p, x<=<W) => absurd $ <=<_<= (rewriteF p x<=<W) idp $ s<=<_<= x<=<V idp
+          | inP (W, byRight (j,p), x<=<W) => inP (j, rewrite p x<=<W)
         }
-      }
-      | cover-basic (byRight (byLeft h)) => \case s<=<-inter x<=<U \with {
-        | inP (V,x<=<V,V<=<U) => \case h V<=<U \with {
-          | inP (j,gj=V) => inP (j, rewrite gj=V $ s<=<_<=< x<=<V)
-        }
-      }
-      | cover-basic (byRight (byRight h)) => \case h (x, <=<_<= x<=<U idp) \with {
-        | inP (j,p) => inP (j, rewrite p <=<_top)
-      }
-      | cover-inj j p => inP (j, rewrite p x<=<U)
-      | cover-trans c d => \case cover-point-char c x<=<U \with {
-        | inP (i,x<=<fi) => cover-point-char (d i) x<=<fi
-      }
-      | cover-proj1 p j q => inP (j, rewrite q $ <=<-left x<=<U $ later $ rewrite p meet-left)
-      | cover-idemp j p => inP (j, rewrite p $ <=<-left x<=<U $ meet-univ <=-refl <=-refl)
-      | cover-comm p j q => inP (j, rewrite q $ <=<-left x<=<U $ later $ rewrite p $ meet-univ meet-right meet-left)
-      | cover-ldistr p c q => \case cover-point-char c {x} (<=<-left x<=<U $ later $ rewrite p meet-right) \with {
-        | inP (j,x<=<fj) => inP (j, rewrite q $ <=<_meet-same (<=<-left x<=<U $ later $ rewrite p meet-left) x<=<fj)
       }
   }
 
@@ -173,24 +139,24 @@
 
 \func CoverSpaceLocaleFunctor : Functor CompletelyStronglyRegularCoverSpaceCat LocaleCat \cowith
   | F X => CoverSpaceLocale X
-  | Func f => adjointMap (frameUPresHom f)
-  | Func-id {X} => func-equality_ext \lam V => adjointMap_embed (frameUPresHom (id X)) _ *> <=-antisymmetric
+  | Func f => adjointMap (framePresHom f)
+  | Func-id {X} => func-equality_ext \lam V => adjointMap_embed (framePresHom (id X)) _ *> <=-antisymmetric
       (Join-univ {_} {_} {\lam s => embed s.1} \lam (V',V'<=<V) => embed<= $ cover-inj (_, Cover.cover_<= $ s<=<_<= $ <=<c_<=< V'<=<V) idp)
       (embed<= $ cover-trans cover-creg \lam (V',V'<=<V) => cover-inj (_, later $ cover-inj ((V', V'<=<V), _, cover-inj () idp) idp) idp)
-  | Func-o {X} {Y} {Z} {g} {f} => func-equality_ext \lam V => adjointMap_embed (frameUPresHom (g ∘ f)) _ *> <=-antisymmetric
+  | Func-o {X} {Y} {Z} {g} {f} => func-equality_ext \lam V => adjointMap_embed (framePresHom (g ∘ f)) _ *> <=-antisymmetric
           (Join-univ {_} {_} {\lam s => embed (_ ^-1 s.1)} \lam (V'',V''<=<V) => \case <=<c-inter V''<=<V \with {
             | inP (V',V''<=<V',V'<=<V) => embed<= $ cover-inj (_, later $ cover-inj ((V',V'<=<V), _, cover-inj ((g ^-1 V'', <=<c_^-1 s<=<_^-1 V''<=<V'), _, cover-inj () idp) idp) idp) idp
           })
-          (Join-univ {_} {_} {\lam j => frameUPresHom f (g ^-1 j.1)} $ later \lam (V',V'<=<V) => Join-univ {_} {_} {\lam s => embed (f ^-1 s.1)} \lam (V'',V''<=g'V') => embed<= $ cover-inj (_, later $ cover-inj ((V',V'<=<V), _, Cover.cover-inj_<= () $ func-<= {^-1_FrameHom f} {V''} {g ^-1 V'} $ s<=<_<= $ <=<c_<=< V''<=g'V') idp) idp) *>
-      inv (path (\lam i => Join \lam j => adjointMap_embed (frameUPresHom f) (g ^-1 j.1) i)) *>
-      inv (func-Join {adjointMap (frameUPresHom f)} {_} {\lam s => embed (g ^-1 s.1)}) *>
-      inv (pmap (adjointMap (frameUPresHom f)) (adjointMap_embed (frameUPresHom g) _))
+          (Join-univ {_} {_} {\lam j => framePresHom f (g ^-1 j.1)} $ later \lam (V',V'<=<V) => Join-univ {_} {_} {\lam s => embed (f ^-1 s.1)} \lam (V'',V''<=g'V') => embed<= $ cover-inj (_, later $ cover-inj ((V',V'<=<V), _, Cover.cover-inj_<= () $ func-<= {^-1_FrameHom f} {V''} {g ^-1 V'} $ s<=<_<= $ <=<c_<=< V''<=g'V') idp) idp) *>
+      inv (path (\lam i => Join \lam j => adjointMap_embed (framePresHom f) (g ^-1 j.1) i)) *>
+      inv (func-Join {adjointMap (framePresHom f)} {_} {\lam s => embed (g ^-1 s.1)}) *>
+      inv (pmap (adjointMap (framePresHom f)) (adjointMap_embed (framePresHom g) _))
   \where {
     \open PresentedFrame
     \open CoverSpaceLocale
     \open FrameReflectiveSubcat
 
-    \func frameUPresHom {X Y : CompletelyStronglyRegularCoverSpace} (f : CoverMap X Y) : FrameUPresHom (CoverSpaceLocale.framePres {Y}) (FrameUnitalSubcat.F (CoverSpaceLocale X)) \cowith
+    \func framePresHom {X Y : CompletelyStronglyRegularCoverSpace} (f : CoverMap X Y) : FramePresHom (CoverSpaceLocale.framePres {Y}) (FrameUnitalSubcat.F (CoverSpaceLocale X)) \cowith
       | func V => Join {_} {\Sigma (V' : Set Y) (V' <=<c V)} \lam s => embed (f ^-1 s.1)
       | func-conj {U} {V} => <=-antisymmetric
           (Join-univ {_} {_} {\lam s => embed $ f ^-1 s.1} \lam (W,p) => meet-univ <=-refl <=-refl <=∘ Join-cond (later ((W, Interpolative.<=<-left p meet-left), (W, Interpolative.<=<-left p meet-right))) {later \lam s => embed (f ^-1 s.1.1) ∧ embed (f ^-1 s.2.1)})
@@ -216,17 +182,19 @@
                 | inP (j,gj=U1) => cover-inj (j, _, cover-inj ((U2, rewrite gj=U1 U2<=<U1), _, cover-inj () idp) idp) idp
               }
             }
-        | byRight (byRight e) => \lam {W} => cover-trans __ \lam ((U',U'<=<U),V,V<=f'U) => cover-trans cover-inh \lam (inP (x,x<=<V)) => \case e (f x, \case cover-point-char V<=f'U $ s<=<_<=< x<=<V \with { | inP (_,x<=<f'U') => s<=<_<= (<=<c_<=< U'<=<U) $ <=<_<= x<=<f'U' idp }) \with {
-          | inP (j,p) => cover-inj (j, _, cover-inj ((top, rewrite p Interpolative.<=<_top), _, Cover.cover_<= top-univ) idp) idp
+        | byRight (byRight e) => cover-trans __ \lam ((V',V'<=<U),W,c) => Cover.cover-trans1 c $ cover-empty \case s<=<_<= (<=<c_<=< $ rewriteF e V'<=<U) __ \with {
+          | inP ((),_)
         }
       }
-      | func-unit => <=-antisymmetric top-univ \lam _ => cover-inj ((top, Interpolative.<=<_top), _, Cover.cover_<= top-univ) idp
+      | func-image => Cover.cover-trans1 (Cover.cover_<= top-univ) $ Cover.cover-inj_<= top $ (\lam _ => Cover.cover_<= top-univ) <=∘ Join-cond (later (top, Interpolative.<=<_top)) {\lam s => embed (f ^-1 s.1)}
   }
 
 \func LocaleCoverSpace {L : Locale} (Lr : L.isRegular) : StronglyRegularCoverSpace \cowith
   | PrecoverSpace => LocalePrecoverSpace L
   | isStronglyRegular => __ <=∘ Join-univ \lam (U,CU) => Lr _ <=∘ Join-univ \lam (a,a<=<_*U) => points-unit <=∘ Join-cond (later (points^* a, inP (U, CU, points_<=< a<=<_*U)))
 
+-- TODO: It is actually enough to assume a weaker condition. Do we actually need the stronger one?
+-- \func IsOvert' => isCauchy \lam U => \Sigma (U = {Set E} top) (TruncP E)
 \func CoverSpaceLocale-unit {X : StronglyRegularCoverSpace} (Xo : X.IsOvert) : CoverMap X (LocaleCoverSpace {CoverSpaceLocale X} CoverSpaceLocale.regular) \cowith
   | func x => framePres-point (\lam U => single x <=< U) (inP (top, <=<_top)) (\lam {a} {b} => (\lam p => (<=<-left p meet-left, <=<-left p meet-right), \lam (p,q) => <=<_meet-same p q)) (later \lam b x<=<U => \case \elim b \with {
     | byLeft (p,C,Cc,q) => \case cauchy-cover (isRegular Cc) x \with {
@@ -239,11 +207,11 @@
         | inP (j,fj=V) => inP (j, rewrite fj=V $ s<=<_<=< x<=<V)
       }
     }
-    | byRight (byRight h) => \case h (x, <=<_<= x<=<U idp) \with {
-      | inP (j,p) => inP (j, rewrite p <=<_top)
+    | byRight (byRight h) => \case <=<_<= (rewriteF h x<=<U) idp \with {
+      | inP ((),_)
     }
   })
-  | func-cover Dc => cauchy-extend (isRegular $ Xo $ CoverSpaceLocale.cover-char Xo (Dc ()) {top} <=<_top) \case \elim __ \with {
+  | func-cover Dc => cauchy-extend (isRegular $ Xo $ CoverSpaceLocale.cover-char (Dc ()) {top} <=<_top) \case \elim __ \with {
     | inP (U', (byLeft e, inP (x,U'x)), U<=<U') => absurd $ rewriteF e U'x ()
     | inP (U', (byRight (((V,DV),_,q),idp), _), U<=<U') => inP (_, inP (V, DV, idp), \lam Ux => \case CoverSpaceLocale.cover-point-char q $ <=<-right (single_<= Ux) U<=<U' \with {
       | inP (((W,p),U'',WU''),x<=<U'') => p $ inP $ later (U'', WU'', x<=<U'')
@@ -258,7 +226,7 @@
   | func-Join>= {J} {f} => closure<= $ later \lam (b,b<=<Jf) =>
       \have c => mkcon cover-ldistr {points^* b} idp (CoverSpaceLocale.cover-cauchy {LocalePrecoverSpace L} $ cover-cauchy {L} {\lam x => (x = L.neg b) || Given (j : J) (x L.<=< f j)} $ b<=<Jf <=∘ join-univ (L.SJoin-cond $ byLeft idp) (Join-univ \lam j => Lr (f j) <=∘ L.SJoin-univ \lam x<=<fj => L.SJoin-cond $ later $ byRight (j,x<=<fj))) \lam _ => idp
       \in Cover.cover-trans1 (Cover.cover_<= $ meet-univ <=-refl top-univ) $ cover-trans c \case \elim __ \with {
-        | (_, inP (a, byLeft q, idp)) => Cover.cover-trans1 (Cover.cover_<= $ later $ rewrite q \lam (xb,xnb) => absurd $ CompleteFilter.isProper $ filter-mono Locale.eval $ filter-meet xnb xb) CoverSpaceLocale.cover-empty
+        | (_, inP (a, byLeft q, idp)) => CoverSpaceLocale.cover-empty $ later $ rewrite q \lam (xb,xnb) => absurd $ CompleteFilter.isProper $ filter-mono Locale.eval (filter-meet xnb xb)
         | (_, inP (a, byRight (j,a<=<fj), idp)) => cover-inj (_, cover-inj (j, _, Cover.cover-inj_<= (a,a<=<fj) meet-right) idp) idp
       }
   \where \open PresentedFrame
