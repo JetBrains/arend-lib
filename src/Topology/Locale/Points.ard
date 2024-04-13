@@ -1,3 +1,4 @@
+\import Category.Functor
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -9,6 +10,8 @@
 \import Set.Subset
 \import Topology.Locale
 \import Topology.TopSpace
+\import Topology.TopSpace.Category
+\open Bounded(top, top-univ, bottom)
 
 \func OpensFrame (S : TopSpace) : Locale (Given S.isOpen) \cowith
   | <= U V => U.1 ⊆ V.1
@@ -26,7 +29,7 @@
 
 \instance PointsSpace (L : Locale) : TopSpace (CompleteFilter {L})
   | isOpen U => ∃ (a : L) (\Pi {x : CompleteFilter {L}} -> U x <-> x a)
-  | open-top => inP (Bounded.top, \lam {x} => (\lam _ => filter-top, \lam _ => ()))
+  | open-top => inP (top, \lam {x} => (\lam _ => filter-top, \lam _ => ()))
   | open-inter (inP (a,f)) (inP (b,g)) => inP (a ∧ b, \lam {x} => (\lam (Ux,Vx) => filter-meet (f.1 Ux) (g.1 Vx), \lam xab => (f.2 $ filter-mono meet-left xab, g.2 $ filter-mono meet-right xab)))
   | open-Union {S} f => inP (CompleteLattice.SJoin \lam a => ∃ (U : S) (\Pi {x : CompleteFilter {L}} -> U x <-> x a),
                              \lam {x} => (\lam (inP (U,SU,Ux)) => \case f SU \with {
@@ -34,6 +37,23 @@
                              }, \case filter-Join __ \with {
                                | inP ((a, inP (U,SU,g)), xa) => inP (U, SU, g.2 xa)
                              }))
+
+\func PointsSpaceFunctor : Functor LocaleCat TopCat \cowith
+  | F => PointsSpace
+  | Func {L M : Locale} (f : FrameHom M L) : ContMap (PointsSpace L) (PointsSpace M) \cowith {
+    | func => filter-map f
+    | func-cont (inP (b,c)) => inP (f b, \lam {x} => c)
+  }
+  | Func-id => idp
+  | Func-o => idp
+  \where {
+    \func filter-map {L M : Locale} (f : FrameHom M L) (x : CompleteFilter {L}) : CompleteFilter {M} \cowith
+      | F b => x (f b)
+      | filter-mono p => filter-mono (func-<= p)
+      | filter-top => rewrite f.func-top filter-top
+      | filter-meet xfa xfb => rewrite f.func-meet $ filter-meet xfa xfb
+      | filter-Join => rewrite f.func-Join \lam c => filter-Join c
+  }
 
 \func points {L : Locale} : FrameHom L (OpensFrame (PointsSpace L)) \cowith
   | func a => (\lam x => x a, inP (a, \lam {x} => <->refl))
@@ -48,11 +68,9 @@
 \lemma points^*-mono {L : Locale} {a b : L} (p : a <= b) : points^* a ⊆ points^* b
   => filter-mono p __
 
-\lemma points^*_top>= {L : Locale} : Bounded.top ⊆ points^* {L} L.top
-  => \lam _ => filter-top
+\lemma points^*_top>= {L : Locale} : top ⊆ points^* {L} top => \lam _ => filter-top
 
-\lemma points^*_top {L : Locale} : points^* {L} L.top = Bounded.top
-  => <=-antisymmetric Bounded.top-univ points^*_top>=
+\lemma points^*_top {L : Locale} : points^* {L} top = top => <=-antisymmetric top-univ points^*_top>=
 
 \lemma points^*_meet>= {L : Locale} {a b : L} : points^* a ∧ points^* b ⊆ points^* (a ∧ b)
   => \lam {x} (xa,xb) => filter-meet xa xb
@@ -66,9 +84,11 @@
 \lemma points_*-mono {L : Locale} {U V : Set (CompleteFilter {L})} (p : U ⊆ V) : points_* U <= points_* V
   => Join-univ \lam (a,q) => Join-cond $ later (a, q <=∘ p)
 
+\lemma points_*_meet>= {L : Locale} {U V : Set (CompleteFilter {L})} : points_* U ∧ points_* V <= points_* (U ∧ V)
+  => Join-ldistr>= <=∘ Join-univ \lam (b,q) => Locale.Join-rdistr>= <=∘ Join-univ \lam (a,p) => Join-cond $ later (a ∧ b, meet-univ (points^*-mono meet-left <=∘ p) (points^*-mono meet-right <=∘ q))
+
 \lemma points_*_meet {L : Locale} {U V : Set (CompleteFilter {L})} : points_* (U ∧ V) = points_* U ∧ points_* V
-  => <=-antisymmetric (meet-univ (points_*-mono meet-left) (points_*-mono meet-right)) $ Join-ldistr>= <=∘ Join-univ \lam (b,q) =>
-      Locale.Join-rdistr>= <=∘ Join-univ \lam (a,p) => Join-cond $ later (a ∧ b, meet-univ (points^*-mono meet-left <=∘ p) (points^*-mono meet-right <=∘ q))
+  => <=-antisymmetric (meet-univ (points_*-mono meet-left) (points_*-mono meet-right)) points_*_meet>=
 
 \lemma points^*-points_* {L : Locale} {a : L} {U : Set (CompleteFilter {L})} (p : points^* a ⊆ U) : a <= points_* U
   => Join-cond $ later (a,p)
@@ -109,7 +129,12 @@
   }
 
 \func HasDensePoints (L : Locale) : \Prop
-  => points_* Bounded.bottom <= L.bottom
+  => points_* bottom <= L.bottom
 
-\lemma hasDensePoints-fromPres {P : FramePres} (d : \Pi {a : P} -> points^* (PresentedFrame.embed a) ⊆ Bounded.bottom -> Cover a absurd) : HasDensePoints (PresentedFrame P)
+\lemma hasDensePoints-char {L : Locale} : HasDensePoints L <-> (\Pi {a : L} -> (\Pi {x : CompleteFilter} -> Not (x a)) -> a <= bottom)
+  => (\lam d {a} c => Join-cond (later (a, \lam xa => absurd $ c xa)) <=∘ d, \lam d => Join-univ \lam (b,p) => d \lam xb => \case p xb \with {
+    | inP ((),_)
+  })
+
+\lemma hasDensePoints-fromPres {P : FramePres} (d : \Pi {a : P} -> points^* (PresentedFrame.embed a) ⊆ bottom -> Cover a absurd) : HasDensePoints (PresentedFrame P)
   => cover-trans __ \lam ((U,p),V,UV) => cover-trans (d $ points^*-mono (PresentedFrame.embed<= $ cover-inj (V,UV) idp) <=∘ p) \case __
