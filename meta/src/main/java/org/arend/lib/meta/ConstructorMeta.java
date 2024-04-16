@@ -124,7 +124,7 @@ public class ConstructorMeta extends BaseMetaDefinition {
     if (type instanceof CoreDataCallExpression) {
       List<CoreConstructor> constructors = ((CoreDataCallExpression) type).computeMatchedConstructors();
       if (constructors == null) {
-        typechecker.getErrorReporter().report(new TypeError("Cannot compute constructors of data type", type, contextData.getMarker()));
+        typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "Cannot compute constructors of data type", type, contextData.getMarker()));
         return null;
       }
 
@@ -160,7 +160,7 @@ public class ConstructorMeta extends BaseMetaDefinition {
       }
     }
 
-    typechecker.getErrorReporter().report(new TypeError("Expected a type with 1 constructor", type, contextData.getMarker()));
+    typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "Expected a type with 1 constructor", type, contextData.getMarker()));
     return null;
   }
 }

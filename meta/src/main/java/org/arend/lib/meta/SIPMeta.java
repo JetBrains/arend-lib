@@ -90,11 +90,11 @@ public class SIPMeta extends BaseMetaDefinition {
 
     ob = ob.normalize(NormalizationMode.WHNF);
     if (!(ob instanceof CoreClassCallExpression && ((CoreClassCallExpression) ob).getDefinition().isSubClassOf(ext.BaseSet))) {
-      typechecker.getErrorReporter().report(new TypeError("The type of objects must be a subclass of 'BaseSet'", ob, contextData.getMarker()));
+      typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "The type of objects must be a subclass of 'BaseSet'", ob, contextData.getMarker()));
       return null;
     }
     if (((CoreClassCallExpression) ob).isImplemented(ext.carrier)) {
-      typechecker.getErrorReporter().report(new TypeError("The underlying set should not be implemented in the type of objects", ob, contextData.getMarker()));
+      typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "The underlying set should not be implemented in the type of objects", ob, contextData.getMarker()));
       return null;
     }
 
@@ -104,7 +104,7 @@ public class SIPMeta extends BaseMetaDefinition {
       homBody = ((CoreLamExpression) homBody).getBody().normalize(NormalizationMode.WHNF);
     }
     if (!(homBody instanceof CoreClassCallExpression && ((CoreClassCallExpression) homBody).getDefinition().isSubClassOf(SetHom))) {
-      typechecker.getErrorReporter().report(new TypeError("The Hom-set must be a subclass of 'SetHom'", homBody, contextData.getMarker()));
+      typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "The Hom-set must be a subclass of 'SetHom'", homBody, contextData.getMarker()));
       return null;
     }
     for (CoreClassField field : ((CoreClassCallExpression) homBody).getDefinition().getNotImplementedFields()) {

@@ -224,7 +224,7 @@ public class EquationMeta extends BaseMetaDefinition {
         }
       }
       if (solver == null) {
-        errorReporter.report(new TypeError("Unrecognized type", type, refExpr));
+        errorReporter.report(new TypeError(typechecker.getExpressionPrettifier(), "Unrecognized type", type, refExpr));
         return null;
       }
     } else if (solver == null) {

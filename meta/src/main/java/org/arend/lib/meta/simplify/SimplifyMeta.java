@@ -236,7 +236,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
     }, true);
     /*TypedExpression result = uncheckedRes != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(uncheckedRes, refExpr)) : null;
     if (result == null) {
-      errorReporter.report(new SimplifyError(occurrences, normExpr, refExpr));
+      errorReporter.report(new SimplifyError(typechecker.getExpressionPrettifier(), occurrences, normExpr, refExpr));
     } */
     return uncheckedRes;
   }
@@ -306,7 +306,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
         TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {
-          errorReporter.report(typeWithOccur == null ? new SimplifyError(occurrences, normType, refExpr) : new TypeError("Cannot substitute a variable. The resulting type is invalid", typeWithOccur, refExpr));
+          errorReporter.report(typeWithOccur == null ? new SimplifyError(typechecker.getExpressionPrettifier(), occurrences, normType, refExpr) : new TypeError(typechecker.getExpressionPrettifier(), "Cannot substitute a variable. The resulting type is invalid", typeWithOccur, refExpr));
         }/**/
         return result;
         // return typeWithOccur;

@@ -306,7 +306,7 @@ public class RewriteMeta extends BaseMetaDefinition {
       if (var instanceof CoreInferenceReferenceExpression && ((CoreInferenceReferenceExpression) var).getVariable() == ((CoreInferenceReferenceExpression) expectedType).getVariable()) {
         if (!(occurrences == null || occurrences.isEmpty() || occurrences.size() == 1 && occurrences.contains(1))) {
           occurrences.remove(1);
-          errorReporter.report(new SubexprError(occurrences, var, null, expectedType, refExpr));
+          errorReporter.report(new SubexprError(typechecker.getExpressionPrettifier(), occurrences, var, null, expectedType, refExpr));
           return null;
         }
         ArendRef ref = factory.local("T");
@@ -351,7 +351,7 @@ public class RewriteMeta extends BaseMetaDefinition {
     int firstExactMatch = processor.getExactMatches().isEmpty() ? -1 : processor.getExactMatches().get(0);
 
     if (foundOccurs.isEmpty() || !processor.allOccurrencesFound()) {
-      errorReporter.report(new SubexprError(occurrences, value, null, normType, refExpr));
+      errorReporter.report(new SubexprError(typechecker.getExpressionPrettifier(), occurrences, value, null, normType, refExpr));
       return null;
     }
 
@@ -416,7 +416,7 @@ public class RewriteMeta extends BaseMetaDefinition {
 
         TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {
-          errorReporter.report(typeWithOccur == null ? new SubexprError(occurrences, value, null, normType, refExpr) : new TypeError("Cannot substitute a variable. The resulting type is invalid", typeWithOccur, refExpr));
+          errorReporter.report(typeWithOccur == null ? new SubexprError(typechecker.getExpressionPrettifier(), occurrences, value, null, normType, refExpr) : new TypeError(typechecker.getExpressionPrettifier(), "Cannot substitute a variable. The resulting type is invalid", typeWithOccur, refExpr));
         }
         return result;
       }
