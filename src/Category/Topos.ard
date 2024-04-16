@@ -1,20 +1,23 @@
 \import Algebra.Meta
 \import Category
 \import Category.Limit
+\import Equiv (Equiv)
 \import Function.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
 \open CartesianPrecat
 
-\class Topos \extends FinCompletePrecat, Cat
+\class ToposPrecat \extends FinCompletePrecat {
   | subobj-classifier \alias omega : Ob
   | true : Hom terminal omega
-
   | char {S B : Ob} (m : Mono {\this} {S} {B}) : Hom B omega
   | char-pullback {S B : Ob} (m : Mono {\this} {S} {B}) : Pullback {\this} (char m) true S m terminalMap
   | char-unique {S B : Ob} (m : Mono {\this} {S} {B}) (phi : Hom B omega)
                 (phi-pull : Pullback phi true S m terminalMap) : phi = char m
+  -- universal property stating that omega is exponentiable
+  -- todo: replace this with an instance of "exponentiable"
+
   | power \alias P (B : Ob) : Ob
   | belongs {B : Ob} : Hom (Bprod B (P B)) omega
   | transpose {A B : Ob} (f : Hom (Bprod B A) omega) : Hom A (P B)
@@ -22,88 +25,107 @@
   | transpose-unique {A B : Ob} {f : Hom (Bprod B A) omega} {g : Hom A (P B)} (comm : f = belongs ∘ prodMap (id B) g)
   : g = transpose f
 
-  \where {
-    \func anti-transpose {T : Topos} {A B : T} (g : Hom A (P B)) : Hom (Bprod B A) omega =>
-      belongs ∘ (prodMap (id B) g)
+  -- todo: implement default proofs of finite completeness
 
-    \func transpose-inj {T : Topos} {A B : T} {f g : Hom (Bprod B A) omega} (e : transpose f = transpose g)
-      : f = g => transpose-univ f *> pmap (belongs ∘ prodMap (id B) __) e *> (inv $ transpose-univ g)
+  \func anti-transpose  {A B : Ob} (g : Hom A (P B)) : Hom (Bprod B A) omega =>
+    belongs ∘ (prodMap (id B) g)
 
-    \func internal-equality \alias eq {T : Topos} (B : Ob {T}) : Hom (Bprod B B) omega =>
-      char (diagonal.isSplitMono B)
+  \func transpose-inj {A B : Ob} {f g : Hom (Bprod B A) omega} (e : transpose f = transpose g)
+    : f = g => transpose-univ f *> pmap (belongs ∘ prodMap (id B) __) e *> (inv $ transpose-univ g)
 
-    \func singleton {T : Topos} (B : T) : Hom B (P B) => transpose (eq B)
+  \func internal-equality \alias eq (B : Ob) : Hom (Bprod B B) omega =>
+    char (diagonal.isSplitMono B)
 
-    \func singleton-mono {T : Topos} (B : T) : Mono (singleton B)
-    \cowith
-      | isMono {X} {b} {b'} sb=sb' =>
-        \let
-          c : eq B ∘ prodMap (id B) b = eq B ∘ prodMap (id B) b' => transpose-inj ((inv $ s-eq b) *> sb=sb' *> s-eq b')
-          | b-square => full-square b
-          | b'-square : Pullback {T} (eq B ∘ prodMap (id B) b) true X (pair b' (id X)) =>
-            transport (Pullback {T} __ true X (pair b' (id X))) (inv c) (full-square b')
-          | h-iso : Iso {T} {X} {X} => Pullback.unique (eq B ∘ prodMap (id B) b) true b-square b'-square
-          | pb~pb*h : pair b (id X) = pair b' (id X) ∘ h-iso => inv (Pullback.unique.p-beta1 b'-square b-square)
-          | cccc : proj2 ∘ (pair b' (id X) ∘ h-iso.f) = h-iso => rewriteI o-assoc $ rewrite (beta2 _ _) id-left
-          | h~1 : id X = h-iso.f => inv (beta2 _ _) *> pmap (proj2 ∘ __) pb~pb*h *> cccc
-          | b~b'h : b = b' ∘ h-iso.f => inv (beta1 _ _) *> pmap (proj1 ∘ __) pb~pb*h *> (rewriteI o-assoc $ rewrite (beta1 _ _) idp)
-        \in
-          b~b'h *> rewriteI h~1 id-right
-      \where {
-        \func s-eq {X : T} (b : Hom X B) : singleton B ∘ b = transpose (eq B ∘ (prodMap (id B) b)) =>
-          transpose-unique $ rewrite (prodMap.prod-id-left _ _) $ rewriteI o-assoc $ rewriteI transpose-univ idp
+  \func singleton  (B : Ob) : Hom B (P B) => transpose (eq B)
 
-        \func full-square {X : T} (b : Hom X B)
-          : Pullback {T} (eq B ∘ prodMap (id B) b) true X (pair b (id X)) => pullback-lemma right-square left-square
-
-        \func right-square
-          : Pullback {T} {Bprod B B} {terminal} {omega} (eq B) true B (diagonal B) terminalMap =>
-          char-pullback (diagonal.isSplitMono B)
-
-        \func left-square{X : T} {b : Hom X B}
-          : Pullback (prodMap (id B) b) (diagonal B) X (pair b (id X)) b
-        \cowith
-          | pbCoh => pair-unique
-              (run {
-                rewriteI o-assoc,
-                rewrite (beta1 _ _, id-left),
-                rewriteI o-assoc,
-                rewrite (beta1 _ _, beta1 _ _) equation
-              })
-              (run {
-                rewriteI o-assoc,
-                rewrite (beta2 _ _),
-                rewriteI o-assoc, rewrite (beta2 _ _, o-assoc, beta2 _ _) equation
-              })
-          | pbMap p1 _ _ => proj2 ∘ p1
-          | pbBeta1 {w} {p1} {p2} {c} =>
-            \let
-              left : proj1 ∘ (diagonal B ∘ p2) = p2
-              => rewriteI o-assoc $ rewrite (beta1 _ _) equation
-              | right : proj1 ∘ (prodMap (id B) b ∘ p1) = proj1 ∘ p1 => rewriteI o-assoc $ rewrite (beta1 _ _) equation  \in
-              pair-unique
-                  (run {
-                    rewriteI o-assoc,
-                    rewrite (beta1 _ _ ),
-                    pbBeta2' w p1 p2 c *> inv left *> pmap (proj1 ∘ __ ) (inv c) *> right
-                  })
-                  (rewriteI o-assoc $ rewrite (beta2 _ _) equation)
-          | pbBeta2 {w} {p1} {p2} {c} => pbBeta2' w p1 p2 c
-          | pbEta {_} {h1} {h2} c _ =>
-            \let p2 : h1 = proj2 ∘ (pair b (id X) ∘ h1) => rewriteI o-assoc $ rewrite (beta2 _ _) equation
-                 | p1 : proj2 ∘ (pair b (id X) ∘ h2) = h2  => rewriteI o-assoc $ rewrite (beta2 _ _) equation
-            \in p2 *> pmap (proj2 ∘ __) c *> p1
-      }
-
-    \func pbBeta2' {T : Topos} {B X : T} {b : Hom X B} (w : T) (p1 : Hom w (Bprod B X))
-                   (p2 : Hom w B) (c : prodMap (id B) b ∘ p1 = diagonal B ∘ p2) :  b ∘ (proj2 ∘ p1) = p2 =>
-      \let left : proj2 ∘ (diagonal B ∘ p2) = p2 => rewriteI o-assoc $ rewrite (beta2 _ _) equation
-           | right : proj2 ∘ (prodMap (id B) b ∘ p1) = b ∘ (proj2 ∘ p1)  =>
-             rewriteI o-assoc $ rewrite (beta2 _ _) o-assoc
+  \func singleton-mono (B : Ob) : Mono (singleton B)
+  \cowith
+    | isMono {X} {b} {b'} sb=sb' =>
+      \let
+        c : eq B ∘ prodMap (id B) b = eq B ∘ prodMap (id B) b' => transpose-inj ((inv $ s-eq b) *> sb=sb' *> s-eq b')
+        | b-square => full-square b
+        | b'-square : Pullback {\this} (eq B ∘ prodMap (id B) b) true X (pair b' (id X)) =>
+          transport (Pullback {\this} __ true X (pair b' (id X))) (inv c) (full-square b')
+        | h-iso : Iso {\this} {X} {X} => Pullback.unique (eq B ∘ prodMap (id B) b) true b-square b'-square
+        | pb~pb*h : pair b (id X) = pair b' (id X) ∘ h-iso => inv (Pullback.unique.p-beta1 b'-square b-square)
+        | cccc : proj2 ∘ (pair b' (id X) ∘ h-iso.f) = h-iso => rewriteI o-assoc $ rewrite (beta2 _ _) id-left
+        | h~1 : id X = h-iso.f => inv (beta2 _ _) *> pmap (proj2 ∘ __) pb~pb*h *> cccc
+        | b~b'h : b = b' ∘ h-iso.f => inv (beta1 _ _) *> pmap (proj1 ∘ __) pb~pb*h *> (rewriteI o-assoc $ rewrite (beta1 _ _) idp)
       \in
-        inv right *> pmap (proj2 ∘ __) c *> left
+        b~b'h *> rewriteI h~1 id-right
+    \where {
+      \func s-eq {X : Ob} (b : Hom X B) : singleton B ∘ b = transpose (eq B ∘ (prodMap (id B) b)) =>
+        transpose-unique $ rewrite (prod-id-left _ _) $ rewriteI o-assoc $ rewriteI transpose-univ idp
 
-    \func is-singleton {T : Topos} {B : T} : Hom (P B) omega => char (singleton-mono B)
+      \func full-square {X : Ob} (b : Hom X B)
+        : Pullback {\this} (eq B ∘ prodMap (id B) b) true X (pair b (id X)) => pullback-lemma right-square left-square
 
-  -- todo: show that a topos has exponentials
-  }
+      \func right-square
+        : Pullback {\this} {Bprod B B} {terminal} {omega} (eq B) true B (diagonal B) terminalMap =>
+        char-pullback (diagonal.isSplitMono B)
+
+      \func left-square{X : Ob} {b : Hom X B}
+        : Pullback (prodMap (id B) b) (diagonal B) X (pair b (id X)) b
+      \cowith
+        | pbCoh => pair-unique
+            (run {
+              rewriteI o-assoc,
+              rewrite (beta1 _ _, id-left),
+              rewriteI o-assoc,
+              rewrite (beta1 _ _, beta1 _ _) equation
+            })
+            (run {
+              rewriteI o-assoc,
+              rewrite (beta2 _ _),
+              rewriteI o-assoc, rewrite (beta2 _ _, o-assoc, beta2 _ _) equation
+            })
+        | pbMap p1 _ _ => proj2 ∘ p1
+        | pbBeta1 {w} {p1} {p2} {c} =>
+          \let
+            left : proj1 ∘ (diagonal B ∘ p2) = p2
+            => rewriteI o-assoc $ rewrite (beta1 _ _) equation
+            | right : proj1 ∘ (prodMap (id B) b ∘ p1) = proj1 ∘ p1 => rewriteI o-assoc $ rewrite (beta1 _ _) equation  \in
+            pair-unique
+                (run {
+                  rewriteI o-assoc,
+                  rewrite (beta1 _ _ ),
+                  pbBeta2' w p1 p2 c *> inv left *> pmap (proj1 ∘ __ ) (inv c) *> right
+                })
+                (rewriteI o-assoc $ rewrite (beta2 _ _) equation)
+        | pbBeta2 {w} {p1} {p2} {c} => pbBeta2' w p1 p2 c
+        | pbEta {_} {h1} {h2} c _ =>
+          \let p2 : h1 = proj2 ∘ (pair b (id X) ∘ h1) => rewriteI o-assoc $ rewrite (beta2 _ _) equation
+               | p1 : proj2 ∘ (pair b (id X) ∘ h2) = h2  => rewriteI o-assoc $ rewrite (beta2 _ _) equation
+          \in p2 *> pmap (proj2 ∘ __) c *> p1
+    }
+
+  \func pbBeta2' {B X : Ob} {b : Hom X B} (w : Ob) (p1 : Hom w (Bprod B X))
+                 (p2 : Hom w B) (c : prodMap (id B) b ∘ p1 = diagonal B ∘ p2) :  b ∘ (proj2 ∘ p1) = p2 =>
+    \let left : proj2 ∘ (diagonal B ∘ p2) = p2 => rewriteI o-assoc $ rewrite (beta2 _ _) equation
+         | right : proj2 ∘ (prodMap (id B) b ∘ p1) = b ∘ (proj2 ∘ p1)  =>
+           rewriteI o-assoc $ rewrite (beta2 _ _) o-assoc
+    \in
+      inv right *> pmap (proj2 ∘ __) c *> left
+
+  \func is-singleton {B : Ob} : Hom (P B) omega => char (singleton-mono B)
+
+  -- every arrow both monic and epi is an isomorphism
+
+  \func true-over-obj {B : Ob} : Hom B omega => true ∘ terminalMap
+
+  \func monic+epi=iso{X Y : Ob} (m : Mono {\this} {X} {Y}) (m-is-epi : isEpi {\this} {X} {Y} m) : Iso {\this} {X} {Y} m =>
+    \let s => {?} \in
+      {?}
+} \where {
+  \func monic-is-regular {T : ToposPrecat} {X Y : Ob {T}} (m : Mono {T} {X} {Y}) : Equalizer true-over-obj (char m) X m =>
+    \new Equalizer {
+      | equal => rewrite (pbCoh {char-pullback m}, o-assoc) $
+      rewrite (terminal-unique {T} {X} {terminalMap ∘ m.f : Hom X terminal} {terminalMap {T} {X}}) idp
+      | isEqualizer Z => \new Equiv {
+        | ret => {?}
+        | ret_f => {?}
+        | sec => {?}
+        | f_sec => {?}
+      }
+    }
+}

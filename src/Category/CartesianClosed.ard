@@ -52,7 +52,8 @@
 }
 
 {-
-  Definition of an adjoint functor with the universal properties of the counit with the coreflection
+  Definition of an adjoint functor with the universal properties of the counit with the coreflection.
+  This should be used primarily for ease of definition and not a replacement for the base class
 -}
 
 \class RightAdjoint-Univ  {C D : Precat} {
@@ -96,22 +97,51 @@
     | L => F.LAdj
   } \cowith {
     | R => F
-    | eval {f} => F.epsilon f
+    | eval {X} => F.epsilon X
     | transpose f => F.isAdjoint-inv.ret f
     | transpose-univ f => inv $ F.isAdjoint-inv.f_ret f
     | transpose-unique eq => rewrite eq $ F.isAdjoint-inv.ret_f _
   }
 }
+\func hasExponential {C : CartesianPrecat} (X : C) => RightAdjoint C C { | LAdj => C.bprod-functor X}
 
 \class CartesianClosedPrecat \extends CartesianPrecat {
-  | power (X : Ob) : RightAdjoint-Counit \this \this { | LAdj => bprod-functor X}
+  | power (X : Ob) : hasExponential X
 
   \func eval {X Y : Ob} : Hom (Bprod (power X Y) X) Y =>
-    RightAdjoint-Univ.eval {power X}
+    epsilon {power X} Y
 
   \func transpose {X Y Z : Ob} (f : Hom (Bprod Y X) Z) : Hom Y (power X Z)
-    => RightAdjoint-Univ.transpose {power X} f
+    => isAdjoint f
 
   \func antitranspose {X Y Z : Ob} (g : Hom Y (power X Z)) : Hom (Bprod Y X) Z
-    => RightAdjoint-Counit.isAdjoint-inv {power X} g
+    => isAdjoint.ret g
+
+  \func transpose-univ {X Y Z : Ob} (f : Hom (Bprod Y X) Z)
+    : f = eval ∘ (prodMap (transpose f) (id X))
+    => RightAdjoint-Univ.transpose-univ {power X} f
+
+  \func transpose-unique{X Y Z : Ob} {f : Hom (Bprod Y X) Z} {g : Hom Y (power X Z)}
+                        (comm : f = eval ∘ (prodMap g (id X))) : transpose f = g
+    => RightAdjoint-Univ.transpose-unique {power X} comm
+
+  \lemma adjoint-epsilon {X Y Z : Ob} (g : Hom Y (power X Z))
+    : antitranspose g = eval ∘ prodMap g (id X)
+    => RightAdjoint.adjoint_epsilon {power X} g
+
+  \func antitranspose-unique {X Y Z : Ob} {g : Hom Y (power X Z)} {f : Hom (Bprod Y X) Z}
+    (comm : f = eval ∘ prodMap g (id X)) : antitranspose g = f
+    => adjoint-epsilon g *> inv comm
+
+  \func antitranspose-inj {X Y Z : Ob} {g g' : Hom Y (power X Z)} (p : antitranspose g = antitranspose g')
+    : g = g'
+    => Equiv.isInj {RightAdjoint-Counit.isAdjoint-inv {power X}} $ unfold $ rewriteI (adjoint-epsilon _, adjoint-epsilon _) p
+
+  \func one-power {X : Ob} : Iso {\this} {power terminal X} {X} \cowith
+    | f => eval ∘ one-left.hinv
+    | hinv => transpose proj1
+    | hinv_f =>
+      rewriteI o-assoc $ inv $ Iso.adjoint' {one-left} $ unfold $ rewrite id-left $
+      {?}
+    | f_hinv => {?}
 }
