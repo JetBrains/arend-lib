@@ -70,55 +70,26 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
   }
 
-  private static class Negation {
-    final List<RType> assumptions;
-    final CoreExpression type;
-    final Function<Deque<ConcreteExpression>, ConcreteExpression> proof;
-
-    private Negation(List<RType> assumptions, CoreExpression type, Function<Deque<ConcreteExpression>, ConcreteExpression> proof) {
-      this.assumptions = assumptions;
-      this.type = type;
-      this.proof = proof;
-    }
-  }
+  private record Negation(List<RType> assumptions, CoreExpression type, Function<Deque<ConcreteExpression>, ConcreteExpression> proof) {}
 
   private static RType makeRType(CoreBinding binding, CoreExpression paramType) {
     CoreFunCallExpression equality = paramType.toEquality();
     return equality != null ? new EqType(binding, equality, equality.getDefCallArguments().get(1), equality.getDefCallArguments().get(2)) : new RType(binding, paramType);
   }
 
-  private static class NegationData {
-    final List<RType> types;
-    final Deque<Object> instructions; // either CoreConstructor or not; the latter indicates a variable
-
-    NegationData(List<RType> types, Deque<Object> instructions) {
-      this.types = types;
-      this.instructions = instructions;
-    }
-
+  /**
+   * @param instructions either CoreConstructor or not; the latter indicates a variable
+   */
+  private record NegationData(List<RType> types, Deque<Object> instructions) {
     private ConcreteExpression makeExpression(Deque<ConcreteExpression> arguments, CoreConstructor constructor, ConcreteFactory factory) {
-      List<ConcreteArgument> args = new ArrayList<>();
-      CoreParameter param = constructor.getParameters();
-      if (param.hasNext() && !param.isExplicit()) {
-        for (CoreParameter dataParam = constructor.getDataType().getParameters(); dataParam.hasNext(); dataParam = dataParam.getNext()) {
-          args.add(factory.arg(factory.hole(), false));
-        }
-      }
-      for (; param.hasNext(); param = param.getNext()) {
-        Object con = instructions.removeFirst();
-        if (con instanceof CoreConstructor) {
-          args.add(factory.arg(makeExpression(arguments, (CoreConstructor) con, factory), param.isExplicit()));
-        } else {
-          args.add(factory.arg(arguments.removeFirst(), param.isExplicit()));
-        }
-      }
-      return factory.app(factory.ref(constructor.getRef()), args);
-    }
-
-    Negation make(List<CoreParameter> parameters, CoreExpression codomain, ConcreteExpression proof, ConcreteFactory factory) {
-      return new Negation(types, codomain, arguments -> {
         List<ConcreteArgument> args = new ArrayList<>();
-        for (CoreParameter param : parameters) {
+        CoreParameter param = constructor.getParameters();
+        if (param.hasNext() && !param.isExplicit()) {
+          for (CoreParameter dataParam = constructor.getDataType().getParameters(); dataParam.hasNext(); dataParam = dataParam.getNext()) {
+            args.add(factory.arg(factory.hole(), false));
+          }
+        }
+        for (; param.hasNext(); param = param.getNext()) {
           Object con = instructions.removeFirst();
           if (con instanceof CoreConstructor) {
             args.add(factory.arg(makeExpression(arguments, (CoreConstructor) con, factory), param.isExplicit()));
@@ -126,10 +97,24 @@ public class ContradictionMeta extends BaseMetaDefinition {
             args.add(factory.arg(arguments.removeFirst(), param.isExplicit()));
           }
         }
-        return factory.app(proof, args);
-      });
+        return factory.app(factory.ref(constructor.getRef()), args);
+      }
+
+      Negation make(List<CoreParameter> parameters, CoreExpression codomain, ConcreteExpression proof, ConcreteFactory factory) {
+        return new Negation(types, codomain, arguments -> {
+          List<ConcreteArgument> args = new ArrayList<>();
+          for (CoreParameter param : parameters) {
+            Object con = instructions.removeFirst();
+            if (con instanceof CoreConstructor) {
+              args.add(factory.arg(makeExpression(arguments, (CoreConstructor) con, factory), param.isExplicit()));
+            } else {
+              args.add(factory.arg(arguments.removeFirst(), param.isExplicit()));
+            }
+          }
+          return factory.app(proof, args);
+        });
+      }
     }
-  }
 
   private boolean isAppropriateDataCall(CoreExpression type) {
     if (!(type instanceof CoreDataCallExpression)) {
@@ -177,32 +162,21 @@ public class ContradictionMeta extends BaseMetaDefinition {
     result.add(negationData);
   }
 
-  private static class Triple {
-    final CoreFieldCallExpression fun;
-    final CoreExpression arg1;
-    final CoreExpression arg2;
-
-    Triple(CoreFieldCallExpression fun, CoreExpression arg1, CoreExpression arg2) {
-      this.fun = fun;
-      this.arg1 = arg1;
-      this.arg2 = arg2;
-    }
+  private record Triple(CoreFieldCallExpression fun, CoreExpression arg1, CoreExpression arg2) {
 
     public static Triple make(CoreExpression expr) {
-      if (!(expr instanceof CoreAppExpression)) {
-        return null;
-      }
+        if (!(expr instanceof CoreAppExpression app2)) {
+          return null;
+        }
 
-      CoreAppExpression app2 = (CoreAppExpression) expr;
-      if (!(app2.getFunction() instanceof CoreAppExpression)) {
-        return null;
-      }
+        if (!(app2.getFunction() instanceof CoreAppExpression app1)) {
+          return null;
+        }
 
-      CoreAppExpression app1 = (CoreAppExpression) app2.getFunction();
-      CoreExpression fun = app1.getFunction();
-      return fun instanceof CoreFieldCallExpression ? new Triple((CoreFieldCallExpression) fun, app1.getArgument(), app2.getArgument()) : null;
+        CoreExpression fun = app1.getFunction();
+        return fun instanceof CoreFieldCallExpression ? new Triple((CoreFieldCallExpression) fun, app1.getArgument(), app2.getArgument()) : null;
+      }
     }
-  }
 
   private boolean makeNegation(CoreExpression type, ConcreteExpression proof, ConcreteFactory factory, List<Negation> negations, Values<UncheckedExpression> values, Map<CoreClassField, Map<Integer, List<Edge<Integer>>>> transGraphs) {
     List<CoreParameter> parameters;
@@ -234,10 +208,8 @@ public class ContradictionMeta extends BaseMetaDefinition {
         negations.add(negationData.make(parameters, type, proof, factory));
       }
       return true;
-    } else if (parameters.isEmpty() && type instanceof CoreAppExpression) {
-      CoreAppExpression app2 = (CoreAppExpression) type;
-      if (app2.getFunction() instanceof CoreAppExpression) {
-        CoreAppExpression app1 = (CoreAppExpression) app2.getFunction();
+    } else if (parameters.isEmpty() && type instanceof CoreAppExpression app2) {
+      if (app2.getFunction() instanceof CoreAppExpression app1) {
         CoreExpression fun = app1.getFunction();
         if (fun instanceof CoreFieldCallExpression) {
           CoreClassField field = ((CoreFieldCallExpression) fun).getDefinition();
@@ -313,21 +285,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
 
   private enum EdgeKind { EQ, EQ_INV, LESS, LESS_OR_EQ }
 
-  private static class Edge<V> {
-    final V source;
-    final V target;
-    final ConcreteExpression proof;
-    final EdgeKind kind;
-    final ConcreteExpression leftApp;
-
-    Edge(V source, V target, ConcreteExpression proof, EdgeKind kind, ConcreteExpression leftApp) {
-      this.source = source;
-      this.target = target;
-      this.proof = proof;
-      this.kind = kind;
-      this.leftApp = leftApp;
-    }
-  }
+  private record Edge<V>(V source, V target, ConcreteExpression proof, EdgeKind kind, ConcreteExpression leftApp) {}
 
   /**
    * Finds the shortest path from {@code first} to {@code last} that contains a LESS edge.
@@ -415,7 +373,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
         contr = factory.core(contradiction);
       } else {
         if (!makeNegation(type, factory.core(contradiction), factory, negations, values, transGraphs)) {
-          typechecker.getErrorReporter().report(new TypeError("The expression does not prove a contradiction", type, argument));
+          typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "The expression does not prove a contradiction", type, argument));
           return null;
         }
       }

@@ -703,7 +703,7 @@ public class ExtMeta extends BaseMetaDefinition {
         return haveClauses.isEmpty() ? let : factory.letExpr(true, false, haveClauses, let);
       }
 
-      typechecker.getErrorReporter().report(new TypeError("Cannot apply extensionality", type, marker));
+      typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "Cannot apply extensionality", type, marker));
       return null;
     }
   }

@@ -51,14 +51,14 @@ public class LinearSolver {
   private CoreExpression findInstance(CoreExpression type, boolean reportError) {
     TypedExpression instance = typechecker.findInstance(ext.equationMeta.LinearlyOrderedSemiring, type, null, marker);
     if (instance == null) {
-      if (reportError) errorReporter.report(new InstanceInferenceError(ext.equationMeta.LinearlyOrderedSemiring.getRef(), type, marker));
+      if (reportError) errorReporter.report(new InstanceInferenceError(typechecker.getExpressionPrettifier(), ext.equationMeta.LinearlyOrderedSemiring.getRef(), type, marker));
       return null;
     }
     return instance.getExpression();
   }
 
   private void reportTypeError(CoreExpression expectedType) {
-    typechecker.getErrorReporter().report(new TypeError("The expected type should be either an equation or the empty type", expectedType, marker));
+    typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "The expected type should be either an equation or the empty type", expectedType, marker));
   }
 
   private Hypothesis<CoreExpression> typeToEquation(CoreExpression type, CoreBinding binding, boolean reportError) {
@@ -100,7 +100,7 @@ public class LinearSolver {
         if (argType instanceof CoreClassCallExpression classCall && classCall.getDefinition().isSubClassOf(ext.equationMeta.LinearlyOrderedSemiring)) {
           return new Hypothesis<>(expr, arg, field == ext.equationMeta.less ? Equation.Operation.LESS : Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
         } else {
-          if (reportError) errorReporter.report(new TypeError("", argType, marker) {
+          if (reportError) errorReporter.report(new TypeError(typechecker.getExpressionPrettifier(), "", argType, marker) {
             @Override
             public LineDoc getShortHeaderDoc(PrettyPrinterConfig ppConfig) {
               return DocFactory.hList(DocFactory.text("The type of the equation should be "), DocFactory.refDoc(ext.equationMeta.LinearlyOrderedSemiring.getRef()));
@@ -563,7 +563,7 @@ public class LinearSolver {
       }
     }
 
-    errorReporter.report(new LinearSolverError(resultEquation == null, rules, marker));
+    errorReporter.report(new LinearSolverError(typechecker.getExpressionPrettifier(), resultEquation == null, rules, marker));
     return null;
   }
 }
