@@ -1,19 +1,19 @@
 \import Algebra.Meta
 \import Category
 \import Category.Limit
-\import Equiv (Equiv)
+\import Equiv (QEquiv)
 \import Function.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
-\open CartesianPrecat
+\open PrecatWithBprod
 
 \class ToposPrecat \extends FinCompletePrecat {
   | subobj-classifier \alias omega : Ob
   | true : Hom terminal omega
   | char {S B : Ob} (m : Mono {\this} {S} {B}) : Hom B omega
   | char-pullback {S B : Ob} (m : Mono {\this} {S} {B}) : Pullback {\this} (char m) true S m terminalMap
-  | char-unique {S B : Ob} (m : Mono {\this} {S} {B}) (phi : Hom B omega)
+  | char-unique {S B : Ob} {m : Mono {\this} {S} {B}} {phi : Hom B omega}
                 (phi-pull : Pullback phi true S m terminalMap) : phi = char m
   -- universal property stating that omega is exponentiable
   -- todo: replace this with an instance of "exponentiable"
@@ -25,7 +25,7 @@
   | transpose-unique {A B : Ob} {f : Hom (Bprod B A) omega} {g : Hom A (P B)} (comm : f = belongs ∘ prodMap (id B) g)
   : g = transpose f
 
-  -- todo: implement default proofs of finite completeness
+  -- todo: implement default proofs of finite completeness and cartesian closed instance
 
   \func anti-transpose  {A B : Ob} (g : Hom A (P B)) : Hom (Bprod B A) omega =>
     belongs ∘ (prodMap (id B) g)
@@ -97,15 +97,15 @@
           \let p2 : h1 = proj2 ∘ (pair b (id X) ∘ h1) => rewriteI o-assoc $ rewrite (beta2 _ _) equation
                | p1 : proj2 ∘ (pair b (id X) ∘ h2) = h2  => rewriteI o-assoc $ rewrite (beta2 _ _) equation
           \in p2 *> pmap (proj2 ∘ __) c *> p1
-    }
 
-  \func pbBeta2' {B X : Ob} {b : Hom X B} (w : Ob) (p1 : Hom w (Bprod B X))
-                 (p2 : Hom w B) (c : prodMap (id B) b ∘ p1 = diagonal B ∘ p2) :  b ∘ (proj2 ∘ p1) = p2 =>
-    \let left : proj2 ∘ (diagonal B ∘ p2) = p2 => rewriteI o-assoc $ rewrite (beta2 _ _) equation
-         | right : proj2 ∘ (prodMap (id B) b ∘ p1) = b ∘ (proj2 ∘ p1)  =>
-           rewriteI o-assoc $ rewrite (beta2 _ _) o-assoc
-    \in
-      inv right *> pmap (proj2 ∘ __) c *> left
+      \func pbBeta2' {B X : Ob} {b : Hom X B} (w : Ob) (p1 : Hom w (Bprod B X))
+                     (p2 : Hom w B) (c : prodMap (id B) b ∘ p1 = diagonal B ∘ p2) :  b ∘ (proj2 ∘ p1) = p2 =>
+        \let left : proj2 ∘ (diagonal B ∘ p2) = p2 => rewriteI o-assoc $ rewrite (beta2 _ _) equation
+             | right : proj2 ∘ (prodMap (id B) b ∘ p1) = b ∘ (proj2 ∘ p1)  =>
+               rewriteI o-assoc $ rewrite (beta2 _ _) o-assoc
+        \in
+          inv right *> pmap (proj2 ∘ __) c *> left
+    }
 
   \func is-singleton {B : Ob} : Hom (P B) omega => char (singleton-mono B)
 
@@ -113,19 +113,31 @@
 
   \func true-over-obj {B : Ob} : Hom B omega => true ∘ terminalMap
 
-  \func monic+epi=iso{X Y : Ob} (m : Mono {\this} {X} {Y}) (m-is-epi : isEpi {\this} {X} {Y} m) : Iso {\this} {X} {Y} m =>
-    \let s => {?} \in
+  \func true-over-obj-is-char {B : Ob} : true-over-obj = char (idIso {\this} {B}) =>
+    char-unique (\new Pullback {
+      | pbCoh => rewrite id-right idp
+      | pbMap p1 _ _ => p1
+      | pbBeta1 => rewrite id-left idp
+      | pbBeta2 => terminal-unique
+      | pbEta c _ => rewriteF (id-left, id-left) c
+    })
+
+  \func monic+epi=iso{X Y : Ob} (m : Mono {\this} {X} {Y}) (m-is-epi : isEpi {\this} {X} {Y} m)
+    : Iso {\this} {X} {Y} m =>
+    \let s => monic-is-regular m \in
       {?}
 } \where {
   \func monic-is-regular {T : ToposPrecat} {X Y : Ob {T}} (m : Mono {T} {X} {Y}) : Equalizer true-over-obj (char m) X m =>
     \new Equalizer {
-      | equal => rewrite (pbCoh {char-pullback m}, o-assoc) $
-      rewrite (terminal-unique {T} {X} {terminalMap ∘ m.f : Hom X terminal} {terminalMap {T} {X}}) idp
-      | isEqualizer Z => \new Equiv {
-        | ret => {?}
-        | ret_f => {?}
-        | sec => {?}
-        | f_sec => {?}
+      | equal =>
+        rewrite (pbCoh {char-pullback m}, o-assoc) $
+        rewrite terminal-unique idp
+      | isEqualizer Z => \new QEquiv {
+        | ret (h, com) => pbMap {char-pullback m} h terminalMap
+            (rewriteI com $ rewrite o-assoc $ rewrite (terminal-unique : terminalMap {T} {Y} ∘ h = terminalMap) idp)
+        | ret_f x => pbEta {char-pullback m} (rewrite (pbBeta1 {char-pullback m}) $ idp)
+            (rewrite (pbBeta2 {char-pullback m}) terminal-unique)
+        | f_sec (h, com) => exts $ rewrite (pbBeta1 {char-pullback m}) idp
       }
     }
 }
