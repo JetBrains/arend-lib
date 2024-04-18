@@ -314,6 +314,20 @@
       | isSurjMap t => TruncP.map (p t.1 t.2) (\lam q => (q.1, ext q.2))
       | Embedding => Embedding.fromInjection (\lam q => m.isMono $ pmap __.1 q)
     }
+
+  \func id-equalizer {D : Precat} {X Y : D} {f : Hom X Y} : Equalizer f f X (id X)\cowith
+    | equal => idp
+    | isEqualizer _ => \new QEquiv {
+      | ret (h, _) => h
+      | ret_f _ => id-left
+      | f_sec _ => exts id-left
+    }
+
+  \func equalizer-iso {D : Precat} {X Y : D} {f : Hom X Y} (eq : Equalizer f f) : Iso {D} {eq} {X} eq.eql
+    \cowith
+      | hinv => unique id-equalizer eq
+      | hinv_f => unfold $ eqMono $ rewriteI o-assoc $ rewrite (eqBeta {eq} _ _, id-left, id-right) idp
+      | f_hinv => unique-map id-equalizer eq
 }
 
 \class Pullback {D : Precat} {x y z : D} (f : Hom x z) (g : Hom y z) (\classifying apex : D) {
@@ -547,16 +561,30 @@
     | Func f => prodMap f (id Y)
     | Func-id => unfold prodMap $ rewrite (id-left, id-left) pair-proj
     | Func-o => prod-id-right _ _
+
+  \func change {x y : Ob} : Hom (Bprod x y) (Bprod y x)
+    => pair proj2 proj1
+
+  \lemma change-inv {x y : Ob} : change ∘ change = id (Bprod x y)
+    => pair-unique (rewriteI o-assoc $ rewrite (beta1 _ _, beta2 _ _, id-right) idp)
+        (rewriteI o-assoc $ rewrite (beta2 _ _, beta1 _ _, id-right) idp)
+
+  \func bprod-comm {x y : Ob} : Iso (change {_} {x} {y})\cowith
+    | hinv => change {_} {y} {x}
+    | hinv_f => change-inv {_} {x} {y}
+    | f_hinv => change-inv {_} {y} {x}
 }
 
 \class CartesianPrecat \extends PrecatWithTerminal, PrecatWithBprod {
 
-  \func one-left {X : Ob} : Iso {\this} {Bprod X terminal} {X} \cowith
-    | f => proj1
-    | hinv => pair (id X) terminalMap
-    | hinv_f => pair-unique (rewrite (inv o-assoc, beta1 _ _, id-left, id-right) idp)
+  \func terminal-prod-left {X : Ob} : Iso {\this} {X} {Bprod X terminal}  \cowith
+    | f => pair (id X) terminalMap
+    | hinv => proj1
+    | hinv_f => beta1 _ _
+    | f_hinv => pair-unique (rewrite (inv o-assoc, beta1 _ _, id-left, id-right) idp)
         (rewrite (inv o-assoc, beta2 _ _) terminal-unique)
-    | f_hinv => beta1 _ _
+
+  \func terminal-right {X : Ob} : Hom X (Bprod terminal X) => pair terminalMap (id X)
 
   \func bprod-bifunctor : Functor (ProductPrecat \this \this) \this
     \cowith

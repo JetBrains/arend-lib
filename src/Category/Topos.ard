@@ -1,5 +1,6 @@
 \import Algebra.Meta
 \import Category
+\import Category.CartesianClosed
 \import Category.Limit
 \import Equiv (QEquiv)
 \import Function.Meta
@@ -8,7 +9,7 @@
 \import Paths.Meta
 \open PrecatWithBprod
 
-\class ToposPrecat \extends FinCompletePrecat {
+\class ToposPrecat \extends FinCompletePrecat, CartesianClosedPrecat {
   | subobj-classifier \alias omega : Ob
   | true : Hom terminal omega
   | char {S B : Ob} (m : Mono {\this} {S} {B}) : Hom B omega
@@ -25,7 +26,9 @@
   | transpose-unique {A B : Ob} {f : Hom (Bprod B A) omega} {g : Hom A (P B)} (comm : f = belongs ∘ prodMap (id B) g)
   : g = transpose f
 
-  -- todo: implement default proofs of finite completeness and cartesian closed instance
+  -- todo: implement default proofs of cartesian closed instance
+
+  \func sub-from-char {B : Ob} (ch : Hom B omega) : Pullback {\this} ch true => pullback ch true
 
   \func anti-transpose  {A B : Ob} (g : Hom A (P B)) : Hom (Bprod B A) omega =>
     belongs ∘ (prodMap (id B) g)
@@ -48,8 +51,8 @@
           transport (Pullback {\this} __ true X (pair b' (id X))) (inv c) (full-square b')
         | h-iso : Iso {\this} {X} {X} => Pullback.unique (eq B ∘ prodMap (id B) b) true b-square b'-square
         | pb~pb*h : pair b (id X) = pair b' (id X) ∘ h-iso => inv (Pullback.unique.p-beta1 b'-square b-square)
-        | cccc : proj2 ∘ (pair b' (id X) ∘ h-iso.f) = h-iso => rewriteI o-assoc $ rewrite (beta2 _ _) id-left
-        | h~1 : id X = h-iso.f => inv (beta2 _ _) *> pmap (proj2 ∘ __) pb~pb*h *> cccc
+        | c' : proj2 ∘ (pair b' (id X) ∘ h-iso.f) = h-iso => rewriteI o-assoc $ rewrite (beta2 _ _) id-left
+        | h~1 : id X = h-iso.f => inv (beta2 _ _) *> pmap (proj2 ∘ __) pb~pb*h *> c'
         | b~b'h : b = b' ∘ h-iso.f => inv (beta1 _ _) *> pmap (proj1 ∘ __) pb~pb*h *> (rewriteI o-assoc $ rewrite (beta1 _ _) idp)
       \in
         b~b'h *> rewriteI h~1 id-right
@@ -109,8 +112,6 @@
 
   \func is-singleton {B : Ob} : Hom (P B) omega => char (singleton-mono B)
 
-  -- every arrow both monic and epi is an isomorphism
-
   \func true-over-obj {B : Ob} : Hom B omega => true ∘ terminalMap
 
   \func true-over-obj-is-char {B : Ob} : true-over-obj = char (idIso {\this} {B}) =>
@@ -124,20 +125,49 @@
 
   \func monic+epi=iso{X Y : Ob} (m : Mono {\this} {X} {Y}) (m-is-epi : isEpi {\this} {X} {Y} m)
     : Iso {\this} {X} {Y} m =>
-    \let s => monic-is-regular m \in
-      {?}
-} \where {
-  \func monic-is-regular {T : ToposPrecat} {X Y : Ob {T}} (m : Mono {T} {X} {Y}) : Equalizer true-over-obj (char m) X m =>
+    \let equalizer => monic-is-regular m
+         | true=char-m : true-over-obj = char m => m-is-epi (Equalizer.equal {equalizer} : true-over-obj ∘ m.f = char m ∘ m)
+         | equalizer-f : Equalizer (char m) (char m) => transport (Equalizer __ (char m) X m) true=char-m equalizer
+    \in
+      Equalizer.equalizer-iso equalizer-f
+
+  \func monic-is-regular  {X Y : Ob} (m : Mono {\this} {X} {Y}) : Equalizer true-over-obj (char m) X m =>
     \new Equalizer {
       | equal =>
         rewrite (pbCoh {char-pullback m}, o-assoc) $
         rewrite terminal-unique idp
-      | isEqualizer Z => \new QEquiv {
+      | isEqualizer _ => \new QEquiv {
         | ret (h, com) => pbMap {char-pullback m} h terminalMap
-            (rewriteI com $ rewrite o-assoc $ rewrite (terminal-unique : terminalMap {T} {Y} ∘ h = terminalMap) idp)
-        | ret_f x => pbEta {char-pullback m} (rewrite (pbBeta1 {char-pullback m}) $ idp)
+            (rewriteI com $ rewrite o-assoc $ rewrite terminal-unique idp)
+        | ret_f _ => pbEta {char-pullback m} (rewrite (pbBeta1 {char-pullback m}) $ idp)
             (rewrite (pbBeta2 {char-pullback m}) terminal-unique)
         | f_sec (h, com) => exts $ rewrite (pbBeta1 {char-pullback m}) idp
       }
     }
+
+  \func global (X : Ob) => Hom terminal X
+
+  \func name {A : Ob} (phi : Hom A omega) : global (P A) => transpose (phi ∘ terminal-prod-left.hinv)
+
+  \func v {B C : Ob} : Hom (Bprod B (P $ Bprod C B)) (P C) =>
+    transpose $ belongs ∘ (associator-iso.hinv : Hom (Bprod C (Bprod B (P $ Bprod C B))) (Bprod (Bprod C B) (P $ Bprod C B)))
+
+  \func u {B C : Ob} : Hom (P $ Bprod C B) (P B) =>
+    transpose $ is-singleton ∘ v
+
+  \func graphs {B C : Ob} : Pullback (name (true-over-obj {\this} {B})) (u {\this} {B} {C})
+    => pullback (name (true-over-obj {\this} {B})) (u {\this} {B} {C})
+
+  \func pow (B C : Ob) : Ob => Pullback.apex {graphs {_} {B} {C} }
+  \func m {B C : Ob} : Hom (pow B C) (P $ Bprod C B)  => Pullback.pbProj2 {graphs {_} {B} {C}}
+
+  \default exp (B : Ob) : hasExponential {\this} B => RightAdjoint-Univ.toAdjoint (\new RightAdjoint-Univ {
+    | L => bprod-functor B
+    | R Y => Pullback.apex {graphs {_} {B} {Y}}
+    | eval {C} => unfold $ pbMap {char-pullback $ singleton-mono C} (v ∘ prodMap (id B) m ∘ change) terminalMap
+                               (unfold (Pullback.g, Pullback.f) {?})
+    | transpose => {?}
+    | transpose-univ => {?}
+    | transpose-unique => {?}
+  })
 }
