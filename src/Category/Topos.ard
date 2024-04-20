@@ -21,26 +21,26 @@
   -- universal property stating that omega is exponentiable
   | power \alias P (B : Ob) : Ob
   | belongs {B : Ob} : Hom (Bprod B (P B)) omega
-  | transpose {A B : Ob} (f : Hom (Bprod B A) omega) : Hom A (P B)
-  | transpose-univ {A B : Ob} (f : Hom (Bprod B A) omega) : f = belongs ∘ (prodMap (id B) (transpose f))
+  | p-transpose {A B : Ob} (f : Hom (Bprod B A) omega) : Hom A (P B)
+  | transpose-univ {A B : Ob} (f : Hom (Bprod B A) omega) : f = belongs ∘ (prodMap (id B) (p-transpose f))
   | transpose-unique {A B : Ob} {f : Hom (Bprod B A) omega} {g : Hom A (P B)} (comm : f = belongs ∘ prodMap (id B) g)
-  : g = transpose f
+  : g = p-transpose f
 
   \func sub-from-char {B : Ob} (ch : Hom B omega) : Pullback {\this} ch true => pullback ch true
 
   \func anti-transpose  {A B : Ob} (g : Hom A (P B)) : Hom (Bprod B A) omega =>
     belongs ∘ (prodMap (id B) g)
 
-  \func antitranspose-eq {A B : Ob} (f : Hom (Bprod B A) omega) : f = anti-transpose (transpose f)
+  \func antitranspose-eq {A B : Ob} (f : Hom (Bprod B A) omega) : f = anti-transpose (p-transpose f)
     => transpose-univ f
 
-  \func transpose-inj {A B : Ob} {f g : Hom (Bprod B A) omega} (e : transpose f = transpose g)
+  \func transpose-inj {A B : Ob} {f g : Hom (Bprod B A) omega} (e : p-transpose f = p-transpose g)
     : f = g => transpose-univ f *> pmap (belongs ∘ prodMap (id B) __) e *> (inv $ transpose-univ g)
 
   \func internal-equality \alias eq (B : Ob) : Hom (Bprod B B) omega =>
     char (diagonal.isSplitMono B)
 
-  \func singleton  (B : Ob) : Hom B (P B) => transpose (eq B)
+  \func singleton  (B : Ob) : Hom B (P B) => p-transpose (eq B)
 
   \func singleton-mono (B : Ob) : Mono (singleton B)
   \cowith
@@ -58,7 +58,7 @@
       \in
         b~b'h *> rewriteI h~1 id-right
     \where {
-      \func s-eq {X : Ob} (b : Hom X B) : singleton B ∘ b = transpose (eq B ∘ (prodMap (id B) b)) =>
+      \func s-eq {X : Ob} (b : Hom X B) : singleton B ∘ b = p-transpose (eq B ∘ (prodMap (id B) b)) =>
         transpose-unique $ rewrite (prod-id-left _ _) $ rewriteI o-assoc $ rewriteI transpose-univ idp
 
       \func full-square {X : Ob} (b : Hom X B)
@@ -148,14 +148,14 @@
 
   \func global (X : Ob) => Hom terminal X
 
-  \func name {A : Ob} (phi : Hom A omega) : global (P A) => transpose (phi ∘ terminal-prod-left.hinv)
+  \func name {A : Ob} (phi : Hom A omega) : global (P A) => p-transpose (phi ∘ terminal-prod-left.hinv)
 
   \func v {B C : Ob} : Hom (Bprod B (P $ Bprod C B)) (P C) =>
-    transpose $ belongs ∘ associator-iso.hinv
+    p-transpose $ belongs ∘ associator-iso.hinv
 
   \func u' {B C : Ob} : Hom (Bprod B (P $ Bprod C B)) omega => is-singleton ∘ v
 
-  \func u {B C : Ob} : Hom (P $ Bprod C B) (P B) => transpose u'
+  \func u {B C : Ob} : Hom (P $ Bprod C B) (P B) => p-transpose u'
 
   \func graphs {B C : Ob} : Pullback (name (true-over-obj {\this} {B})) (u {\this} {B} {C})
     => pullback (name (true-over-obj {\this} {B})) (u {\this} {B} {C})
@@ -181,32 +181,49 @@
     \in
     pbMap {char-pullback $ singleton-mono C} (v ∘ prodMap (id B) m ∘ change) terminalMap (unfold (Pullback.f, Pullback.g) eq)
 
-\func singleton-eq {A B C : Ob} (f : Hom (Bprod B A) C) : transpose (eq C ∘ prodMap (id C) f) = singleton C ∘ f
-  => inv (transpose-unique (rewrite (prod-id-left _ _) $ rewrite (transpose-univ (eq C)) o-assoc))
+\func ss0 {A B C : Ob} (f : Hom (Bprod B A) C) : Hom (Bprod C (Bprod B A)) omega => eq C ∘ prodMap (id C) f
+\func vv0 {A B C : Ob} (f : Hom (Bprod B A) C) : p-transpose (ss0 f) = v ∘ prodMap (id B) (p-transpose (ss0 f ∘ associator))
+  => unfold ss0 $ inv $ transpose-unique $ unfold $ rewrite {2} prod-id-left $ rewriteI (o-assoc, antitranspose-eq _) $
+                                                                  rewrite (o-assoc, associtor-prod _ _ _, inv o-assoc, prod-id, inv $ antitranspose-eq _) $ Iso.adjoint' idp
+
+\func last {A B C : Ob} (f : Hom (Bprod A B) C) : Mono.f {singleton-mono C} ∘ (f ∘ change) = v ∘ prodMap (id B) (m {_} {B} {C} ∘ transpose' f)
+  => rewrite (pbBeta2 {graphs {_} {B} {C}}, inv (singleton-eq _)) (vv0 _)
+
+\func singleton-eq {A B C : Ob} (f : Hom (Bprod B A) C) : p-transpose (ss0 f) = singleton C ∘ f
+  => unfold ss0 $ inv (transpose-unique (rewrite (prod-id-left _ _) $ rewrite (transpose-univ (eq C)) o-assoc))
+
+  -- single C o f' = v o <id B, s0>
+\func transpose' {A B C : Ob} (f : Hom (Bprod A B) C) : Hom A (graphs {\this} {B} {C}) =>
+      \let
+       f' : Hom (Bprod B A) C => f ∘ change
+      | s0 : Hom (Bprod C (Bprod B A)) omega => eq C ∘ prodMap (id C) f'
+      | s : Hom (Bprod (Bprod C B) A) omega => s0 ∘ associator
+      | h : Hom A (P $ Bprod C B) => p-transpose s
+      | s-eq : s = belongs ∘ prodMap (id (Bprod C B)) h => antitranspose-eq _
+      | new-s : Hom (Bprod B A) (P C) => p-transpose s0
+      | new-s-eq : p-transpose s0 = singleton C ∘ f' => singleton-eq _
+      | right : Hom (Bprod B A) (P C) => v ∘ prodMap (id B) h
+      | lem : hinv {associator-iso} ∘ prodMap (id C) (prodMap (id B) h) = prodMap (prodMap (id C) (id B)) h ∘ associator-iso.hinv => associtor-prod _ _ _
+      | eq1 : p-transpose s0 = right => inv $ transpose-unique $ unfold $ rewrite {2} prod-id-left $ rewriteI (o-assoc, antitranspose-eq _) $
+            rewrite (o-assoc, lem, inv o-assoc, prod-id, inv $ antitranspose-eq _) $ Iso.adjoint' idp
+      | eq2 : is-singleton ∘ (singleton C ∘ f') = true-over-obj ∘ f' => rewriteI o-assoc $ rewrite (pbCoh {char-pullback (singleton-mono C)}) idp
+      | eq3 : is-singleton {_} {C} ∘ right = u' ∘ prodMap (id B) h => rewriteI o-assoc $ rewrite (idp : is-singleton {_} {C} ∘ v = u') idp
+      | eq4 : p-transpose (u' ∘ prodMap (id B) h) = u ∘ h => inv (transpose-unique $ unfold $ rewrite prod-id-left $ rewriteI (o-assoc, antitranspose-eq _) idp)
+      | eq5 : true-over-obj ∘ f' = true-over-obj {_} {B} ∘ proj1 {_} {B} {A} => unfold true-over-obj $ rewrite (o-assoc, terminate, o-assoc, terminate) idp
+      | eq6 : p-transpose (true-over-obj {_} {B} ∘ proj1 {_} {B} {A}) = name (true-over-obj {_} {B}) ∘ terminalMap
+      => inv (transpose-unique $ rewrite (prod-id-left, inv o-assoc, inv $ antitranspose-eq _) $ unfold true-over-obj $
+                rewrite (o-assoc, terminate, o-assoc, o-assoc, terminate) idp)
+      \in
+         pbMap terminalMap h (unfold (Pullback.f, Pullback.g) (rewriteI (eq6, eq4, eq5, eq2, eq3, new-s-eq, eq1) idp))
 
 \default exp (B : Ob) : hasExponential {\this} B => RightAdjoint-Univ.toAdjoint (\new RightAdjoint-Univ {
     | L => bprod-functor B
     | R Y => Pullback.apex {graphs {_} {B} {Y}}
     | eval {C} => eval
-    | transpose {A} {C}  f =>
-    \let
-     f' : Hom (Bprod B A) C => f ∘ change
-    | s0 : Hom (Bprod C (Bprod B A)) omega => eq C ∘ prodMap (id C) f'
-    | s : Hom (Bprod (Bprod C B) A) omega => s0 ∘ associator
-    | h : Hom A (P $ Bprod C B) => transpose s
-    | s-eq : s = belongs ∘ prodMap (id (Bprod C B)) h => antitranspose-eq _
-    | new-s : Hom (Bprod B A) (P C) => transpose s0
-    | new-s-eq : transpose s0 = singleton C ∘ f' => inv $ transpose-unique $ rewrite (prod-id-left, inv o-assoc, inv $ antitranspose-eq _) idp
-    | right : Hom (Bprod B A) (P C) => v ∘ prodMap (id B) h
-    | lem : hinv {associator-iso {_} {C} {B} {P (Bprod C B)}} ∘ prodMap (id C) (prodMap (id B) h) = prodMap (prodMap (id C) (id B)) h ∘ associator-iso.hinv => associtor-prod _ _ _
-    | eq1 : transpose s0 = right => inv $ transpose-unique $ unfold $ rewrite {2} prod-id-left $ rewriteI (o-assoc, antitranspose-eq _) $
-          rewrite (o-assoc, lem, inv o-assoc, prod-id, inv $ antitranspose-eq _) $ Iso.adjoint' idp
-    | eq2 : is-singleton ∘ (singleton C ∘ f') = true-over-obj ∘ f' => rewriteI o-assoc $
-      rewrite (pbCoh {char-pullback (singleton-mono C)}) idp
-    | eq3 : is-singleton {_} {C} ∘ right = u' ∘ prodMap (id B) h => rewriteI o-assoc $ rewrite (idp : is-singleton {_} {C} ∘ v = u') idp
-    \in
-       pbMap terminalMap h (unfold (Pullback.f, Pullback.g) {?})
-    | transpose-univ => {?}
+    | transpose => transpose'
+    | transpose-univ {A} {C} f =>
+      unfold $ pbEta {char-pullback (singleton-mono C)} (rewrite (inv o-assoc, pbBeta1 {char-pullback (singleton-mono C)}, o-assoc, change-prod, inv o-assoc) $ change-iso.adjoint' (rewrite {2} o-assoc $ rewriteI (prod-id-left _ _) $ rewrite o-assoc (last _)))
+                   (unfold Pullback.pbProj2 $ terminal-unique)
     | transpose-unique => {?}
   })
 }
