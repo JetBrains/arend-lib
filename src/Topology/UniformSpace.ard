@@ -1,5 +1,9 @@
+\import Function.Meta
+\import Logic
 \import Logic.Meta
+\import Meta
 \import Order.Lattice
+\import Order.PartialOrder
 \import Set.Filter
 \import Set.Subset
 \import Topology.CoverSpace
@@ -13,7 +17,7 @@
   | uniform-top : isUniform (single top)
   | uniform-extend {C D : Set (Set E)} : isUniform C -> (\Pi {U : Set E} -> C U -> ∃ (V : D) (U ⊆ V)) -> isUniform D
   | uniform-inter {C D : Set (Set E)} : isUniform C -> isUniform D -> isUniform \lam U => ∃ (V : C) (W : D) (U = V ∧ W)
-  | uniform-star {C : Set (Set E)} : isUniform C -> ∃ (D : isUniform) ∀ {V : D} ∃ (U : C) ∀ {V' : D} (Given (V ∧ V') -> V' ⊆ U)
+  | uniform-star {C : Set (Set E)} : isUniform C -> ∃ (D : isUniform) ∀ {V : D} ∃ (U : C) ∀ {W : D} (Given (V ∧ W) -> W ⊆ U)
 
   | isCauchy => Closure isUniform
   | cauchy-cover Cc x => closure-filter (pointFilter x) (\lam Cu => uniform-cover Cu x) Cc
@@ -21,3 +25,22 @@
   | cauchy-extend => closure-extends
   | cauchy-trans Cc e => closure-trans Cc e idp
   | isCompletelyRegular => isCompletelyRegular {ClosureRegularCoverSpace isUniform uniform-cover uniform-star}
+  \where {
+    \func star {X : \Set} (V : Set X) (C : Set (Set X)) : Set X
+      => Union \lam W => \Sigma (C W) (Given (V ∧ W))
+
+    \func \infix 4 <=* {X : UniformSpace} (V U : Set X) : \Prop
+      => ∃ (C : isUniform) (star V C ⊆ U)
+
+    \lemma <=*_<=< {X : UniformSpace} {V U : Set X} (p : V <=* U) : V <=< U \elim p
+      | inP (C,Cc,p) => closure $ uniform-extend Cc \lam {W} CW => inP (W, \lam s => Union-cond (CW,s) <=∘ p, <=-refl)
+
+    \lemma <=*-inter {X : UniformSpace} {V U : Set X} (p : V <=* U) : ∃ (V' : Set X) (V <=* V') (V' <=* U) \elim p
+      | inP (C,Cc,p) => \case uniform-star Cc \with {
+        | inP (D,Dc,g) => inP (star V D, inP (D, Dc, <=-refl), inP (D, Dc, (\case __ \with {
+          | inP (W, (DW, (y, (inP (V', (DV', (z, (Vz, V'z))), V'y), Wy))), Wx) => \case g DV' \with {
+            | inP (U',CU',h) => inP $ later (U', (CU', (z, (Vz, h DV' (z,(V'z,V'z)) V'z))), h DW (y, (V'y, Wy)) Wx)
+          }
+        }) <=∘ p))
+      }
+  }
