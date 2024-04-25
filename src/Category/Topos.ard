@@ -3,6 +3,7 @@
 \import Category.CartesianClosed
 \import Category.Limit
 \import Equiv (QEquiv)
+\import Function (isInj)
 \import Function.Meta
 \import Logic
 \import Meta
@@ -36,7 +37,8 @@
   \func anti-transpose  {A B : Ob} (g : Hom A (P B)) : Hom (Bprod B A) omega =>
     belongs ∘ (prodMap (id B) g)
 
-  \func antitranspose-eq {A B : Ob} (f : Hom (Bprod B A) omega) : f = anti-transpose (p-transpose f) => p-transpose-univ f
+  \func antitranspose-eq {A B : Ob} (f : Hom (Bprod B A) omega) : f = anti-transpose (p-transpose f) =>
+    p-transpose-univ f
 
   \func transpose-inj {A B : Ob} {f g : Hom (Bprod B A) omega} (e : p-transpose f = p-transpose g)
     : f = g => p-transpose-univ f *> pmap (belongs ∘ prodMap (id B) __) e *> (inv $ p-transpose-univ g)
@@ -289,42 +291,64 @@
 }
 
 \open PrecatWithTerminal
+
 \instance SetTopos : ToposPrecat SetBicat
   | FinCompletePrecat => SetBicat
   | subobj-classifier => \Prop
   | true => \lam _ => \Sigma
-  | char => \lam m => char' m
-  | char-pullback => {?}
+  | char => IsElement
+  | char-pullback m => \new Pullback {
+    | pbCoh => exts (\lam a => propExt (\lam _ => ()) (\lam _ => isContained _ idp))
+    | pbMap {w} p1 _ eq =>
+      \let s (x : w) : IsElement m (p1 x) = (\Sigma)
+      => path (\lam i => (eq @ i) x)
+      | pre (x : w) : IsElement m (p1 x) => propExt.conv (s x) ()
+      \in
+      \lam w1 => cases (pre w1) \with {
+        | SetTopos.isContained a p => a
+      }
+    | pbBeta1 => {?}
+    | pbBeta2 => {?}
+    | pbEta => {?}
+  }
   | char-unique => {?}
   | power A => A -> \Prop
   | belongs => {?}
   | p-transpose => {?}
   | p-transpose-univ => {?}
   | p-transpose-unique => {?}
-\where {
-  \func name {A : SetBicat} (a : A) : terminal.apex -> A => \lam _ => a
-  \func fin1-is-terminal : Product {Empty} {SetBicat} absurd (\Sigma)
+  \where {
+    \func name {A : SetBicat} (a : A) : Hom terminal.apex A => \lam _ => a
+
+    \func fin1-is-terminal : Product {Empty} {SetBicat} (absurd {\Set})
     \cowith
+      | apex => \Sigma
       | proj => \lam x => absurd x
       | tupleMap => \lam _ _  => ()
-      | tupleBeta {Z} {f} {j} => absurd j
-      | tupleEq {Z} {h1} {h2} f => exts (\lam z => exts)
+      | tupleBeta {_} {_} {j} => absurd j
+      | tupleEq _ => exts (\lam _ => exts)
 
---  \func terminal-is-fin1 : (\Sigma) = Product.apex {SetBicat} {terminal} =>
---    Equiv.ret {SetBicat.univalence} (terminal-obj-unique {SetBicat} fin1-is-terminal)
+    \func fin1-terminal-iso : Iso {SetBicat} {\Sigma} {terminal.apex} => terminal-obj-unique fin1-is-terminal
 
-  \func unname {A : SetBicat} (f : terminal.apex -> A) : A
-    => {?}
-  \data IsElement {A B : SetBicat} (m : Mono {SetBicat} {A} {B}) (b : B)
-    | isContained (a : A) (Mono.f {m} a = b)
-  \where {
-    \use \level isProp {A B : SetBicat} (m : Mono {SetBicat} {A} {B}) (b : B) (x y : IsElement m b) : x = y
-      \elim x, y
-        | isContained a p, isContained a1 p1 =>
-          \let a=a1 : a = a1 => {?}
-          | a- => {?}
-          \in {?}
+    \func name-f {A B : SetBicat} {a : A} (f : A -> B) : name (f a) = f ∘ {SetBicat} name a => idp
+
+    \func unname {A : SetBicat} (f : Hom {SetBicat} terminal.apex A) : A => (f ∘ {SetBicat} fin1-terminal-iso.f) ()
+
+    \func name-inj {A : SetBicat} {a b : A} (p : name a = name b) : a = b => pmap unname p
+
+    \func mono-is-inj {A B : SetBicat} (m : Mono {SetBicat} {A} {B}) : isInj m.f => \lam {_} {_} p =>
+        name-inj $ m.isMono $ rewriteI (name-f m.f) $ rewriteI {2} (name-f m.f) $ rewrite p idp
+
+    \data IsElement {A B : SetBicat} (m : Mono {SetBicat} {A} {B}) (b : B)
+      | isContained (a : A) (m.f a = b)
+      \where {
+        \use \level isProp {A B : SetBicat} (m : Mono {SetBicat} {A} {B}) (b : B) (x y : IsElement m b) : x = y
+        \elim x, y
+          | isContained a p, isContained c p1 =>
+            \let a=c : a = c => mono-is-inj m (p *> inv p1)
+                 | p=p1 : transport {A} (\lam (x : A) => m.f x = b) a=c p = p1 => prop-isProp _ _
+            \in \case\elim a,\elim c,\elim p, \elim p1, \elim a=c, \elim p=p1 \with {
+              | a, c, _, _, idp, idp => idp
+            }
+      }
   }
-  \func char' {A B : SetBicat} (m : Mono {SetBicat} {A} {B}) (b : B) : \Prop
-    => IsElement m b
-}
