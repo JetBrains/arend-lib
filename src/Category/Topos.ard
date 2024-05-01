@@ -308,34 +308,46 @@
       \lam w1 => cases (help' {_} {_} {_} {_} {p1} {eq} w1) \with {
         | SetTopos.isContained a p => a
       }
-    | pbBeta1 {_} {p1} {_} {eq} => exts (\lam w1 => cases (help' {_} {_} {_} {_} {p1} {eq} w1) \with {
+    | pbBeta1 {_} {p1} {_} {eq} => ext (\lam w1 => cases (help' {_} {_} {_} {_} {p1} {eq} w1) \with {
       | SetTopos.isContained a p => p
     })
     | pbBeta2 => terminal-unique {SetBicat}
-    | pbEta {_} {h1} {h2} eq _ => exts (\lam x => \let s : Mono.f {m} (h1 x) = Mono.f {m} (h2 x) => path (\lam i => (eq @ i) x) \in mono-is-inj m s)
+    | pbEta {_} {h1} {h2} eq _ => ext (\lam x => \let s : Mono.f {m} (h1 x) = Mono.f {m} (h2 x) => path (\lam i => (eq @ i) x) \in mono-is-inj m s)
   }
-  | char-unique {S} {B} {m} {phi} pullback =>
-    exts (\lam b =>
-        exts (\lam p =>
-                  \let preimage : terminal.apex -> S => pbMap {pullback} (name b) (terminalMap {SetBicat}) (unfold (unfold name $ exts (\lam _ => sigma-prop-ext p))) \in
-                    SetTopos.isContained (unname preimage)
-                        (\let help : Mono.f {m} ∘ {SetBicat} preimage = name b => pbBeta1 {pullback} \in name-inj
-                            (rewrite (name-f (Mono.f {m}), name-eq _ : name (unname preimage) = preimage) $ help)),
-              \let ss : phi ∘ {SetBicat} (Mono.f {m}) = terminalMap ∘ {SetBicat} true => pbCoh {pullback}
-                   | ss-impl (x : S) : phi (Mono.f {m} x) = (\Sigma) => path (\lam i => (ss @ i) x) \in
-                \lam c => cases c \with {
-                  | SetTopos.isContained a p => rewriteI p $ sigma-prop-ext-inv (ss-impl a)
-                }
+  | char-unique {S} {_} {m} {phi} pullback =>
+    ext (\lam b =>
+        ext (\lam p =>
+                 \let preimage : terminal.apex -> S => pbMap {pullback} (name b) (terminalMap {SetBicat}) (unfold (unfold name $ exts (\lam _ => sigma-prop-ext p))) \in
+                   SetTopos.isContained (unname preimage)
+                       (\let help : Mono.f {m} ∘ {SetBicat} preimage = name b => pbBeta1 {pullback} \in name-inj
+                           (rewrite (name-f (Mono.f {m}), name-eq _ : name (unname preimage) = preimage) $ help)),
+             \let ss : phi ∘ {SetBicat} (Mono.f {m}) = terminalMap ∘ {SetBicat} true => pbCoh {pullback}
+                  | ss-impl (x : S) : phi (Mono.f {m} x) = (\Sigma) => path (\lam i => (ss @ i) x) \in
+               \lam c => cases c \with {
+                 | SetTopos.isContained a p => rewriteI p $ sigma-prop-ext-inv (ss-impl a)
+               }
         ))
   | power A => A -> \Prop
   | belongs a => (proj2 {SetBicat} a) (proj1 {SetBicat} a)
-  | p-transpose {A} {B} c a b => c $ unname {Bprod B A} (pair {SetBicat} (name b) (name a))
-  | p-transpose-univ f => exts (\lam a => run {
-    unfold prodMap,
+  | p-transpose {A} {B} c a b => unname $ c ∘ (pair {SetBicat} (name b) (name a))
+  | p-transpose-univ {A} {B} f => ext (\lam a => run {
     {?}
+
   })
-  | p-transpose-unique => {?}
+  | p-transpose-unique eq => {?}
   \where {
+    \func prod-iso {A B : SetBicat} : Iso {SetBicat} {Bprod {SetBicat} A B} {\Sigma A B} => \new Iso {
+      | f prod => (proj1 {SetBicat} prod, proj2 {SetBicat} prod)
+      | hinv x => unname $ pair {SetBicat} (name x.1) (name x.2)
+      | hinv_f => ext (\lam d => run {unfold,
+                                      name-inj,
+                                      rewrite (name-eq (pair {SetBicat} (name (proj1 {SetBicat} d)) (name (proj2 {SetBicat} d)))),
+                                      pair-unique {SetBicat} (rewrite (beta1 _ _) $ name-f (proj1 {SetBicat})) (rewrite (beta2 _ _) $ name-f (proj2 {SetBicat}))
+      })
+      | f_hinv => ext (\lam c => unfold $ ext (rewrite (unname-f {_} {_} {proj1 {SetBicat}} {pair {SetBicat} (name c.1) (name c.2)}, beta1 _ _) idp,
+                                               rewrite (unname-f {_} {_} {proj2 {SetBicat}} {pair {SetBicat} (name c.1) (name c.2)}, beta2 _ _) idp))
+    }
+
     \func name {A : SetBicat} (a : A) : Hom terminal.apex A => \lam _ => a
 
     \func fin1-is-terminal : Product {Empty} {SetBicat} (absurd {\Set})
@@ -359,7 +371,13 @@
     \func name-eq {A : SetBicat} (f : Hom {SetBicat} terminal.apex A) : name (unname f) = f =>
       exts (\lam c => unfold (name, unname) $ unfold (∘ {SetBicat}) $ pmap f (terminal-is-prop _ _))
 
+    \func unname-f {A B : SetBicat} {g : A -> B} {f : Hom {SetBicat} terminal.apex A} : g (unname f) = unname (g ∘ f) =>
+      inv $ name-adj {_} {g ∘ f} $ inv $ rewrite (name-f {_} {_} {unname f} g, name-eq f) idp
+
     \func name-inj {A : SetBicat} {a b : A} (p : name a = name b) : a = b => pmap unname p
+
+    \func name-adj {A : SetBicat} {f : Hom {SetBicat} terminal.apex A} {d : A} (eq : f = name d) : unname f = d =>
+      name-inj $ rewrite (name-eq f) eq
 
     \func mono-is-inj {A B : SetBicat} (m : Mono {SetBicat} {A} {B}) : isInj m.f => \lam {_} {_} p =>
         name-inj $ m.isMono $ rewriteI (name-f m.f) $ rewriteI {2} (name-f m.f) $ rewrite p idp
