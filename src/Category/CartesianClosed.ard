@@ -8,7 +8,7 @@
 \import Paths
 \import Paths.Meta
 
-\class RightAdjoint-Counit \extends Functor {
+\class RightAdjointCounit \extends Functor {
   | LAdj : Functor D C
   | epsilon : NatTrans (Comp LAdj \this) Id
   \field isAdjoint-inv {X : D} {Y : C} : Equiv {Hom X (F Y)} {Hom (LAdj X) Y} (epsilon Y ∘ LAdj.Func __)
@@ -24,7 +24,7 @@
     isAdjoint-inv.isInj $ unfold $ rewrite (isAdjoint-inv.f_ret _, Func-o {LAdj}) $
                                    rewriteI o-assoc $ rewrite (epsilon.natural, o-assoc, isAdjoint-inv.f_ret _, id-right) idp
 } \where {
-  \use \coerce fromAdjoint (F : RightAdjoint) : RightAdjoint-Counit \cowith
+  \use \coerce fromAdjoint (F : RightAdjoint) : RightAdjointCounit \cowith
     | Functor => F
     | LAdj => F.LAdj
     | epsilon => F.epsilon
@@ -35,7 +35,7 @@
       | f_sec => F.eta_eps_equiv.ret_f
     }
 
-  \use \coerce toAdjoint (F : RightAdjoint-Counit) : RightAdjoint => \new RightAdjoint {
+  \use \coerce toAdjoint (F : RightAdjointCounit) : RightAdjoint => \new RightAdjoint {
     | Functor => F
     | LAdj => LAdj
     | eta => eta
@@ -51,90 +51,87 @@
   }
 }
 
-{-
-  Definition of an adjoint functor with the universal properties of the counit with the coreflection.
-  This should be used primarily for ease of definition and not a replacement for the base class
--}
-
-\class RightAdjoint-Univ  {C D : Precat} (L : Functor D C) {
-  | R (Y : C) : D
-  | eval {Y : C} : Hom (L (R Y)) Y
-  | transpose {Y : D} {Z : C} (f : Hom (L Y) Z) : Hom Y (R Z)
-  | transpose-univ {Y : D} {Z : C} (f : Hom (L Y) Z) : f = eval ∘ (L.Func (transpose f))
-  | transpose-unique {Y : D} {Z : C} {f : Hom (L Y) Z} {g : Hom Y (R Z)} (comm : f = eval ∘ (L.Func g))
-  : transpose f = g
-
-  \func functor-R : Functor C D {
-    | F => R
-  } \cowith
-    | Func {_} {_} f => transpose (f ∘ eval)
-    | Func-id => transpose-unique $ rewrite id-left $ rewrite (Func-id {L}, id-right) idp
-    | Func-o => transpose-unique $ rewrite (Func-o {L}, inv o-assoc, inv $ transpose-univ _)
-                                     $ rewrite {2} o-assoc $ rewriteI (transpose-univ _) o-assoc
-
-  \func eval-trans : NatTrans (Comp L functor-R) Id \cowith {
-    | trans _ => eval
-    | natural _ => unfold $ unfold $ rewriteI transpose-univ idp
-  }
-
-  \func is-adjoint-counit {X : D} {Y : C} : Equiv {Hom X (R Y)} {Hom (L X) Y} (eval-trans Y ∘ L.Func __) =>
-    \new QEquiv {
-      | ret => transpose
-      | ret_f _ => transpose-unique $ idp
-      | f_sec _ => inv $ transpose-univ _
-    }
-} \where {
-  \use \coerce toAdjoint{C D : Precat} (F : RightAdjoint-Univ {C} {D}) : RightAdjoint-Counit
-  \cowith {
-    | Functor => functor-R
-    | LAdj => F.L
-    | epsilon => eval-trans
-    | isAdjoint-inv => is-adjoint-counit
-  }
-
-  \use \coerce fromAdjoint (F : RightAdjoint-Counit) : RightAdjoint-Univ {F.C} {F.D} {
-    | L => F.LAdj
-  } \cowith {
-    | R => F
-    | eval {X} => F.epsilon X
-    | transpose f => F.isAdjoint-inv.ret f
-    | transpose-univ f => inv $ F.isAdjoint-inv.f_ret f
-    | transpose-unique eq => rewrite eq $ F.isAdjoint-inv.ret_f _
-  }
+\class Coreflection {C D : Precat} (L : Functor D C) (B : C) {
+  | \classifying R : D
+  | eps : Hom (L R) B
+  \field isCoreflection {Z : D} : Equiv {Hom Z R} {Hom (L Z) B} (\lam x => eps ∘ (L.Func x))
 }
+  \where {
+    -- todo : prove uniqueness and implement \use\level for categories
+  }
 
-\func hasExponential {C : CartesianPrecat} (X : C)  => RightAdjoint C C { | LAdj => C.bprodFunctor X}
+\class RightAdjointCoreflection  \extends Functor {
+  | L : Functor D C
+  \field coreflection (Z : C) : Coreflection {C} {D} L Z
+  | F X => coreflection X
+  | Func {X} {_} f => Equiv.ret {isCoreflection} (f ∘ eps {coreflection X})
+  | Func-id {_} => unfold $ rewrite id-left $ inv $ Equiv.adjoint $ unfold $ rewrite (Func-id {L}, id-right) idp
+  | Func-o {_} {Y} {Z} {_} {_} => run {
+    unfold,
+    inv,
+    Equiv.adjoint,
+    unfold,
+    rewrite (Func-o {L}),
+    rewriteI o-assoc ,
+    rewrite (Equiv.f_ret {isCoreflection {coreflection Z}}),
+    rewrite o-assoc ,
+    rewrite (Equiv.f_ret {isCoreflection {coreflection Y}}),
+    inv o-assoc
+  }
+
+  \func eval-trans : NatTrans (Comp L \this) Id \cowith {
+    | trans c => eps {coreflection c}
+    | natural _ => unfold $ Equiv.f_ret {isCoreflection} _
+  }
+
+  \func is-adjoint-counit {X : D} {Y : C} : Equiv {Hom X (F Y)} {Hom (L X) Y} (eval-trans Y ∘ L.Func __) =>
+    isCoreflection
+}
+  \where {
+    \use \coerce toAdjoint(F : RightAdjointCoreflection) : RightAdjointCounit
+    \cowith {
+      | Functor => F
+      | LAdj => F.L
+      | epsilon => eval-trans
+      | isAdjoint-inv => is-adjoint-counit
+    }
+
+    \use \coerce fromAdjoint (F : RightAdjointCounit) : RightAdjointCoreflection \cowith {
+      | C => F.C
+      | D => F.D
+      | L => F.LAdj
+      | coreflection => \lam Z => \new Coreflection {
+        | R => F Z
+        | eps => F.epsilon Z
+        | isCoreflection => F.isAdjoint-inv
+      }}
+  }
+
+
+\func isExponential {C : CartesianPrecat} (X : C) => RightAdjoint C C { | LAdj => C.bprodFunctor X }
+
+\func isExponentiable {C : CartesianPrecat} (Y : C) => \Pi (X : C) -> Coreflection (C.bprodFunctor X) Y
 
 \class CartesianClosedPrecat \extends CartesianPrecat {
-  | exp (X : Ob) : hasExponential X
+  | exp (X : Ob) : isExponential X
 
   \func eval {X Y : Ob} : Hom (Bprod (exp X Y) X) Y =>
     epsilon {exp X} Y
 
-  \func transpose {X Y Z : Ob} (f : Hom (Bprod Y X) Z) : Hom Y (exp X Z)
-    => isAdjoint f
+  \func transpose {X Y Z : Ob} (f : Hom (Bprod Y X) Z) : Hom Y (exp X Z) => isAdjoint f
 
-  \func antitranspose {X Y Z : Ob} (g : Hom Y (exp X Z)) : Hom (Bprod Y X) Z
-    => isAdjoint.ret g
-
-  \func transpose-univ {X Y Z : Ob} (f : Hom (Bprod Y X) Z)
-    : f = eval ∘ (prodMap (transpose f) (id X))
-    => RightAdjoint-Univ.transpose-univ {exp X} f
-
-  \func transpose-unique{X Y Z : Ob} {f : Hom (Bprod Y X) Z} {g : Hom Y (exp X Z)}
-                        (comm : f = eval ∘ (prodMap g (id X))) : transpose f = g
-    => RightAdjoint-Univ.transpose-unique {exp X} comm
+  \func antitranspose {X Y Z : Ob} (g : Hom Y (exp X Z)) : Hom (Bprod Y X) Z => isAdjoint.ret g
 
   \lemma adjoint-epsilon {X Y Z : Ob} (g : Hom Y (exp X Z))
-    : antitranspose g = eval ∘ prodMap g (id X)
-    => RightAdjoint.adjoint_epsilon {exp X} g
+      : antitranspose g = eval ∘ prodMap g (id X) => RightAdjoint.adjoint_epsilon {exp X} g
 
   \func antitranspose-unique {X Y Z : Ob} {g : Hom Y (exp X Z)} {f : Hom (Bprod Y X) Z}
-                             (comm : f = eval ∘ prodMap g (id X)) : antitranspose g = f
-    => adjoint-epsilon g *> inv comm
+                               (comm : f = eval ∘ prodMap g (id X)) : antitranspose g = f => adjoint-epsilon g *> inv comm
 
   \func antitranspose-inj {X Y Z : Ob} {g g' : Hom Y (exp X Z)} (p : antitranspose g = antitranspose g')
-    : g = g'
-    => Equiv.isInj {RightAdjoint-Counit.isAdjoint-inv {exp X}} $ unfold $ rewriteI (adjoint-epsilon _, adjoint-epsilon _) p
+      : g = g' =>
+      Equiv.isInj {RightAdjointCounit.isAdjoint-inv {exp X}} $ unfold $ rewriteI (adjoint-epsilon _, adjoint-epsilon _) p
 }
+
+
 
