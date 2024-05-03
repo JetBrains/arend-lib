@@ -1,3 +1,6 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
 \import Arith.Rat
 \import Category \hiding (Map)
 \import Data.Array
@@ -14,7 +17,9 @@
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Set.Filter
 \import Topology.Locale
+\import Topology.Locale.Points
 \open PresentedFrame(embed)
 \open Locale
 
@@ -252,6 +257,27 @@
 
     \lemma regular : RealLocale.isRegular
       => regular-fromPres \lam x => cover-trans (cover-basic (FramePres.indexing-make (later (false,x)))) $ later \lam (r,s,x1<r,_,s<x2) => cover-inj ((r,s), wellInside $ later (x1<r,s<x2)) idp
+
+    \func ratPoint (x : Rat) : CompleteFilter RealLocale
+      => framePres-point {RealPres RatField} (\lam (a,b) => \Sigma (a < x) (x < b)) (inP ((x - 1, x + 1), (linarith, linarith)))
+          (\lam {a} {b} => (\lam (c,d) => ((join-left <∘r c, d <∘l meet-left), (join-right <∘r c, d <∘l meet-right)), \lam ((c1,c2),(d1,d2)) => (LinearOrder.<_join-univ c1 d1, LinearOrder.<_meet-univ c2 d2))) $
+          FramePres.indexing-transport _ $ unfold_let \case \elim __ \with {
+            | (true,(p,r,q,s,p<r,r<q,q<s)) => \lam (p<x,x<s) => \case LinearOrder.dec<_<= r x \with {
+              | inl r<x => inP (1, (r<x, x<s))
+              | inr x<=r => inP (0, (p<x, x<=r <∘r r<q))
+            }
+            | (false,(p,q)) => \lam (p<x,x<q) => \case isDense p<x, isDense x<q \with {
+              | inP (r,p<r,r<x), inP (s,x<s,s<q) => inP ((r, s, p<r, r<x <∘ x<s, s<q), (r<x, x<s))
+            }
+          }
+
+    \lemma hasStronglyDensePoints : HasStronglyDensePoints RealLocale
+      => hasStronglyDensePoints-fromPres $ later \lam Q {a} c => \case LinearOrder.dec<_<= a.1 a.2 \with {
+        | inl r => \case isDense r \with {
+            | inP (x,a1<x,x<a2) => cover-inj (c {ratPoint x} (inP (a, cover-inj () idp, (a1<x,x<a2)))) idp
+          }
+        | inr r => RealPres.cover-empty r
+      }
   }
 
 \func lowerHalf (x : Rat) : RealLocale
