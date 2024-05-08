@@ -425,6 +425,28 @@
     | pbBeta1 => rewriteEq e.f_hinv $ rewrite id-right pbBeta1
     | pbBeta2 => rewriteEq e.f_hinv $ rewrite id-right pbBeta2
     | pbEta s1 s2 => e.isMono $ pbEta (rewriteEq s1 o-assoc) (rewriteEq s2 o-assoc)
+
+  \func unique {D : Precat} {x y z : D} (f : Hom x z) (g : Hom y z) (P P' : Pullback f g) : Iso {D} {P} {P'}
+  \cowith
+    | f => p-map P P'
+    | hinv => p-map P' P
+    | hinv_f => hinv' P P'
+    | f_hinv => hinv' P' P
+    \where {
+      \func p-map{D : Precat} {x y z : D} {f : Hom x z} {g : Hom y z} (P P' : Pullback f g) : Hom P P' =>
+        pbMap {P'} P.pbProj1 P.pbProj2 P.pbCoh
+
+      \func p-beta1 {D : Precat} {x y z : D} {f : Hom x z} {g : Hom y z} (P P' : Pullback f g)
+        : pbProj1 {P} ∘ (p-map P' P) = pbProj1 {P'} => pbBeta1 {P} {P'} {pbProj1 {P'}} {pbProj2 {P'}} {pbCoh {P'}}
+
+      \func p-beta2 {D : Precat} {x y z : D} {f : Hom x z} {g : Hom y z} (P P' : Pullback f g)
+        : pbProj2 {P} ∘ (p-map P' P) = pbProj2 {P'} => pbBeta2 {P} {P'} {pbProj1 {P'}} {pbProj2 {P'}} {pbCoh {P'}}
+
+      \func hinv'{D : Precat} {x y z : D} {f : Hom x z} {g : Hom y z} (P P' : Pullback f g)
+        : (p-map P' P) ∘ (p-map P P') = id P => pbEta {P} {P} {(p-map P' P) ∘ (p-map P P')} {id P}
+          (rewriteI o-assoc $ rewrite (p-beta1 P P', p-beta1 P' P) (inv id-right))
+          (rewriteI o-assoc $ rewrite (p-beta2 P P', p-beta2 P' P) (inv id-right))
+    }
 }
 
 \func limits<=pr+eq {D : Precat}
@@ -446,7 +468,7 @@
         | f_sec (c : Cone) => exts \lam j => o-assoc *> pmap (_ ∘) (eql.eqBeta _ _) *> X.tupleBeta
       }
     }
-  }
+
 
 \class PrecatWithPullbacks \extends Precat
   | pullback {x y z : Ob} (f : Hom x z) (g : Hom y z) : Pullback f g
@@ -539,15 +561,24 @@
     | f_hinv => rewrite (pair-comp,o-assoc,beta1,beta1,pair-comp,beta2,o-assoc,beta1,beta2,inv pair-comp,pair-proj,id-left) pair-proj
 
   \lemma associtor-prod {x y z : Ob} {x' y' z' : Ob} (f : Hom x x') (g : Hom y y') (h : Hom z z')
-    : associator-iso.hinv ∘ prodMap f (prodMap g h) = prodMap (prodMap f g) h ∘ associator-iso.hinv =>
-    pair-unique (rewrite (inv o-assoc, beta1 _ _, inv o-assoc, beta1 _ _, pair-comp, beta1 _ _, o-assoc, beta2 _ _, inv o-assoc,
-                          beta1 _ _, o-assoc, o-assoc, beta1 _ _, pair-comp, o-assoc, beta1 _ _, o-assoc, beta2 _ _) idp)
-        (rewriteI o-assoc $ unfold $ rewrite (beta2 _ _, o-assoc, beta2 _ _, inv o-assoc, beta2 _ _) $
-                                     rewriteI o-assoc $ rewrite (beta2 _ _, o-assoc, o-assoc, beta2 _ _) idp)
-
-  \lemma associtor-prod' {x y z : Ob} {x' y' z' : Ob} (f : Hom x x') (g : Hom y y') (h : Hom z z')
     : prodMap f (prodMap g h) ∘ associator = associator ∘ prodMap (prodMap f g) h =>
-    {?}
+    pair-unique
+      (run {
+        rewrite (inv o-assoc, beta1 _ _, o-assoc, beta1 _ _),
+        rewriteI {2} o-assoc ,
+        rewrite (beta1 _ _, o-assoc, beta1 _ _),
+        rewriteI {2} o-assoc,
+        rewrite (beta1 _ _),
+        inv o-assoc
+    })
+      (run {
+        rewriteI o-assoc,
+        rewrite (beta2 _ _, o-assoc, beta2 _ _, inv o-assoc, beta2 _ _, pair-comp, o-assoc, beta1 _ _, o-assoc, beta2 _ _, pair-comp),
+        rewrite (o-assoc, beta1 _ _, beta2 _ _),
+        rewriteI {2} o-assoc,
+        rewrite (beta2 _ _, o-assoc),
+        idp
+      })
 
   \func bprodFunctorRight (Y : Ob) : Functor \this \this
   \cowith
@@ -687,10 +718,10 @@
 \lemma regularMono_pullback (P : Pullback {}) (m : isRegularMono P.g) : isRegularMono P.pbProj1 => {?}
 
 {- | If both squares are pullbacks, then the outter rectangle is a pullback.
-Q  -->  P  --> P.y
-|       |       |
-|       |       |
-Q.x --> P.x --> P.z
+  Q  -->  P  --> P.y
+  |       |       |
+  |       |       |
+  Q.x --> P.x --> P.z
  -}
 \func pullback-lemma (P : Pullback {}) (Q : Pullback {P.D} { | y => P | z => P.x | g => P.pbProj1 }) : Pullback (P.f ∘ Q.f) P.g Q Q.pbProj1 (P.pbProj2 ∘ Q.pbProj2) \cowith
   | pbCoh => rewriteEq (Q.pbCoh,P.pbCoh) o-assoc
@@ -700,10 +731,10 @@ Q.x --> P.x --> P.z
   | pbEta p1 p2 => Q.pbEta p1 $ P.pbEta (inv o-assoc *> rewriteI Q.pbCoh (rewriteEq p1 (inv o-assoc) *> pmap (`∘ _) Q.pbCoh) *> o-assoc) (inv o-assoc *> p2 *> o-assoc)
 
 {- | If the right square and the outter rectangle are pullbacks, then the left square is a pullback.
-Q  -->  P  --> P.y
-|       |       |
-|       |       |
-Q.x --> P.x --> P.z
+  Q  -->  P  --> P.y
+  |       |       |
+  |       |       |
+  Q.x --> P.x --> P.z
  -}
 \func pullback-lemma-conv (P : Pullback {}) (Q : Pullback {P.D} { | y => P.y | z => P.z | g => P.g }) (t : Hom Q.x P.x) (fs=Qf : P.f ∘ t = Q.f) : Pullback t P.pbProj1 Q Q.pbProj1 \cowith
   | pbProj2 => P.pbMap (t ∘ Q.pbProj1) Q.pbProj2 (inv o-assoc *> pmap (`∘ _) fs=Qf *> Q.pbCoh)
