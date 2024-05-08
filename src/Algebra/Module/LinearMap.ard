@@ -89,11 +89,11 @@
   \func toMatrix {R : Ring} {U V : LModule R} {lv : Array V} (lu : Array U) (bv : V.IsBasis lv) (f : LinearMap U V) : Matrix R lu.len lv.len
     => mkMatrix \lam i => V.basis-split bv $ f (lu i)
 
-  \lemma toMatrix_ide {R : Ring} {U : LModule R} {l : Array U} (lb : U.IsBasis l) : toMatrix l lb (id {LModuleCat R} U) = 1
+  \lemma toMatrix_ide {R : Ring} {U : LModule R} {l : Array U} (lb : U.IsBasis l) : toMatrix l lb (id U) = 1
     => matrixExt \lam i j => U.basis_split_basis
 
   \lemma toMatrix_* {R : Ring} {U V W : LModule R} (f : LinearMap U V) (g : LinearMap V W) {lv : Array V} {lw : Array W} (lu : Array U) (bv : V.IsBasis lv) (bw : W.IsBasis lw)
-    : toMatrix lu bw (g ∘ {LModuleCat R} f) = toMatrix lu bv f MatrixRing.product toMatrix lv bw g
+    : toMatrix lu bw (g ∘ f) = toMatrix lu bv f MatrixRing.product toMatrix lv bw g
     => matrixExt \lam i j =>
         \let h j : Array R lv.len => \lam k => V.basis-split bv (f (lu i)) k R.* W.basis-split bw (g (lv k)) j
         \in W.basis-split-unique bw (\lam j => BigSum (h j)) (pmap g (V.basis-split-char {lv} {bv}) *> g.linearComb {V.basis-split bv (f (lu i))} *> pmap BigSum (exts \lam j => pmap (_ *c) (W.basis-split-char {lw} {bw}) *> W.*c_BigSum-ldistr *> pmap BigSum (exts \lam k => inv *c-assoc)) *> W.BigSum-transpose _ *> inv (path (\lam i' => BigSum (\new Array W lw.len \lam j => W.*c_BigSum-rdistr {\new Array R lv.len (h j)} {lw j} i')))) j
@@ -126,26 +126,26 @@
       | f_sec A => matrixExt \lam i j => pmap (V.basis-split bv __ j) (V.BigSum-unique {\lam j => U.basis-split bu (lu i) j *c BigSum (\lam k => A j k *c lv k)} i (\lam k i/=k => pmap (`*c _) (U.basis_split_/= i/=k) *> V.*c_zro-left) *> pmap (`*c _) U.basis_split_= *> ide_*c) *> V.basis-split-unique bv (A i) idp j
     }
 
-  \lemma toLinearMap_ide {R : Ring} {U : LModule R} {l : Array U} (lb : U.IsBasis l) : toLinearMap lb l MatrixRing.ide = id {LModuleCat R} U
+  \lemma toLinearMap_ide {R : Ring} {U : LModule R} {l : Array U} (lb : U.IsBasis l) : toLinearMap lb l MatrixRing.ide = id U
     => Equiv.isInj {matrix-equiv lb lb} $ f_sec {matrix-equiv lb lb} MatrixRing.ide *> inv (toMatrix_ide lb)
 
   \lemma toLinearMap_* {R : Ring} {U V W : LModule R} {lu : Array U} {lv : Array V} {lw : Array W} (A : Matrix R lu.len lv.len) (B : Matrix R lv.len lw.len) (bu : U.IsBasis lu) (bv : V.IsBasis lv) (bw : W.IsBasis lw)
-    : toLinearMap bu lw (A MatrixRing.product B) = toLinearMap bv lw B ∘ {LModuleCat R} toLinearMap bu lv A
+    : toLinearMap bu lw (A MatrixRing.product B) = toLinearMap bv lw B ∘ toLinearMap bu lv A
     => Equiv.isInj {matrix-equiv bu bw} $ f_sec {matrix-equiv bu bw} (A MatrixRing.product B) *> inv (pmap2 (MatrixRing.product) (f_sec {matrix-equiv bu bv} A) (f_sec {matrix-equiv bv bw} B)) *> inv (toMatrix_* (toLinearMap bu lv A) (toLinearMap bv lw B) lu bv bw)
 
-  \func toLinearMapIso {R : Ring} {U V : LModule R} {n : Nat} {lu : Array U n} (bu : U.IsBasis lu) {lv : Array V n} (bv : V.IsBasis lv) (A : Monoid.Inv {MatrixRing R n}) : Iso {LModuleCat R} {U} {V} \cowith
+  \func toLinearMapIso {R : Ring} {U V : LModule R} {n : Nat} {lu : Array U n} (bu : U.IsBasis lu) {lv : Array V n} (bv : V.IsBasis lv) (A : Monoid.Inv {MatrixRing R n}) : Iso {_} {U} {V} \cowith
     | f => toLinearMap bu lv A.val
     | hinv => toLinearMap bv lu A.inv
     | hinv_f => inv (toLinearMap_* A.val A.inv bu bv bu) *> cong A.inv-right *> toLinearMap_ide bu
     | f_hinv => inv (toLinearMap_* A.inv A.val bv bu bv) *> cong A.inv-left *> toLinearMap_ide bv
 
-  \func toMatrixInv {R : Ring} {U V : LModule R} {n : Nat} {lu : Array U n} (bu : U.IsBasis lu) {lv : Array V n} (bv : V.IsBasis lv) (e : Iso {LModuleCat R} {U} {V}) : Monoid.Inv {MatrixRing R n} \cowith
+  \func toMatrixInv {R : Ring} {U V : LModule R} {n : Nat} {lu : Array U n} (bu : U.IsBasis lu) {lv : Array V n} (bv : V.IsBasis lv) (e : Iso {_} {U} {V}) : Monoid.Inv {MatrixRing R n} \cowith
     | val => toMatrix lu bv e.f
     | inv => toMatrix lv bu e.hinv
     | inv-left => inv (toMatrix_* e.hinv e.f lv bu bv) *> pmap (toMatrix lv bv) e.f_hinv *> toMatrix_ide bv
     | inv-right => inv (toMatrix_* e.f e.hinv lu bv bu) *> pmap (toMatrix lu bu) e.hinv_f *> toMatrix_ide bu
 
-  \lemma iso<->inj+surj {R : Ring} {U V : LModule R} {f : LinearMap U V} : Iso {LModuleCat R} f <-> (\Sigma (isInj f) (isSurj f))
+  \lemma iso<->inj+surj {R : Ring} {U V : LModule R} {f : LinearMap U V} : Iso f <-> (\Sigma (isInj f) (isSurj f))
     => (\lam e => (\lam {u} {u'} p => inv (path (\lam i => hinv_f {e} i u)) *> pmap (hinv {e}) p *> path (\lam i => hinv_f {e} i u'),
                    \lam v => inP (hinv {e} v, path (\lam i => f_hinv {e} i v))),
         \lam s => \let e : Equiv f => Equiv.fromInjSurj f s.1 s.2
@@ -159,33 +159,33 @@
                     | f_hinv => exts e.f_ret
                   })
 
-  \lemma iso-basis {R : Ring} {U V : LModule R} (f : Iso {LModuleCat R} {U} {V}) {l : Array U} (lb : U.IsBasis l) : V.IsBasis (map f.f l)
+  \lemma iso-basis {R : Ring} {U V : LModule R} (f : Iso {_} {U} {V}) {l : Array U} (lb : U.IsBasis l) : V.IsBasis (map f.f l)
     => (\lam c p j => lb.1 c ((iso<->inj+surj.1 f).1 $ func-BigSum *> pmap BigSum (exts \lam j => func-*c) *> p *> inv func-zro) j,
         \lam v => TruncP.map (lb.2 (f.hinv v)) \lam s => (s.1, (iso<->inj+surj.1 f.reverse).1 $ s.2 *> pmap BigSum (exts \lam j => inv $ func-*c *> path (\lam i => _ *c f.hinv_f i (l j))) *> inv func-BigSum))
 
   \lemma change-basis-left {R : Ring} {U V W : LModule R} (f : LinearMap V W) {lu : Array U} {lv : Array V} (bu : U.IsBasis lu) (bv : V.IsBasis lv) (A : Matrix R lu.len lv.len)
-    : f ∘ {LModuleCat R} toLinearMap bu lv A = toLinearMap bu (map f lv) A
+    : f ∘ toLinearMap bu lv A = toLinearMap bu (map f lv) A
     => exts \lam u => func-BigSum *> pmap BigSum (exts \lam j => func-*c *> pmap (_ *c) (func-BigSum *> pmap BigSum (exts \lam k => func-*c)))
 
-  \lemma change-basis-right {R : Ring} {U V W : LModule R} (f : Iso {LModuleCat R} {U} {V}) {lv : Array V} {lw : Array W} (bv : V.IsBasis lv) (bw : W.IsBasis lw) (A : Matrix R lv.len lw.len)
-    : toLinearMap bv lw A ∘ {LModuleCat R} f.f = toLinearMap (iso-basis f.reverse bv) lw A
+  \lemma change-basis-right {R : Ring} {U V W : LModule R} (f : Iso {_} {U} {V}) {lv : Array V} {lw : Array W} (bv : V.IsBasis lv) (bw : W.IsBasis lw) (A : Matrix R lv.len lw.len)
+    : toLinearMap bv lw A ∘ f.f = toLinearMap (iso-basis f.reverse bv) lw A
     => exts \lam u => pmap BigSum $ exts \lam j => pmap (`*c _) $ V.basis-split-unique bv _ (pmap f.f (U.basis-split-char {_} {iso-basis f.reverse bv}) *> func-BigSum *> pmap BigSum (exts \lam k => func-*c *> path (\lam i => _ *c f.f_hinv i (lv k)))) j
 
-  \func basis-iso {R : Ring} {U V : LModule R} {n : Nat} {lu : Array U n} (bu : U.IsBasis lu) {lv : Array V n} (bv : V.IsBasis lv) : Iso {LModuleCat R} {U} {V} \cowith
+  \func basis-iso {R : Ring} {U V : LModule R} {n : Nat} {lu : Array U n} (bu : U.IsBasis lu) {lv : Array V n} (bv : V.IsBasis lv) : Iso {_} {U} {V} \cowith
     | f => extend bu lv
     | hinv => extend bv lu
-    | hinv_f => exts $ basis-ext (extend bv lu ∘ {LModuleCat R} extend bu lv) (id U) bu.2 \lam j => pmap (extend bv lu) (extend-char bu lv j) *> extend-char bv lu j
-    | f_hinv => exts $ basis-ext (extend bu lv ∘ {LModuleCat R} extend bv lu) (id V) bv.2 \lam j => pmap (extend bu lv) (extend-char bv lu j) *> extend-char bu lv j
+    | hinv_f => exts $ basis-ext (extend bv lu ∘ extend bu lv) (id U) bu.2 \lam j => pmap (extend bv lu) (extend-char bu lv j) *> extend-char bv lu j
+    | f_hinv => exts $ basis-ext (extend bu lv ∘ extend bv lu) (id V) bv.2 \lam j => pmap (extend bu lv) (extend-char bv lu j) *> extend-char bu lv j
 
   \lemma change-basis_matrix-left {R : Ring} {U V : LModule R} (f : LinearMap U V) {n : Nat} {lu lu' : Array U n} (bu : U.IsBasis lu) (bu' : U.IsBasis lu') {lv : Array V} (bv : V.IsBasis lv)
     : toMatrix lu bu (Iso.f {basis-iso bu' bu}) MatrixRing.product toMatrix lu' bv f = toMatrix lu bv f
     => inv $ Equiv.adjointInv {matrix-equiv bu bv} $ inv $ toLinearMap_* (toMatrix lu bu (extend bu' lu)) (toMatrix lu' bv f) bu bu' bv *>
-        pmap2 (∘ {LModuleCat R}) (ret_f {matrix-equiv bu' bv} f) {_} {id U} (exts \lam u => toLinearMap_toMatrix-right bu bu bu' *> pmap BigSum (exts \lam j => pmap (`*c _) $ U.basis-split-unique bu _ idp j) *> inv (U.basis-split-char {lu'} {bu'}))
+        pmap2 (∘) (ret_f {matrix-equiv bu' bv} f) {_} {id U} (exts \lam u => toLinearMap_toMatrix-right bu bu bu' *> pmap BigSum (exts \lam j => pmap (`*c _) $ U.basis-split-unique bu _ idp j) *> inv (U.basis-split-char {lu'} {bu'}))
 
   \lemma change-basis_matrix-right {R : Ring} {U V : LModule R} (f : LinearMap U V) {lu : Array U} (bu : U.IsBasis lu) {n : Nat} {lv lv' : Array V n} (bv : V.IsBasis lv) (bv' : V.IsBasis lv')
     : toMatrix lu bv' f MatrixRing.product toMatrix lv bv (Iso.f {basis-iso bv bv'}) = toMatrix lu bv f
     => inv $ Equiv.adjointInv {matrix-equiv bu bv} $ unfold $ inv $ toLinearMap_* (toMatrix lu bv' f) (toMatrix lv bv (extend bv lv')) bu bv' bv *>
-        pmap2 (∘ {LModuleCat R}) {_} {id V} (exts \lam u => toLinearMap_toMatrix-left bv bv' *> pmap BigSum (exts \lam j => pmap (`*c _) $ V.basis-split-unique bv _ idp j) *> inv (V.basis-split-char {lv'} {bv'})) (ret_f {matrix-equiv bu bv'} f)
+        pmap2 (∘) {_} {id V} (exts \lam u => toLinearMap_toMatrix-left bv bv' *> pmap BigSum (exts \lam j => pmap (`*c _) $ V.basis-split-unique bv _ idp j) *> inv (V.basis-split-char {lv'} {bv'})) (ret_f {matrix-equiv bu bv'} f)
 
   \lemma change-basis_M~ {R : Ring} {U V : LModule R} (f : LinearMap U V) {n m : Nat} {lu lu' : Array U n} (bu : U.IsBasis lu) (bu' : U.IsBasis lu') {lv lv' : Array V m} (bv : V.IsBasis lv) (bv' : V.IsBasis lv') : toMatrix lu bv f M~ toMatrix lu' bv' f
     => inP (toMatrixInv bu' bu' (basis-iso bu bu'), toMatrixInv bv' bv' (basis-iso bv' bv), inv $ pmap (MatrixRing.`product toMatrix lv' bv' (extend bv' lv)) (change-basis_matrix-left f bu' bu bv) *> change-basis_matrix-right f bu' bv' bv)
@@ -303,7 +303,7 @@
 
 \lemma isMultilinear_linear-left {R : Ring} {n : Nat} {A B C : LModule R} (f : LinearMap A B) {g : Array B n -> C} (gl : isMultiLinear g) : isMultiLinear (\lam l => g (map f l)) \elim n
   | 0 => ()
-  | suc n => \lam l j => transport (LinearMap A C) (ext $ \lam a => pmap g (inv (map_insert f))) (gl (map f l) j ∘ {LModuleCat R} f)
+  | suc n => \lam l j => transport (LinearMap A C) (ext \lam a => pmap g (inv (map_insert f))) (gl (map f l) j ∘ {LModuleCat R} f)
 
 \lemma isMultilinear_linear-right {R : Ring} {n : Nat} {A B C : LModule R} {f : Array A n -> B} (fl : isMultiLinear f) (g : LinearMap B C) : isMultiLinear (\lam l => g (f l)) \elim n
   | 0 => ()
@@ -315,7 +315,7 @@
     \open NatSemiring(<,zero<suc,suc<suc)
 
     \lemma to/= {f : Array A n -> B} (fa : isAlternating f) (l : Array A n) (t : \Sigma (i j : Fin n) (i /= j) (l i = l j)) : f l = 0
-      => fa.2 l $ \case NatSemiring.trichotomy t.1 t.2 \with {
+      => fa.2 l \case NatSemiring.trichotomy t.1 t.2 \with {
         | less e => (t.1, t.2, e, t.4)
         | equals e => absurd $ t.3 (nat_fin_= e)
         | greater e => (t.2, t.1, e, inv t.4)
@@ -366,7 +366,7 @@
 
     \lemma alternating-unique_zro (f : Array A n -> B) (fa : isAlternating f)
                                   (l : Array A n) (Ag : A.IsGenerated l) (fl=0 : f l = 0) (a : Array A n) : f a = 0
-      => aux f fa.1 l Ag a $ \lam c => \case repeats-dec c \with {
+      => aux f fa.1 l Ag a \lam c => \case repeats-dec c \with {
         | inl e => isAlternating.to/= fa (map l c) (e.1, e.2, e.3, pmap l e.4)
         | inr inj => isAlternating.alternating_perm fa {map l c} {l} (perm-map l (perm-fin c inj)) *> rewrite fl=0 B.*c_zro-right
       }

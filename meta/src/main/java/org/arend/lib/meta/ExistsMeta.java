@@ -41,7 +41,25 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
     ConcreteFactory factory = ext.factory.withData(contextData.getReferenceExpression().getData());
 
     List<? extends ConcreteArgument> arguments = contextData.getArguments();
+    for (int i = 0; i < arguments.size(); i++) {
+      if (arguments.get(i).isExplicit() && arguments.get(i).getExpression() instanceof ConcreteReferenceExpression refExpr && !resolver.isLongUnresolvedReference(refExpr.getReferent())) {
+        ArendRef ref = refExpr.getReferent();
+        ref = resolver.isUnresolved(ref) ? resolver.resolveName(ref.getRefName()) : resolver.getOriginalRef(ref);
+        if (ref != null && (ref == ext.existsMetaRef || ref == ext.forallMetaRef || ref == ext.givenMetaRef)) {
+          List<ConcreteArgument> newArgs = new ArrayList<>(i + 1);
+          newArgs.addAll(arguments.subList(0, i));
+          newArgs.add(factory.arg(factory.app(arguments.get(i).getExpression(), arguments.subList(i + 1, arguments.size())), true));
+          arguments = newArgs;
+          break;
+        }
+      }
+    }
+
     if (arguments.isEmpty()) {
+      if (kind == Kind.PI) {
+        resolver.getErrorReporter().report(new ArgumentExplicitnessError(true, contextData.getMarker()));
+        return null;
+      }
       return factory.sigma();
     }
 

@@ -94,15 +94,15 @@
 }
 
 \class BiorderedSet \extends StrictPoset, Poset {
-  | \fixr 4 <-transitive-right {a1 a2 a3 : E} : a1 <= a2 -> a2 < a3 -> a1 < a3
-  | \fixl 4 <-transitive-left {a1 a2 a3 : E} : a1 < a2 -> a2 <= a3 -> a1 < a3
+  | <-transitive-right \alias \infixr 9 <∘r {a1 a2 a3 : E} : a1 <= a2 -> a2 < a3 -> a1 < a3
+  | <-transitive-left \alias \infixl 8 <∘l {a1 a2 a3 : E} : a1 < a2 -> a2 <= a3 -> a1 < a3
   | <=-less {a1 a2 : E} : a1 < a2 -> a1 <= a2
 
   \func op : BiorderedSet \cowith
     | StrictPoset => StrictPoset.op
     | Poset => Poset.op
-    | <-transitive-right p q => <-transitive-left q p
-    | <-transitive-left p q => <-transitive-right q p
+    | <-transitive-right p q => q <∘l p
+    | <-transitive-left p q => q <∘r p
     | <=-less => <=-less
 }
 
@@ -127,7 +127,7 @@
     | byLeft a1<a3 => a1<a3
     | byRight a3<a2 => absurd (a3/<a2 a3<a2)
   }
-  | <=-less p => \lam q => <-irreflexive (<-transitive p q)
+  | <=-less p => \lam q => <-irreflexive (p <∘ q)
 
   \func op : LinearOrder \cowith
     | StrictPoset => StrictPoset.op
@@ -162,7 +162,7 @@
   \type \infix 4 <= {A : StrictPoset} (a a' : A) => Not (a' < a)
 
   \lemma <_<= {A : StrictPoset} {a a' : A} (p : a < a') : a <= a'
-    => \lam q => <-irreflexive (<-transitive p q)
+    => \lam q => <-irreflexive (p <∘ q)
 
   \lemma notLess {A : StrictPoset} {a a' : A} (p : a <= a') (q : a' < a) : Empty
     => p q
@@ -174,7 +174,7 @@
     | <-comparison y {x} {z} x<z => \case trichotomy x y \with {
       | less x<y => byLeft x<y
       | equals x=y => byRight (transport (`< z) x=y x<z)
-      | greater y<x => byRight (<-transitive y<x x<z)
+      | greater y<x => byRight (y<x <∘ x<z)
     }
     | <-connectedness {x} {y} x/<y y/<x => \case trichotomy x y \with {
       | less x<y => absurd (x/<y x<y)
@@ -187,39 +187,47 @@
       | greater y<x => byRight (<=-less y<x)
     }
 
-    | meet x y => \case trichotomy x y \with {
-      | less _ => x
-      | equals _ => x
-      | greater _ => y
-    }
-    | meet-left => unfold (mcases <=-refl \with {
-      | greater y<x => <=-less y<x
-    })
-    | meet-right => unfold (mcases \with {
-      | less x<y => <=-less x<y
-      | equals x=y => rewrite x=y <=-refl
-      | greater _ => <=-refl
-    })
-    | meet-univ z<=x z<=y => unfold (mcases z<=x \with {
-      | greater _ => z<=y
-    })
+    \default meet (x y : E) : E
+      => \case trichotomy x y \with {
+        | less _ => x
+        | equals _ => x
+        | greater _ => y
+      }
+    \default meet-left {x y : E} : meet x y <= x
+      => unfold meet (mcases <=-refl \with {
+        | greater y<x => <=-less y<x
+      })
+    \default meet-right {x y : E} : meet x y <= y
+      => unfold meet (mcases \with {
+        | less x<y => <=-less x<y
+        | equals x=y => rewrite x=y <=-refl
+        | greater _ => <=-refl
+      })
+    \default meet-univ {x y z : E} : z <= x -> z <= y -> z <= meet x y
+      => \lam z<=x z<=y => unfold meet (mcases z<=x \with {
+        | greater _ => z<=y
+      })
 
-    | join x y => \case trichotomy x y \with {
-      | less _ => y
-      | equals _ => x
-      | greater _ => x
-    }
-    | join-left => unfold (mcases <=-refl \with {
-      | less x<y => <=-less x<y
-    })
-    | join-right => unfold (mcases \with {
-      | less _x => <=-refl
-      | equals x=y => rewrite x=y <=-refl
-      | greater y<x => <=-less y<x
-    })
-    | join-univ x<=z y<=z => unfold (mcases x<=z \with {
-      | less _ => y<=z
-    })
+    \default join (x y : E) : E
+      => \case trichotomy x y \with {
+        | less _ => y
+        | equals _ => x
+        | greater _ => x
+      }
+    \default join-left {x y : E} : x <= join x y
+      => unfold join (mcases <=-refl \with {
+        | less x<y => <=-less x<y
+      })
+    \default join-right {x y : E} : y <= join x y
+      => unfold join (mcases \with {
+        | less _x => <=-refl
+        | equals x=y => rewrite x=y <=-refl
+        | greater y<x => <=-less y<x
+      })
+    \default join-univ {x y z : E} : x <= z -> y <= z -> join x y <= z
+      => \lam x<=z y<=z => unfold join (mcases x<=z \with {
+        | less _ => y<=z
+      })
 
     \default decideEq x y => \case trichotomy x y \with {
       | less x<y => no (\lam x=y => <-irreflexive (transport (`< y) x=y x<y))
@@ -274,7 +282,7 @@
 
   \lemma dec<= {A : Dec} (a a' : A) : Set.Dec (a <= a')
     => \case dec<_<= a' a \with {
-         | inl q => no \lam p => <-irreflexive (<-transitive-left q p)
+         | inl q => no \lam p => <-irreflexive (q <∘l p)
          | inr q => yes q
        }
 
@@ -293,21 +301,39 @@
       | greater q => pmap greater prop-pi
     }
 
-  \lemma <_meet-univ {A : Dec} {x y z : A} (p : x < y) (q : x < z) : x < y ∧ z
-    => \case dec<_<= y z \with {
-      | inl y<z => rewrite (meet_<= (<=-less y<z)) p
-      | inr z<=y => rewrite (meet-comm *> meet_<= z<=y) q
+  \lemma meet/=left {A : LinearOrder} {_ : MeetSemilattice A (<=)} {a b : A} (p : a ∧ b /= a) : a ∧ b = b
+    => <=-antisymmetric meet-right $ meet-univ (\lam a<b => p $ <=-antisymmetric meet-left $ meet-univ <=-refl $ <_<= a<b) <=-refl
+
+  \lemma meet/=right {A : LinearOrder} {_ : MeetSemilattice A (<=)} {a b : A} (p : a ∧ b /= b) : a ∧ b = a
+    => rewrite meet-comm $ meet/=left $ later $ rewrite meet-comm p
+
+  \lemma <_meet-univ {A : LinearOrder} {_ : MeetSemilattice A (<=)} {x y z : A} (x<y : x < y) (x<z : x < z) : x < y ∧ z
+    => \case <-comparison (y ∧ z) x<y \with {
+      | byLeft q => q
+      | byRight q => rewrite (meet/=left $ <_/= q) x<z
     }
+
+  \lemma <_meet-monotone {A : Dec} {x x' y y' : A} (p : x < y) (q : x' < y') : x ∧ x' < y ∧ y'
+    => <_meet-univ (meet-left <∘r p) (meet-right <∘r q)
 
   \lemma Big_<_meet-univ {A : Dec} {l : Array A} {x y : A} (p : y < x) (f : \Pi (i : Fin l.len) -> y < l i) : y < Big (∧) x l \elim l
     | nil => p
     | :: a l => <_meet-univ (f 0) (Big_<_meet-univ p (\lam i => f (suc i)))
 
-  \lemma <_join-univ {A : Dec} {x y z : A} (p : x < z) (q : y < z) : x ∨ y < z
-    => \case dec<_<= x y \with {
-      | inl x<y => rewrite (join_<= (<=-less x<y)) q
-      | inr y<=x => rewrite (join-comm *> join_<= y<=x) p
+  \lemma join/=left {A : LinearOrder} {_ : JoinSemilattice A (<=)} {a b : A} (p : a /= a ∨ b) : a ∨ b = b
+    => <=-antisymmetric (join-univ (\lam b<a => p $ <=-antisymmetric join-left (join-univ <=-refl $ <_<= b<a)) <=-refl) join-right
+
+  \lemma join/=right {A : LinearOrder} {_ : JoinSemilattice A (<=)} {a b : A} (p : b /= a ∨ b) : a ∨ b = a
+    => rewrite join-comm $ join/=left $ later $ rewrite join-comm p
+
+  \lemma <_join-univ {A : LinearOrder} {_ : JoinSemilattice A (<=)} {x y z : A} (x<z : x < z) (y<z : y < z) : x ∨ y < z
+    => \case <-comparison (x ∨ y) x<z \with {
+      | byLeft q => rewrite (join/=left $ <_/= q) y<z
+      | byRight q => q
     }
+
+  \lemma <_join-monotone {A : Dec} {x x' y y' : A} (p : x < y) (q : x' < y') : x ∨ x' < y ∨ y'
+    => <_join-univ (p <∘l join-left) (q <∘l join-right)
 
   \lemma Big_<_join-univ {A : Dec} {l : Array A} {x y : A} (p : x < y) (f : \Pi (i : Fin l.len) -> l i < y) : Big (∨) x l < y \elim l
     | nil => p
@@ -318,8 +344,8 @@
     | suc n, a :: a' :: l => \case dec<_<= a' (Big (∧) a l) \with {
       | inl r => (1, <=-antisymmetric meet-left $ meet-univ <=-refl $ <_<= r)
       | inr r => \case findMin (a :: l) \with {
-        | (0, p) => (0, rewrite p $ <=-antisymmetric meet-right $ meet-univ (rewriteF p r) <=-refl)
-        | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric meet-right $ meet-univ (rewriteF p r) <=-refl)
+        | (0, p) => (0, rewrite p $ <=-antisymmetric meet-right $ meet-univ (rewrite p in r) <=-refl)
+        | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric meet-right $ meet-univ (rewrite p in r) <=-refl)
       }
     }
 
@@ -327,8 +353,8 @@
     | 0, a :: l => (0, idp)
     | suc n, a :: a' :: l => \case dec<_<= a' (Big (∨) a l) \with {
       | inl r => \case findMax (a :: l) \with {
-        | (0, p) => (0, rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewriteF p r) <=-refl) join-right)
-        | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewriteF p r) <=-refl) join-right)
+        | (0, p) => (0, rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewrite p in r) <=-refl) join-right)
+        | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewrite p in r) <=-refl) join-right)
       }
       | inr r => (1, <=-antisymmetric (join-univ <=-refl r) join-left)
     }

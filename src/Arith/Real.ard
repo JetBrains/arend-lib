@@ -3,6 +3,7 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Ordered
+\import Algebra.Semiring
 \import Arith.Int
 \import Arith.Rat
 \import Data.Or
@@ -10,6 +11,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -69,12 +71,12 @@
         | byLeft Lq+m => inP (q + m r q, r, (Lq+m,Ur), linarith)
         | byRight Ur-m => inP (q, r - m r q, (Lq,Ur-m), linarith)
       }) (iabs $ rat_ceiling $ finv eps * (r - q)) q r (Lq,Ur) \with {
-        | inP (q',r',(Lq',Ur'),p) => inP (q', Lq', U-closed Ur' $
+        | inP (q',r',(Lq',Ur'),p) => inP (q', Lq', U-closed Ur'
           \have | r-q>0 {q} {r} (Lq : L q) (Ur : U r) : 0 < r - q => linarith (usingOnly (LU-less Lq Ur))
                 | pr>0 => RatField.<_*_positive_positive (finv>0 eps>0) (r-q>0 Lq Ur)
-                | c>0 => fromInt_<.conv $ <-transitive-left pr>0 rat_ceiling>id
+                | c>0 => fromInt_<.conv $ pr>0 <∘l rat_ceiling>id
                 | s : (r' - q') * (finv eps * (r - q)) < r - q
-                    => <-transitive-left (<_*_positive-right (r-q>0 Lq' Ur') $ <-transitive-right rat_ceiling>id $ <-transitive-right (fromInt_<= $ Preorder.=_<= $ inv $ iabs.pos_iabs c>0) (pow>id _)) p
+                    => <_*_positive-right (r-q>0 Lq' Ur') (rat_ceiling>id <∘r fromInt_<= (Preorder.=_<= $ inv $ iabs.ofPos $ <_<= c>0) <∘r pow>id _) <∘l p
                 | t => transport (_ <) (pmap (_ *) finv_* *> inv *-assoc *> pmap (`* _) (finv-right $ RatField.>_/= $ r-q>0 Lq Ur) *> ide-left *> finv_finv) (<_rotate-right pr>0 s)
           \in linarith (usingOnly t))
       }
@@ -85,9 +87,27 @@
       | inl q<r => q<r
       | inr r<=q => absurd $ LU-disjoint Lq (U_<= Ur r<=q)
     }
+
+  \lemma LU_*-focus-right (x>0 : L 0) {d : Rat} (d>1 : 1 < d) : ∃ (a : Rat) (0 < a) (L a) (U (a * d))
+    => \case L-rounded x>0 \with {
+      | inP (a0,a0<x,a0>0) => \case LU-focus (a0 * (d - 1)) (OrderedSemiring.<_*_positive_positive a0>0 linarith) \with {
+        | inP (a,a<x,p) => inP (a0 ∨ a, a0>0 <∘l join-left, real_join_L a0<x a<x, U_<= p $ later $ rewrite {2} (linarith : d = 1 + (d - 1), ldistr) $ rewrite ide-right $ <=_+ join-right $ <=_*_positive-left join-left linarith)
+      }
+    }
+
+  \lemma LU_*-focus-left (x>0 : L 0) {c : Rat} (c<1 : c < 1) : ∃ (b : Rat) (L (b * c)) (U b)
+    => \case dec<_<= 0 c \with {
+      | inl c>0 => \case LU_*-focus-right x>0 {finv c} (finv>1 c>0 c<1) \with {
+        | inP (a,_,a<x,x<ac1) => inP (a * finv c, transportInv L (*-assoc *> pmap (a *) (finv-left $ RatField.>_/= c>0) *> ide-right) a<x, x<ac1)
+      }
+      | inr c<=0 => \case U-inh \with {
+        | inP (b,x<b) => inP (b, L_<= x>0 $ <=_*_positive_negative (<_<= $ LU-less x>0 x<b) c<=0, x<b)
+      }
+    }
 } \where {
   \open DiscreteOrderedField
   \open DiscreteField
+  \open LinearlyOrderedSemiring
 
   \func focus-iter (rat : Rat) (rat>=0 : 0 <= rat) (P : Rat -> Rat -> \Prop) (f : \Pi (q r : Rat) -> P q r -> ∃ (q' r' : P) ((r' - q') * rat <= r - q)) (n : Nat) (q r : Rat) (Pqr : P q r) : ∃ (q' r' : P) ((r' - q') * Monoid.pow rat n <= r - q) \elim n
     | 0 => inP (q, r, Pqr, transportInv (`<= _) ide-right <=-refl)
@@ -101,16 +121,16 @@
     | 0 => idp
     | 1 => idp
     | 2 => idp
-    | suc (suc (suc n)) => <-transitive-right linarith (<_*_positive-left (pow>id (suc (suc n))) idp)
+    | suc (suc (suc n)) => linarith <∘r <_*_positive-left (pow>id (suc (suc n))) idp
 
   \use \coerce fromRat (x : Rat) : Real \cowith
     | L => `< x
-    | L-closed s t => <-transitive t s
+    | L-closed s t => t <∘ s
     | L-rounded q<x => TruncP.map (isDense q<x) (\lam t => (t.1,t.3,t.2))
     | U => x <
-    | U-closed => <-transitive
+    | U-closed => <∘
     | U-rounded => isDense
-    | LU-disjoint q<x x<q => <-irreflexive (<-transitive q<x x<q)
+    | LU-disjoint q<x x<q => <-irreflexive (q<x <∘ x<q)
     | LU-focus eps eps>0 => inP (x - eps * finv 2, linarith, linarith)
 
   \lemma real_ext {x y : Real} (p : \Pi {a b : Rat} -> (\Sigma (x.L a) (x.U b)) <-> (\Sigma (y.L a) (y.U b))) : x = y
@@ -119,59 +139,61 @@
           ext (ext \lam z => ext (\lam z<x => (p.1 (z<x,x<x2)).1, \lam z<y => (p.2 (z<y,y<y2)).1),
                ext \lam z => ext (\lam x<z => (p.1 (x1<x,x<z)).2, \lam y<z => (p.2 (y1<y,y<z)).2))
     }
+
+  \instance RealPoset : UnboundedDenseLinearOrder Real
+    | < (x y : Real) => ∃ (a : Rat) (x.U a) (y.L a)
+    | <-irreflexive (inP (a,x<a,a<x)) => <-irreflexive (Real.LU-less a<x x<a)
+    | <-transitive (inP (a,x<a,a<y)) (inP (b,y<b,b<z)) => inP (a, x<a, L-closed b<z $ Real.LU-less a<y y<b)
+    | <-comparison y (inP (a,x<a,a<z)) => \case L-rounded a<z \with {
+      | inP (b,b<z,a<b) => \case LU-located a<b \with {
+        | byLeft a<y => byLeft $ inP (a, x<a, a<y)
+        | byRight y<b => byRight $ inP (b, y<b, b<z)
+      }
+    }
+    | <-connectedness p q => ext (ext \lam a => ext (\lam a<x => \case L-rounded a<x \with {
+      | inP (b,b<x,a<b) => \case LU-located a<b \with {
+        | byLeft a<y => a<y
+        | byRight y<b => absurd $ q $ inP (b, y<b, b<x)
+      }
+    }, \lam a<y => \case L-rounded a<y \with {
+      | inP (b,b<y,a<b) => \case LU-located a<b \with {
+        | byLeft a<x => a<x
+        | byRight x<b => absurd $ p $ inP (b, x<b, b<y)
+      }
+    }), ext \lam b => ext (\lam x<b => \case U-rounded x<b \with {
+      | inP (a,x<a,a<b) => \case LU-located a<b \with {
+        | byLeft a<y => absurd $ p $ inP (a, x<a, a<y)
+        | byRight y<b => y<b
+      }
+    }, \lam y<b => \case U-rounded y<b \with {
+      | inP (a,y<a,a<b) => \case LU-located a<b \with {
+        | byLeft a<x => absurd $ q $ inP (a, y<a, a<x)
+        | byRight x<b => x<b
+      }
+    }))
+    | isDense (inP (a,x<a,a<z)) => inP (a, U-rounded x<a, TruncP.map (L-rounded a<z) \lam s => (s.1, s.3, s.2))
+    | withoutUpperBound x => \case U-inh {x} \with {
+      | inP (a,x<a) => inP (a, U-rounded x<a)
+    }
+    | withoutLowerBound x => \case L-inh {x} \with {
+      | inP (a,a<x) => inP (a, TruncP.map (L-rounded a<x) \lam s => (s.1, s.3, s.2))
+    }
+
+  \lemma real_<_L {a : Rat} {x : Real} (p : (a : Real) < x) : x.L a \elim p
+    | inP (b,a<b,b<x) => L-closed b<x a<b
+
+  \lemma real_<_U {a : Rat} {x : Real} (p : x < a) : x.U a \elim p
+    | inP (b,x<b,b<a) => U-closed x<b b<a
 }
 
-\instance RealPoset : UnboundedDenseLinearOrder Real
-  | < (x y : Real) => ∃ (a : Rat) (x.U a) (y.L a)
-  | <-irreflexive (inP (a,x<a,a<x)) => <-irreflexive (Real.LU-less a<x x<a)
-  | <-transitive (inP (a,x<a,a<y)) (inP (b,y<b,b<z)) => inP (a, x<a, L-closed b<z $ Real.LU-less a<y y<b)
-  | <-comparison y (inP (a,x<a,a<z)) => \case L-rounded a<z \with {
-    | inP (b,b<z,a<b) => \case LU-located a<b \with {
-      | byLeft a<y => byLeft $ inP (a, x<a, a<y)
-      | byRight y<b => byRight $ inP (b, y<b, b<z)
-    }
-  }
-  | <-connectedness p q => ext (ext \lam a => ext (\lam a<x => \case L-rounded a<x \with {
-    | inP (b,b<x,a<b) => \case LU-located a<b \with {
-      | byLeft a<y => a<y
-      | byRight y<b => absurd $ q $ inP (b, y<b, b<x)
-    }
-  }, \lam a<y => \case L-rounded a<y \with {
-    | inP (b,b<y,a<b) => \case LU-located a<b \with {
-      | byLeft a<x => a<x
-      | byRight x<b => absurd $ p $ inP (b, x<b, b<y)
-    }
-  }), ext \lam b => ext (\lam x<b => \case U-rounded x<b \with {
-    | inP (a,x<a,a<b) => \case LU-located a<b \with {
-      | byLeft a<y => absurd $ p $ inP (a, x<a, a<y)
-      | byRight y<b => y<b
-    }
-  }, \lam y<b => \case U-rounded y<b \with {
-    | inP (a,y<a,a<b) => \case LU-located a<b \with {
-      | byLeft a<x => absurd $ q $ inP (a, y<a, a<x)
-      | byRight x<b => x<b
-    }
-  }))
-  | isDense (inP (a,x<a,a<z)) => inP (a, U-rounded x<a, TruncP.map (L-rounded a<z) \lam s => (s.1, s.3, s.2))
-  | withoutUpperBound x => \case U-inh {x} \with {
-    | inP (a,x<a) => inP (a, U-rounded x<a)
-  }
-  | withoutLowerBound x => \case L-inh {x} \with {
-    | inP (a,a<x) => inP (a, TruncP.map (L-rounded a<x) \lam s => (s.1, s.3, s.2))
+\lemma real_join_L {a b : Rat} {x : Real} (a<x : x.L a) (b<x : x.L b) : x.L (a ∨ b)
+  => \case TotalOrder.join-isMax a b \with {
+    | byLeft p => rewrite p a<x
+    | byRight p => rewrite p b<x
   }
 
-\lemma real_<_L {a : Rat} {x : Real} (p : (a : Real) < x) : x.L a \elim p
-  | inP (b,a<b,b<x) => L-closed b<x a<b
-
-\lemma real_<_U {a : Rat} {x : Real} (p : x < a) : x.U a \elim p
-  | inP (b,x<b,b<a) => U-closed x<b b<a
-
-\lemma real_L_< {a : Rat} {x : Real} (a<x : x.L a) : (a : Real) < x
-  => \case L-rounded a<x \with {
-    | inP (b,b<x,a<b) => inP (b, a<b, b<x)
-  }
-
-\lemma real_U_< {a : Rat} {x : Real} (x<a : x.U a) : x < a
-  => \case U-rounded x<a \with {
-    | inP (b,x<b,b<a) => inP (b, x<b, b<a)
+\lemma real_meet_U {a b : Rat} {x : Real} (x<a : x.U a) (x<b : x.U b) : x.U (a ∧ b)
+  => \case TotalOrder.meet-isMin a b \with {
+    | byLeft p => rewrite p x<a
+    | byRight p => rewrite p x<b
   }

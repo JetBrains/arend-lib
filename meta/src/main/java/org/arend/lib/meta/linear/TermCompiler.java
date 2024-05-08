@@ -52,20 +52,16 @@ public class TermCompiler extends BaseTermCompiler {
     return kind == RingKind.INT;
   }
 
-  public boolean isRat() {
-    return kind == RingKind.RAT;
-  }
-
   public Values<CoreExpression> getValues() {
     return values;
   }
 
   public Ring getZero() {
-    return kind == RingKind.RAT ? BigRational.ZERO : IntRing.ZERO;
+    return kind == RingKind.RAT || kind == RingKind.RAT_ALG ? BigRational.ZERO : IntRing.ZERO;
   }
 
   public Ring getOne() {
-    return kind == RingKind.RAT ? BigRational.ONE : IntRing.ONE;
+    return kind == RingKind.RAT || kind == RingKind.RAT_ALG ? BigRational.ONE : IntRing.ONE;
   }
 
   public int getNumberOfVariables() {
@@ -76,7 +72,7 @@ public class TermCompiler extends BaseTermCompiler {
   public CompiledTerms compileTerms(CoreExpression expr1, CoreExpression expr2) {
     Pair<ConcreteExpression, List<Ring>> pair1 = compileTerm(expr1);
     Pair<ConcreteExpression, List<Ring>> pair2 = compileTerm(expr2);
-    if (kind == RingKind.RAT) {
+    if (kind == RingKind.RAT || kind == RingKind.RAT_ALG) {
       BigInteger lcm = BigInteger.ONE;
       List<BigRational> list1 = (List<BigRational>) (List<?>) pair1.proj2;
       List<BigRational> list2 = (List<BigRational>) (List<?>) pair2.proj2;
@@ -256,8 +252,15 @@ public class TermCompiler extends BaseTermCompiler {
       }
     }
 
-    if (kind == RingKind.RAT && expr instanceof CoreConCallExpression conCall) {
-      TypedExpression typedExpr = expr.computeTyped();
+    CoreExpression expr1 = kind == RingKind.RAT ? expr : null;
+    if (ratAlgebraMatcher != null) {
+      List<CoreExpression> ratAlgebraArgs = ratAlgebraMatcher.match(expr);
+      if (ratAlgebraArgs != null) {
+        expr1 = ratAlgebraArgs.get(0).normalize(NormalizationMode.WHNF);
+      }
+    }
+    if (expr1 instanceof CoreConCallExpression conCall) {
+      TypedExpression typedExpr = expr1.computeTyped();
       CoreExpression nomExpr = conCall.getDefCallArguments().get(0).normalize(NormalizationMode.WHNF);
       CoreExpression denomExpr = conCall.getDefCallArguments().get(1).normalize(NormalizationMode.WHNF);
       BigInteger nom = getInt(nomExpr);
@@ -285,7 +288,7 @@ public class TermCompiler extends BaseTermCompiler {
     boolean isNeg = pair != null && pair.proj1;
     List<? extends CoreExpression> coefArgs = pair == null ? null : Collections.singletonList(pair.proj2);
 
-    if (coefArgs == null && kind != RingKind.RAT) {
+    if (coefArgs == null && kind != RingKind.RAT && kind != RingKind.RAT_ALG) {
       coefArgs = natCoefMatcher.match(expr);
     }
     if (coefArgs != null) {
@@ -319,13 +322,16 @@ public class TermCompiler extends BaseTermCompiler {
 
   public static CoreExpression toPos(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory, StdExtension ext) {
     TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(factory.ref(ext.prelude.getPos().getRef()), true, factory.core(expr.computeTyped())), null));
-    if (result == null) return null;
-    return result.getExpression();
+    return result == null ? null : result.getExpression();
   }
 
   public static CoreExpression toRat(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory, StdExtension ext) {
     TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(factory.ref(ext.equationMeta.fromInt.getRef()), true, factory.core(expr.computeTyped())), null));
-    if (result == null) return null;
-    return result.getExpression();
+    return result == null ? null : result.getExpression();
+  }
+
+  public static CoreExpression toRatAlgebra(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory, StdExtension ext) {
+    TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(factory.ref(ext.linearSolverMeta.coefMap.getRef()), true, factory.core(expr.computeTyped())), null));
+    return result == null ? null : result.getExpression();
   }
 }

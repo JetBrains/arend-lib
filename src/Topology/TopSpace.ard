@@ -1,35 +1,34 @@
-\import Category
-\import Category.Meta
+\import Logic
 \import Logic.Meta
 \import Order.Lattice
+\import Paths
 \import Paths.Meta
 \import Set
 \import Set.Category
 \import Set.Subset
 
-\class TopSpace \extends BaseSet
+\class TopSpace \extends BaseSet {
   | isOpen : Set E -> \Prop
   | open-top : isOpen Bounded.top
   | open-inter {U V : Set E} : isOpen U -> isOpen V -> isOpen (U ∧ V)
-  | open-Union {S : Set (Set E)} : ∀ (U : S) (isOpen U) -> isOpen (Set.Union S)
+  | open-Union {S : Set (Set E)} : ∀ {U : S} (isOpen U) -> isOpen (Set.Union S)
+
+  \lemma cover-open {U : Set E} (c : ∀ {x : U} ∃ (V : isOpen) (V x) (V ⊆ U)) : isOpen U
+    => \have uo => open-Union {_} {\lam V => \Sigma (isOpen V) (V ⊆ U)} __.1
+       \in transport isOpen (ext \lam x => ext (\lam (inP (V,(_,V<=U),Vx)) => V<=U Vx, \lam Ux => TruncP.map (c Ux) \lam (V,Vo,Vx,V<=U) => (V, (Vo, V<=U), Vx))) uo
+
+  \lemma open-IUnion {J : \hType} (g : J -> Given isOpen) : isOpen \lam x => ∃ (j : J) ((g j).1 x)
+    => \have uo => open-Union {_} {\lam U => ∃ (j : J) ((g j).1 = U)} \lam (inP (j,p)) => transport isOpen p (g j).2
+       \in transport isOpen (ext \lam x => ext (\lam (inP (U, inP (j,p), Ux)) => inP (j, rewrite p Ux), \lam (inP (j,c)) => inP ((g j).1, inP (j, idp), c))) uo
+
+  \type \infix 4 <=<T (V U : Set E) : \Prop
+    => \Pi (y : E) -> ∃ (W : isOpen) (W y) (Given (V ∧ W) -> W ⊆ U)
+
+  \func IsRegular => ∀ {U : isOpen} {x : U} ∃ (V : isOpen) (V x) (V <=<T U)
+}
 
 \class ContMap \extends SetHom {
   \override Dom : TopSpace
   \override Cod : TopSpace
   | func-cont {U : Cod -> \Prop} : isOpen U -> isOpen (\lam x => U (func x))
 }
-
-\instance TopCat : Cat TopSpace
-  | Hom => ContMap
-  | id X => \new ContMap {
-    | func x => x
-    | func-cont t => t
-  }
-  | o g f => \new ContMap {
-    | func x => g (f x)
-    | func-cont t => func-cont {f} (func-cont {g} t)
-  }
-  | id-left => idp
-  | id-right => idp
-  | o-assoc => idp
-  | univalence => sip (\lam {X} {S1} {S2} h1 h2 => exts (\lam U => ext (func-cont {h2} {U}, func-cont {h1} {U})))

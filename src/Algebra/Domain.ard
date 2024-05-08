@@ -30,8 +30,8 @@
   | zro#ide : ide `#0
   | #0-* {x y : E} : x `#0 -> y `#0 -> (x * y) `#0
 
-  | isReduced p => #0-tight $ \lam a#0 => #0-zro $ transport #0 p (#0-* a#0 a#0)
-  | isImpotent {a} p => \have q : a * (1 - a) = 0 => ldistr *> rewrite negative_*-right (toZero $ ide-right *> inv p)
+  | isReduced p => #0-tight \lam a#0 => #0-zro $ transport #0 p (#0-* a#0 a#0)
+  | isImpotent {a} p => \have q : a * (1 - a) = 0 => ldistr_- *> toZero (ide-right *> inv p)
                         \in \case #0-+ (transportInv #0 (+-comm *> +-assoc *> pmap (1 +) negative-left *> zro-right) zro#ide) \with {
                           | byLeft a#0 => byRight $ inv $ fromZero $ #0-tight \lam zro-a#0 => apartNonZero (#0-* a#0 zro-a#0) q
                           | byRight zro-a#0 => byLeft $ #0-tight \lam a#0 => apartNonZero (#0-* a#0 zro-a#0) q
@@ -51,10 +51,10 @@
     => separatedEq (nonZero_* __ y/=0 x*y=0)
 
   \lemma nonZero-cancel-left {x y z : E} (x/=0 : x /= zro) (x*y=x*z : x * y = x * z) : y = z
-    => fromZero (nonZero-left x/=0 (ldistr *> pmap (x * y +) Ring.negative_*-right *> toZero x*y=x*z))
+    => fromZero (nonZero-left x/=0 (ldistr_- *> toZero x*y=x*z))
 
   \lemma nonZero-cancel-right {x y z : E} (z/=0 : z /= zro) (x*z=y*z : x * z = y * z) : x = y
-    => fromZero (nonZero-right z/=0 (rdistr *> pmap (x * z +) Ring.negative_*-left *> toZero x*z=y*z))
+    => fromZero (nonZero-right z/=0 (rdistr_- *> toZero x*z=y*z))
 
   \func nonZeroMonoid : CancelMonoid \cowith
     | E => \Sigma (x : E) (x `#0)
@@ -134,9 +134,9 @@
     | gcd-univ g (g|a : LDiv g a.1) g|b => nonZero_ldiv {_} {g, #0-*-left $ transportInv #0 g|a.inv-right a.2} $ gcd.gcd-univ _ (ldiv_nonZero g|a) (ldiv_nonZero g|b)
 
   \lemma divQuotient_LDiv {x y : DivQuotient nonZeroMonoid} : TruncP (LDiv {DivQuotientMonoid \this} (map subMonoid.embed x) (map subMonoid.embed y)) <-> TruncP (LDiv {DivQuotientMonoid nonZeroMonoid} x y) \elim x, y
-    | in~ x, in~ y => (\case \elim __ \with {
+    | in~ x, in~ y => (\case __ \with {
       | inP (in~ z, p) => TruncP.map (make~ p).2 \lam s => div-to~ $ ldiv_nonZero $ LDiv.trans (LDiv.factor-left LDiv.id-div) s
-    }, \case \elim __ \with {
+    }, \case __ \with {
       | inP (in~ z, p) => TruncP.map (make~ p).2 \lam (xz|y : LDiv (x nonZeroMonoid.* z) y) =>
           \new LDiv (map subMonoid.embed (inD {nonZeroMonoid} x)) (map subMonoid.embed (inD {nonZeroMonoid} y)) (inD (z.1 * xz|y.inv.1)) $ pmap inD $ inv *-assoc *> pmap __.1 xz|y.inv-right
     })
@@ -164,13 +164,13 @@
                   | in~ x, in~ y => \lam p => \have t => make~ p \in ~-pequiv (TruncP.map t.1 ldiv_nonZero, TruncP.map t.2 ldiv_nonZero)
                 }
                 | r n (q : Not (∃ (j : Fin (suc (suc n))) (a (suc j) = in~ 0))) => TruncP.rec {_} {\Sigma (x : DivQuotient nonZeroMonoid) (f x = a (suc n))} (\lam s s' => ext $ f-inj $ s.2 *> inv s'.2) (Quotient.in-surj (a (suc n)))
-                   \lam s => (in~ (s.1, nonZeroApart \lam s=0 => q $ inP (n, pmap (\lam x => a (suc x)) (toFin'=id $ <-transitive id<suc id<suc) *> inv s.2 *> pmap in~ s=0)), s.2)
+                   \lam s => (in~ (s.1, nonZeroApart \lam s=0 => q $ inP (n, pmap (\lam x => a (suc x)) (toFin'=id $ id<suc <∘ id<suc) *> inv s.2 *> pmap in~ s=0)), s.2)
                 | t => cc (\lam n => \case FinSet.search {FinFin (suc (suc n))} _ (\lam j => divQuotient_dec0 (a (suc j))) \with {
                          | yes e => in~ (1,zro#ide)
                          | no q => (r n q).1
                        }) (\lam n => mcases {1} \with {
                          | yes e => inP LDiv.ide-div
-                         | no q => rewrite (FinSet.search_no_reduce (\lam (j : Fin (suc (suc n))) => divQuotient_dec0 (a (suc j))) (\lam p => q p)) $ \case ac (suc n) \with {
+                         | no q => rewrite (FinSet.search_no_reduce (\lam (j : Fin (suc (suc n))) => divQuotient_dec0 (a (suc j))) (\lam p => q p)) \case ac (suc n) \with {
                            | inP d => divQuotient_LDiv.1 $ inP $ transport2 LDiv (inv (r (suc n) q).2) (inv (r n (\lam p => q p)).2) d
                          }
                        })
@@ -218,7 +218,7 @@
     | byLeft r => r
     | byRight r => r
   }
-  | isImpotent {a} p => \have q : a * (a - 1) = 0 => ldistr *> rewrite negative_*-right (toZero $ p *> inv ide-right)
+  | isImpotent {a} p => \have q : a * (a - 1) = 0 => ldistr_- *> toZero (p *> inv ide-right)
                         \in \case zeroProduct q \with {
                           | byLeft r => byLeft r
                           | byRight r => byRight (fromZero r)
@@ -232,13 +232,13 @@
     }
 
   \lemma zeroOrCancel-left {x y z : E} (p : x * y = x * z) : (x = 0) || (y = z)
-    => \case zeroProduct $ ldistr *> pmap (_ +) negative_*-right *> toZero p \with {
+    => \case zeroProduct $ ldistr_- *> toZero p \with {
       | byLeft x=0 => byLeft x=0
       | byRight y-z=0 => byRight (fromZero y-z=0)
     }
 
   \lemma zeroOrCancel-right {x y z : E} (p : x * z = y * z) : (x = y) || (z = 0)
-    => \case zeroProduct $ rdistr *> pmap (_ +) negative_*-left *> toZero p \with {
+    => \case zeroProduct $ rdistr_- *> toZero p \with {
       | byLeft x-y=0 => byLeft (fromZero x-y=0)
       | byRight z=0 => byRight z=0
     }

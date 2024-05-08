@@ -674,7 +674,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
         }
         resultLambda = Utils.tryTypecheck(typechecker, tc -> tc.typecheckLambda((ConcreteLamExpression) factory.lam(lambdaParams, factory.meta("case_return_lambda", new ReplaceExactSubexpressionsMeta(expectedType, expressionsToAbstract, replacementRefs))), lambdaTypes));
         if (resultLambda == null) {
-          errorReporter.report(new TypeError("Cannot perform substitution in the expected type", expectedType, marker));
+          errorReporter.report(new TypeError(typechecker.getExpressionPrettifier(), "Cannot perform substitution in the expected type", expectedType, marker));
           return null;
         }
       }

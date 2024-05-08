@@ -28,6 +28,7 @@ public abstract class BaseTermCompiler {
   protected final FunctionMatcher natCoefMatcher;
   protected final FunctionMatcher negativeMatcher;
   public final FunctionMatcher minusMatcher;
+  protected final FunctionMatcher ratAlgebraMatcher;
   protected final ConcreteFactory factory;
   protected final Values<CoreExpression> values;
   protected final RingKind kind;
@@ -49,6 +50,7 @@ public abstract class BaseTermCompiler {
     mulMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, isLattice ? meta.meet : meta.mul, typechecker, factory, marker, ext, 2);
     natCoefMatcher = FunctionMatcher.makeFieldMatcher(classCall, instance, meta.natCoef, typechecker, factory, marker, ext, 1);
     negativeMatcher = isRing ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.negative, typechecker, factory, marker, ext, 1) : null;
+    ratAlgebraMatcher = kind == RingKind.RAT_ALG ? FunctionMatcher.makeFieldMatcher(classCall, instance, meta.ext.linearSolverMeta.coefMap, typechecker, factory, marker, ext, 1) : null;
     minusMatcher = toInt ? new DefinitionFunctionMatcher(ext.prelude.getMinus(), 2) : null;
     this.values = values;
     this.kind = kind;
@@ -78,7 +80,19 @@ public abstract class BaseTermCompiler {
   public static RingKind getTermCompilerKind(CoreExpression instance, EquationMeta meta) {
     CoreExpression instanceNorm = instance.normalize(NormalizationMode.WHNF);
     CoreFunctionDefinition instanceDef = instanceNorm instanceof CoreFunCallExpression ? ((CoreFunCallExpression) instanceNorm).getDefinition() : null;
-    return instanceDef == meta.NatSemiring ? RingKind.NAT : instanceDef == meta.IntRing ? RingKind.INT : instanceDef == meta.RatField ? RingKind.RAT : RingKind.NONE;
+    RingKind kind = instanceDef == meta.NatSemiring ? RingKind.NAT : instanceDef == meta.IntRing ? RingKind.INT : instanceDef == meta.RatField ? RingKind.RAT : RingKind.NONE;
+    if (kind != RingKind.NONE) return kind;
+    CoreExpression type = instanceNorm.computeType().normalize(NormalizationMode.WHNF);
+    if (type instanceof CoreClassCallExpression classCall && classCall.getDefinition().isSubClassOf(meta.ext.linearSolverMeta.OrderedAAlgebra)) {
+      CoreExpression ringImpl = classCall.getAbsImplementationHere(meta.ext.linearSolverMeta.moduleRing);
+      if (ringImpl != null) {
+        ringImpl = ringImpl.normalize(NormalizationMode.WHNF);
+        if (ringImpl instanceof CoreFunCallExpression funCall && funCall.getDefinition() == meta.RatField) {
+          return RingKind.RAT_ALG;
+        }
+      }
+    }
+    return RingKind.NONE;
   }
 
   protected Pair<Boolean, CoreExpression> checkInt(CoreExpression expr) {

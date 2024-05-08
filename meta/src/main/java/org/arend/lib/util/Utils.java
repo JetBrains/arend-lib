@@ -266,33 +266,37 @@ public class Utils {
   }
 
   public static Pair<TypedExpression, CoreClassCallExpression> findInstanceWithClassCall(InstanceSearchParameters parameters, CoreClassField classifyingField, CoreExpression classifyingExpr, ExpressionTypechecker typechecker, ConcreteSourceNode marker, CoreClassDefinition forcedClass) {
-    Pair<TypedExpression, CoreClassCallExpression> result = findInstanceWithClassCall(parameters, classifyingField, classifyingExpr, typechecker, marker);
-    if (result == null) {
-      if (forcedClass != null) {
-        typechecker.getErrorReporter().report(new InstanceInferenceError(forcedClass.getRef(), classifyingExpr, marker));
-      }
-      return null;
-    }
-
     return typechecker.withCurrentState(tc -> {
-      CoreExpression classifyingImpl = result.proj2.getImplementation(classifyingField, result.proj1);
-      if (classifyingImpl != null && !Boolean.TRUE.equals(tryWithSavedState(tc, tc2 -> tc2.compare(classifyingImpl, classifyingExpr, CMP.EQ, marker, true, true, false)))) {
+      Pair<TypedExpression, CoreClassCallExpression> result = findInstanceWithClassCall(parameters, classifyingField, classifyingExpr, typechecker, marker);
+      if (result == null) {
         if (forcedClass != null) {
-          typechecker.getErrorReporter().report(new InstanceInferenceError(forcedClass.getRef(), classifyingExpr, marker, new CoreExpression[]{result.proj1.getExpression()}));
+          typechecker.getErrorReporter().report(new InstanceInferenceError(typechecker.getExpressionPrettifier(), forcedClass.getRef(), classifyingExpr, marker));
+        } else {
+          tc.loadSavedState();
         }
-        return false;
+        return null;
+      }
+
+      CoreExpression classifyingImpl = result.proj2.getImplementation(classifyingField, result.proj1);
+      if (classifyingImpl != null && !Boolean.TRUE.equals(tryWithSavedState(tc, tc2 -> tc2.compare(classifyingImpl, classifyingExpr, CMP.LE, marker, true, true, false)))) {
+        if (forcedClass != null) {
+          typechecker.getErrorReporter().report(new InstanceInferenceError(typechecker.getExpressionPrettifier(), forcedClass.getRef(), classifyingExpr, marker, new CoreExpression[]{result.proj1.getExpression()}));
+        } else {
+          tc.loadSavedState();
+        }
+        return null;
       }
       CoreExpression expr = result.proj1.getExpression();
       if (expr instanceof CoreFunCallExpression funCall) {
         for (CoreExpression argument : funCall.getDefCallArguments()) {
           if (argument instanceof CoreInferenceReferenceExpression infExpr && infExpr.getSubstExpression() == null) {
             tc.loadSavedState();
-            return false;
+            return null;
           }
         }
       }
-      return true;
-    }) ? result : null;
+      return result;
+    });
   }
 
   public static boolean safeCompare(ExpressionTypechecker typechecker, UncheckedExpression expr1, UncheckedExpression expr2, CMP cmp, ConcreteSourceNode marker, boolean allowEquations, boolean normalize, boolean useTypes) {

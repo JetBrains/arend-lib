@@ -60,14 +60,14 @@ public class FailsMeta extends MetaInvocationMeta {
         @Override
         public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
           if (!hasErrors[0]) {
-            errorReporter.report(new MetaDidNotFailError(result.getExpression(), contextData.getReferenceExpression()));
+            errorReporter.report(new MetaDidNotFailError(typechecker.getExpressionPrettifier(), result.getExpression(), contextData.getReferenceExpression()));
           }
           return typechecker.typecheck(makeResult(contextData.getReferenceExpression().getData()), null);
         }
       }, contextData, Objects.requireNonNull(typechecker.typecheck(ext.factory.sigma(), null)).getExpression(), true);
     }
 
-    errorReporter.report(new MetaDidNotFailError(result.getExpression(), contextData.getReferenceExpression()));
+    errorReporter.report(new MetaDidNotFailError(typechecker.getExpressionPrettifier(), result.getExpression(), contextData.getReferenceExpression()));
     return null;
   }
 }
