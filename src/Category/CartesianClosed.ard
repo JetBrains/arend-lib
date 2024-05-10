@@ -1,12 +1,16 @@
 \import Category
 \import Category.Adjoint
+\import Category.Comma
 \import Category.Functor
 \import Category.Limit
 \import Equiv
 \import Function.Meta
+\import HLevel
+\import Logic
 \import Meta
 \import Paths
 \import Paths.Meta
+\import Set.Category
 
 \class RightAdjointCounit \extends Functor {
   | LAdj : Functor D C
@@ -51,14 +55,74 @@
   }
 }
 
+\func comma-category {C D : Precat} (L : Functor D C) (b : C) => commaPrecat {D} {TrivialCat} {C} L (Const b)
+
 \class Coreflection {C D : Precat} (L : Functor D C) (B : C) {
   | \classifying R : D
   | eps : Hom (L R) B
-  \field isCoreflection {Z : D} : Equiv {Hom Z R} {Hom (L Z) B} (\lam x => eps ∘ (L.Func x))
+  \property isCoreflection {Z : D} : Equiv {Hom Z R} {Hom (L Z) B} (\lam x => eps ∘ (L.Func x))
+
+  \func to-comma : comma-category L B => (R, (), eps)
+
+  \func coreflection-map (x : comma-category L B) : Hom {comma-category L B} x to-comma
+    | (x, s, d) => (Equiv.ret {isCoreflection} d, id {TrivialCat} s, rewrite id-left $ Equiv.f_ret {isCoreflection} d)
+
+  \func to-comma-terminal  : terminal-obj (comma-category L B) => is-terminal {comma-category L B} to-comma
+      (\lam (p, s, q) => Contr.make (coreflection-map (p, s, q))
+          (\lam a => unfold at a $ unfold to-comma at a $ exts (inv $ Equiv.adjoint $ a.3 *> id-left, unfold $ cases a.2 \with {
+            | Graph.empty p1 => idp
+            | Graph.cons e x => absurd e
+          }))
+      )
 }
   \where {
-    -- todo : prove uniqueness and implement \use\level for categories
+    \func from-comma-terminal {C D : Precat} {L : Functor D C} (b : C) (terminal : terminal-obj (comma-category L b))
+      : Coreflection L b => \new Coreflection {
+      | R => terminal.apex.1
+      | eps => terminal.apex.3
+      | isCoreflection {z} => \new QEquiv {
+        | ret g =>
+          \let tmap => terminalMap {comma-category L b} {terminal} {z, (), g} \in
+            tmap.1
+        | f_sec =>
+          --              \let t-unique => {?} \in
+          {?}
+        | ret_f x =>
+          \let t-unique => {?} \in
+            {?}
+      }
+    }
   }
+--
+--    \func terminal-in-comma {C D : Precat} (L : Functor D C) (B : C)
+--      : Equiv {Coreflection L B} {terminal-obj (comma-category L B)} => \new QEquiv {
+--      | f coref => to-comma-terminal {coref}
+--      | ret => {?}
+--      | ret_f => {?}
+--      | f_sec => {?}
+--    }
+--
+--    --    \func unique-coreflection {C D : Precat} {L : Functor D C} {B : C} {R1 R2 : D}
+--    --                              (coref1 : Coreflection L B R1) (coref2 : Coreflection L B R2) : Iso {D} {R1} {R2}
+--    --      \cowith
+--    --        | f => isCoreflection.ret coref1.eps
+--    --        | hinv => isCoreflection.ret coref2.eps
+--    --        | hinv_f => isCoreflection.isInj $ unfold $ rewrite (Func-o {coref1.L}, inv o-assoc, coref1.isCoreflection.f_ret _, coref2.isCoreflection.f_ret _, Func-id {coref2.L}, id-right) idp
+--    --        | f_hinv => isCoreflection.isInj $ unfold $ rewrite (Func-o {coref2.L}, inv o-assoc, coref2.isCoreflection.f_ret _, coref1.isCoreflection.f_ret _, Func-id {coref1.L}, id-right) idp
+--
+--
+--    --    \lemma transport_Hom-left {x y z : Ob} (p : x = y) {g : Hom x z} {f : Hom y z} (h : g = transport (Hom x) p (id x) >> f) : transport (`Hom z) p g = f \elim p
+--    --      | idp => h *> id-right
+--
+--
+--    --    \func help-transport-left {C : Precat} {D : Cat} (L : Functor D C) (B : C)
+--    --    {x y z : D} (e : Iso {D} {x} {y})
+--    --                              transport (\lam x => Hom (L x) B) (ret (unique-coreflection (\new coref1 {}) (\new coref2 {}))) eps = eps
+--
+--    --    \use\level isProp {C : Precat} {D : Cat} (L : Functor D C) (B : C) (coref1 coref2 : Coreflection L B)
+--    --      : coref1 = coref2
+--    --      => exts (Equiv.ret {D.univalence} (unique-coreflection coref1 coref2), {?})
+--    -- todo : prove uniqueness up to iso and implement \use\level for categories
 
 \class RightAdjointCoreflection  \extends Functor {
   | L : Functor D C
@@ -96,10 +160,7 @@
       | isAdjoint-inv => is-adjoint-counit
     }
 
-    \use \coerce fromAdjoint (F : RightAdjointCounit) : RightAdjointCoreflection \cowith {
-      | C => F.C
-      | D => F.D
-      | L => F.LAdj
+    \use \coerce fromAdjoint (F : RightAdjointCounit) : RightAdjointCoreflection F.C F.D F.LAdj \cowith {
       | coreflection => \lam Z => \new Coreflection {
         | R => F Z
         | eps => F.epsilon Z
@@ -107,15 +168,113 @@
       }}
   }
 
-
 \func isExponential {C : CartesianPrecat} (X : C) => RightAdjoint C C { | LAdj => C.bprodFunctorRight X }
 
 \func isExponentiable {C : CartesianPrecat} (Y : C) => \Pi (X : C) -> Coreflection (C.bprodFunctorRight X) Y
 
 \class CartesianClosedPrecat \extends CartesianPrecat {
   | exp (X : Ob) : isExponential X
-
 }
+
+\open PrecatWithBprod
+\open PrecatWithTerminal
+
+\instance SetCartesianClosed : CartesianClosedPrecat SetBicat
+  | CartesianPrecat => SetBicat
+  | exp X => RightAdjointCoreflection.toAdjoint (exp-coreflection X)
+  \where {
+    \func exp-coreflection (X : SetBicat) : RightAdjointCoreflection SetBicat SetBicat (SetBicat.bprodFunctorRight X)
+    \cowith
+      | coreflection => power-coreflection X
+
+    \func power-coreflection (X Z : SetBicat) : Coreflection (SetBicat.bprodFunctorRight X) Z
+    \cowith
+      | R => X -> Z
+      | eps => apply
+      | isCoreflection {_} => \new QEquiv {
+        | ret => curry
+        | ret_f f => ext (\lam _ _ => unfold $ unfold (apply, curry) $ rewrite (help-proj1 f (id X) _, help-proj2 f (id X) _, pair-unname-1, pair-unname-2) idp)
+        | f_sec => f_sec
+      }
+      \where {
+        \func apply (f : Product.apex {Bprod {SetBicat} (X -> Z) X}) : Z => (proj1 {SetBicat} f) (proj2 {SetBicat} f)
+
+        \func curry {Y : SetBicat} (f : Product.apex {Bprod {SetBicat} Y X} -> Z) : Y -> X -> Z =>
+          \lam (y : Y) (x : X) => f (unname $ pair {SetBicat} (name y) (name x))
+
+        \func f_sec {Y : SetBicat} (g : Product.apex {Bprod {SetBicat} Y X} -> Z)
+          : (\lam x => apply (prodMap {SetBicat} (curry g) (id X) x)) = g =>
+          ext (\lam f => unfold apply $ rewrite (help-proj1 (curry g) (id X) f, help-proj2 (curry g) (id X) f) $
+                                        curry-eq g f)
+
+        \func curry-eq {Y : SetBicat} (g : Product.apex {Bprod {SetBicat} Y X} -> Z) (f : Product.apex {Bprod {SetBicat} Y X})
+          : curry g (proj1 {SetBicat} f) (proj2 {SetBicat} f) = g f =>
+          unfold curry $ pmap g $ bprod-ext (pair-unname-1 (proj1 {SetBicat} f) (proj2 {SetBicat} f)) (pair-unname-2 (proj1 {SetBicat} f) (proj2 {SetBicat} f))
+      }
+
+    \func from_terminal : Hom {SetBicat} terminal.apex (\Sigma) =>
+      \lam _ => ()
+
+    \func to_terminal : Hom {SetBicat} (\Sigma) terminal.apex =>
+      PrecatWithTerminal.terminalMap {SetBicat}
+
+    \func name {X : SetBicat} (x : X) : Hom {SetBicat} terminal.apex X => \lam _ => x
+
+    \func unname {X : SetBicat} (f : Hom {SetBicat} terminal.apex X) : X => (f ∘ {SetBicat} to_terminal) ()
+
+    \func terminal-prop : isProp terminal.apex =>
+      \lam a a' => path (\lam i => (terminal-unique {SetBicat} {\Sigma} {\lam _ => a} {\lam _ => a'} @ i) ())
+
+    \func global-elements-iso {X : SetBicat} : QEquiv {X} {Hom {SetBicat} terminal.apex X} name unname
+    \cowith
+      | ret_f _ => idp
+      | f_sec _ => unfold (name, unname) $ ext (\lam a => unfold $ rewrite (terminal-prop (to_terminal ()) a) idp)
+
+    \func name-eq {X : SetBicat} {x y : X} (c : name x = name y) : x = y => Equiv.isInj {global-elements-iso} c
+
+    \func name-f {X Y : SetBicat} (f : X -> Y) (x : X) : f ∘ {SetBicat} (name x) = name (f x) =>
+      inv $ Equiv.adjointInv {global-elements-iso} idp
+
+    \func unname-eq {X : SetBicat} {f : X} {g : Hom {SetBicat} terminal.apex X} (eq : name f = g) : f = unname g =>
+      Equiv.adjoint {global-elements-iso {X}} eq
+
+    \func bprod-ext {X Y : SetBicat} {f g : Product.apex {Bprod {SetBicat} X Y}} (eq1 : proj1 {SetBicat} f = proj1 {SetBicat} g)
+                    (eq2 : proj2 {SetBicat} f = proj2 {SetBicat} g) : f = g =>
+      name-eq (pair-unique {SetBicat} {X} {Y} {terminal.apex} (rewrite (name-f (proj1 {SetBicat}) f, name-f (proj1 {SetBicat}) g) $ pmap name eq1)
+          (rewrite (name-f (proj2 {SetBicat}) f, name-f (proj2 {SetBicat}) g) $ pmap name eq2))
+
+    \func help-proj1 {X Y Z W : SetBicat} (f : X -> Z) (g : Y -> W) (p : Product.apex {Bprod {SetBicat} X Y})
+      : proj1 {SetBicat} (prodMap {SetBicat} f g p) = f (proj1 {SetBicat} p) =>
+      \let help : proj1 {SetBicat} ∘ {SetBicat} (prodMap {SetBicat} f g) = f ∘ {SetBicat} proj1 {SetBicat} => beta1 _ _ \in
+        path (\lam i => (help @ i) p)
+
+    \func help-proj2 {X Y Z W : SetBicat} (f : X -> Z) (g : Y -> W) (p : Product.apex {Bprod {SetBicat} X Y})
+      : proj2 {SetBicat} (prodMap {SetBicat} f g p) = g (proj2 {SetBicat} p) =>
+      \let help : proj2 {SetBicat} ∘ {SetBicat} (prodMap {SetBicat} f g) = g ∘ {SetBicat} proj2 {SetBicat} => beta2 _ _ \in
+        path (\lam i => (help @ i) p)
+
+    \func pair-unname-1 {A B : SetBicat} (a : A) (b : B)
+      : proj1 {SetBicat} (unname (pair {SetBicat} (name a) (name b))) = a =>
+      unfold unname $ rewrite (help-unname-pair-1' (name a) (name b) _) idp
+
+    \func help-unname-pair-1' {X Y Z : SetBicat} (f : Hom {SetBicat} Z X) (g : Hom {SetBicat} Z Y)
+                              (z : Z)
+      : proj1 {SetBicat} (pair {SetBicat} f g z) = f z =>
+      \let s : proj1 {SetBicat} ∘ {SetBicat} pair {SetBicat} f g = f => rewrite (beta1 _ _) idp  \in
+        path (\lam i => (s @ i) z)
+
+    \func pair-unname-2 {A B : SetBicat} (a : A) (b : B)
+      : proj2 {SetBicat} (unname (pair {SetBicat} (name a) (name b))) = b =>
+      unfold unname $ rewrite (help-unname-pair-2' (name a) (name b) _) idp
+
+    \func help-unname-pair-2' {X Y Z : SetBicat} (f : Hom {SetBicat} Z X) (g : Hom {SetBicat} Z Y)
+                              (z : Z)
+      : proj2 {SetBicat} (pair {SetBicat} f g z) = g z =>
+      \let s : proj2 {SetBicat} ∘ {SetBicat} pair {SetBicat} f g = g => rewrite (beta2 _ _) idp  \in
+        path (\lam i => (s @ i) z)
+  }
+
+
 
 
 
