@@ -1,0 +1,43 @@
+\import Logic
+\import Logic.Meta
+\import Operations
+\import Order.Lattice
+\import Set.Subset
+\import Topology.TopSpace
+\open Bounded(top)
+
+\instance TopSpaceHasProduct : HasProduct TopSpace
+  | Product => ProductTopSpace
+
+\instance ProductTopSpace (X Y : TopSpace) : TopSpace (\Sigma X Y)
+  | isOpen W => ∀ {s : W} ∃ (U : X.isOpen) (U s.1) (V : Y.isOpen) (V s.2) ∀ {x : U} {y : V} (W (x,y))
+  | open-top _ => inP (top, open-top, (), top, open-top, (), \lam _ _ => ())
+  | open-inter {W} {W'} f g (Ws,W's) => \case f Ws, g W's \with {
+    | inP (U,Uo,Ux,V,Vo,Vy,h), inP (U',U'o,U'x,V',V'o,V'y,h') => inP (U ∧ U', open-inter Uo U'o, (Ux,U'x), V ∧ V', open-inter Vo V'o, (Vy,V'y), \lam (Ux,U'x) (Vy,V'y) => (h Ux Vy, h' U'x V'y))
+  }
+  | open-Union So (inP (W,SW,Ws)) => \case So SW Ws \with {
+    | inP (U,Uo,Ux,V,Vo,Vy,h) => inP (U, Uo, Ux, V, Vo, Vy, \lam Ux Vy => inP (W, SW, h Ux Vy))
+  }
+  \where {
+    \open ContMap
+
+    \func proj1 {X Y : TopSpace} : ContMap (X ⨯ Y) X \cowith
+      | func s => s.1
+      | func-cont Uo => \lam Ux => inP (_, Uo, Ux, top, open-top, (), \lam Ux _ => Ux)
+
+    \func proj2 {X Y : TopSpace} : ContMap (X ⨯ Y) Y \cowith
+      | func s => s.2
+      | func-cont Uo => \lam Uy => inP (top, open-top, (), _, Uo, Uy, \lam _ Uy => Uy)
+
+    \func tuple {X Y Z : TopSpace} (f : ContMap X Y) (g : ContMap X Z) : ContMap X (Y ⨯ Z) \cowith
+      | func x => (f x, g x)
+      | func-cont {W} Wo => X.cover-open \lam w => \case Wo w \with {
+        | inP (U,Uo,Ufx,V,Vo,Vgx,h) => inP (_, open-inter (f.func-cont Uo) (g.func-cont Vo), (Ufx,Vgx), \lam (Ufx,Vgx) => h Ufx Vgx)
+      }
+
+    \func prod {X X' Y Y' : TopSpace} (f : ContMap X Y) (f' : ContMap X' Y') : ContMap (X ⨯ X') (Y ⨯ Y')
+      => tuple (f ∘ proj1) (f' ∘ proj2)
+  }
+
+\lemma Prod-open {X Y : TopSpace} {U : Set X} (Uo : isOpen U) {V : Set Y} (Vo : isOpen V) : isOpen (Set.Prod U V)
+  => \lam {s} (Us,Vs) => inP (U, Uo, Us, V, Vo, Vs, \lam Ux Vy => (Ux,Vy))

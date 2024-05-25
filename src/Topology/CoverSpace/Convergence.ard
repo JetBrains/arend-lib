@@ -15,6 +15,7 @@
 \import Set.Subset
 \import Topology.CoverSpace
 \import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Product
 \open Bounded(top)
 \open Set
 
@@ -27,7 +28,7 @@
           | inr N<=n => inP (U, CU, f N<=n)
         }
         | cauchy-top => inP (top, idp, 0, \lam _ => (), \case __)
-        | cauchy-extend (inP (U,CU,N,f,g)) e => \case e CU \with {
+        | cauchy-refine (inP (U,CU,N,f,g)) e => \case e CU \with {
           | inP (V,DV,U<=V) => inP (V, DV, N, \lam N<=n => U<=V $ f N<=n, \lam n<N => \case g n<N \with {
             | inP (U',CU',U'n) => \case e CU' \with {
               | inP (V',DV',U'<=V') => inP (V', DV', U'<=V' U'n)
@@ -77,7 +78,7 @@
 }
 
 \func IsConvergent {X : PrecoverSpace} (f : Nat -> X) : \Prop
-  => CoverMap NatCoverSpace X f
+  => PrecoverMap NatCoverSpace X f
 
 \lemma convergent-char {X : PrecoverSpace} {f : Nat -> X} (p : ∀ {C : X.isCauchy} ∃ (U : C) (N : Nat) ∀ {n} (N <= n -> U (f n))) : IsConvergent f \cowith
   | func-cover Dc => \case p Dc \with {
@@ -92,41 +93,41 @@
       }
 
 \func seqLimit {X : CompleteCoverSpace} (f : CoverMap NatCoverSpace X) : X
-  => X.filter-point $ CF-map f NatCoverSpace.atTop
+  => X.filter-point $ f.func-cauchy NatCoverSpace.atTop
 
 \func IsUniFuncConvergent {X : \Set} {Y : PrecoverSpace} (f : Nat -> X -> Y) : \Prop
   => ∀ {D : Y.isCauchy} ∃ (V : D) (N : Nat) ∀ {n} {x} (N <= n -> V (f n x))
 
-\func IsFuncConvergent {X Y : PrecoverSpace} (f : Nat -> X -> Y) : \Prop
+\func IsFuncConvergent {X Y : CoverSpace} (f : Nat -> X -> Y) : \Prop
   => CoverMap (NatCoverSpace ⨯ X) Y \lam s => f s.1 s.2
 
-\lemma funcCovergent-cover {X Y : PrecoverSpace} (f : Nat -> CoverMap X Y)
+\lemma funcCovergent-cover {X Y : CoverSpace} (f : Nat -> PrecoverMap X Y)
                            (fc : ∀ {D : Y.isCauchy} (X.isCauchy \lam U => ∃ (N : Nat) (V : D) ∀ {n} {x} (N <= n -> U x -> V (f n x))))
   : IsFuncConvergent (\lam n => f n)
   => generalized (f __) \lam Dc => cauchy-subset (fc Dc) \lam (inP (N,V,DV,h)) => inP $ later (N, V, DV, h, \lam {n} _ => func-cover {f n} Dc)
   \where
     -- | A slightly more general version of the lemma
-    \lemma generalized {X Y : PrecoverSpace} (f : Nat -> X -> Y) (fc : ∀ {D : Y.isCauchy} (X.isCauchy \lam U => ∃ (N : Nat) (V : D) (\Pi {n : Nat} {x : X} -> N <= n -> U x -> V (f n x)) (\Pi {n : Nat} -> n < N -> X.isCauchy \lam U => ∃ (V : D) (U = f n ^-1 V)))) : IsFuncConvergent f \cowith
+    \lemma generalized {X Y : CoverSpace} (f : Nat -> X -> Y) (fc : ∀ {D : Y.isCauchy} (X.isCauchy \lam U => ∃ (N : Nat) (V : D) (\Pi {n : Nat} {x : X} -> N <= n -> U x -> V (f n x)) (\Pi {n : Nat} -> n < N -> X.isCauchy \lam U => ∃ (V : D) (U = f n ^-1 V)))) : IsFuncConvergent f \cowith
       | func-cover {D} Dc =>
-        \have t => cauchy-trans {ProductPrecoverSpace NatCoverSpace X} (ProductPrecoverSpace.prodCover cauchy-top (fc Dc))
+        \have t => cauchy-trans {ProductCoverSpace NatCoverSpace X} (ProductCoverSpace.prodCover cauchy-top (fc Dc))
                     {\lam U V => ∃ (U' : Set X) (N : Nat) (W : D) (\Pi {n : Nat} {x : X} -> N <= n -> U' x -> W (f n x)) (\Pi {n : Nat} -> n < N -> X.isCauchy \lam U => ∃ (V : D) (U = f n ^-1 V)) (U = (\lam s => s.2) ^-1 U') ((V = (\lam s => s.1) ^-1 (N <=)) || Given (n : Nat) (n < N) (V' : D) ∀ {s : V} (V' (f s.1 s.2)))}
                     \lam {W} => \case __ \with {
-                      | inP (_, idp, V, inP (N,V',DV',g,h), p) => cauchy-extend {ProductPrecoverSpace NatCoverSpace X} (ProductPrecoverSpace.prodCover (later $ NatCoverSpace.makeCover N) $ cauchy-array-inter \new Array _ N \lam j => later (_, h $ fin_< j)) \lam {W'} => later \case __ \with {
+                      | inP (_, idp, V, inP (N,V',DV',g,h), p) => cauchy-refine {ProductCoverSpace NatCoverSpace X} (ProductCoverSpace.prodCover (later $ NatCoverSpace.makeCover N) $ cauchy-array-inter \new Array _ N \lam j => later (_, h $ fin_< j)) \lam {W'} => later \case __ \with {
                         | inP (U1, byLeft q, V1, inP (Us,Ush,Usp), q1) => inP (_, inP (V, N, V', DV', g, h, p *> ext \lam s => ext (__.2, \lam c => ((),c)), byLeft idp), rewrite (q1,q) __.1)
                         | inP (U1, byRight (n,n<N,q), V1, inP (Us,Ush,Usp), q1) => \case Ush (toFin n n<N) \with {
                           | inP (V'',DV'',p'') => inP (W', inP (V, N, V', DV', g, h, p *> ext \lam s => ext (__.2, \lam c => ((),c)), byRight (n, n<N, V'', DV'', rewrite (q1,q,Usp) \lam (c,d) => rewriteI c $ rewrite (p'',toFin=id) in MeetSemilattice.Big_meet-cond {_} {_} {top :: Us} {suc (toFin n n<N)} d)), <=-refl)
                         }
                       }
                     }
-        \in cauchy-extend {ProductPrecoverSpace NatCoverSpace X} t \lam {W} => hiding t \case __ \with {
+        \in cauchy-refine {ProductCoverSpace NatCoverSpace X} t \lam {W} => hiding t \case __ \with {
               | inP (U, V, _, inP (U', N, V', DV', g, h, q1, byLeft q2), p) => inP (_, inP (V',DV',idp), rewrite (p,q1,q2) \lam (c,d) => g d c)
               | inP (U, V, _, inP (U', N, _, _, g, h, q1, byRight (n,n<N,V',DV',q2)), p) => inP (_, inP (V', DV', idp), rewrite (p,q1) \lam s => q2 s.2)
             }
 
-\lemma funcCovergent-uni {X Y : PrecoverSpace} (f : Nat -> CoverMap X Y) (fc : IsUniFuncConvergent \lam n => f n) : IsFuncConvergent \lam n => f n
+\lemma funcCovergent-uni {X Y : CoverSpace} (f : Nat -> PrecoverMap X Y) (fc : IsUniFuncConvergent \lam n => f n) : IsFuncConvergent \lam n => f n
   => funcCovergent-cover f \lam Dc => \case fc Dc \with {
     | inP (V,DV,N,h) => top-cauchy $ inP $ later (N, V, DV, \lam p _ => h p)
   }
 
 \func seqFuncLimit {X : CoverSpace} {Y : CompleteCoverSpace} (f : Nat -> X -> Y) (fc : IsFuncConvergent f) (x : X) : Y
-  => Y.filter-point $ CF-map fc $ prodCF NatCoverSpace.atTop (pointCF x)
+  => Y.filter-point $ fc.func-cauchy $ prodCF NatCoverSpace.atTop (pointCF x)

@@ -472,4 +472,13 @@ public class Utils {
       return normalResolve(resolver, contextData, null, null, factory);
     }
   }
+
+  public static ArendRef getReference(ConcreteExpression expr, ErrorReporter errorReporter) {
+    if (expr instanceof ConcreteReferenceExpression refExpr) {
+      return refExpr.getReferent();
+    }
+
+    errorReporter.report(new TypecheckingError("Expected a reference", expr));
+    return null;
+  }
 }

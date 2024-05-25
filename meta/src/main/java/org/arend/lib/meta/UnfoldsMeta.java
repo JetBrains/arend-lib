@@ -51,7 +51,7 @@ public class UnfoldsMeta extends BaseMetaDefinition {
       return typechecker.typecheck(contextData.getArguments().get(contextData.getArguments().size() - 1).getExpression(), unfold(contextData.getExpectedType()));
     } else {
       TypedExpression arg = typechecker.typecheck(contextData.getArguments().get(contextData.getArguments().size() - 1).getExpression(), null);
-      return arg == null ? null : typechecker.replaceType(arg, unfold(arg.getType()), contextData.getMarker());
+      return arg == null ? null : typechecker.replaceType(arg, unfold(arg.getType()), contextData.getMarker(), true);
     }
   }
 }

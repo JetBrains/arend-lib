@@ -1,11 +1,15 @@
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Order.Lattice
+\import Order.PartialOrder
 \import Paths
 \import Paths.Meta
 \import Set
 \import Set.Category
+\import Set.Filter
 \import Set.Subset
+\open Bounded(top)
 
 \class TopSpace \extends BaseSet {
   | isOpen : Set E -> \Prop
@@ -27,8 +31,58 @@
   \func IsRegular => ∀ {U : isOpen} {x : U} ∃ (V : isOpen) (V x) (V <=<T U)
 }
 
+\func NFilter {X : TopSpace} (x : X) : ProperFilter X \cowith
+  | F U => ∃ (V : isOpen) (V x) (V ⊆ U)
+  | filter-mono p (inP (W,Wo,Wx,q)) => inP (W, Wo, Wx, q <=∘ p)
+  | filter-top => inP (top, open-top, (), <=-refl)
+  | filter-meet (inP (U,Uo,Ux,p)) (inP (V,Vo,Vx,q)) => inP (U ∧ V, open-inter Uo Vo, (Ux,Vx), MeetSemilattice.meet-monotone p q)
+  | isProper (inP (V,Vo,Vx,p)) => inP (x, p Vx)
+
+\func IsDenseSet {X : TopSpace} (S : Set X) : \Prop
+  => \Pi {x : X} {U : Set X} -> isOpen U -> U x -> ∃ (y : S) (U y)
+
 \class ContMap \extends SetHom {
   \override Dom : TopSpace
   \override Cod : TopSpace
-  | func-cont {U : Cod -> \Prop} : isOpen U -> isOpen (\lam x => U (func x))
+
+  | func-cont {U : Cod -> \Prop} : isOpen U -> isOpen \lam x => U (func x)
+
+  \func IsDense : \Prop
+    => IsDenseSet (\lam y => ∃ (x : Dom) (func x = y))
+
+  \func IsEmbedding : \Prop
+    => ∀ {U : isOpen} ∃ (V : isOpen) (U = func ^-1 V)
+
+  \lemma embedding-char : IsEmbedding <-> ∀ {U : isOpen} {x : U} ∃ (V : isOpen) (V (func x)) (func ^-1 V ⊆ U)
+    => (\lam e Uo Ux => \case e Uo \with {
+      | inP (V,Vo,p) => inP (V, Vo, rewrite p in Ux, rewrite p <=-refl)
+    }, \lam e {U} Uo => inP (_, open-Union {_} {\lam V => \Sigma (isOpen V) (func ^-1 V ⊆ U)} __.1, ext \lam x => ext (\lam Ux => \case e Uo Ux \with {
+      | inP (V,Vo,Vfx,p) => inP (V, (Vo, p), Vfx)
+    }, \lam (inP (V,(Vo,p),Vfx)) => p Vfx)))
+
+  \func IsDenseEmbedding : \Prop
+    => \Sigma IsDense IsEmbedding
+} \where {
+  \func id {X : TopSpace} : ContMap X X \cowith
+    | func x => x
+    | func-cont Uo => Uo
+
+  \func compose \alias \infixl 8 ∘ {X Y Z : TopSpace} (g : ContMap Y Z) (f : ContMap X Y) : ContMap X Z \cowith
+    | func x => g (f x)
+    | func-cont Uo => f.func-cont (g.func-cont Uo)
+
+  \func const {Y X : TopSpace} (x : X) : ContMap Y X \cowith
+    | func _ => x
+    | func-cont _ => Y.cover-open \lam Ux => inP (top, open-top, (), \lam _ => Ux)
 }
+
+\class HausdorffTopSpace \extends TopSpace
+  | isHausdorff {x y : E} : ∀ {U V : isOpen} (U x) (V y) ∃ (U ∧ V) -> x = y
+
+\lemma denseSet-lift-unique {X : TopSpace} {Y : HausdorffTopSpace} {S : Set X} (Sd : IsDenseSet S) (f g : ContMap X Y) (p : \Pi {x : X} -> S x -> f x = g x) (x : X) : f x = g x
+  => isHausdorff \lam {U} Uo Vo Ufx Vgx => \case Sd {x} (open-inter (f.func-cont Uo) (g.func-cont Vo)) (Ufx,Vgx) \with {
+    | inP (y,Sy,(Ufy,Vgy)) => inP (g y, (transport U (p Sy) Ufy, Vgy))
+  }
+
+\lemma dense-lift-unique {X Y : TopSpace} {Z : HausdorffTopSpace} (f : ContMap X Y) (fd : f.IsDense) (g h : ContMap Y Z) (p : \Pi (x : X) -> g (f x) = h (f x)) (y : Y) : g y = h y
+  => denseSet-lift-unique fd g h (\lam (inP (x,q)) => rewriteI q (p x)) y

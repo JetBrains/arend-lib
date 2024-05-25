@@ -3,7 +3,6 @@
 \import Logic
 \import Logic.Meta
 \import Meta
-\import Operations
 \import Order.Lattice
 \import Order.PartialOrder
 \import Paths
@@ -20,23 +19,26 @@
   | isCauchy : Set (Set E) -> \Prop
   | cauchy-cover {C : Set (Set E)} : isCauchy C -> \Pi (x : E) -> ∃ (U : C) (U x)
   | cauchy-top : isCauchy (single top)
-  | cauchy-extend {C D : Set (Set E)} : isCauchy C -> (\Pi {U : Set E} -> C U -> ∃ (V : D) (U ⊆ V)) -> isCauchy D
+  | cauchy-refine {C D : Set (Set E)} : isCauchy C -> Refines C D -> isCauchy D
   | cauchy-trans {C : Set (Set E)} : isCauchy C -> \Pi {D : Set E -> Set (Set E)} -> (\Pi {U : Set E} -> C U -> isCauchy (D U))
     -> isCauchy (\lam U => ∃ (V W : Set E) (C V) (D V W) (U = V ∧ W))
+  | cauchy-open {S : Set E} : isOpen S <-> ∀ {x : S} (isCauchy \lam U => U x -> U ⊆ S)
 
-  | isOpen S => ∀ {x : S} (isCauchy \lam U => U x -> U ⊆ S)
-  | open-top _ => cauchy-extend cauchy-top \lam {U} _ => inP (U, \lam _ _ => (), <=-refl)
-  | open-inter Uo Vo => \lam {x} (Ux,Vx) => cauchy-extend (cauchy-trans (Uo Ux) (\lam _ => Vo Vx))
+  \default open-top => cauchy-open.2 \lam _ => cauchy-refine cauchy-top \lam {U} _ => inP (U, \lam _ _ => (), <=-refl)
+  \default open-inter Uo Vo => cauchy-open.2 $ later \lam {x} (Ux,Vx) => cauchy-refine (cauchy-trans (cauchy-open.1 Uo Ux) (\lam _ => cauchy-open.1 Vo Vx))
       \lam (inP (U',V',Uc,Vc,W=U'V')) => inP (U' ∧ V', \lam (U'x,V'x) {y} (U'y,V'y) => (Uc U'x U'y, Vc V'x V'y), Preorder.=_<= W=U'V')
-  | open-Union So {x} (inP (U,SU,Ux)) => cauchy-extend (So SU Ux) \lam {V} Vc => inP (V, \lam Vx => Vc Vx <=∘ Set.Union-cond SU, <=-refl)
+  \default open-Union So => cauchy-open.2 $ later \lam {x} (inP (U,SU,Ux)) => cauchy-refine (cauchy-open.1 (So SU) Ux) \lam {V} Vc => inP (V, \lam Vx => Vc Vx <=∘ Set.Union-cond SU, <=-refl)
+
+  \default isOpen S : \Prop => ∀ {x : S} (isCauchy \lam U => U x -> U ⊆ S)
+  \default cauchy-open \as cauchy-open-impl {S} : isOpen S <-> _ => <->refl
 
   \lemma cauchy-trans-dep {C : Set (Set E)} {D : \Pi {U : Set E} -> C U -> Set (Set E)} (Cc : isCauchy C) (Dc : \Pi {U : Set E} (c : C U) -> isCauchy (D c))
     : isCauchy (\lam U => ∃ (V W : Set E) (c : C V) (D c W) (U = V ∧ W))
     => transport isCauchy (ext \lam U => ext (\lam (inP (V,W,CV,DW,p)) => inP (V, W, CV, transport (D __ W) prop-pi DW.2, p), \lam (inP (V,W,c,DW,p)) => inP (V, W, c, (c,DW), p))) $ cauchy-trans Cc {\lam U V => \Sigma (c : C U) (D c V)} \lam CU => transport isCauchy (ext \lam V => ext (\lam d => (CU,d), \lam s => transport (D __ V) prop-pi s.2)) (Dc CU)
 
-  \lemma open-char {S : Set E} : isOpen S <-> ∀ {x : S} (single x <=< S)
-    => (\lam So Sx => cauchy-subset (So Sx) $ later \lam f (y,(p,q)) => f $ rewrite p q,
-        \lam f {x} Sx => cauchy-subset (later $ f Sx) $ later \lam g Ux => g (x, (idp,Ux)))
+  \lemma open-char {S : Set E} : TopSpace.isOpen S <-> ∀ {x : S} (single x <=< S)
+    => (\lam So Sx => cauchy-subset (cauchy-open.1 So Sx) $ later \lam f (y,(p,q)) => f $ rewrite p q,
+        \lam f => cauchy-open.2 \lam {x} Sx => cauchy-subset (later $ f Sx) $ later \lam g Ux => g (x, (idp,Ux)))
 
   \func HasWeaklyDensePoints => \Pi {C : Set (Set E)} -> isCauchy (\lam U => (U = {Set E} bottom) || C U) -> isCauchy C
 
@@ -49,17 +51,13 @@
       }
       | (byRight CU, _) => CU
     }
-
-  \func NFilter (x : E) : ProperFilter E \cowith
-    | F U => single x <=< U
-    | filter-mono p q => RegularRatherBelow.<=<-left q p
-    | filter-top => RegularRatherBelow.<=<_top
-    | filter-meet => RegularRatherBelow.<=<_meet-same
-    | isProper p => inP (x, <=<_<= p idp)
+} \where {
+  \lemma PrecoverSpace-ext {X : \Set} {S T : PrecoverSpace X} (p : \Pi {C : Set (Set X)} -> S.isCauchy C <-> T.isCauchy C) : S = T
+    => exts (\lam U => <->_=.1 S.cauchy-open *> ext (\lam f Ux => p.1 (f Ux), \lam f Ux => p.2 (f Ux)) *> inv (<->_=.1 T.cauchy-open), \lam C => ext p)
 }
 
 \lemma cauchy-subset {X : PrecoverSpace} {C D : Set (Set X)} (Cc : isCauchy C) (e : \Pi {U : Set X} -> C U -> D U) : isCauchy D
-  => cauchy-extend Cc \lam {U} CU => inP (U, e CU, <=-refl)
+  => cauchy-refine Cc \lam {U} CU => inP (U, e CU, <=-refl)
 
 \lemma top-cauchy {X : PrecoverSpace} {C : Set (Set X)} (Ct : C top) : isCauchy C
   => cauchy-subset cauchy-top $ later \lam p => rewriteI p Ct
@@ -75,14 +73,12 @@
     | suc j => f j
   }, p *> pmap (U ∧) q)
 
-\func IsDenseSet {X : PrecoverSpace} (S : Set X) : \Prop
-  => \Pi {x : X} {U : Set X} -> single x <=< U -> ∃ (y : S) (U y)
-
-\record CoverMap \extends ContMap {
+\record PrecoverMap \extends ContMap {
   \override Dom : PrecoverSpace
   \override Cod : PrecoverSpace
   | func-cover {D : Set (Set Cod)} : isCauchy D -> isCauchy \lam U => ∃ (V : D) (U = func ^-1 V)
-  | func-cont Uo {x} Ufx => cauchy-extend (func-cover (Uo Ufx)) \lam (inP (W,c,d)) => inP (func ^-1 W, \lam a {_} => c a, Preorder.=_<= d)
+
+  \default func-cont Uo => cauchy-open.2 $ later \lam {x} Ufx => cauchy-refine (func-cover (cauchy-open.1 Uo Ufx)) \lam (inP (W,c,d)) => inP (func ^-1 W, \lam a {_} => c a, Preorder.=_<= d)
 
   \func IsEmbedding : \Prop
     => \Pi {C : Set (Set Dom)} -> isCauchy C -> isCauchy \lam V => ∃ (U : C) (func ^-1 V ⊆ U)
@@ -90,35 +86,27 @@
   -- | A map is an embedding if and only if the structure on the domain is the smallest compatible with the map.
   \lemma embedding-char : TFAE (
     {- 0 -} IsEmbedding,
-    {- 1 -} \Pi {X : PrecoverSpace Dom} -> CoverMap X Cod func -> \Pi {C : Set (Set Dom)} -> isCauchy C -> X.isCauchy C,
+    {- 1 -} \Pi {X : PrecoverSpace Dom} -> PrecoverMap X Cod func -> \Pi {C : Set (Set Dom)} -> isCauchy C -> X.isCauchy C,
     {- 2 -} \Pi {C : Set (Set Dom)} -> isCauchy C -> isCauchy {PrecoverTransfer func} C,
     {- 3 -} Dom = {PrecoverSpace Dom} PrecoverTransfer func
   ) => TFAE.cycle (
-    \lam p f Cc => cauchy-extend (func-cover {f} $ p Cc) \lam (inP (V, inP (U',CU',p), q)) => inP (U', CU', rewrite q p),
+    \lam p f Cc => cauchy-refine (func-cover {f} $ p Cc) \lam (inP (V, inP (U',CU',p), q)) => inP (U', CU', rewrite q p),
     \lam f => f PrecoverTransfer-map,
-    \lam f => exts \lam C => ext (f, PrecoverTransfer-char),
+    \lam f => PrecoverSpace.PrecoverSpace-ext {_} {Dom} {PrecoverTransfer func} \lam {C} => (f,PrecoverTransfer-char),
     \lam p => unfolds $ rewrite p \lam (inP (D,Dc,f)) => cauchy-subset Dc f)
-
-  \func IsDense : \Prop
-    => \Pi {y : Cod} {U : Set Cod} -> single y <=< U -> ∃ (x : Dom) (U (func x))
-
-  \lemma dense-char : IsDense <-> IsDenseSet (\lam y => ∃ (x : Dom) (func x = y))
-    => (\lam d p => TruncP.map (d p) \lam s => (func s.1, inP (s.1, idp), s.2), \lam d p => \case d p \with {
-      | inP (_, inP (x,idp), Ufx) => inP (x, Ufx)
-    })
 
   \func IsDenseEmbedding : \Prop
     => \Sigma IsDense IsEmbedding
 } \where {
-  \func id {X : PrecoverSpace} : CoverMap X X \cowith
+  \func id {X : PrecoverSpace} : PrecoverMap X X \cowith
     | func x => x
     | func-cover Dc => cauchy-subset Dc \lam {U} DU => inP $ later (U, DU, idp)
 
-  \func compose \alias \infixl 8 ∘ {X Y Z : PrecoverSpace} (g : CoverMap Y Z) (f : CoverMap X Y) : CoverMap X Z \cowith
+  \func compose \alias \infixl 8 ∘ {X Y Z : PrecoverSpace} (g : PrecoverMap Y Z) (f : PrecoverMap X Y) : PrecoverMap X Z \cowith
     | func x => g (f x)
     | func-cover Dc => cauchy-subset (f.func-cover $ g.func-cover Dc) \lam (inP (V, inP (W,DW,q), p)) => inP $ later (W, DW, p *> rewrite q idp)
 
-  \func const {Y X : PrecoverSpace} (x : X) : CoverMap Y X \cowith
+  \func const {Y X : PrecoverSpace} (x : X) : PrecoverMap Y X \cowith
     | func _ => x
     | func-cover Dc => top-cauchy \case cauchy-cover Dc x \with {
       | inP (U,DU,Ux) => inP $ later (U, DU, ext \lam y => ext (\lam _ => Ux, \lam _ => ()))
@@ -136,8 +124,11 @@
     | inP (W,f,Wx) => f (x, (Vx, Wx)) Wx
   }
 
-\lemma <=<_^-1 {X Y : PrecoverSpace} {f : CoverMap X Y} {U V : Set Y} (U<=<V : U <=< V) : f ^-1 U <=< f ^-1 V
+\lemma <=<_^-1 {X Y : PrecoverSpace} {f : PrecoverMap X Y} {U V : Set Y} (U<=<V : U <=< V) : f ^-1 U <=< f ^-1 V
   => cauchy-subset (f.func-cover U<=<V) \lam (inP (W,g,p)) => rewrite p $ later \lam (x,s) => g (f x, s) __
+
+\lemma <=<-cont {X : PrecoverSpace} {Y : CoverSpace} {f : ContMap X Y} {x : X} {U : Set Y} (fx<=<U : single (f x) <=< U) : single x <=< f ^-1 U
+  => RegularRatherBelow.<=<-left (PrecoverSpace.open-char.1 (f.func-cont $ Y.interior {U}) fx<=<U) (<=<_<= __ idp)
 
 \type \infix 4 s<=< {X : PrecoverSpace} (V U : Set X) : \Prop
   => isCauchy \lam W => (W = Compl V) || (W = U)
@@ -154,7 +145,7 @@
 \lemma s<=<_bottom {X : PrecoverSpace} {U : Set X} : bottom s<=< U
   => unfolds $ top-cauchy $ byLeft $ <=-antisymmetric (later \lam _ => \lam (inP s) => s.1) top-univ
 
-\lemma s<=<_^-1 {X Y : PrecoverSpace} {f : CoverMap X Y} {U V : Set Y} (U<=<V : U s<=< V) : f ^-1 U s<=< f ^-1 V
+\lemma s<=<_^-1 {X Y : PrecoverSpace} {f : PrecoverMap X Y} {U V : Set Y} (U<=<V : U s<=< V) : f ^-1 U s<=< f ^-1 V
   => cauchy-subset (f.func-cover U<=<V) \case __ \with {
     | inP (_, byLeft idp, p) => byLeft p
     | inP (_, byRight idp, p) => byRight p
@@ -169,15 +160,15 @@
 
 \instance StronglyRatherBelow {X : PrecoverSpace} : RatherBelow {SetLattice X} (s<=<)
   | <=<_top => unfolds $ top-cauchy $ byRight idp
-  | <=<-left p q => cauchy-extend (unfolds in p) \lam {U'} => later \case __ \with {
+  | <=<-left p q => cauchy-refine (unfolds in p) \lam {U'} => later \case __ \with {
     | byLeft r => rewrite r $ inP (_, byLeft idp, <=-refl)
     | byRight r => rewrite r $ inP (_, byRight idp, q)
   }
-  | <=<-right p q => cauchy-extend (unfolds in q) \lam {U'} => later \case __ \with {
+  | <=<-right p q => cauchy-refine (unfolds in q) \lam {U'} => later \case __ \with {
     | byLeft r => inP (_, byLeft idp, rewrite r \lam nVx Wx => nVx (p Wx))
     | byRight r => inP (U', byRight r, <=-refl)
   }
-  | <=<_meet U<=<U' V<=<V' => cauchy-extend (cauchy-inter (unfolds in U<=<U') V<=<V') $ later \lam (inP (U'', V'', t1, t2, p)) => rewrite p \case \elim t1, \elim t2 \with {
+  | <=<_meet U<=<U' V<=<V' => cauchy-refine (cauchy-inter (unfolds in U<=<U') V<=<V') $ later \lam (inP (U'', V'', t1, t2, p)) => rewrite p \case \elim t1, \elim t2 \with {
     | byLeft r, _ => inP (_, byLeft idp, rewrite r \lam (nUx,_) (Ux,_) => nUx Ux)
     | _, byLeft r => inP (_, byLeft idp, rewrite r \lam (_,nVx) (_,Vx) => nVx Vx)
     | byRight q, byRight r => inP (_, byRight $ pmap2 (∧) q r, <=-refl)
@@ -190,6 +181,17 @@
     => \case cauchy-cover (isRegular Cc) x \with {
       | inP (U, inP (V, CV, U<=<V), Ux) => inP (V, CV, <=<-right (single_<= Ux) U<=<V)
     }
+
+  \lemma interior {U : Set E} : TopSpace.isOpen \lam x => single x <=< U
+    => open-char.2 \lam x<=<U => \case <=<-inter x<=<U \with {
+      | inP (V,x<=<V,V<=<U) => <=<-left x<=<V \lam Vx => later $ <=<-right (single_<= Vx) V<=<U
+    }
+
+  \lemma cauchy-open-cover {C : Set (Set E)} (Cc : isCauchy C) : isCauchy \lam V => ∃ (U : C) (V = \lam x => single x <=< U)
+    => cauchy-refine (isRegular Cc) \lam {V} (inP (U,CU,V<=<U)) => inP $ (_, inP (U, CU, idp), \lam Vx => <=<-right (single_<= Vx) V<=<U)
+} \where {
+  \lemma CoverSpace-ext {X : \Set} {S T : CoverSpace X} (p : \Pi {C : Set (Set X)} -> S.isCauchy C <-> T.isCauchy C) : S = T
+    => exts (\lam U => <->_=.1 S.cauchy-open *> ext (\lam f Ux => p.1 (f Ux), \lam f Ux => p.2 (f Ux)) *> inv (<->_=.1 T.cauchy-open), \lam C => ext p)
 }
 
 \lemma <=<-inter {X : CoverSpace} {x : X} {U : Set X} (x<=<U : single x <=< U) : ∃ (V : Set X) (single x <=< V) (V <=< U)
@@ -202,13 +204,28 @@
     | inP (V'', inP (V', inP (V, h, V'<=<V), V''<=<V'), V''x) => inP (V', <=<-right (single_<= V''x) V''<=<V', <=<-left V'<=<V $ h (x, (idp, s<=<_<= V'<=<V $ s<=<_<= V''<=<V' V''x)))
   }
 
-\lemma denseSet-char {X : CoverSpace} {S : Set X} : IsDenseSet S <-> ∀ {C : isCauchy} (isCauchy \lam V => ∃ (U : C) (V ⊆ U) (Given V -> ∃ (x : S) (U x)))
-  => (\lam d Cc => cauchy-subset (isRegular Cc) \lam (inP (V,CV,U<=<V)) => inP $ later (V, CV, <=<_<= U<=<V, \lam (x,Ux) => d $ <=<-right (single_<= Ux) U<=<V),
-      \lam d {x} {U} x<=<U => \case cauchy-cover (d x<=<U) x \with {
-        | inP (V, inP (W,f,V<=W,g), Vx) => \case g (x,Vx) \with {
-          | inP (y,Sy,Wy) => inP (y, Sy, f (x, (idp, V<=W Vx)) Wy)
-        }
-      })
+\lemma denseSet-char {X : CoverSpace} {S : Set X} : TFAE (
+    IsDenseSet S,
+    \Pi {x : X} {U : Set X} -> single x <=< U -> ∃ (x' : S) (U x'),
+    ∀ {C : isCauchy} (isCauchy \lam V => ∃ (U : C) (V ⊆ U) (Given V -> ∃ (x : S) (U x)))
+) => TFAE.proof (
+      ((0,1), \lam d x<=<U => \case d X.interior x<=<U \with {
+        | inP (x',Sx',x'<=<U) => inP (x', Sx', <=<_<= x'<=<U idp)
+      }),
+      ((1,0), \lam d Uo Uy => d $ PrecoverSpace.open-char.1 Uo Uy),
+      ((1,2), \lam d Cc => cauchy-subset (isRegular Cc) \lam (inP (V,CV,U<=<V)) => inP $ later (V, CV, <=<_<= U<=<V, \lam (x,Ux) => d $ <=<-right (single_<= Ux) U<=<V)),
+      ((2,1), \lam d {x} {U} x<=<U => \case cauchy-cover (d x<=<U) x \with {
+         | inP (V, inP (W,f,V<=W,g), Vx) => \case g (x,Vx) \with {
+           | inP (y,Sy,Wy) => inP (y, Sy, f (x, (idp, V<=W Vx)) Wy)
+         }
+       }))
+
+\lemma dense-char {X : PrecoverSpace} {Y : CoverSpace} {f : PrecoverMap X Y} : f.IsDense <-> (\Pi {y : Y} {U : Set Y} -> single y <=< U -> ∃ (x : X) (U (f x)))
+  => (\lam d p => \case denseSet-char 0 1 d p \with {
+    | inP (y, inP (x,fx=y), Uy) => inP (x, rewrite fx=y Uy)
+  }, \lam d => denseSet-char 1 0 \lam p => \case d p \with {
+    | inP (x,Ufx) => inP (f x, inP $ later (x, idp), Ufx)
+  })
 
 \class StronglyRegularCoverSpace \extends CoverSpace
   | isStronglyRegular {C : Set (Set E)} : isCauchy C -> isCauchy \lam V => ∃ (U : C) (V s<=< U)
@@ -231,7 +248,7 @@
   | isCauchy C => C top
   | cauchy-cover Ct x => inP (top, Ct, ())
   | cauchy-top => idp
-  | cauchy-extend Ct e => \case e Ct \with {
+  | cauchy-refine Ct e => \case e Ct \with {
     | inP (V,DV,t<=V) => rewrite (<=-antisymmetric t<=V top-univ) DV
   }
   | cauchy-trans Ct e => inP (top, top, Ct, e Ct, <=-antisymmetric (\lam _ => ((), ())) top-univ)
@@ -241,7 +258,7 @@
   | isCauchy C => \Pi (x : X) -> ∃ (U : C) (U x)
   | cauchy-cover c => c
   | cauchy-top x => inP (top, idp, ())
-  | cauchy-extend c d x =>
+  | cauchy-refine c d x =>
     \have | (inP (U,CU,Ux)) => c x
           | (inP (V,DV,U<=V)) => d CU
     \in inP (V, DV, U<=V Ux)
@@ -260,7 +277,7 @@
           | (inP (U,CU,p)) => d DV
     \in inP (U, CU, p Vfx)
   | cauchy-top => inP (single top, cauchy-top, \lam p => rewriteI p $ inP (top,idp,<=-refl))
-  | cauchy-extend (inP (D,Dc,d)) e => inP (D, Dc, \lam DV =>
+  | cauchy-refine (inP (D,Dc,d)) e => inP (D, Dc, \lam DV =>
       \have | (inP (U,CU,p)) => d DV
             | (inP (W,DW,q)) => e CU
       \in inP (W, DW, p <=∘ q))
@@ -273,11 +290,11 @@
       | inP (d,Dd,s) => inP (c ∧ d, inP (c, d, Cc, Dd, idp), rewrite W=UV \lam e => (q e.1, s e.2))
     })
 
-\lemma PrecoverTransfer-map {X : \Set} {Y : PrecoverSpace} {f : X -> Y} : CoverMap (PrecoverTransfer f) Y f \cowith
+\lemma PrecoverTransfer-map {X : \Set} {Y : PrecoverSpace} {f : X -> Y} : PrecoverMap (PrecoverTransfer f) Y f \cowith
   | func-cover {D} Dc => inP (D, Dc, \lam {V} DV => inP (f ^-1 V, inP (V, DV, idp), <=-refl))
 
-\lemma PrecoverTransfer-char {X Y : PrecoverSpace} {f : CoverMap X Y} {C : Set (Set X)} (c : isCauchy {PrecoverTransfer f} C) : X.isCauchy C \elim c
-  | inP (D,Dc,De) => cauchy-extend (f.func-cover Dc) \lam {U} (inP (V,DV,p)) => \case De DV \with {
+\lemma PrecoverTransfer-char {X Y : PrecoverSpace} {f : PrecoverMap X Y} {C : Set (Set X)} (c : isCauchy {PrecoverTransfer f} C) : X.isCauchy C \elim c
+  | inP (D,Dc,De) => cauchy-refine (f.func-cover Dc) \lam {U} (inP (V,DV,p)) => \case De DV \with {
     | inP (U',CU',q) => inP (U', CU', rewrite p q)
   }
 
@@ -285,13 +302,13 @@
   | isCauchy => Closure A
   | cauchy-cover CC x => closure-filter (pointFilter x) (\lam AC => CA AC x) CC
   | cauchy-top => closure-top idp
-  | cauchy-extend => closure-extends
+  | cauchy-refine => closure-refine
   | cauchy-trans => closure-trans __ __ idp
   \where {
-    \truncated \data Closure (A : Set (Set X) -> \Prop) (C : Set (Set X)) : \Prop
+    \truncated \data Closure {X : \Set} (A : Set (Set X) -> \Prop) (C : Set (Set X)) : \Prop
       | closure (A C)
       | closure-top (C = single top)
-      | closure-extends {D : Set (Set X)} (Closure A D) (\Pi {U : Set X} -> D U -> ∃ (V : Set X) (C V) (U ⊆ V))
+      | closure-refine {D : Set (Set X)} (Closure A D) (\Pi {U : Set X} -> D U -> ∃ (V : Set X) (C V) (U ⊆ V))
       | closure-trans {D : Set (Set X)} (Closure A D) {E : \Pi (U : Set X) -> Set (Set X)} (\Pi {U : Set X} -> D U -> Closure A (E U))
                       (C = \lam U => ∃ (V W : Set X) (D V) (E V W) (U = V ∧ W))
 
@@ -299,13 +316,13 @@
       : Closure A (\lam W => ∃ (U V : Set X) (C U) (D V) (W = U ∧ V))
       => closure-trans Cc (\lam _ => Dc) idp
 
-    \lemma closure-subset {A : Set (Set X) -> \Prop} {C D : Set (Set X)} (Dc : Closure A D) (D<=C : D ⊆ C) : Closure A C
-      => closure-extends Dc \lam {V} DV => inP (V, D<=C DV, <=-refl)
+    \lemma closure-subset {X : \Set} {A : Set (Set X) -> \Prop} {C D : Set (Set X)} (Dc : Closure A D) (D<=C : D ⊆ C) : Closure A C
+      => closure-refine Dc \lam {V} DV => inP (V, D<=C DV, <=-refl)
 
     \lemma closure-filter {A : Set (Set X) -> \Prop} (F : SetFilter X) (CA : \Pi {C : Set (Set X)} -> A C -> ∃ (U : C) (F U)) {C : Set (Set X)} (CC : Closure A C) : ∃ (U : C) (F U) \elim CC
       | closure AC => CA AC
       | closure-top idp => inP (top, idp, filter-top)
-      | closure-extends {D} CD e =>
+      | closure-refine {D} CD e =>
         \have | (inP (U,DU,FU)) => closure-filter F CA CD
               | (inP (V,CV,U<=V)) => e DU
         \in inP (V, CV, filter-mono U<=V FU)
@@ -317,29 +334,58 @@
     \lemma closure-cauchy {S : PrecoverSpace X} {A : Set (Set X) -> \Prop} (AS : \Pi {C : Set (Set X)} -> A C -> S.isCauchy C) {C : Set (Set X)} (CC : Closure A C) : S.isCauchy C \elim CC
       | closure AC => AS AC
       | closure-top p => rewrite p cauchy-top
-      | closure-extends CD e => cauchy-extend (closure-cauchy AS CD) e
+      | closure-refine CD e => cauchy-refine (closure-cauchy AS CD) e
       | closure-trans CD CE idp => S.cauchy-trans-dep (closure-cauchy AS CD) \lam DU => closure-cauchy AS (CE DU)
 
     \lemma closure-univ-cover {Y : PrecoverSpace} {f : Y -> X} (Ap : ∀ {C : A} (isCauchy \lam U => ∃ (V : Set X) (C V) (U = f ^-1 V))) {C : Set (Set X)} (Cc : Closure A C) : isCauchy \lam U => ∃ (V : Set X) (C V) (U = f ^-1 V) \elim Cc
       | closure a => Ap a
       | closure-top p => cauchy-subset cauchy-top \lam q => inP $ later (top, rewrite p idp, inv q)
-      | closure-extends Cc g => cauchy-extend (closure-univ-cover {X} {A} Ap Cc) \lam (inP (V,CV,q)) => TruncP.map (g CV) \lam (V',CV',V<=V') => (f ^-1 V', inP (V', CV', idp), rewrite q \lam c => V<=V' c)
+      | closure-refine Cc g => cauchy-refine (closure-univ-cover Ap Cc) \lam (inP (V,CV,q)) => TruncP.map (g CV) \lam (V',CV',V<=V') => (f ^-1 V', inP (V', CV', idp), rewrite q \lam c => V<=V' c)
       | closure-trans {D} Cc {E} g p =>
-        \have t => cauchy-trans (closure-univ-cover {X} {A} Ap Cc) {\lam V V' => ∃ (U : Set X) (V = f ^-1 U) (D U) (U' : Set X) (E U U') (V' = f ^-1 U')}
-                    \lam (inP (V,DV,q)) => cauchy-subset (closure-univ-cover {X} {A} Ap (g DV)) \lam (inP (V',EVV',r)) => inP $ later (V, q, DV, V', EVV', r)
+        \have t => cauchy-trans (closure-univ-cover Ap Cc) {\lam V V' => ∃ (U : Set X) (V = f ^-1 U) (D U) (U' : Set X) (E U U') (V' = f ^-1 U')}
+                    \lam (inP (V,DV,q)) => cauchy-subset (closure-univ-cover Ap (g DV)) \lam (inP (V',EVV',r)) => inP $ later (V, q, DV, V', EVV', r)
         \in cauchy-subset t \lam (inP (W, W', _, inP (V2,p2,DV2,V2',EV2V2',p2'), U=WW')) => inP $ later $ rewrite p (_, inP (V2, V2', DV2, EV2V2', idp), U=WW' *> pmap2 (∧) p2 p2')
 
-    \lemma closure-univ {S : PrecoverSpace X} {Y : PrecoverSpace} (AS : \Pi {C : Set (Set X)} -> isCauchy C -> Closure A C) (f : Y -> X) (Ap : ∀ {C : A} (isCauchy \lam U => ∃ (V : Set X) (C V) (U = f ^-1 V))) : CoverMap Y S f \cowith
+    \lemma closure-univ {S : PrecoverSpace X} {Y : PrecoverSpace} (AS : \Pi {C : Set (Set X)} -> isCauchy C -> Closure A C) (f : Y -> X) (Ap : ∀ {C : A} (isCauchy \lam U => ∃ (V : Set X) (C V) (U = f ^-1 V))) : PrecoverMap Y S f \cowith
       | func-cover Cc => closure-univ-cover Ap (AS Cc)
 
-    \lemma closure-embedding {S : PrecoverSpace X} {Y : PrecoverSpace} (AS : \Pi {C : Set (Set X)} -> isCauchy C -> Closure A C) (f : CoverMap S Y)
+    \lemma closure-univ-closure {Y : \Set} {B : Set (Set Y) -> \Prop} (f : Y -> X) (Ap : ∀ {C : A} (Closure B \lam V => ∃ (U : Set X) (C U) (V = f ^-1 U))) {C : Set (Set X)} (Cc : Closure A C) : Closure B \lam U => ∃ (V : Set X) (C V) (U = f ^-1 V) \elim Cc
+      | closure a => Ap a
+      | closure-top p => closure-subset (closure-top idp) \lam q => inP $ later (top, rewrite p idp, inv q)
+      | closure-refine Cc g => closure-refine (closure-univ-closure {X} {A} _ Ap Cc) \lam (inP (V,CV,q)) => TruncP.map (g CV) \lam (V',CV',V<=V') => (f ^-1 V', inP (V', CV', idp), rewrite q \lam c => V<=V' c)
+      | closure-trans {D} Cc {E} g p =>
+        \have t => closure-trans (closure-univ-closure {X} {A} _ Ap Cc) {\lam V V' => ∃ (U : Set X) (V = f ^-1 U) (D U) (U' : Set X) (E U U') (V' = f ^-1 U')}
+            (\lam (inP (V,DV,q)) => closure-subset (closure-univ-closure {X} {A} _ Ap (g DV)) \lam (inP (V',EVV',r)) => inP $ later (V, q, DV, V', EVV', r)) idp
+        \in closure-subset t \lam (inP (W, W', _, inP (V2,p2,DV2,V2',EV2V2',p2'), U=WW')) => inP $ later $ rewrite p (_, inP (V2, V2', DV2, EV2V2', idp), U=WW' *> pmap2 (∧) p2 p2')
+
+    \lemma closure-univ-closure-id {B : Set (Set X) -> \Prop} (Ap : ∀ {C : A} (Closure B C)) {C : Set (Set X)} (Cc : Closure A C) : Closure B C
+      => closure-subset (closure-univ-closure (\lam x => x) (\lam AC => closure-subset (Ap AC) \lam {U} CU => inP (U, CU, idp)) Cc) \lam {U} (inP (V,CV,p)) => rewrite p CV
+
+    \lemma closure-map {X Y : \Set} (f : Set X -> Set Y) (ft : \Pi {y : Y} -> f top y) (fm : \Pi {U V : Set X} -> U ⊆ V -> f U ⊆ f V) (fi : \Pi {U V : Set X} -> f U ∧ f V ⊆ f (U ∧ V)) {A : Set (Set X) -> \Prop} {C : Set (Set X)} {D : Set (Set Y)} (eCD : ∀ {U : C} ∃ (V : D) (f U ⊆ V)) (CC : Closure A C) : Closure (\lam D => ∃ (C : A) ∀ {U : C} ∃ (V : D) (f U ⊆ V)) D \elim CC
+      | closure AC => closure $ inP (C, AC, eCD)
+      | closure-top p => \case eCD (rewrite p idp) \with {
+        | inP (V,DV,RtV) => closure-refine (closure-top idp) \lam q => inP (V, DV, \lam _ => RtV ft)
+      }
+      | closure-refine {E} CE e => closure-refine (closure-map f ft fm fi (\lam EU => \case e EU \with {
+        | inP (V,CV,U<=V) => \case eCD CV \with {
+          | inP (W,DW,RVW) => inP (W, DW, fm U<=V <=∘ RVW)
+        }
+      }) CE) \lam {V} DV => inP (V, DV, <=-refl)
+      | closure-trans {C'} CC' {E} CE p =>
+        closure-refine (closure-trans (closure-map f ft fm fi {_} {_} {\lam V => ∃ (U : C') (f U = V)} (\lam {U} C'U => inP (f U, inP (U, C'U, idp), <=-refl)) CC') {\lam U V => ∃ (U' : C') (V' : E U') (f U' = U) (f V' = V)}
+            (\lam (inP (U',C'U',RU'U)) => closure-subset (closure-map f ft fm fi {_} {_} {\lam V => ∃ (U : E U') (f U = V)} (\lam {U} EU'U => inP (f U, inP (U, EU'U, idp), <=-refl)) (CE C'U')) \lam {V} (inP (V',EU'V',RV'V)) => inP (U', C'U', V', EU'V', RU'U, RV'V)) idp)
+            \lam {W} (inP (U, V, _, inP (U',C'U',V',EU'V',RU'U,RV'V), W=UV)) => \case eCD (rewrite p $ inP (U', V', C'U', EU'V', idp)) \with {
+              | inP (W',DW',r) => inP (W', DW', rewrite W=UV $ rewriteI (RU'U,RV'V) $ fi <=∘ r)
+            }
+
+    \lemma closure-embedding {S : PrecoverSpace X} {Y : PrecoverSpace} (AS : \Pi {C : Set (Set X)} -> isCauchy C -> Closure A C) (f : PrecoverMap S Y)
                              (p : \Pi {C : Set (Set X)} -> A C -> isCauchy \lam V => ∃ (U : C) (f ^-1 V ⊆ U)) : f.IsEmbedding
       => \lam CC => aux (AS CC)
       \where {
         \private \lemma aux {C : Set (Set X)} (CC : Closure A C) : isCauchy \lam V => ∃ (U : C) (f ^-1 V ⊆ U) \elim CC
           | closure AC => p AC
           | closure-top q => top-cauchy $ inP $ later (top, rewrite q idp, top-univ)
-          | closure-extends CD g => cauchy-subset (aux CD) \lam (inP (V,DV,q)) => TruncP.map (g DV) \lam (V',CV',V<=V') => later (V', CV', q <=∘ V<=V')
+          | closure-refine CD g => cauchy-subset (aux CD) \lam (inP (V,DV,q)) => TruncP.map (g DV) \lam (V',CV',V<=V') => later (V', CV', q <=∘ V<=V')
           | closure-trans {D} CD {E} g q =>
             \let t => cauchy-trans (aux CD) {\lam V V' => ∃ (U U' : Set X) (D U) (f ^-1 V ⊆ U) (f ^-1 V' ⊆ U') (E U U')} \lam (inP (U,DU,r)) => cauchy-subset (aux (g DU)) \lam (inP (U',EUU',r')) => inP $ later (U, U', DU, r, r', EUU')
             \in cauchy-subset t \lam (inP (V, W, _, inP (U1,U2,DU1,r,r',EU1U2), s)) => inP $ later (U1 ∧ U2, rewrite q $ inP (U1, U2, DU1, EU1U2, idp), rewrite s $ MeetSemilattice.meet-monotone r r')
@@ -350,7 +396,7 @@
   | <= A B => \Pi {C : Set (Set X)} -> isCauchy {A} C -> isCauchy {B} C
   | <=-refl c => c
   | <=-transitive f g c => g (f c)
-  | <=-antisymmetric f g => exts \lam C => ext (f,g)
+  | <=-antisymmetric f g => PrecoverSpace.PrecoverSpace-ext \lam {C} => (f,g)
   | top => DiscreteCover X
   | top-univ {A} c => cauchy-cover {A} c
   | Join {J} f => ClosurePrecoverSpace (\lam C => ∃ (j : J) (isCauchy {f j} C))
@@ -379,7 +425,7 @@
       : Closure A (\lam V => ∃ (U : C) (RB.R V U)) \elim CC
       | closure AC => AS AC
       | closure-top idp => closure-subset (closure-top idp) \lam p => inP (top, idp, <=<_top)
-      | closure-extends CD e => closure-subset (closure-regular RB AS CD) \lam (inP (U,DU,RVU)) => \case e DU \with {
+      | closure-refine CD e => closure-subset (closure-regular RB AS CD) \lam (inP (U,DU,RVU)) => \case e DU \with {
         | inP (W,CW,U<=W) => inP (W, CW, <=<-left RVU U<=W)
       }
       | closure-trans {D} CD {E} CE idp => closure-subset
@@ -390,7 +436,7 @@
     \lemma closure-pred {X : PrecoverSpace} (P : Set X -> \Prop) (Pt : P top) (Pm : ∀ {U V : P} (P (U ∧ V))) {A : Set (Set X) -> \Prop} (AP : ∀ {C : A} {U : C} (P U)) {C : Set (Set X)} (CC : Closure A C) : ∃ (D : Closure A) (∀ {V : D} (P V)) (∀ {V : D} ∃ (U : C) (V ⊆ U)) \elim CC
       | closure AC => inP (C, closure AC, AP AC __, \lam {V} CV => inP (V, CV, <=-refl))
       | closure-top idp => inP (single top, closure-top idp, \lam p => rewriteI p Pt, \lam _ => inP (top, idp, top-univ))
-      | closure-extends CD e => \case closure-pred P Pt Pm AP CD \with {
+      | closure-refine CD e => \case closure-pred P Pt Pm AP CD \with {
         | inP (D',AD',D'P,D'r) => inP (D', AD', D'P, \lam D'V => \case D'r D'V \with {
           | inP (U,DU,V<=U) => \case e DU \with {
             | inP (U',CU',U<=U') => inP (U', CU', V<=U <=∘ U<=U')
@@ -431,13 +477,13 @@
 \func UniformlyCoverSpace {X : PrecoverSpace} (AI : \Pi {C : Set (Set X)} -> X.isCauchy C -> ∃ (D : X.isCauchy) ∀ {V : D} ∃ (U : C) ∀ {V' : D} (Given (V ∧ V') -> V' ⊆ U)) : CompletelyRegularCoverSpace X \cowith
   | PrecoverSpace => X
   | isCompletelyRegular {C} => transport (\lam (S : PrecoverSpace X) => S.isCauchy C -> S.isCauchy \lam V => ∃ (U : C) (V RatherBelow.<=<c {RegularRatherBelow {S}} U))
-      (exts \lam U => ext (closure-cauchy \lam c => c, closure)) $ isCompletelyRegular {ClosureRegularCoverSpace X.isCauchy X.cauchy-cover AI}
+      (PrecoverSpace.PrecoverSpace-ext {_} {ClosureRegularCoverSpace X.isCauchy X.cauchy-cover AI} {X} \lam {C} => (closure-cauchy \lam c => c, closure)) $ isCompletelyRegular {ClosureRegularCoverSpace X.isCauchy X.cauchy-cover AI}
 
 \instance CoverLattice (X : \Set) : CompleteLattice (CoverSpace X)
   | <= A B => \Pi {C : Set (Set X)} -> isCauchy {A} C -> isCauchy {B} C
   | <=-refl c => c
   | <=-transitive f g c => g (f c)
-  | <=-antisymmetric f g => exts \lam C => ext (f,g)
+  | <=-antisymmetric f g => CoverSpace.CoverSpace-ext \lam {C} => (f,g)
   | top => DiscreteCover X
   | top-univ {A} c => cauchy-cover {A} c
   | Join f => \new CoverSpace {
@@ -462,92 +508,11 @@
 \func RegPrecoverSpace (X : PrecoverSpace) : CoverSpace X
   => CompleteLattice.SJoin {CoverLattice X} \lam A => A <= {PrecoverLattice X} X
 
-\func regPrecoverSpace {X : PrecoverSpace} : CoverMap X (RegPrecoverSpace X) \cowith
+\func regPrecoverSpace {X : PrecoverSpace} : PrecoverMap X (RegPrecoverSpace X) \cowith
   | func x => x
   | func-cover d => CompleteLattice.SJoin-univ {PrecoverLattice X} {\lam A => A <= {PrecoverLattice X} X} (\lam p => p) $
       transport (isCauchy {RegPrecoverSpace X}) (ext \lam U => ext (\lam DU => inP (U, DU, idp), \lam (inP (V,DV,U=V)) => rewrite U=V DV)) d
 
-\lemma regPrecoverSpace-extend {X : PrecoverSpace} {Y : CoverSpace} (f : CoverMap X Y) : CoverMap (RegPrecoverSpace X) Y f \cowith
+\lemma regPrecoverSpace-extend {X : PrecoverSpace} {Y : CoverSpace} (f : PrecoverMap X Y) : PrecoverMap (RegPrecoverSpace X) Y f \cowith
   | func-cover {D} Dc => CompleteLattice.SJoin-cond {CoverLattice X} {\lam A => A <= {PrecoverLattice X} X} {CoverTransfer f} PrecoverTransfer-char $
       inP (D, Dc, \lam {V} DV => inP (f ^-1 V, inP (V, DV, idp), <=-refl))
-
-\instance PrecoverSpaceHasProduct : HasProduct PrecoverSpace
-  | Product => ProductPrecoverSpace
-
-\instance CoverSpaceHasProduct : HasProduct CoverSpace
-  | Product => ProductCoverSpace
-
-\open CoverMap
-
-\instance ProductPrecoverSpace (X Y : PrecoverSpace) : PrecoverSpace (\Sigma X Y)
-  => PrecoverTransfer __.1 ∨ PrecoverTransfer __.2
-  \where {
-    \func proj1 {X Y : PrecoverSpace} : CoverMap (X ⨯ Y) X \cowith
-      | func s => s.1
-      | func-cover Dc => join-left {PrecoverLattice (\Sigma X Y)} $ PrecoverTransfer-map.func-cover Dc
-
-    \func proj2 {X Y : PrecoverSpace} : CoverMap (X ⨯ Y) Y \cowith
-      | func s => s.2
-      | func-cover Dc => join-right {PrecoverLattice (\Sigma X Y)} $ PrecoverTransfer-map.func-cover Dc
-
-    \func tuple {X Y Z : PrecoverSpace} (f : CoverMap Z X) (g : CoverMap Z Y) : CoverMap Z (X ⨯ Y) \cowith
-      | func z => (f z, g z)
-      | func-cover => closure-univ-cover $ later \case __ \with {
-        | inP (true, inP (D,Dc,h)) => cauchy-extend (f.func-cover Dc) \lam (inP (V,DV,p)) => \case h DV \with {
-          | inP (U',CU',q) => inP (_, inP (U',CU',idp), \lam Ux => q $ rewrite p in Ux)
-        }
-        | inP (false, inP (D,Dc,h)) => cauchy-extend (g.func-cover Dc) \lam (inP (V,DV,p)) => \case h DV \with {
-          | inP (U',CU',q) => inP (_, inP (U',CU',idp), \lam Ux => q $ rewrite p in Ux)
-        }
-      }
-
-    \lemma prodCover {X Y : PrecoverSpace} {C : Set (Set X)} (Cc : X.isCauchy C) {D : Set (Set Y)} (Dc : Y.isCauchy D)
-      : isCauchy {ProductPrecoverSpace X Y} \lam W => ∃ (U : C) (V : D) (W = \lam s => \Sigma (U s.1) (V s.2))
-      => cauchy-subset {ProductPrecoverSpace X Y} (cauchy-inter {ProductPrecoverSpace X Y} (proj1.func-cover Cc) (proj2.func-cover Dc))
-          \lam (inP (U, V, inP (U',CU',p1), inP (V',DV',p2), q)) => inP $ later (U', CU', V', DV', q *> pmap2 (∧) p1 p2)
-
-    \func prod {X Y X' Y' : PrecoverSpace} (f : CoverMap X Y) (g : CoverMap X' Y') : CoverMap (X ⨯ X') (Y ⨯ Y')
-      => tuple (f ∘ proj1) (g ∘ proj2)
-      \where {
-        \lemma isDense {X X' : PrecoverSpace} {Y Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fd : f.IsDense) (gd : g.IsDense) : IsDense {prod f g}
-          => \lam {(y,y')} yy'<=<U =>
-              \have | (inP (V,yy'<=<V,V<=<U)) => <=<-inter yy'<=<U
-                    | (inP (x,Vfxy')) => fd {y} $ transport (`<=< _) (ext \lam z => ext (pmap __.1, \lam p => ext (p, idp))) $ <=<_^-1 {Y} {Y ⨯ Y'} {tuple id (const y')} yy'<=<V
-                    | (inP (x',Ufxfx')) => gd {y'} $ transport (`<=< _) (ext \lam z => ext (pmap __.2, \lam p => ext (idp, p))) $ <=<_^-1 {Y'} {Y ⨯ Y'} {tuple (const (f x)) id} $ <=<-right (single_<= Vfxy') V<=<U
-              \in inP ((x,x'), Ufxfx')
-
-        \lemma isEmbedding {X Y X' Y' : PrecoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fe : f.IsEmbedding) (ge : g.IsEmbedding) : IsEmbedding {prod f g}
-          => closure-embedding (\lam c => c) (prod f g) \case __ \with {
-            | inP (true, inP (D,Dc,f)) => closure $ inP (true, inP (_, fe Dc, \lam (inP (U,DU,p)) => TruncP.map (f DU) \lam (W,CW,q) => (_, inP (W, CW, (\lam c => p c) <=∘ q), <=-refl)))
-            | inP (false, inP (D,Dc,f)) => closure $ inP (false, inP (_, ge Dc, \lam (inP (U,DU,p)) => TruncP.map (f DU) \lam (W,CW,q) => (_, inP (W, CW, (\lam c => p c) <=∘ q), <=-refl)))
-          }
-
-        \lemma isDenseEmbedding {X X' : PrecoverSpace} {Y Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fde : f.IsDenseEmbedding) (gde : g.IsDenseEmbedding) : IsDenseEmbedding {prod f g}
-          => (isDense fde.1 gde.1, isEmbedding fde.2 gde.2)
-      }
-  }
-
-\instance ProductCoverSpace (X Y : CoverSpace) : CoverSpace (\Sigma X Y)
-  => CoverTransfer __.1 ∨ CoverTransfer __.2
-  \where {
-    \lemma prod-neighborhood {x : X} {y : Y} {W : Set (X ⨯ Y)} (xy<=<W : single (x,y) <=< {X ⨯ Y} W) : ∃ (U : Set X) (V : Set Y) (single x <=< U) (single y <=< V) ∀ {x : U} {y : V} (W (x,y))
-      => \case closure-filter (\new SetFilter {
-                  | F W => ∃ (U : Set X) (V : Set Y) (single x <=< U) (single y <=< V) ∀ {x : U} {y : V} (W (x,y))
-                  | filter-mono p (inP (U,V,x<=<U,y<=<V,q)) => inP (U, V, x<=<U, y<=<V, \lam Ux Vy => p (q Ux Vy))
-                  | filter-top => inP (top, top, <=<_top, <=<_top, \lam _ _ => ())
-                  | filter-meet (inP (U,V,x<=<U,y<=<V,q)) (inP (U',V',x<=<U',y<=<V',q')) => inP (U ∧ U', V ∧ V', RatherBelow.<=<_meet-same x<=<U x<=<U', RatherBelow.<=<_meet-same y<=<V y<=<V', \lam (Ux,U'x) (Vy,V'y) => (q Ux Vy, q' U'x V'y))
-                }) (\case __ \with {
-                      | inP (true, inP (D,Dc,h)) => \case CoverSpace.cauchy-regular-cover Dc x \with {
-                        | inP (U,DU,x<=<U) => \case h DU \with {
-                          | inP (W,CW,p) => inP (W, CW, inP (U, top, x<=<U, <=<_top, \lam Ux _ => p Ux))
-                        }
-                      }
-                      | inP (false, inP (D,Dc,h)) => \case CoverSpace.cauchy-regular-cover Dc y \with {
-                        | inP (V,DV,y<=<V) => \case h DV \with {
-                          | inP (W,CW,p) => inP (W, CW, inP (top, V, <=<_top, y<=<V, \lam _ Vy => p Vy))
-                        }
-                      }
-      }) xy<=<W \with {
-        | inP (W, h, inP (U,V,x<=<U,y<=<V,q)) => inP (U, V, x<=<U, y<=<V, \lam Ux' Vy' => h ((x,y), (idp, q (<=<_<= x<=<U idp) (<=<_<= y<=<V idp))) (q Ux' Vy'))
-      }
-  }
