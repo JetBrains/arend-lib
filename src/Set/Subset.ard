@@ -1,6 +1,8 @@
+\import Data.Array
 \import Function.Meta
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Order.Lattice
 \import Order.PartialOrder
 \import Paths
@@ -26,6 +28,9 @@
 
     \func CoverInter {X : \hType} (C : Set (Set X)) (D : Set (Set X)) : Set (Set X)
       => \lam W => ∃ (U : C) (V : D) (W = U ∧ {SetLattice X} V)
+
+    \func CoverInterBig {X : \hType} (Cs : Array (Set (Set X))) : Set (Set X)
+      => Big CoverInter (single (top {SetLattice X})) Cs
   }
 
 \func single {X : \Set} (a : X) : Set X
@@ -41,9 +46,6 @@
 
 \func Compl {X : \hType} (U : Set X) : Set X
   => \lam x => Not (U x)
-
-\func IsFin {X : \hType} (U : Set X) : \Prop
-  => ∃ (l : Array X) (U = \lam x => ∃ (j : Fin l.len) (x = l j))
 
 \instance SetLattice (A : \hType) : Locale (Set A)
   | <= => ⊆
@@ -88,21 +90,40 @@
 \lemma Refines-inter-right {X : \hType} {C D : Set (Set X)} : Refines (Set.CoverInter C D) D
   => \lam {_} (inP (_,_,V,DV,idp)) => inP (V, DV, meet-right)
 
+\lemma Refines-inter-big {X : \hType} (Cs : Array (Set (Set X))) (j : Fin Cs.len) : Refines (Set.CoverInterBig Cs) (Cs j) \elim Cs, j
+  | C :: Cs, 0 => Refines-inter-left
+  | C :: Cs, suc j => Refines-trans Refines-inter-right (Refines-inter-big Cs  j)
+
 \lemma Refines-inter {X : \hType} {C D C' D' : Set (Set X)} (r : Refines C D) (r' : Refines C' D') : Refines (Set.CoverInter C C') (Set.CoverInter D D')
   => \lam {W} (inP (U,CU,U',C'U',W=UU')) => \case r CU, r' C'U' \with {
     | inP (V,DV,U<=V), inP (V',D'V',U'<=V') => inP (V ∧ V', inP (V, DV, V', D'V', idp), rewrite W=UU' $ MeetSemilattice.meet-monotone U<=V U'<=V')
   }
 
-\func extend {A : \Type} {U : Set A} (V : Set (Set.Total U)) : Set A
+\lemma CoverInterBig-char {X : \hType} {Cs : Array (Set (Set X))} : Set.CoverInterBig Cs = \lam W => ∃ (Us : Array (Set X) Cs.len) (\Pi (j : Fin Cs.len) -> Cs j (Us j)) (W = Big {Set X} (∧) top Us) \elim Cs
+  | nil => exts \lam W => ext (\lam p => inP (nil, \case __ \with {}, inv p), \lam (inP t) => inv t.3)
+  | C :: Cs => pmap (Set.CoverInter C) CoverInterBig-char *> exts \lam W => ext (
+      \lam (inP (U, CU, V, inP (Us,CsUs,q), p)) => inP (U :: Us, \case \elim __ \with {
+        | 0 => CU
+        | suc j => CsUs j
+      }, p *> pmap (U ∧) q),
+      \lam (inP (Us,CsUs,p)) => inP (Us 0, CsUs 0, _, inP (\lam j => Us (suc j), \lam j => CsUs (suc j), idp), p))
+
+\func extend {X : \Type} {U : Set X} (V : Set (Set.Total U)) : Set X
   => \lam x => \Sigma (Ux : U x) (V (x,Ux))
 
-\lemma extend-mono {A : \Type} {U : Set A} {V W : Set (Set.Total U)} (p : V ⊆ W) : extend V ⊆ extend W
+\lemma extend-sub {X : \Type} {U : Set X} {V : Set (Set.Total U)} : extend V ⊆ U
+  => __.1
+
+\lemma extend-mono {X : \Type} {U : Set X} {V W : Set (Set.Total U)} (p : V ⊆ W) : extend V ⊆ extend W
   => \lam {x} (Ux,Vx) => (Ux, p Vx)
 
-\lemma extend_meet {A : \Type} {U : Set A} {V W : Set (Set.Total U)} : extend (V ∧ W) = extend V ∧ extend W
+\lemma extend_meet {X : \Type} {U : Set X} {V W : Set (Set.Total U)} : extend (V ∧ W) = extend V ∧ extend W
   => <=-antisymmetric (\lam e => ((e.1, e.2.1), (e.1, e.2.2))) (\lam e => (e.1.1, (e.1.2, transport W (ext idp) e.2.2)))
 
-\lemma extend_restrict {A : \Type} {U : Set A} {V : Set A} : extend (Set.restrict {A} {U} V) ⊆ V
+\lemma restrict_extend {X : \Type} {U : Set X} {V : Set (Set.Total U)} : Set.restrict (extend V) = V
+  => <=-antisymmetric (\lam r => transport V (ext idp) r.2) (\lam {x} Vx => (x.2,Vx))
+
+\lemma extend_restrict {X : \Type} {U : Set X} {V : Set X} : extend (Set.restrict {X} {U} V) ⊆ V
   => __.2
 
 \lemma ^-1_<= {A B : \hType} (f : A -> B) {U V : Set B} (p : U ⊆ V) : f ^-1 U ⊆ f ^-1 V

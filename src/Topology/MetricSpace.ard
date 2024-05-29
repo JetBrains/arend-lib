@@ -27,7 +27,7 @@
 \open RealAbGroup \hiding (+, join, meet, negative, zro<ide)
 \open PseudoMetricSpace \hiding (NFilter, isUniform)
 
-\class PseudoMetricSpace \extends UniformSpace, StronglyRegularCoverSpace {
+\class PseudoMetricSpace \extends StronglyRegularUniformSpace {
   | dist : E -> E -> Real
   | dist-refl {x : E} : dist x x = zro
   | dist-symm {x y : E} : dist x y = dist y x
@@ -61,19 +61,26 @@
       }
     })
   }
-  | isStronglyRegular Cc => cauchy-subset (uniform-cauchy.2 $ ClosureCoverSpace.closure-regular {ClosurePrecoverSpace isUniform uniform-cover} StronglyRatherBelow (\case dist-uniform.1 __ \with {
-    | inP (eps,eps>0,h) => ClosurePrecoverSpace.closure $ dist-uniform.2 $ inP $ later (half (half eps), half>0 (half>0 eps>0), \lam x => \case h x \with {
-      | inP (U,CU,f) => inP (\lam y => dist x y < half (half eps), inP (U, CU, ClosurePrecoverSpace.closure $ uniform-refine {_} {\lam U => ∃ (x : E) (U = \lam y => dist x y < half (half eps))} (dist-uniform.2 $ inP (half (half eps), half>0 (half>0 eps>0), \lam x => inP $ later (_, inP (x, idp), \lam r => r))) \lam {W} => \case __ \with {
-        | inP (y,p) => rewrite p \case real-located {dist x y} {half eps} {half eps + half (half eps)} (transport (`< _) zro-right $ <_+-right _ $ half>0 $ half>0 eps>0) \with {
-          | byLeft xy>1/2 => inP (_, byLeft idp, \lam {z} yz<1/4 => \lam xz<1/4 => <-irreflexive $ xy>1/2 <∘ (rewrite (half+half {half eps}) in dist-triang <∘r OrderedAddMonoid.<_+ xz<1/4 (rewrite dist-symm in yz<1/4)))
-          | byRight xy<3/4 => inP (_, byRight idp, \lam {z} yz<1/4 => f $ dist-triang <∘r OrderedAddMonoid.<_+ xy<3/4 yz<1/4 <∘l Preorder.=_<= (+-assoc *> pmap (_ +) (half+half {half eps}) *> half+half))
-        }
-      }), \lam r => r)
+  | isStronglyRegularUniform Cu => \case dist-uniform.1 Cu \with {
+    | inP (eps,eps>0,h) => dist-uniform.2 $ inP $ later (half (half eps), half>0 (half>0 eps>0), \lam x => \case h x \with {
+      | inP (U,CU,f) => inP (\lam y => dist x y < half (half eps), inP (U, CU, uniform-refine {_} {\lam U => ∃ (x : E) (U = \lam y => dist x y < half (half eps))} (dist-uniform.2 $ inP (half (half eps), half>0 (half>0 eps>0), \lam x => inP $ later (_, inP (x, idp), \lam r => r))) \lam {W} => \case __ \with {
+          | inP (y,p) => rewrite p \case real-located {dist x y} {half eps} {half eps + half (half eps)} (transport (`< _) zro-right $ <_+-right _ $ half>0 $ half>0 eps>0) \with {
+            | byLeft xy>1/2 => inP (_, byLeft idp, \lam {z} yz<1/4 => \lam xz<1/4 => <-irreflexive $ xy>1/2 <∘ (rewrite (half+half {half eps}) in dist-triang <∘r OrderedAddMonoid.<_+ xz<1/4 (rewrite dist-symm in yz<1/4)))
+            | byRight xy<3/4 => inP (_, byRight idp, \lam {z} yz<1/4 => f $ dist-triang <∘r OrderedAddMonoid.<_+ xy<3/4 yz<1/4 <∘l Preorder.=_<= (+-assoc *> pmap (_ +) (half+half {half eps}) *> half+half))
+          }
+        }), \lam r => r)
     })
-  }) (uniform-cauchy.1 Cc)) \lam {V} (inP (U,CU,V<=<U)) => inP $ later (U, CU, uniform-cauchy.2 V<=<U)
+  }
 
   \default isUniform C : \Prop => ∃ (eps : Real) (0 < eps) ∀ x ∃ (U : C) ∀ {y} (dist x y < eps -> U y)
   \default dist-uniform \as dist-uniform-impl {C} : isUniform C <-> _ => <->refl
+
+  \lemma properUniform : IsProperUniform
+    => \lam Cu => \case dist-uniform.1 Cu \with {
+      | inP (eps,eps>0,h) => dist-uniform.2 $ inP (eps, eps>0, \lam x => \case h x \with {
+        | inP (U,CU,g) => inP (U, later (CU, inP (x, g $ rewrite dist-refl eps>0)), g)
+      })
+    }
 
   \lemma halving {z x y : E} {eps : Real} (d1 : dist z x < half eps) (d2 : dist z y < half eps) : dist x y < eps
     => dist-triang <∘r OrderedAddMonoid.<_+ (rewrite dist-symm in d1) d2 <∘l Preorder.=_<= half+half
@@ -125,6 +132,9 @@
 \lemma OBall_<=* {X : PseudoMetricSpace} {x : X} {eps delta : Real} (delta<eps : delta < eps) : OBall delta x <=* OBall eps x
   => inP (_, makeUniform $ half>0 $ transport (`< _) negative-right $ <_+-left (negative delta) delta<eps,
           \lam {y} (inP (_, (inP (z,idp), (w,(xw<delta,zw<eps-delta))), zy<eps-delta)) => transport (_ <) (+-comm *> +-assoc *> pmap (eps +) negative-left *> zro-right) $ dist-triang <∘r OrderedAddMonoid.<_+ xw<delta (halving zw<eps-delta zy<eps-delta))
+
+\func IsBoundedSet {X : PseudoMetricSpace} (S : Set X) : \Prop
+  => ∃ (B : Real) (0 < B) ∀ {x y : S} (dist x y < B)
 
 \class MetricSpace \extends PseudoMetricSpace, SeparatedCoverSpace
   | dist-ext {x y : E} : dist x y = zro -> x = y
