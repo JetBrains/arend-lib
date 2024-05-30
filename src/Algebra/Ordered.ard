@@ -2,6 +2,7 @@
 \import Algebra.Domain
 \import Algebra.Field
 \import Algebra.Group
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Ring
 \import Algebra.Semiring
@@ -17,7 +18,7 @@
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
-
+\import Set
 \open Monoid(Inv)
 
 \class OrderedAddMonoid \extends StrictPoset, AddMonoid {
@@ -246,6 +247,15 @@
 
   \lemma <_*_negative_positive {x y : E} (x<0 : x < 0) (y>0 : 0 < y) : x * y < 0
     => transport (_ <) zro_*-left (<_*_positive-left x<0 y>0)
+
+  \lemma pow>0 {a : E} {k : Nat} (p : 0 < a) : 0 < pow a k \elim k
+    | 0 => zro<ide
+    | suc k => <_*_positive_positive (pow>0 p) p
+
+  \lemma pow<id {a : E} (a>0 : 0 < a) (a<1 : a < 1) {k : Nat} (k>1 : 1 NatSemiring.< k) : pow a k < a \elim k, k>1
+    | 1, NatSemiring.suc<suc ()
+    | 2, _ => transport2 (__ * a < __) (inv ide-left) ide-right $ <_*_positive-right a>0 a<1
+    | suc (suc (suc k)), _ => transport (_ <) ide-right (<_*_positive-right (pow>0 {_} {a} {suc (suc k)} a>0) a<1) <∘ pow<id a>0 a<1 {suc (suc k)} (NatSemiring.suc<suc NatSemiring.zero<suc)
 }
 
 \class LinearlyOrderedSemiring \extends OrderedSemiring, LinearlyOrderedAbMonoid {
@@ -357,9 +367,18 @@
   \lemma natCoef_<= {n m : Nat} (p : n NatSemiring.<= m) : natCoef n <= natCoef m
     => rewrite (inv (<=_exists p), natCoef_+) $ transport (`<= _) zro-right $ <=_+ <=-refl natCoef>=0
 
-  \lemma pow>0 {a : E} {k : Nat} (p : 0 < a) : 0 < pow a k \elim k
-    | 0 => zro<ide
-    | suc k => <_*_positive_positive (pow>0 p) p
+  \lemma pow>=0 {a : E} {k : Nat} (a>=0 : 0 <= a) : 0 <= pow a k \elim k
+    | 0 => <_<= zro<ide
+    | suc k => <=_*_positive_positive (pow>=0 a>=0) a>=0
+
+  \lemma pow_<=-monotone {a b : E} {k : Nat} (a>=0 : 0 <= a) (a<=b : a <= b) : pow a k <= pow b k \elim k
+    | 0 => <=-refl
+    | suc k => <=_*_positive-right (pow>=0 a>=0) a<=b <=∘ <=_*_positive-left (pow_<=-monotone a>=0 a<=b) (a>=0 <=∘ a<=b)
+
+  \lemma pow<=id {a : E} (a>=0 : 0 <= a) (a<=1 : a <= 1) {k : Nat} (k/=0 : k /= 0) : pow a k <= a \elim k
+    | 0 => \case k/=0 idp
+    | 1 => transportInv (`<= _) ide-left <=-refl
+    | suc (suc k) => transport (_ <=) ide-right $ <=_*_positive-right (pow>=0 {_} {a} {suc k} a>=0) a<=1 <=∘ <=_*_positive-left (pow<=id a>=0 a<=1 suc/=0) (a>=0 <=∘ a<=1)
 
   \lemma meet_*-left {a b c : E} (a>=0 : 0 <= a) : a * (b ∧ c) = (a * b) ∧ (a * c)
     => <=-antisymmetric (meet-univ (<=_*_positive-right a>=0 meet-left) (<=_*_positive-right a>=0 meet-right))
@@ -652,6 +671,9 @@
   \lemma finv_< {x y : E} (x>0 : 0 < x) (x<y : x < y) : finv y < finv x
     => rewrite (finv-right $ >_/= x>0, ide-right, inv *-assoc, finv-left $ >_/= $ x>0 <∘ x<y, ide-left) in <_*_positive-right (finv>0 $ x>0 <∘ x<y) (<_*_positive-left x<y (finv>0 x>0))
 
+  \lemma finv_<-conv {x y : E} (x>0 : 0 < x) (p : finv x < finv y) : y < x
+    => transport2 (<) finv_finv finv_finv $ finv_< (finv>0 x>0) p
+
   \lemma finv_<-left {x y : E} (x>0 : 0 < x) (p : finv x < y) : finv y < x
     => transport (_ <) finv_finv $ finv_< (finv>0 x>0) p
 
@@ -663,6 +685,12 @@
 
   \lemma <_rotate-left {x y z : E} (y>0 : 0 < y) (p : x < y * z) : finv y * x < z
     => transport (_ <) (inv *-assoc *> pmap (`* z) (finv-left (>_/= y>0)) *> ide-left) (<_*_positive-right (finv>0 y>0) p)
+
+  \lemma finv_<= {x y : E} (x>0 : 0 < x) (x<=y : x <= y) : finv y <= finv x
+    => \lam p => x<=y (finv_<-conv x>0 p)
+
+  \lemma finv>0-diff {x : E} (x>0 : 0 < x) : finv x - finv (x + 1) = finv (x * (x + 1))
+    => finv-diff (\lam x=0 => linarith) (\lam x+1=0 => linarith)
 }
 
 \class OrderedAAlgebra \extends AAlgebra, OrderedRing {
