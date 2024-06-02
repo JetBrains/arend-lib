@@ -44,8 +44,6 @@
   \func p-transpose-unique {A B : Ob} {f : Hom (Bprod A B) omega} {g : Hom A (P B)} (comm : f = belongs ∘ prodMap g (id B))
     : g = p-transpose f => Equiv.adjoint {isCoreflection {p-exponential B}} (inv comm)
 
-  \func sub-from-char {B : Ob} (ch : Hom B omega) : Pullback {\this} ch true => pullback ch true
-
   \func anti-transpose  {A B : Ob} (g : Hom A (P B)) : Hom (Bprod A B) omega =>
     belongs ∘ (prodMap g (id B))
 
@@ -60,15 +58,23 @@
 
   \func singleton  (B : Ob) : Hom B (P B) => p-transpose (eq B)
 
+  -- 'char-rel' gives the characteristic map of the functional relation corresponding to f.
+
+  \func char-rel {B C : Ob} (f : Hom B C) : Hom (Bprod B C) omega => eq C ∘ prodMap f (id C)
+
+  \func eqq-p-transpose-s {B X : Ob} (b : Hom X B) : singleton B ∘ b = p-transpose (char-rel b) =>
+    p-transpose-unique {\this} {_} {_} {char-rel b} {singleton B ∘ b} $
+    rewrite (prod-id-right _ _, inv o-assoc, inv $ p-transpose-univ _) idp
+
   \func singleton-mono (B : Ob) : Mono (singleton B)
   \cowith
     | isMono {X} {b} {b'} sb=sb' =>
       \let
-        c : eq B ∘ prodMap b (id B) = eq B ∘ prodMap  b' (id B) => transpose-inj ((inv $ s-eq b) *> sb=sb' *> s-eq b')
+        c : char-rel b = char-rel b' => transpose-inj ((inv $ eqq-p-transpose-s b) *> sb=sb' *> eqq-p-transpose-s b')
         | b-square => full-square b
-        | b'-square : Pullback {\this} (eq B ∘ prodMap b (id B)) true X (pair (id X) b') =>
+        | b'-square : Pullback {\this} (char-rel b) true X (pair (id X) b') =>
           transport (Pullback {\this} __ true X (pair (id X) b')) (inv c) (full-square b')
-        | h-iso : Iso {\this} {X} {X} => Pullback.unique (eq B ∘ prodMap b (id B)) true b-square b'-square
+        | h-iso : Iso {\this} {X} {X} => Pullback.unique (char-rel b) true b-square b'-square
         | pb~pb*h : pair (id X) b = pair (id X) b' ∘ h-iso => inv (Pullback.unique.p-beta1 b'-square b-square)
         | c' : proj1 ∘ (pair (id X) b' ∘ h-iso.f) = h-iso.f => rewriteI o-assoc $ rewrite (beta1 _ _) id-left
         | h~1 : id X = h-iso.f => inv (beta1 _ _) *> pmap (proj1 ∘ __) pb~pb*h *> c'
@@ -76,14 +82,8 @@
       \in
         b~b'h *> rewriteI h~1 id-right
     \where {
-      \func s-eq {X : Ob} (b : Hom X B) : singleton B ∘ b = p-transpose (eq B ∘ (prodMap b (id B))) =>
-        run {
-          p-transpose-unique {\this} {_} {_} {eq B ∘ (prodMap b (id B))} {singleton B ∘ b},
-          rewrite (prod-id-right _ _, inv o-assoc, inv $ p-transpose-univ _) idp
-        }
-
       \func full-square {X : Ob} (b : Hom X B)
-        : Pullback {\this} (eq B ∘ prodMap b (id B)) true X (pair (id X) b) => pullback-lemma right-square left-square
+        : Pullback {\this} (char-rel b) true X (pair (id X) b) => pullback-lemma right-square left-square
 
       \func right-square
         : Pullback {\this} {Bprod B B} {terminal} {omega} (eq B) true B (diagonal B) terminalMap =>
@@ -139,15 +139,6 @@
 
   \func true-over-obj {B : Ob} : Hom B omega => true ∘ terminalMap
 
-  \func true-over-obj-is-char {B : Ob} : true-over-obj = char (idIso {\this} {B}) =>
-    char-unique (\new Pullback {
-      | pbCoh => rewrite id-right idp
-      | pbMap p1 _ _ => p1
-      | pbBeta1 => rewrite id-left idp
-      | pbBeta2 => terminal-unique
-      | pbEta c _ => rewriteI id-left $ rewriteI {4} id-left c
-    })
-
   \func monic+epi=iso{X Y : Ob} (m : Mono {\this} {X} {Y}) (m-is-epi : isEpi {\this} {X} {Y} m)
     : Iso {\this} {X} {Y} m =>
     \let equalizer => monic-is-regular m
@@ -176,30 +167,44 @@
 
   -- Topos is cartesian closed
 
-  \func v {B C : Ob} : Hom (Bprod (P $ Bprod B C) B) (P C) =>
+  {-
+  Consider P (B x C) as the type of binary relations between elements of B and C.
+  Then, 'image' takes a relation S and an element b of B and returns the subset of C that corresponds to b.
+  -}
+
+  \func image {B C : Ob} : Hom (Bprod (P $ Bprod B C) B) (P C) =>
     p-transpose $ belongs {_} {Bprod B C} ∘ associator-iso.f
 
-  \func u' {B C : Ob} : Hom (Bprod (P $ Bprod B C) B) omega => is-singleton ∘ v
+  -- 'single-image-test' takes a relation S and element b of B and tests if the image of relation is a singleton subset.
 
-  \func u {B C : Ob} : Hom (P $ Bprod B C) (P B) => p-transpose u'
+  \func is-image-single {B C : Ob} : Hom (Bprod (P $ Bprod B C) B) omega => is-singleton ∘ image
 
-  \func graphs {B C : Ob} : Pullback (name (true-over-obj {\this} {B})) (u {\this} {B} {C}) =>
-    pullback (name (true-over-obj {\this} {B})) (u {\this} {B} {C})
+  {-
+  The idea: a relation S between B and C is functional iff all elements of B have a single image under S.
+  'all-with-single-img' returns the subset consisinf of elements of B with singleton images.
+  -}
+
+  \func all-with-single-img {B C : Ob} : Hom (P $ Bprod B C) (P B) => p-transpose is-image-single
+
+  -- Finally, the apex of the pullback gives the type of functional relations between B and C.
+
+  \func graphs {B C : Ob} : Pullback (name (true-over-obj {\this} {B})) (all-with-single-img {\this} {B} {C}) =>
+    pullback (name (true-over-obj {\this} {B})) (all-with-single-img {\this} {B} {C})
     \where {
       \func apex (B C : Ob) : Ob => Pullback.apex {graphs {_} {B} {C} }
 
-      \func m {B C : Ob} : Hom (graphs.apex B C) (P $ Bprod B C) => Pullback.pbProj2 {graphs {_} {B} {C}}
+      \func map {B C : Ob} : Hom (graphs.apex B C) (P $ Bprod B C) => Pullback.pbProj2 {graphs {_} {B} {C}}
     }
 
   \lemma terminate {B C : Ob} {f : Hom B C} : terminalMap ∘ f = terminalMap => terminal-unique
 
   \func eval {B C : Ob} : Hom (Bprod (graphs.apex B C) B) C =>
-    pbMap {char-pullback $ singleton-mono C} (v ∘ prodMap graphs.m (id B)) terminalMap comm
+    pbMap {char-pullback $ singleton-mono C} (image ∘ prodMap graphs.map (id B)) terminalMap comm
     \where {
-      \func comm  : char (singleton-mono C) ∘ (v ∘ prodMap graphs.m (id B)) = true ∘ terminalMap =>
+      \func comm  : char (singleton-mono C) ∘ (image ∘ prodMap graphs.map (id B)) = true ∘ terminalMap =>
         run {
           rewriteI o-assoc ,
-          rewrite (antitranspose-eq _ : char (singleton-mono C) ∘ v = belongs ∘ prodMap u (id B)),
+          rewrite (antitranspose-eq _ : char (singleton-mono C) ∘ image = belongs ∘ prodMap all-with-single-img (id B)),
           rewrite o-assoc,
           rewriteI (prod-id-right, pbCoh {graphs}),
           rewrite prod-id-right,
@@ -208,13 +213,14 @@
         }
     }
 
-  \func s0 {A B C : Ob} (f : Hom (Bprod A B) C) : Hom (Bprod (Bprod A B) C) omega => eq C ∘ prodMap f (id C)
+  \func h {A B C : Ob} (f : Hom (Bprod A B) C) : Hom A (P $ Bprod B C) =>
+    p-transpose (char-rel f ∘ associator-iso.hinv)
 
-  \func p-s0-is-v {A B C : Ob} (f : Hom (Bprod A B) C) : p-transpose (s0 f) = v ∘ prodMap (p-transpose (s0 f ∘ associator-iso.hinv)) (id B) =>
+  \func ptranspose-eqq-eq {A B C : Ob} (f : Hom (Bprod A B) C)
+    : p-transpose (char-rel f) = image ∘ prodMap (h f) (id B) =>
     run {
-      unfold s0,
       inv,
-      p-transpose-unique {\this} {_} {_} {s0 f} {_},
+      p-transpose-unique {\this} {_} {_} {char-rel f} {_},
       rewrite prod-id-right,
       rewriteI (o-assoc, antitranspose-eq {\this} _),
       rewrite o-assoc,
@@ -222,85 +228,12 @@
       rewrite (o-assoc, Iso.hinv_f {associator-iso}, id-right) idp
     }
 
-  \func p-s0-is-singleton {A B C : Ob} (f : Hom (Bprod B A) C) : p-transpose (s0 f) = singleton C ∘ f =>
-    run {
-      unfold s0,
-      inv,
-      p-transpose-unique {\this} {_} {_} {eq C ∘ prodMap f (id C)} {_},
-      rewrite (prod-id-right _ _),
-      rewrite (p-transpose-univ (eq C)),
-      o-assoc
-    }
-
-  \func h {A B C : Ob} (f : Hom (Bprod A B) C) : Hom A (P $ Bprod B C) =>
-    p-transpose (eq C ∘ prodMap f (id C) ∘ associator-iso.hinv)
-
-  \func transpose' {A B C : Ob} (f : Hom (Bprod A B) C) : Hom A (graphs {\this} {B} {C}) =>
-    pbMap terminalMap (h f)
-        (unfold (Pullback.f, Pullback.g) (rewriteI (step5, step3, step4, step1, step2, p-s0-is-singleton _, p-s0-is-v f) idp))
-    \where {
-      \func step1 : is-singleton ∘ (singleton C ∘ f) = true-over-obj ∘ f =>
-        rewriteI o-assoc $ rewrite (pbCoh {char-pullback (singleton-mono C)}) idp
-
-      \func step2 : is-singleton {_} {C} ∘ (v ∘ prodMap (h f) (id B) ) = u' ∘ prodMap (h f) (id B) =>
-        rewriteI o-assoc $ rewrite (idp : is-singleton {_} {C} ∘ v = u') idp
-
-      \func step3 : p-transpose (u' ∘ prodMap (h f) (id B)) = u ∘ (h f) =>
-        inv (p-transpose-unique $ unfold $ rewrite prod-id-right $ rewriteI (o-assoc, antitranspose-eq _) idp)
-
-      \func step4 : true-over-obj ∘ f = true-over-obj {_} {B} ∘ proj2 {_} {A} {B} =>
-        unfold true-over-obj $ rewrite (o-assoc, terminate, o-assoc, terminate) idp
-
-      \func step5 : p-transpose (true-over-obj {_} {B} ∘ proj2 {_} {A} {B}) = name (true-over-obj {_} {B}) ∘ terminalMap =>
-        run {
-          inv,
-          p-transpose-unique {\this} {_} {_} {true-over-obj {_} {B} ∘ proj2 {_} {A} {B}} {name (true-over-obj {_} {B}) ∘ terminalMap},
-          rewrite (prod-id-right, inv o-assoc, inv $ antitranspose-eq _),
-          rewrite (o-assoc, terminate, o-assoc, o-assoc, terminate),
-          idp
-        }
-    }
-
-  \func last {A B C : Ob} (f : Hom (Bprod A B) C) : singleton C ∘ f = v ∘ prodMap (graphs.m {_} {B} {C} ∘ transpose' f) (id B) =>
-    rewrite (pbBeta2 {graphs {_} {B} {C}}, inv (p-s0-is-singleton _)) (p-s0-is-v _)
-
-  \func transpose-univ' {A B C : Ob} (f : Hom (Bprod A B) C) : f = eval {\this} {B} {C} ∘ prodMap (transpose' f) (id B) =>
-    unfold $ pbEta {char-pullback (singleton-mono C)} (rewrite (inv o-assoc, pbBeta1 {char-pullback (singleton-mono C)}) $ unfold $ rewrite (o-assoc, inv $ prod-id-right _ _) (last _))
-                 (unfold Pullback.pbProj2 $ terminal-unique)
-
-  \func transpose-unique' {A B C : Ob} {f : Hom (Bprod A B) C} {g : Hom A (graphs.apex B C)}
-                          (s : f = eval ∘ prodMap g (id B)) : transpose' f = g =>
-    pbEta {graphs {_} {B} {C}} terminal-unique (run {
-      unfold,
-      rewrite (pbBeta2 {graphs {_} {B} {C}}),
-      unfold h ,
-      inv,
-      p-transpose-unique {\this} {_} {_} {eq C ∘ prodMap f (id C) ∘ hinv {associator-iso}} {pbProj2 ∘ g},
-      rewrite step2 ,
-      rewrite (o-assoc, associator-iso.f_hinv, id-right),
-      idp
-    })
-    \where {
-      \func step1 : singleton C ∘ f = v ∘ (prodMap (graphs.m {_} {B} {C} ∘ g) (id B)) =>
-        rewrite (s, inv o-assoc, pbBeta1 {char-pullback (singleton-mono C)}, o-assoc, inv $ prod-id-right _ _) idp
-
-      \func step2 : s0 f = belongs {_} {Bprod B C} ∘ prodMap (graphs.m ∘ g) (id (Bprod B C)) ∘ associator =>
-        run {
-          transpose-inj,
-          rewrite (p-s0-is-singleton _, step1),
-          p-transpose-unique {\this} {_} {_} {belongs ∘ prodMap (graphs.m ∘ g) (id (Bprod B C)) ∘ associator} {v ∘ prodMap (graphs.m ∘ g) (id B)},
-          rewrite {2} (prod-id-right _ _),
-          rewriteI o-assoc,
-          rewrite (inv $ antitranspose-eq _ : belongs ∘ prodMap v (id C) = belongs ∘ associator-iso.f),
-          rewrite {2} o-assoc ,
-          rewrite (inv $ associtor-prod _ _ _, prod-id),
-          o-assoc
-        }
-    }
+  \lemma singleton-is-single {C : Ob} : is-singleton ∘ singleton C = true-over-obj =>
+    pbCoh {char-pullback (singleton-mono C)}
 
   \func exp-adjoint (B : Ob) : RightAdjointCoreflection \this \this (bprodFunctorRight B)
-    \cowith
-      | coreflection => exp B
+  \cowith
+    | coreflection => exp B
     \where {
       \func exp (B : Ob) (C : Ob) : Coreflection (bprodFunctorRight B) C \cowith
         | R => graphs.apex B C
@@ -310,12 +243,74 @@
           | ret_f _ => transpose-unique' idp
           | f_sec g => inv $ transpose-univ' g
         }
+
+      \func transpose' {A B C : Ob} (f : Hom (Bprod A B) C) : Hom A (graphs.apex B C) =>
+        pbMap terminalMap (h f) (unfold (Pullback.f, Pullback.g) $
+        rewrite (step5, step4, step3, step2, step1, eqq-p-transpose-s _, ptranspose-eqq-eq f) idp)
+        \where {
+          \func step1 : true-over-obj ∘ f = is-singleton ∘ (singleton C ∘ f) =>
+            rewriteI o-assoc $ rewrite singleton-is-single idp
+
+          \func step2 : is-image-single ∘ prodMap (h f) (id B) = is-singleton ∘ (image ∘ prodMap (h f) (id B) ) =>
+            rewriteI o-assoc $ idp
+
+          \func step3 : all-with-single-img ∘ (h f) = p-transpose (is-image-single ∘ prodMap (h f) (id B)) =>
+            p-transpose-unique $ unfold $ rewrite prod-id-right $ rewriteI (o-assoc, antitranspose-eq _) idp
+
+          \func step4 : true-over-obj {_} {B} ∘ proj2 {_} {A} {B} = true-over-obj ∘ f =>
+            unfold true-over-obj $ rewrite (o-assoc, terminate, o-assoc, terminate) idp
+
+          \func step5
+            : name (true-over-obj {_} {B}) ∘ terminalMap = p-transpose (true-over-obj {_} {B} ∘ proj2 {_} {A} {B}) =>
+            run {
+              p-transpose-unique {\this} {_} {_} {true-over-obj {_} {B} ∘ proj2 {_} {A} {B}} {name (true-over-obj {_} {B}) ∘ terminalMap},
+              rewrite (prod-id-right, inv o-assoc, inv $ antitranspose-eq _),
+              rewrite (o-assoc, terminate, o-assoc, o-assoc, terminate),
+              idp
+            }
+        }
+
+      \func transpose-univ' {A B C : Ob} (f : Hom (Bprod A B) C) : f = eval ∘ prodMap (transpose' f) (id B) =>
+        \let lem  : singleton C ∘ f = image ∘ prodMap (graphs.map ∘ transpose' f) (id B) =>
+          rewrite (pbBeta2 {graphs}, eqq-p-transpose-s _) (ptranspose-eqq-eq _)
+        \in
+          pbEta {char-pullback (singleton-mono C)}
+              (rewrite (inv o-assoc, pbBeta1 {char-pullback (singleton-mono C)}) $ rewrite (o-assoc, inv $ prod-id-right _ _) lem)
+              terminal-unique
+
+      \func transpose-unique' {A B C : Ob} {f : Hom (Bprod A B) C} {g : Hom A (graphs.apex B C)}
+                              (s : f = eval ∘ prodMap g (id B)) : transpose' f = g =>
+        pbEta {graphs} terminal-unique (run {
+          unfold,
+          rewrite (pbBeta2 {graphs}),
+          unfold h, inv,
+          p-transpose-unique {\this} {_} {_} {eq C ∘ prodMap f (id C) ∘ hinv {associator-iso}} {pbProj2 ∘ g},
+          rewrite step2, rewrite (o-assoc, associator-iso.f_hinv, id-right),
+          idp
+        })
+        \where {
+          \func step1 : singleton C ∘ f = image ∘ (prodMap (graphs.map {_} {B} {C} ∘ g) (id B)) =>
+            rewrite (s, inv o-assoc, pbBeta1 {char-pullback (singleton-mono C)}, o-assoc, inv $ prod-id-right _ _) idp
+
+          \func step2 : char-rel f = belongs {_} {Bprod B C} ∘ prodMap (graphs.map ∘ g) (id (Bprod B C)) ∘ associator =>
+            run {
+              transpose-inj,
+              rewrite (inv $ eqq-p-transpose-s _, step1),
+              p-transpose-unique {\this} {_} {_} {belongs ∘ prodMap (graphs.map ∘ g) (id (Bprod B C)) ∘ associator} {image ∘ prodMap (graphs.map ∘ g) (id B)},
+              rewrite {2} (prod-id-right _ _),
+              rewriteI o-assoc,
+              rewrite (inv $ antitranspose-eq _ : belongs ∘ prodMap image (id C) = belongs ∘ associator-iso.f),
+              rewrite {2} o-assoc ,
+              rewrite (inv $ associtor-prod _ _ _, prod-id),
+              o-assoc
+            }
+        }
     }
 
   \default exp (B : Ob) : isExponential {\this} B => RightAdjointCoreflection.toAdjointCounit (exp-adjoint B)
 }
 
-\lemma sigma-prop-ext {A : \Prop} (a : A) : A = (\Sigma ) => exts (\lam _ => (), \lam _ => a)
+\lemma sigma-prop-ext {A : \Prop} (a : A) : A = (\Sigma) => exts (\lam _ => (), \lam _ => a)
 
 \lemma sigma-prop-ext-inv {A : \Prop} (eq : A = (\Sigma)) : A => propExt.conv eq ()
 
