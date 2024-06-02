@@ -6,13 +6,14 @@
 \import Algebra.Ring
 \import Algebra.Semiring
 \import Arith.Nat
+\import Data.Array
 \import Data.Or
 \import Function.Meta
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.Lattice
 \import Order.LinearOrder
-\import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
@@ -29,6 +30,57 @@
 
 \class OrderedAbMonoid \extends OrderedAddMonoid, AbMonoid
   | <_+-right z x<y => transport2 (<) +-comm +-comm (<_+-left z x<y)
+
+\class LinearlyOrderedAbMonoid \extends OrderedAbMonoid, LinearOrder, Lattice {
+  | <_+-cancel-left (x : E) {y z : E} : x + y < x + z -> y < z
+  | <_+-cancel-right (z : E) {x y : E} : x + z < y + z -> x < y
+
+  \lemma <=_+ {a b c d : E} (a<=b : a <= b) (c<=d : c <= d) : a + c <= b + d
+    => \case <-comparison (b + c) __ \with {
+      | byLeft b+d<b+c => c<=d (<_+-cancel-left b b+d<b+c)
+      | byRight b+c<a+c => a<=b (<_+-cancel-right c b+c<a+c)
+    }
+
+  \lemma <=_+-left {a b c d : E} (p : a <= c) (q : b < d) : a + b < c + d
+    => <_+-right a q <∘l <=_+ p <=-refl
+
+  \lemma <=_+-right {a b c d : E} (p : a < c) (q : b <= d) : a + b < c + d
+    => <_+-left b p <∘l <=_+ <=-refl q
+
+  \lemma <_+-invert-right {a b c d : E} (p : b + d <= a + c) (q : c < d) : b < a
+    => <_+-cancel-right c $ <_+-right b q <∘l p
+
+  \lemma <_+-invert-left {a b c d : E} (p : b + d < a + c) (q : c <= d) : b < a
+    => <_+-cancel-right c $ <=_+ <=-refl q <∘r p
+
+  \lemma BigSum_<= {n : Nat} {l l' : Array E n} (p : \Pi (j : Fin n) -> l j <= l' j) : BigSum l <= BigSum l' \elim n, l, l'
+    | 0, nil, nil => <=-refl
+    | suc n, a :: l, a' :: l' => <=_+ (p 0) $ BigSum_<= \lam j => p (suc j)
+
+  \lemma BigSum_>=0 {l : Array E} (q : \Pi (j : Fin l.len) -> 0 <= l j) : 0 <= BigSum l
+    => transport (`<= _) BigSum_replicate0 $ BigSum_<= {_} {_} {replicate l.len zro} q
+
+  \lemma BigSum_>0 {l : Array E} (q : \Pi (j : Fin l.len) -> 0 <= l j) (p : ∃ (j : Fin l.len) (0 < l j)) : 0 < BigSum l \elim l, p
+    | nil, inP ((),_)
+    | a :: l, inP (0, p) => transport (`< _) zro-right $ <=_+-right p $ BigSum_>=0 \lam j => q (suc j)
+    | a :: l, inP (suc j, p) => transport (`< _) zro-right $ <=_+-left (q 0) $ BigSum_>0 (\lam j => q (suc j)) $ inP (j,p)
+
+  \lemma meet_+-left {a b c : E} : a + b ∧ c = (a + b) ∧ (a + c)
+    => <=-antisymmetric (meet-univ (<=_+ <=-refl meet-left) (<=_+ <=-refl meet-right)) \lam p =>
+        \have t => LinearOrder.meet/=left $ <_/= $ <_+-cancel-left a $ p <∘l meet-left
+        \in meet-right $ rewrite t in p
+
+  \lemma meet_+-right {a b c : E} : a ∧ b + c = (a + c) ∧ (b + c)
+    => +-comm *> meet_+-left *> pmap2 (∧) +-comm +-comm
+
+  \lemma join_+-left {a b c : E} : a + (b ∨ c) = (a + b) ∨ (a + c)
+    => <=-antisymmetric (\lam p =>
+        \have t => LinearOrder.join/=left $ <_/= $ <_+-cancel-left a $ join-left <∘r p
+        \in join-right $ rewrite t in p) $ join-univ (<=_+ <=-refl join-left) (<=_+ <=-refl join-right)
+
+  \lemma join_+-right {a b c : E} : (a ∨ b) + c = (a + c) ∨ (b + c)
+    => +-comm *> join_+-left *> pmap2 (∨) +-comm +-comm
+}
 
 \class PreorderedAddGroup \extends AddGroup
   | isPos : E -> \Prop
@@ -91,11 +143,85 @@
 
   \lemma negative_<-right {x y : E} (p : x < negative y) : y < negative x
     => transport (`< _) negative-isInv (negative_< p)
+
+  \lemma <-diff-mid {x y z : E} (p : x - y < z) : x < z + y
+    => simplify in <_+-left y p
+
+  \lemma <-diff-mid-conv {x y z : E} (p : x < z + y) : x - y < z
+    => simplify in <_+-left (negative y) p
 } \where {
   \type \infix 4 < {A : PreorderedAddGroup} (x y : A) => isPos (y - x)
 }
 
-\class OrderedAbGroup \extends OrderedAbMonoid, OrderedAddGroup, AbGroup
+\class OrderedAbGroup \extends OrderedAbMonoid, OrderedAddGroup, AbGroup {
+  \lemma <-diff-left {x y z : E} (p : x - y < z) : x - z < y
+    => (simplify, rewrite +-comm) in <_+-right (negative z) (<-diff-mid p)
+}
+
+\class LinearlyOrderedAbGroup \extends OrderedAbGroup, LinearlyOrderedAbMonoid {
+  | <_+-comparison (x y : E) : isPos (x + y) -> isPos x || isPos y
+  | <_+-connectedness {x : E} : Not (isPos x) -> Not (isNeg x) -> x = zro
+
+  | <_+-cancel-left x {y} {z} x+y<x+z =>
+    transport2 (<)
+        (inv +-assoc *> pmap (`+ y) negative-left *> zro-left)
+        (inv +-assoc *> pmap (`+ z) negative-left *> zro-left)
+        (<_+-right (negative x) x+y<x+z)
+  | <_+-cancel-right z {x} {y} x+z<y+z =>
+    transport2 (<)
+        (+-assoc *> pmap (x +) negative-right *> zro-right)
+        (+-assoc *> pmap (y +) negative-right *> zro-right)
+        (<_+-left (negative z) x+z<y+z)
+  | <-comparison y {x} {z} x<z => \case <_+-comparison (z - y) (y - x) (transport isPos (inv OrderedAddGroup.diff_+) x<z) \with {
+    | byLeft p => byRight p
+    | byRight p => byLeft p
+  }
+  | <-connectedness x/<y y/<x => fromZero $ <_+-connectedness (y/<x __) \lam p => x/<y (fromNeg p)
+
+  \lemma negative_<= {x y : E} (x<=y : x <= y) : negative y <= negative x
+    => \lam -x<-y => x<=y $ repeat {2} (rewrite negative-isInv in) (negative_< -x<-y)
+
+  \func abs (x : E) => x ∨ negative x
+
+  \lemma abs>=id {x : E} : x <= abs x
+    => join-left
+
+  \lemma abs>=neg {x : E} : negative x <= abs x
+    => join-right
+
+  \lemma abs>=0 {x : E} : 0 <= abs x
+    => \lam p => <-irreflexive $ negative_positive (join-left <∘r p) <∘ join-right <∘r p
+
+  \lemma abs_negative {x : E} : abs (negative x) = abs x
+    => <=-antisymmetric (join-univ join-right $ rewrite negative-isInv join-left) (join-univ (=_<= (inv negative-isInv) <=∘ join-right) join-left)
+
+  \lemma abs-ofPos {x : E} (x>=0 : 0 <= x) : abs x = x
+    => <=-antisymmetric (join-univ <=-refl $ transport2 (<=) zro-left negative-right (<=_+ x>=0 <=-refl) <=∘ x>=0) join-left
+
+  \lemma abs-ofNeg {x : E} (x<=0 : x <= 0) : abs x = negative x
+    => inv abs_negative *> abs-ofPos (rewrite negative_zro in negative_<= x<=0)
+
+  \lemma abs_abs {x : E} : abs (abs x) = abs x
+    => abs-ofPos abs>=0
+
+  \lemma abs_+ {x y : E} : abs (x + y) <= abs x + abs y
+    => join-univ (<=_+ join-left join-left) $ rewrite (negative_+,+-comm) $ <=_+ join-right join-right
+
+  \lemma abs_- {x y : E} : abs x - abs y <= abs (x - y)
+    => transport (_ <=) (+-assoc *> pmap (_ +) negative-right *> zro-right) $ <=_+ (transport (abs __ <= _) (+-assoc *> pmap (x +) negative-left *> zro-right) abs_+) <=-refl
+
+  \lemma abs_-' {x y : E} : abs y - abs x <= abs (x - y)
+    => transport (_ <=) (simplify *> abs_negative) abs_-
+
+  \lemma abs_zro : abs zro = zro
+    => <=-antisymmetric (join-univ <=-refl $ rewrite negative_zro <=-refl) abs>=0
+
+  \lemma abs_zro-ext {x : E} (p : abs x = zro) : x = zro
+    => <=-antisymmetric (transport (_ <=) p join-left) $ transport2 (<=) negative_zro negative-isInv $ negative_<= $ transport (_ <=) p join-right
+
+  \lemma abs_-_< {x y z : E} (p : x - y < z) (q : y - x < z) : abs (x - y) < z
+    => LinearOrder.<_join-univ p (simplify q)
+}
 
 \class OrderedSemiring \extends Semiring, OrderedAbMonoid {
   | zro<ide : zro < ide
@@ -122,23 +248,9 @@
     => transport (_ <) zro_*-left (<_*_positive-left x<0 y>0)
 }
 
-\class LinearlyOrderedSemiring \extends OrderedSemiring, LinearOrder, Lattice {
-  | <_+-cancel-left (x : E) {y z : E} : x + y < x + z -> y < z
-  | <_+-cancel-right (z : E) {x y : E} : x + z < y + z -> x < y
+\class LinearlyOrderedSemiring \extends OrderedSemiring, LinearlyOrderedAbMonoid {
   | <_*-cancel-left {x y z : E} : x * y < x * z -> (\Sigma (x > zro) (y < z)) || (\Sigma (x < zro) (y > z))
   | <_*-cancel-right {x y z : E} : x * z < y * z -> (\Sigma (z > zro) (x < y)) || (\Sigma (z < zro) (x > y))
-
-  \lemma <=_+ {a b c d : E} (a<=b : a <= b) (c<=d : c <= d) : a + c <= b + d
-    => \case <-comparison (b + c) __ \with {
-      | byLeft b+d<b+c => c<=d (<_+-cancel-left b b+d<b+c)
-      | byRight b+c<a+c => a<=b (<_+-cancel-right c b+c<a+c)
-    }
-
-  \lemma <=_+-left {a b c d : E} (p : a <= c) (q : b < d) : a + b < c + d
-    => <_+-right a q <∘l <=_+ p <=-refl
-
-  \lemma <=_+-right {a b c d : E} (p : a < c) (q : b <= d) : a + b < c + d
-    => <_+-left b p <∘l <=_+ <=-refl q
 
   \lemma <=_*_positive-left {x y z : E} (x<=y : x <= y) (z>=0 : 0 <= z) : x * z <= y * z
     => \case <_*-cancel-right __ \with {
@@ -200,15 +312,17 @@
       | byRight (_,r) => r
     }
 
-  \lemma <_+-invert-right {a b c d : E} (p : b + d <= a + c) (q : c < d) : b < a
-    => <_+-cancel-right c $ <_+-right b q <∘l p
+  \lemma square_>=0 {x : E} : 0 <= x * x
+    => \lam xx<0 => \case <_*-cancel-left (transportInv (_ <) zro_*-right xx<0) \with {
+      | byLeft (x>0,x<0) => <-irreflexive (x<0 <∘ x>0)
+      | byRight (x<0,x>0) => <-irreflexive (x<0 <∘ x>0)
+    }
 
-  \lemma <_+-invert-left {a b c d : E} (p : b + d < a + c) (q : c <= d) : b < a
-    => <_+-cancel-right c $ <=_+ <=-refl q <∘r p
-
-  \lemma BigSum_<= {n : Nat} {l l' : Array E n} (p : \Pi (j : Fin n) -> l j <= l' j) : BigSum l <= BigSum l' \elim n, l, l'
-    | 0, nil, nil => <=-refl
-    | suc n, a :: l, a' :: l' => <=_+ (p 0) $ BigSum_<= \lam j => p (suc j)
+  \lemma sum_squares_>0 {l : Array E} (p : ∃ (j : Fin l.len) (0 < l j || l j < 0)) : 0 < BigSum (map (\lam x => x * x) l) \elim p
+    | inP (j,p) => BigSum_>0 (\lam j => square_>=0) $ inP $ later (j, \case \elim p \with {
+      | byLeft p => <_*_positive_positive p p
+      | byRight p => <_*_negative_negative p p
+    })
 
   \lemma inv-positive (t : Inv {\this}) (p : t > 0) : t.inv > 0
     => \case <_*-cancel-left (transport2 (<) (inv zro_*-right) (inv t.inv-right) zro<ide) \with {
@@ -247,14 +361,6 @@
     | 0 => zro<ide
     | suc k => <_*_positive_positive (pow>0 p) p
 
-  \lemma meet_+-left {a b c : E} : a + b ∧ c = (a + b) ∧ (a + c)
-    => <=-antisymmetric (meet-univ (<=_+ <=-refl meet-left) (<=_+ <=-refl meet-right)) \lam p =>
-        \have t => meet/=left $ <_/= $ <_+-cancel-left a $ p <∘l meet-left
-        \in meet-right $ rewrite t in p
-
-  \lemma meet_+-right {a b c : E} : a ∧ b + c = (a + c) ∧ (b + c)
-    => +-comm *> meet_+-left *> pmap2 (∧) +-comm +-comm
-
   \lemma meet_*-left {a b c : E} (a>=0 : 0 <= a) : a * (b ∧ c) = (a * b) ∧ (a * c)
     => <=-antisymmetric (meet-univ (<=_*_positive-right a>=0 meet-left) (<=_*_positive-right a>=0 meet-right))
         \lam p => \have bc=b => meet/=right $ <_/= $ <_*_positive-cancel-left a>=0 $ p <∘l meet-right
@@ -264,14 +370,6 @@
     => <=-antisymmetric (meet-univ (<=_*_positive-left meet-left c>=0) (<=_*_positive-left meet-right c>=0))
         \lam p => \have ab=a => meet/=right $ <_/= $ <_*_positive-cancel-right c>=0 $ p <∘l meet-right
                   \in <_/= (<_*_positive-cancel-right c>=0 $ p <∘l meet-left) ab=a
-
-  \lemma join_+-left {a b c : E} : a + (b ∨ c) = (a + b) ∨ (a + c)
-    => <=-antisymmetric (\lam p =>
-        \have t => join/=left $ <_/= $ <_+-cancel-left a $ join-left <∘r p
-        \in join-right $ rewrite t in p) $ join-univ (<=_+ <=-refl join-left) (<=_+ <=-refl join-right)
-
-  \lemma join_+-right {a b c : E} : (a ∨ b) + c = (a + c) ∨ (b + c)
-    => +-comm *> join_+-left *> pmap2 (∨) +-comm +-comm
 
   \lemma join_*-left {a b c : E} (a>=0 : 0 <= a) : a * (b ∨ c) = (a * b) ∨ (a * c)
     => <=-antisymmetric
@@ -326,7 +424,7 @@
   | <_*_positive-right x>0 y<z => transport2 (<) *-comm *-comm (<_*_positive-left y<z x>0)
   | <_*_negative-right x<0 y<z => transport2 (>) *-comm *-comm (<_*_negative-left y<z x<0)
 
-\class LinearlyOrderedCSemiring \extends LinearlyOrderedSemiring, OrderedCSemiring, OrderedAbMonoid
+\class LinearlyOrderedCSemiring \extends LinearlyOrderedSemiring, OrderedCSemiring
   | <_+-cancel-right z x+z<y+z => <_+-cancel-left z (transport2 (<) +-comm +-comm x+z<y+z)
   | <_*-cancel-right x*z<y*z => <_*-cancel-left (transport2 (<) *-comm *-comm x*z<y*z)
   \where
@@ -335,10 +433,8 @@
 {- | An ordered ring is a linearly ordered domain and a distributive lattice such that the product of positive elements is positive
  -   and an element is apart from {zro} if and only if it is either positive or negative.
  -}
-\class OrderedRing \extends Domain, LinearlyOrderedSemiring, OrderedAbGroup {
+\class OrderedRing \extends Domain, LinearlyOrderedSemiring, LinearlyOrderedAbGroup {
   | ide>zro : isPos ide
-  | <_+-comparison (x y : E) : isPos (x + y) -> isPos x || isPos y
-  | <_+-connectedness {x : E} : Not (isPos x) -> Not (isNeg x) -> x = zro
   | positive_* {x y : E} : isPos x -> isPos y -> isPos (x * y)
   | positive_*-cancel {x y : E} : isPos (x * y) -> (\Sigma (isPos x) (isPos y)) || (\Sigma (isNeg x) (isNeg y))
   | positive=>#0 {x : E} : isPos x -> x `#0
@@ -361,26 +457,10 @@
 
   | zro<ide => transport isPos (inv minus_zro) ide>zro
 
-  | <-comparison y {x} {z} x<z => \case <_+-comparison (z - y) (y - x) (transport isPos (inv OrderedAddGroup.diff_+) x<z) \with {
-    | byLeft p => byRight p
-    | byRight p => byLeft p
-  }
-  | <-connectedness x/<y y/<x => fromZero $ <_+-connectedness (y/<x __) \lam p => x/<y (fromNeg p)
-
   | <_*_positive-left x<y z>0 => transport isPos rdistr_- (positive_* x<y (transport isPos minus_zro z>0))
   | <_*_positive-right x>0 y<z => transport isPos ldistr_- (positive_* (transport isPos minus_zro x>0) y<z)
   | <_*_negative-left x<y z<0 => transport isPos rdistr_- (negative_* (toNeg x<y) (transport isPos zro-left z<0))
   | <_*_negative-right x<0 y<z => transport isPos ldistr_- (negative_* (transport isPos zro-left x<0) (toNeg y<z))
-  | <_+-cancel-left x {y} {z} x+y<x+z =>
-    transport2 (<)
-               (inv +-assoc *> pmap (`+ y) negative-left *> zro-left)
-               (inv +-assoc *> pmap (`+ z) negative-left *> zro-left)
-               (<_+-right (negative x) x+y<x+z)
-  | <_+-cancel-right z {x} {y} x+z<y+z =>
-    transport2 (<)
-               (+-assoc *> pmap (x +) negative-right *> zro-right)
-               (+-assoc *> pmap (y +) negative-right *> zro-right)
-               (<_+-left (negative z) x+z<y+z)
   | <_*-cancel-left x*y<x*z =>
     \have x*[z-y]>0 => transportInv isPos ldistr_- x*y<x*z
     \in \case positive_*-cancel x*[z-y]>0 \with {
@@ -449,9 +529,6 @@
       | byRight (_, -y>0) => absurd (zro/>0 (transport isPos negative-right (positive_+ y>0 -y>0)))
     }
 
-  \lemma negative_<= {x y : E} (x<=y : x <= y) : negative y <= negative x
-    => \lam -x<-y => x<=y $ repeat {2} (rewrite negative-isInv in) (negative_< -x<-y)
-
   \func denseOrder (t : Inv (1 + 1)) : UnboundedDenseLinearOrder \cowith
     | DenseLinearOrder => LinearlyOrderedSemiring.denseOrder t
     | withoutUpperBound x => inP (x + 1, transport (`< _) zro-right $ <_+-right x zro<ide)
@@ -459,34 +536,6 @@
 
   \lemma inv-negative (t : Inv {\this}) (p : t < 0) : t.inv < 0
     => transport2 (<) negative-isInv negative_zro $ negative_< $ inv-positive (negative_inv t) (rewrite negative_zro in negative_< p)
-
-  -- ## abs
-
-  \func abs (x : E) => x ∨ negative x
-
-  \lemma abs>=id {x : E} : x <= abs x
-    => join-left
-
-  \lemma abs>=neg {x : E} : negative x <= abs x
-    => join-right
-
-  \lemma abs>=0 {x : E} : 0 <= abs x
-    => \lam p => <-irreflexive $ negative_positive (join-left <∘r p) <∘ join-right <∘r p
-
-  \lemma abs_negative {x : E} : abs (negative x) = abs x
-    => <=-antisymmetric (join-univ join-right $ rewrite negative-isInv join-left) (join-univ (=_<= (inv negative-isInv) <=∘ join-right) join-left)
-
-  \lemma abs-ofPos {x : E} (x>=0 : 0 <= x) : abs x = x
-    => <=-antisymmetric (join-univ <=-refl $ transport2 (<=) zro-left negative-right (<=_+ x>=0 <=-refl) <=∘ x>=0) join-left
-
-  \lemma abs-ofNeg {x : E} (x<=0 : x <= 0) : abs x = negative x
-    => inv abs_negative *> abs-ofPos (rewrite negative_zro in negative_<= x<=0)
-
-  \lemma abs_abs {x : E} : abs (abs x) = abs x
-    => abs-ofPos abs>=0
-
-  \lemma abs_+ {x y : E} : abs (x + y) <= abs x + abs y
-    => join-univ (<=_+ join-left join-left) $ rewrite (negative_+,+-comm) $ <=_+ join-right join-right
 
   \lemma abs_* {x y : E} : abs (x * y) = abs x * abs y
     => \have | lem1 {x : E} : x * y <= abs x * abs y => \lam p =>

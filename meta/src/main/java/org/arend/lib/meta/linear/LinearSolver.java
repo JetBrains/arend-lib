@@ -225,7 +225,7 @@ public class LinearSolver {
           : equation1.operation == Equation.Operation.LESS || equation2.operation == Equation.Operation.LESS
             ? Equation.Operation.LESS
             : Equation.Operation.LESS_OR_EQUALS,
-          new CompiledTerm(null, lhs), new CompiledTerm(null, rhs)));
+          new CompiledTerm(null, lhs, Collections.emptySet()), new CompiledTerm(null, rhs, Collections.emptySet())));
       }
     }
 
@@ -274,7 +274,7 @@ public class LinearSolver {
       case LESS_OR_EQUALS -> ext.linearSolverMeta.lessOrEquals;
       case EQUALS -> ext.linearSolverMeta.equals;
     };
-    return factory.tuple(equation.lhsTerm.concrete, factory.ref(constructor.getRef()), equation.rhsTerm.concrete);
+    return factory.tuple(equation.lhsTerm.concrete(), factory.ref(constructor.getRef()), equation.rhsTerm.concrete());
   }
 
   private ConcreteExpression equationsToConcrete(List<? extends Hypothesis<CompiledTerm>> equations) {
@@ -304,17 +304,30 @@ public class LinearSolver {
     return factory.tuple(result, factory.number(certificate.get(0)), factory.ref(ext.prelude.getIdp().getRef()), factory.app(factory.ref(ext.prelude.getIdp().getRef()), factory.arg(factory.ref(ext.Bool.getRef()), false), factory.arg(factory.ref(ext.true_.getRef()), false)));
   }
 
+  private <E> void removeUnusedVariables(List<Hypothesis<CompiledTerm>> hypotheses, List<E> values) {
+    Set<Integer> vars = new HashSet<>();
+    for (Hypothesis<CompiledTerm> hypothesis : hypotheses) {
+      vars.addAll(hypothesis.lhsTerm.vars());
+      vars.addAll(hypothesis.rhsTerm.vars());
+    }
+    for (int i = 0; i < values.size(); i++) {
+      if (!vars.contains(i)) {
+        values.set(i, null);
+      }
+    }
+  }
+
   private ConcreteExpression makeData(CoreClassCallExpression classCall, ConcreteExpression instanceArg, RingKind kind, List<CoreExpression> valueList) {
     boolean isRing = kind != RingKind.NAT && kind != RingKind.NONE || classCall.getDefinition().isSubClassOf(ext.equationMeta.OrderedRing);
     ConcreteExpression varsArg = factory.ref(ext.prelude.getEmptyArray().getRef());
     for (int i = valueList.size() - 1; i >= 0; i--) {
-      varsArg = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), varsArg);
+      varsArg = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, valueList.get(i) == null ? factory.ref(ext.zro.getRef()) : factory.core(valueList.get(i).computeTyped()), varsArg);
     }
     return factory.newExpr(factory.classExt(factory.ref((kind == RingKind.RAT_ALG ? ext.linearSolverMeta.LinearRatAlgebraData : kind == RingKind.RAT ? ext.linearSolverMeta.LinearRatData : isRing ? ext.linearSolverMeta.LinearRingData : ext.linearSolverMeta.LinearSemiringData).getRef()), Arrays.asList(factory.implementation((ext.equationMeta.RingDataCarrier).getRef(), instanceArg), factory.implementation(ext.equationMeta.DataFunction.getRef(), varsArg))));
   }
 
   private Equation<CompiledTerm> makeZeroLessOne(CoreExpression instance) {
-    return new Equation<>(instance, Equation.Operation.LESS, new CompiledTerm(null, Collections.emptyList()), new CompiledTerm(null, Collections.singletonList(BigInteger.ONE)));
+    return new Equation<>(instance, Equation.Operation.LESS, new CompiledTerm(null, Collections.emptyList(), Collections.emptySet()), new CompiledTerm(null, Collections.singletonList(BigInteger.ONE), Collections.emptySet()));
   }
 
   private void makeZeroLessVar(CoreExpression instance, TermCompiler compiler, List<Hypothesis<CompiledTerm>> result) {
@@ -339,7 +352,8 @@ public class LinearSolver {
           proof = factory.app(factory.ref(ext.linearSolverMeta.fromIntLE.getRef()), true, proof);
         }
       }
-      result.add(new Hypothesis<>(proof, instance, Equation.Operation.LESS_OR_EQUALS, new CompiledTerm(factory.ref(ext.equationMeta.zroTerm.getRef()), Collections.emptyList()), new CompiledTerm(factory.app(factory.ref(ext.equationMeta.varTerm.getRef()), true, factory.number(i - 1)), coefs), BigInteger.ONE));
+      int var = i - 1;
+      result.add(new Hypothesis<>(proof, instance, Equation.Operation.LESS_OR_EQUALS, new CompiledTerm(factory.ref(ext.equationMeta.zroTerm.getRef()), Collections.emptyList(), Collections.emptySet()), new CompiledTerm(factory.app(factory.ref(ext.equationMeta.varTerm.getRef()), true, factory.number(var)), coefs, Collections.singleton(var)), BigInteger.ONE));
     }
   }
 
@@ -471,11 +485,15 @@ public class LinearSolver {
             }
           }
           dropUnusedHypotheses(combinedSolutions, compiledRules);
+          List<CoreExpression> values = compiler.getValues().getValues();
+          List<Hypothesis<CompiledTerm>> newCompiledRules = new ArrayList<>(compiledRules);
+          newCompiledRules.add(new Hypothesis<>(null, null, null, compiledResults.term1, compiledResults.term2, BigInteger.ONE));
+          removeUnusedVariables(newCompiledRules, values);
           ConcreteAppBuilder builder = factory.appBuilder(factory.ref(function.getRef()))
-            .app(makeData(classCall, factory.core(instance), compiler.getKind(), compiler.getValues().getValues()), false)
+            .app(makeData(classCall, factory.core(instance), compiler.getKind(), values), false)
             .app(equationsToConcrete(compiledRules))
-            .app(compiledResults.term1.concrete)
-            .app(compiledResults.term2.concrete);
+            .app(compiledResults.term1.concrete())
+            .app(compiledResults.term2.concrete());
           for (int i = 0; i < solutions.size(); i++) {
             dropUnusedHypotheses(combinedSolutions, solutions.get(i).subList(2, solutions.get(i).size()));
             dropUnusedHypotheses(combinedSolutions, rulesSet.get(i).subList(2, rulesSet.get(i).size()));
@@ -501,7 +519,7 @@ public class LinearSolver {
               break;
             } else if (kind != RingKind.NAT) {
               RingKind newKind = BaseTermCompiler.getTermCompilerKind(newRules.get(0).instance, ext.equationMeta);
-              if (kind == RingKind.NONE || newKind == RingKind.NONE || kind.ordinal() > newKind.ordinal()) {
+              if (kind == RingKind.NONE && newKind != RingKind.RAT || newKind == RingKind.NONE || kind.ordinal() > newKind.ordinal() && !(newKind == RingKind.RAT && kind == RingKind.NONE)) {
                 found = true;
                 List<Hypothesis<CoreExpression>> newRules2 = new ArrayList<>(newRules.size() + 1);
                 boolean remove = true;
@@ -548,8 +566,10 @@ public class LinearSolver {
             dropUnusedHypotheses(subList, compiledEquations1.subList(1, compiledEquations1.size()));
             dropUnusedHypotheses(subList, subList);
             solutionFound[0] = true;
+            List<CoreExpression> values = compiler.getValues().getValues();
+            removeUnusedVariables(compiledEquations, values);
             return tc.typecheck(factory.appBuilder(factory.ref(ext.linearSolverMeta.solveContrProblem.getRef()))
-              .app(makeData(classCall, factory.core(instance), compiler.getKind(), compiler.getValues().getValues()), false)
+              .app(makeData(classCall, factory.core(instance), compiler.getKind(), values), false)
               .app(equationsToConcrete(compiledEquations))
               .app(certificateToConcrete(solution, compiledEquations1))
               .app(witnessesToConcrete(compiledEquations))

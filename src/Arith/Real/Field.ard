@@ -1,0 +1,208 @@
+\import Algebra.Field
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Rat
+\import Arith.Real
+\import Data.Or
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Operations
+\import Order.Lattice
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Product
+\import Topology.MetricSpace
+\import Topology.NormedAbGroup.Real
+\import Topology.NormedAbGroup
+\import Topology.TopAbGroup.Product
+\import Topology.TopSpace
+\import Topology.UniformSpace
+\import Topology.UniformSpace.Product
+\open LinearlyOrderedAbGroup
+\open ProductCoverSpace
+\open DiscreteOrderedField
+\open LinearOrder \hiding (<=)
+
+\instance RealRatAlgebra : OrderedFieldAlgebra RatField
+  | OrderedField => RealField
+  | *c a x => Real.fromRat a RealField.* x
+  | *c-assoc => pmap (RealField.`* _) (inv RealField.*-rat) *> RealField.*-assoc
+  | *c-ldistr => RealField.ldistr
+  | *c-rdistr => pmap (RealField.`* _) (inv RealAbGroup.+-rat) *> RealField.rdistr
+  | ide_*c => RealField.ide-left
+  | *c-comm-left => inv RealField.*-assoc
+  | coefMap => Real.fromRat
+  | coefMap_*c => inv RealField.ide-right
+  | coef_< p => real_<-char.2 (isDense p)
+  | coef_<-inv p => \case real_<-char.1 p \with {
+    | inP (a,x<a,a<y) => x<a <∘ a<y
+  }
+
+\instance RealField : OrderedField Real
+  | LinearlyOrderedAbGroup => RealAbGroup
+  | ide => 1
+  | * => *
+  | ide-left => unique1 (*-cover ∘ tuple (const (1 : Real)) id) id (\lam x => *-rat *> pmap Real.fromRat ide-left)
+  | *-comm => unique2 *-cover (*-cover ∘ tuple proj2 proj1) (\lam x y => *-rat *> pmap Real.fromRat *-comm *> inv *-rat)
+  | *-assoc => unique3 (*-cover ∘ prod *-cover id) (*-cover ∘ tuple (proj1 ∘ proj1) (*-cover ∘ prod proj2 id)) (\lam x y z => unfold $ unfold $ rewrite (*-rat,*-rat,*-rat,*-rat) $ pmap Real.fromRat *-assoc)
+  | ldistr => unique3 (*-cover ∘ tuple (proj1 ∘ proj1) (+-uniform ∘ prod proj2 id)) (+-uniform ∘ tuple (*-cover ∘ tuple (proj1 ∘ proj1) (proj2 ∘ proj1)) (*-cover ∘ tuple (proj1 ∘ proj1) proj2)) (\lam x y z => unfold $ unfold $ rewrite (RealAbGroup.+-rat,*-rat,*-rat,*-rat,RealAbGroup.+-rat) $ pmap Real.fromRat ldistr)
+  | ide>zro => idp
+  | positive_* x>0 y>0 => (*_positive-L x>0 y>0).2 \case L-rounded x>0, L-rounded y>0 \with {
+    | inP (a,a<x,a>0), inP (a',a'<y,a'>0) => inP (a, a', a>0, a'>0, a<x, a'<y, RatField.<_*_positive_positive a>0 a'>0)
+  }
+  | positive=>#0 {x : Real} x>0 => Monoid.Inv.lmake (pos-inv x>0) $ exts
+      (\lam c => ext (\lam l => \case (*_positive-L (pos-inv>0 x>0) x>0).1 l \with {
+        | inP (a, a', a>0, a'>0, byLeft a<=0, a'<x, c<aa') => absurd linarith
+        | inP (a, a', a>0, a'>0, byRight x<a1, a'<x, c<aa') => c<aa' <∘ transport (_ <) (finv-right $ RatField.>_/= a>0) (<_*_positive-right a>0 $ Real.LU-less a'<x x<a1)
+      }, \lam c<1 => (*_positive-L (pos-inv>0 x>0) x>0).2 $ unfold LowerReal.L \case Real.LU_*-focus-left x>0 c<1 \with {
+        | inP (b,bc<x,x<b) => \case L-rounded bc<x, L-rounded x>0 \with {
+          | inP (a',a'<x,bc<a'), inP (a'',a''<x,a''>0) =>
+            \have b>0 => Real.LU-less x>0 x<b
+            \in inP (finv b, a' ∨ a'', finv>0 b>0, a''>0 <∘l join-right, byRight $ transportInv x.U RatField.finv_finv x<b, real_join_L a'<x a''<x, transport (`< _) (inv *-assoc *> pmap (`*' c) (RatField.finv-left $ RatField.>_/= b>0) *> ide-left) (RatField.<_*_positive-right (finv>0 b>0) bc<a') <∘l LinearlyOrderedSemiring.<=_*_positive-right (<_<= $ finv>0 b>0) join-left)
+        }
+      }),
+       \lam d => ext (\lam u => \case (*_positive-U (pos-inv>0 x>0) x>0).1 u \with {
+         | inP (b,b',(b>0,b1<x),x<b',bb'<d) => transport (`< _) (finv-right $ RatField.>_/= b>0) (RatField.<_*_positive-right b>0 $ Real.LU-less b1<x x<b') <∘ bb'<d
+       }, \lam d>1 => (*_positive-U (pos-inv>0 x>0) x>0).2 \case Real.LU_*-focus-right x>0 d>1 \with {
+         | inP (a,a>0,a<x,x<ad) => \case U-rounded x<ad \with {
+           | inP (b',x<b',b'<ad) => inP (finv a, b', (finv>0 a>0, transportInv x.L RatField.finv_finv a<x), x<b', transport (_ <) (inv *-assoc *> pmap (`*' _) (RatField.finv-left $ RatField.>_/= a>0) *> ide-left) $ <_*_positive-right (finv>0 a>0) b'<ad)
+         }
+       }))
+  | #0=>eitherPosOrNeg {x} (xi : Monoid.Inv x) => \case U-inh {x * xi.inv} \with {
+    | inP (u,xy<u) => \case (real-lift2-char 0 u).1 (rewrite (\peval x * xi.inv) in (rewrite xi.inv-right idp : Real.L {x * xi.inv} 0), rewrite (\peval x * xi.inv) in xy<u) \with {
+      | inP (a',_,c1,d1,c2,d2,a'>0,_,c1<x,x<d1,c2<y,y<d2,h) => unfold at h $
+        \have | c1<d1 => Real.LU-less c1<x x<d1
+              | c2<d2 => Real.LU-less c2<y y<d2
+        \in \case dec<_<= c1 0, dec<_<= 0 d1 \with {
+          | inl c1<0, inl d1>0 => absurd $ <-irreflexive $ a'>0 <∘ transport (a' <) zro_*-left (h {0} {RatField.mid c2 d2} (c1<0,d1>0) (RatField.mid-between c2<d2)).1
+          | inl c1<0, inr d1<=0 => byRight $ RealAbGroup.negative_L.2 (UpperReal.U_<= x<d1 d1<=0)
+          | inr c1>=0, inl d1>0 => byLeft (LowerReal.L_<= c1<x c1>=0)
+          | inr c1>=0, inr d1<=0 => absurd $ <-irreflexive $ c1>=0 <∘r c1<d1 <∘l d1<=0
+        }
+    }
+  }
+  \where {
+    \open Monoid(* \as \infixl 7 *')
+    \open CoverMap
+
+    \lemma unique1 {X : SeparatedCoverSpace} (f g : CoverMap RealNormed X) (p : \Pi (x : Rat) -> f x = g x) {x : Real} : f x = g x
+      => dense-lift-unique rat_real rat_real.dense f g p x
+
+    \lemma unique2 {X : SeparatedCoverSpace} (f g : CoverMap (RealNormed ⨯ RealNormed) X) (p : \Pi (x y : Rat) -> f (x,y) = g (x,y)) {x y : Real} : f (x,y) = g (x,y)
+      => dense-lift-unique (prod rat_real rat_real) (prod.isDense rat_real.dense rat_real.dense) f g (\lam s => p s.1 s.2) (x,y)
+
+    \lemma unique3 {X : SeparatedCoverSpace} (f g : CoverMap (RealNormed ⨯ RealNormed ⨯ RealNormed) X) (p : \Pi (x y z : Rat) -> f ((x,y),z) = g ((x,y),z)) {x y z : Real} : f ((x,y),z) = g ((x,y),z)
+      => dense-lift-unique (prod (prod rat_real rat_real) rat_real) (prod.isDense (prod.isDense rat_real.dense rat_real.dense) rat_real.dense) f g (\lam s => p s.1.1 s.1.2 s.2) ((x,y),z)
+
+    \lemma *-rat-locally-uniform : LocallyUniformMap (RatNormed ⨯ RatNormed) RatNormed (\lam s => s.1 *' s.2)
+      => LocallyUniformMetricMap.makeLocallyUniformMap2 (*') \lam eps>0 => \case L-rounded (real_<_L.1 eps>0) \with {
+        | inP (eps',eps'<eps,eps'>0) => inP (1, RealAbGroup.zro<ide, \lam x0 y0 =>
+            \let | gamma => (finv (abs x0 + abs y0 + 3) *' eps') ∧ 1
+                 | lem : 0 < abs x0 + abs y0 + 3 => linarith (abs>=0 {_} {x0}, abs>=0 {_} {y0})
+                 | gamma>0 : 0 < gamma => <_meet-univ (RatField.<_*_positive_positive (RatField.finv>0 lem) eps'>0) zro<ide
+            \in inP (gamma, real_<_L.2 gamma>0, \lam {x} {x'} {y} {y'} x0x<1 y0y<1 xx'<gamma yy'<gamma =>
+              (rewrite norm-dist in, real_<_L.1, unfold) at x0x<1 $
+              (rewrite norm-dist in, real_<_L.1, unfold) at y0y<1 $
+              (rewrite norm-dist in, real_<_L.1, unfold) at xx'<gamma $
+              (rewrite norm-dist in, real_<_L.1, unfold) at yy'<gamma $
+              rewrite norm-dist $ real_<_L.2 $ L-closed eps'<eps $ later $ rewrite (equation {CRing} : x *' y - x' *' y' = x *' (y - y') + y' *' (x - x')) $
+              abs_+ <∘r rewrite (RatField.abs_*, RatField.abs_*) (RatField.<=_+ (RatField.<=_*_positive-right abs>=0 $ <_<= yy'<gamma)
+                                                                                (RatField.<=_*_positive-right abs>=0 $ <_<= xx'<gamma) <∘r
+                transport (`< _) rdistr (<_*_positive-left (linarith (abs_-' {_} {x0} {x}, abs_-' {_} {y0} {y}, abs_-' {_} {y} {y'}, meet-right : gamma <= 1) : abs x + abs y' < abs x0 + abs y0 + 3) gamma>0 <∘l
+                  RatField.<=_*_positive-right (<_<= lem) meet-left <=∘ Preorder.=_<=
+                    (inv *-assoc *> pmap (`*' _) (finv-right $ StrictPoset.>_/= $ later lem) *> ide-left)))))
+      }
+
+    \private \func *-cover-def : CoverMap (RealNormed ⨯ RealNormed) RealNormed
+      => real-lift2 (rat_real ∘ *-rat-locally-uniform)
+
+    \sfunc \infixl 7 * (x y : Real) : Real
+      => *-cover-def (x,y)
+
+    \lemma *-rat {x y : Rat} : x * y = {Real} x *' y
+      => (\peval x * y) *> dense-lift-char {_} {_} {_} {_} {prod.isDenseEmbedding rat_real.dense-coverEmbedding rat_real.dense-coverEmbedding} {rat_real ∘ *-rat-locally-uniform} (x,y)
+
+    \lemma *-cover : CoverMap (ProductCoverSpace RealNormed RealNormed) RealNormed (\lam s => s.1 * s.2)
+      => transportInv (CoverMap _ _) (ext \lam s => \peval s.1 * s.2) *-cover-def
+
+    \lemma *_positive-char {x y : Real} (x>0 : x.L 0) (y>0 : y.L 0) {c d : Rat} : open-rat-int c d (x * y) <-> ∃ (a b a' b' : Rat) (0 < a) (0 < a') (open-rat-int a b x) (open-rat-int a' b' y) (c < a *' a') (b *' b' < d)
+      => rewrite (\peval x * y) $ <->trans (real-lift2-char c d) $ unfold
+          (\lam (inP (a',b',c1,d1,c2,d2,c<a',b'<d,c1<x,x<d1,c2<y,y<d2,h)) => \case L-rounded (real_join_L c1<x x>0), U-rounded x<d1, L-rounded (real_join_L c2<y y>0), U-rounded y<d2 \with {
+            | inP (c1',c1'<x,c1_0<c1'), inP (d1',x<d1',d1'<d1), inP (c2',c2'<y,c2_0<c2'), inP (d2',y<d2',d2'<d2) =>
+              inP (c1', d1', c2', d2', join-right <∘r c1_0<c1', join-right <∘r c2_0<c2', (c1'<x,x<d1'), (c2'<y,y<d2'),
+                   c<a' <∘ (h (join-left <∘r c1_0<c1', Real.LU-less c1'<x x<d1) (join-left <∘r c2_0<c2', Real.LU-less c2'<y y<d2)).1,
+                   (h (Real.LU-less c1<x x<d1', d1'<d1) (Real.LU-less c2<y y<d2', d2'<d2)).2 <∘ b'<d)
+          }, \lam (inP (a,b,a',b',a>0,a'>0,(a<x,x<b),(a'<y,y<b'),c<aa',bb'<d)) => \case isDense c<aa', isDense bb'<d \with {
+            | inP (c',c<c',c'<aa'), inP (d',bb'<d',d'<d) => inP (c', d', a, b, a', b', c<c', d'<d, a<x, x<b, a'<y, y<b', \lam (a<x',x'<b) (a'<y',y'<b') =>
+                (c'<aa' <∘ <_*_positive-left a<x' a'>0 <∘ <_*_positive-right (a>0 <∘ a<x') a'<y',
+                 <_*_positive-left x'<b (a'>0 <∘ a'<y') <∘ <_*_positive-right (a>0 <∘ a<x' <∘ x'<b) y'<b' <∘ bb'<d'))
+          })
+
+    \lemma *_positive-L {x y : Real} (x>0 : x.L 0) (y>0 : y.L 0) {c : Rat} : LowerReal.L {x * y} c <-> ∃ (a a' : Rat) (0 < a) (0 < a') (x.L a) (y.L a') (c < a *' a')
+      => (\lam c<xy => \case U-inh {x * y} \with {
+            | inP (d,xy<d) => \case (*_positive-char x>0 y>0).1 (c<xy,xy<d) \with {
+              | inP (a,_,a',_,a>0,a'>0,(a<x,_),(a'<y,_),c<aa',_) => inP (a, a', a>0, a'>0, a<x, a'<y, c<aa')
+            }
+          }, \lam (inP (a,a',a>0,a'>0,a<x,a'<y,c<aa')) => \case x.U-inh, y.U-inh \with {
+            | inP (b,x<b), inP (b',y<b') => ((*_positive-char x>0 y>0 {c} {b *' b' + 1}).2 $ inP (a, b, a', b', a>0, a'>0, (a<x,x<b), (a'<y,y<b'), c<aa', linarith)).1
+          })
+
+    \lemma *_positive-U {x y : Real} (x>0 : x.L 0) (y>0 : y.L 0) {d : Rat} : UpperReal.U {x * y} d <-> ∃ (b b' : Rat) (x.U b) (y.U b') (b *' b' < d)
+      => (\lam xy<d => \case L-inh {x * y} \with {
+            | inP (c,c<xy) => \case (*_positive-char x>0 y>0).1 (c<xy,xy<d) \with {
+              | inP (_,b,_,b',_,_,(_,x<b),(_,y<b'),_,bb'<d) => inP (b, b', x<b, y<b', bb'<d)
+            }
+          }, \lam (inP (b,b',x<b,y<b',bb'<d)) => \case L-rounded x>0, L-rounded y>0 \with {
+            | inP (a,a<x,a>0), inP (a',a'<y,a'>0) => ((*_positive-char x>0 y>0 {a *' a' - 1} {d}).2 $ inP (a, b, a', b', a>0, a'>0, (a<x,x<b), (a'<y,y<b'), linarith, bb'<d)).2
+          })
+
+    \func pos-inv {x : Real} (x>0 : x.L 0) : Real \cowith
+      | L a => a <= 0 || x.U (finv a)
+      | L-inh => inP (0, byLeft <=-refl)
+      | L-closed {a} {b} p b<a => \case dec<_<= 0 b, \elim p \with {
+        | inl b>0, byLeft p => absurd linarith
+        | inl b>0, byRight p => byRight $ U-closed p $ finv_< b>0 b<a
+        | inr b<=0, _ => byLeft b<=0
+      }
+      | L-rounded {a} => \case dec<_<= a 0, __ \with {
+        | inl a<0, _ => inP (a *' ratio 1 2, byLeft linarith, linarith)
+        | inr a>=0, byLeft a<=0 => \case x.U-inh \with {
+          | inP (b,x<b) => inP (finv b, byRight $ transportInv x.U RatField.finv_finv x<b, rewrite (<=-antisymmetric a<=0 a>=0) $ finv>0 $ Real.LU-less x>0 x<b)
+        }
+        | inr a>=0, byRight x<a1 => \case U-rounded x<a1 \with {
+          | inP (b,x<b,b<a1) => inP (finv b, byRight $ transportInv x.U RatField.finv_finv x<b, finv_<-right (Real.LU-less x>0 x<b) b<a1)
+        }
+      }
+      | U a => \Sigma (0 < a) (x.L (finv a))
+      | U-inh => \case L-rounded x>0 \with {
+        | inP (a,a<x,a>0) => inP (finv a, (finv>0 a>0, transportInv x.L RatField.finv_finv a<x))
+      }
+      | U-closed (q>0,r) q<q' => (q>0 <∘ q<q', L-closed r $ finv_< q>0 q<q')
+      | U-rounded (q>0,q1<x) => \case L-rounded q1<x \with {
+        | inP (r,r<x,q1<r) => inP (finv r, (finv>0 $ finv>0 q>0 <∘ q1<r, transportInv x.L RatField.finv_finv r<x), finv_<-left q>0 q1<r)
+      }
+      | LU-disjoint p (q>0,r) => \case \elim p \with {
+        | byLeft p => p q>0
+        | byRight p => LU-disjoint r p
+      }
+      | LU-located {a} {b} a<b => \case dec<_<= 0 a \with {
+        | inl a>0 => \case x.LU-located (finv_< a>0 a<b) \with {
+          | byLeft p => byRight (a>0 <∘ a<b, p)
+          | byRight p => byLeft $ byRight p
+        }
+        | inr a<=0 => byLeft (byLeft a<=0)
+      }
+
+    \lemma pos-inv>0 {x : Real} (x>0 : x.L 0) : LowerReal.L {pos-inv x>0} 0
+      => byLeft <=-refl
+  }

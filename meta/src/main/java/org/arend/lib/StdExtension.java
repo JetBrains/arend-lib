@@ -159,7 +159,7 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new HidingMeta());
     contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
     contributor.declare(meta, new LongName("at"), "`((f_1, ... f_n) at x) r` replaces variable `x` with `f_1 (... (f_n x) ...)` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
-    contributor.declare(meta, new LongName("in"), "`f in x` is equivalent to `\\let r => f x \\in r`. It is usually used with `f` a meta such that `rewrite`, `simplify`, `simp_coe`, or `unfold`.", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 1, true), new InMeta(this));
+    contributor.declare(meta, new LongName("in"), "`f in x` is equivalent to `\\let r => f x \\in r`. Also, `(f_1, ... f_n) in x` is equivalent to `f_1 in ... f_n in x`. This meta is usually used with `f` being a meta such as `rewrite`, `simplify`, `simp_coe`, or `unfold`.", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 1, true), new InMeta(this));
     casesMeta = new CasesMeta(this);
     contributor.declare(meta, new LongName("cases"),
       """
@@ -216,6 +216,7 @@ public class StdExtension implements ArendExtension {
         * `assumption` {n} returns the n-th variables from the context counting from the end.
         * `assumption` {n} a1 ... ak applies n-th variable from the context to arguments a1, ... ak.
         """, Precedence.DEFAULT, new AssumptionMeta(this));
+    contributor.declare(meta, new LongName("defaultImpl"), "`defaultImpl C F E` returns the default implementation of field `F` in class `C` applied to expression `E`. The third argument can be omitted, in which case either `\\this` or `_` will be used instead,", Precedence.DEFAULT, new DefaultImplMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),

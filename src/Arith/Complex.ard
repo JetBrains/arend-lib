@@ -1,0 +1,56 @@
+\import Algebra.Field
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Algebra.Ring.Local
+\import Algebra.Semiring
+\import Arith.Real
+\import Function.Meta
+\import Logic
+\import Meta
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Arith.Real.Field
+
+\record Complex (re im : Real)
+
+\instance ComplexField : Field Complex
+  | zro => \new Complex 0 0
+  | + (x y : Complex) => \new Complex (x.re + y.re) (x.im + y.im)
+  | zro-left => ext (zro-left, zro-left)
+  | +-assoc => ext (+-assoc, +-assoc)
+  | +-comm => ext (+-comm, +-comm)
+  | CMonoid => ComplexMonoid
+  | ldistr => ext (equation, equation)
+  | negative (x : Complex) => \new Complex (negative x.re) (negative x.im)
+  | negative-left => ext (negative-left, negative-left)
+  | zro/=ide p => zro/=ide $ pmap (\lam (x : Complex) => x.re) p
+  | locality (x : Complex) => \case locality x.re \with {
+    | byLeft r => byLeft $ inv-char.2 $ byLeft r
+    | byRight r => byRight $ inv-char.2 $ byLeft r
+  }
+  | #0-tight c => ext (AddGroup.#0-tight \lam p => c $ inv-char.2 $ byLeft p, AddGroup.#0-tight \lam p => c $ inv-char.2 $ byRight p)
+  \where {
+    \open Monoid(Inv)
+
+    \instance ComplexMonoid : CMonoid Complex
+      | ide => \new Complex 1 0
+      | * (x y : Complex) => \new Complex (x.re * y.re - x.im * y.im) (x.re * y.im + x.im * y.re)
+      | ide-left => ext (equation, equation)
+      | *-assoc => ext (equation, equation)
+      | *-comm => ext (pmap2 (__ - __) *-comm *-comm, +-comm *> pmap2 (+) *-comm *-comm)
+
+    \lemma inv-char {x : Complex} : Inv x <-> Inv x.re || Inv x.im
+      => (\lam p => \case RealField.sum1=>eitherInv {_} {negative _} $ pmap (\lam (x : Complex) => x.re) (Inv.inv-left {p}) \with {
+                      | byLeft r => byLeft (Inv.cfactor-right r)
+                      | byRight r => byRight $ Inv.cfactor-right $ transportInv Inv Ring.negative_*-left r
+                    },
+          \lam p => \have d : Inv (x.re * x.re + x.im * x.im) => RealField.positive=>#0 $ RealField.>0_pos {x.re * x.re + x.im * x.im} (transport (0 <) linarith $ RealField.sum_squares_>0 {x.re,x.im} \case \elim p \with {
+                      | byLeft r => inP (0, ||.map real_<_L.2 (\lam c => real_<_U.2 $ RealAbGroup.negative_L.1 c) $ #0=>eitherPosOrNeg r)
+                      | byRight r => inP (1, ||.map real_<_L.2 (\lam c => real_<_U.2 $ RealAbGroup.negative_L.1 c) $ #0=>eitherPosOrNeg r)
+                    })
+                    \in Inv.lmake (\new Complex (x.re * d.inv) (negative (x.im * d.inv))) $ ext (equation {usingOnly d.inv-left}, equation))
+  }
