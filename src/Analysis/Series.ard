@@ -1,0 +1,46 @@
+\import Algebra.Group
+\import Algebra.Monoid
+\import Arith.Nat
+\import Arith.Real
+\import Function.Meta
+\import Logic
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Analysis.Limit
+\import Topology.NormedAbGroup
+\import Topology.NormedAbGroup.Real
+\import Topology.TopAbGroup
+
+\func Series (A : \Set) => Nat -> A
+
+\func partialSum {A : AddMonoid} (S : Series A) (n : Nat) : A
+  => A.BigSum \new Array A n \lam j => S j
+
+\func IsConvSeries {A : TopAbGroup} (S : Series A) : \Prop
+  => IsConvergent (partialSum S)
+
+\func IsAbsConvSeries {A : NormedAbGroup} (S : Series A) : \Prop
+  => IsConvSeries \lam j => norm (S j)
+
+\func midSum {A : AddMonoid} (S : Series A) (n m : Nat) : A \elim n, m
+  | 0, m => partialSum S m
+  | suc n, 0 => 0
+  | suc n, suc m => midSum (\lam j => S (suc j)) n m
+
+\lemma midSum-diff {A : AbGroup} {S : Series A} {n m : Nat} (p : n <= m) : midSum S n m = partialSum S m - partialSum S n \elim n, m
+  | 0, m => inv $ pmap (_ +) A.negative_zro *> zro-right
+  | suc n, 0 => absurd $ p NatSemiring.zero<suc
+  | suc n, suc m => midSum-diff (suc<=suc.conv p) *> inv A.sum-cancel-left
+
+\lemma midSum_norm {A : NormedAbGroup} {S : Series A} {n m : Nat} : norm (midSum S n m) <= midSum (\lam j => norm (S j)) n m \elim n, m
+  | 0, m => A.norm_BigSum
+  | suc n, 0 => A.norm_BigSum {nil}
+  | suc n, suc m => midSum_norm
+
+\lemma absConv-isConv {A : NormedAbGroup} {S : Series A} (Sc : IsAbsConvSeries S) : IsConvSeries S
+  => convergent-metric-char 1 0 \lam eps>0 => \case convergent-metric-char 0 1 Sc eps>0 \with {
+    | inP (N,g) => inP (N, \lam p => rewrite norm-dist $ transport2 (norm __ <= __) (midSum-diff p) (midSum-diff {_} {\lam j => norm (S j)} p) midSum_norm <∘r RealAbGroup.abs>=id <∘r (rewrite norm-dist in g p))
+  }

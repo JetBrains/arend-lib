@@ -1,0 +1,127 @@
+\import Algebra.Group
+\import Analysis.Limit
+\import Arith.Real
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Operations
+\import Order.Directed
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Directed
+\import Topology.CoverSpace.Product
+\import Topology.MetricSpace
+\import Topology.TopAbGroup
+\import Topology.TopSpace
+\import Topology.UniformSpace
+\open ProductCoverSpace
+\open CoverMap
+
+\func IsFuncConvergent {I : DirectedSet} {X Y : CoverSpace} (f : I -> X -> Y) : \Prop
+  => CoverMap (DirectedCoverSpace I ⨯ X) Y \lam s => f s.1 s.2
+
+\lemma funcConv-pointwise {I : DirectedSet} {X Y : CoverSpace} (f : I -> X -> Y) (fc : IsFuncConvergent f) {x : X} : IsConvergent (f __ x)
+  => fc ∘ tuple id (const x)
+
+\lemma funcLimit {I : DirectedSet} {X : CoverSpace} {Y : CompleteCoverSpace} (f : I -> X -> Y) (fc : IsFuncConvergent f)
+  : CoverMap X Y \lam x => limit (f __ x) (funcConv-pointwise f fc)
+  => \have | de => prod.isDenseEmbedding completion.isDenseEmbedding id-denseEmbedding
+           | lift => dense-lift (prod completion id) de fc
+     \in transport (CoverMap X Y) (ext \lam x => dense-lift-unique completion completion.isDenseEmbedding.1 (lift ∘ tuple id (const x)) (completion-lift $ funcConv-pointwise f fc) (\lam n => dense-lift-char {_} {_} {_} {_} {de} {fc} (n,x) *> inv (completion-lift-char {_} {_} {funcConv-pointwise f fc} n)) limit.infPoint) $ lift ∘ tuple (const limit.infPoint) id
+
+\lemma funcConvergent-char {I : DirectedSet} {X Y : CoverSpace} (f : I -> CoverMap X Y)
+                           (fc : ∀ {D : Y.isCauchy} (X.isCauchy \lam U => ∃ (N : I) (V : D) ∀ {n} {x} (N <= n -> U x -> V (f n x))))
+  : IsFuncConvergent (\lam n => f n)
+  => regPrecoverSpace-extend-coverMap {DirectedCoverSpace.precover ⨯ X} \new PrecoverMap {
+    | func s => f s.1 s.2
+    | func-cover Dc => directedProdCover-char.2
+        (cauchy-subset (fc Dc) \lam (inP (N,V,DV,h)) => inP $ later (N, _, inP (V, DV, idp), h),
+         \lam n => cauchy-subset (func-cover {f n} Dc) \lam {_} (inP (V,DV,idp)) => inP $ later (_, inP (V, DV, idp), \lam s => s))
+  }
+  \where {
+    \protected \lemma conv {I : DirectedSet} {X Y : CoverSpace} (f : I -> CoverMap X Y) (fc : IsFuncConvergent (\lam n => f n))
+      : ∀ {D : Y.isCauchy} (X.isCauchy \lam U => ∃ (N : I) (V : D) ∀ {n} {x} (N <= n -> U x -> V (f n x)))
+      => \lam Dc => cauchy-subset (directedProdCover-char.1 $ func-cover {tuple.precover (regPrecoverSpace PrecoverMap.∘ ProductPrecoverSpace.proj1) ProductPrecoverSpace.proj2} $ fc.func-cover Dc).1
+            \lam (inP (N, _, inP (_, inP (V,DV,idp), idp), h)) => inP $ later (N, V, DV, h)
+  }
+
+\lemma funcConvergent-uniform-char {I : DirectedSet} {X : CoverSpace} {Y : UniformSpace} (f : I -> CoverMap X Y)
+                                   (fc : ∀ {E : Y.isUniform} (X.isCauchy \lam U => ∃ (N : I) ∀ {x : U} ∃ (W : E) ∀ {n} (N <= n -> W (f n x))))
+  : IsFuncConvergent (\lam n => f n)
+  => split f \lam Eu => \case uniform-star Eu \with {
+    | inP (E',E'u,E'<E) => inP (_, fc E'u , \lam (inP (N,h)) => inP (N, _, func-cover {f N} $ Y.makeCauchy E'u, \lam {_} (inP (W',E'W',idp)) => \case E'<E E'W' \with {
+      | inP (W,EW,g) => inP (W, EW, \lam N<=n {x} Ux (W'fNx) => \case h Ux \with {
+        | inP (W'',E'W'',c) => g E'W'' (f N x, (W'fNx, c <=-refl)) (c N<=n)
+      })
+    }))
+  }
+  \where {
+    \protected \lemma split {I : DirectedSet} {X : CoverSpace} {Y : UniformSpace} (f : I -> CoverMap X Y)
+                            (fc : ∀ {E : Y.isUniform} ∃ (C : X.isCauchy) ∀ {U : C} ∃ (N : I) (D : X.isCauchy)
+                                  ∀ {V : D} ∃ (W : E) ∀ {n} (N <= n) ∀ {x} (U x -> V x -> W (f n x)))
+      : IsFuncConvergent (\lam n => f n)
+      => regPrecoverSpace-extend-coverMap {DirectedCoverSpace.precover ⨯ X} \new PrecoverMap {
+        | func s => f s.1 s.2
+        | func-cover Dc => ClosurePrecoverSpace.closure-univ-cover {_} {_} {DirectedCoverSpace.precover ⨯ X} (\lam {E} Eu => \case fc Eu \with {
+            | inP (C,Cc,h) => directedProdCover-char.2
+                (cauchy-subset (cauchy-glue Cc {\lam U V => ∃ (N : I) (W : E) ∀ {n} (N <= n) ∀ {x} (U x -> V x -> W (f n x))} \lam CU => \case h CU \with {
+                  | inP (N,D,Dc,Dg) => cauchy-subset Dc \lam {V} DV => \case Dg DV \with {
+                    | inP (W,EW,Eg) => inP $ later (N,W,EW,Eg)
+                  }
+                }) \lam {_} (inP (U, V, CU, inP (N,W,EW,g), idp)) => inP $ later (N, _, inP (W, EW, idp), \lam p (Ux,Vx) => g p Ux Vx),
+                 \lam n => cauchy-subset (func-cover {f n} $ Y.makeCauchy Eu) \lam {_} (inP (V,DV,idp)) => inP $ later (_, inP (V, DV, idp), \lam s => s))
+          }) (uniform-cauchy.1 Dc)
+      }
+
+    \protected \lemma conv {I : DirectedSet} {X : CoverSpace} {Y : UniformSpace} (f : I -> CoverMap X Y) (fc : IsFuncConvergent \lam n => f n)
+      : ∀ {E : Y.isUniform} (X.isCauchy \lam U => ∃ (N : I) ∀ {x : U} ∃ (W : E) ∀ {n} (N <= n -> W (f n x)))
+      => \lam Eu => cauchy-subset (funcConvergent-char.conv f fc $ Y.makeCauchy Eu) \lam (inP (N,V,EV,h)) => inP $ later (N, \lam Ux => inP (V, EV, h __ Ux))
+  }
+
+\lemma funcCovergent-metric-char {I : DirectedSet} {X : CoverSpace} {Y : MetricSpace} (f : I -> CoverMap X Y)
+                                 (fc : \Pi {eps : Real} -> 0 < eps -> X.isCauchy \lam U => ∃ (N : I) ∀ {x : U} ∀ {n} (N <= n -> dist (f n x) (f N x) < eps))
+  : IsFuncConvergent (\lam n => f n)
+  => funcConvergent-uniform-char f \lam Eu => \case dist-uniform.1 Eu \with {
+    | inP (eps,eps>0,h) => cauchy-subset (fc eps>0) \lam (inP (N,g)) => inP $ later (N, \lam {x} Ux => \case h (f N x) \with {
+      | inP (U,EU,dU) => inP (U, EU, \lam p => dU $ rewrite dist-symm $ g Ux p)
+    })
+  }
+  \where {
+    \protected \lemma conv {I : DirectedSet} {X : CoverSpace} {Y : MetricSpace} (f : I -> CoverMap X Y) (fc : IsFuncConvergent (\lam n => f n))
+      : \Pi {eps : Real} -> 0 < eps -> X.isCauchy \lam U => ∃ (N : I) ∀ {x : U} ∀ {n} (N <= n -> dist (f n x) (f N x) < eps)
+      => \lam eps>0 => cauchy-subset (funcConvergent-uniform-char.conv f fc $ Y.makeUniform $ RealAbGroup.half>0 eps>0) \lam (inP (N,g)) => inP $ later (N, \lam Ux p => \case g Ux \with {
+        | inP (_, inP (y,idp), h) => Y.halving (h p) (h <=-refl)
+      })
+  }
+
+\lemma funcCovergent-topAb-char {I : DirectedSet} {X : CoverSpace} {Y : TopAbGroup} (f : I -> CoverMap X Y)
+                                (fc : ∀ {U : Y.isOpen} (U 0) (X.isCauchy \lam V => ∃ (N : I) ∀ {x : V} ∀ {n} (N <= n -> U (f n x - f N x))))
+  : IsFuncConvergent (\lam n => f n)
+  => funcConvergent-uniform-char f \lam Eu => \case neighborhood-uniform.1 Eu \with {
+    | inP (U,Uo,U0,h) => cauchy-subset (fc (negative-cont.func-cont Uo) $ simplify U0) \lam {V} (inP (N,g)) => inP $ later (N, \lam {x} Vx => \case h (f N x) \with {
+      | inP (W,EW,dW) => inP (W, EW, \lam p => dW $ simplify in g Vx p)
+    })
+  }
+  \where {
+    \protected \lemma conv {I : DirectedSet} {X : CoverSpace} {Y : TopAbGroup} (f : I -> CoverMap X Y) (fc : IsFuncConvergent (\lam n => f n))
+      : ∀ {U : Y.isOpen} (U 0) (X.isCauchy \lam V => ∃ (N : I) ∀ {x : V} ∀ {n} (N <= n -> U (f n x - f N x)))
+      => \lam {U} Uo U0 => \case Y.shrink Uo U0 \with {
+        | inP (U',U'o,U'0,h) => cauchy-subset (funcConvergent-uniform-char.conv f fc $ Y.makeUniform U'o U'0) \lam {V} (inP (N,g)) => inP $ later (N, \lam Vx p => \case g Vx \with {
+          | inP (_, inP (y,idp), dW) => transport U Y.diff-cancel-left $ h (dW <=-refl) (dW p)
+        })
+      }
+  }
+
+\func IsUniFuncConvergent {I : DirectedSet} {X : \Set} {Y : UniformSpace} (f : I -> X -> Y) : \Prop
+  => ∀ {D : Y.isUniform} ∃ (N : I) ∀ x ∃ (V : D) ∀ {n} (N <= n -> V (f n x))
+
+\lemma funcCovergent-uni {I : DirectedSet} {X : CoverSpace} {Y : UniformSpace} (f : I -> CoverMap X Y) (fc : IsUniFuncConvergent \lam n => f n) : IsFuncConvergent \lam n => f n
+  => funcConvergent-uniform-char f \lam Eu => top-cauchy \case fc Eu \with {
+    | inP (N,h) => inP $ later (N, \lam {x} _ => h x)
+  }

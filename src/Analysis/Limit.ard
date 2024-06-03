@@ -1,0 +1,99 @@
+\import Algebra.Group
+\import Arith.Rat
+\import Arith.Real
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Directed
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Filter
+\import Set.Partial
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Directed
+\import Topology.MetricSpace
+\import Topology.TopAbGroup
+\import Topology.UniformSpace
+
+\func IsConvergent {I : DirectedSet} {X : CoverSpace} (f : I -> X) : \Prop
+  => CoverMap (DirectedCoverSpace I) X f
+
+\func limit {I : DirectedSet} {X : CompleteCoverSpace} (f : I -> X) : Partial X \cowith
+  | isDefined => IsConvergent f
+  | value fc => completion-lift fc infPoint
+  \where {
+    \func infPoint {I : DirectedSet} : Completion (DirectedCoverSpace I)
+      => CompleteCoverSpace.filter-point $ completion.func-cauchy EventualityFilter
+  }
+
+\lemma convergent-char {I : DirectedSet} {X : CoverSpace} {f : I -> X} (p : ∀ {C : X.isCauchy} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))) : IsConvergent f
+  => regPrecoverSpace-extend-coverMap \new PrecoverMap {
+    | func => f
+    | func-cover Dc => \case p Dc \with {
+      | inP (U,DU,N,g) => later (inP (_, inP (U, DU, idp), N, g), \lam n => \case cauchy-cover Dc (f n) \with {
+        | inP (V,DV,Vfn) => inP (_, inP (V, DV, idp), Vfn)
+      })
+    }
+  }
+  \where
+    \protected \lemma conv {I : DirectedSet} {X : CoverSpace} {f : I -> X} (fc : IsConvergent f) : ∀ {C : X.isCauchy} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))
+      => \lam Cc => \case (func-cover {regPrecoverSpace} $ func-cover {fc} Cc).1 \with {
+        | inP (_, inP (_, inP (U, CU, idp), idp), N, g) => inP (U, CU, N, g)
+      }
+
+\lemma convergent-uniform-char {I : DirectedSet} {X : UniformSpace} {f : I -> X} (p : ∀ {C : X.isUniform} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))) : IsConvergent f
+  => convergent-char \lam Cc => \case ClosurePrecoverSpace.closure-filter (\new SetFilter X {
+    | F U => ∃ (N : I) ∀ {n} (N <= n -> U (f n))
+    | filter-mono p (inP (N,g)) => inP (N, \lam q => p (g q))
+    | filter-top => \case I.isInhabitted \with {
+      | inP N => inP (N, \lam _ => ())
+    }
+    | filter-meet (inP (N,g)) (inP (M,h)) => \case isDirected N M \with {
+      | inP (L,N<=L,M<=L) => inP (L, \lam L<=n => (g $ N<=L <=∘ L<=n, h $ M<=L <=∘ L<=n))
+    }
+  }) (\lam Cu => \case p Cu \with {
+    | inP (U,CU,N,g) => inP (U, CU, inP (N,g))
+  }) (uniform-cauchy.1 Cc) \with {
+    | inP (U, CU, inP (N,g)) => inP (U, CU, N, g)
+  }
+  \where
+    \protected \lemma conv {I : DirectedSet} {X : UniformSpace} {f : I -> X} (fc : IsConvergent f) : ∀ {C : X.isUniform} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))
+      => \lam Cu => convergent-char.conv fc (X.makeCauchy Cu)
+
+\lemma convergent-topAbGruop-char {I : DirectedSet} {X : TopAbGroup} {f : I -> X} (fc : ∀ {U : X.isOpen} (U 0) ∃ (N : I) ∀ {n} (N <= n -> U (f n - f N))) : IsConvergent f
+  => convergent-uniform-char \lam Cu => \case neighborhood-uniform.1 Cu \with {
+    | inP (U,Uo,U0,h) => \case fc (negative-cont.func-cont Uo) (simplify U0) \with {
+      | inP (N,g) => \case h (f N) \with {
+        | inP (V,CV,UV) => inP (V, CV, N, \lam p => UV $ simplify in g p)
+      }
+    }
+  }
+  \where
+    \protected \lemma conv {I : DirectedSet} {X : TopAbGroup} {f : I -> X} (fc : IsConvergent f) : ∀ {U : X.isOpen} (U 0) ∃ (N : I) ∀ {n} (N <= n -> U (f n - f N))
+      => \lam {U} Uo U0 => \case X.shrink Uo U0 \with {
+        | inP (V,Vo,V0,g) => \case convergent-uniform-char.conv fc $ X.makeUniform (negative-cont.func-cont Vo) (simplify V0) \with {
+          | inP (_, inP (x, idp), N, h) => inP (N, \lam p => transport U simplify $ g (h p) (h <=-refl))
+        }
+      }
+
+\lemma convergent-metric-char {I : DirectedSet} {X : MetricSpace} {f : I -> X} : TFAE (
+    IsConvergent f,
+    ∀ {eps : Real} (0 < eps) ∃ (N : I) ∀ {n} (N <= n -> dist (f n) (f N) < eps),
+    ∀ {eps : Rat } (0 < eps) ∃ (N : I) ∀ {n} (N <= n -> dist (f n) (f N) < eps)
+  ) => TFAE.cycle (
+    \lam fc eps>0 => \case convergent-uniform-char.conv fc $ X.makeUniform (RealAbGroup.half>0 eps>0) \with {
+      | inP (_, inP (x, idp), N, g) => inP (N, \lam p => X.halving (g p) (g <=-refl))
+    },
+    \lam fc eps>0 => fc $ real_<_L.2 eps>0,
+    \lam fc => convergent-uniform-char \lam Cu => \case X.dist-uniform-rat.1 Cu \with {
+      | inP (eps,eps>0,h) => \case fc eps>0 \with {
+        | inP (N,g) => \case h (f N) \with {
+          | inP (V,CV,dV) => inP (V, CV, N, \lam p => dV $ rewrite dist-symm $ g p)
+        }
+      }
+    }
+  )
