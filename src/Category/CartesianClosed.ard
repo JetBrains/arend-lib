@@ -1,0 +1,183 @@
+\import Algebra.Meta
+\import Category
+\import Category.Adjoint
+\import Category.Coreflection \hiding (LAdj)
+\import Category.Functor
+\import Category.Limit
+\import Category.Product
+\import Equiv
+\import Function.Meta
+\import HLevel
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set.Category
+
+\func isExponential {C : CartesianPrecat} (X : C) => RightAdjoint C C { | LAdj => C.bprodFunctorRight X }
+
+\func isExponentiable {C : CartesianPrecat} (Y : C) => \Pi (X : C) -> Coreflection (C.bprodFunctorRight X) Y
+
+\class CartesianClosedPrecat \extends CartesianPrecat {
+  | exp (X : Ob) : isExponential X
+
+  \func is-exponentiable (X : Ob) : isExponentiable X
+    => \lam Y => coreflection {RightAdjointCoreflection.fromAdjointCounit (RightAdjointCounit.fromAdjoint $ exp Y)} X
+
+  \func transpose {X Y Z : Ob} : Hom (Bprod X Y) Z -> Hom X (exp Y Z)
+    => isAdjoint
+
+  \func antitranspose {X Y Z : Ob} : Hom X (exp Y Z) -> Hom (Bprod X Y) Z
+    => isAdjoint.ret
+
+  \func antitranpose-eq {X Y Z : Ob} (f : Hom (Bprod X Y) Z) : antitranspose (transpose f) = f
+    => isAdjoint.ret_f f
+
+  \func eval-map {Y Z : Ob} : Hom (Bprod (exp Y Z) Y) Z
+    => antitranspose (id (exp Y Z))
+
+  \func eval-transpose {X Y Z : Ob} (g : Hom (Bprod X Y) Z) : eval-map ∘ prodMap (transpose g) (id Y) = g
+    => rewrite (inv $ RightAdjoint.adjoint_epsilon {exp Y} _) $ antitranpose-eq g
+
+  \func eval-map-eq {X Y : Ob} (f : Hom X Y) : eval-map ∘ prodMap (name f) (id X) ∘ pair terminalMap (id X) = f
+    =>
+      run {
+        unfold name,
+        rewrite (eval-transpose _),
+        unfold,
+        rewrite (o-assoc, beta2 _ _, id-right),
+        idp
+      }
+
+  \func internal-comp {X Y Z : Ob} : Hom (Bprod (exp Y Z) (exp X Y)) (exp X Z)
+    => transpose $ (eval-map ∘ prodMap (id (exp Y Z)) eval-map) ∘ associator
+
+  \func name {X Y : Ob} (f : Hom X Y) : Hom terminal (exp X Y)
+    => transpose $ f ∘ terminal-prod-left.hinv
+
+  \func global-elements-iso {X Y : Ob} : Equiv {Hom X Y} {Hom terminal (exp X Y)} name
+    => \new QEquiv {
+      | ret f => (antitranspose f) ∘ terminal-prod-left.f
+      | ret_f _ => unfold name $ rewrite (antitranpose-eq _, o-assoc, terminal-prod-left.hinv_f, id-right) idp
+      | f_sec y => unfold name $ rewrite (o-assoc, terminal-prod-left.f_hinv, id-right) $ isAdjoint.f_ret y
+    }
+
+  \func internal-homFunctor : Functor (ProductPrecat (Precat.op {\this}) \this) \this
+    => \new Functor {
+      | F (X, Y) => exp X Y
+      | Func {(a, b)} {(c, d)} (f, g) => unfold at f $ transpose $ g ∘ eval-map ∘ prodMap (id _) f
+      | Func-id {(a, b)} => isAdjoint.adjointInv $ unfold $ rewrite (id-left, prod-id, id-right) idp
+      | Func-o {(a1, b1)} {(a2, b2)} {(a3, b3)} {(f,g)} {(p,q)} =>
+        run {
+          isAdjoint.adjointInv,
+          unfold,
+          rewrite (RightAdjoint.adjoint_epsilon {exp a3} _),
+          rewrite (prod-id-right _ _, inv o-assoc, eval-transpose),
+          rewrite {3} o-assoc ,
+          rewrite (inv $ prodMap-comp _ _ _ _, id-left, id-right),
+          rewrite {2} (prodMap-split-right _ _),
+          rewrite {3} o-assoc,
+          rewriteI {2} o-assoc,
+          rewrite eval-transpose ,
+          rewrite {3} o-assoc ,
+          rewrite (inv $ prod-id-left _ _),
+          equation
+        }
+    }
+}
+
+\open PrecatWithBprod
+
+\instance SetCartesianClosed : CartesianClosedPrecat SetBicat
+  | CartesianPrecat => SetBicat
+  | exp X => RightAdjointCoreflection.toAdjointCounit (exp-coreflection X)
+  \where {
+    \func exp-coreflection (X : SetBicat) : RightAdjointCoreflection SetBicat SetBicat (SetBicat.bprodFunctorRight X)
+    \cowith
+      | coreflection => power-coreflection X
+
+    \func power-coreflection (X Z : SetBicat) : Coreflection (SetBicat.bprodFunctorRight X) Z
+    \cowith
+      | Coreflected => X -> Z
+      | corefl-map => apply
+      | isCoreflection {_} => \new QEquiv {
+        | ret => curry
+        | ret_f f => ext (\lam _ _ => unfold $ unfold (apply, curry) $ rewrite (proj1-prodMap-applied f (id X) _, proj2-prodMap f (id X) _, proj1-unname-pair, proj2-unname-pair) idp)
+        | f_sec => f_sec
+      }
+      \where {
+        \func apply (f : Product.apex {Bprod {SetBicat} (X -> Z) X}) : Z => (proj1 {SetBicat} f) (proj2 {SetBicat} f)
+
+        \func curry {Y : SetBicat} (f : Product.apex {Bprod {SetBicat} Y X} -> Z) : Y -> X -> Z =>
+          \lam (y : Y) (x : X) => f (unname' $ pair {SetBicat} (name' y) (name' x))
+
+        \func f_sec {Y : SetBicat} (g : Product.apex {Bprod {SetBicat} Y X} -> Z)
+          : (\lam x => apply (prodMap {SetBicat} (curry g) (id X) x)) = g =>
+          ext (\lam f => unfold apply $ rewrite (proj1-prodMap-applied (curry g) (id X) f, proj2-prodMap (curry g) (id X) f) $
+                                        curry-eq g f)
+
+        \func curry-eq {Y : SetBicat} (g : Product.apex {Bprod {SetBicat} Y X} -> Z) (f : Product.apex {Bprod {SetBicat} Y X})
+          : curry g (proj1 {SetBicat} f) (proj2 {SetBicat} f) = g f =>
+          unfold curry $ pmap g $ bprod-ext (proj1-unname-pair (proj1 {SetBicat} f) (proj2 {SetBicat} f)) (proj2-unname-pair (proj1 {SetBicat} f) (proj2 {SetBicat} f))
+      }
+
+    \func from_terminal : Hom {SetBicat} terminal.apex (\Sigma) =>
+      \lam _ => ()
+
+    \func to_terminal : Hom {SetBicat} (\Sigma) terminal.apex =>
+      PrecatWithTerminal.terminalMap {SetBicat}
+
+    \func name' {X : SetBicat} (x : X) : Hom {SetBicat} terminal.apex X => \lam _ => x
+
+    \func unname' {X : SetBicat} (f : Hom {SetBicat} terminal.apex X) : X => (f SetBicat.∘ to_terminal) ()
+
+    \func terminal-obj-prop : isProp terminal.apex =>
+      \lam a a' => path (\lam i => (PrecatWithTerminal.terminal-unique {SetBicat} {\Sigma} {\lam _ => a} {\lam _ => a'} @ i) ())
+
+    \func global-elements-iso {X : SetBicat} : QEquiv {X} {Hom {SetBicat} terminal.apex X} name' unname'
+    \cowith
+      | ret_f _ => idp
+      | f_sec _ => unfold (name', unname') $ ext (\lam a => unfold $ rewrite (terminal-obj-prop (to_terminal ()) a) idp)
+
+    \func name-inj {X : SetBicat} {x y : X} (c : name' x = name' y) : x = y => Equiv.isInj {global-elements-iso} c
+
+    \func name-f {X Y : SetBicat} (f : X -> Y) (x : X) : f SetBicat.∘ name' x = name' (f x) =>
+      inv $ Equiv.adjointInv {global-elements-iso} idp
+
+    \func unname-adjoint {X : SetBicat} {f : X} {g : Hom {SetBicat} terminal.apex X} (eq : name' f = g) : f = unname' g =>
+      Equiv.adjoint {global-elements-iso {X}} eq
+
+    \func bprod-ext {X Y : SetBicat} {f g : Product.apex {Bprod {SetBicat} X Y}} (eq1 : proj1 {SetBicat} f = proj1 {SetBicat} g)
+                    (eq2 : proj2 {SetBicat} f = proj2 {SetBicat} g) : f = g =>
+      name-inj (pair-unique {SetBicat} {X} {Y} {terminal.apex} (rewrite (name-f (proj1 {SetBicat}) f, name-f (proj1 {SetBicat}) g) $ pmap name' eq1)
+          (rewrite (name-f (proj2 {SetBicat}) f, name-f (proj2 {SetBicat}) g) $ pmap name' eq2))
+
+    \func proj1-pair-applied {X Y Z : SetBicat} (f : Hom {SetBicat} Z X) (g : Hom {SetBicat} Z Y)
+                             (z : Z)
+      : proj1 {SetBicat} (pair {SetBicat} f g z) = f z =>
+      \let s : proj1 {SetBicat} ∘ {SetBicat} pair {SetBicat} f g = f => rewrite (beta1 _ _) idp  \in
+        path (\lam i => (s @ i) z)
+
+    \func proj1-prodMap-applied {X Y Z W : SetBicat} (f : X -> Z) (g : Y -> W) (p : Product.apex {Bprod {SetBicat} X Y})
+      : proj1 {SetBicat} (prodMap {SetBicat} f g p) = f (proj1 {SetBicat} p) =>
+      \let s : proj1 {SetBicat} ∘ {SetBicat} (prodMap {SetBicat} f g) = f ∘ {SetBicat} proj1 {SetBicat} => beta1 _ _ \in
+        path (\lam i => (s @ i) p)
+
+    \func proj2-pair-applied {X Y Z : SetBicat} (f : Hom {SetBicat} Z X) (g : Hom {SetBicat} Z Y)
+                             (z : Z)
+      : proj2 {SetBicat} (pair {SetBicat} f g z) = g z =>
+      \let s : proj2 {SetBicat} ∘ {SetBicat} pair {SetBicat} f g = g => rewrite (beta2 _ _) idp  \in
+        path (\lam i => (s @ i) z)
+
+    \func proj2-prodMap {X Y Z W : SetBicat} (f : X -> Z) (g : Y -> W) (p : Product.apex {Bprod {SetBicat} X Y})
+      : proj2 {SetBicat} (prodMap {SetBicat} f g p) = g (proj2 {SetBicat} p) =>
+      \let help : proj2 {SetBicat} ∘ {SetBicat} (prodMap {SetBicat} f g) = g ∘ {SetBicat} proj2 {SetBicat} => beta2 _ _ \in
+        path (\lam i => (help @ i) p)
+
+    \func proj1-unname-pair {A B : SetBicat} (a : A) (b : B)
+      : proj1 {SetBicat} (unname' (pair {SetBicat} (name' a) (name' b))) = a =>
+      unfold unname' $ rewrite (proj1-pair-applied (name' a) (name' b) _) idp
+
+    \func proj2-unname-pair {A B : SetBicat} (a : A) (b : B)
+      : proj2 {SetBicat} (unname' (pair {SetBicat} (name' a) (name' b))) = b =>
+      unfold unname' $ rewrite (proj2-pair-applied (name' a) (name' b) _) idp
+  }
