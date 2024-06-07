@@ -1,0 +1,109 @@
+\import Category
+\import Category.Functor
+\import Category.Limit
+\import Category.Subobj
+\import Category.SubobjectPoset
+\import Category.Topos.Sheaf
+\import Function.Meta
+\import Meta
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Category
+\import Topology.Locale
+
+\instance VPresheafComplete (C : SmallPrecat) (D : CompleteCat (\suc \lp)) : CompleteCat
+  | Cat => VPresheafCat D C
+  | limit => limit'
+  \where {
+    \func limit' {J : Precat \levels (\lp, \lp) _} (G : Functor J (VPresheafCat D C))
+      : Limit G => \new Limit {
+      | apex => apex
+      | coneMap => cone-nat-map
+      | coneCoh h => exts $ \lam _ => coneCoh h
+      | limMap => lim-nat-map
+      | limBeta {z} z-cone _ => exts $ \lam X => unfold $ unfold $ rewrite (limBeta {L X} (cone-at-point X z z-cone)) idp
+      | limUnique j-unique => exts $ \lam X => limUnique $ \lam j => path (\lam i => j-unique j i X)
+    }
+      \where {
+        \func functor-at-point(c : C) : Functor J D => \new Functor {
+          | F j => G j c
+          | Func f => G.Func f c
+          | Func-id {X} => rewrite (G.Func-id {X}) idp
+          | Func-o => rewrite G.Func-o idp
+        }
+
+        \func L  (c : C) => D.limit {J} (functor-at-point c)
+
+        \func cone {X Y : C} (f : Hom Y X) : Cone (functor-at-point Y) => \new Cone {
+          | apex => Cone.apex {L X}
+          | coneMap j => Func f ∘ coneMap {L X} j
+          | coneCoh h => rewriteI (coneCoh {L X} h, o-assoc, o-assoc)
+              (rewrite (natural {Func {G} h} f) idp)
+        }
+
+        \func apex : VPresheaf D C => \new VPresheaf {
+          | F => \new Functor {
+            | F c => L c
+            | Func f => limMap (cone f)
+            | Func-id {X} => limUnique (\lam j =>
+                rewrite id-right (limBeta {L X} {Cone.apex {L X}} (cone (id X)) j) *>
+                rewrite (id-right, id-right) (unfold $ rewrite (Func-id {G j}, id-left) idp))
+            | Func-o {_} {Y} {Z} {g} {f} => limUnique (\lam j => rewrite (limBeta {L Z} (cone (f ∘ g)) j, inv o-assoc,
+                                                                          limBeta {L Z} (cone g) j) (unfold coneMap
+                (rewrite (Func-o {G j}, o-assoc, o-assoc) (rewrite (limBeta {L Y} (cone f) j) (unfold coneMap idp)))))
+          }
+        }
+
+        \func cone-nat-map (j : J) : Hom apex (G j) => \new NatTrans {
+          | trans c => coneMap {L c} j
+          | natural {_} {Y} f => rewrite (limBeta {L Y} (cone f) j) idp
+        }
+
+        \func cone-at-point (X : C) (H : VPresheaf D C) (z-cone : Cone {J} G H)
+          : Cone (functor-at-point X) (H X) => \new Cone {
+          | coneMap j => coneMap {z-cone} j X
+          | coneCoh h => path (\lam i => ((coneCoh {z-cone} h) i) X)
+        }
+
+        \func lim-nat-map {z : VPresheaf D C} (z-cone : Cone G z) : Hom z apex =>
+          \new NatTrans {
+            | trans X => limMap $ cone-at-point X z z-cone
+            | natural {X} {Y} f => limUnique (\lam (j : J) => unfold
+              $ rewrite (inv o-assoc, limBeta {L Y} (cone-at-point Y z z-cone) j,
+                         inv o-assoc, limBeta {L Y} (cone f), o-assoc,
+                         limBeta {L X} (cone-at-point X z z-cone))
+                  $ natural {coneMap {z-cone} j} f
+            )
+          }
+      }
+  }
+
+-- the proof of this should be completely analogues to the CompleteCat (VPresheafCat) instance.
+-- For example, it could be proven with a transport along the equality [C, D]^op = [C^op, D^op].
+
+\instance VPresheafCocomplete (C : SmallPrecat) (D : Cat (\suc \lp)) : CocompleteCat (VPresheafCat D C)
+=> {?}
+
+\instance VPresheafCatBicomplete (C : SmallPrecat) (D : BicompleteCat (\suc \lp)) : BicompleteCat (VPresheafCat D C)
+  | Cat => VPresheafCat D C
+  | limit => limit {VPresheafComplete C D}
+  | colimit => colimit {VPresheafCocomplete C D}
+
+\func PresheafCatBicomplete (C : SmallPrecat) : BicompleteCat (PresheafCat C) => VPresheafCatBicomplete C SetBicat
+
+\func SubPresheave (C : SmallPrecat) (P : PresheafCat C) => Preorder.PosetC {SubobjPreorder {PresheafCat C} P}
+
+\instance SubobjectLocale (C : BicompleteCat) (c : C)
+: Locale (SubobjectPoset c)
+  | MeetSemilattice => SubobjectMeetsemilatice C c
+  | Join J => {?}
+  | Join-cond => {?}
+  | Join-univ => {?}
+  | Join-ldistr>= => {?}
+  \where {
+
+  }
+
+\instance SubPresheaveLocale (C : SmallPrecat) (obj : PresheafCat C)
+  : Locale (SubPresheave C obj) => SubobjectLocale (PresheafCatBicomplete C) obj
