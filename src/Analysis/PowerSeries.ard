@@ -1,0 +1,48 @@
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Analysis.Limit
+\import Analysis.Series
+\import Arith.Nat
+\import Arith.Rat
+\import Arith.Real
+\import Arith.Real.Field
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Topology.NormedAbGroup
+\import Topology.NormedAbGroup.Real
+\import Topology.NormedAbGroup.Real.Functions
+\import Topology.NormedRing
+\import Topology.TopSpace
+\open Monoid(pow)
+
+\func powerSeries {X : PseudoNormedRing} (cs : Nat -> X) (n : Nat) (x : X)
+  => cs n * pow x n
+
+\func convRadius {X : PseudoNormedRing} (cs : Nat -> X) : LowerReal \cowith
+  | L a => ∃ (b : Rat) (a < b) ∀ {x} (norm x < b -> IsAbsConvSeries (powerSeries cs __ x))
+  | L-inh => inP (-1, inP (0, idp, \lam p => absurd $ linarith norm>=0))
+  | L-closed (inP (b,q<b,h)) q'<q => inP (b, q'<q <∘ q<b, h)
+  | L-rounded {a} (inP (b,a<b,h)) => inP (RatField.mid a b, inP (b, RatField.mid<right a<b, h), RatField.mid>left a<b)
+
+\lemma convRadius-conv {X : PseudoNormedRing} (cs : Nat -> X) {x : X} (p : norm x <LU convRadius cs) : IsAbsConvSeries (powerSeries cs __ x) \elim p
+  | inP (a, |x|<a, inP (b,a<b,h)) => h (real_<_U.2 |x|<a <∘ real_<_U.2 a<b)
+
+\lemma convRadius-div {X : PseudoValuedRing} (cs : Nat -> X) {x : X} (p : IsConvSeries (powerSeries cs __ x)) : norm x <=L convRadius cs
+  => \lam a<|x| => \case L-rounded a<|x| \with {
+    | inP (b,b<|x|,a<b) => inP (b, a<b, \lam {y} |y|<b =>
+      \have |x|>0 : 0 < norm x => norm>=0 <∘r |y|<b <∘ real_<_L.2 b<|x|
+      \in transport IsConvSeries {\lam j => norm (powerSeries cs j x) * pow (norm y * RealField.pos-inv |x|>0) j} {\lam j => norm (powerSeries cs j y)}
+          (ext \lam j => pmap2 (*) norm_* CMonoid.pow_*-comm *> *-assoc *> pmap (_ *) (pmap (_ *) *-comm *> inv *-assoc *> pmap2 (*) (pmap (`* _) norm_pow *> inv CMonoid.pow_*-comm *> pmap (pow __ j) (RealField.pos-inv-right |x|>0) *> Monoid.pow_ide) (inv norm_pow) *> ide-left) *> inv norm_*) $
+          absConv-isConv {_} {\lam j => norm (powerSeries cs j x) * pow _ j} $ series_*_lim {_} {\lam j => norm (powerSeries cs j x)} {\lam j => pow (norm y * RealField.pos-inv |x|>0) j}
+            (cont-limit (series-limit p) norm-metric) $ geometric-series-absConv
+              \have | |y|<|x| => |y|<b <∘ real_<_L.2 b<|x|
+                    | |xi|>0 => OrderedField.pos-inv>0 (norm>=0 <∘r |y|<|x|)
+              \in later $ rewrite (RealField.abs-ofPos $ LinearlyOrderedSemiring.<=_*_positive_positive norm>=0 $ LinearOrder.<_<= |xi|>0) $ rewrite OrderedField.pos-inv-right in <_*_positive-left |y|<|x| |xi|>0)
+  }

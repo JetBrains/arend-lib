@@ -16,7 +16,10 @@
 \import Topology.CoverSpace.Complete
 \import Topology.CoverSpace.Directed
 \import Topology.MetricSpace
+\import Topology.NormedAbGroup
+\import Topology.NormedAbGroup.Real
 \import Topology.TopAbGroup
+\import Topology.TopSpace
 \import Topology.UniformSpace
 
 \func IsConvergent {I : DirectedSet} {X : CoverSpace} (f : I -> X) : \Prop
@@ -28,6 +31,13 @@
   \where {
     \func infPoint {I : DirectedSet} : Completion (DirectedCoverSpace I)
       => CompleteCoverSpace.filter-point $ completion.func-cauchy EventualityFilter
+
+    \protected \lemma char (fc : CoverMap (DirectedCoverSpace I) X)
+      : limit fc fc = CompleteCoverSpace.filter-point (fc.func-cauchy EventualityFilter)
+      => completion-lift-natural EventualityFilter
+
+    \lemma isLimit (fc : CoverMap (DirectedCoverSpace I) X) : X.IsLimit fc (limit fc fc)
+      => rewrite char \lam Uo Ul => CompleteCoverSpace.filter-point-sub (X.open-char.1 Uo Ul)
   }
 
 \lemma convergent-char {I : DirectedSet} {X : CoverSpace} {f : I -> X} (p : ∀ {C : X.isCauchy} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))) : IsConvergent f
@@ -44,6 +54,21 @@
       => \lam Cc => \case (func-cover {regPrecoverSpace} $ func-cover {fc} Cc).1 \with {
         | inP (_, inP (_, inP (U, CU, idp), idp), N, g) => inP (U, CU, N, g)
       }
+
+\lemma limit-char {I : DirectedSet} {X : CompleteCoverSpace} {f : I -> X} {l : X} (fl : X.IsLimit f l) : limit f = defined l
+  => defined-ext {_} {limit f} (convergent fl) $ inv $ isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 4 7 \lam {U} l<=<U => \case <=<-inter l<=<U \with {
+    | inP (U',l<=<U',U'<=<U) => \case fl X.interior l<=<U' \with {
+      | inP (N,g) => transportInv U (limit.char (convergent fl)) $ <=<_<= (CompleteCoverSpace.filter-point-elem U'<=<U $ inP $ later (N, \lam p => <=<_<= (g p) idp)) idp
+    }
+  }
+  \where {
+    \lemma convergent {I : DirectedSet} {X : CoverSpace} {f : I -> X} {l : X} (fl : X.IsLimit f l) : IsConvergent f
+      => convergent-char \lam Cc => \case X.cauchy-regular-cover Cc l \with {
+        | inP (U,CU,l<=<U) => \case fl (X.interior {U}) l<=<U \with {
+          | inP (N,g) => inP (U, CU, N, \lam p => <=<_<= (g p) idp)
+        }
+      }
+  }
 
 \lemma convergent-uniform-char {I : DirectedSet} {X : UniformSpace} {f : I -> X} (p : ∀ {C : X.isUniform} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))) : IsConvergent f
   => convergent-char \lam Cc => \case ClosurePrecoverSpace.closure-filter (\new SetFilter X {
@@ -64,23 +89,28 @@
     \protected \lemma conv {I : DirectedSet} {X : UniformSpace} {f : I -> X} (fc : IsConvergent f) : ∀ {C : X.isUniform} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))
       => \lam Cu => convergent-char.conv fc (X.makeCauchy Cu)
 
-\lemma convergent-topAbGruop-char {I : DirectedSet} {X : TopAbGroup} {f : I -> X} (fc : ∀ {U : X.isOpen} (U 0) ∃ (N : I) ∀ {n} (N <= n -> U (f n - f N))) : IsConvergent f
-  => convergent-uniform-char \lam Cu => \case neighborhood-uniform.1 Cu \with {
-    | inP (U,Uo,U0,h) => \case fc (negative-cont.func-cont Uo) (simplify U0) \with {
-      | inP (N,g) => \case h (f N) \with {
-        | inP (V,CV,UV) => inP (V, CV, N, \lam p => UV $ simplify in g p)
+\lemma convergent-topAbGruop-char {I : DirectedSet} {X : TopAbGroup} {f : I -> X} : TFAE (
+    IsConvergent f,
+    ∀ {U : X.isOpen} (U 0) ∃ (N : I) ∀ {n m} (N <= n -> n <= m -> U (f m - f n)),
+    ∀ {U : X.isOpen} (U 0) ∃ (N : I) ∀ {n} (N <= n -> U (f n - f N))
+  ) => TFAE.cycle (
+    \lam fc {U} Uo U0 => \case X.shrink Uo U0 \with {
+      | inP (V,Vo,V0,g) => \case convergent-uniform-char.conv fc $ X.makeUniform (negative-cont.func-cont Vo) (simplify V0) \with {
+        | inP (_, inP (x, idp), N, h) => inP (N, \lam p q => transport U simplify $ g (h $ p <=∘ q) (h p))
       }
-    }
-  }
-  \where
-    \protected \lemma conv {I : DirectedSet} {X : TopAbGroup} {f : I -> X} (fc : IsConvergent f) : ∀ {U : X.isOpen} (U 0) ∃ (N : I) ∀ {n} (N <= n -> U (f n - f N))
-      => \lam {U} Uo U0 => \case X.shrink Uo U0 \with {
-        | inP (V,Vo,V0,g) => \case convergent-uniform-char.conv fc $ X.makeUniform (negative-cont.func-cont Vo) (simplify V0) \with {
-          | inP (_, inP (x, idp), N, h) => inP (N, \lam p => transport U simplify $ g (h p) (h <=-refl))
+    },
+    \lam fc Uo U0 => \case fc Uo U0 \with {
+      | inP (N,g) => inP (N, \lam p => g <=-refl p)
+    },
+    \lam fc => convergent-uniform-char \lam Cu => \case neighborhood-uniform.1 Cu \with {
+      | inP (U,Uo,U0,h) => \case fc (negative-cont.func-cont Uo) (simplify U0) \with {
+        | inP (N,g) => \case h (f N) \with {
+          | inP (V,CV,UV) => inP (V, CV, N, \lam p => UV $ simplify in g p)
         }
       }
+    })
 
-\lemma convergent-metric-char {I : DirectedSet} {X : MetricSpace} {f : I -> X} : TFAE (
+\lemma convergent-metric-char {I : DirectedSet} {X : PseudoMetricSpace} {f : I -> X} : TFAE (
     IsConvergent f,
     ∀ {eps : Real} (0 < eps) ∃ (N : I) ∀ {n} (N <= n -> dist (f n) (f N) < eps),
     ∀ {eps : Rat } (0 < eps) ∃ (N : I) ∀ {n} (N <= n -> dist (f n) (f N) < eps)
@@ -97,3 +127,15 @@
       }
     }
   )
+
+\lemma limit-metric-char {I : DirectedSet} {X : PseudoMetricSpace} {f : I -> X} {l : X}
+  : X.IsLimit f l <-> ∀ {eps} (0 < eps) ∃ (N : I) ∀ {n} (N <= n -> dist l (f n) < eps)
+  => (\lam fl eps>0 => fl OBall-open (OBall-center eps>0),
+      \lam fl Uo U0 => \case dist_open.1 Uo U0 \with {
+        | inP (eps,eps>0,q) => \case fl eps>0 \with {
+          | inP (N,g) => inP (N, \lam p => q (g p))
+        }
+      })
+
+\lemma convergent-compose {I : DirectedSet} {X Y : CoverSpace} {f : I -> X} (fc : IsConvergent f) (g : CoverMap X Y) : IsConvergent \lam n => g (f n)
+  => g CoverMap.∘ fc

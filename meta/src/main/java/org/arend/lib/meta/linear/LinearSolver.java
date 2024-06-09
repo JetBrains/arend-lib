@@ -48,10 +48,14 @@ public class LinearSolver {
     factory = ext.factory.withData(marker);
   }
 
+  private CoreClassDefinition getInstanceClass() {
+    return ext.equationMeta.LinearlyOrderedSemiring;
+  }
+
   private CoreExpression findInstance(CoreExpression type, boolean reportError) {
-    TypedExpression instance = typechecker.findInstance(ext.equationMeta.LinearlyOrderedSemiring, type, null, marker);
+    TypedExpression instance = type == null ? null : typechecker.findInstance(getInstanceClass(), type, null, marker);
     if (instance == null) {
-      if (reportError) errorReporter.report(new InstanceInferenceError(typechecker.getExpressionPrettifier(), ext.equationMeta.LinearlyOrderedSemiring.getRef(), type, marker));
+      if (reportError) errorReporter.report(new InstanceInferenceError(typechecker.getExpressionPrettifier(), getInstanceClass().getRef(), type, marker));
       return null;
     }
     return instance.getExpression();
@@ -97,13 +101,13 @@ public class LinearSolver {
       if (field == ext.equationMeta.less || field == ext.equationMeta.lessOrEquals) {
         CoreExpression arg = fieldCall.getArgument();
         CoreExpression argType = arg.computeType().normalize(NormalizationMode.WHNF);
-        if (argType instanceof CoreClassCallExpression classCall && classCall.getDefinition().isSubClassOf(ext.equationMeta.LinearlyOrderedSemiring)) {
+        if (argType instanceof CoreClassCallExpression classCall && classCall.getDefinition().isSubClassOf(getInstanceClass())) {
           return new Hypothesis<>(expr, arg, field == ext.equationMeta.less ? Equation.Operation.LESS : Equation.Operation.LESS_OR_EQUALS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
         } else {
           if (reportError) errorReporter.report(new TypeError(typechecker.getExpressionPrettifier(), "", argType, marker) {
             @Override
             public LineDoc getShortHeaderDoc(PrettyPrinterConfig ppConfig) {
-              return DocFactory.hList(DocFactory.text("The type of the equation should be "), DocFactory.refDoc(ext.equationMeta.LinearlyOrderedSemiring.getRef()));
+              return DocFactory.hList(DocFactory.text("The type of the equation should be "), DocFactory.refDoc(getInstanceClass().getRef()));
             }
           });
           return null;
@@ -118,14 +122,21 @@ public class LinearSolver {
     }
 
     if (relationData.defCall.getDefinition() == ext.equationMeta.addGroupLess) {
-      return new Hypothesis<>(expr, relationData.defCall.getDefCallArguments().get(0), Equation.Operation.LESS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
+      CoreExpression instance = relationData.defCall.getDefCallArguments().get(0);
+      TypedExpression typedInstance = instance.computeTyped();
+      CoreExpression instanceType = typedInstance.getType().normalize(NormalizationMode.WHNF);
+      if (!(instanceType instanceof CoreClassCallExpression classCall && classCall.getDefinition().isSubClassOf(getInstanceClass()))) {
+        instance = findInstance(instanceType instanceof CoreClassCallExpression classCall ? Utils.getClassifyingExpression(classCall, typedInstance) : null, reportError);
+        if (instance == null) return null;
+      }
+      return new Hypothesis<>(expr, instance, Equation.Operation.LESS, relationData.leftExpr, relationData.rightExpr, BigInteger.ONE);
     }
 
     var pair = instanceCache.computeIfAbsent(relationData.defCall.getDefinition(), def -> {
       DefImplInstanceSearchParameters parameters = new DefImplInstanceSearchParameters(def) {
         @Override
         protected List<CoreClassField> getRelationFields(CoreClassDefinition classDef) {
-          return classDef.isSubClassOf(ext.equationMeta.LinearlyOrderedSemiring) ? Arrays.asList(ext.equationMeta.less, ext.equationMeta.lessOrEquals) : Collections.emptyList();
+          return classDef.isSubClassOf(getInstanceClass()) ? Arrays.asList(ext.equationMeta.less, ext.equationMeta.lessOrEquals) : Collections.emptyList();
         }
       };
       TypedExpression instance = typechecker.findInstance(parameters, null, null, marker);
@@ -583,7 +594,7 @@ public class LinearSolver {
       }
     }
 
-    errorReporter.report(new LinearSolverError(typechecker.getExpressionPrettifier(), resultEquation == null, rules, marker));
+    errorReporter.report(new LinearSolverError(typechecker.getExpressionPrettifier(), resultEquation, rules, marker));
     return null;
   }
 }

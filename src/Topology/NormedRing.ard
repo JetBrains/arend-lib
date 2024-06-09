@@ -1,0 +1,59 @@
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Real
+\import Arith.Real.Field
+\import Function.Meta
+\import Logic
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Topology.NormedAbGroup
+\import Topology.NormedAbGroup.Real
+\open Monoid(pow)
+
+\class PseudoNormedRing \extends PseudoNormedAbGroup, Ring
+  | norm_*_<= {x y : E} : norm (x * y) <= norm x RealField.* norm y
+  | norm_ide_<= : norm 1 <= 1
+
+\class NormedRing \extends PseudoNormedRing, NormedAbGroup
+
+\class CompleteNormedRing \extends NormedRing, CompleteNormedAbGroup
+
+\lemma norm_zro_ide {X : PseudoNormedRing} : (X.norm 1 = (0 : Real)) || (X.norm 1 = (1 : Real))
+  => \have t => rewrite ide-left in X.norm_*_<= {1} {1}
+     \in \case RealField.locality_- (X.norm 1) \with {
+      | byLeft q => byRight $ <=-antisymmetric norm_ide_<= $ RealField.<=_Inv-cancel-left q norm>=0 $ transportInv (`<= _) ide-right t
+      | byRight q => byLeft $ <=-antisymmetric (RealField.<=_Inv-cancel-left q (linarith norm_ide_<=) $ transport2 (<=) (inv rdistr) (inv zro_*-right) $ later $ rewrite (ide-left,Ring.negative_*-left) linarith) norm>=0
+    }
+
+\lemma norm_ide=0 {X : PseudoNormedRing} (p : X.norm 1 = (0 : Real)) {x : X} : norm x = (0 : Real)
+  => pmap norm (inv ide-right) *> <=-antisymmetric (norm_*_<= <=∘ rewrite (p,RealField.zro_*-right) <=-refl) norm>=0
+
+\lemma norm_<=_pow {X : PseudoNormedRing} {x : X} {n : Nat} : norm (pow x n) <= pow (norm x) n \elim n
+  | 0 => norm_ide_<=
+  | suc n => norm_*_<= <=∘ RealField.<=_*_positive-left norm_<=_pow norm>=0
+
+\class PseudoValuedRing \extends PseudoNormedRing
+  | norm_* {x y : E} : norm (x * y) = norm x RealField.* norm y
+  | norm_ide : norm 1 = (1 : Real)
+  | norm_*_<= => Preorder.=_<= norm_*
+  | norm_ide_<= => Preorder.=_<= norm_ide
+
+\class ValuedRing \extends PseudoValuedRing, NormedRing
+
+\class CompleteValuedRing \extends ValuedRing, CompleteNormedRing
+
+\lemma norm_pow {X : PseudoValuedRing} {x : X} {n : Nat} : norm (pow x n) = pow (norm x) n \elim n
+  | 0 => norm_ide
+  | suc n => norm_* *> pmap (`* _) norm_pow
+
+\instance RealValuedRing : CompleteValuedRing Real
+  | CompleteNormedAbGroup => RealNormed
+  | Ring => RealField
+  | norm_* => RealField.abs_*
+  | norm_ide => RealField.abs-ofPos $ LinearOrder.<_<= zro<ide

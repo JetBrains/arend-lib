@@ -481,4 +481,9 @@ public class Utils {
     errorReporter.report(new TypecheckingError("Expected a reference", expr));
     return null;
   }
+
+  public static CoreExpression getClassifyingExpression(CoreClassCallExpression classCall, TypedExpression thisExpr) {
+    CoreClassField field = classCall.getDefinition().getClassifyingField();
+    return field == null ? null : classCall.getImplementation(field, thisExpr);
+  }
 }

@@ -90,13 +90,6 @@
     \func prod {X Y X' Y' : CoverSpace} (f : CoverMap X Y) (g : CoverMap X' Y') : CoverMap (X ⨯ X') (Y ⨯ Y')
       => tuple (f ∘ proj1) (g ∘ proj2)
       \where {
-        \lemma isDense {X X' Y Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fd : f.IsDense) (gd : g.IsDense) : ContMap.IsDense {prod f g}
-          => (dense-char {_} {Y ⨯ Y'}).2 $ later \lam {(y,y')} yy'<=<U =>
-              \have | (inP (V,yy'<=<V,V<=<U)) => <=<-inter yy'<=<U
-                    | (inP (x,Vfxy')) => dense-char.1 fd {y} $ transport (`<=< _) (ext \lam z => ext (pmap __.1, \lam p => ext (p, idp))) $ <=<_^-1 {Y} {Y ⨯ Y'} {tuple id (const y')} yy'<=<V
-                    | (inP (x',Ufxfx')) => dense-char.1 gd {y'} $ transport (`<=< _) (ext \lam z => ext (pmap __.2, \lam p => ext (idp, p))) $ <=<_^-1 {Y'} {Y ⨯ Y'} {tuple (const (f x)) id} $ <=<-right (single_<= Vfxy') V<=<U
-              \in inP ((x,x'), Ufxfx')
-
         \lemma isEmbedding {X Y X' Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fe : f.IsEmbedding) (ge : g.IsEmbedding) : CoverMap.IsEmbedding {prod f g}
           => closure-embedding (\lam c => c) (prod f g) \case __ \with {
             | inP (true,  Dc) => closure $ inP (true,  cauchy-subset (fe Dc) \lam (inP (V, inP (W,CW,q), p)) => inP $ later (_, inP (W, CW, (\lam c => p c) <=∘ q), <=-refl))
@@ -104,11 +97,14 @@
           }
 
         \lemma isDenseEmbedding {X X' Y Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fde : f.IsDenseEmbedding) (gde : g.IsDenseEmbedding) : CoverMap.IsDenseEmbedding {prod f g}
-          => (isDense fde.1 gde.1, isEmbedding fde.2 gde.2)
+          => (ProductTopSpace.prod.isDense fde.1 gde.1, isEmbedding fde.2 gde.2)
       }
 
-    \lemma prod-neighborhood {X Y : CoverSpace} {x : X} {y : Y} {W : Set (\Sigma X Y)} (xy<=<W : single (x,y) <=< {X ⨯ Y} W) : ∃ (U : Set X) (V : Set Y) (single x <=< U) (single y <=< V) ∀ {x : U} {y : V} (W (x,y))
-      => prod-neighborhood' $ unfolds xy<=<W
+    \lemma prod-neighborhood {X Y : CoverSpace} {x : X} {y : Y} {W : Set (\Sigma X Y)} : single (x,y) <=< {X ⨯ Y} W <-> ∃ (U : Set X) (V : Set Y) (single x <=< U) (single y <=< V) ∀ {x : U} {y : V} (W (x,y))
+      => (\lam xy<=<W => prod-neighborhood' $ unfolds xy<=<W, \case \elim __ \with {
+        | inP (U,V,x<=<U,y<=<V,h) => cauchy-subset {X ⨯ Y} (prodCover (unfolds in x<=<U) (unfolds in y<=<V)) \lam {_} (inP (U', Ug, V', Vg, idp)) =>
+            later \lam s {z} t => h (Ug (s.1.1, (pmap __.1 s.2.1, s.2.2.1)) t.1) (Vg (s.1.2, (pmap __.2 s.2.1, s.2.2.2)) t.2)
+      })
 
     \lemma prodCover {X Y : CoverSpace} {C : Set (Set X)} (Cc : X.isCauchy C) {D : Set (Set Y)} (Dc : Y.isCauchy D)
       : isCauchy {X ⨯ Y} \lam W => ∃ (U : C) (V : D) (W = \lam s => \Sigma (U s.1) (V s.2))
@@ -170,3 +166,13 @@
       => cauchy-subset {Prod X Y} (cauchy-inter {Prod X Y} (proj1.func-cover Cc) (proj2.func-cover Dc))
           \lam (inP (U, V, inP (U',CU',p1), inP (V',DV',p2), q)) => inP $ later (U', CU', V', DV', q *> pmap2 (∧) p1 p2)
   }
+
+\lemma completion-lift-neighborhood2 {X Y : CoverSpace} {Z : CompleteCoverSpace} (g : CoverMap (X ⨯ Y) Z) (F : Completion X) (G : Completion Y) (W : Set Z)
+  : single (dense-lift (prod completion completion) (prod.isDenseEmbedding completion.isDenseEmbedding completion.isDenseEmbedding) g (F,G)) <=< W <->
+    ∃ (W' : Set Z) (W' <=< W) (V1 : Set X) (F V1) (V2 : Set Y) (G V2) (∀ {x : V1} {y : V2} (W' (g (x,y))))
+  => <->trans (dense-lift-neighborhood (prod.isDenseEmbedding completion.isDenseEmbedding completion.isDenseEmbedding) (F,G) W) $ later
+      (\lam (inP (W',W'<=<W,V,p,FG<=<V)) => \case prod-neighborhood.1 FG<=<V \with {
+        | inP (V1,V2,F<=<V1,G<=<V2,g) => inP (W', W'<=<W, pointCF ^-1 V1, pointCF_^-1_<=< F<=<V1, pointCF ^-1 V2, pointCF_^-1_<=< G<=<V2, \lam V1x V2y => p $ g V1x V2y)
+      }, \lam (inP (W',W'<=<W,V1,FV1,V2,GV2,h)) => inP (W', W'<=<W, Set.Prod (mkSet V1) (mkSet V2), \lam s => h (<=<_<= s.1 idp) (<=<_<= s.2 idp), prod-neighborhood.2 $
+          inP (mkSet V1, mkSet V2, mkSet_<=<-point.2 FV1, mkSet_<=<-point.2 GV2, \lam p q => (p,q))))
+  \where \open Completion

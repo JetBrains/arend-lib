@@ -1,18 +1,35 @@
 \import Algebra.Group
+\import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Int
 \import Arith.Nat
+\import Arith.Rat
 \import Arith.Real
+\import Arith.Real.Field
 \import Function.Meta
 \import Logic
+\import Logic.Meta
 \import Meta
+\import Order.Lattice
 \import Order.LinearOrder
 \import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Analysis.Limit
+\import Set.Partial
+\import Topology.MetricSpace
 \import Topology.NormedAbGroup
 \import Topology.NormedAbGroup.Real
+\import Topology.NormedRing
 \import Topology.TopAbGroup
+\import Topology.TopAbGroup.Complete
+\open OrderedField
+\open Monoid \hiding (equals)
+\open LinearlyOrderedSemiring
 
 \func Series (A : \Set) => Nat -> A
 
@@ -22,25 +39,169 @@
 \func IsConvSeries {A : TopAbGroup} (S : Series A) : \Prop
   => IsConvergent (partialSum S)
 
-\func IsAbsConvSeries {A : NormedAbGroup} (S : Series A) : \Prop
+\func IsAbsConvSeries {A : PseudoNormedAbGroup} (S : Series A) : \Prop
   => IsConvSeries \lam j => norm (S j)
+
+\func seriesSum {A : CompleteTopAbGroup} (S : Series A) : Partial A
+  => limit (partialSum S)
 
 \func midSum {A : AddMonoid} (S : Series A) (n m : Nat) : A \elim n, m
   | 0, m => partialSum S m
   | suc n, 0 => 0
   | suc n, suc m => midSum (\lam j => S (suc j)) n m
 
+\lemma midSum_suc {A : AddMonoid} {S : Series A} {n : Nat} : midSum S n (suc n) = S n \elim n
+  | 0 => zro-right
+  | suc n => midSum_suc
+
 \lemma midSum-diff {A : AbGroup} {S : Series A} {n m : Nat} (p : n <= m) : midSum S n m = partialSum S m - partialSum S n \elim n, m
   | 0, m => inv $ pmap (_ +) A.negative_zro *> zro-right
   | suc n, 0 => absurd $ p NatSemiring.zero<suc
   | suc n, suc m => midSum-diff (suc<=suc.conv p) *> inv A.sum-cancel-left
 
-\lemma midSum_norm {A : NormedAbGroup} {S : Series A} {n m : Nat} : norm (midSum S n m) <= midSum (\lam j => norm (S j)) n m \elim n, m
+\lemma midSum_norm {A : PseudoNormedAbGroup} {S : Series A} {n m : Nat} : norm (midSum S n m) <= midSum (\lam j => norm (S j)) n m \elim n, m
   | 0, m => A.norm_BigSum
   | suc n, 0 => A.norm_BigSum {nil}
   | suc n, suc m => midSum_norm
 
-\lemma absConv-isConv {A : NormedAbGroup} {S : Series A} (Sc : IsAbsConvSeries S) : IsConvSeries S
-  => convergent-metric-char 1 0 \lam eps>0 => \case convergent-metric-char 0 1 Sc eps>0 \with {
-    | inP (N,g) => inP (N, \lam p => rewrite norm-dist $ transport2 (norm __ <= __) (midSum-diff p) (midSum-diff {_} {\lam j => norm (S j)} p) midSum_norm <∘r RealAbGroup.abs>=id <∘r (rewrite norm-dist in g p))
+\lemma midSum-ldistr {R : Ring} {x : R} {b : Series R} {n m : Nat} : x * midSum b n m = midSum (\lam j => x * b j) n m \elim n, m
+  | 0, m => R.BigSum-ldistr
+  | suc n, 0 => zro_*-right
+  | suc n, suc m => midSum-ldistr
+
+\lemma midSum-split {A : AddMonoid} {b : Series A} {n m k : Nat} (p : n <= m) (q : m <= k) : midSum b n k = midSum b n m + midSum b m k \elim n, m, k
+  | 0, 0, k => inv zro-left
+  | _, suc m, 0 => absurd (q NatSemiring.zero<suc)
+  | 0, suc m, suc k => pmap (_ +) (midSum-split {_} {\lam j => b (suc j)} zero<=_ $ suc<=suc.conv q) *> inv +-assoc
+  | suc n, 0, _ => absurd (p NatSemiring.zero<suc)
+  | suc n, suc m, suc k => midSum-split (suc<=suc.conv p) (suc<=suc.conv q)
+
+\lemma midSum_<= {A : LinearlyOrderedAbMonoid} {b c : Series A} {n m : Nat} (s : \Pi {j : Nat} -> n <= j -> j < m -> b j <= c j) : midSum b n m <= midSum c n m \elim n, m
+  | 0, m => A.BigSum_<= \lam j => s zero<=_ (fin_< j)
+  | suc n, 0 => <=-refl
+  | suc n, suc m => midSum_<= \lam p q => s (suc<=suc p) (NatSemiring.suc<suc q)
+
+\lemma midSum_0 {A : AddMonoid} {n m : Nat} : midSum (\lam _ => A.zro) n m = 0 \elim n, m
+  | 0, m => A.BigSum_replicate0
+  | suc n, 0 => idp
+  | suc n, suc m => midSum_0
+
+\lemma series-conv {A : PseudoNormedAbGroup} {S : Series A}
+                   (p : ∀ {eps : Real} (0 < eps) ∃ (N : Nat) ∀ {n} (N <= n -> norm (midSum S N n) < eps))
+  : IsConvSeries S
+  => convergent-metric-char 1 0 \lam eps>0 => \case p eps>0 \with {
+    | inP (N,g) => inP (N, \lam q => rewrite (norm-dist, inv (midSum-diff q)) (g q))
   }
+  \where {
+    \protected \lemma conv (p : IsConvSeries S) : ∀ {eps : Real} (0 < eps) ∃ (N : Nat) ∀ {n} (N <= n -> norm (midSum S N n) < eps)
+      => \lam eps>0 => \case convergent-metric-char 0 1 p eps>0 \with {
+        | inP (N,g) => inP (N, \lam q => rewrite (midSum-diff q, inv norm-dist) (g q))
+      }
+  }
+
+\lemma seriesSum_defined {A : CompleteNormedAbGroup} {S : Series A} {a : A}
+                         (p : ∀ {eps : Real} (0 < eps) ∃ (N : Nat) ∀ {n} (N <= n -> norm (a - partialSum S n) < eps))
+  : seriesSum S = defined a
+  => limit-char \lam Uo Ua => \case dist_open.1 Uo Ua \with {
+    | inP (eps,eps>0,h) => \case p eps>0 \with {
+      | inP (N,g) => inP (N, \lam q => h $ rewriteI norm-dist in g q)
+    }
+  }
+  \where {
+    \lemma conv (p : seriesSum S = defined a) : ∀ {eps : Real} (0 < eps) ∃ (N : Nat) ∀ {n} (N <= n -> norm (a - partialSum S n) < eps)
+      => \lam {eps} eps>0 => \case limit.isLimit (defined-ext.isDefined {_} {seriesSum S} p) {OBall eps a} OBall-open $ unfold OBall $ rewrite (defined-ext.value {_} {seriesSum S} p, dist-refl) eps>0 \with {
+        | inP (N,g) => inP (N, \lam q => rewriteI norm-dist (g q))
+      }
+  }
+
+\lemma absConv-isConv {A : PseudoNormedAbGroup} {S : Series A} (Sc : IsAbsConvSeries S) : IsConvSeries S
+  => series-conv \lam eps>0 => \case series-conv.conv Sc eps>0 \with {
+    | inP (N,g) => inP (N, \lam p => midSum_norm <∘r RealAbGroup.abs>=id <∘r g p)
+  }
+
+\lemma series-limit {A : TopAbGroup} {S : Series A} (Sc : IsConvSeries S) : A.IsLimit S 0
+  => \lam {U} Uo U0 => \case convergent-topAbGruop-char 0 1 Sc Uo U0 \with {
+    | inP (N,g) => inP (N, \lam {n} p => transport U (inv (midSum-diff {_} {S} id<=suc) *> midSum_suc) (g p id<=suc))
+  }
+
+\lemma series_<= {A : PseudoNormedAbGroup} {b c : Series A} (s : \Pi (j : Nat) -> norm (b j) <= norm (c j)) (cc : IsAbsConvSeries c) : IsAbsConvSeries b
+  => series-conv \lam eps>0 => \case series-conv.conv cc eps>0 \with {
+    | inP (N,g) => inP (N, \lam p => transport2 (<=)
+        (inv (RealField.abs-ofPos $ norm>=0 <=∘ midSum_norm))
+        (inv (RealField.abs-ofPos $ norm>=0 <=∘ midSum_norm))
+        (midSum_<= \lam {j} _ _ => s j) <∘r g p)
+  }
+
+\lemma series_*_lim {A : PseudoNormedRing} {b c : Series A} {l : A} (bl : A.IsLimit b l) (cc : IsAbsConvSeries c) : IsAbsConvSeries \lam n => b n * c n
+  => series-conv \lam {eps} eps>0 =>
+      \have | delta1>0 : 0 < norm l + 1 => linarith norm>=0
+            | delta2>0 : 0 < pos-inv delta1>0 * eps => OrderedSemiring.<_*_positive_positive (pos-inv>0 delta1>0) eps>0
+      \in \case limit-metric-char.1 bl RealAbGroup.zro<ide, series-conv.conv cc delta2>0 \with {
+        | inP (N,g), inP (M,h) => inP (N ∨ M, \lam p => midSum_norm {_} {_} {N ∨ M} <∘r
+            transport2 (<=) zro-left (inv $ midSum-split join-right p) (RealField.<=_+ (transport (`<= _) midSum_0 $ midSum_<= \lam _ _ => <=_*_positive_positive (LinearOrder.<_<= delta1>0) norm>=0) $
+                midSum_<= \lam {j} p' _ => transportInv (`<= _) (RealField.abs-ofPos norm>=0) (A.norm_*_<= <=∘ <=_*_positive-left (linarith $ norm_-right <∘r transport (`< 1) A.norm-dist (g $ join-left <=∘ p')) norm>=0)) <∘r
+            (rewrite (pos-inv-right,ide-left,midSum-ldistr) in transportInv (_ <) RealField.*-assoc (RealField.<_*_positive-right delta1>0 $ RealField.abs>=id <∘r h (join-right <=∘ p))))
+      }
+
+\lemma geometric-series-conv {x : Real} (p : RealAbGroup.abs x < 1) : seriesSum (pow x) = defined (pos-inv (diff-pos p))
+  => generalized (RealField.pos#0 $ linarith $ RealField.abs>=id <∘r p) p
+  \where {
+    \lemma pow_+1-bound {e : Real} (e>=0 : 0 <= e) {n : Nat} : 1 + e * n <= pow (e + 1) n \elim n
+      | 0 => simplify <=-refl
+      | suc n => later (rewrite (inv (RealAbGroup.+-rat {n} {1}), ldistr, ldistr, rdistr) $
+          linarith (<=_*_positive_positive (<=_*_positive_positive e>=0 $ rat_real_<=.1 $ fromInt_<= $ pos<=pos zero<=_) e>=0 : 0 <= e * n * e)) <=∘ <=_*_positive-left (pow_+1-bound e>=0) linarith
+
+    \lemma pow_>1-bound {b : Real} (b>1 : 1 < b) (B : Nat) : ∃ (n : Nat) ((B : Real) < pow b n) \elim B
+      | 0 => inP (0, RealAbGroup.zro<ide)
+      | 1 => inP (1, rewrite ide-left b>1)
+      | 2 => \have b-1>0 : 0 < b - 1 => linarith
+             \in \case Real.natBounded {pos-inv b-1>0} \with {
+               | inP (n,nb) => inP (n, rewrite (linarith : b = (b - 1) + 1, linarith : Real.fromRat 2 = (1 : Real) + 1) $
+                  <_+-right 1 (transport (`< _) (pos-inv-right b-1>0) $ later $ <_*_positive-right b-1>0 $ real_<_U.2 nb) <∘l pow_+1-bound (LinearOrder.<_<= b-1>0))
+             }
+      | suc (suc (suc B)) => \case pow_>1-bound b>1 (suc (suc B)) \with {
+        | inP (N,p) => inP (N + N, rewrite pow_+ $ later (rewrite RealField.*-rat $ real_<_L.2 $ fromInt_< linarith) <∘
+            <_*_positive-right (real_<_L.2 $ later idp) p <∘ <_*_positive-left p (RealField.pow>0 linarith))
+      }
+
+    \lemma pow_1/2-bound {n : Nat} : RealField.pow (ratio 1 2) n <= RealField.pos-inv {suc n} (real_<_L.2 $ later idp) \elim n
+      | 0 => transportInv (_ <=) pos-inv_ide <=-refl
+      | suc n => <=_*_positive-left pow_1/2-bound linarith <=∘
+          \have zro<2 : RealField.zro < Real.fromRat 2 => linarith
+          \in rewrite (inv (RealField.pos-inv_rat zro<2), pos-inv_*) $ pos-inv_<= (real_<_L.2 $ later idp) (RealField.<_*_positive_positive (real_<_L.2 $ later idp) zro<2) $
+                later $ rewrite RealField.*-rat $ rat_real_<=.1 linarith
+
+    \lemma pow_<1-bound {a : Real} (a<1 : a < 1) {eps : Real} (eps>0 : 0 < eps) : ∃ (n : Nat) (pow a n < eps)
+      => \case Real.natBounded {pos-inv eps>0} \with {
+        | inP (B,Bb) => \case real-located {a} {0} {ratio 1 2} (real_<_L.2 $ later idp) \with {
+          | byLeft a>0 => \case pow_>1-bound {pos-inv a>0} (pos-inv>1 a>0 a<1) B \with {
+            | inP (n,p) => inP (n, pos-inv_<-conv (RealField.pow>0 a>0) eps>0 $ real_<_U.2 Bb <∘ transport (_ <) (pos-inv_pow a>0) p)
+          }
+          | byRight a<1/2 => \case real-located {a} {RealField.negative (ratio 1 2)} {0} linarith \with {
+            | byLeft a>-1/2 => inP (B, RealField.abs>=id <∘r transportInv (`< _) OrderedRing.abs_pow
+                (pow_<=-monotone RealField.abs>=0 (join-univ (LinearOrder.<_<= a<1/2) (LinearOrder.<_<= $ RealField.negative_<-left a>-1/2)) <∘r
+                  pow_1/2-bound <∘r transport (_ <) (pos-inv_pos-inv eps>0)
+                    (pos-inv_< (pos-inv>0 eps>0) (real_<_L.2 $ later idp) $ real_<_U.2 Bb <∘ real_<_L.2 (fromInt_< $ pos<pos id<suc))))
+            | byRight a<0 => inP (1, transportInv (`< _) ide-left $ a<0 <∘ eps>0)
+          }
+        }
+      }
+
+    \protected \lemma generalized {X : CompleteValuedRing} {x : X} (xi : Inv (1 - x)) (|x|<1 : norm x < 1) : seriesSum (pow x) = defined xi.inv
+      => seriesSum_defined {_} {pow x} \lam {eps} eps>0 =>
+          \have |1-x|>0 : 0 < norm (1 - x) => linarith norm_ide <∘l norm_-left
+          \in \case pow_<1-bound |x|<1 {eps * norm (1 - x)} $ RealField.<_*_positive_positive eps>0 |1-x|>0 \with {
+            | inP (N,q) => inP (N, \lam N<=n => rewrite X.geometric-partial-sum $ norm_*_<= <∘r <=_*_positive-left norm_<=_pow norm>=0 <∘r
+                transport (_ <) (*-assoc *> pmap (_ *) (inv norm_* *> pmap norm xi.inv-right *> norm_ide) *> ide-right) (<_*_positive-left (pow_<=-degree norm>=0 (LinearOrder.<_<= |x|<1) N<=n <∘r q) $
+                  <_*_positive-cancel-right (LinearOrder.<_<= |1-x|>0) $ transport2 (<) (inv zro_*-left) (inv norm_ide *> pmap norm (inv xi.inv-left) *> norm_*) zro<ide))
+          }
+
+    \protected \lemma diff-pos {x y : Real} (p : RealAbGroup.abs x < y) : 0 < y - x
+      => linarith $ RealAbGroup.abs>=id {x}
+  }
+
+\lemma geometric-series-absConv {X : PseudoNormedRing} {x : X} (p : norm x < 1) : IsAbsConvSeries (pow x)
+  => \have | cs => defined-ext.isDefined (geometric-series-conv $ rewrite (RealField.abs-ofPos norm>=0) p)
+           | acs => transport IsConvSeries {pow (norm x)} (ext \lam j => inv $ RealField.abs-ofPos $ pow>=0 norm>=0) cs
+     \in absConv-isConv {_} {\lam j => norm (pow x j)} $ series_<= {_} {\lam j => norm (pow x j)} {pow (norm x)}
+          (\lam j => rewrite (RealField.abs-ofPos norm>=0, RealField.abs-ofPos $ pow>=0 norm>=0) norm_<=_pow) acs
