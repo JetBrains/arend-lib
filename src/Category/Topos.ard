@@ -1,16 +1,22 @@
 \import Algebra.Meta
 \import Category
+\import Category.Adjoint
 \import Category.CartesianClosed
 \import Category.Coreflection
 \import Category.Limit
+\import Category.Subobj
+\import Category.SubobjectPoset
 \import Equiv
 \import Function (isInj)
 \import Function.Meta
 \import Logic
 \import Meta
+\import Order.PartialOrder
 \import Paths
 \import Paths.Meta
+\import Relation.Equivalence
 \import Set.Category
+\import Topology.Locale
 \open PrecatWithBprod
 
 \class ToposPrecat \extends FinCompletePrecat, CartesianClosedPrecat {
@@ -52,6 +58,57 @@
 
   \func transpose-inj {A B : Ob} {f g : Hom (Bprod A B) omega} (e : p-transpose f = p-transpose g)
     : f = g => p-transpose-univ f *> pmap (belongs ∘ prodMap __ (id B)) e *> (inv $ p-transpose-univ g)
+
+  \func subobject-equiv (C : Ob) : Equiv {SubobjectPoset C} {Hom C omega} => \new QEquiv {
+    | f => from-subobj
+    | ret m => in~ (from-char-map m)
+    | ret_f sub =>
+      \let equiv => ~-equiv {SubobjPreorder C} {Preorder.EquivRel.~} \in
+      \case\elim sub \with {
+      | in~ a => \case\elim a \with {
+        | subobj sub m => equiv (from-char-map (from-subobj (in~ (subobj sub m)))) (subobj sub m)
+            $ (inP (Iso.hinv {pb-of-char-iso m}, unfold $ unfold Pullback.unique.p-map $
+                                                          \let s => pbBeta1 {char-pullback m} {sub} {Mono.f {m}} {terminalMap} \in
+                                                          unfold at s $ {?}), {?}) -- this is the same as to say that pullbacks are equal
+      }
+  }
+    | f_sec c => inv $ char-unique $ unfold {?}
+  }
+    \where {
+      \func from-subobj (x : SubobjectPoset C) : Hom C omega
+      \elim x
+        | in~ a => \case\elim a \with {
+          | subobj _ m => char-map m
+        }
+        | ~-equiv x y (r1, r2) => \case\elim x, \elim y, \elim r1, \elim r2 \with {
+          | subobj a m1, subobj b m2, eq1, eq2 =>
+            \let | (h1, eq1') => SubobjPreorder.extractMap {_} {C} m2 eq1
+                 | (h2, eq2') => SubobjPreorder.extractMap {_} {C} m1 eq2
+                 | iso => SubobjPreorder.antisymmetric m2 m1 (inP $ (h2, eq2')) (inP $ (h1, eq1'))
+                 | iso-mono => Iso.isMono {iso}
+            \in
+              char-unique (\new Pullback {
+                | pbCoh => rewriteI (eq2', o-assoc) $ rewrite (pbCoh {char-pullback m1}, o-assoc, terminate) idp
+                | pbMap {w} p1 n coh => h1 ∘ pbMap {char-pullback m1} {w} p1 n coh
+                | pbBeta1 => rewriteI o-assoc $ rewrite (eq1', pbBeta1 {char-pullback m1}) idp
+                | pbBeta2 => terminal-unique
+                | pbEta {w} {g} {h} coh _ =>
+                  \let | c => pbEta {char-pullback m1} {w} {h2 ∘ g} {h2 ∘ h} (rewrite (inv o-assoc, eq2', inv o-assoc, eq2') coh) terminal-unique
+                  \in
+                    iso-mono {w} {g} {h} c
+              })
+        }
+
+      \func pb-of-char-iso {B C : Ob} (m : Mono {\this} {B} {C})
+        => Pullback.unique (char-map m) true-map (char-pullback m) (pullback (char-map m) true-map)
+
+      \func from-char-map (m : Hom C omega) : SubobjPreorder C =>
+        \let
+          | true-mono => global-section true-map
+          | pb-of-mono => Pullback.pullback-of-mono' {_} {_} {_} {_} {_} {true-mono} (pullback m true-map)
+        \in
+          subobj (Pullback.apex {pullback m true-map}) pb-of-mono
+    }
 
   \func internal-equality \alias eq (B : Ob) : Hom (Bprod B B) omega =>
     char-map (diagonal.isSplitMono B)
@@ -374,4 +431,16 @@
                          {eq : (\lam x => IsElement m (p1 x)) = (\lam _ => \Sigma)} (x : w) : IsElement m (p1 x) =>
       \let s : IsElement m (p1 x) = (\Sigma) => path (\lam i => (eq @ i) x) \in
         sigma-prop-ext-inv s
+  }
+
+
+\instance SubobjectLocale-Topos {C : BicompleteCat} {C-topos : ToposPrecat C} (obj : C) : Locale
+  | Poset => SubobjectPoset obj
+  | Join {J} G => {?}
+  | Join-cond => {?}
+  | Join-univ => {?}
+  | Join-ldistr>= => {?}
+  \where {
+    \func map-to-homs {J : \Set} (G : J -> SubobjectPoset obj) : \Pi (j : J) -> Hom {C-topos} obj omega
+      => \lam j => ToposPrecat.subobject-equiv obj (G j)
   }
