@@ -1,0 +1,201 @@
+\import Category
+\import Category.Functor
+\import Category.Limit
+\import Category.Topos.Sheaf
+\import Equiv (QEquiv)
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set.Category
+
+-- Every precategory has a fully faithful functor into the category of Presheafs
+
+\func YonedaEmbedding {C : Precat} : FullyFaithfulFunctor
+\cowith
+  | Functor => functor {C}
+  | isFullyFaithful {X} {Y} =>
+    \new QEquiv {
+      | ret => QEquiv.f {yoneda-lemma X (hom-presheaf Y)}
+      | ret_f _ => id-right
+      | f_sec => QEquiv.ret_f {yoneda-lemma X (hom-presheaf Y)}
+    }
+  \where {
+    \func hom-presheaf {C : Precat} (c : C) : PresheafCat C => \new VPresheaf {
+      | F => \new Functor {
+        | F x => Hom x c
+        | Func f g => g ∘ f
+        | Func-id => exts (\lam _ => id-right)
+        | Func-o => exts (\lam _ => inv o-assoc)
+      }
+    }
+
+    \func functor {C : Precat} : Functor C (PresheafCat C) \cowith
+      | F => hom-presheaf
+      | Func f => \new NatTrans {
+        | trans _ => \lam g => f ∘ g
+        | natural _ => exts (\lam _ => inv $ o-assoc)
+      }
+      | Func-id => exts (\lam _ => exts (\lam _ => id-left))
+      | Func-o => exts (\lam _ => exts (\lam _ => unfold $ o-assoc))
+
+    \func yoneda-lemma {C : Precat} (A : C) (F : PresheafCat C)
+      : QEquiv {Hom (Functor.F {functor} A) F} {F A} => \new QEquiv {
+      | f nat => nat A (id A)
+      | ret p => \new NatTrans {
+        | trans _ f => Func {F} f p
+        | natural _ => exts (\lam _ => unfold $ rewrite (Func-o {F}) idp)
+      }
+      | ret_f nf => exts (\lam B => exts (\lam f =>
+          \let | nat-nf => natural {nf} f
+               | nat-nf-app => path (\lam i => nat-nf i (id A))
+          \in
+            unfold at nat-nf-app $ inv nat-nf-app *> rewrite id-left idp))
+      | f_sec p => rewrite (Func-id {F} {A}) idp
+    }
+  }
+
+-- Every presheaf is a colimit of representable presheaves
+-- The diagram of the colimit is given by the following category
+
+\instance category-of-elements {C : Precat} (P : PresheafCat C) : Precat
+  | Ob => \Sigma (c : Precat.Ob {C}) (p : P c)
+  | Hom x y => \Sigma (u : Hom x.1 y.1) (x.2 = Func {P} u y.2)
+  | id (c, p) => (id c, unfold $ rewrite (Func-id {P}) idp)
+  | o (u, eq) (u', eq') => (u ∘ u', eq' *> rewrite (eq, Func-o {P}) idp)
+  | id-left => exts id-left
+  | id-right => exts id-right
+  | o-assoc => exts o-assoc
+  \where {
+    \func projection : Functor (category-of-elements P) C
+    \cowith
+      | F (x, _) => x
+      | Func (f, _) => f
+      | Func-id => idp
+      | Func-o => idp
+
+    \func functorial {C : Precat} (P F : PresheafCat C) (nat : Hom P F)
+      : Functor (category-of-elements P) (category-of-elements F)
+    \cowith
+      | F (c, p) => (c, nat c p)
+      | Func {(c, p)} {(c', p')} (h, eq) => (h, rewrite eq $ path (\lam i => (natural {nat} h) i p'))
+      | Func-id => exts $ idp
+      | Func-o => exts $ idp
+  }
+
+\open YonedaEmbedding
+
+\func presheaf-colimit {C : Precat} (P : PresheafCat C) :
+  Colimit (Comp (functor {C}) (category-of-elements.projection {C} {P})) => \new Limit {
+  | apex => P
+  | coneMap (c, p) => \new NatTrans {
+    | trans _ h => Func {P} h p
+    | natural _ => exts (\lam _ => unfold $ rewrite (Func-o {P}) idp)
+  }
+  | coneCoh {(c,p)} {(c', p')} (f , eq) => exts (\lam _ => exts (\lam _ => unfold $ rewrite eq (unfold $ rewrite (Func-o {P}) idp)))
+  | limMap {G} cone =>
+    \new NatTrans {
+      | trans X p => QEquiv.f {yoneda-lemma _ G} (coneMap {cone} (X, p))
+      | natural {X} {Y} f =>
+        exts (\lam g =>
+            \let | ch => coneCoh {cone} {X, g} {Y, Func {P} f g} (f, idp)
+                 | nat => natural {coneMap {cone} (X, g)} f
+                 | nat-applied => path (\lam i => (nat i) (id X))
+            \in
+              run {
+                repeat {3} unfold,
+              -- weird error sometimes occures here, it works fine if other fields are not implemented
+                rewriteI ch,
+                repeat {3} unfold,
+                rewrite id-right,
+                unfold, unfold,
+                rewriteI nat-applied,
+                unfold, rewrite id-left idp
+              }
+        )
+    }
+  | limBeta {Z} _ p0 =>
+    \case\elim p0 \with {
+      | (Y, p) => QEquiv.isInj {yoneda-lemma _ Z} $ unfold $ rewrite (Func-id {P}) idp
+    }
+  | limUnique eq => exts (\lam X =>
+      exts (\lam p =>
+          \let | elem : category-of-elements P => (X, p)
+               | eq-app => eq (X, p)
+               | eq' => path (\lam i => (eq-app i) X)
+               | eq'' => path (\lam i => (eq' i) (id X))
+          \in
+            (repeat {3} unfold at eq'') $ (rewriteI (path (\lam i => (Func-id {P} {X}) i p) : Func {P} {X} {X} (id X) p = p)) eq'')
+  )
+}
+  \where {
+    \func diagram-functor => Comp (functor {C}) (category-of-elements.projection {C} {P})
+  }
+
+\open category-of-elements
+
+\func embedding-universal {C : SmallPrecat} {E : CocompleteCat \levels (\suc \lp) _}
+                          (A : Functor C E)
+  : \Sigma (L : Functor (PresheafCat C) E) (A = Comp L YonedaEmbedding) =>
+  (L-Functor, exts (\lam x => inv $ image-of-rep-eq x, {?}))
+  \where {
+    \func diagram-functor (P : PresheafCat C) => Comp A (projection {C} {P})
+
+    \func image-of-representable (x : C) : Colimit (diagram-functor (hom-presheaf x)) { | apex => A x }
+      \cowith
+        | coneMap p0 => \case\elim p0 \with {
+          | (c, p) => Func {A} p
+        }
+        | coneCoh {i} {j} h =>\case\elim i, \elim j, \elim h \with {
+          | (c, p), (c', p'), (f, eq) => repeat {4} unfold $ rewriteI (Func-o {A}, eq) idp
+        }
+        | limMap {z} cone => coneMap {cone} (x, id x)
+        | limBeta {z} cone j => \case\elim j \with {
+          | (c, p) => coneCoh {cone} {x, id x} {c, p} (p, inv id-left)
+        }
+        | limUnique coh => unfold at coh $ \let | coh-app => coh (x, id x) \in rewrite (Func-id {A}, id-right, id-right) at coh-app $ coh-app
+
+    \func image-of-representable-iso (x : C)
+      => Iso.op {Limit.lim_iso {_} {_} {Functor.op {diagram-functor (hom-presheaf x)}} (L $ hom-presheaf x) (image-of-representable x)}
+
+    \func image-of-rep-eq (x : C) : Limit.apex {L (hom-presheaf x)} = A x
+      => E.univalence.ret $ image-of-representable-iso x
+
+    \func L (P : PresheafCat C) => E.colimit (diagram-functor P)
+
+    \func L-Functor : Functor (PresheafCat C) E
+    \cowith
+      | F P => L P
+      | Func {X} {Y} f => induced-map f
+      | Func-id {X} =>
+        Limit.limUniqueBeta {L X} {L X} (\lam p0 => \case\elim p0 \with {
+          | (c, p) => repeat {2} unfold $ rewrite (id-right, id-left {_} {_} {L X}) $ idp
+        })
+      | Func-o {X} {Y} {Z} {g} {f} =>
+        unfold_let $ Limit.limUniqueBeta {L X} {L Z} (\lam j => \case\elim j \with {
+          | (c, p) => repeat {6} unfold
+            $ id-right *> (
+                            \let
+                              | limBeta1 => limBeta {L X} (cone-in-induced f) (c, p)
+                              | limBeta2 => limBeta {L Y} (cone-in-induced g) (c, f c p)
+                            \in
+                              unfold at limBeta1 $ rewrite (o-assoc, limBeta1, id-left) $
+                                                   unfold at limBeta2 $ rewrite (limBeta2, id-left) idp)
+        })
+      \where {
+        \func induced-map {X Y : PresheafCat C} (f : Hom X Y) =>
+          Limit.transFuncMap (L X) (L Y) (Functor.op {functorial X Y f}) $ (\new NatTrans {
+            | trans (q, a) => id (A q)
+            | natural g => repeat {4} unfold $ rewrite (id-left, id-right) idp
+          })
+
+        \func cone-in-induced {X Y : PresheafCat C} (f : Hom X Y) =>
+          Limit.transFuncMap.cone {_} {L X} {L Y} {Functor.op {functorial X Y f}}
+              {\new NatTrans {
+                 | trans (q, a) => id (A q)
+                 | natural g => repeat {4} unfold $ rewrite (id-left, id-right) idp
+               }}
+      }
+  }
+
+
