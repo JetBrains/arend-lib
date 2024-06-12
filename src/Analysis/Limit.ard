@@ -16,7 +16,6 @@
 \import Topology.CoverSpace.Complete
 \import Topology.CoverSpace.Directed
 \import Topology.MetricSpace
-\import Topology.NormedAbGroup
 \import Topology.NormedAbGroup.Real
 \import Topology.TopAbGroup
 \import Topology.TopSpace
@@ -24,21 +23,6 @@
 
 \func IsConvergent {I : DirectedSet} {X : CoverSpace} (f : I -> X) : \Prop
   => CoverMap (DirectedCoverSpace I) X f
-
-\func limit {I : DirectedSet} {X : CompleteCoverSpace} (f : I -> X) : Partial X \cowith
-  | isDefined => IsConvergent f
-  | value fc => completion-lift fc infPoint
-  \where {
-    \func infPoint {I : DirectedSet} : Completion (DirectedCoverSpace I)
-      => CompleteCoverSpace.filter-point $ completion.func-cauchy EventualityFilter
-
-    \protected \lemma char (fc : CoverMap (DirectedCoverSpace I) X)
-      : limit fc fc = CompleteCoverSpace.filter-point (fc.func-cauchy EventualityFilter)
-      => completion-lift-natural EventualityFilter
-
-    \lemma isLimit (fc : CoverMap (DirectedCoverSpace I) X) : X.IsLimit fc (limit fc fc)
-      => rewrite char \lam Uo Ul => CompleteCoverSpace.filter-point-sub (X.open-char.1 Uo Ul)
-  }
 
 \lemma convergent-char {I : DirectedSet} {X : CoverSpace} {f : I -> X} (p : ∀ {C : X.isCauchy} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))) : IsConvergent f
   => regPrecoverSpace-extend-coverMap \new PrecoverMap {
@@ -55,20 +39,35 @@
         | inP (_, inP (_, inP (U, CU, idp), idp), N, g) => inP (U, CU, N, g)
       }
 
-\lemma limit-char {I : DirectedSet} {X : CompleteCoverSpace} {f : I -> X} {l : X} (fl : X.IsLimit f l) : limit f = defined l
-  => defined-ext {_} {limit f} (convergent fl) $ inv $ isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 4 7 \lam {U} l<=<U => \case <=<-inter l<=<U \with {
-    | inP (U',l<=<U',U'<=<U) => \case fl X.interior l<=<U' \with {
-      | inP (N,g) => transportInv U (limit.char (convergent fl)) $ <=<_<= (CompleteCoverSpace.filter-point-elem U'<=<U $ inP $ later (N, \lam p => <=<_<= (g p) idp)) idp
+\lemma limit-conv {I : DirectedSet} {X : CoverSpace} {f : I -> X} {l : X} (fl : X.IsLimit f l) : IsConvergent f
+  => convergent-char \lam Cc => \case X.cauchy-regular-cover Cc l \with {
+    | inP (U,CU,l<=<U) => \case fl (X.interior {U}) l<=<U \with {
+      | inP (N,g) => inP (U, CU, N, \lam p => <=<_<= (g p) idp)
     }
   }
+
+\func limit {I : DirectedSet} {X : CompleteCoverSpace} (f : I -> X) : Partial X \cowith
+  | isDefined => IsConvergent f
+  | value fc => completion-lift fc infPoint
   \where {
-    \lemma convergent {I : DirectedSet} {X : CoverSpace} {f : I -> X} {l : X} (fl : X.IsLimit f l) : IsConvergent f
-      => convergent-char \lam Cc => \case X.cauchy-regular-cover Cc l \with {
-        | inP (U,CU,l<=<U) => \case fl (X.interior {U}) l<=<U \with {
-          | inP (N,g) => inP (U, CU, N, \lam p => <=<_<= (g p) idp)
-        }
-      }
+    \func infPoint {I : DirectedSet} : Completion (DirectedCoverSpace I)
+      => CompleteCoverSpace.filter-point $ completion.func-cauchy EventualityFilter
+
+    \protected \lemma char (fc : CoverMap (DirectedCoverSpace I) X)
+      : limit fc fc = CompleteCoverSpace.filter-point (fc.func-cauchy EventualityFilter)
+      => completion-lift-natural EventualityFilter
   }
+
+\lemma limit-isLimit {I : DirectedSet} {X : CompleteCoverSpace} (fc : CoverMap (DirectedCoverSpace I) X) : X.IsLimit fc (limit fc fc)
+  => rewrite limit.char \lam Uo Ul => CompleteCoverSpace.filter-point-sub (X.open-char.1 Uo Ul)
+
+\lemma limit-char {I : DirectedSet} {X : CompleteCoverSpace} {f : I -> X} {l : X} : (limit f = defined l) <-> X.IsLimit f l
+  => (\lam p => rewriteI (defined-ext.value {_} {limit f} p) $ limit-isLimit (defined-ext.isDefined {_} {limit f} p),
+      \lam fl => defined-ext {_} {limit f} (limit-conv fl) $ inv $ isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 4 7 \lam {U} l<=<U => \case <=<-inter l<=<U \with {
+        | inP (U',l<=<U',U'<=<U) => \case fl X.interior l<=<U' \with {
+          | inP (N,g) => transportInv U (limit.char (limit-conv fl)) $ <=<_<= (CompleteCoverSpace.filter-point-elem U'<=<U $ inP $ later (N, \lam p => <=<_<= (g p) idp)) idp
+        }
+      })
 
 \lemma convergent-uniform-char {I : DirectedSet} {X : UniformSpace} {f : I -> X} (p : ∀ {C : X.isUniform} ∃ (U : C) (N : I) ∀ {n} (N <= n -> U (f n))) : IsConvergent f
   => convergent-char \lam Cc => \case ClosurePrecoverSpace.closure-filter (\new SetFilter X {
