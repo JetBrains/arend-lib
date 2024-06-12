@@ -31,6 +31,7 @@
 \import Topology.TopAbGroup
 \import Topology.TopAbGroup.Complete
 \import Topology.TopAbGroup.Product
+\import Topology.TopSpace
 \open OrderedField
 \open Monoid \hiding (equals)
 \open LinearlyOrderedSemiring
@@ -73,6 +74,10 @@
       | suc n => \lam p => transport U (inv (midSum-diff $ suc<=suc.conv p) *> midSum-diff p) $ g <=-refl (suc<=suc.conv p)
     })
   })
+
+\lemma series-shifts-conv {A : TopAbGroup} {S : Series A} (N : Nat) : IsConvSeries S <-> IsConvSeries \lam n => S (n + N) \elim N
+  | 0 => <->refl
+  | suc N => <->trans (series-shifts-conv N) series-shift-conv
 
 \func midSum {A : AddMonoid} (S : Series A) (n m : Nat) : A \elim n, m
   | 0, m => partialSum S m
@@ -237,6 +242,24 @@
 
 \lemma geometric-series-absConv {X : PseudoNormedRing} {x : X} (p : norm x < 1) : IsAbsConvSeries (pow x)
   => series_<= (\lam j => norm>=0) (\lam j => norm_<=_pow) $ defined-ext.isDefined $ geometric-series-conv $ rewrite (RealField.abs-ofPos norm>=0) p
+
+\lemma ratio-test {X : PseudoNormedAbGroup} {S : Series X} (b : Series Real) (bp : \Pi (n : Nat) -> norm (S (suc n)) <= norm (S n) * b n)
+                  {l : Real} (l<1 : l < 1) (bl : RealNormed.IsLimit b l) : IsAbsConvSeries S
+  => \case real_<-char.1 (LinearOrder.<_join-univ l<1 zro<ide) \with {
+    | inP (r,lz<r,r<1) => \case bl (OBall-open {_} {r - l} {l}) (rewrite dist-refl $ linarith (usingOnly (join-left <∘r lz<r))) \with {
+      | inP (N,g) => (series-shifts-conv N).2
+          \have r>=0 => join-right <=∘ LinearOrder.<_<= lz<r
+          \in series_<= (\lam j => norm>=0) (iter-bound (\lam j => norm>=0) r>=0 (\lam j => bp (j + N))
+                  (\lam j => linarith (usingOnly (RealAbGroup.abs>=_- <=∘ LinearOrder.<_<= (rewrite norm-dist in g (NatSemiring.<=_+ zero<=_ <=-refl)))))) $
+                absConv-isConv $ series_*_lim const-limit $ geometric-series-absConv $ later $ rewrite (RealAbGroup.abs-ofPos r>=0) r<1
+    }
+  }
+  \where {
+    \lemma iter-bound {f b : Nat -> Real} (f>=0 : \Pi (j : Nat) -> 0 <= f j) {r : Real} (r>=0 : 0 <= r)
+                      (bp : \Pi (n : Nat) -> f (suc n) <= f n * b n) (bb : \Pi (n : Nat) -> b n <= r) (j : Nat) : f j <= f 0 * pow r j \elim j
+      | 0 => rewrite ide-right <=-refl
+      | suc j => bp j <=∘ <=_*_positive-right (f>=0 j) (bb j) <=∘ transport (_ <=) *-assoc (<=_*_positive-left (iter-bound f>=0 r>=0 bp bb j) r>=0)
+  }
 
 \lemma MTest {X : \Set} {Y : PseudoNormedAbGroup} (f : Nat -> X -> Y) (M : Nat -> Real)
              (Mp : \Pi (n : Nat) (x : X) -> norm (f n x) <= M n) (Mc : IsConvSeries M) : IsUniFuncConvergent \lam n x => partialSum (f __ x) n

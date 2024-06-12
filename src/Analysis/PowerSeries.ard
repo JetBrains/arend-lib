@@ -8,6 +8,7 @@
 \import Arith.Rat
 \import Arith.Real
 \import Arith.Real.Field
+\import Combinatorics.Factorial
 \import Data.Or
 \import Function.Meta
 \import Logic
@@ -62,13 +63,13 @@
             rewrite OrderedField.pos-inv-right in <_*_positive-left (real_<_L.2 b<|x|) (OrderedField.pos-inv>0 |x|>0))
   }
 
-\func IsPowerSeriesConv {X : PseudoNormedRing} (cs : Nat -> X) : \Prop
+\type IsPowerSeriesConv {X : PseudoNormedRing} (cs : Nat -> X) : \Prop
   => \Pi {a : Real} -> 0 <= a -> IsConvSeries (\lam n => norm (cs n) * pow a n)
 
 \lemma powerSeriesConv-absConv {X : PseudoNormedRing} {cs : Nat -> X} (p : IsPowerSeriesConv cs) {x : X} : IsAbsConvSeries (powerSeries cs __ x)
   => series_<= {_} {\lam j => norm (cs j) * pow (norm x) j} (\lam j => norm>=0) (\lam j => norm_*_<= <=∘ <=_*_positive-right norm>=0 norm_<=_pow) (p norm>=0)
 
-\lemma powerSeriesConv-uniConv {X : PseudoNormedRing} {cs : Nat -> X} (p : IsPowerSeriesConv cs)
+\lemma powerSeriesConv-funcConv {X : PseudoNormedRing} {cs : Nat -> X} (p : IsPowerSeriesConv cs)
   : IsFuncConvergent \lam n x => partialSum (powerSeries cs __ x) n
   => funcCovergent-metric-char (partialSum-cover \lam j => *-locally-uniform CoverMap.∘ ProductCoverSpace.tuple (CoverMap.const (cs j)) (pow-cover j)) \lam {eps} eps>0 =>
       X.makeCauchy $ X.uniform-refine (X.makeUniform eps>0) \lam {_} (inP (x,idp)) =>
@@ -86,3 +87,15 @@
       | inP (x,B<|x|) => convRadius-conv cs a>=0 $ <LU-transitive (inP (B, a<B, real_<_L.1 B<|x|)) $ convRadius-div cs (Sc x)
     }
   }
+
+\lemma power-ratio-test {c b : Series Real} (c>=0 : \Pi (j : Nat) -> 0 <= c j) (bp : \Pi (n : Nat) -> c (suc n) <= c n * b n) {l : Real}
+                        (bl : RealNormed.IsLimit b l) {x : Real} (x>=0 : 0 <= x) (lx : l * x < 1) : IsConvSeries \lam j => c j * pow x j
+  => absConv-isConv $ ratio-test (\lam j => b j * x) (\lam j => later $ rewrite
+        (RealField.abs-ofPos $ <=_*_positive_positive (c>=0 (suc j)) (pow>=0 {_} {_} {suc j} x>=0),
+         RealField.abs-ofPos (<=_*_positive_positive (c>=0 j) (pow>=0 x>=0))) $
+        <=_*_positive-left (bp j) (pow>=0 {_} {_} {suc j} x>=0) <=∘ Preorder.=_<= (equation {CRing})) lx $
+      cont-limit bl $ RealField.*-cover CoverMap.∘ ProductCoverSpace.tuple CoverMap.id (CoverMap.const x)
+
+\lemma power-ratio-test-inf {X : PseudoNormedRing} (cs : Series X) (b : Series Real)
+                            (bp : \Pi (n : Nat) -> norm (cs (suc n)) <= norm (cs n) * b n) (bl : RealNormed.IsLimit b 0) : IsPowerSeriesConv cs
+  => \lam a>=0 => power-ratio-test (\lam j => norm>=0) bp bl a>=0 $ rewrite Ring.zro_*-left zro<ide
