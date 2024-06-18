@@ -28,7 +28,7 @@
   | CompleteCoverSpace => Completion X
   | isUniform D => ∃ (C : isUniform) (∀ {U : C} ∃ (V : D) (mkSet U ⊆ V))
   | uniform-cover (inP (C,Cu,p)) F =>
-    \have | (inP (U,CU,FU)) => isCauchyFilter (uniform-cauchy.2 $ closure Cu)
+    \have | (inP (U,CU,FU)) => isCauchyFilter (X.makeCauchy Cu)
           | (inP (V,DV,q)) => p CU
     \in inP (V, DV, q FU)
   | uniform-top => inP (single top, uniform-top, \lam _ => inP (top, idp, \lam _ => ()))
@@ -48,7 +48,22 @@
       }
     })
   }
-  | uniform-cauchy => (\lam (inP (C',C'c,f)) => closure-map mkSet (\lam {F} => filter-top) mkSet_<= (\lam s => filter-meet s.1 s.2) f $ uniform-cauchy.1 C'c, closure-cauchy $ later \lam (inP (C',C'u,f)) => inP (C', uniform-cauchy.2 $ closure C'u, f))
+  | uniform-cauchy => (\lam (inP (C',C'c,f)) => closure-map mkSet (\lam {F} => filter-top) mkSet_<= (\lam s => filter-meet s.1 s.2) f $ uniform-cauchy.1 C'c,
+                       closure-cauchy $ later \lam (inP (C',C'u,f)) => inP (C', X.makeCauchy C'u, f))
+  \where {
+    \lemma properUniform (Xp : X.IsProperUniform) : UniformSpace.IsProperUniform {UniformCompletion X}
+      => \lam (inP (D,Du,h)) => inP (_, Xp $ X.<=<-regular Du, \lam {U'} (inP (U, DU, U'<=<U), inP (x,U'x)) => \case h DU \with {
+        | inP (V,CV,p) => inP (V, (CV, inP (pointCF x, p $ <=<-right (single_<= U'x) U'<=<U)), mkSet_<= (<=<_<= U'<=<U) <=∘ p)
+      })
+
+    \lemma makeUniform {C : Set (Set X)} (Cu : isUniform C) : isUniform {UniformCompletion X} \lam V => ∃ (U : C) (V = mkSet U)
+      => inP (C, Cu, \lam CU => inP (_, inP (_, CU, idp), <=-refl))
+  }
+
+\lemma mkSet_<=* {X : UniformSpace} {V U : Set X} (p : V <=* U) : mkSet V <=* mkSet U \elim p
+  | inP (C,Cu,p) => inP (_, UniformCompletion.makeUniform Cu, \lam {F} (inP (_, (inP (W,CW,idp), (G,(GV,GW))), FW)) => filter-mono ((\lam Wx => \case isProper (filter-meet GV GW) \with {
+    | inP s => inP $ later (W, (CW, s), Wx)
+  }) <=∘ p) FW)
 
 \func uniform-completion {X : UniformSpace} : UniformMap X (UniformCompletion X) \cowith
   | CoverMap => completion
@@ -58,9 +73,13 @@
           | inP (V,DV,p) => inP (pointCF ^-1 V, inP (V, DV, idp), \lam Ux => p $ <=<-right (single_<= Ux) U<=<U')
         }
       }
+  \where {
+    \lemma isDenseEmbedding : UniformMap.IsDenseEmbedding {uniform-completion {X}}
+      => (completion.isDenseEmbedding.1, \lam {C} Cu => inP (C, Cu, \lam {U} CU => inP (Completion.mkSet U, inP (U, CU, <=<_<= __ idp), <=-refl)))
+  }
 
 \lemma cauchyFilter-uniform-char {X : UniformSpace} {F : SetFilter X} : ∀ {C : isCauchy} ∃ (U : C) (F U) <-> ∀ {C : isUniform} ∃ (U : C) (F U)
-  => (\lam Fc Cu => Fc $ uniform-cauchy.2 $ closure Cu, \lam f Cc => closure-filter F f (uniform-cauchy.1 Cc))
+  => (\lam Fc Cu => Fc $ X.makeCauchy Cu, \lam f Cc => closure-filter F f (uniform-cauchy.1 Cc))
 
 \lemma regularFilter-uniform-char {X : UniformSpace} {F : CauchyFilter X} : ∀ {U : F.F} ∃ (V : Set X) (V <=< U) (F V) <-> ∀ {U : F.F} ∃ (V : Set X) (V <=* U) (F V)
   => (\lam Fr => RegularCauchyFilter.ratherBelow StarRatherBelow StarRatherBelow.<=<-left (\lam p => <=<_<= (<=*_<=< p)) X.<=*-cauchy-regular (\new RegularCauchyFilter { | CauchyFilter => F | isRegularFilter => Fr }), \lam f FU => TruncP.map (f FU) \lam (V,p,FV) => (V, <=*_<=< p, FV))

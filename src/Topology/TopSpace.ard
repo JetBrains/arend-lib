@@ -1,6 +1,8 @@
+\import Function.Meta ($)
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Directed
 \import Order.Lattice
 \import Order.PartialOrder
 \import Paths
@@ -29,6 +31,12 @@
     => \Pi (y : E) -> ∃ (W : isOpen) (W y) (Given (V ∧ W) -> W ⊆ U)
 
   \func IsRegular => ∀ {U : isOpen} {x : U} ∃ (V : isOpen) (V x) (V <=<T U)
+
+  \func IsLimit {I : DirectedSet} (f : I -> E) (l : E) : \Prop
+    => ∀ {U : isOpen} (U l) ∃ (N : I) ∀ {n} (N <= n -> U (f n))
+
+  \func IsClosed (U : Set E) : \Prop
+    => \Pi {x : E} -> (\Pi {V : Set E} -> isOpen V -> V x -> ∃ (U ∧ V)) -> U x
 }
 
 \func NFilter {X : TopSpace} (x : X) : ProperFilter X \cowith
@@ -41,7 +49,7 @@
 \func IsDenseSet {X : TopSpace} (S : Set X) : \Prop
   => \Pi {x : X} {U : Set X} -> isOpen U -> U x -> ∃ (y : S) (U y)
 
-\class ContMap \extends SetHom {
+\record ContMap \extends SetHom {
   \override Dom : TopSpace
   \override Cod : TopSpace
 
@@ -76,6 +84,14 @@
     | func-cont _ => Y.cover-open \lam Ux => inP (top, open-top, (), \lam _ => Ux)
 }
 
+\lemma const-limit {I : DirectedSet} {X : TopSpace} {x : X} : X.IsLimit (\lam (_ : I) => x) x
+  => \lam _ Ux => \case I.isInhabitted \with {
+    | inP N => inP (N, \lam _ => Ux)
+  }
+
+\lemma cont-limit {I : DirectedSet} {X Y : TopSpace} {f : I -> X} {l : X} (p : X.IsLimit f l) (g : ContMap X Y) : Y.IsLimit (\lam n => g (f n)) (g l)
+  => \lam Uo Ugl => p (g.func-cont Uo) Ugl
+
 \class HausdorffTopSpace \extends TopSpace
   | isHausdorff {x y : E} : ∀ {U V : isOpen} (U x) (V y) ∃ (U ∧ V) -> x = y
 
@@ -86,3 +102,11 @@
 
 \lemma dense-lift-unique {X Y : TopSpace} {Z : HausdorffTopSpace} (f : ContMap X Y) (fd : f.IsDense) (g h : ContMap Y Z) (p : \Pi (x : X) -> g (f x) = h (f x)) (y : Y) : g y = h y
   => denseSet-lift-unique fd g h (\lam (inP (x,q)) => rewriteI q (p x)) y
+
+\func TopTransfer {X : \Set} {Y : TopSpace} (f : X -> Y) : TopSpace X \cowith
+  | isOpen U => ∃ (V : isOpen) (U = f ^-1 V)
+  | open-top => inP (top, open-top, idp)
+  | open-inter (inP (V,Vo,p)) (inP (V',V'o,p')) => inP (V ∧ V', open-inter Vo V'o, pmap2 (∧) p p')
+  | open-Union {S} h => inP (Set.Union \lam V => \Sigma (isOpen V) (f ^-1 V ⊆ Set.Union S), open-Union __.1, <=-antisymmetric (\lam (inP (U,SU,Ux)) => \case h SU \with {
+    | inP (V,Vo,p) => inP (V, (Vo, rewriteI p $ Set.Union-cond SU), rewrite p in Ux)
+  }) (\lam (inP (V,(Vo,p),Vfx)) => p Vfx))

@@ -11,10 +11,12 @@
 \import Set.Subset
 \import Topology.CoverSpace
 \import Topology.CoverSpace.Product
+\import Topology.TopSpace.Product
 \import Topology.UniformSpace
 \open ClosurePrecoverSpace
 \open Set
 \open Bounded(top)
+\open UniformMap
 
 \instance UniformSpaceHasProduct : HasProduct UniformSpace
   | Operations.HasProduct.Product => ProductUniformSpace
@@ -36,14 +38,15 @@
     })
   }
   | uniform-cauchy => (closure-univ-closure-id $ later \case \elim __ \with {
-    | inP (true, inP (D,Dc,h)) => closure-refine (closure-univ-closure __.1 (\lam {C} Cu => closure $ inP (C, Cu, single top, uniform-top, \lam {_} (inP (U,CU,_,idp,idp)) => inP (_, inP (U, CU, idp), __.1))) $ uniform-cauchy.1 Dc) \lam (inP (V,DV,p)) => \case h DV \with {
-      | inP (W,CW,q) => inP (W, CW, rewrite p q)
-    }
-    | inP (false, inP (D,Dc,h)) => closure-refine (closure-univ-closure __.2 (\lam {C} Cu => closure $ inP (single top, uniform-top, C, Cu, \lam {_} (inP (_,idp,U,CU,idp)) => inP (_, inP (U, CU, idp), __.2))) $ uniform-cauchy.1 Dc) \lam (inP (V,DV,p)) => \case h DV \with {
-      | inP (W,CW,q) => inP (W, CW, rewrite p q)
-    }
-  }, closure-univ-closure-id $ later \lam {E} (inP (C,Cu,D,Du,r)) => closure-refine (ProductCoverSpace.prodCover (uniform-cauchy.2 $ closure Cu) (uniform-cauchy.2 $ closure Du)) r)
+    | inP (true,  Dc) => closure-refine (closure-univ-closure __.1 (\lam {C} Cu => closure $ inP (C, Cu, single top, uniform-top, \lam {_} (inP (U,CU,_,idp,idp)) => inP (_, inP (U, CU, idp), __.1))) $ uniform-cauchy.1 Dc) \lam (inP (V, inP (W,CW,q), p)) => inP (W, CW, rewrite p q)
+    | inP (false, Dc) => closure-refine (closure-univ-closure __.2 (\lam {C} Cu => closure $ inP (single top, uniform-top, C, Cu, \lam {_} (inP (_,idp,U,CU,idp)) => inP (_, inP (U, CU, idp), __.2))) $ uniform-cauchy.1 Dc) \lam (inP (V, inP (W,CW,q), p)) => inP (W, CW, rewrite p q)
+  }, closure-univ-closure-id $ later \lam {E} (inP (C,Cu,D,Du,r)) => closure-refine (ProductCoverSpace.prodCover (X.makeCauchy Cu) (Y.makeCauchy Du)) r)
   \where {
+    \lemma properUniform (Xp : X.IsProperUniform) (Yp : Y.IsProperUniform) : UniformSpace.IsProperUniform {X ⨯ Y}
+      => \lam {E} (inP (C,Cu,D,Du,r)) => inP (_, Xp Cu, _, Yp Du, \lam {W'} (inP (U, (CU, inP (x,Ux)), V, (DV, inP (y,Vy)), p)) => \case r {W'} $ inP (U, CU, V, DV, p) \with {
+        | inP (W,EW,W'<=W) => inP (W, (EW, inP ((x,y), W'<=W $ rewrite p (Ux,Vy))), W'<=W)
+      })
+
     \func proj1 {X Y : UniformSpace} : UniformMap (X ⨯ Y) X \cowith
       | func s => s.1
       | func-uniform {D} Du => inP (D, Du, single top, uniform-top, \lam {_} (inP (U,DU,V,_,idp)) => inP (_, inP (U, DU, idp), __.1))
@@ -51,6 +54,17 @@
     \func proj2 {X Y : UniformSpace} : UniformMap (X ⨯ Y) Y \cowith
       | func s => s.2
       | func-uniform {D} Du => inP (single top, uniform-top, D, Du, \lam {_} (inP (U,_,V,DV,idp)) => inP (_, inP (V, DV, idp), __.2))
+
+    \func tuple {X Y Z : UniformSpace} (f : UniformMap Z X) (g : UniformMap Z Y) : UniformMap Z (X ⨯ Y) \cowith
+      | func z => (f z, g z)
+      | func-uniform => \case \elim __ \with {
+        | inP (C,Cu,D,Du,r) => uniform-refine (uniform-inter (f.func-uniform Cu) (g.func-uniform Du)) \lam {_} (inP (_, inP (U,CU,idp), _, inP (V,DV,idp), idp)) => \case r $ inP (U,CU,V,DV,idp) \with {
+          | inP (W,EW,p) => inP (_, inP (W, EW, idp), p __)
+        }
+      }
+
+    \func prod {X X' Y Y' : UniformSpace} (f : UniformMap X Y) (f' : UniformMap X' Y') : UniformMap (X ⨯ X') (Y ⨯ Y')
+      => tuple (f ∘ proj1) (f' ∘ proj2)
 
     \lemma prodCover {X Y : UniformSpace} {C : Set (Set X)} (Cu : X.isUniform C) {D : Set (Set Y)} (Du : Y.isUniform D)
       : isUniform {X ⨯ Y} \lam W => ∃ (U : C) (V : D) (W = \lam s => \Sigma (U s.1) (V s.2))

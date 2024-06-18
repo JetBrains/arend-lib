@@ -1,0 +1,101 @@
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Analysis.FuncLimit
+\import Analysis.Series
+\import Arith.Nat
+\import Arith.Rat
+\import Arith.Real
+\import Arith.Real.Field
+\import Combinatorics.Factorial
+\import Data.Or
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Product
+\import Topology.NormedAbGroup
+\import Topology.NormedAbGroup.Real
+\import Topology.NormedAbGroup.Real.Functions
+\import Topology.NormedRing
+\import Topology.TopSpace
+\open Monoid(pow)
+\open LinearlyOrderedSemiring
+
+\func powerSeries {X : PseudoNormedRing} (cs : Nat -> X) (n : Nat) (x : X)
+  => cs n * pow x n
+
+\lemma powerSeries_0 {X : PseudoNormedRing} {cs : Nat -> X} : IsConvSeries (powerSeries cs __ 0)
+  => series-shift-conv.2 $ transport IsConvSeries (ext \lam n => inv $ pmap (_ *) Ring.zro_*-right *> Ring.zro_*-right) (seriesSum-conv zeroSeries-sum)
+
+\func convRadius {X : PseudoNormedRing} (cs : Nat -> X) : LowerReal \cowith
+  | L a => ∃ (b : Real) (b.L a) (IsConvSeries \lam j => norm (cs j) * pow b j)
+  | L-inh => inP (-1, inP (0, idp, powerSeries_0))
+  | L-closed (inP (b,q<b,h)) q'<q => inP (b, L-closed q<b q'<q, h)
+  | L-rounded {a} (inP (b,a<b,h)) => \case L-rounded a<b \with {
+    | inP (a',a'<b,a<a') => inP (a', inP (b, a'<b, h), a<a')
+  }
+
+\lemma convRadius-conv {X : PseudoNormedRing} (cs : Nat -> X) {x : Real} (x>=0 : 0 <= x) (p : x <LU convRadius cs)
+  : IsConvSeries (\lam j => norm (cs j) * pow x j) \elim p
+  | inP (a, |x|<a, inP (b,a<b,cc)) => series_<= (\lam j => <=_*_positive_positive norm>=0 (pow>=0 x>=0)) (\lam j => <=_*_positive-right norm>=0 (pow_<=-monotone x>=0 $ LinearOrder.<_<= $ real_<_U.2 |x|<a <∘ real_<_L.2 a<b)) cc
+
+\lemma convRadius-absConv {X : PseudoNormedRing} (cs : Nat -> X) {x : X} (p : norm x <LU convRadius cs) : IsAbsConvSeries (powerSeries cs __ x)
+  => series_<= (\lam j => norm>=0) (\lam j => norm_*_<= <=∘ later (<=_*_positive-right norm>=0 norm_<=_pow)) (convRadius-conv cs norm>=0 p)
+
+\lemma convRadius-div {X : PseudoValuedRing} (cs : Nat -> X) {x : X} (p : IsConvSeries (powerSeries cs __ x)) : norm x <=L convRadius cs
+  => \lam {a} a<|x| => \case LinearOrder.dec<_<= a 0, L-rounded a<|x| \with {
+    | inl a<0, _ => inP (0, a<0, powerSeries_0)
+    | inr a>=0, inP (b,b<|x|,a<b) =>
+      \have |x|>0 => rat_real_<=.1 a>=0 <∘r real_<_L.2 a<|x|
+      \in inP (b, a<b, transport IsConvSeries {\lam j => norm (powerSeries cs j x) * pow (Real.fromRat b * RealField.pos-inv |x|>0) j}
+          (ext \lam j => pmap2 (*) norm_* CMonoid.pow_*-comm *> *-assoc *> pmap (_ *) (pmap (_ *) *-comm *> inv *-assoc *> pmap (`* _) (pmap (`* _) norm_pow *> inv CMonoid.pow_*-comm *> pmap (pow __ j) (RealField.pos-inv-right |x|>0) *> Monoid.pow_ide) *> ide-left)) $
+          absConv-isConv $ series_*_lim (cont-limit (series-limit p) norm-metric) $ geometric-series-absConv $ later $
+            rewrite (RealField.abs-ofPos $ <=_*_positive_positive (rat_real_<=.1 $ a>=0 <=∘ LinearOrder.<_<= a<b) $ LinearOrder.<_<= $ OrderedField.pos-inv>0 |x|>0) $
+            rewrite OrderedField.pos-inv-right in <_*_positive-left (real_<_L.2 b<|x|) (OrderedField.pos-inv>0 |x|>0))
+  }
+
+\type IsPowerSeriesConv {X : PseudoNormedRing} (cs : Nat -> X) : \Prop
+  => \Pi {a : Real} -> 0 <= a -> IsConvSeries (\lam n => norm (cs n) * pow a n)
+
+\lemma powerSeriesConv-absConv {X : PseudoNormedRing} {cs : Nat -> X} (p : IsPowerSeriesConv cs) {x : X} : IsAbsConvSeries (powerSeries cs __ x)
+  => series_<= {_} {\lam j => norm (cs j) * pow (norm x) j} (\lam j => norm>=0) (\lam j => norm_*_<= <=∘ <=_*_positive-right norm>=0 norm_<=_pow) (p norm>=0)
+
+\lemma powerSeriesConv-funcConv {X : PseudoNormedRing} {cs : Nat -> X} (p : IsPowerSeriesConv cs)
+  : IsFuncConvergent \lam n x => partialSum (powerSeries cs __ x) n
+  => funcCovergent-metric-char (partialSum-cover \lam j => *-locally-uniform CoverMap.∘ ProductCoverSpace.tuple (CoverMap.const (cs j)) (pow-cover j)) \lam {eps} eps>0 =>
+      X.makeCauchy $ X.uniform-refine (X.makeUniform eps>0) \lam {_} (inP (x,idp)) =>
+        \case MTest {\Sigma (y : X) (norm y < norm x + eps)} (\lam n s => powerSeries cs n s.1) (\lam n => norm (cs n) * pow (norm x + eps) n)
+                  (\lam n s => norm_*_<= <=∘ <=_*_positive-right norm>=0 (norm_<=_pow <=∘ pow_<=-monotone norm>=0 (LinearOrder.<_<= s.2)))
+                  (p $ linarith norm>=0) (X.makeUniform $ half>0 eps>0) \with {
+          | inP (N,h) => inP (_, inP $ later (N, \lam {y} d N<=n => \case h (y, linarith $ norm_-right <∘r (rewrite norm-dist in d)) \with {
+            | inP (_, inP (z,idp), g) => halving (g N<=n) (g <=-refl)
+          }), <=-refl)
+        }
+
+\lemma powerSeries-unbounded-conv {X : PseudoValuedRing} (Xu : X.IsUnbounded) {cs : Nat -> X} (Sc : \Pi (x : X) -> IsConvSeries (powerSeries cs __ x)) : IsPowerSeriesConv cs
+  => \lam {a} a>=0 => \case Real.natBounded {a} \with {
+    | inP (B,a<B) => \case Xu B \with {
+      | inP (x,B<|x|) => convRadius-conv cs a>=0 $ <LU-transitive (inP (B, a<B, real_<_L.1 B<|x|)) $ convRadius-div cs (Sc x)
+    }
+  }
+
+\lemma power-ratio-test {c b : Series Real} (c>=0 : \Pi (j : Nat) -> 0 <= c j) (bp : \Pi (n : Nat) -> c (suc n) <= c n * b n) {l : Real}
+                        (bl : RealNormed.IsLimit b l) {x : Real} (x>=0 : 0 <= x) (lx : l * x < 1) : IsConvSeries \lam j => c j * pow x j
+  => absConv-isConv $ ratio-test (\lam j => b j * x) (\lam j => later $ rewrite
+        (RealField.abs-ofPos $ <=_*_positive_positive (c>=0 (suc j)) (pow>=0 {_} {_} {suc j} x>=0),
+         RealField.abs-ofPos (<=_*_positive_positive (c>=0 j) (pow>=0 x>=0))) $
+        <=_*_positive-left (bp j) (pow>=0 {_} {_} {suc j} x>=0) <=∘ Preorder.=_<= (equation {CRing})) lx $
+      cont-limit bl $ RealField.*-cover CoverMap.∘ ProductCoverSpace.tuple CoverMap.id (CoverMap.const x)
+
+\lemma power-ratio-test-inf {X : PseudoNormedRing} (cs : Series X) (b : Series Real)
+                            (bp : \Pi (n : Nat) -> norm (cs (suc n)) <= norm (cs n) * b n) (bl : RealNormed.IsLimit b 0) : IsPowerSeriesConv cs
+  => \lam a>=0 => power-ratio-test (\lam j => norm>=0) bp bl a>=0 $ rewrite Ring.zro_*-left zro<ide
