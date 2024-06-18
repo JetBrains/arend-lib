@@ -1,0 +1,283 @@
+\import Category.Functor
+\import Data.Bool
+\import Equiv
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Filter
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Category
+\import Topology.CoverSpace.Complete
+\import Topology.Locale \hiding (<=<_<=, func-cover)
+\import Topology.Locale.Points
+\import Topology.RatherBelow
+\open Bounded(top,top-univ,bottom,bottom-univ)
+\open LocalePrecoverSpace
+\open RatherBelow
+
+\func CoverSpaceLocale (X : PrecoverSpace) : Locale
+  => PresentedFrame (framePres {X})
+  \where {
+    \open PresentedFrame
+
+    \func framePres {X : PrecoverSpace} : FramePres (Set X) \cowith
+      | conj => ∧
+      | BasicCover {J} U f => Given (U = {Set X} top) (C : X.isCauchy) (∀ {V : C} ∃ (j : J) (f j = V)) || (\Pi {V : Set X} -> V s<=< U -> ∃ (j : J) (f j = V)) || (U = {Set X} bottom)
+
+    \lemma cover-cauchy {X : PrecoverSpace} {C : Set (Set X)} (Cc : isCauchy C) : FramePres.SCover {framePres} top C
+      => cover-basic $ byLeft (idp, C, Cc, \lam {V} CV => inP ((V,CV), idp))
+
+    \lemma cover-reg {X : PrecoverSpace} {U : Set X} : FramePres.SCover U \lam V => V s<=< U
+      => cover-trans (cover-basic {framePres} {U} {\Sigma (V : Set X) (V s<=< U)} $ byRight $ byLeft \lam p => inP ((_, p), idp)) \lam s => cover-inj s idp
+
+    \lemma cover-empty {X : PrecoverSpace} {U : Set X} (Ue : \Pi {x : X} -> Not (U x)) {J : \Set} {g : J -> Set X} : Cover {framePres} U g
+      => cover-basic $ byRight $ byRight $ <=-antisymmetric (\lam Ux => absurd $ Ue Ux) bottom-univ
+
+    \lemma embed_<=< {V U : Set X} (V<=<U : V s<=< U) : embed V Locale.<=< {CoverSpaceLocale X} embed U
+      => \lam _ => Cover.cover-trans1 Cover.cover_top $ cover-basic $ byLeft
+            (idp, _, V<=<U, \case __ \with {
+              | byLeft p => inP ((true, _, cover-inj ((embed $ Compl V, rewrite embed_meet $ embed<= $ cover-basic $ byRight $ byRight $ <=-antisymmetric (later \lam (nVx,Vx) => absurd $ nVx Vx) bottom-univ), _, rewrite p $ cover-inj () idp) idp), idp)
+              | byRight p => inP ((false, _, rewrite p $ cover-inj () idp), idp)
+            })
+
+    \lemma regular : Locale.isRegular {CoverSpaceLocale X}
+      => regular-fromPres \lam U => cover-basic $ byRight $ byLeft $ later \lam {V} V<=<U => inP ((V, embed_<=< V<=<U), idp)
+
+    \lemma cover-char {X : StronglyRegularCoverSpace} {U : Set X} {J : \Set} {g : J -> Set X} (c : Cover {framePres} U g) {U' : Set X} (U'<=<U : U' s<=< U)
+      : X.isCauchy \lam V => (V = Compl U') || (\Sigma (j : J) (g j = V)) \elim c
+      | cover-basic (byLeft (p,C,Cc,h)) => cauchy-subset Cc \case h __ \with {
+        | inP r => byRight r
+      }
+      | cover-basic (byRight (byLeft h)) => cauchy-refine (isStronglyRegular U'<=<U) \lam {V'} (inP (V, e, V'<=<V)) => \case \elim e \with {
+        | byLeft p => inP (_, byLeft idp, rewrite p in s<=<_<= V'<=<V)
+        | byRight p => inP (V', \case h (rewrite p in V'<=<V) \with {
+          | inP s => byRight s
+        }, <=-refl)
+      }
+      | cover-basic (byRight (byRight h)) => top-cauchy $ byLeft $ <=-antisymmetric (later \lam _ U'x => \case s<=<_<= (rewrite h in U'<=<U) U'x \with {
+        | inP ((),_)
+      }) top-univ
+      | cover-inj j p => cauchy-subset (unfolds in U'<=<U) \case __ \with {
+        | byLeft q => byLeft q
+        | byRight q => byRight $ later (j, p *> inv q)
+      }
+      | cover-trans {I} {f} c d =>
+        \have t => cauchy-glue (isStronglyRegular $ cover-char c U'<=<U)
+            {\lam U1 V1 => U1 s<=< Compl U' || (\Sigma (i : I) (U1 s<=< f i) ((V1 = Compl U1) || (\Sigma (j : J) (g j = V1))))} \case __ \with {
+              | inP (W, byLeft e, W'<=<W) => top-cauchy $ byLeft $ rewrite e in W'<=<W
+              | inP (W, byRight (i,fi=W), W'<=<W) => cauchy-subset (cover-char (d i) (rewrite (inv fi=W) in W'<=<W)) \lam e => byRight $ later (i, rewrite fi=W W'<=<W, e)
+            }
+        \in cauchy-refine t \case __ \with {
+          | inP (V, W, inP (U, byLeft e, V<=<U), _, Z=VW) => inP (_, byLeft idp, rewrite Z=VW $ meet-left <=∘ s<=<_<= V<=<U <=∘ Preorder.=_<= e)
+          | inP (V, W, inP (U, _, V<=<U), byLeft e2, Z=VW) => inP (_, byLeft idp, rewrite Z=VW $ meet-left <=∘ s<=<_<= e2)
+          | inP (V, W, inP (U, _, V<=<U), byRight (i, V<=<fi, byLeft e), Z=VW) => inP (_, byLeft idp, rewrite (Z=VW,e) \lam (Vx,nVx) => absurd $ nVx Vx)
+          | inP (V, W, inP (U, _, V<=<U), byRight (i, V<=<fi, byRight (j,gj=W)), Z=VW) => inP (_, byRight (j,idp), rewrite (Z=VW,gj=W) meet-right)
+        }
+      | cover-proj1 {U1} {U2} p j q => cauchy-refine U'<=<U \lam {V} => \case __ \with {
+        | byLeft r => inP (V, byLeft r, <=-refl)
+        | byRight r => inP (U1, byRight (j,q), rewrite (r *> p) meet-left)
+      }
+      | cover-idemp j p => cauchy-subset (unfolds in U'<=<U) \case __ \with {
+        | byLeft r => byLeft r
+        | byRight r => byRight $ later (j, p *> MeetSemilattice.meet-idemp *> inv r)
+      }
+      | cover-comm p j q => cauchy-subset (unfolds in U'<=<U) \case __ \with {
+        | byLeft r => byLeft r
+        | byRight r => byRight $ later (j, q *> MeetSemilattice.meet-comm *> inv (r *> p))
+      }
+      | cover-ldistr {W} p c q =>
+        \have | t1 => cover-char c (<=<-left U'<=<U $ later $ rewrite p meet-right)
+              | t2 : U' s<=< W => <=<-left U'<=<U $ later $ rewrite p meet-left
+        \in cauchy-refine (cauchy-inter t1 t2) \case __ \with {
+          | inP (V1, V2, byLeft e1, _, r) => inP (_, byLeft idp, rewrite (r,e1) meet-left)
+          | inP (V1, V2, _, byLeft e2, r) => inP (_, byLeft idp, rewrite (r,e2) meet-right)
+          | inP (_, _, byRight (j,idp), byRight idp, r) => inP (_, byRight (j, idp), rewrite (r, q j) $ Preorder.=_<= MeetSemilattice.meet-comm)
+        }
+
+    \lemma cover-point-char {X : StronglyRegularCoverSpace} {U : Set X} {J : \Set} {g : J -> Set X} (c : Cover {framePres} U g) {x : X} (x<=<U : single x <=< U) : ∃ (j : J) (single x <=< g j)
+      => \case s<=<-inter x<=<U \with {
+        | inP (V,x<=<V,V<=<U) => \case CoverSpace.cauchy-regular-cover (cover-char c V<=<U) x \with {
+          | inP (W, byLeft p, x<=<W) => absurd $ <=<_<= (rewrite p in x<=<W) idp $ s<=<_<= x<=<V idp
+          | inP (W, byRight (j,p), x<=<W) => inP (j, rewrite p x<=<W)
+        }
+      }
+
+    \lemma hasWeaklyDensePoints {X : StronglyRegularCoverSpace} (Xd : X.HasWeaklyDensePoints) : HasDensePoints (CoverSpaceLocale X)
+      => hasDensePoints-fromPres \lam {U} p => cover-trans cover-reg \lam (V,V<=<U) => cover-empty \lam {x} Vx => \case p {CoverSpaceLocale-unit Xd x} $ inP (U, cover-inj () idp, <=<-right (single_<= Vx) $ s<=<_<=< V<=<U) \with {
+        | inP ((),_)
+      }
+
+    \lemma cover-inh {X : PrecoverSpace} (Xd : X.HasDensePoints) {U : Set X} : Cover {framePres} U {\Sigma (x : X) (U x)} \lam _ => U
+      => cover-trans cover-reg \lam (V,V<=<U) =>
+          cover-trans (cover-ldistr (<=-antisymmetric (meet-univ <=-refl top-univ) meet-left) (cover-cauchy (Xd V<=<U)) \lam _ => idp) \case \elim __ \with {
+            | (_, (byLeft idp, inP (x,nVx))) => cover-empty $ later \lam (Vx,nVx) => nVx Vx
+            | (_, (byRight idp, inP (x,Ux))) => Cover.cover-inj_<= (x,Ux) __.2
+          }
+
+    \lemma cover-reg-inh {X : PrecoverSpace} (Xd : X.HasDensePoints) {U : Set X} : Cover {framePres} U {\Sigma (x : X) (single x <=< U)} \lam _ => U
+      => cover-trans cover-reg \lam (V,V<=<U) => cover-trans (cover-inh Xd) \lam (x,Vx) => Cover.cover-inj_<= (x, <=<-right (single_<= Vx) $ s<=<_<=< V<=<U) (s<=<_<= V<=<U)
+
+    \lemma hasStronglyDensePoints {X : StronglyRegularCoverSpace} (Xd : X.HasDensePoints) : HasStronglyDensePoints (CoverSpaceLocale X)
+      => hasStronglyDensePoints-fromPres \lam a => cover-trans (cover-reg-inh Xd) \lam (x,x<=<a) => cover-inj (inP (CoverSpaceLocale-unit (X.hasDensePoints_hasWeaklyDensePoints Xd) x, inP (a, cover-inj () idp, x<=<a))) idp
+  }
+
+\func LocalePrecoverSpace (L : Locale) : PrecoverSpace \cowith
+  | E => CompleteFilter L
+  | isCauchy C => top <= Join \lam (s : Given C) => points_* s.1
+  | cauchy-cover t x => \case filter-Join $ filter-mono {x} t filter-top \with {
+    | inP ((U,CU),c) => \case filter-Join c \with {
+      | inP ((a,p),xa) => inP (U, CU, p xa)
+    }
+  }
+  | cauchy-top => Join-cond (later (top,top-univ)) <=∘ Join-cond (later (top, idp))
+  | cauchy-refine p e => p <=∘ Join-univ \lam (U,CU) => \case e CU \with {
+    | inP (V,DV,U<=V) => points_*-mono U<=V <=∘ Join-cond (later (V,DV))
+  }
+  | cauchy-glue p e => p <=∘ Join-univ \lam (U,CU) => meet-univ <=-refl top-univ <=∘ MeetSemilattice.meet-monotone <=-refl (e CU) <=∘
+      Join-ldistr>= <=∘ Join-univ \lam (V,DUV) => transport (`<= _) points_*_meet $ Join-cond $ later (U ∧ V, inP (U, V, CU, DUV, idp))
+  \where {
+    \lemma points_<=< {a b : L} (p : a L.<=< b) : points^* a s<=< {LocalePrecoverSpace L} points^* b
+      => unfolds $ p <=∘ join-univ (points^*-points_* (\lam xna xa => CompleteFilter.isProper $ filter-mono L.eval $ filter-meet xna xa) <=∘ Join-cond (later (_, byLeft idp))) (points-unit <=∘ Join-cond (later (_, byRight idp)))
+
+    \lemma cover-cauchy {C : Set L} (p : top <= L.SJoin C) : isCauchy {LocalePrecoverSpace L} \lam U => ∃ (a : C) (points^* a = U)
+      => p <=∘ Join-univ \lam (a,Ca) => points-unit <=∘ Join-cond (later (_, inP (a, Ca, idp)))
+
+    \lemma single_<=<-char {x : CompleteFilter L} {U : Set (CompleteFilter L)} (x<=<U : single x <=< {LocalePrecoverSpace L} U) : ∃ (a : L) (x a) (points^* a ⊆ U)
+      => \have t : top L.<= L.SJoin \lam a => x a -> points^* a ⊆ U => x<=<U <=∘ Join-univ \lam (W,h) => L.SJoin-univ \lam {a} q => L.SJoin-cond \lam xa => q <=∘ later (h (x, (idp, q xa)))
+         \in \case x.filter-Join $ filter-mono t filter-top \with {
+          | inP ((a,h),xa) => inP (a, xa, h xa)
+        }
+
+    \lemma hasWeaklyDensePoints (Ld : HasDensePoints L) : PrecoverSpace.HasWeaklyDensePoints {LocalePrecoverSpace L}
+      => __ <=∘ Join-univ \lam s => \case s.2 \with {
+        | byLeft e => rewrite e $ Ld <=∘ bottom-univ
+        | byRight CU => Join-cond $ later (s.1,CU)
+      }
+
+    \lemma hasDensePoints (Ld : HasStronglyDensePoints L) : PrecoverSpace.HasDensePoints {LocalePrecoverSpace L}
+      => __ <=∘ Join-univ \lam (U,CU) => densePoints_cover Ld _ <=∘ Join-univ \lam (inP (x,c)) => Join-cond $ later (U, (CU, inP (x, \case filter-Join c \with {
+        | inP ((b,p),xb) => p xb
+      })))
+  }
+
+\func LocaleCoverSpace {L : Locale} (Lr : L.isRegular) : StronglyRegularCoverSpace \cowith
+  | PrecoverSpace => LocalePrecoverSpace L
+  | isStronglyRegular => __ <=∘ Join-univ \lam (U,CU) => Lr _ <=∘ Join-univ \lam (a,a<=<_*U) => points-unit <=∘ Join-cond (later (points^* a, inP (U, CU, <=<-left (points_<=< a<=<_*U) points-counit)))
+
+\func LocaleCoverSpaceFunctor : Functor LocaleCat PrecoverSpaceCat \cowith
+  | F => LocalePrecoverSpace
+  | Func f => \new PrecoverMap {
+    | func => PointsSpaceFunctor.Func f
+    | func-cover c => func-top>= <=∘ func-<= {f} c <=∘ func-Join>= <=∘ Join-univ \lam (V,DV) => func-Join>= <=∘ Join-univ \lam (b,p) => points^*-points_* (\lam c => later $ p $ later c) <=∘ Join-cond (later (_, inP (V, DV, idp)))
+  }
+  | Func-id => idp
+  | Func-o => idp
+
+\func LocaleCoverSpaceFunctor-fullyFaithful {L M : Locale} (Ld : HasDensePoints L) (Mr : M.isRegular) : Equiv (Func {LocaleCoverSpaceFunctor} {L} {M})
+  => Equiv.fromInjSurj _
+      (\have r {f g : FrameHom M L} (p : Func f = Func g) {a : M} : f a <= g a => later $
+        f.func-<= (Mr a) <=∘ func-Join>= <=∘ Join-univ \lam s => meet-univ <=-refl top-univ <=∘
+            MeetSemilattice.meet-monotone <=-refl (func-top>= <=∘ g.func-<= s.2 <=∘ g.func-join>=) <=∘
+            ldistr>= <=∘ join-univ (hasDensePoints-char.1 Ld (\lam {x} c => CompleteFilter.isProper $
+            filter-mono (func-meet>= <=∘ func-<= Locale.eval <=∘ g.func-bottom>=) $ filter-meet (filter-mono meet-right c)
+              (propExt.dir (pmap {PrecoverMap _ _} (__ x s.1) p) $ filter-mono meet-left c)) <=∘ bottom-univ) meet-right
+       \in \lam p => exts \lam a => <=-antisymmetric (r p) $ r $ inv p)
+      \lam f => inP (frameHom f, exts \lam (x : CompleteFilter) => exts \lam a => ext (\case filter-Join __ \with {
+        | inP ((b,b<=<a),r) => \case filter-Join r \with {
+          | inP ((c,q),xc) => filter-mono (Topology.Locale.<=<_<= b<=<a) (q xc)
+        }
+      }, \lam fxa => \case filter-Join $ filter-mono (Mr a) fxa \with {
+        | inP ((b,b<=<a),fxb) => \case filter-Join $ filter-mono (Mr b) fxb \with {
+          | inP ((b',b'<=<b),fxb') =>
+            \have t => func-cover {f} $ LocalePrecoverSpace.cover-cauchy {M} {\lam x => (x = M.neg b') || (x = b)} $ b'<=<b <=∘ join-univ (M.SJoin-cond $ byLeft idp) (M.SJoin-cond $ byRight idp)
+            \in \case filter-Join $ filter-mono {x} t filter-top \with {
+              | inP ((_, inP (_, inP (_, byLeft idp, idp), idp)), xe) => absurd \case filter-Join xe \with {
+                | inP ((c,q),xc) => CompleteFilter.isProper $ filter-mono M.eval $ filter-meet (q xc) fxb'
+              }
+              | inP ((_, inP (_, inP (_, byRight idp, idp), idp)), xe) => \case filter-Join xe \with {
+                | inP ((c,q),xc) => filter-mono (Join-cond (later (b,b<=<a))) xe
+              }
+            }
+        }
+      }))
+  \where {
+    \protected \func frameHom (f : PrecoverMap (LocalePrecoverSpace L) (LocalePrecoverSpace M)) : FrameHom M L \cowith
+      | func a => Join \lam (s : \Sigma (b : M) (b M.<=< a)) => points_* $ f ^-1 points^* s.1
+      | func-<= p => Join-univ \lam (b,b<=<x) => Join-cond $ later (b, <=<-left b<=<x p)
+      | func-top>= => Join-cond (later (top, \lam _ => filter-top)) <=∘ Join-cond (later (top, <=<_top))
+      | func-meet>= => Locale.Join-distr>= <=∘ Join-univ \lam ((b,b<=<x),(c,c<=<y)) => Preorder.=_<= (inv $ pmap points_* (pmap (f ^-1) points^*_meet *> func-meet {^-1_FrameHom f} {points^* b} {points^* c}) *> points_*_meet) <=∘ Join-cond (later (b ∧ c , <=<_meet b<=<x c<=<y))
+      | func-Join>= {J} {g} => Join-univ \lam (b,p) =>
+          \have Mc : top <= M.SJoin (\lam c => (c = M.neg b) || (\Sigma (j : J) (c M.<=< g j)))
+                   => p <=∘ join-univ (M.SJoin-cond $ byLeft idp) (Join-univ \lam j => Mr (g j) <=∘ M.SJoin-univ \lam x<=<gj => M.SJoin-cond $ byRight $ later (j,x<=<gj))
+          \in meet-univ <=-refl top-univ <=∘ L.meet-monotone (L.<=-refl {points_* $ f ^-1 points^* b}) (f.func-cover (LocalePrecoverSpace.cover-cauchy Mc)) <=∘ Join-ldistr>= <=∘ Join-univ \case \elim __ \with {
+            | (_, inP (_, inP (_, byLeft idp, idp), idp)) => points_*_meet>= <=∘ points_*-mono (later \lam (fxb,fxnb) => absurd $ CompleteFilter.isProper $ filter-mono M.eval $ filter-meet fxnb fxb) <=∘ Ld <=∘ bottom-univ
+            | (_, inP (_, inP (a, byRight (j,a<=<gj), idp), idp)) => meet-right <=∘ L.Join-cond (later (a,a<=<gj)) {\lam s => points_* (f ^-1 points^* s.1)} <=∘ Join-cond j
+          }
+  }
+
+\func CoverSpaceLocale-unit {X : StronglyRegularCoverSpace} (Xo : X.HasWeaklyDensePoints) : PrecoverMap X (LocaleCoverSpace {CoverSpaceLocale X} CoverSpaceLocale.regular) \cowith
+  | func x => framePres-point (\lam U => single x <=< U) (inP (top, <=<_top)) (\lam {a} {b} => (\lam p => (<=<-left p meet-left, <=<-left p meet-right), \lam (p,q) => <=<_meet-same p q)) (\lam b x<=<U => CoverSpaceLocale.cover-point-char (cover-basic b) x<=<U)
+  | func-cover Dc => Xo $ cauchy-refine (isRegular $ CoverSpaceLocale.cover-char (Dc ()) <=<_top) \lam {V} => \case __ \with {
+    | inP (_, byLeft idp, V<=<U) => inP (bottom, byLeft idp, <=<_<= V<=<U <=∘ \lam t => absurd $ t ())
+    | inP (U, byRight (((W,DW),_,q),idp), V<=<U) => inP (_, byRight $ inP (W, DW, idp), \lam Ux => \case CoverSpaceLocale.cover-point-char q $ <=<-right (single_<= Ux) V<=<U \with {
+      | inP (((W,p),U'',WU''),x<=<U'') => p $ inP $ later (U'', WU'', x<=<U'')
+    })
+  }
+  \where {
+    \open PresentedFrame
+
+    \lemma isDense (Xd : X.HasDensePoints) : PrecoverMap.IsDense {CoverSpaceLocale-unit $ X.hasDensePoints_hasWeaklyDensePoints Xd}
+      => dense-char.2 $ later \lam {y} {U} y<=<U => \case filter-Join {y} {_} {\lam s => points_* s.1} $ filter-mono {y} (<=<_single.1 y<=<U) filter-top \with {
+        | inP ((W,h),yW) => \case filter-Join yW \with {
+          | inP ((V,p),yV) => \case filter-Join {y} {_} {\lam s => embed s.1} $ transport y element_join yV \with {
+            | inP ((V',VV'),yV') => \case filter-Join {y} {_} {\lam _ => embed V'} $ filter-mono {y} {embed V'} {Join {CoverSpaceLocale X} {\Sigma (x : X) (single x <=< V')} \lam _ => embed V'} (embed<= $ cover-trans (CoverSpaceLocale.cover-reg-inh Xd) \lam s => cover-inj (V', later $ cover-inj (s, V', cover-inj () idp) idp) idp) yV' \with {
+              | inP ((x,x<=<V'),_) => inP (x, h (p yV) $ p $ inP $ later (V', VV', x<=<V'))
+            }
+          }
+        }
+      }
+
+    \lemma isEmbedding (Xd : X.HasWeaklyDensePoints) : PrecoverMap.IsEmbedding {CoverSpaceLocale-unit Xd}
+      => \lam {C} Cc _ => Cover.cover-trans1 (Cover.cover_<= top-univ) $ cover-trans (CoverSpaceLocale.cover-cauchy Cc)
+          \lam (U,CU) => cover-inj ((points^* $ embed U, inP (U, CU, \lam (inP (V,V<=U,x<=<V)) => \case CoverSpaceLocale.cover-point-char V<=U x<=<V \with {
+            | inP (_,x<=<U) => <=<_<= x<=<U idp
+          })), _, cover-inj ((embed U, <=-refl), _, cover-inj () idp) idp) idp
+
+    \lemma isDenseEmbedding (Xd : X.HasDensePoints) : PrecoverMap.IsDenseEmbedding {CoverSpaceLocale-unit $ X.hasDensePoints_hasWeaklyDensePoints Xd}
+      => (isDense Xd, isEmbedding (X.hasDensePoints_hasWeaklyDensePoints Xd))
+  }
+
+\func LocaleCompleteCoverSpace {L : Locale} (Lr : L.isRegular) : CompleteCoverSpace \cowith
+  | CoverSpace => LocaleCoverSpace Lr
+  | isSeparatedCoverSpace {x} {y} sh => exts \lam a =>
+      \have | sh1 => separated-char {\this} 7 4 sh
+            | sh2 => separated-char 2 4 $ inv $ separated-char {\this} 7 2 sh
+      \in ext (\lam xa => \case filter-Join $ filter-mono (Lr a) xa \with {
+        | inP ((b,b<=<a),xb) => sh1 $ <=<-right (\lam q => rewriteI q xb) $ s<=<_<=< $ points_<=< b<=<a
+      }, \lam ya => \case filter-Join $ filter-mono (Lr a) ya \with {
+        | inP ((b,b<=<a),xb) => sh2 $ <=<-right (\lam q => rewriteI q xb) $ s<=<_<=< $ points_<=< b<=<a
+      })
+  | isComplete F => inP (makeFilter F, \lam {V} F<=<V => \case single_<=<-char F<=<V \with {
+    | inP (a, inP (b,b<=<a,p), q) => filter-mono q $ filter-mono (points^*-mono $ Topology.Locale.<=<_<= b<=<a) p
+  })
+  \where {
+    \open SeparatedCoverSpace
+
+    \func makeFilter (F : CauchyFilter (LocaleCoverSpace Lr)) : CompleteFilter L \cowith
+      | F a => ∃ (b : L) (b L.<=< a) (F (points^* b))
+      | filter-mono a<=b (inP (c,c<=<a,Fc)) => inP (c, <=<-left c<=<a a<=b, Fc)
+      | filter-top => inP (top, <=<_top, rewrite points^*_top filter-top)
+      | filter-meet (inP (a',a'<=<a,Fa')) (inP (b',b'<=<b,Fb')) => inP (a' ∧ b', <=<_meet a'<=<a b'<=<b, rewrite points^*_meet $ filter-meet Fa' Fb')
+      | filter-Join {J} {g} (inP (b,b<=<Jg,Fb)) => \case F.isCauchyFilter {\lam U => (U = points^* (L.neg b)) || (\Sigma (j : J) (a : L) (a L.<=< g j) (U = points^* a))} (b<=<Jg <=∘ join-univ (points-unit <=∘ Join-cond (later (_, byLeft idp))) (Join-univ \lam j => Lr (g j) <=∘ L.SJoin-univ \lam {x} x<=<gj => points-unit <=∘ Join-cond (later (_, byRight (j, x, x<=<gj, idp))))) \with {
+        | inP (_, byLeft idp, p) => absurd \case F.isProper (filter-meet p Fb) \with {
+          | inP (x,(xnb,xb)) => CompleteFilter.isProper $ filter-mono L.eval (filter-meet xnb xb)
+        }
+        | inP (_, byRight (j,a,a<=<gj,idp), p) => inP (j, inP (a, a<=<gj, p))
+      }
+  }

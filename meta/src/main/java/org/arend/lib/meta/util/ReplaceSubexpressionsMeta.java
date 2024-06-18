@@ -60,7 +60,7 @@ public class ReplaceSubexpressionsMeta implements MetaDefinition {
   public @Nullable TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     TypedExpression result = invoke(typechecker, contextData.getMarker());
     if (result == null) {
-      typechecker.getErrorReporter().report(new TypeError("Cannot substitute expressions", expression, contextData.getMarker()));
+      typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "Cannot substitute expressions", expression, contextData.getMarker()));
     }
     return result;
   }

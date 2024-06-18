@@ -301,10 +301,16 @@
       | greater q => pmap greater prop-pi
     }
 
-  \lemma <_meet-univ {A : Dec} {x y z : A} (p : x < y) (q : x < z) : x < y ∧ z
-    => \case dec<_<= y z \with {
-      | inl y<z => rewrite (meet_<= (<=-less y<z)) p
-      | inr z<=y => rewrite (meet-comm *> meet_<= z<=y) q
+  \lemma meet/=left {A : LinearOrder} {_ : MeetSemilattice A (<=)} {a b : A} (p : a ∧ b /= a) : a ∧ b = b
+    => <=-antisymmetric meet-right $ meet-univ (\lam a<b => p $ <=-antisymmetric meet-left $ meet-univ <=-refl $ <_<= a<b) <=-refl
+
+  \lemma meet/=right {A : LinearOrder} {_ : MeetSemilattice A (<=)} {a b : A} (p : a ∧ b /= b) : a ∧ b = a
+    => rewrite meet-comm $ meet/=left $ later $ rewrite meet-comm p
+
+  \lemma <_meet-univ {A : LinearOrder} {_ : MeetSemilattice A (<=)} {x y z : A} (x<y : x < y) (x<z : x < z) : x < y ∧ z
+    => \case <-comparison (y ∧ z) x<y \with {
+      | byLeft q => q
+      | byRight q => rewrite (meet/=left $ <_/= q) x<z
     }
 
   \lemma <_meet-monotone {A : Dec} {x x' y y' : A} (p : x < y) (q : x' < y') : x ∧ x' < y ∧ y'
@@ -314,10 +320,16 @@
     | nil => p
     | :: a l => <_meet-univ (f 0) (Big_<_meet-univ p (\lam i => f (suc i)))
 
-  \lemma <_join-univ {A : Dec} {x y z : A} (p : x < z) (q : y < z) : x ∨ y < z
-    => \case dec<_<= x y \with {
-      | inl x<y => rewrite (join_<= (<=-less x<y)) q
-      | inr y<=x => rewrite (join-comm *> join_<= y<=x) p
+  \lemma join/=left {A : LinearOrder} {_ : JoinSemilattice A (<=)} {a b : A} (p : a /= a ∨ b) : a ∨ b = b
+    => <=-antisymmetric (join-univ (\lam b<a => p $ <=-antisymmetric join-left (join-univ <=-refl $ <_<= b<a)) <=-refl) join-right
+
+  \lemma join/=right {A : LinearOrder} {_ : JoinSemilattice A (<=)} {a b : A} (p : b /= a ∨ b) : a ∨ b = a
+    => rewrite join-comm $ join/=left $ later $ rewrite join-comm p
+
+  \lemma <_join-univ {A : LinearOrder} {_ : JoinSemilattice A (<=)} {x y z : A} (x<z : x < z) (y<z : y < z) : x ∨ y < z
+    => \case <-comparison (x ∨ y) x<z \with {
+      | byLeft q => rewrite (join/=left $ <_/= q) y<z
+      | byRight q => q
     }
 
   \lemma <_join-monotone {A : Dec} {x x' y y' : A} (p : x < y) (q : x' < y') : x ∨ x' < y ∨ y'
@@ -332,8 +344,8 @@
     | suc n, a :: a' :: l => \case dec<_<= a' (Big (∧) a l) \with {
       | inl r => (1, <=-antisymmetric meet-left $ meet-univ <=-refl $ <_<= r)
       | inr r => \case findMin (a :: l) \with {
-        | (0, p) => (0, rewrite p $ <=-antisymmetric meet-right $ meet-univ (rewriteF p r) <=-refl)
-        | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric meet-right $ meet-univ (rewriteF p r) <=-refl)
+        | (0, p) => (0, rewrite p $ <=-antisymmetric meet-right $ meet-univ (rewrite p in r) <=-refl)
+        | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric meet-right $ meet-univ (rewrite p in r) <=-refl)
       }
     }
 
@@ -341,8 +353,8 @@
     | 0, a :: l => (0, idp)
     | suc n, a :: a' :: l => \case dec<_<= a' (Big (∨) a l) \with {
       | inl r => \case findMax (a :: l) \with {
-        | (0, p) => (0, rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewriteF p r) <=-refl) join-right)
-        | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewriteF p r) <=-refl) join-right)
+        | (0, p) => (0, rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewrite p in r) <=-refl) join-right)
+        | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewrite p in r) <=-refl) join-right)
       }
       | inr r => (1, <=-antisymmetric (join-univ <=-refl r) join-left)
     }

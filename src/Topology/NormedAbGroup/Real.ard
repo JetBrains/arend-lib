@@ -1,0 +1,148 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Arith.Rat
+\import Arith.Real
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Operations
+\import Order.Lattice
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Filter
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Product
+\import Topology.MetricSpace
+\import Topology.NormedAbGroup
+\import Topology.RatherBelow
+\import Topology.UniformSpace
+\open LinearlyOrderedAbGroup
+\open RealNormed
+\open ProductCoverSpace
+\open OrderedAbGroup
+
+\instance RatNormed : NormedAbGroup
+  | AbGroup => RatField
+  | norm a => abs a
+  | norm_zro => pmap Real.fromRat abs_zro
+  | norm_negative => pmap Real.fromRat abs_negative
+  | norm_+ => transportInv (_ <=) RealAbGroup.+-rat $ rat_real_<=.1 abs_+
+  | norm-ext p => abs_zro-ext $ Real.fromRat-inj p
+
+\instance RealNormed : CompleteNormedAbGroup
+  | NormedAbGroup => RealNormedAbGroup
+  | isComplete => dense-complete (rat_real.dense, rat_real.embedding->coverEmbedding (rat_real.dense->uniformEmbedding rat_real.dense).2)
+      \lam F => inP (fromCF F, \lam {U} => \case <=<-ball __ \with {
+        | inP (eps,eps>0,p) =>
+          \let | x => fromCF F
+               | (inP (a, x-eps<a, inP (y1,eps1,eps1>0,Fy1,a<y1-eps1))) => (real_<-rat-char {x - eps} {x}).1 $ transport (_ <) zro-right $ <_+-right x $ RealAbGroup.positive_negative eps>0
+               | (inP (b, inP (y2,eps2,eps2>0,Fy2,y2+eps2<b), b<x+eps)) => (real_<-rat-char {x} {x + eps}).1 $ transport {Real} (`< _) zro-right $ <_+-right x eps>0
+          \in filter-mono ((later \lam {z} (|y1-z|<eps1,|y2-z|<eps2) => abs_-_<
+            (RealAbGroup.<-diff-left $ real_<_U.2 x-eps<a <∘ real_<_L.2 (linarith $ abs>=id <∘r real_<_L.1 (transport (`< _) norm-dist |y1-z|<eps1)))
+            (RealAbGroup.<-diff-mid-conv $ rewrite +-comm $ real_<_L.2 (linarith $ RatField.abs>=neg {y2 - z} <∘r real_<_L.1 (transport (`< _) norm-dist |y2-z|<eps2)) <∘ real_<_L.2 b<x+eps)) <=∘ ^-1_<= rat_real p) (filter-meet Fy1 Fy2)
+      })
+  \where {
+    \func RealNormedAbGroup : NormedAbGroup \cowith
+      | AbGroup => RealAbGroup
+      | norm => abs
+      | norm_zro => abs_zro
+      | norm_negative => abs_negative
+      | norm_+ => abs_+
+      | norm-ext => abs_zro-ext
+
+    \func fromCF (F : RegularCauchyFilter RatNormed) : Real \cowith
+      | L a => ∃ (x eps : Rat) (0 < eps) (F (OBall eps x)) (a < x - eps)
+      | L-inh => \case cauchyFilter-metric-char.1 F.isCauchyFilter {1} RealAbGroup.zro<ide \with {
+        | inP (x,FB) => inP (x - 2, inP (x, 1, idp, FB, linarith))
+      }
+      | L-closed (inP (x,eps,eps>0,FB,q<x-eps)) q'<q => inP (x, eps, eps>0, FB, q'<q <∘ q<x-eps)
+      | L-rounded {a} (inP (x,eps,eps>0,FB,a<x-eps)) => inP (RatField.mid a (x - eps), inP (x, eps, eps>0, FB, RatField.mid<right a<x-eps), RatField.mid>left a<x-eps)
+      | U b => ∃ (x eps : Rat) (0 < eps) (F (OBall eps x)) (x + eps < b)
+      | U-inh => \case cauchyFilter-metric-char.1 F.isCauchyFilter {1} RealAbGroup.zro<ide \with {
+        | inP (x,FB) => inP (x + 2, inP (x, 1, idp, FB, linarith))
+      }
+      | U-closed (inP (x,eps,eps>0,FB,x+eps<q)) q<q' => inP (x, eps, eps>0, FB, x+eps<q <∘ q<q')
+      | U-rounded {a} (inP (x,eps,eps>0,FB,x+eps<a)) => inP (RatField.mid (x + eps) a, inP (x, eps, eps>0, FB, RatField.mid>left x+eps<a), RatField.mid<right x+eps<a)
+      | LU-disjoint (inP (x,eps,eps>0,Feps,q<x-eps)) (inP (y,delta,delta>0,Fdelta,x+eps<q)) => \case F.isProper (F.filter-meet Feps Fdelta) \with {
+        | inP (z,(|x-z|<eps,|y-z|<delta)) =>
+          \have | t => abs>=id <∘r real_<_L.1 (transport (`< _) norm-dist |x-z|<eps)
+                | s => RatField.abs>=neg {y - z} <∘r real_<_L.1 (transport (`< _) norm-dist |y-z|<delta)
+          \in linarith
+      }
+      | LU-focus eps eps>0 => \case cauchyFilter-metric-char.1 F.isCauchyFilter {eps * ratio 1 4} (real_<_L.2 linarith) \with {
+        | inP (x,FB) => inP (x - eps * ratio 1 2, inP (x, _, linarith, FB, linarith), inP (x, _, linarith, FB, linarith))
+      }
+  }
+
+\func rat_real : NormedIsometricMap RatNormed RealNormedAbGroup Real.fromRat \cowith
+  | func-+ => inv RealAbGroup.+-rat
+  | func-norm-isometry => inv rat_real_abs
+  \where {
+    \lemma dense : rat_real.IsDense
+      => \lam {y} {U} Uo Uy => \case (dist_open {RealNormedAbGroup} {U}).1 Uo Uy \with {
+        | inP (eps,eps>0,p) => \case real_<-rat-char.1 $ transport (`< _) zro-right $ <_+-right y eps>0 \with {
+          | inP (x,y<x,x<y+eps) => inP (x, inP (x, idp), p $ unfold OBall $ rewrite norm-dist $ abs_-_< (transport (_ <) negative-right (RealAbGroup.<_+-left _ $ real_<_U.2 y<x) <∘ eps>0) $ transport2 (<) +-comm (inv +-assoc *> pmap (`+ _) negative-left *> zro-left) $ <_+-right (negative y) $ real_<_L.2 x<y+eps)
+        }
+      }
+
+    \lemma dense-coverEmbedding : CoverMap.IsDenseEmbedding {rat_real}
+      => (dense, rat_real.embedding->coverEmbedding (rat_real.dense->uniformEmbedding dense).2)
+  }
+
+\func open-rat-int (a b : Rat) : Set Real
+  => \lam (x : Real) => \Sigma (x.L a) (x.U b)
+
+\lemma dense-lift-real-char {X Y : CoverSpace} {f : CoverMap X Y} (fd : f.IsDenseEmbedding) {g : CoverMap X RealNormed} (y : Y) (a b : Rat)
+  : open-rat-int a b (dense-lift f fd g y) <-> ∃ (a' b' : Rat) (a < a') (b' < b) (V : Set Y) (f ^-1 V ⊆ g ^-1 open-rat-int a' b') (single y <=< V)
+  => (\lam (a<z,z<b) => \case L-rounded a<z, U-rounded z<b \with {
+    | inP (a',a'<z,a<a'), inP (b',z<b',b'<b) => \case (dense-lift-neighborhood fd y (open-rat-int a' b')).1 (point_<=< a'<z z<b') \with {
+      | inP (W,W<=<a'b',V,q,y<=<V) => inP (a', b', a<a', b'<b, V, q <=∘ <=<_<= (<=<_^-1 W<=<a'b'), y<=<V)
+    }
+  }, \lam (inP (a',b',a<a',b'<b,V,h,y<=<V)) => <=<_<= ((dense-lift-neighborhood fd y (\lam x => open-rat-int a b x)).2 $ inP (open-rat-int a' b', <=<_open-rat-int a<a' b'<b, V, h, y<=<V)) idp)
+  \where {
+    \open ClosurePrecoverSpace
+
+    \lemma makeRealCover (eps : Rat) (eps>0 : 0 < eps) : RealNormed.isCauchy \lam U => ∃ (a : Rat) (U = open-rat-int a (a + eps))
+      => RealNormed.makeCauchy $ inP (eps * ratio 1 4, real_<_L.2 linarith, \lam x => later \case (real_<-rat-char {x - eps * ratio 1 2} {x - eps * ratio 1 4}).1 $ <_+-right x $ RealAbGroup.negative_< $ real_<_L.2 linarith \with {
+        | inP (a,x-eps/2<a,a<x-eps/4) => inP (_, inP (a, idp), \lam d => (
+            real_<_L.1 $ real_<_L.2 a<x-eps/4 <∘ RealAbGroup.<-diff-left (abs>=id <∘r (rewrite norm-dist in d)),
+            real_<_U.1 $ RealAbGroup.<-diff-mid (simplify in abs>=neg <∘r (rewrite norm-dist in d)) <∘
+              <_+-right _ (RealAbGroup.<-diff-mid (real_<_U.2 x-eps/2<a)) <∘ rewrite (RealAbGroup.+-rat,RealAbGroup.+-rat) (real_<_L.2 linarith)))
+      })
+
+    \lemma <=<_open-rat-int {a b a' b' : Rat} (a<a' : a < a') (b'<b : b' < b) : open-rat-int a' b' <=< open-rat-int a b
+      => closure-subset (makeRealCover ((a' - a) ∧ (b - b')) $ LinearOrder.<_meet-univ linarith linarith) \lam {U} (inP (c,p)) => rewrite p $ later \lam (e : Real, ((a'<e,e<b'),(c<e,e<c+eps))) (c<x,x<c+eps) => (L-closed c<x $ linarith (e.LU-less a'<e e<c+eps <∘l RatField.<=_+ <=-refl meet-left), U-closed x<c+eps $ RatField.<=_+ <=-refl meet-right <∘r linarith (e.LU-less c<e e<b'))
+
+    \lemma point_<=< {x : Real} {a b : Rat} (a<x : x.L a) (x<b : x.U b) : single x <=< open-rat-int a b
+      => \case x.L-rounded a<x, x.U-rounded x<b \with {
+        | inP (a',a'<x,a<a'), inP (b',x<b',b'<b) => <=<-right (later \lam p => rewriteI p (a'<x,x<b')) (<=<_open-rat-int a<a' b'<b)
+      }
+  }
+
+\lemma <=<-open-int {x : Real} {U : Set Real} (p : single x <=< U) : ∃ (a b : Rat) (x.L a) (x.U b) ∀ (y : Real) (y.L a -> y.U b -> U y)
+  => \case <=<-ball p \with {
+    | inP (eps,eps>0,q) => \case (real_<-rat-char {x - eps} {x}).1 $ transport (_ <) zro-right $ <_+-right x $ RealAbGroup.positive_negative eps>0, (real_<-rat-char {x} {x + eps}).1 $ transport (`< _) zro-right $ <_+-right x eps>0 \with {
+      | inP (a,x-eps<a,a<x), inP (b,x<b,b<x+eps) => inP (a, b, a<x, x<b, \lam y a<y y<b => q $ transportInv (`< _) norm-dist $ abs_-_< (RealAbGroup.<-diff-left $ real_<_U.2 x-eps<a <∘ real_<_L.2 a<y) $ RealAbGroup.<-diff-mid-conv $ rewrite +-comm $ real_<_U.2 y<b <∘ real_<_L.2 b<x+eps)
+    }
+  }
+
+\func real-lift2 {X : CompleteCoverSpace} (f : CoverMap (RatNormed ⨯ RatNormed) X) : CoverMap (RealNormed ⨯ RealNormed) X
+  => dense-lift (prod rat_real rat_real) (prod.isDenseEmbedding rat_real.dense-coverEmbedding rat_real.dense-coverEmbedding) f
+
+\lemma real-lift2-char {f : CoverMap (RatNormed ⨯ RatNormed) RealNormed} {x y : Real} (a b : Rat)
+  : open-rat-int a b (real-lift2 f (x,y)) <-> ∃ (a' b' c1 d1 c2 d2 : Rat) (a < a') (b' < b) (x.L c1) (x.U d1) (y.L c2) (y.U d2) (\Pi {x y : Rat} -> \Sigma (c1 < x) (x < d1) -> \Sigma (c2 < y) (y < d2) -> open-rat-int a' b' (f (x,y)))
+  => <->trans (dense-lift-real-char {RatNormed ⨯ RatNormed} {_} {prod rat_real rat_real} (prod.isDenseEmbedding rat_real.dense-coverEmbedding rat_real.dense-coverEmbedding) (x,y) a b) $ later
+      (\lam (inP (a',b',a<a',b'<b,V,q,xy<=<V)) => \case prod-neighborhood.1 xy<=<V \with {
+        | inP (U,V,x<=<U,y<=<V,h) => \case <=<-open-int x<=<U, <=<-open-int y<=<V \with {
+          | inP (c1,d1,c1<x,x<d1,p1), inP (c2,d2,c2<y,y<d2,p2) => inP (a', b', c1, d1, c2, d2, a<a', b'<b, c1<x, x<d1, c2<y, y<d2, \lam {x'} {y'} (c1<x',x'<d1) (c2<y',y'<d2) => q $ h (p1 x' c1<x' x'<d1) (p2 y' c2<y' y'<d2))
+        }
+      }, \lam (inP (a',b',c1,d1,c2,d2,a<a',b'<b,c1<x,x<d1,c2<y,y<d2,q)) => inP (a', b', a<a', b'<b, \lam z => \Sigma (open-rat-int c1 d1 z.1) (open-rat-int c2 d2 z.2),
+          \lam s => q s.1 s.2, RatherBelow.<=<_meet-same (<=<-right (later \lam s => pmap __.1 s) $ <=<_^-1 {_} {_} {proj1} $ dense-lift-real-char.point_<=< c1<x x<d1) (<=<-right (later \lam s => pmap __.2 s) $ <=<_^-1 {_} {_} {proj2} $ dense-lift-real-char.point_<=< c2<y y<d2)))

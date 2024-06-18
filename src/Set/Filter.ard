@@ -5,13 +5,29 @@
 \import Paths.Meta
 \import Set.Subset
 
-\record Filter {A : Bounded.MeetSemilattice} (\coerce F : A -> \Prop)
+\record Filter (A : Bounded.MeetSemilattice) (\coerce F : A -> \Prop)
   | filter-mono {a b : A} : a <= b -> F a -> F b
   | filter-top : F Bounded.top
   | filter-meet {a b : A} : F a -> F b -> F (a ∧ b)
 
+\record CompleteFilter \extends Filter {
+  \override A : CompleteLattice
+  | filter-Join {J : \Set} {f : J -> A} : F (Join f) -> ∃ (j : J) (F (f j))
+
+  \lemma isProper (p : F CompleteLattice.bottom) : Empty
+    => \case filter-Join {_} {Empty} {absurd} (filter-mono CompleteLattice.bottom-univ p) \with {
+      | inP (e,_) => e
+    }
+}
+
 \record SetFilter (X : \Set) \extends Filter
   | A => SetLattice X
+
+\func SetFilter-map {X Y : \Set} (f : X -> Y) (F : SetFilter X) : SetFilter Y \cowith
+  | F V => F (f ^-1 V)
+  | filter-mono p d => filter-mono (p __) d
+  | filter-top => filter-top
+  | filter-meet => filter-meet
 
 \record ProperFilter \extends SetFilter
   | isProper {U : Set X} : F U -> ∃ U
@@ -22,6 +38,10 @@
   | filter-top => ()
   | filter-meet p q => (p,q)
   | isProper Ux => inP (x,Ux)
+
+\func ProperFilter-map {X Y : \Set} (f : X -> Y) (F : ProperFilter X) : ProperFilter Y \cowith
+  | SetFilter => SetFilter-map f F
+  | isProper d => TruncP.map (isProper d) \lam s => (f s.1, s.2)
 
 \instance ProperFilterSemilattice (X : \Set) : MeetSemilattice (ProperFilter X)
   | <= F G => F ⊆ G

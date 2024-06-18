@@ -1,0 +1,109 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Arith.Int
+\import Arith.Nat
+\import Arith.Rat
+\import Arith.Real
+\import Data.Or
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Lattice
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Fin
+\import Set.Subset
+\import Topology.Compact
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\import Topology.MetricSpace
+\import Topology.NormedAbGroup.Real
+\import Topology.UniformSpace
+\import Topology.UniformSpace.Complete
+\open LinearlyOrderedAbGroup
+\open RatField (finv)
+
+\instance NatMetricSpace : MetricSpace Nat
+  | dist n m => abs (finv (suc n) - finv (suc m))
+  | dist-refl => RatNormed.dist-refl
+  | dist-symm => RatNormed.dist-symm
+  | dist-triang => RatNormed.dist-triang {_} {_} {finv (suc _)}
+  | dist-ext p => pmap pred $ pmap ratDenom $ RatNormed.dist-ext {_} {finv (suc _)} p
+  \where {
+    \func Cover (C : Set (Set Nat)) : \Prop
+      => ∃ (U : C) (N : Nat) (\Pi {n : Nat} -> N <= n -> U n) (\Pi (j : Fin N) -> Given (V : C) (V j))
+
+    \lemma uniform-char {C : Set (Set Nat)} : NatMetricSpace.isUniform C <-> Cover C
+      => (\lam Cu => \case NatMetricSpace.dist-uniform-rat.1 Cu \with {
+        | inP (eps,eps>0,h) => \case Real.natBounded {finv (eps * ratio 1 2) : Real} \with {
+          | inP (N,eps<N) => \case h N, FinSet.finiteAC {N} (\lam j => NatMetricSpace.uniform-cover Cu j) \with {
+            | inP (U,CU,g), inP c => inP (U, CU, N, \lam {n} N<=n => g $ real_<_L.2 $ abs_+ <∘r
+                (\have lem {m : Nat} (p : finv (eps * ratio 1 2) < m) : finv (suc m) < eps * ratio 1 2
+                    => transport (_ <) RatField.finv_finv $ RatField.finv_< (RatField.finv>0 linarith) $ p <∘ fromInt_< (pos<pos id<suc)
+                 \in transport (_ <) (linarith : eps * ratio 1 2 + eps * ratio 1 2 = eps) (OrderedAddMonoid.<_+
+                      (lem eps<N) (lem $ eps<N <∘l fromInt_<= (pos<=pos N<=n))) : finv (suc N) + finv (suc n) < eps), c)
+          }
+        }
+      }, \lam (inP (U,CU,N,g,c)) =>
+          \have | N1N2>0 {m : Nat} (m>0 : 0 < m) : 0 RatField.< m * suc m => fromInt_< $ pos<pos $ NatSemiring.<_*_positive_positive m>0 NatSemiring.zero<suc
+                | cmp {n m : Nat} : n < m <-> finv (suc m) < finv (suc n)
+                    => (\lam p => RatField.finv_< {suc n} {suc m} idp $ fromInt_< $ pos<pos $ NatSemiring.suc<suc p,
+                        \lam p => NatSemiring.unsuc< $ pos<pos.conv $ fromInt_<.conv $ RatField.finv_<-conv {suc m} {suc n} idp p)
+                | lem1 {n m : Nat} (n<m : n < m) (n<N : n < N) (d : NatMetricSpace.dist n m < finv ((N + 1) * (N + 2))) : m < suc N
+                    => cmp.2 $ linarith (transportInv (_ <) (RatField.finv>0-diff {suc N} idp) $ RatField.abs_-left {finv (suc n)} {finv (suc m)} <∘r real_<_U.1 d, cmp.1 n<N)
+                | lem2 {n m : Nat} (n<m : n < m) (m<N+1 : m < suc N) : finv ((N + 1) * (N + 2)) RealAbGroup.< NatMetricSpace.dist n m
+                    => real_<_U.2 $ transport (_ <) (simplify : finv (suc n) - finv m + (finv m - finv (suc m)) = _) (
+                        transportInv (_ <) (zro-left *> RatField.finv>0-diff (fromInt_< $ pos<pos $ zero<=_ <∘r n<m))
+                            (RatField.finv_< (N1N2>0 $ zero<=_ <∘r n<m) $ fromInt_< $ pos<pos $
+                              <_*_positive-left {_} {_} {_} {suc m} m<N+1 NatSemiring.zero<suc <∘
+                              <_*_positive-right {_} {suc N} {suc m} {N + 2} NatSemiring.zero<suc (NatSemiring.suc<suc m<N+1)) <∘l
+                            RatField.<=_+ (linarith (RatField.finv_<= idp $ fromInt_<= $ pos<=pos $ suc_<_<= n<m)) <=-refl) <∘l RatField.abs_-left {finv (suc n)} {finv (suc m)}
+          \in NatMetricSpace.dist-uniform-rat.2 $ inP (finv $ (N + 1) * (N + 2), RatField.finv>0 $ N1N2>0 NatSemiring.zero<suc, \lam n => \case LinearOrder.dec<_<= n N \with {
+            | inl n<N => \have s => c (toFin n n<N)
+                         \in inP (s.1, s.2, \lam {m} d => \case LinearOrder.trichotomy n m \with {
+                           | less n<m => absurd $ <-irreflexive $ lem2 n<m (lem1 n<m n<N d) <∘ d
+                           | equals n=m => transport s.1 (toFin=id *> n=m) s.3
+                           | greater m<n => absurd $ <-irreflexive $ lem2 m<n (n<N <∘ id<suc) <∘ transport (`< _) NatMetricSpace.dist-symm d
+                         })
+            | inr N<=n => inP (U, CU, \lam {m} d => g \case LinearOrder.dec<_<= m N, LinearOrder.dec<_<= m n \with {
+              | inr N<=m, _ => N<=m
+              | _, inr n<=m => N<=n <=∘ n<=m
+              | inl m<N, inl m<n => \have d' => transport (`< _) NatMetricSpace.dist-symm d
+                                    \in absurd $ <-irreflexive $ lem2 m<n (lem1 m<n m<N d') <∘ d'
+            })
+          }))
+
+    \lemma totallyBounded : IsTotallyBounded NatMetricSpace
+      => totallyBounded-uniform-char NatMetricSpace.properUniform 1 0 \lam Cu => \case uniform-char.1 Cu \with {
+        | inP (U,CU,N,g,h) => inP (U :: \lam j => (h j).1, uniform-char.2 $ inP $ later (U, inP (0,idp), N, g, \lam j => ((h j).1, inP (suc j, idp), (h j).3)), \case \elim __ \with {
+          | 0 => CU
+          | suc j => (h j).2
+        })
+      }
+
+    \lemma cauchy-char {C : Set (Set Nat)} : NatMetricSpace.isCauchy C <-> Cover C
+      => (\lam Cc => uniform-char.1 $ totallyBounded-cauchy-uniform NatMetricSpace.properUniform totallyBounded Cc,
+          \lam Cc => uniform-cauchy.1 $ ClosurePrecoverSpace.closure $ uniform-char.2 Cc)
+
+    \lemma makeUniform (N : Nat) : NatMetricSpace.isUniform \lam U => (U = (N <=)) || (\Sigma (n : Nat) (n < N) (U = single n))
+      => uniform-char.2 $ inP $ later (N <=, byLeft idp, N, \lam p => p, \lam n => (_, byRight (n, fin_< n, idp), idp))
+
+    \lemma makeCover (N : Nat) : NatMetricSpace.isCauchy \lam U => (U = (N <=)) || (\Sigma (n : Nat) (n < N) (U = single n))
+      => NatMetricSpace.makeCauchy (makeUniform N)
+  }
+
+\func atTop : CauchyFilter NatMetricSpace \cowith
+  | F U => ∃ (N : Nat) ∀ {n} (N <= n -> U n)
+  | filter-mono p (inP (N,f)) => inP (N, \lam q => p $ f q)
+  | filter-top => inP (0, \lam _ => ())
+  | filter-meet (inP (N,f)) (inP (M,g)) => inP (N ∨ M, \lam p => (f $ join-left <=∘ p, g $ join-right <=∘ p))
+  | isProper (inP (N,f)) => inP (N, f <=-refl)
+  | isCauchyFilter => (cauchyFilter-uniform-char {_} {\this}).2 \lam Cu => \case NatMetricSpace.uniform-char.1 Cu \with {
+    | inP (U,CU,N,g,_) => inP (U, CU, inP (N,g))
+  }

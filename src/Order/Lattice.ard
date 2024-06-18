@@ -10,17 +10,27 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Directed
 \import Paths
 \import Order.PartialOrder
 \import Paths.Meta
 \import Set.Fin
 
-\class MeetSemilattice \extends Poset {
+\class MeetSemilattice \extends Poset, PrecatWithBprod (\lp, \lp) {
   | meet \alias \infixl 7 ∧ : E -> E -> E
   | meet-left {x y : E} : x ∧ y <= x
   | meet-right {x y : E} : x ∧ y <= y
   | meet-univ {x y z : E} : z <= x -> z <= y -> z <= x ∧ y
-
+  | Bprod x y => \new Product {
+    | apex => x ∧ y
+    | proj => \case \elim __ \with {
+      | 0 => meet-left
+      | 1 => meet-right
+    }
+    | tupleMap f => meet-univ (f 0) (f 1)
+    | tupleBeta => prop-pi
+    | tupleEq _ => prop-pi
+  }
   \func Big_meet \alias Big_∧ {n : Nat} (l : Array E (suc n)) : E \elim l
     | a :: l => Big (∧) a l
 
@@ -157,22 +167,23 @@
       | tupleBeta {_} {_} {j} => \case j
       | tupleEq _ => prop-pi
     }
-    | Bprod x y => \new Product {
-      | apex => x ∧ y
-      | proj => \case \elim __ \with {
-        | 0 => meet-left
-        | 1 => meet-right
-      }
-      | tupleMap f => meet-univ (f 0) (f 1)
-      | tupleBeta => prop-pi
-      | tupleEq _ => prop-pi
-    }
 
     \lemma top-left {x : E} : top ∧ x = x
       => <=-antisymmetric meet-right (meet-univ top-univ <=-refl)
 
     \lemma top-right {x : E} : x ∧ top = x
       => <=-antisymmetric meet-left (meet-univ <=-refl top-univ)
+
+    \func BigMeet (l : Array E) : E
+      => Big (∧) top l
+
+    \lemma BigMeet-cond {l : Array E} (j : Fin l.len) : BigMeet l <= l j \elim l, j
+      | a :: l, 0 => meet-left
+      | a :: l, suc j => meet-right <=∘ BigMeet-cond j
+
+    \lemma BigMeet-univ {l : Array E} {x : E} (p : \Pi (j : Fin l.len) -> x <= l j) : x <= BigMeet l \elim l
+      | nil => top-univ
+      | a :: l => meet-univ (p 0) $ BigMeet-univ \lam j => p (suc j)
   } \where {
       \use \coerce toMonoid (L : MeetSemilattice) : CMonoid L \cowith
         | ide => top
@@ -182,9 +193,12 @@
         | *-comm => meet-comm
     }
 
-  \class JoinSemilattice \extends Order.Lattice.JoinSemilattice {
+  \class JoinSemilattice \extends Order.Lattice.JoinSemilattice, DirectedSet {
     | bottom : E
     | bottom-univ {x : E} : bottom <= x
+
+    | isInhabitted => inP bottom
+    | isDirected x y => inP (x ∨ y, join-left, join-right)
 
     \func BigJoin (l : Array E) : E
       => Big (∨) bottom l
@@ -195,7 +209,7 @@
 
     \lemma BigJoin-univ {l : Array E} {x : E} (p : \Pi (j : Fin l.len) -> l j <= x) : BigJoin l <= x \elim l
       | nil => bottom-univ
-      | a :: l => join-univ (p 0) $ BigJoin-univ $ \lam j => p (suc j)
+      | a :: l => join-univ (p 0) $ BigJoin-univ \lam j => p (suc j)
 
     \sfunc FinJoin {J : FinSet} (a : J -> E) : E
       => AbMonoid.FinSum {\this} a
@@ -209,7 +223,7 @@
     \lemma FinJoin-univ {J : FinSet} {a : J -> E} {x : E} (p : \Pi (j : J) -> a j <= x) : FinJoin a <= x
       => \case AbMonoid.FinSum.aux.2 \with {
            | inP (e,q) => \have t => (\peval FinJoin a) *> (\peval AbMonoid.FinSum a) *> inv q
-                          \in transportInv (`<= x) t $ BigJoin-univ $ \lam j => p (e j)
+                          \in transportInv (`<= x) t $ BigJoin-univ \lam j => p (e j)
          }
   } \where {
       \use \coerce toMonoid (L : JoinSemilattice) : AbMonoid L \cowith
@@ -247,17 +261,18 @@
 
   | bottom => Join absurd
   | bottom-univ {x} => Join-univ \case __
-  | join x y => Join (if __ x y)
-  | join-left {x} {y} => Join-cond true
-  | join-right {x} {y} => Join-cond false
-  | join-univ x<=z y<=z => Join-univ \case \elim __ \with {
-    | true => x<=z
-    | false => y<=z
-  }
 
   | Meet {J : \Set} : (J -> E) -> E
   | Meet-cond {J : \Set} (j : J) {f : J -> E} : Meet f <= f j
   | Meet-univ {J : \Set} {f : J -> E} {e : E} : (\Pi (j : J) -> e <= f j) -> e <= Meet f
+
+  \default join \as join-impl x y => Join (if __ x y)
+  \default join-left \as join-left-impl {x} {y} : x <= join-impl x y => Join-cond true
+  \default join-right \as join-right-impl {x} {y} : y <= join-impl x y => Join-cond false
+  \default join-univ \as join-univ-impl {x} {y} {z} x<=z y<=z : join-impl x y <= z => Join-univ \case \elim __ \with {
+    | true => x<=z
+    | false => y<=z
+  }
 
   \default Meet \as Meet-impl {J} g => Join (\lam (t : Total (\Pi (j : J) -> __ <= g j)) => t.1)
   \default Meet-cond \as Meet-cond-impl {J} j {f} : Meet-impl f <= f j => Join-univ (__.2 j)

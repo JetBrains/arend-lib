@@ -75,6 +75,13 @@
       | inv-right => negative_* *> j.inv-right
     }
 
+  \lemma geometric-partial-sum {n : Nat} {x : E} (xi : Monoid.Inv (1 - x)) : xi.inv - BigSum (\new Array E n (\lam j => Monoid.pow x j)) = Monoid.pow x n * xi.inv
+    => inv (rdistr_- *> pmap2 (-) ide-left (*-assoc *> pmap (_ *) xi.inv-right *> ide-right)) *> pmap (`* _) (pmap (1 -) ldistr_- *> simplify \case \elim n \with {
+      | 0 => simplify
+      | suc n => rewrite {1} (BigSum_suc,rdistr) $ simplify $ pmap (`+ _) +-comm *> +-assoc *>
+          pmap2 (+) (later rewrite (toFin'=id id<suc) idp) (pmap (`+ _) BigSum-rdistr *> negative-right) *> zro-right
+    })
+
   \func IsNilpotent (x : E) => ∃ (n : Nat) (pow x n = 0)
 
   \lemma pow_-1_+2 {n : Nat} : pow -1 (n Nat.+ 2) = pow -1 n
@@ -134,7 +141,7 @@
                 | (inP t) => Ideal.closureN-lem.1 s.1
                 | (inP d|a) => s.2 (Ideal.closure-superset {_} {_} {a :: b :: nil} (later 0))
                 | (inP d|b) => s.2 (Ideal.closure-superset {_} {_} {a :: b :: nil} (later 1))
-                | p => unfold BigSum at t $ rewriteF zro-right t.2
+                | p => unfold BigSum at t $ rewrite zro-right in t.2
           \in inP (t.1 0, t.1 1, rewriteI p d|a, rewriteI p d|b)
     )
 
@@ -173,8 +180,8 @@
         },
         \lam zd x => \case zd (x :: nil) \with {
           | inP (a,m,p) => cases (m 0 arg addPath) \with {
-            | 0, q => inP (1, 1, (\case __), ide-left, LDiv.make (a 0) (equation {usingOnly (rewriteF q p)}), LDiv.ide-div)
-            | suc n, q => \have t => rewriteF pow_*-comm $ aux {_} {pow x (m 0)} {x * a 0} (m 0) equation
+            | 0, q => inP (1, 1, (\case __), ide-left, LDiv.make (a 0) (equation {usingOnly (rewrite q in p)}), LDiv.ide-div)
+            | suc n, q => \have t => rewrite pow_*-comm in aux {_} {pow x (m 0)} {x * a 0} (m 0) equation
                           \in inP (pow x (m 0) * pow (a 0) (m 0), m 0, rewrite q (\case __), equation, LDiv.factor-left LDiv.id-div, LDiv.make (pow x (m 0)) equation)
           }
         }, \lam c a => TruncP.map (c a) \lam s =>
@@ -194,7 +201,7 @@
         \lam s a => \case zeroDimensional-char 0 2 s.1 a \with {
           | inP r => \case s.2 r.1 r.4 \with {
             | byLeft r1=0 => byRight (r.2, inv (LDiv.inv-right {r.6}) *> pmap (`* _) r1=0 *> zro_*-left)
-            | byRight r1=1 => byLeft $ Inv.cfactor-right $ rewriteF (inv $ suc_pred r.3) $ Inv.lmake (LDiv.inv {r.5}) $ *-comm *> LDiv.inv-right {r.5} *> r1=1
+            | byRight r1=1 => byLeft $ Inv.cfactor-right $ rewrite (inv $ suc_pred r.3) in Inv.lmake (LDiv.inv {r.5}) (*-comm *> LDiv.inv-right {r.5} *> r1=1)
           }
         }, \lam s => (\lam a => \case s a \with {
               | byLeft (r : Inv) => inP (r.inv, 0, inv $ simplify r.inv-right)
@@ -216,7 +223,7 @@
     {- 2 -} \Pi (I : Ideal \this) -> I.IsFinitelyGenerated -> ∃ (u : E) (u * u = u) (I.IsGeneratedBy1 u),
     {- 3 -} \Pi (I : Ideal \this) -> I IdealMonoid.* I = I,
     {- 4 -} \Pi (I J : Ideal \this) -> I ∧ J = I IdealMonoid.* J
-  ) => TFAE.proof $ later (
+  ) => TFAE.proof (
     ((0,1), \lam c => (\lam a => TruncP.map (c a) \lam s => (s.1, 1, equation {usingOnly s.2}),
                        \new ReducedRing { | isReduced {a} p => \case c a \with {
                          | inP (b,q) => equation
@@ -238,8 +245,7 @@
         | inP (b,p) => rewrite p $ closure-superset {_} {_} {IdealMonoid.func I J} $ later (a * b, a, ideal-right (IdealLattice.meet-left c), IdealLattice.meet-right c)
       }) IdealMonoid.product_meet),
     ((4,3), \lam f I => inv (f I I) *> IdealLattice.meet-idemp),
-    ((3,2), \lam f I Ifg => nakayama-ideal Ifg (Preorder.=_<= (inv (f I)))
-    )
+    ((3,2), \lam f I Ifg => nakayama-ideal Ifg (Preorder.=_<= (inv (f I))))
   )
   \where \open Ideal
 
@@ -261,7 +267,7 @@
       \lemma divQuotient_dec0 (a : DivQuotient \this) : Set.Dec (a = in~ 0)
         | in~ a => \case decideEq a 0 \with {
           | yes e => yes $ ~-pequiv $ rewrite e (inP LDiv.id-div, inP LDiv.id-div)
-          | no q => no \lam p => q $ \case (DivQuotient.make~ p).1 \with {
+          | no q => no \lam p => q \case (DivQuotient.make~ p).1 \with {
             | inP d => inv (LDiv.inv-right {d}) *> zro_*-left
           }
         }

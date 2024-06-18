@@ -1,0 +1,211 @@
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Filter
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\import Topology.RatherBelow
+\open Set
+\open Bounded(top,top-univ,bottom,bottom-univ)
+\open ClosurePrecoverSpace
+
+\class UniformSpace \extends CompletelyRegularCoverSpace {
+  | isUniform : Set (Set E) -> \Prop
+  | uniform-cover {C : Set (Set E)} : isUniform C -> \Pi (x : E) -> ∃ (U : C) (U x)
+  | uniform-top : isUniform (single top)
+  | uniform-refine {C D : Set (Set E)} : isUniform C -> Refines C D -> isUniform D
+  | uniform-inter {C D : Set (Set E)} : isUniform C -> isUniform D -> isUniform (CoverInter C D)
+  | uniform-star {C : Set (Set E)} : isUniform C -> ∃ (D : isUniform) ∀ {V : D} ∃ (U : C) ∀ {W : D} (Given (V ∧ W) -> W ⊆ U)
+  | uniform-cauchy {C : Set (Set E)} : isCauchy C <-> Closure isUniform C
+
+  | cauchy-cover Cc x => closure-filter (pointFilter x) (\lam Cu => uniform-cover Cu x) $ uniform-cauchy.1 Cc
+  | cauchy-top => uniform-cauchy.2 $ closure-top idp
+  | cauchy-refine Cc e => uniform-cauchy.2 $ closure-refine (uniform-cauchy.1 Cc) e
+  | cauchy-glue Cc e => uniform-cauchy.2 $ closure-trans (uniform-cauchy.1 Cc) (\lam CU => uniform-cauchy.1 $ e CU) idp
+  | isCompletelyRegular Cc => cauchy-subset (uniform-cauchy.2 $ isCompletelyRegular {ClosureRegularCoverSpace isUniform uniform-cover uniform-star} (uniform-cauchy.1 Cc))
+      \lam {V} (inP (U,CU,V<=<U)) => inP $ later (U, CU, unfolds $ unfolds at V<=<U $ TruncP.map V<=<U \lam (R',c,d,e) => (R', \lam r => uniform-cauchy.2 $ c r, d, e))
+
+  \default isCauchy : Set (Set E) -> \Prop => Closure isUniform
+  \default uniform-cauchy \as uniform-cauchy-impl {C} : isCauchy C <-> Closure isUniform C => <->refl
+
+  \lemma makeCauchy {C : Set (Set E)} (Cu : isUniform C) : CoverSpace.isCauchy C
+    => uniform-cauchy.2 (closure Cu)
+
+  \func IsProperUniform : \Prop
+    => ∀ {C : isUniform} (isUniform \lam U => \Sigma (C U) (∃ U))
+
+  \func IsWeaklyProperUniform : \Prop
+    => \Pi {C : Set (Set E)} -> isUniform (\lam U => (U = {Set E} bottom) || C U) -> isUniform C
+
+  \lemma proper_weaklyProper (p : IsProperUniform) : IsWeaklyProperUniform
+    => \lam Cu => uniform-subset (p Cu) \case __ \with {
+      | (byLeft e, inP (x,Ux)) => \case rewrite e in Ux \with {
+        | inP ((),_)
+      }
+      | (byRight CU, _) => CU
+    }
+
+  \lemma inhabited_weaklyProper (p : TruncP E) : IsWeaklyProperUniform \elim p
+    | inP x => \lam Cu => uniform-refine Cu \case \elim __ \with {
+      | byLeft p => \case uniform-cover Cu x \with {
+        | inP (_, byLeft idp, inP ((),_))
+        | inP (V, byRight CV, Vx) => inP (V, CV, rewrite p bottom-univ)
+      }
+      | byRight CU => inP (_, CU, <=-refl)
+    }
+
+  \lemma uniform-inter-big (Cs : Array (Set (Set E))) (Cu : ∀ (C : Cs) (isUniform C)) : isUniform (CoverInterBig Cs) \elim Cs
+    | nil => uniform-top
+    | C :: Cs => uniform-inter (Cu 0) $ uniform-inter-big _ (\lam j => Cu (suc j))
+
+  \lemma <=*-inter {V U : Set E} (p : V <=* U) : ∃ (V' : Set E) (V <=* V') (V' <=* U) \elim p
+    | inP (C,Cc,p) => \case uniform-star Cc \with {
+      | inP (D,Dc,g) => inP (star V D, inP (D, Dc, <=-refl), inP (D, Dc, (\case __ \with {
+        | inP (W, (DW, (y, (inP (V', (DV', (z, (Vz, V'z))), V'y), Wy))), Wx) => \case g DV' \with {
+          | inP (U',CU',h) => inP $ later (U', (CU', (z, (Vz, h DV' (z,(V'z,V'z)) V'z))), h DW (y, (V'y, Wy)) Wx)
+        }
+      }) <=∘ p))
+    }
+
+  \lemma <=*-regular {C : Set (Set E)} (Cu : isUniform C) : isUniform \lam V => ∃ (U : C) (V <=* U)
+    => \case uniform-star Cu \with {
+      | inP (D,Du,h) => uniform-subset Du \lam {V} DV => \case h DV \with {
+        | inP (U,CU,g) => inP $ later (U, CU, inP (D, Du, \lam {y} (inP (W,(DW,s),Wy)) => g DW s Wy))
+      }
+    }
+
+  \lemma <=*-cauchy-regular {C : Set (Set E)} (Cc : CoverSpace.isCauchy C) : CoverSpace.isCauchy \lam V => ∃ (U : C) (V <=* U)
+    => uniform-cauchy.2 $ ClosureCoverSpace.closure-regular StarRatherBelow (\lam Cu => closure $ <=*-regular Cu) (uniform-cauchy.1 Cc)
+
+  \lemma <=<-regular {C : Set (Set E)} (Cu : isUniform C) : isUniform \lam V => ∃ (U : C) (V <=< U)
+    => uniform-subset (<=*-regular Cu) \lam {V} (inP (U,CU,p)) => inP $ later (U, CU, <=*_<=< p)
+
+  \lemma uniform-separated {x y : E} : ∀ {C : CoverSpace.isCauchy} ∃ (U : C) (\Sigma (U x) (U y)) <-> ∀ {C : isUniform} ∃ (U : C) (\Sigma (U x) (U y))
+    => (\lam sf Cu => sf $ makeCauchy Cu, \lam sf Cc => closure-filter (\new SetFilter E {
+      | F U => \Sigma (U x) (U y)
+      | filter-mono p (Ux,Uy) => (p Ux, p Uy)
+      | filter-top => ((), ())
+      | filter-meet (Ux,Uy) (Vx,Vy) => ((Ux, Vx), (Uy, Vy))
+    }) sf $ uniform-cauchy.1 Cc)
+} \where {
+  \func star {X : \Set} (V : Set X) (C : Set (Set X)) : Set X
+    => Union \lam W => \Sigma (C W) (Given (V ∧ W))
+
+  \lemma star-monotone {X : \Set} {V U : Set X} (p : V ⊆ U) {C D : Set (Set X)} (r : Refines C D) : star V C ⊆ star U D
+    => \lam (inP (W',(CW',(y,(Vy,W'y))),W'x)) => \case r CW' \with {
+      | inP (W,DW,W'<=W) => inP (W, (DW, (y, (p Vy, W'<=W W'y))), W'<=W W'x)
+    }
+}
+
+\func \infix 4 <=* {X : UniformSpace} (V U : Set X) : \Prop
+  => ∃ (C : isUniform) (UniformSpace.star V C ⊆ U)
+
+\lemma <=*-char {X : UniformSpace} {V U : Set X} : V <=* U <-> isUniform \lam W => Given (V ∧ W) -> W ⊆ U
+  => (\lam (inP (C,Cu,p)) => uniform-subset Cu $ later \lam {W} CW s Wx => p $ inP (W,(CW,s),Wx),
+      \lam Cu => inP (_, Cu, \lam (inP (W,(g,s),Wx)) => g s Wx))
+
+\lemma <=*_<=< {X : UniformSpace} {V U : Set X} (p : V <=* U) : V <=< U
+  => X.makeCauchy (<=*-char.1 p)
+
+\instance StarRatherBelow {X : UniformSpace} : RatherBelow (<=* {X})
+  | <=<-left (inP (C,Cu,p)) q => inP (C, Cu, p <=∘ q)
+  | <=<-right p (inP (C,Cu,q)) => inP (C, Cu, UniformSpace.star-monotone p Refines-refl <=∘ q)
+  | <=<_top => inP (single top, uniform-top, top-univ)
+  | <=<_meet (inP (C,Cu,p)) (inP (D,Du,q)) => inP (_, uniform-inter Cu Du, meet-univ (UniformSpace.star-monotone meet-left Refines-inter-left <=∘ p) (UniformSpace.star-monotone meet-right Refines-inter-right <=∘ q))
+
+\lemma uniform-subset {X : UniformSpace} {C D : Set (Set X)} (Cc : isUniform C) (e : \Pi {U : Set X} -> C U -> D U) : isUniform D
+  => uniform-refine Cc \lam {U} CU => inP (U, e CU, <=-refl)
+
+\lemma top-uniform {X : UniformSpace} {C : Set (Set X)} (Ct : C top) : isUniform C
+  => uniform-subset uniform-top $ later \lam p => rewriteI p Ct
+
+\lemma uniform-embedding-char {X : UniformSpace} {Y : PrecoverSpace} {f : PrecoverMap X Y}
+  : f.IsEmbedding <-> ∀ {C : isUniform} (isCauchy \lam V => ∃ (U : C) (f ^-1 V ⊆ U))
+  => (\lam e Cu => e $ X.makeCauchy Cu, closure-embedding (uniform-cauchy.1 __) f)
+
+\record LocallyUniformMap \extends CoverMap {
+  \override Dom : UniformSpace
+  \override Cod : UniformSpace
+
+  | func-locally-uniform {E : Set (Set Cod)} : isUniform E -> ∃ (C : isUniform) ∀ {U : C} (isUniform \lam V => ∃ (W : E) (U ∧ V ⊆ func ^-1 W))
+  | func-cover {E'} E'c => closure-univ-cover (\lam {E} Eu => uniform-cauchy.2 \case func-locally-uniform Eu \with {
+    | inP (C,Cu,e) => closure-refine (closure-trans (closure Cu) (\lam CU => closure (e CU)) idp) \lam {Z} (inP (U, V, CU, inP (W, EW, q), p)) => inP $ later (_, inP (W, EW, idp), rewrite p q)
+  }) (uniform-cauchy.1 E'c)
+}
+
+\record UniformMap \extends LocallyUniformMap {
+  | func-uniform {E : Set (Set Cod)} : isUniform E -> isUniform \lam U => ∃ (V : E) (U = func ^-1 V)
+  | func-locally-uniform Eu => inP (_, func-uniform Eu, \lam (inP (V,EV,p)) => uniform-subset (func-uniform Eu) \lam _ => inP $ later (V, EV, rewrite p meet-left))
+
+  \func IsEmbedding : \Prop
+    => \Pi {C : Set (Set Dom)} -> isUniform C -> isUniform \lam V => ∃ (U : C) (func ^-1 V ⊆ U)
+
+  \lemma embedding->coverEmbedding (e : IsEmbedding) : CoverMap.IsEmbedding
+    => closure-embedding {_} {isUniform} (uniform-cauchy.1 __) \this \lam Cu => uniform-cauchy.2 (closure (e Cu))
+
+  \func IsDenseEmbedding : \Prop
+    => \Sigma IsDense IsEmbedding
+} \where {
+  \func compose \alias \infixl 8 ∘ {X Y Z : UniformSpace} (g : UniformMap Y Z) (f : UniformMap X Y) : UniformMap X Z \cowith
+    | func x => g (f x)
+    | func-uniform Du => uniform-subset (f.func-uniform $ g.func-uniform Du) \lam (inP (V, inP (W,DW,q), p)) => inP $ later (W, DW, p *> rewrite q idp)
+}
+
+\func UniformTransfer {X : \Set} {Y : UniformSpace} (f : X -> Y) : UniformSpace X \cowith
+  | CoverSpace => CoverTransfer f
+  | isUniform C => isUniform \lam V => ∃ (U : C) (f ^-1 V ⊆ U)
+  | uniform-cover Ec x => \case uniform-cover Ec (f x) \with {
+    | inP (U, inP (V,CV,p), Ufx) => inP (V, CV, p Ufx)
+  }
+  | uniform-top => top-uniform $ inP $ later (top, idp, top-univ)
+  | uniform-refine Ec r => uniform-subset Ec \lam (inP (V,CV,p)) => \case r CV \with {
+    | inP (W,DW,V<=W) => inP $ later (W, DW, p <=∘ V<=W)
+  }
+  | uniform-inter Cu Du => uniform-subset (uniform-inter Cu Du) \lam {_} (inP (U', inP (U,CU,Up), V', inP (V,DV,Vp), idp)) => inP $ later (U ∧ V, inP (U, CU, V, DV, idp), MeetSemilattice.meet-monotone Up Vp)
+  | uniform-star Cu => \case uniform-star Cu \with {
+    | inP (D',D'u,h) => inP (\lam V => ∃ (V' : D') (V = f ^-1 V'), uniform-subset D'u \lam {V'} D'V' => \case h D'V' \with {
+      | inP (V, inP (U,CU,p), g) => inP $ later (_, inP (V', D'V', idp), <=-refl)
+    }, \lam {_} (inP (V',D'V',idp)) => \case h D'V' \with {
+      | inP (V, inP (U,CU,p), g) => inP (U, CU, \lam {_} (inP (W',D'W',idp)) (x,s) {y} W'fy => p $ g D'W' (f x, s) W'fy)
+    })
+  }
+  | uniform-cauchy => (\lam Cc => closure-refine (closure-univ-closure f (\lam Cu => closure $ uniform-subset Cu \lam {U} CU => inP $ later (_, inP (U, CU, idp), <=-refl)) (uniform-cauchy.1 Cc)) \lam {_} (inP (V, inP (U,CU,p), idp)) => inP (U, CU, p),
+                       closure-cauchy {X} {CoverTransfer f} \lam Cu => Y.makeCauchy Cu)
+
+\type \infix 4 s<=* {X : UniformSpace} (V U : Set X) : \Prop
+  => isUniform \lam W => (W = Compl V) || (W = U)
+
+\instance StronglyStarRatherBelow {X : UniformSpace} : RatherBelow (s<=* {X})
+  | <=<_top => unfolds $ top-uniform $ byRight idp
+  | <=<-left p q => uniform-refine (unfolds in p) \lam {U'} => later \case __ \with {
+    | byLeft r => rewrite r $ inP (_, byLeft idp, <=-refl)
+    | byRight r => rewrite r $ inP (_, byRight idp, q)
+  }
+  | <=<-right p q => uniform-refine (unfolds in q) \lam {U'} => later \case __ \with {
+    | byLeft r => inP (_, byLeft idp, rewrite r \lam nVx Wx => nVx (p Wx))
+    | byRight r => inP (U', byRight r, <=-refl)
+  }
+  | <=<_meet U<=<U' V<=<V' => uniform-refine (uniform-inter (unfolds in U<=<U') V<=<V') $ later \lam (inP (U'', t1, V'', t2, p)) => rewrite p \case \elim t1, \elim t2 \with {
+    | byLeft r, _ => inP (_, byLeft idp, rewrite r \lam (nUx,_) (Ux,_) => nUx Ux)
+    | _, byLeft r => inP (_, byLeft idp, rewrite r \lam (_,nVx) (_,Vx) => nVx Vx)
+    | byRight q, byRight r => inP (_, byRight $ pmap2 (∧) q r, <=-refl)
+  }
+
+\class StronglyRegularUniformSpace \extends UniformSpace, StronglyRegularCoverSpace {
+  | isStronglyRegularUniform {C : Set (Set E)} : isUniform C -> isUniform \lam V => ∃ (U : C) (V s<=* U)
+  | isStronglyRegular Cc => uniform-cauchy.2 $ ClosureCoverSpace.closure-regular StronglyRatherBelow (\lam Cu => closure $ uniform-subset (isStronglyRegularUniform Cu) \lam {V} (inP (U,CU,p)) => inP $ later (U, CU, uniform-cauchy.2 $ closure p)) (uniform-cauchy.1 Cc)
+
+  \lemma s<=*-cauchy-regular {C : Set (Set E)} (Cc : CoverSpace.isCauchy C) : CoverSpace.isCauchy \lam V => ∃ (U : C) (V s<=* U)
+    => uniform-cauchy.2 $ ClosureCoverSpace.closure-regular StronglyStarRatherBelow (\lam Cu => closure $ isStronglyRegularUniform Cu) (uniform-cauchy.1 Cc)
+}
+
+\func StronglyRegularUniformTransfer {X : \Set} {Y : StronglyRegularUniformSpace} (f : X -> Y) : StronglyRegularUniformSpace X \cowith
+  | UniformSpace => UniformTransfer f
+  | isStronglyRegularUniform Cu => uniform-subset (isStronglyRegularUniform Cu) \lam {V} (inP (U, inP (W,CW,p), V<=<U)) => inP $ later
+      (_, inP (W, CW, <=<-left (uniform-subset (unfolds in V<=<U) \lam {W} e => inP $ later (_, ||.map (pmap (f ^-1)) (pmap (f ^-1)) e, <=-refl)) p), <=-refl)

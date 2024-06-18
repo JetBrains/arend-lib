@@ -1,0 +1,101 @@
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths.Meta
+\import Set.Subset
+\open Bounded(top,bottom)
+
+\class RatherBelow {A : Bounded.MeetSemilattice} (R : A -> A -> \Prop) {
+  | <=<-left {U V W : A} : R U V -> V <= W -> R U W
+  | <=<-right {U V W : A} : U <= V -> R V W -> R U W
+  | <=<_top {V : A} : R V top
+  | <=<_meet {U V U' V' : A} : R U V -> R U' V' -> R (U ∧ U') (V ∧ V')
+
+  \lemma <=<_meet-same {U V V' : A} (p : R U V) (q : R U V') : R U (V ∧ V')
+    => <=<-right (meet-univ <=-refl <=-refl) (<=<_meet p q)
+
+  \type \infix 4 <=<o (V U : A) : \Prop
+    => ∃ (R' : A -> A -> \Prop) (\Pi {V U : A} -> R' V U -> R V U) (\Pi {V U : A} -> R' V U -> ∃ (W : A) (R' V W) (R W U)) (R' V U)
+
+  \lemma <=<o_<=< {V U : A} (p : V <=<o U) : R V U \elim p
+    | inP (R,p,q,r) => p r
+
+  \lemma <=<o-inter {V U : A} (p : V <=<o U) : ∃ (W : A) (V <=<o W) (R W U) \elim p
+    | inP (R,p,q,RVU) => \case q RVU \with {
+      | inP (W,RVW,W<=<U) => inP (W, inP (R, p, q, RVW), W<=<U)
+    }
+
+  \func Omega : RatherBelow {A} \cowith
+    | R => <=<o
+    | <=<_top => inP (\lam V U => U = top, \lam p => rewrite p <=<_top, \lam p => inP (top, idp, rewrite p <=<_top), idp)
+    | <=<-left {W} {V} {U} p V<=U => \case \elim p \with {
+      | inP (R,p,q,RWV) => inP (\lam V U => ∃ (U' : A) (R V U') (U' <= U), \lam (inP (U',RVU',U'<=U)) => <=<-left (p RVU') U'<=U, \lam (inP (U',RVU',U'<=U)) => \case q RVU' \with {
+        | inP (W,RVW,W<=<U') => inP (W, inP (W, RVW, <=-refl), <=<-left W<=<U' U'<=U)
+      }, inP (V, RWV, V<=U))
+    }
+    | <=<-right {W} {V} {U} W<=V => \case __ \with {
+      | inP (R,p,q,RVU) => inP (\lam V U => ∃ (V' : A) (R V' U) (V <= V'), \lam (inP (V',RV'U,V<=V')) => <=<-right V<=V' (p RV'U), \lam (inP (V',RV'U,V<=V')) => \case q RV'U \with {
+        | inP (W,RV'W,W<=<U) => inP (W, inP (V', RV'W, V<=V'), W<=<U)
+      }, inP (V, RVU, W<=V))
+    }
+    | <=<_meet {V1} {U1} {V2} {U2} => \case __, __ \with {
+      | inP (R,p,q,RV1U1), inP (R',p',q',R'V2U2) => inP
+          (\lam V U => ∃ (V1 V2 U1 U2 : A) (R V1 U1) (R' V2 U2) (V = V1 ∧ V2) (U = U1 ∧ U2),
+           \lam (inP (V1,V2,U1,U2,RV1U1,R'V2U2,Vp,Up)) => rewrite (Vp,Up) $ <=<_meet (p RV1U1) (p' R'V2U2),
+           \lam (inP (V1,V2,U1,U2,RV1U1,R'V2U2,Vp,Up)) => \case q RV1U1, q' R'V2U2 \with {
+             | inP (W1,RV1W1,W1<=<U1), inP (W2,R'V2W2,W2<=<U2) => inP (W1 ∧ W2, inP (V1, V2, W1, W2, RV1W1, R'V2W2, Vp, idp), rewrite Up $ <=<_meet W1<=<U1 W2<=<U2)
+           },
+           inP (V1, V2, U1, U2, RV1U1, R'V2U2, idp, idp))
+    }
+
+
+  \type \infix 4 <=<c (V U : A) : \Prop
+    => ∃ (R' : A -> A -> \Prop) (\Pi {V U : A} -> R' V U -> R V U) (\Pi {V U : A} -> R' V U -> ∃ (W : A) (R' V W) (R' W U)) (R' V U)
+
+  \lemma <=<c_<=<o {V U : A} (p : V <=<c U) : V <=<o U \elim p
+    | inP (R,p,q,r) => inP (R, p, \lam r => TruncP.map (q r) \lam (W,RVW,RWU) => (W, RVW, p RWU), r)
+
+  \lemma <=<c_<=< {V U : A} (p : V <=<c U) : R V U
+    => <=<o_<=< (<=<c_<=<o p)
+
+  \lemma <=<c-inter {V U : A} (p : V <=<c U) : ∃ (W : A) (V <=<c W) (W <=<c U) \elim p
+    | inP (R,p,q,RVU) => \case q RVU \with {
+      | inP (W,RVW,RWU) => inP (W, inP (R, p, q, RVW), inP (R, p, q, RWU))
+    }
+
+  \lemma <=<c-func {R2 : RatherBelow {A}} (p : \Pi {V U : A} -> R V U -> R2 V U) {V U : A} (q : V <=<c U) : V R2.<=<c U \elim q
+    | inP (R',f,g,r) => inP (R', \lam r => p (f r), g, r)
+
+  \func Interpolative : RatherBelow {A} \cowith
+    | R => <=<c
+    | <=<_top => inP (\lam V U => U = {A} top, \lam p => rewrite p <=<_top, \lam p => inP (top, idp, p), idp)
+    | <=<-left {W} {V} {U} p V<=U => \case \elim p \with {
+      | inP (R,p,q,RWV) => inP (\lam V U => ∃ (U' : A) (R V U') (U' <= U), \lam (inP (U',RVU',U'<=U)) => <=<-left (p RVU') U'<=U, \lam (inP (U',RVU',U'<=U)) => \case q RVU' \with {
+        | inP (W,RVW,RWU') => inP (W, inP (W, RVW, <=-refl), inP (U', RWU', U'<=U))
+      }, inP (V, RWV, V<=U))
+    }
+    | <=<-right {W} {V} {U} W<=V => \case __ \with {
+      | inP (R,p,q,RVU) => inP (\lam V U => ∃ (V' : A) (R V' U) (V <= V'), \lam (inP (V',RV'U,V<=V')) => <=<-right V<=V' (p RV'U), \lam (inP (V',RV'U,V<=V')) => \case q RV'U \with {
+        | inP (W,RV'W,RWU) => inP (W, inP (V', RV'W, V<=V'), inP (W, RWU, <=-refl))
+      }, inP (V, RVU, W<=V))
+    }
+    | <=<_meet {V1} {U1} {V2} {U2} => \case __, __ \with {
+      | inP (R,p,q,RV1U1), inP (R',p',q',R'V2U2) => inP
+          (\lam V U => ∃ (V1 V2 U1 U2 : A) (R V1 U1) (R' V2 U2) (V = V1 ∧ V2) (U = U1 ∧ U2),
+           \lam (inP (V1,V2,U1,U2,RV1U1,R'V2U2,Vp,Up)) => rewrite (Vp,Up) $ <=<_meet (p RV1U1) (p' R'V2U2),
+           \lam (inP (V1,V2,U1,U2,RV1U1,R'V2U2,Vp,Up)) => \case q RV1U1, q' R'V2U2 \with {
+             | inP (W1,RV1W1,RW1U1), inP (W2,R'V2W2,R'W2U2) => inP (W1 ∧ W2, inP (V1, V2, W1, W2, RV1W1, R'V2W2, Vp, idp), inP (W1, W2, U1, U2, RW1U1, R'W2U2, idp, Up))
+           },
+           inP (V1, V2, U1, U2, RV1U1, R'V2U2, idp, idp))
+    }
+} \where {
+  \lemma <=<c_bottom {A : CompleteLattice} {R : RatherBelow {A}} (p : \Pi {U : A} -> R bottom U) {U : A} : bottom R.<=<c U
+    => inP (\lam V _ => V = bottom, \lam q => rewrite q p, \lam q => inP (bottom, q, idp), idp)
+}
+
+\lemma <=<c_^-1 {X Y : \Set} {RX : RatherBelow {SetLattice X}} {RY : RatherBelow {SetLattice Y}} {f : X -> Y} (<=<_^-1 : \Pi {U V : Set Y} -> RY U V -> RX (f ^-1 U) (f ^-1 V)) {U V : Set Y} (p : U RY.<=<c V) : f ^-1 U RX.<=<c f ^-1 V \elim p
+  | inP (R',g,h,r) => inP (\lam U V => ∃ (U' V' : R') (U = f ^-1 U') (V = f ^-1 V'), \lam (inP (U',V',R'U'V',p,q)) => rewrite (p,q) $ <=<_^-1 $ g R'U'V', \lam (inP (U',V',R'U'V',p,q)) => \case h R'U'V' \with {
+    | inP (W,R'U'W,R'WV') => inP (f ^-1 W, inP (U', W, R'U'W, p, idp), inP (W, V', R'WV', idp, q))
+  }, inP (U, V, r, idp, idp))

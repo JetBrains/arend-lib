@@ -537,7 +537,7 @@ public class SimpCoeMeta extends BaseMetaDefinition {
       }
     }
 
-    typechecker.getErrorReporter().report(new TypeError("Type is not supported", contextData.getExpectedType(), contextData.getMarker()));
+    typechecker.getErrorReporter().report(new TypeError(typechecker.getExpressionPrettifier(), "Type is not supported", contextData.getExpectedType(), contextData.getMarker()));
     return null;
   }
 }

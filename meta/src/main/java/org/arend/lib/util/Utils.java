@@ -270,7 +270,7 @@ public class Utils {
       Pair<TypedExpression, CoreClassCallExpression> result = findInstanceWithClassCall(parameters, classifyingField, classifyingExpr, typechecker, marker);
       if (result == null) {
         if (forcedClass != null) {
-          typechecker.getErrorReporter().report(new InstanceInferenceError(forcedClass.getRef(), classifyingExpr, marker));
+          typechecker.getErrorReporter().report(new InstanceInferenceError(typechecker.getExpressionPrettifier(), forcedClass.getRef(), classifyingExpr, marker));
         } else {
           tc.loadSavedState();
         }
@@ -280,7 +280,7 @@ public class Utils {
       CoreExpression classifyingImpl = result.proj2.getImplementation(classifyingField, result.proj1);
       if (classifyingImpl != null && !Boolean.TRUE.equals(tryWithSavedState(tc, tc2 -> tc2.compare(classifyingImpl, classifyingExpr, CMP.LE, marker, true, true, false)))) {
         if (forcedClass != null) {
-          typechecker.getErrorReporter().report(new InstanceInferenceError(forcedClass.getRef(), classifyingExpr, marker, new CoreExpression[]{result.proj1.getExpression()}));
+          typechecker.getErrorReporter().report(new InstanceInferenceError(typechecker.getExpressionPrettifier(), forcedClass.getRef(), classifyingExpr, marker, new CoreExpression[]{result.proj1.getExpression()}));
         } else {
           tc.loadSavedState();
         }
@@ -471,5 +471,19 @@ public class Utils {
     } else {
       return normalResolve(resolver, contextData, null, null, factory);
     }
+  }
+
+  public static ArendRef getReference(ConcreteExpression expr, ErrorReporter errorReporter) {
+    if (expr instanceof ConcreteReferenceExpression refExpr) {
+      return refExpr.getReferent();
+    }
+
+    errorReporter.report(new TypecheckingError("Expected a reference", expr));
+    return null;
+  }
+
+  public static CoreExpression getClassifyingExpression(CoreClassCallExpression classCall, TypedExpression thisExpr) {
+    CoreClassField field = classCall.getDefinition().getClassifyingField();
+    return field == null ? null : classCall.getImplementation(field, thisExpr);
   }
 }

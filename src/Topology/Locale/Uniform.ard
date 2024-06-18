@@ -30,7 +30,7 @@
 \func star {L : Locale} (x : L) (U : L -> \Prop) => SJoin (\lam y => \Sigma (U y) (isPositive (x ∧ y)))
   \where {
     \lemma star_<= {L : Locale} {x y : L} (x<=y : x <= y) (U : L -> \Prop) : star x U <= star y U
-      => Join-univ $ \lam j => Join-cond $ later (j.1, (j.2.1, positive_<= j.2.2 $ MeetSemilattice.meet-monotone x<=y <=-refl))
+      => Join-univ \lam j => Join-cond $ later (j.1, (j.2.1, positive_<= j.2.2 $ MeetSemilattice.meet-monotone x<=y <=-refl))
 
     \lemma star-refl {L : PreuniformLocale} {x : L} {U : L -> \Prop} (uU : isUniform U) : x <= star x U
       => meet-univ <=-refl (top-univ <=∘ isCovering uU) <=∘ Join-ldistr>= <=∘ Join-univ (\lam (b,Ub) => overt_cover L.uniform-overt <=∘
@@ -54,7 +54,7 @@
   | top-uniform : isUniform (\lam _ => \Sigma)
   | meet-uniform {U V : E -> \Prop} : isUniform U -> isUniform V -> isUniform (\lam x => \Sigma (U x) (V x))
   | <=-uniform {U V : E -> \Prop} : isUniform U -> (\Pi {x : E} -> U x -> V x) -> (\Pi {x y : E} -> V y -> x <= y -> V x) -> isUniform V
-  | star-uniform {U : E -> \Prop} : isUniform U -> ∃ (V : E -> \Prop) (isUniform V) (\Pi (x : E) -> V x -> U (star x V))
+  | star-uniform {U : E -> \Prop} : isUniform U -> ∃ (V : isUniform) ∀ x (V x -> U (star x V))
   \where {
     \lemma dClosure {L M : Preorder} {f : L -> M} {U : L -> \Prop} {x y : M} (p : ∃ (z : L) (U z) (y <= f z)) (x<=y : x <= y) : ∃ (z : L) (U z) (x <= f z) \elim p
       | inP (z,Uz,y<=fz) => inP (z, Uz, x<=y <=∘ y<=fz)
@@ -70,7 +70,7 @@
 
 \record UniformEmbedding \extends UniformHom {
   | isEmbedding : isSurj func
-  | isUniformEmbedding {U : Cod -> \Prop} : isUniform U -> ∃ (V : Dom -> \Prop) (isUniform V) (\Pi {x : Dom} -> V x -> U (func x))
+  | isUniformEmbedding {U : Cod -> \Prop} : isUniform U -> ∃ (V : isUniform) ∀ {x} (V x -> U (func x))
 
   \lemma direct-uniform {U : Cod -> \Prop} : isUniform U -> isUniform (\lam x => ∃ (y : Cod) (U y) (x <= direct y))
     => \case isUniformEmbedding __ \with {
@@ -89,7 +89,7 @@
 \func \infix 4 <=u {L : PreuniformLocale} (a b : L) => ∃ (U : L -> \Prop) (isUniform U) (star a U <= b)
   \where {
     \lemma func-<=u (f : UniformHom) {a b : f.Dom} (p : a <=u b) : f a <=u f b \elim p
-      | inP (U,uU,a*U<=b) => inP (_, func-uniform uU, Join-univ $ \lam (x,(inP (y,Uy,x<=fy), fa*x>0)) =>
+      | inP (U,uU,a*U<=b) => inP (_, func-uniform uU, Join-univ \lam (x,(inP (y,Uy,x<=fy), fa*x>0)) =>
           x<=fy <=∘ func-<= (Join-cond $ later (y, (Uy, func_positive $ positive_<= fa*x>0 $ meet-monotone <=-refl x<=fy <=∘ func-meet>=))) <=∘ func-<= a*U<=b)
 
     \lemma adjoint (f : UniformHom) {a : f.Dom} {b : f.Cod} (p : a <=u f.direct b) : f a <=u b
@@ -101,7 +101,7 @@
       }
       \where
         \lemma meet_star-comm {L : Locale} (o : L.isOvert) {a b : L} {U : L -> \Prop} (p : isPositive (a ∧ star b U)) : isPositive (b ∧ star a U)
-          => \case positive_Join o (rewriteF Join-ldistr p) \with {
+          => \case positive_Join o (rewrite Join-ldistr in p) \with {
             | inP ((c,(Uc,b^c>0)),a^c>0) => rewrite Join-ldistr $ positive_Join.conv $ inP $ later ((c, (Uc, a^c>0)), b^c>0)
           }
 
@@ -118,7 +118,7 @@
   | inP (U,uU,b*U<=c) => inP (U, uU, star.star_<= a<=b U <=∘ b*U<=c)
 
 \lemma <=u_meet {L : PreuniformLocale} {a a' b b' : L} (p : a <=u a') (q : b <=u b') : a ∧ b <=u a' ∧ b' \elim p, q
-  | inP (U,uU,a*U<=a'), inP (V,uV,b*V<=b') => inP (_, meet-uniform uU uV, Join-univ $ \lam s => meet-univ
+  | inP (U,uU,a*U<=a'), inP (V,uV,b*V<=b') => inP (_, meet-uniform uU uV, Join-univ \lam s => meet-univ
       (Join-cond (later (s.1, (s.2.1.1, positive_<= s.2.2 $ meet-monotone meet-left <=-refl))) <=∘ a*U<=a')
       (Join-cond (later (s.1, (s.2.1.2, positive_<= s.2.2 $ meet-monotone meet-right <=-refl))) <=∘ b*V<=b'))
 
@@ -139,7 +139,7 @@
          \in path (\lam i => SJoin (\lam y => \Sigma (U y) (\Pi (P : \Prop) -> lem y P i -> P)))
 
     \lemma top>=star {L : PreuniformLocale} {j : Nucleus {L}} (o : j.locale.isOvert) {U : L -> \Prop} (uU : isUniform U) : open (nucleus-star j U) <= j
-      => nucleus>=open $ isCovering uU <=∘ Join-univ (\lam y => j.nucleus-unit <=∘ overt_cover o {j y.1, nucleus-join>=} <=∘ nucleus-univ (Join-univ $ \lam jy>0 => nucleus-<= $ Join-cond $ later (y.1, (y.2, jy>0))))
+      => nucleus>=open $ isCovering uU <=∘ Join-univ (\lam y => j.nucleus-unit <=∘ overt_cover o {j y.1, nucleus-join>=} <=∘ nucleus-univ (Join-univ \lam jy>0 => nucleus-<= $ Join-cond $ later (y.1, (y.2, jy>0))))
 
     \lemma wclosure>=nucleus-star {L : PreuniformLocale} {j : Nucleus {L}} (o : j.locale.isOvert) {U : L -> \Prop} (uU : isUniform U) : open (nucleus-star j U) <= j.map.wclosed-image
       => =_<= (pmap open $ inv $ star_wclosure uU) <=∘ top>=star (sdense_overt {<=-map j.map.wclosed-image j wclosure_<=} wclosure-sdense o) uU
@@ -166,7 +166,7 @@
   | id-left => idp
   | id-right => idp
   | o-assoc => idp
-  | univalence => sip $ \lam {X} {S1} {S2} (h1 : UniformHom) (h2 : UniformHom) => exts UniformLocale {
+  | univalence => sip \lam {X} {S1} {S2} (h1 : UniformHom) (h2 : UniformHom) => exts UniformLocale {
     | <= x y => ext (h1.func-<=, h2.func-<=)
     | meet x y => h1.func-meet
     | top => h1.func-top
@@ -195,7 +195,7 @@
 
 \func CompletionPres (L : UniformLocale) : FramePres L \cowith
   | conj => meet
-  | BasicCover => FramePres.Indexing {\Sigma (j : Fin 4) ((L :: L :: (\Sigma (U : L -> \Prop) (isUniform U)) :: L.E :: nil) j)} $ \case __ \with {
+  | BasicCover => FramePres.Indexing {\Sigma (j : Fin 4) ((L :: L :: (\Sigma (U : L -> \Prop) (isUniform U)) :: L.E :: nil) j)} \case __ \with {
     | (0,a) => (\Sigma, a, \lam _ => top)
     | (1,a) => (isPositive a, a, \lam _ => a)
     | (2,U) => (\Sigma (x : L) (U.1 x), top, __.1)
@@ -217,7 +217,7 @@
     \func presentation {L : UniformLocale} : FramePresHom (CompletionPres L) (FrameUnitalSubcat.F L) \cowith
       | func x => x
       | func-conj => idp
-      | func-cover => FramePres.indexing-transport _ $ later $ \case \elim __ \with {
+      | func-cover => FramePres.indexing-transport _ $ later \case \elim __ \with {
         | (0,a) => top-univ <=∘ Join-cond ()
         | (1,a) => overt_cover uniform-overt
         | (2,(U,uU)) => isCovering uU
@@ -226,11 +226,11 @@
       | func-image {x} => cover-inj x idp
 
     \lemma sdense {L : UniformLocale} : isStronglyDense {completionLocale {L}}
-      => sdense-fromPres $ \lam x<=Q => Cover.cover-trans1 (<=_cover x<=Q) $ cover-trans (cover-basic $ FramePres.indexing-make $ later (1,_)) $
+      => sdense-fromPres \lam x<=Q => Cover.cover-trans1 (<=_cover x<=Q) $ cover-trans (cover-basic $ FramePres.indexing-make $ later (1,_))
         \lam p => \have (inP q) => positive_cover p _ <=-refl \in cover-inj q $ <=-antisymmetric (Join-cond q) (Join-univ (\lam _ => <=-refl))
 
     \lemma completion_embed {L : UniformLocale} {a : L} : completionLocale (embed a) = a
-      => <=-antisymmetric (Join-univ $ \lam j => FrameReflectiveSubcat.locale_cover (Cover.map {presentation} j.2) <=∘ Join-univ (\lam _ => <=-refl)) (Join-cond $ later (a, cover-inj () idp))
+      => <=-antisymmetric (Join-univ \lam j => FrameReflectiveSubcat.locale_cover (Cover.map {presentation} j.2) <=∘ Join-univ (\lam _ => <=-refl)) (Join-cond $ later (a, cover-inj () idp))
   }
 
 \func Completion (L : UniformLocale) : UniformLocale \cowith
@@ -238,21 +238,21 @@
   | uniform-overt => sdense_overt {completionLocale} completionLocale.sdense uniform-overt
   | isUniform (V : CompletionLocale L -> \Prop) : \Prop => ∃ (U : L -> \Prop) (L.isUniform U) (\Pi {a : L} -> U a -> V (embed a)) (\Pi {x y : CompletionLocale L} -> V y -> x <= y -> V x)
   | isCovering (inP (U,uU,U<=V,dV)) {x} _ => Cover.cover-trans1 (cover-basic $ indexing-make $ later (0,x)) $
-      cover-trans (cover-basic $ indexing-make $ later (2,(U,uU))) $ \lam i => later $ cover-inj ((embed i.1, U<=V i.2), i.1, cover-inj () idp) idp
+      cover-trans (cover-basic $ indexing-make $ later (2,(U,uU))) \lam i => later $ cover-inj ((embed i.1, U<=V i.2), i.1, cover-inj () idp) idp
   | isDownset (inP (U,uU,U<=V,dV)) Vy x<=y => dV Vy x<=y
   | top-uniform => inP (\lam _ => \Sigma, top-uniform, \lam _ => (), \lam _ _ => ())
   | meet-uniform (inP (U,uU,lU,dU)) (inP (V,uV,lV,dV)) =>
       inP (\lam x => \Sigma (U x) (V x), meet-uniform uU uV, \lam p => (lU p.1, lV p.2), \lam p x<=y => (dU p.1 x<=y, dV p.2 x<=y))
   | <=-uniform (inP (U,uU,lU,dU)) U<=V dV => inP (U, uU, \lam Ua => U<=V (lU Ua), dV)
-  | star-uniform {U} (inP (U',uU,lU,dU)) => TruncP.map (star-uniform uU) $ \lam (V',uV',sr) =>
+  | star-uniform {U} (inP (U',uU,lU,dU)) => TruncP.map (star-uniform uU) \lam (V',uV',sr) =>
     \let (V,uV,q) => make-covering V' uV'
     \in (V, uV, \lam s (inP (x,V'x,s<=x)) => dU (lU (sr x V'x)) (star.star_<= s<=x V <=∘ q x))
   | isAdmissible =>
-    \have | embed_<=u {a b : L} (a<=b : a <=u b) : embed a <=u {\this} embed b => TruncP.map a<=b $ \lam (U,uU,a*U<=b) =>
+    \have | embed_<=u {a b : L} (a<=b : a <=u b) : embed a <=u {\this} embed b => TruncP.map a<=b \lam (U,uU,a*U<=b) =>
               \have (V,uV,q) => make-covering U uU
               \in (V, uV, q a <=∘ Cover_embed (<=_cover a*U<=b))
-          | h x : FramePres.SCover x (embed __ <=u {\this} embed x) => cover-trans (cover-basic $ indexing-make $ later (3,x)) $ later $ \lam (y,y<=x) => cover-inj (y, embed_<=u y<=x) idp
-    \in \lam U {x} Ux => cover-trans (h x) $ \lam (y,y<=x) => cover-inj ((embed y, <=u-trans-left {\this} (embed y) y<=x $ embed<= $ cover-inj (x,Ux) idp), y, cover-inj () idp) idp
+          | h x : FramePres.SCover x (embed __ <=u {\this} embed x) => cover-trans (cover-basic $ indexing-make $ later (3,x)) $ later \lam (y,y<=x) => cover-inj (y, embed_<=u y<=x) idp
+    \in \lam U {x} Ux => cover-trans (h x) \lam (y,y<=x) => cover-inj ((embed y, <=u-trans-left {\this} (embed y) y<=x $ embed<= $ cover-inj (x,Ux) idp), y, cover-inj () idp) idp
   \where {
     \open FramePres(indexing-make)
 
@@ -260,7 +260,7 @@
       : \Sigma (V : CompletionLocale L -> \Prop) (isUniform V) (\Pi (a : L) -> star (embed a) V <= embed (star a U))
       => (\lam s => ∃ (x : L) (U x) (s <= embed x),
           inP (U, uU, \lam {a} Ua => inP (a,Ua,<=-refl), dClosure),
-          \lam a => Join-univ $ \lam (t, (inP (y, V'y, t<=y), xt>0)) => t<=y <=∘ Cover_embed (<=_cover $ Join-cond $ later (y, (V'y, transport isPositive completionLocale.completion_embed $
+          \lam a => Join-univ \lam (t, (inP (y, V'y, t<=y), xt>0)) => t<=y <=∘ Cover_embed (<=_cover $ Join-cond $ later (y, (V'y, transport isPositive completionLocale.completion_embed $
               sdense_positive {completionLocale} completionLocale.sdense $ transport isPositive embed_meet $ positive_<= xt>0 $ MeetSemilattice.meet-monotone (<=-refl {_} {embed a}) t<=y))))
   }
 
@@ -282,14 +282,14 @@
         | func-uniform (inP (V, uV, V<=U, Ud)) => <=-uniform (f.direct-uniform uV) (\lam (inP (y,Vy,x<=f_y)) => inP (embed y, V<=U Vy, x<=f_y <=∘ Join-cond (later (y, cover-inj () idp))))
             (\lam (inP (z,Uz,p)) x<=y => inP (z, Uz, x<=y <=∘ p))
       }
-     \in (g, exts $ func-equality (g LocaleCat.∘ f) completionLocale $ \lam x => func-Join *> path (\lam i => Join $ \lam p => surjective-split f.isEmbedding p.1 i))
+     \in (g, exts $ func-equality (g LocaleCat.∘ f) completionLocale \lam x => func-Join *> path (\lam i => Join \lam p => surjective-split f.isEmbedding p.1 i))
   \where {
     \func presentation {L M : UniformLocale} (f : UniformEmbedding M L) (sd : f.isStronglyDense) : FramePresHom (CompletionPres L) (FrameUnitalSubcat.F M) \cowith
       | func => direct
       | func-conj => direct-meet
-      | func-cover => FramePres.indexing-transport _ $ later $ \case \elim __ \with {
+      | func-cover => FramePres.indexing-transport _ $ later \case \elim __ \with {
         | (0,a) => direct-<= top-univ <=∘ Join-cond ()
-        | (1,a) => overt_cover M.uniform-overt <=∘ Join-univ (\lam f_a>0 => Join-cond $ \lam P c => f_a>0 P $ Join-univ $ \lam p => sd $ p.2 <=∘ c)
+        | (1,a) => overt_cover M.uniform-overt <=∘ Join-univ (\lam f_a>0 => Join-cond \lam P c => f_a>0 P $ Join-univ \lam p => sd $ p.2 <=∘ c)
         | (2,(U,uU)) => \have (inP (V, uV, V<=Uf)) => f.isUniformEmbedding uU
                         \in =_<= direct-top <=∘ isCovering uV <=∘ Join-univ (\lam p => f.direct-unit <=∘ Join-cond (later (f p.1, V<=Uf p.2)))
         | (3,a) => isAdmissible (direct a) <=∘ Join-univ (\lam p => f.direct-unit <=∘ Join-cond (later (f p.1, <=u.adjoint f p.2)))
@@ -317,23 +317,23 @@
 
     \func presentation {L M : UniformLocale} (f : UniformHom M L) : FramePresHom (CompletionPres M) (FrameUnitalSubcat.F (Completion L)) \cowith
       | func a => closure (\lam (t : \Sigma (b : M) (b <=u a)) => f t.1)
-      | func-conj => <=-antisymmetric (closure<= $ later $ \lam p => cover-inj (f p.1, cover-idemp (f p.1, f p.1, cover-inj (p.1, <=u-trans-left _ p.2 meet-left) idp, cover-inj (p.1, <=u-trans-left _ p.2 meet-right) idp) idp) idp)
-                                      (closure<= $ later $ \lam p => cover-inj (_, cover-trans (cover-ldistr idp p.4 (\lam _ => idp)) (\lam q => cover-trans (cover-rdistr idp p.3 (\lam _ => idp)) (\lam s => cover-inj (s.1 ∧ q.1, <=u_meet s.2 q.2) func-meet))) idp)
-      | func-cover => FramePres.indexing-transport _ $ later $ \case \elim __ \with {
-        | (0,a) => cover-trans __ $ \lam p => cover-inj ((), f p.1, cover-inj (p.1, <=u-trans-left _ p.2 top-univ) idp) idp
-        | (1,a) => cover-trans __ $ \lam p => cover-trans (cover-basic $ FramePres.indexing-make $ later (1, f p.1)) $ \lam fp1>0 => cover-inj (func_positive $ positive_<= fp1>0 $ func-<= $ <=u_<= p.2, f p.1, cover-inj p idp) idp
-        | (2,(U,uU)) => cover-trans __ $ \lam p => cover-trans1 (<=_cover top-univ) $ cover-trans (cover-basic $ FramePres.indexing-make $ later (2, (_, f.func-uniform $ <=u.uniform-refine uU))) $
-                          later $ \lam (x, inP (z, inP (y,Uy,z<=uy), x<=fz)) => cover-inj ((y,Uy), x, cover-trans1 (<=_cover x<=fz) $ cover-inj (z, z<=uy) idp) idp
-        | (3,a) => cover-trans __ $ \lam (b,b<=ua) => \case <=u.dense b<=ua \with {
+      | func-conj => <=-antisymmetric (closure<= $ later \lam p => cover-inj (f p.1, cover-idemp (f p.1, f p.1, cover-inj (p.1, <=u-trans-left _ p.2 meet-left) idp, cover-inj (p.1, <=u-trans-left _ p.2 meet-right) idp) idp) idp)
+                                      (closure<= $ later \lam p => cover-inj (_, cover-trans (cover-ldistr idp p.4 (\lam _ => idp)) (\lam q => cover-trans (cover-rdistr idp p.3 (\lam _ => idp)) (\lam s => cover-inj (s.1 ∧ q.1, <=u_meet s.2 q.2) func-meet))) idp)
+      | func-cover => FramePres.indexing-transport _ $ later \case \elim __ \with {
+        | (0,a) => cover-trans __ \lam p => cover-inj ((), f p.1, cover-inj (p.1, <=u-trans-left _ p.2 top-univ) idp) idp
+        | (1,a) => cover-trans __ \lam p => cover-trans (cover-basic $ FramePres.indexing-make $ later (1, f p.1)) \lam fp1>0 => cover-inj (func_positive $ positive_<= fp1>0 $ func-<= $ <=u_<= p.2, f p.1, cover-inj p idp) idp
+        | (2,(U,uU)) => cover-trans __ \lam p => cover-trans1 (<=_cover top-univ) $ cover-trans (cover-basic $ FramePres.indexing-make $ later (2, (_, f.func-uniform $ <=u.uniform-refine uU))) $
+                          later \lam (x, inP (z, inP (y,Uy,z<=uy), x<=fz)) => cover-inj ((y,Uy), x, cover-trans1 (<=_cover x<=fz) $ cover-inj (z, z<=uy) idp) idp
+        | (3,a) => cover-trans __ \lam (b,b<=ua) => \case <=u.dense b<=ua \with {
           | inP (c,b<=uc,c<=ua) => cover-inj ((c, c<=ua), f b, cover-inj (b, b<=uc) idp) idp
         }
       }
-      | func-image => cover-basic $ \lam {x} _ => cover-inj (top, x, cover-trans1 (<=_cover $ top-univ <=∘ func-top>=) $ cover-inj (top, inP (\lam _ => \Sigma, top-uniform, top-univ)) idp) idp
+      | func-image => cover-basic \lam {x} _ => cover-inj (top, x, cover-trans1 (<=_cover $ top-univ <=∘ func-top>=) $ cover-inj (top, inP (\lam _ => \Sigma, top-uniform, top-univ)) idp) idp
   }
 
 \lemma completion-natural {L M : UniformLocale} (f : UniformHom M L) : completion UniformCat.∘ completion-functor f = f UniformCat.∘ completion
-  => exts $ \lam S => <=-antisymmetric (Join-univ $ \lam p => FrameReflectiveSubcat.locale_cover (Cover.map {completionLocale.presentation} p.2) <=∘ Join-univ (\lam q => FrameReflectiveSubcat.locale_cover (Cover.map {completionLocale.presentation} q.3) <=∘ Join-univ (\lam r => f.func-<= (<=u_<= r.2) <=∘ Join-cond q.1)))
-                                       (Join-univ $ \lam p => func-<= (isAdmissible p.1) <=∘ func-Join>= <=∘ Join-univ (\lam q => Join-cond $ later (f q.1, cover-inj (p, f q.1, cover-inj q idp) idp))) *> inv func-Join
+  => exts \lam S => <=-antisymmetric (Join-univ \lam p => FrameReflectiveSubcat.locale_cover (Cover.map {completionLocale.presentation} p.2) <=∘ Join-univ (\lam q => FrameReflectiveSubcat.locale_cover (Cover.map {completionLocale.presentation} q.3) <=∘ Join-univ (\lam r => f.func-<= (<=u_<= r.2) <=∘ Join-cond q.1)))
+                                       (Join-univ \lam p => func-<= (isAdmissible p.1) <=∘ func-Join>= <=∘ Join-univ (\lam q => Join-cond $ later (f q.1, cover-inj (p, f q.1, cover-inj q idp) idp))) *> inv func-Join
 
 \lemma completion-isReflector {L M : UniformLocale} (Mc : M.isComplete)
   : Equiv {UniformHom M (Completion L)} {UniformHom M L} (\lam g => completion UniformCat.∘ g)

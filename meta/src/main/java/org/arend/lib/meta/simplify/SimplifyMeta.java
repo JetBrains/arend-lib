@@ -33,21 +33,14 @@ public class SimplifyMeta extends BaseMetaDefinition {
   private ConcreteReferenceExpression refExpr;
   private ConcreteFactory factory;
   private ErrorReporter errorReporter;
-  private final boolean isForward;
 
-  public SimplifyMeta(StdExtension ext, boolean isForward) {
+  public SimplifyMeta(StdExtension ext) {
     this.ext = ext;
-    this.isForward = isForward;
   }
 
   @Override
   public boolean @Nullable [] argumentExplicitness() {
     return new boolean[] { true };
-  }
-
-  @Override
-  public boolean requireExpectedType() {
-    return !isForward;
   }
 
   @Override
@@ -78,7 +71,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
       this.skipRoot = skipRoot;
     }
 
-    private List<CoreParameter> lamParams = new ArrayList<>();
+    private final List<CoreParameter> lamParams = new ArrayList<>();
 
     @Override
     public CoreExpression.FindAction apply(CoreExpression expression) {
@@ -95,8 +88,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
       var normExpr = expression.normalize(NormalizationMode.ENF);
       var simplifiedExpr = normExpr.computeTyped();
 
-      if (normExpr instanceof CoreLamExpression) {
-        var lam = (CoreLamExpression)normExpr;
+      if (normExpr instanceof CoreLamExpression lam) {
         lamParams.add(lam.getParameters());
       }
 
@@ -236,12 +228,12 @@ public class SimplifyMeta extends BaseMetaDefinition {
     }, true);
     /*TypedExpression result = uncheckedRes != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(uncheckedRes, refExpr)) : null;
     if (result == null) {
-      errorReporter.report(new SimplifyError(occurrences, normExpr, refExpr));
+      errorReporter.report(new SimplifyError(typechecker.getExpressionPrettifier(), occurrences, normExpr, refExpr));
     } */
     return uncheckedRes;
   }
 
-  private ConcreteExpression simplifyTypeOfExpression(ConcreteExpression expression, CoreExpression type) {
+  private ConcreteExpression simplifyTypeOfExpression(ConcreteExpression expression, CoreExpression type, boolean isForward) {
     CoreExpression normType = type.normalize(NormalizationMode.WHNF);
     var processor = new SimplifyExpressionProcessor();
     typechecker.withCurrentState(tc -> normType.processSubexpression(processor));
@@ -306,7 +298,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
         TypedExpression result = typeWithOccur != null ? Utils.tryTypecheck(typechecker, tc -> tc.check(typeWithOccur, refExpr)) : null;
         if (result == null) {
-          errorReporter.report(typeWithOccur == null ? new SimplifyError(occurrences, normType, refExpr) : new TypeError("Cannot substitute a variable. The resulting type is invalid", typeWithOccur, refExpr));
+          errorReporter.report(typeWithOccur == null ? new SimplifyError(typechecker.getExpressionPrettifier(), occurrences, normType, refExpr) : new TypeError(typechecker.getExpressionPrettifier(), "Cannot substitute a variable. The resulting type is invalid", typeWithOccur, refExpr));
         }/**/
         return result;
         // return typeWithOccur;
@@ -326,7 +318,8 @@ public class SimplifyMeta extends BaseMetaDefinition {
   @Override
   public TypedExpression invokeMeta(@NotNull ExpressionTypechecker typechecker, @NotNull ContextData contextData) {
     var refExpr = contextData.getReferenceExpression();
-    var expectedType = contextData.getExpectedType() == null ? null : contextData.getExpectedType().getUnderlyingExpression();
+    boolean isForward = contextData.getExpectedType() == null;
+    CoreExpression expectedType = contextData.getExpectedType();
     List<? extends ConcreteArgument> args = contextData.getArguments();
 
     if (isForward && args.isEmpty()) {
@@ -335,12 +328,13 @@ public class SimplifyMeta extends BaseMetaDefinition {
 
     this.factory = ext.factory.withData(refExpr.getData());
     var expression = args.isEmpty() ? factory.ref(ext.prelude.getIdp().getRef()) : args.get(0).getExpression();
-    var type = expectedType;
+    CoreExpression type;
 
     if (isForward) {
       var checkedExpr = typechecker.typecheck(expression, null);
-      if (checkedExpr == null) type = null;
-      else type = checkedExpr.getType();
+      type = checkedExpr == null ? null : checkedExpr.getType();
+    } else {
+      type = expectedType == null ? null : expectedType.getUnderlyingExpression();
     }
 
     if (type == null) {
@@ -351,7 +345,7 @@ public class SimplifyMeta extends BaseMetaDefinition {
     this.refExpr = refExpr;
     this.errorReporter = typechecker.getErrorReporter();
 
-    var transportedExpr = simplifyTypeOfExpression(expression, type);
+    var transportedExpr = simplifyTypeOfExpression(expression, type, isForward);
     return transportedExpr == null ? null : typechecker.typecheck(transportedExpr, expectedType);
   }
 }

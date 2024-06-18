@@ -82,6 +82,10 @@ public class StdExtension implements ArendExtension {
   public CasesMeta casesMeta;
   public MetaRef constructorMetaRef;
 
+  public MetaRef givenMetaRef;
+  public MetaRef forallMetaRef;
+  public MetaRef existsMetaRef;
+
   private final StdGoalSolver goalSolver = new StdGoalSolver(this);
   private final StdLevelProver levelProver = new StdLevelProver(this);
   private final StdNumberTypechecker numberTypechecker = new StdNumberTypechecker(this);
@@ -155,6 +159,7 @@ public class StdExtension implements ArendExtension {
         Precedence.DEFAULT, new HidingMeta());
     contributor.declare(meta, new LongName("run"), "`run { e_1, ... e_n }` is equivalent to `e_1 $ e_2 $ ... $ e_n`", Precedence.DEFAULT, new RunMeta(this));
     contributor.declare(meta, new LongName("at"), "`((f_1, ... f_n) at x) r` replaces variable `x` with `f_1 (... (f_n x) ...)` and runs `r` in the modified context", new Precedence(Precedence.Associativity.NON_ASSOC, (byte) 1, true), new AtMeta(this));
+    contributor.declare(meta, new LongName("in"), "`f in x` is equivalent to `\\let r => f x \\in r`. Also, `(f_1, ... f_n) in x` is equivalent to `f_1 in ... f_n in x`. This meta is usually used with `f` being a meta such as `rewrite`, `simplify`, `simp_coe`, or `unfold`.", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 1, true), new InMeta(this));
     casesMeta = new CasesMeta(this);
     contributor.declare(meta, new LongName("cases"),
       """
@@ -211,13 +216,14 @@ public class StdExtension implements ArendExtension {
         * `assumption` {n} returns the n-th variables from the context counting from the end.
         * `assumption` {n} a1 ... ak applies n-th variable from the context to arguments a1, ... ak.
         """, Precedence.DEFAULT, new AssumptionMeta(this));
+    contributor.declare(meta, new LongName("defaultImpl"), "`defaultImpl C F E` returns the default implementation of field `F` in class `C` applied to expression `E`. The third argument can be omitted, in which case either `\\this` or `_` will be used instead,", Precedence.DEFAULT, new DefaultImplMeta(this));
 
     ModulePath paths = ModulePath.fromString("Paths.Meta");
     contributor.declare(paths, new LongName("rewrite"),
       """
         `rewrite (p : a = b) t : T` replaces occurrences of `a` in `T` with a variable `x` obtaining a type `T[x/a]` and returns `transportInv (\\lam x => T[x/a]) p t`
 
-        If the expected type is unknown, {rewrite} works like {rewriteF}.
+        If the expected type is unknown, the meta rewrites in the type of the arguments instead.
         `rewrite {i_1, ... i_k} p t` replaces only occurrences with indices `i_1`, ... `i_k`. Here `i_j` is the number of occurrence after replacing all the previous occurrences.\s
         Also, `p` may be a function, in which case `rewrite p` is equivalent to `rewrite (p _ ... _)`.
         `rewrite (p_1, ... p_n) t` is equivalent to `rewrite p_1 (... rewrite p_n t ...)`
@@ -225,9 +231,6 @@ public class StdExtension implements ArendExtension {
     contributor.declare(paths, new LongName("rewriteI"),
         "`rewriteI p` is equivalent to `rewrite (inv p)`",
         Precedence.DEFAULT, new RewriteMeta(this, false, false, false));
-    contributor.declare(paths, new LongName("rewriteF"),
-        "`rewriteF (p : a = b) e` is similar to {rewrite}, but it replaces occurrences of `a` in the type of `e` instead of the expected type",
-        Precedence.DEFAULT, new RewriteMeta(this, true, false, false));
     contributor.declare(paths, new LongName("rewriteEq"),
       """
         `rewriteEq (p : a = b) t : T` is similar to {rewrite}, but it finds and replaces occurrences of `a` up to algebraic equivalences.
@@ -235,21 +238,10 @@ public class StdExtension implements ArendExtension {
         Similarly to `rewrite` this meta allows specification of occurrence numbers.\s
         Currently this meta supports noncommutative monoids and categories.
         """, Precedence.DEFAULT, new RewriteMeta(this, false, true, true));
-    contributor.declare(paths, new LongName("rewriteEqF"), "The forward version of {rewriteEq}", Precedence.DEFAULT, new RewriteMeta(this, true, false, true));
-    contributor.declare(paths, new LongName("simplify"),
-      """
-        `simplify (t : Ts) : T` generates an element in `T` using an element `t` in a simplification `Ts` of `T`.
-        For example, `simplify idp : a = a * ide`.
-        Currently this meta eliminates multiplications by `ide` in noncommutative monoids.
-        """, Precedence.DEFAULT, new DeferredMetaDefinition(new SimplifyMeta(this, false), true));
-    contributor.declare(paths, new LongName("simplifyF"),
-            """
-              `simplifyF (t : T) : Ts` is similar to {simplify}, but for an element `t` in `T` it generates an element in
-              a simplification `Ts` of `T`.
-              """, Precedence.DEFAULT, new DeferredMetaDefinition(new SimplifyMeta(this, true), true));
+    contributor.declare(paths, new LongName("simplify"), "Simplifies the expected type or the type of the argument if the expected type is unknown.", Precedence.DEFAULT, new DeferredMetaDefinition(new SimplifyMeta(this), true));
     contributor.declare(paths, new LongName("simp_coe"),
       """
-        Simplifies certain equalities. If the expected type is unknown or if the meta is applied to more than one argument, then it works like simp_coeF. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.
+        Simplifies certain equalities. It expects one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'.
         * If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right a = b'`, then the subgoal is `coe (B a) (f a) right = b`.
         * If the goal is `coe (\\lam i => \\Pi (x : A) -> B x i) f right = g'`, then the subgoal is `\\Pi (a : A) -> coe (B a) (f a) right = g a`.
         * If the goal is `coe (\\lam i => A i -> B i) f right = g'`, then the subgoal is `\\Pi (a : A left) -> coe B (f a) right = g (coe A a right)`.
@@ -259,8 +251,8 @@ public class StdExtension implements ArendExtension {
         * If the type under `coe` is a record, then `simp_coe` works similarly to the case of \\Sigma types. The copattern matching syntax as in {ext} is also supported.
         * All of the above cases also work for goals with {transport} instead of {coe} since the former evaluates to the latter.
         * If the goal is `transport (\\lam x => f x = g x) p q = s`, then the subgoal is `q *> pmap g p = pmap f p *> s`. If `f` does not depend on `x`, then the right hand side of the subgoal is simply `s`.
+        If the expected type is unknown or if the meta is applied to more than one argument, then it applies to the type of the argument instead of the expected type.
         """, Precedence.DEFAULT, null, null, simpCoeMeta, new ClassExtResolver(this));
-    contributor.declare(paths, new LongName("simp_coeF"), "Applies {simp_coe} to the argument type instead of goal", Precedence.DEFAULT, null, null, simpCoeFMeta);
     contributor.declare(paths, new LongName("ext"),
       """
         Proves goals of the form `a = {A} a'`. It expects (at most) one argument and the type of this argument is called 'subgoal'. The expected type is called 'goal'
@@ -310,7 +302,7 @@ public class StdExtension implements ArendExtension {
         A proof of a contradiction can be explicitly specified as an implicit argument
         `using`, `usingOnly`, and `hiding` with a single argument can be used instead of a proof to control the context
         """, Precedence.DEFAULT, contradictionMeta);
-    contributor.declare(logic, new LongName("Given"),
+    givenMetaRef = contributor.declare(logic, new LongName("Given"),
       """
         Given constructs a \\Sigma-type:
         * `Given (x y z : A) B` is equivalent to `\\Sigma (x y z : A) B`.
@@ -318,10 +310,10 @@ public class StdExtension implements ArendExtension {
         * If `P : A -> B -> C -> \\Type`, then `Given ((x,y,z) (a,b,c) : P) (Q x y z a b c)` is equivalent to `\\Sigma (x a : A) (y b : B) (z c : C) (P x y z) (P a b c) (Q x y z a b c)`
         * If `l : Array A`, then `Given (x y : l) (P x y)` is equivalent to `\\Sigma (j j' : Fin l.len) (P (l j) (l j'))`
         """, Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.SIGMA));
-    contributor.declare(logic, new LongName("Exists"),
+    existsMetaRef = contributor.declare(logic, new LongName("Exists"),
       "{Exists} is a truncated version of {Given}. That is, `Exists a b c` is equivalent to `TruncP (Given a b c)`",
       Precedence.DEFAULT, "∃", Precedence.DEFAULT, new ExistsMeta(this, ExistsMeta.Kind.TRUNCATED));
-    contributor.declare(logic, new LongName("Forall"),
+    forallMetaRef = contributor.declare(logic, new LongName("Forall"),
       """
         {Forall} works like {Given}, but returns a \\Pi-type instead of a \\Sigma-type.
         The last argument should be a type and will be used as the codomain.

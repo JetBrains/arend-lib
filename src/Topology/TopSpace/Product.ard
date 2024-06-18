@@ -1,0 +1,61 @@
+\import Logic
+\import Logic.Meta
+\import Operations
+\import Order.Lattice
+\import Set.Subset
+\import Topology.TopSpace
+\open Bounded(top)
+
+\instance TopSpaceHasProduct : HasProduct TopSpace
+  | Product => ProductTopSpace
+
+\instance ProductTopSpace (X Y : TopSpace) : TopSpace (\Sigma X Y)
+  | isOpen W => ∀ {s : W} ∃ (U : X.isOpen) (U s.1) (V : Y.isOpen) (V s.2) ∀ {x : U} {y : V} (W (x,y))
+  | open-top _ => inP (top, open-top, (), top, open-top, (), \lam _ _ => ())
+  | open-inter {W} {W'} f g (Ws,W's) => \case f Ws, g W's \with {
+    | inP (U,Uo,Ux,V,Vo,Vy,h), inP (U',U'o,U'x,V',V'o,V'y,h') => inP (U ∧ U', open-inter Uo U'o, (Ux,U'x), V ∧ V', open-inter Vo V'o, (Vy,V'y), \lam (Ux,U'x) (Vy,V'y) => (h Ux Vy, h' U'x V'y))
+  }
+  | open-Union So (inP (W,SW,Ws)) => \case So SW Ws \with {
+    | inP (U,Uo,Ux,V,Vo,Vy,h) => inP (U, Uo, Ux, V, Vo, Vy, \lam Ux Vy => inP (W, SW, h Ux Vy))
+  }
+  \where {
+    \open ContMap
+
+    \func proj1 {X Y : TopSpace} : ContMap (X ⨯ Y) X \cowith
+      | func s => s.1
+      | func-cont Uo => \lam Ux => inP (_, Uo, Ux, top, open-top, (), \lam Ux _ => Ux)
+
+    \func proj2 {X Y : TopSpace} : ContMap (X ⨯ Y) Y \cowith
+      | func s => s.2
+      | func-cont Uo => \lam Uy => inP (top, open-top, (), _, Uo, Uy, \lam _ Uy => Uy)
+
+    \func tuple {X Y Z : TopSpace} (f : ContMap X Y) (g : ContMap X Z) : ContMap X (Y ⨯ Z) \cowith
+      | func x => (f x, g x)
+      | func-cont {W} Wo => X.cover-open \lam w => \case Wo w \with {
+        | inP (U,Uo,Ufx,V,Vo,Vgx,h) => inP (_, open-inter (f.func-cont Uo) (g.func-cont Vo), (Ufx,Vgx), \lam (Ufx,Vgx) => h Ufx Vgx)
+      }
+
+    \func prod {X X' Y Y' : TopSpace} (f : ContMap X Y) (f' : ContMap X' Y') : ContMap (X ⨯ X') (Y ⨯ Y')
+      => tuple (f ∘ proj1) (f' ∘ proj2)
+      \where {
+        \lemma isDense {X X' Y Y' : TopSpace} {f : ContMap X Y} {g : ContMap X' Y'} (fd : f.IsDense) (gd : g.IsDense) : ContMap.IsDense {prod f g}
+          => \lam Uo Ux => \case Uo Ux \with {
+            | inP (U1,U1o,U1x,U2,U2o,U2y,h) => \case fd U1o U1x, gd U2o U2y \with {
+              | inP (_, inP (x',idp), U1fx'), inP (_, inP (y',idp), U2gy') => inP (_, inP ((x',y'), idp), h U1fx' U2gy')
+            }
+          }
+
+        \lemma isEmbedding {X X' Y Y' : TopSpace} {f : ContMap X Y} {g : ContMap X' Y'} (fd : f.IsEmbedding) (gd : g.IsEmbedding) : ContMap.IsEmbedding {prod f g}
+          => (embedding-char {prod f g}).2 \lam Uo Uxy => \case Uo Uxy \with {
+            | inP (U1,U1o,U1x,U2,U2o,U2y,h) => \case f.embedding-char.1 fd U1o U1x, g.embedding-char.1 gd U2o U2y \with {
+              | inP (V1,V1o,V1fx,p1), inP (V2,V2o,V2gy,p2) => inP (Set.Prod V1 V2, Prod-open V1o V2o, (V1fx,V2gy), \lam (q1,q2) => h (p1 q1) (p2 q2))
+            }
+          }
+
+        \lemma isDenseEmbedding {X X' Y Y' : TopSpace} {f : ContMap X Y} {g : ContMap X' Y'} (fd : f.IsDenseEmbedding) (gd : g.IsDenseEmbedding) : ContMap.IsDenseEmbedding {prod f g}
+          => (isDense fd.1 gd.1, isEmbedding fd.2 gd.2)
+      }
+  }
+
+\lemma Prod-open {X Y : TopSpace} {U : Set X} (Uo : isOpen U) {V : Set Y} (Vo : isOpen V) : isOpen (Set.Prod U V)
+  => \lam {s} (Us,Vs) => inP (U, Uo, Us, V, Vo, Vs, \lam Ux Vy => (Ux,Vy))

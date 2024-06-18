@@ -1,0 +1,145 @@
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Filter
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\import Topology.RatherBelow
+\open Set
+\open Bounded(top,top-univ)
+
+\func OpenCoverSpace (X : CoverSpace) {S : Set X} (So : X.isOpen S) : CoverSpace (Total S)
+  => ClosureCoverSpace isBasicCover (\lam e s => \case \elim e \with {
+    | inP (D, byLeft Dc, p) => \case cauchy-cover Dc s.1 \with {
+      | inP (V,DV,Vs) => rewrite p $ inP (_, inP (V, DV, idp), Vs)
+    }
+    | inP (D, byRight Dr, p) => \case closure-neighborhood (\lam q => rewriteI q $ inP (S, idp, X.open-char.1 So s.2)) Dr \with {
+      | inP (U,DU,s<=<U) => rewrite p $ inP (_, inP (U, DU, idp), <=<_<= s<=<U idp)
+    }
+  }) \case \elim __ \with {
+    | inP (D,Dc,p) => closure-subset (makeBasicCover $ ||.map isRegular (regular-closure-extends __ idp) Dc) \lam {V'} => \case \elim __ \with {
+      | inP (V, inP (U,DU,V<=<U), V'=V) => inP (restrict U, rewrite p $ inP (U, DU, idp), closure-subset (makeBasicCover {X} $ byLeft V<=<U) \lam {W'} => \case \elim __ \with {
+        | inP (W,h,W'=W) => rewrite (V'=V,W'=W) \lam (s,t) => h (s.1,t) __
+      })
+    }
+  }
+  \where {
+    \open ClosurePrecoverSpace
+
+    \func isBasicCover {X : CoverSpace} {S : Set X} (C : Set (Set (Total S))) : \Prop
+      => ∃ (D : Set (Set X)) (X.isCauchy D || RegularClosure (single (single S)) D) (C = \lam U => ∃ (V : D) (U = restrict V))
+
+    \lemma makeBasicCover {X : CoverSpace} {S : Set X} {D : Set (Set X)} (e : X.isCauchy D || RegularClosure (single (single S)) D) : Closure isBasicCover \lam U => ∃ (V : D) (U = restrict V)
+      => closure $ inP (D, e, idp)
+
+    \truncated \data RegularClosure {X : CoverSpace} (A : Set (Set X) -> \Prop) (C : Set (Set X)) : \Prop
+      | regular-closure (A C)
+      | regular-closure-extends {D : Set (Set X)} (RegularClosure A D) (C = \lam V => ∃ (U : D) (V <=< U))
+
+    \lemma closure-neighborhood {X : CoverSpace} {A : Set (Set X) -> \Prop} {x : X} (Ax : ∀ {C : A} ∃ (U : C) (single x <=< U)) {C : Set (Set X)} (CC : RegularClosure A C) : ∃ (U : C) (single x <=< U) \elim CC
+      | regular-closure AC => Ax AC
+      | regular-closure-extends CC p => \case closure-neighborhood Ax CC \with {
+        | inP (U,DU,x<=<U) => \case <=<-inter x<=<U \with {
+          | inP (V,x<=<V,V<=<U) => inP (V, rewrite p $ inP (U, DU, V<=<U), x<=<V)
+        }
+      }
+
+    \func func (X : CoverSpace) {S : Set X} (So : X.isOpen S) : PrecoverMap (OpenCoverSpace X So) X __.1 \cowith
+      | func-cover Dc => makeBasicCover (byLeft Dc)
+
+    \lemma <=<-conv (X : CoverSpace) {S : Set X} (So : X.isOpen S) {x' : Total S} {U' : Set (Total S)} (x'<=<U' : single x' <=< {OpenCoverSpace X So} U') : single x'.1 <=< extend U'
+      => \case closure-filter {OpenCoverSpace X So} {isBasicCover} (\new SetFilter {
+           | F V' => single x'.1 <=< extend V'
+           | filter-mono p q => <=<-left q (extend-mono p)
+           | filter-top => <=<-left (X.open-char.1 So x'.2) \lam Sx => (Sx,())
+           | filter-meet p q => rewrite extend_meet (RatherBelow.<=<_meet-same p q)
+         }) (\case \elim __ \with {
+           | inP (D,e,p) => \have (inP (V,DV,x'<=<V)) : ∃ (V : D) (single x'.1 <=< V) => \case \elim e \with {
+             | byLeft Dc => CoverSpace.cauchy-regular-cover Dc x'.1
+             | byRight Dr => closure-neighborhood (\lam q => rewriteI q $ inP (S, idp, X.open-char.1 So x'.2)) Dr
+           } \in rewrite p $ inP (_, inP (V, DV, idp), RatherBelow.<=<_meet-same (X.open-char.1 So x'.2) x'<=<V)
+         }) x'<=<U' \with {
+           | inP (V',h,x'<=<V') => <=<-left x'<=<V' $ extend-mono $ h (x', (idp, transport V' (ext idp) (<=<_<= x'<=<V' idp).2))
+         }
+  }
+
+\func filter-extend {X : \Set} (U : Set X) (F : SetFilter (Total U)) : SetFilter X \cowith
+  | F V => F \lam s => V s.1
+  | filter-mono p => filter-mono \lam c => p c
+  | filter-top => filter-top
+  | filter-meet c d => filter-meet c d
+
+\func proper-filter-extend {X : \Set} (U : Set X) (F : ProperFilter (Total U)) : ProperFilter X \cowith
+  | SetFilter => filter-extend U F
+  | isProper c => \case F.isProper c \with {
+    | inP (s,Us) => inP (s.1,Us)
+  }
+
+\func cauchy-filter-extend (X : CoverSpace) {S : Set X} (So : X.isOpen S) (F : CauchyFilter (OpenCoverSpace X So)) : CauchyFilter X \cowith
+  | ProperFilter => proper-filter-extend S F
+  | isCauchyFilter Cc => \case F.isCauchyFilter (OpenCoverSpace.makeBasicCover $ byLeft Cc) \with {
+    | inP (U', inP (U,CU,U'=U), FU') => inP (U, CU, rewrite U'=U in FU')
+  }
+
+\func OpenCompleteCoverSpace {X : CompleteCoverSpace} {S : Set X} (So : X.isOpen S) : CompleteCoverSpace (Total S) \cowith
+  | SeparatedCoverSpace => Separated-char (OpenCoverSpace X So) 3 0 $ inP (X, func X So, \lam p => ext p)
+  | isComplete F =>
+    \let | F' => cauchy-filter-extend X So F
+         | x => X.filter-point F'
+         | (inP (U', inP (U, inP (_, idp, U<=<S), U'=U), FU')) => isCauchyFilter {F} $ makeBasicCover $ byRight $ regular-closure-extends (regular-closure idp) idp
+    \in inP ((x, <=<_<= (X.filter-point-elem {F'} U<=<S $ rewrite U'=U in FU') idp), \lam {V'} x<=<V' => filter-mono (later \lam s => transport V' (ext idp) s.2) $ X.filter-point-sub (<=<-conv X So x<=<V'))
+  \where \open OpenCoverSpace
+
+\func ClosedCompleteCoverSpace {X : CompleteCoverSpace} {S : Set X} (Sc : X.IsClosed S) : CompleteCoverSpace (Total S) \cowith
+  | CoverSpace => CoverTransfer __.1
+  | isSeparatedCoverSpace f => ext $ isSeparatedCoverSpace \lam Cc => \case f (PrecoverTransfer.makeCauchy Cc) \with {
+    | inP (_, inP (U,CU,idp), s) => inP (U, CU, s)
+  }
+  | isComplete F => \let G => \new CauchyFilter X {
+      | F U => F (Set.restrict U)
+      | filter-mono p Fa => filter-mono (p __) Fa
+      | filter-top => filter-top
+      | filter-meet => filter-meet
+      | isProper FU => \case isProper FU \with {
+        | inP (x,Ux) => inP (x.1, Ux)
+      }
+      | isCauchyFilter Cc => \case isCauchyFilter {F} (PrecoverTransfer.makeCauchy Cc) \with {
+        | inP (_, inP (U, CU, idp), FU) => inP (U,CU,FU)
+      }
+    }
+    | x => X.filter-point G
+    \in inP ((x, Sc \lam {V} Vo VG => \case (X.filter-point-char {G} {V}).1 $ X.open-char.1 Vo VG \with {
+      | inP (W,W<=<V,GW) => \case isProper GW \with {
+        | inP ((x,Sx),Wx) => inP (x, (Sx, <=<_<= W<=<V Wx))
+      }
+    }), \lam {V} c => \case X.cauchy-regular-cover c x \with {
+      | inP (U, inP (W,h,p), x<=<U) => filter-mono (p <=∘ h (_, (idp, p $ <=<_<= x<=<U idp))) (X.filter-point-sub x<=<U)
+    })
+  \where {
+    \protected \lemma conv {X : SeparatedCoverSpace} {S : Set X} (Sc : IsCompleteCoverSpace (CoverTransfer {Total S} __.1)) : X.IsClosed S
+      => \lam {x} h => \case IsCompleteCoverSpace.cauchyFilterToPoint Sc (later \new CauchyFilter {
+        | F V => ∃ (U : Set X) (single x <=< U) (restrict U ⊆ V)
+        | filter-mono p (inP (U,x<=<U,q)) => inP (U, x<=<U, q <=∘ p)
+        | filter-top => inP (top, <=<_top, top-univ)
+        | filter-meet (inP (U,x<=<U,p)) (inP (V,x<=<V,q)) => inP (U ∧ V, <=<-right (meet-univ <=-refl <=-refl) $ <=<_meet x<=<U x<=<V, MeetSemilattice.meet-monotone p q)
+        | isProper (inP (V,x<=<V,p)) => \case h X.interior x<=<V \with {
+          | inP (y,(Sy,y<=<V)) => inP ((y,Sy), p $ <=<_<= y<=<V idp)
+        }
+        | isCauchyFilter Cc => \case X.cauchy-regular-cover Cc x \with {
+          | inP (V, inP (U,CU,p), x<=<V) => inP (U, CU, inP (V, x<=<V, p))
+        }
+      }) \with {
+        | inP (s,p) => transport S (isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 5 7 \lam s<=<U x<=<V => later
+            \case p $ <=<-right (\lam q => pmap __.1 q) $ unfolds in <=<_^-1 {_} {_} {PrecoverTransfer-map {Total S} __.1} s<=<U \with {
+              | inP (W,x<=<W,q) => \case h X.interior $ <=<-right (meet-univ <=-refl <=-refl) $ <=<_meet x<=<W x<=<V \with {
+                | inP (y,(Sy,y<=<WV)) => inP (y, (q {y,Sy} (<=<_<= y<=<WV idp).1, (<=<_<= y<=<WV idp).2))
+              }
+            }) s.2
+      }
+  }

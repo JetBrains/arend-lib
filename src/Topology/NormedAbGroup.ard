@@ -1,0 +1,124 @@
+\import Algebra.Group
+\import Algebra.Group.Category
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Arith.Real
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.MetricSpace
+\import Topology.TopAbGroup
+\import Topology.TopAbGroup.Complete
+\import Topology.UniformSpace
+\import Topology.UniformSpace.Product
+
+\class PseudoNormedAbGroup \extends PseudoMetricSpace, TopAbGroup {
+  | norm : E -> Real
+  | norm_zro : norm zro = (0 : Real)
+  | norm_negative {x : E} : norm (negative x) = norm x
+  | norm_+ {x y : E} : norm (x + y) <= norm x RealAbGroup.+ norm y
+  | norm-dist {x y : E} : dist x y = norm (x - y)
+
+  | +-cont => \new UniformMap (ProductUniformSpace \this \this) \this {
+    | func s => s.1 + s.2
+    | func-uniform Eu => \case dist-uniform.1 Eu \with {
+      | inP (eps,eps>0,h) => inP (_, makeUniform (RealAbGroup.half>0 eps>0), _, makeUniform (RealAbGroup.half>0 eps>0),
+        \lam (inP (_, inP (x,idp), _, inP (y,idp), p)) => \case h (x + y) \with {
+          | inP (V,EV,g) => inP (_, inP (V, EV, idp), rewrite p \lam {(x',y')} (xx'<eps/2,yy'<eps/2) =>
+              \have lem : x - x' + (y - y') = x + y - (x' + y') => +-assoc *> pmap (x +) (+-comm *> +-assoc *> pmap (y +) (inv negative_+)) *> inv +-assoc
+              \in g $ transport (_ <) RealAbGroup.half+half $ later (repeat {3} (rewrite norm-dist) $ transport (norm __ <= _) lem norm_+) <∘r OrderedAddMonoid.<_+ xx'<eps/2 yy'<eps/2)
+        })
+    }
+  }
+  | negative-cont => \new MetricMap {
+    | func-dist => rewrite (norm-dist, norm-dist, inv norm_negative, +-comm) $ simplify <=-refl
+  }
+  | neighborhood-uniform =>
+    \have lem {x} {y} : dist 0 (x - y) = dist x y => norm-dist *> inv norm_negative *> pmap norm simplify *> inv norm-dist
+    \in (\lam Cu => \case dist-uniform.1 Cu \with {
+           | inP (eps,eps>0,h) => inP (OBall eps 0, OBall-open, OBall-center eps>0, \lam x => \case h x \with {
+             | inP (U,CU,g) => inP (U, CU, \lam d => g $ transport (`< _) lem d)
+           })
+         }, \lam (inP (U,Uo,U0,h)) => \case dist_open.1 Uo U0 \with {
+           | inP (eps,eps>0,p) => dist-uniform.2 $ inP (eps, eps>0, \lam x => \case h x \with {
+             | inP (U,CU,g) => inP (U, CU, \lam d => g $ p $ transportInv (`< _) lem d)
+           })
+         })
+  | open-top => defaultImpl PrecoverSpace open-top
+  | open-inter {U} {V} => defaultImpl PrecoverSpace open-inter {_} {U} {V}
+  | open-Union {S} => defaultImpl PrecoverSpace open-Union {_} {S}
+  | dist-refl => norm-dist *> pmap norm negative-right *> norm_zro
+  | dist-symm => norm-dist *> simplify *> norm_negative *> inv norm-dist
+  | dist-triang => repeat {3} (rewrite norm-dist) $ transport (norm __ <= _) simplify norm_+
+
+  \default dist x y : Real => norm (x - y)
+  \default norm-dist \as norm-dist-impl {x} {y} : dist x y = norm (x - y) => idp
+
+  \func IsUnbounded : \Prop
+    => \Pi (B : Nat) -> ∃ (x : E) (B RealAbGroup.< norm x)
+
+  \lemma norm_BigSum {l : Array E} : norm (BigSum l) <= RealAbGroup.BigSum \lam j => norm (l j) \elim l
+    | nil => transportInv (`<= _) norm_zro <=-refl
+    | x :: l => norm_+ <=∘ LinearlyOrderedAbMonoid.<=_+ <=-refl norm_BigSum
+}
+
+\class NormedAbGroup \extends PseudoNormedAbGroup, MetricSpace
+  | norm-ext {x : E} : norm x = (0 : Real) -> x = zro
+  | dist-ext p => fromZero $ norm-ext $ inv norm-dist *> p
+
+\lemma norm_dist {X : PseudoNormedAbGroup} {x : X} : norm x = dist 0 x
+  => inv norm_negative *> simplify *> inv norm-dist
+
+\lemma norm>=0 {X : PseudoNormedAbGroup} {x : X} : 0 <= norm x
+  => rewrite norm_dist dist>=0
+
+\lemma norm_- {X : PseudoNormedAbGroup} {x y : X} : norm (x - y) = norm (y - x)
+  => pmap norm (inv X.negative-isInv) *> norm_negative *> simplify
+
+\lemma norm_-left {X : PseudoNormedAbGroup} {x y : X} : norm x - norm y <= norm (x - y)
+  => transport (_ <=) (+-assoc *> pmap (_ +) negative-right *> zro-right) $ LinearlyOrderedAbMonoid.<=_+ (transport (norm __ <= _) (+-assoc *> pmap (x +) negative-left *> zro-right) norm_+) <=-refl
+
+\lemma norm_-right {X : PseudoNormedAbGroup} {x y : X} : norm y - norm x <= norm (x - y)
+  => transport (_ <=) norm_- norm_-left
+
+\record UniformNormedAbGroupMap \extends UniformMetricMap, TopAbGroupMap {
+  \override Dom : PseudoNormedAbGroup
+  \override Cod : PseudoNormedAbGroup
+
+  | func-norm-uniform : ∀ {eps : Real} (0 < eps) ∃ (delta : Real) (0 < delta) ∀ {x : Dom} (norm x < delta -> norm (func x) < eps)
+  | func-dist-uniform eps>0 => \case func-norm-uniform eps>0 \with {
+    | inP (delta,delta>0,h) => inP (delta, delta>0, unfold \lam d => rewrite (norm-dist, inv AddGroupHom.func-minus) $ h $ rewriteI norm-dist d)
+  }
+
+  \default func-norm-uniform eps>0 => \case dist_open.1 (func-cont OBall-open) $ rewrite func-zro $ OBall-center eps>0 \with {
+    | inP (delta,delta>0,h) => inP (delta, delta>0, \lam d => rewrite (norm_dist, inv func-zro) $ h $ rewrite norm_dist in d)
+  }
+}
+
+\record NormedAbGroupMap \extends UniformNormedAbGroupMap, MetricMap {
+  \override Dom : PseudoNormedAbGroup
+  \override Cod : PseudoNormedAbGroup
+
+  | func-norm {x : Dom} : norm (func x) <= norm x
+  | func-norm-uniform {eps} eps>0 => inP (eps, eps>0, \lam d => func-norm <∘r d)
+  | func-dist => unfold $ rewrite (norm-dist, norm-dist, inv AddGroupHom.func-minus) func-norm
+}
+
+\record NormedIsometricMap \extends NormedAbGroupMap, IsometricMap {
+  \override Dom : PseudoNormedAbGroup
+  \override Cod : PseudoNormedAbGroup
+
+  | func-norm-isometry {x : Dom} : norm (func x) = norm x
+  | func-norm => Preorder.=_<= func-norm-isometry
+  | func-isometry => norm-dist *> pmap norm (inv func-minus) *> func-norm-isometry *> inv norm-dist
+}
+
+\class CompleteNormedAbGroup \extends NormedAbGroup, CompleteMetricSpace, CompleteTopAbGroup

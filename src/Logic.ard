@@ -103,8 +103,11 @@
 
 \func \infix 0 <-> (P Q : \Prop) => \Sigma (P -> Q) (Q -> P)
 
-\lemma <->_= {P Q : \Prop} (p : P = Q) : P <-> Q
-  => rewrite p (\lam x => x, \lam x => x)
+\lemma <->_= {P Q : \Prop} : (P <-> Q) <-> (P = Q)
+  => (\lam p => ext p, \lam p => rewrite p (\lam x => x, \lam x => x))
+
+\lemma <->refl {P : \Prop} : P <-> P
+  => (\lam p => p, \lam p => p)
 
 \lemma <->trans {P Q S : \Prop} (f : P <-> Q) (g : Q <-> S) : P <-> S
   => (\lam p => g.1 (f.1 p), \lam s => f.2 (g.2 s))
@@ -129,7 +132,7 @@
 \type TFAE (l : Array \Prop) : \Prop
   => \Pi (i j : Fin l.len) -> l i -> l j
   \where {
-    \lemma proof {l : Array \Prop} (p : Array (\Sigma (s : \Sigma (Fin l.len) (Fin l.len)) (l s.1 -> l s.2))) {s : So (checkConnected (map __.1 p) l.len)} : TFAE l
+    \lemma proof' {l : Array \Prop} (p : Array (\Sigma (s : \Sigma (Fin l.len) (Fin l.len)) (l s.1 -> l s.2))) {s : So (checkConnected (map __.1 p) l.len)} : TFAE l
       => \lam i j => path-proof p (checkConnected-correct (So.fromSo s) i j)
       \where {
         \func Graph (A : \Set) => Array (\Sigma A A)
@@ -177,7 +180,7 @@
           => \case collect->collect' {G} (contains_InList.1 (forall-char s j)) \with {
             | here p => trivial $ inv (nat_fin_= p)
             | there c => \case collect'-correct {G} c \with {
-              | inP (i', here q, p) => Path-Nat_Fin (rewriteF q p)
+              | inP (i', here q, p) => Path-Nat_Fin (rewrite q in p)
               | inP (_, there (), _)
             }
           }
@@ -242,7 +245,7 @@
         \lemma step1'_makeStep' {G : Graph Nat} {l : List Nat} {a b : Nat} (p : InList b l) (c : InList a (step1' G b)) : InList a (makeStep' G l) \elim l
           | List.nil => \case p
           | a' List.:: l => \case \elim p \with {
-            | here p => InList_++-left (rewriteF p c)
+            | here p => InList_++-left (rewrite p in c)
             | there p => InList_++-right (step1'_makeStep' p c)
           }
 
@@ -270,6 +273,8 @@
             | byRight c => InList_++-right $ InList_++-right (collect'-monotone (\lam a => makeStep->makeStep') c)
           }
       }
+
+    \meta proof P => proof' (later P)
 
     \lemma cycle' {n : Nat} {l : Array \Prop (suc n)} (p : DArray {suc n} (\lam i => l i -> l (suc i Nat.mod suc n))) : TFAE l
       => aux2 (\lam i a => later $ transport l (nat_fin_= $ mod_< $ fin_< (suc i)) (p i a))

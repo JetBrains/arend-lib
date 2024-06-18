@@ -1,0 +1,83 @@
+\import Category.Adjoint
+\import Category.CartesianClosed
+\import Category.Functor
+\import Equiv
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+
+\lemma \infixr 8 =<= {E : Preorder} {x y z : E}
+                     (p : x = y) (q : y <= z) : x <= z => transport (__ <= z) (inv p) q
+
+\class HeytingAlebra \extends CartesianClosedPrecat (\lp, \lp), Bounded.DistributiveLattice {
+  | implies \alias \infixr 5 --> : E -> E -> E
+  | exponent-left {x a b : E} : x ∧ a <= b -> x <= a --> b
+  | exponent-right {x a b : E} : x <= a --> b -> x ∧ a <= b
+  | modus-ponens {x y : E} : x ∧ (x --> y) <= y
+  | modus-ponens' {x y : E} : (x --> y) ∧ x <= y
+
+  \default modus-ponens' => exponent-right <=-refl
+  \default modus-ponens => meet-comm =<= modus-ponens'
+  \default top \as top-impl => bottom --> bottom
+  \default top-univ {x : E} : x <= top-impl => exponent-left meet-right
+  \default ldistr>= {x y z : E} : x ∧ (y ∨ z) <= (x ∧ y) ∨ (x ∧ z) => meet-comm =<= exponent-right (join-univ (exponent-left (meet-comm =<= join-left)) (exponent-left (meet-comm =<= join-right)))
+
+  \lemma composition-law {x y z : E} : (x --> y) ∧ (y --> z) <= x --> z => exponent-left
+      (meet-assoc *> meet-comm *> meet-assoc
+        =<= meet-monotone <=-refl modus-ponens <=∘ modus-ponens')
+
+  \func continuation (y : E) (x : E) => (x --> y) --> y
+
+  \func neg (x : E) => x --> bottom
+
+  \func double-neg => continuation bottom
+
+  \func curry {x y z : E} : x ∧ y --> z <= x --> (y --> z) =>
+    exponent-left (exponent-left (meet-assoc =<= modus-ponens'))
+
+  \func -->-monotone {x y z : E} (p : y <= z) : x --> y <= x --> z => exponent-left (modus-ponens' <=∘ p)
+
+  \func -->-increasing {x y : E} : y <= x --> y => exponent-left meet-left
+
+  \lemma meet-monotone-partial {x y z : E} (p : y <= z) : x ∧ y <= x ∧ z => meet-monotone <=-refl p
+
+  \lemma meet-monotone-partial' {x y z : E} (p : x <= y) : x ∧ z <= y ∧ z =>
+    meet-comm =<= meet-monotone-partial p <=∘ (=_<= meet-comm)
+
+  \func _-->-antimonotone {x y z : E} (p : y <= z) : z --> x <= y --> x =>
+    exponent-left (meet-monotone-partial p <=∘ modus-ponens')
+
+  \lemma double-->-increasing {x y : E} : x <= (x --> y) --> y => exponent-left modus-ponens
+
+  \lemma double-->-idempotent {x y : E} : (((x --> y) --> y) --> y) --> y <= (x --> y) --> y =>
+    exponent-left (meet-monotone-partial double-->-increasing <=∘ modus-ponens')
+
+  \lemma double-->-monotone {x y z : E} (p : y <= z) : continuation x y <= continuation x z =>
+    exponent-left (meet-monotone-partial (_-->-antimonotone p) <=∘ modus-ponens')
+
+  \lemma exponent-adj-unit {x y : E} : x <= y --> x ∧ y => exponent-left <=-refl
+
+  \lemma adj-lemma {x y z : E} (f : x <= z --> y) : x ∧ z <= y => meet-monotone-partial' f <=∘ modus-ponens'
+
+  \func exponent-functor (X : E) : Functor \this \this
+  \cowith
+    | F Y => X --> Y
+    | Func f => -->-monotone f
+    | Func-id => idp
+    | Func-o => idp
+
+  \default exp (Y : E) : RightAdjoint \this \this { | LAdj => bprodFunctorRight Y}
+  \cowith
+    | Functor => exponent-functor Y
+    | eta => \new NatTrans {
+      | trans _ => exponent-adj-unit
+      | natural _ => idp
+    }
+    | isAdjoint => \new Equiv {
+      | ret => adj-lemma
+      | ret_f _ => ext
+      | sec => adj-lemma
+      | f_sec _ => ext
+    }
+}
