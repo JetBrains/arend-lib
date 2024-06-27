@@ -1,0 +1,97 @@
+\import Algebra.Group
+\import Algebra.Group.Sub
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Monoid.Sub
+\import Algebra.Pointed
+\import Equiv
+\import Function
+\import Function.Meta ($)
+\import Logic
+\import Logic.Meta
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set
+\import Algebra.Monoid
+\import Set.Category
+
+\class GroupAction (G : Group) \extends BaseSet {
+  | \infixl 8 ** : G -> E -> E -- priority should be bigger than that of "+" in LModule (=7)
+  | **-assoc {m n : G} {e : E} : m ** (n ** e) = (m * n) ** e
+  | id-action {e : E} : ide ** e = e
+
+  \func Stabilizer (s : E) : SubGroup G \cowith
+    | contains m => m ** s = s
+    | contains_* {m n : G} (p : m ** s = s) (q : n ** s = s)  =>
+      (m * n) ** s  ==< inv **-assoc >==
+      m ** (n ** s) ==< pmap (\lam x => m ** x) q >==
+      m ** s  ==< p >==
+      s `qed
+
+    | contains_ide => id-action
+
+    | contains_inverse {m : G} (p : m ** s = s) =>
+      inverse m ** s ==< pmap (\lam x => inverse m ** x) (inv p) >==
+      inverse m ** (m ** s) ==< **-assoc >==
+      (inverse m * m) ** s ==< pmap (\lam x => x ** s) inverse-left >==
+      ide ** s ==< id-action >==
+      s `qed
+
+  \func choosePoint (e : E) => ActionBySubgroup (Stabilizer e)
+}
+
+\class TransitiveGroupAction \extends GroupAction {
+  | trans : \Pi (v v' : E) -> ∃ (g : G) (g ** v = v')
+}
+\func ActionBySubgroup {G : Group} (H : SubGroup G) : GroupAction G \cowith
+  | E => H.Cosets
+  | ** (g : G) (e : H.Cosets) : H.Cosets \with {
+    | g, in~ a => in~ (g * a)
+    | g, ~-equiv x y r => in~ (g * x) ==< H.invariant-right-multiplication (H.equivalence-to-1 r) >==
+    in~ (g * x * (inverse x * y)) ==< pmap in~ (trivialRelation g x y ) >== in~ (g * y) `qed
+    }
+  | **-assoc {m n : G} {e : H.Cosets} : m ** (n ** e) = (m * n) ** e => \case \elim e \with{
+    | in~ a =>  m ** (n ** in~ a) ==< pmap (m **) {n ** in~ a} {in~ (n * a)} idp >==
+    m ** in~ (n * a) ==< idp >==
+    in~ (m * (n * a)) ==< pmap in~ (inv *-assoc) >==
+    in~ ((m * n) * a) ==< idp >==
+    (m * n) ** in~ a `qed
+  }
+  | id-action {e : H.Cosets} : ide ** e = e => \case \elim e \with{
+    | in~ a => ide ** in~ a ==< idp >==
+    in~ (ide * a) ==< pmap in~ ide-left >==
+    in~ a `qed
+  }
+  \where \func trivialRelation (g x y : G) : g * x * (inverse x * y) = g * y =>
+    g * x * (inverse x * y)   ==< *-assoc >==
+    g * (x * (inverse x * y)) ==< pmap (g *) (inv *-assoc) >==
+    g * ((x * inverse x) * y) ==< pmap (\lam z => g *( z * y)) inverse-right >==
+    g * (ide * y)             ==< pmap (g *) ide-left >==
+    g * y `qed
+
+
+\instance TransitiveActionBySubgroup {G : Group} (H : SubGroup G) : TransitiveGroupAction G
+   | GroupAction => ActionBySubgroup H
+   | trans (v v' : H.Cosets) : ∃ (g : G) (g ActionBySubgroup.** v = v') => \case \elim v, \elim v'\with{
+      | in~ a, in~ a1 => inP(a1 * inverse a ,
+                              in~ (a1 * inverse a * a) ==< pmap in~ *-assoc >==
+                              in~ (a1 * (inverse a * a)) ==< pmap (\lam z => in~ (a1 * z)) inverse-left >==
+                              in~ (a1 * ide) ==< pmap in~ ide-right >==
+                              in~ a1 `qed
+                           )
+   }
+
+-- action by conjugating its own elements
+\func conjAction (G : Group) : GroupAction G \cowith
+  | E => G
+  | ** (g : G)  => conjugate g
+  | **-assoc {m : G} {n : G} {e : G} : conjugate m (conjugate n e) = conjugate (m * n) e =>
+  conjugate m (conjugate n e) ==< pmap (conjugate m) idp >==
+  conjugate m (n * e * inverse n ) ==< idp >==
+  m * (n * e * inverse n ) * inverse m ==< lemma-par >==
+  (m * n) * e * (inverse n * inverse m) ==< pmap ((m * n * e) *) (inv G.inverse_*) >==
+  (m * n) * e * (inverse (m * n)) ==< idp >==
+  conjugate (m * n) e `qed
+  | id-action {e : G} : conjugate ide e = e => conjugate-via-id e
+  \where \lemma lemma-par {a b c d e : G} : a * (b * c * d) * e = (a * b) * c * (d * e) => equation
