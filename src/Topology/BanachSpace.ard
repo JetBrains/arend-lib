@@ -1,0 +1,54 @@
+\import Algebra.Algebra
+\import Algebra.Module
+\import Algebra.Module.LinearMap
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Arith.Real
+\import Arith.Real.Field
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Topology.NormedAbGroup
+\import Topology.NormedAlgebra
+\import Topology.NormedModule
+\import Topology.NormedRing
+\open OrderedField
+
+\class BanachSpace \extends CompleteNormedLModule {
+  \override R : NormedAAlgebra RealValuedRing
+}
+
+\lemma norm_*r {R : PseudoNormedCRing} {A : PseudoNormedAAlgebra R} {X : PseudoNormedLModule A} {a : R} {x : X} : norm (a *r x) = norm a * norm x
+  => \case norm_zro_ide \with {
+    | byLeft p => norm_ide=0-module p *> inv Ring.zro_*-right *> pmap (_ *) (inv $ norm_ide=0-module p)
+    | byRight p => norm_*c *> pmap (`* _) (pmap norm coefMap_*c *> norm_*c *> pmap (_ *) p *> ide-right)
+  }
+
+\lemma norm_*r-ofPos {A : PseudoNormedAAlgebra RealValuedRing} {X : PseudoNormedLModule A} {a : Real} (a>=0 : 0 <= a) {x : X} : norm (a *r x) = a * norm x
+  => norm_*r *> pmap (`* _) (RealField.abs-ofPos a>=0)
+
+\record BoundedLinearMap \extends LinearMap, UniformNormedAbGroupMap {
+  \override R : NormedAAlgebra RealValuedRing
+  \override Dom : PseudoNormedLModule R
+  \override Cod : PseudoNormedLModule R
+
+  | isBounded : ∃ (C : Real) (0 < C) ∀ x (norm (func x) <= C * norm x)
+
+  \default func-norm-uniform {eps} eps>0 => \case isBounded \with {
+    | inP (C,C>0,h) => inP (pinv C>0 * eps, OrderedSemiring.<_*_positive_positive (pinv>0 C>0) eps>0, \lam {x} p => h x <∘r <_*_positive-right C>0 p <∘l Preorder.=_<= (inv *-assoc *> pmap (`* _) (pinv-right C>0) *> ide-left))
+  }
+  \default isBounded => \case func-norm-uniform RealAbGroup.zro<ide \with {
+    | inP (delta,delta>0,h) => inP (pinv delta>0, pinv>0 delta>0, \lam x => <=_U-char.2 \lam {a} p => real_<_U.1
+        \have a>0 : 0 < Real.fromRat a => LinearlyOrderedSemiring.<=_*_positive_positive (LinearOrder.<_<= $ pinv>0 delta>0) norm>=0 <∘r real_<_U.2 p
+        \in transport2 (RealField.<) (inv (norm_*r-ofPos $ LinearOrder.<_<= a>0) *> pmap norm (pmap (_ *r) func-*c *> inv *r-assoc *> pmap (`*c _) (pmap coefMap (pinv-right a>0) *> AAlgebra.coefHom.func-ide) *> ide_*c)) ide-right $
+              RealField.<_*_positive-right a>0 $ h {pinv a>0 *r x} $ transport2 (<) (*-comm *> inv (norm_*r-ofPos $ LinearOrder.<_<= $ pinv>0 a>0)) (*-assoc *> pmap (_ *) (pinv-right a>0) *> ide-right) $
+                <_*_positive-left (transport (`< _) (inv *-assoc *> pmap (`* _) (pinv-right delta>0) *> ide-left) $ RealField.<_*_positive-right delta>0 (real_<_U.2 p)) (pinv>0 a>0))
+  }
+}
