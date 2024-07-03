@@ -14,6 +14,7 @@
 \import Algebra.Pointed
 \import Algebra.Ring
 \import Arith.Nat
+\import Category
 \import Equiv
 \import Function
 \import Function.Meta ($)
@@ -24,19 +25,21 @@
 \import Relation.Equivalence
 \import Set
 \import Algebra.Monoid
+\import Set.Category
 \open Algebra.Group.Representation.Representation
 
 
 {- | Action given as $$g \cdot \left( \sum \lambda_i x_i \right) := \sum \lambda_{g^{-1}(i)}x_i $$  for a basis of $x_i$'s -} -}
-\func PermRepr {R : Ring} {G : Group} (X : GroupAction G) : LinRepres R G \cowith
-  | E : LModule => Module
+\func PermRepr {R : Ring} {G : Group} (X : GroupAction G) : LRepres R G \cowith
+  | LModule => Module
   | ** g f j => f (inverse g X.** j)
-  | **-assoc => ext (\lam j => rewrite (X.**-assoc, inverse_prod) idp)
+  | **-assoc => ext (\lam _ => rewrite (X.**-assoc, inverse_prod) idp)
   | lin => idp
-  | lin-*c => ext (\lam j => idp)
+  | lin-*c => ext (\lam _ => idp)
+  | id-action => ext (\lam _ => rewrite (G.inverse_ide, X.id-action) idp)
   \where{
     \func inverse_prod {m n : G} : inverse (m * n) = inverse n * inverse m =>
-      inv (G.check-for-inv ( rewrite (G.*-assoc, pmap (\lam z => m * z) (inv G.*-assoc) , G.inverse-right, G.ide-left, G.inverse-right) idp))
+      inv (G.check-for-inv ( rewrite (G.*-assoc, pmap (m `*) (inv G.*-assoc) , G.inverse-right, G.ide-left, G.inverse-right) idp))
     \func R_m : LModule R => RingLModule R
     \func Module : LModule R => PowerLModule X R_m -- product module of |X| copies of R
   }
@@ -55,22 +58,31 @@ Also, this does not make much sense over a trivial ring, thus we eliminate this 
 
   -- basic definitions to work easier
   \func R_m : LModule R => RingLModule R
-  \func R_m-triv : LinRepres R G => trivialRepres R G R_m
+  \func R_m-triv : LRepres R G => TrivialAction R_m G
 
   \func Module : LModule R => PowerLModule X R_m -- product module of |X| copies of R
-  \func Repr : LinRepres R G => PermRepr {R} {G} X
-  \func vectorOnes : Module => \lam _ => R.ide
+  \func Repr : LRepres R G => PermRepr {R} {G} X
+  \func vectorOnes : Module => \lam _ => R.ide -- vector with coordinates (1,1,1,...)
 
   \func invSubMod : LinearMap R_m Module \cowith
     | func (r : R) => \lam _ => r
     | func-+ => ext (\lam _ => idp)
     | func-*c => ext (\lam _ => idp)
 
+  \func inv-rev (r : R_m-triv)  : (invSubMod r) somepoint = r => idp
+
+  \func aux (g : G)(r : R) : g Repr.** (invSubMod r) = (invSubMod r) => {?}
+
   \func invSubRepr : SubLinRepres Repr \cowith
     | S => R_m-triv
     | in => \new InterwiningMap {
       | func => invSubMod
-      | func-** => ext (\lam j => rewrite () {?})
+      | func-** {e : R_m-triv}{g : G} => ext (\lam _ => rewrite (aux g e) idp)
     }
-    | in-mono => {?}
+    | in-mono => \lam {a a' : R} (p : invSubMod a = invSubMod a') => rewrite (inv (inv-rev a), inv (inv-rev a'), p) idp
+    \where{
+      \func split->mono {A B : \Set} (m : A -> B) (r : B -> A) (p : r SetCat.∘ m = id A) : isInj m => {?}
+    }
+
+
 }
