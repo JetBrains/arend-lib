@@ -15,11 +15,13 @@
 \import Algebra.Ring
 \import Arith.Nat
 \import Category
+\import Data.List
 \import Equiv
 \import Function
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
+\import Meta (cases, unfold)
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
@@ -55,7 +57,10 @@ Also, this does not make much sense over a trivial ring, thus we eliminate this 
   | different-points : somepoint /= somepoint'
   | not-trivial-ring : R.zro /= R.ide
   | decideEq-somepoint (x : X) : Dec (x = somepoint)
-
+  \func f : decideEq-somepoint somepoint = yes idp => cases (decideEq-somepoint somepoint) \with {
+    | yes e => exts
+    | no n => absurd (n idp)
+  }
   -- basic definitions to work easier
   \func R_m : LModule R => RingLModule R
   \func R_m-triv : LRepres R G => TrivialAction R_m G
@@ -72,14 +77,37 @@ Also, this does not make much sense over a trivial ring, thus we eliminate this 
   \func inv-rev (r : R_m-triv)  : (invSubMod r) somepoint = r => idp
 
 
-  \func maxAux(r : R)(j j' : X) : invSubMod r j = invSubMod r j' => {?}
-  \func aux (g : G)(r : R) : g Repr.** invSubMod r = invSubMod r => ext (\lam j => maxAux r j (inverse g ** j) )
+  \func fixed-submodule (g : G) (r : R) : g Repr.** invSubMod r = invSubMod r => ext (\lam j => aux r j (inverse g ** j) )
+      \where{
+        \func aux(r : R)(j j' : X) : invSubMod r j = invSubMod r j' => idp
+      }
+
+\func check => List
 
   \func invSubRepr : SubLinRepres Repr \cowith
     | S => R_m-triv
     | in => \new InterwiningMap {
       | func => invSubMod
-      | func-** {e : R_m-triv}{g : G} => ext (\lam _ => rewrite (aux g e) idp)
+      | func-** {e : R_m-triv}{g : G} => ext (\lam _ => rewrite (fixed-submodule g e) idp)
     }
     | in-mono => \lam {a a' : R} (p : invSubMod a = invSubMod a') => rewrite (inv (inv-rev a), inv (inv-rev a'), p) idp
+
+\func Non-constant-vector : Repr => helper
+  \where {
+    \func helper (j : X) : R => \case decideEq-somepoint j \with {
+      | yes e => R.ide
+      | no n => R.zro
+    }
+    \func equation-1 : helper somepoint = R.ide => unfold helper $ rewrite f idp
+
+    \func equation-2 : Non-constant-vector somepoint' = R.zro => {?}
+  }
+
+  \func SubRepr-non-trivial : Not invSubRepr.isTrivial => \lam p => \case \elim p \with {
+    | byLeft zeromod => not-trivial-ring (inv (zeromod R.ide))
+    | byRight isSurj-in => \case isSurj-in Non-constant-vector \with {
+      | inP a => not-trivial-ring ()
+    }
+  }
+
 }
