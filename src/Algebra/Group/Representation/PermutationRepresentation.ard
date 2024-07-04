@@ -54,12 +54,16 @@ Also, this does not make much sense over a trivial ring, thus we eliminate this 
 \class PermutationRepresReducible {R : Ring} {G : Group} (X : GroupAction G) {
   | somepoint : X
   | somepoint' : X
-  | different-points : somepoint /= somepoint'
+  | different-points : somepoint' /= somepoint
   | not-trivial-ring : R.zro /= R.ide
   | decideEq-somepoint (x : X) : Dec (x = somepoint)
-  \func f : decideEq-somepoint somepoint = yes idp => cases (decideEq-somepoint somepoint) \with {
+  \func somepoints-equality-1 : decideEq-somepoint somepoint = yes idp => cases (decideEq-somepoint somepoint) \with {
     | yes e => exts
     | no n => absurd (n idp)
+  }
+  \func somepoints-equality-2 : decideEq-somepoint somepoint' = no different-points => cases (decideEq-somepoint somepoint') \with {
+    | yes e => absurd (different-points e)
+    | no n => exts
   }
   -- basic definitions to work easier
   \func R_m : LModule R => RingLModule R
@@ -82,8 +86,6 @@ Also, this does not make much sense over a trivial ring, thus we eliminate this 
         \func aux(r : R)(j j' : X) : invSubMod r j = invSubMod r j' => idp
       }
 
-\func check => List
-
   \func invSubRepr : SubLinRepres Repr \cowith
     | S => R_m-triv
     | in => \new InterwiningMap {
@@ -92,21 +94,22 @@ Also, this does not make much sense over a trivial ring, thus we eliminate this 
     }
     | in-mono => \lam {a a' : R} (p : invSubMod a = invSubMod a') => rewrite (inv (inv-rev a), inv (inv-rev a'), p) idp
 
-\func Non-constant-vector : Repr => helper
-  \where {
-    \func helper (j : X) : R => \case decideEq-somepoint j \with {
-      | yes e => R.ide
-      | no n => R.zro
-    }
-    \func equation-1 : helper somepoint = R.ide => unfold helper $ rewrite f idp
-
-    \func equation-2 : Non-constant-vector somepoint' = R.zro => {?}
+\func Non-constant-vector : Repr => \lam (j : X) => \case decideEq-somepoint j \with {
+  | yes e => R.ide
+  | no n => R.zro
+}\where {
+    \func equation-1 : Non-constant-vector somepoint = R.ide => unfold Non-constant-vector $ rewrite somepoints-equality-1 idp
+    \func equation-2 : Non-constant-vector somepoint' = R.zro => unfold Non-constant-vector $ rewrite somepoints-equality-2 idp
   }
 
+{- | We prove that $span(1,1,\ldots)$ is neither zero submodule nor does it
+   - contain the whole space. To prove the second claim we show that
+  Non-constant-vector does not lie in the image of invSubMod map.  -}
   \func SubRepr-non-trivial : Not invSubRepr.isTrivial => \lam p => \case \elim p \with {
     | byLeft zeromod => not-trivial-ring (inv (zeromod R.ide))
     | byRight isSurj-in => \case isSurj-in Non-constant-vector \with {
-      | inP a => not-trivial-ring ()
+      | inP a => not-trivial-ring (rewrite (inv Non-constant-vector.equation-1,
+                                            inv Non-constant-vector.equation-2, inv a.2, fixed-submodule.aux a.1 somepoint' somepoint) idp)
     }
   }
 
