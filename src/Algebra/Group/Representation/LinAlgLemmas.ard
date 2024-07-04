@@ -21,6 +21,7 @@
 \import Function.Meta ($)
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
@@ -32,9 +33,42 @@
 
 \func isZeroMap{R : Ring}{M N : LModule R}(f : LinearMap M N) => \Pi(m : M) -> f m = 0
 
-\func Mod:AllIsKernel=>Zero-func{R : Ring}{M N : LModule R}{f : LinearMap M N}(p : isSurj (KerLModuleHom f)) : isZeroMap f => {?}
+\func Mod:ZeroIm=>Zero-func {R : Ring}{M N : LModule R}{f : LinearMap M N}(p : ZeroMod (ImageLModule f)) : isZeroMap f
+  => \lam (m : M) => rewrite (inv (aux-2 m), p (aux-1 m), LinearMap.func-zro {ImageLModuleRightHom f}) idp
+      \where{
+        \func aux-1 (m : M) : ImageLModule f => (f m , inP(m ,idp))
+        \func aux-2 (m : M) : ImageLModuleRightHom f (aux-1 m) = f m => idp
+      }
 
-\func OneDimSubmod{R : Ring} {L : LModule R} (v : L) : SubLModule R L \cowith
+\func Mod:FullKer=>Zero-func{R : Ring}{M N : LModule R}{f : LinearMap M N}(p : isSurj (KerLModuleHom f)) : isZeroMap f
+  => \lam (m : M) => \case  p m \with {
+    | inP a => rewrite (inv a.2, a.1.2) idp
+  }
+
+\func Mod:zeroKer-FullIm<->inj+surj{R : Ring}{M N : LModule R}{f : LinearMap M N}:
+  (\Sigma (isInj f) (isSurj f)) <-> (\Sigma (ZeroMod (KerLModule f))(isSurj (ImageLModuleRightHom f)))
+  => (\lam p => (inj->zeroKer p.1, surj->FullIm p.2),
+      \lam p => (zeroKer->inj p.1, FullIm->surj p.2)
+     )
+\where{
+  \func inj->zeroKer (p : isInj f) : ZeroMod (KerLModule f) => \lam (a : KerLModule f) =>
+      ext (p {a.1} {M.zro} (rewrite (a.2, f.func-zro) idp))
+  \func surj->FullIm (p : isSurj f) : isSurj (ImageLModuleRightHom f) => \lam (n : N) =>
+      TruncP.map (p n) \lam s => ((n, inP s), idp)
+  \func zeroKer->inj (w : ZeroMod (KerLModule f)) : isInj f => \lam {a b : M} (p : f a = f b) =>
+      M.fromZero (simple-lemma3 (a - b, rewrite (f.func-minus, N.toZero p ) idp) (w (a - b, rewrite (f.func-minus, N.toZero p ) idp))) -- ext (w (a - b, rewrite (f.func-minus, simple-lemma2 p ) idp))
+  \func FullIm->surj (p : isSurj (ImageLModuleRightHom f)) : isSurj f => \lam (n : N) =>
+  \case p n \with {
+    | inP a => TruncP.map a.1.2 \lam s => (s.1, rewrite (s.2, a.2) idp)
+  }
+  \func simple-lemma3 (x : KerLModule f)(p : x = LModule.zro {KerLModule f}) : x.1 = LModule.zro {M} => {?}
+}
+
+\lemma Mod:iso<->zeroKer-FullIm{R : Ring}{M N : LModule R}{f : LinearMap M N} :
+  Iso f <-> (\Sigma (ZeroMod (KerLModule f))(isSurj (ImageLModuleRightHom f))) => <->trans LinearMap.iso<->inj+surj Mod:zeroKer-FullIm<->inj+surj
+
+
+  \func OneDimSubmod{R : Ring} {L : LModule R} (v : L) : SubLModule R L \cowith
   | contains u => ∃(r : R)(r *c v = u)
   | contains_zro => inP(0, L.*c_zro-left)
   | contains_+ p q => \case \elim p, \elim q \with {
