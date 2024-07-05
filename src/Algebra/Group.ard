@@ -1,3 +1,4 @@
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
 \import Data.Array
@@ -13,8 +14,15 @@
 
 \class Group \extends CancelMonoid {
   | inverse : E -> E
+
   | inverse-left {x : E} : inverse x * x = ide
-  | inverse-right {x : E} : x * inverse x = ide
+  | inverse-right {x : E}: x * inverse x = ide
+
+  \default inverse-left {x} => Group.make-inverse-left E (*) ide inverse *-assoc ide-right inverse-right x
+  \default inverse-right {x} => Group.make-inverse-left E (\lam (x y : E) => y * x) ide inverse (\lam {x y z : E} => inv (*-assoc {_} {z} {y} {x})) ide-left inverse-left x
+
+  \default ide-left {x} => make-ide-left E (*) ide inverse *-assoc ide-right inverse-right inverse-left x
+  \default ide-right {x} => make-ide-left E (\lam (x y : E) => y * x) ide inverse (\lam {x y z : E} => inv (*-assoc {_} {z} {y} {x})) ide-left inverse-left inverse-right x
 
   | cancel_*-left x {y} {z} p =>
       y                   ==< inv ide-left >==
@@ -96,6 +104,45 @@
                 (\new Inv e (inverse e) inverse-left inverse-right)
                 (\new Inv e' (inverse e') inverse-left inverse-right)
     }
+
+  \lemma make-inverse-left (X : \Set) (* : X -> X -> X) (ide : X) (inverse : X -> X)
+                           (*-assoc : \Pi {x y z : X} -> * (* x y) z = * x (* y z))
+                           (ide-right : \Pi {x : X} -> * x ide = x)
+                           (inverse-right : \Pi {x : X} -> * x (inverse x) = ide)
+                           (x : X) : * (inverse x) x = ide =>
+    \have
+      | inverse-x-idempotent : * (* (inverse x) x) (* (inverse x) x) = * (inverse x) x =>
+        * (* (inverse x) x) (* (inverse x) x) ==< *-assoc >==
+        * (inverse x) (* x (* (inverse x) x)) ==< pmap (* (inverse x)) (inv *-assoc) >==
+        * (inverse x) (* (* x (inverse x)) x) ==< cong inverse-right >==
+        * (inverse x) (* ide x)               ==< inv *-assoc >==
+        * (* (inverse x) ide) x               ==< cong ide-right >==
+        * (inverse x) x                       `qed
+      | idempotent-is-trivial {a : X} (a-idempotent : * a a = a) : a = ide =>
+        a                     ==< inv ide-right >==
+        * a ide               ==< cong (inv inverse-right) >==
+        * a (* a (inverse a)) ==< inv *-assoc >==
+        * (* a a) (inverse a) ==< cong a-idempotent >==
+        * a (inverse a)       ==< inverse-right >==
+        ide                 `qed
+    \in idempotent-is-trivial inverse-x-idempotent
+
+  \lemma make-ide-left (X : \Set) (* : X -> X -> X) (ide : X) (inverse : X -> X)
+                       (*-assoc : \Pi {x y z : X} -> * (* x y) z = * x (* y z))
+                       (ide-right : \Pi {x : X} -> * x ide = x)
+                       (inverse-right : \Pi {x : X} -> * x (inverse x) = ide)
+                       (inverse-left : \Pi {x : X} -> * (inverse x) x = ide)
+                       (x : X) : * ide x = x =>
+    * ide x                ==< pmap (* __ x) (inv inverse-right) >==
+    * (* x (inverse x)) x  ==< *-assoc >==
+    * x (* (inverse x) x)  ==< cong inverse-left >==
+    * x ide                ==< ide-right >==
+    x                      `qed
+
+
+  \lemma inverse-inverse {G : Group} (g : G) : inverse (inverse g) = g => cancel_*-left (inverse g) (rewrite (inverse-left, inverse-right) idp)
+
+  \lemma inverse-ide {G : Group}: G.inverse G.ide = G.ide => cancel_*-left G.ide (rewrite inverse-right (rewrite ide-left idp))
 }
 
 \func conjugate {E : Group} (g : E) (h : E) : E => g * h * inverse g
@@ -104,17 +151,15 @@
   conjugate E.ide g ==< idp >==
   E.ide * g * inverse E.ide ==< E.*-assoc >==
   E.ide * (g * inverse E.ide) ==< E.ide-left >==
-  g * (inverse E.ide) ==< pmap (g * ) E.inverse_ide >==
+  g * inverse E.ide ==< pmap (g * ) E.inverse_ide >==
   g * E.ide ==< E.ide-right >==
   g `qed
 
 \func conjugate-id  {E : Group} (g : E) : conjugate g E.ide = E.ide =>
   conjugate g E.ide ==< idp >==
-  g * E.ide * (inverse g) ==< pmap (\lam z => z * (inverse g)) E.ide-right >==
-  g * (inverse g) ==< E.inverse-right >==
+  g * E.ide * inverse g ==< pmap (\lam z => z * inverse g) E.ide-right >==
+  g * inverse g ==< E.inverse-right >==
   E.ide `qed
-
-
 
 \func \infixl 7 / {G : Group} (x y : G) => x * inverse y
 
