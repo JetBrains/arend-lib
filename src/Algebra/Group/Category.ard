@@ -4,7 +4,7 @@
 \import Algebra.Monoid.Category
 \import Algebra.Pointed
 \import Algebra.Pointed.Category
-\import Category (Cat, Precat)
+\import Category (Cat, Iso, Precat)
 \import Category.Functor
 \import Category.Meta
 \import Category.Subcat
@@ -13,6 +13,7 @@
 \import Function.Meta
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Paths
 \import Paths.Meta
 \import Set.Category
@@ -71,6 +72,66 @@
   \func isIsomorphism : \Prop => \Sigma (isInj func) (isSurj func)
 }
 
+\func Group:Iso<->Inj+Surj {G H : Group}(f : GroupHom G H) : Iso {GroupCat} f <-> f.isIsomorphism
+  => (\lam p => SetIso->Inj+Surj (forgetfulSetFunctorGrp.Func-iso p),
+      \lam p => \new Iso {
+        | hinv => \new GroupHom {
+          | func => inve p
+          | func-ide => aux (this_iso p) f.func-ide
+          | func-* {x y : H} => rewrite (this_inv_ap p x, this_inv_ap p y,
+                                         inv f.func-*, inv $ inv_this_ap p (inve p x G.* inve p y),
+                                         inv $ this_inv_ap p x, inv $ this_inv_ap p y ) idp
+        }
+        | hinv_f => exts (\lam e => unfold (inv $ (inv_this_ap p e)))
+        | f_hinv => exts (\lam e => unfold (inv $ (this_inv_ap p e)))
+      } )
+\where {
+
+  {- | some  set theoretic lemmas -}
+
+  \func this_inv_ap (p : f.isIsomorphism) (h : H) : h = Iso.f {this_iso p} (inve p h) => inv
+    (path \lam i => (Iso.f_hinv {this_iso p} i) h)
+
+  \func inv_this_ap (p : f.isIsomorphism)(g : G) : g = inve p (Iso.f {this_iso p} g) => inv
+      (path \lam i => (Iso.hinv_f {this_iso p} i) g)
+
+  \func this_iso (p : f.isIsomorphism) => Inj+Surj->SetIso f p.1 p.2
+
+  \func inve (p : f.isIsomorphism) => Iso.hinv {this_iso p}
+
+  \func aux {A B : \Set}(f : Iso {SetCat} {A} {B}) {a : A}{b : B}(p : f.f a = b) : f.hinv b = a => inv(
+    rewrite ( aux' f {a}, p) idp)
+
+  \func aux'{A B : \Set}(f : Iso {SetCat} {A} {B}) {a : A} : a = f.hinv (f.f a)
+    => inv (path (\lam i => (f.hinv_f i) a))
+
+  \func aux''{A B : \Set}(f : Iso {SetCat} {A} {B}) {b : B} : b = f.f (f.hinv b)
+    => inv (path (\lam i => (f.f_hinv i) b))
+
+  \func SetIso->Inj+Surj(f : Iso {SetCat}) : \Sigma (isInj f.f)(isSurj f.f) =>
+    (Equiv.isInj {SetIso->Equiv f}, Equiv.isSurj {SetIso->Equiv f})
+
+  \func Inj+Surj->SetIso {X Y : \Set} (f : X -> Y) (p : isInj f)(q : isSurj f) : Iso {SetCat} f => Equiv->SetIso (Equiv.fromInjSurj f p q)
+
+  \func Equiv->SetIso {X Y : \Set}{f : X -> Y} : Equiv f -> Iso {SetCat} f => \lam eq => \new Iso f {
+    | hinv => Equiv.ret {eq}
+    | hinv_f => ext (Equiv.ret_f {eq})
+    | f_hinv => ext (Equiv.f_ret {eq})
+  }
+  \func SetIso->Equiv{X Y : \Set} {f : X -> Y} : Iso {SetCat} f -> Equiv f => \lam p => \new QEquiv {
+    | ret => Iso.hinv {p}
+    | ret_f x => inv (aux' p {x})
+    | f_sec y => inv (aux'' p {y})
+  }
+}
+
+\lemma Group:Iso<->TrivialKer+Surj {G H : Group}(f : GroupHom G H) :
+  Iso {GroupCat} f <-> (\Sigma f.TrivialKernel (isSurj f)) =>
+  <->trans (Group:Iso<->Inj+Surj f) helper
+      \where \func helper : (\Sigma (isInj f)(isSurj f)) <-> (\Sigma f.TrivialKernel (isSurj f)) =>
+        (\lam p => (f.Kernel-injectivity-corrolary p.1, p.2),
+         \lam p => (f.Kernel-injectivity-test p.1, p.2))
+
 \func quotient-map {S : Group} {H : NormalSubGroup S} : GroupHom S H.quotient \cowith
   | func (s : S) => NormalSubGroup.quotient-proj-setwise s
   | func-ide => idp
@@ -101,6 +162,22 @@
   | inverse-left => ext inverse-left
   | inverse-right => ext inverse-right
 
+\func ImageGroupLeftHom (f : GroupHom) : GroupHom f.Dom (ImageGroup f) \cowith
+  | MonoidHom => ImageMonoidLeftHom f
+
+\func ImageGroupRightHom (f : GroupHom) : GroupHom (ImageGroup f) f.Cod \cowith
+  | MonoidHom => ImageMonoidRightHom f
+
+
+\func ImageSubGroup(f : GroupHom) : SubGroup f.Cod \cowith
+  | contains h => ∃(g : f.Dom)(f g = h)
+  | contains_ide => inP (Group.ide {f.Dom}, f.func-ide)
+  | contains_* cont1 cont2 => \case \elim  cont1, \elim  cont2 \with {
+    | inP a, inP b => inP(a.1 * b.1, rewrite (f.func-*, a.2, b.2) idp)
+  }
+  | contains_inverse cont1 => \case \elim cont1 \with {
+    | inP a => inP (inverse a.1, rewrite (f.func-inverse, a.2) idp)
+  }
 
 \record AddGroupHom \extends AddMonoidHom {
   \override Dom : AddGroup
@@ -191,12 +268,19 @@
   | negative-left => ext negative-left
   | negative-right => ext negative-right
 
-\func ImageGroupLeftHom (f : AddGroupHom) : AddGroupHom f.Dom (ImageAddGroup f) \cowith
-  | AddMonoidHom => ImageMonoidLeftHom f
+\func ImageAddGroupLeftHom (f : AddGroupHom) : AddGroupHom f.Dom (ImageAddGroup f) \cowith
+  | AddMonoidHom => ImageAddMonoidLeftHom f
 
-\func ImageGroupRightHom (f : AddGroupHom) : AddGroupHom (ImageAddGroup f) f.Cod \cowith
-  | AddMonoidHom => ImageMonoidRightHom f
+\func ImageAddGroupRightHom (f : AddGroupHom) : AddGroupHom (ImageAddGroup f) f.Cod \cowith
+  | AddMonoidHom => ImageAddMonoidRightHom f
 
 \instance ImageAbGroup {A : AddGroup} {B : AbGroup} (f : AddGroupHom A B) : AbGroup
   | AddGroup => ImageAddGroup f
   | AbMonoid => ImageAbMonoid f
+
+\func forgetfulSetFunctorGrp : FaithfulFunctor GroupCat SetCat \cowith
+  | F G => G
+  | Func f => f
+  | Func-id => idp
+  | Func-o => idp
+  | isFaithful => \lam p => ext p
