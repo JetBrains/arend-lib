@@ -1,0 +1,146 @@
+\import Algebra.Group
+\import Algebra.Group.Sub
+\import Algebra.Monoid
+\import Algebra.Monoid.Category
+\import Algebra.Pointed
+\import Algebra.Pointed.Category
+\import Category (Cat, Precat)
+\import Category.Functor
+\import Category.Meta
+\import Category.Subcat
+\import Equiv
+\import Function
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set.Category
+\import Algebra.Group.Category
+\open Group
+\open Algebra.Group.Sub
+
+\func \infix 7 // (G : Group) (H : NormalSubGroup G) : Group => H.quotient
+
+{- | properties needed from a commutative triangle $$X \to Y \to Z$$ in the category of groups -}
+\class GroupTriangle \noclassifying (X Y Z : Group) (f : GroupHom X Y) (g : GroupHom Y Z) (h : GroupHom X Z)(comm : h = g GroupCat.∘ f){
+
+  \lemma surjectivity-2-out-3  (p : isSurj h) (q : isSurj f) : isSurj g
+  => \lam (z : Z) => surjectivity-2-out-3-pw p q z
+
+    \lemma surjectivity-2-out-3-pw  (p : isSurj h) (q : isSurj f) (z : Z): ∃ (y : Y) (g y = z) =>
+      \case p z \with {
+        | inP a => inP (f a.1, g (f a.1) ==< helper >== h a.1 ==<  a.2 >== z `qed)
+      }
+      \where \lemma helper {a : X} : g (f a) = h a =>
+        g (f a)             ==< idp >==
+        (g GroupCat.∘ f) a  ==< pmap (\lam (e : GroupHom X Z) => e a) (inv comm) >==
+        h a `qed
+}
+
+
+\class UniversalGroupQuotient \noclassifying  (G H : Group)(f : GroupHom G H)(N : NormalSubGroup G)(p : N SubGroupPreorder.<= f.Kernel){
+  {- | a set function that having $G, H$ and $f : G \to H$ and a
+   -    normal subgroup $N \leq G$ s.t. $N \leqslant \ker(f)$ produces for each element of $G/N$ an element of $H$.
+   - One gets a diagram of the form
+   - $$G \xrightarrow{\pi} G/N \xrightarrow{\text{this\,  function}} H $$ -}
+  \func universalQuotientMorphismSetwise (a : N.quotient) : H \elim a
+    | in~ n => f n
+    | ~-equiv y x r => equality-check (inverse (f y) * (f x) ==< pmap (\lam y => y * (f x)) (inv f.func-inverse) >==
+    f (inverse y) * (f x) ==< inv func-* >==
+    f (inverse y * x) ==< lemma' f N p r >== ide `qed)
+    \where
+      \lemma lemma' {x y : G} (f : GroupHom G H) (N : NormalSubGroup G) (p : N SubGroupPreorder.<= f.Kernel)
+                    (r : N.contains ((inverse y) * x)) : f (inverse y * x) = ide =>
+        f (inverse y * x) ==< p ((inverse y) * x) r >== ide `qed
+
+
+  {- | this a synonym for universalQuotientMorphismSetwise used because it is shorter-}
+  \func uqms  => universalQuotientMorphismSetwise
+
+
+  {- | this is a proof that in the previous assumptions the function
+   - universalQuotientMorphismSetwise is multiplicative -}
+  \lemma universalQuotientMorphismMultiplicative (x y : N.quotient) : uqms (x N.quotient.* y) = (uqms x) * (uqms y) \elim x, y
+    | in~ a, in~ a1 => uqms  ((in~ a) N.quotient.* (in~ a1)) ==< idp >==
+                    uqms (in~ (a * a1)) ==< idp >==
+                    f (a * a1) ==< f.func-* >==
+                    (f a) * (f a1) ==< pmap ((f a)*) idp >==
+                    (f a) * uqms  (in~ a1) ==< pmap (\lam x => x * uqms (in~ a1)) idp >==
+                   (uqms  (in~ a)) * (uqms (in~ a1)) `qed
+
+
+  {- | this is a function which gives the homomorphism in the universal property
+   - of quotient groups. Basically, it proves
+   - that the function universalQuotientMorphismSetwise
+   - indeed gives a group homomorphism. Thus the arrow $G/N \xrightarrow{\text{uqms}} H$ indeed lies in Group-}
+  \func universalQuotientMorph  : GroupHom (G // N) H \cowith
+    | func => uqms
+    | func-ide => uqms  N.quotient.ide ==< idp >== uqms  (in~ 1) ==< idp >== f ide ==< f.func-ide >== ide `qed
+    | func-* {x y : N.quotient} => universalQuotientMorphismMultiplicative x y
+
+
+  \lemma universalQuotientProperty :  universalQuotientMorph GroupCat.∘ quotient-map = f
+    => exts (\lam (x : G) => (universalQuotientMorph GroupCat.∘ quotient-map) x ==< idp >==
+    universalQuotientMorph (quotient-map x) ==< idp >==
+    universalQuotientMorph (in~ x) ==< idp >== f x `qed)
+}
+
+{- | Now we apply all of these universal properties to the case when $N = \ker f$ and we get the first isomorphism theorem in the end-}
+\class FirstIsomorphismTheorem \noclassifying (G : Group) (H : Group) (f : GroupHom G H) {
+
+  \func UniversalProperties : UniversalGroupQuotient {| G => G | H => H | f => f} \cowith
+    | N => f.Kernel
+    | p => SubGroupPreorder.<=-refl
+
+  \func Triangle : GroupTriangle \cowith
+    | X => G
+    | Y => G // f.Kernel
+    | Z => H
+    | f => quot
+    | g => UniversalProperties.universalQuotientMorph
+    | h => f
+    | comm => UniversalProperties.universalQuotientProperty
+
+  \func univ : GroupHom (G // f.Kernel) H => UniversalProperties.universalQuotientMorph
+  \func quot : GroupHom G (G // f.Kernel) => quotient-map
+
+  \lemma universalKerProp : univ GroupCat.∘ quot = f
+    => UniversalProperties.universalQuotientProperty
+
+  \lemma universalQuotientKernel (g : G // f.Kernel)
+                                 (q : univ g = ide) : g = f.Kernel.quotient.ide
+    => \case g \as b, idp : g = b \return b = f.Kernel.quotient.ide\with{
+      | in~ a, p => inv (f.Kernel.criterionForKernel a (universalQuotientKernel' a  (transport (\lam z => univ z = ide) p q))
+                        )
+    }
+    \where{
+      \lemma helper-1 (a : G) (q : univ (in~ a) = ide) : in~ a = f.Kernel.quotient.ide =>
+        inv (f.Kernel.criterionForKernel a (universalQuotientKernel' a q))
+    }
+
+
+  \lemma evidTrivKer : univ.TrivialKernel =>
+    \lam {g : G // f.Kernel} (p : univ.Kernel.contains g) => universalQuotientKernel g p
+
+  \lemma universalQuotientKernel'  (a : G)
+                                  (q : univ (in~ a) = ide) : f.Kernel.contains a
+    =>
+      f a ==< inv (technical-helper a) >==
+      univ (in~ a) ==< q >==
+      ide `qed
+    \where \lemma technical-helper  (a : G) : univ (in~ a) = f a =>
+      univ (in~ a) ==< pmap univ {in~ a} {quot a} idp >==
+      univ (quot a) ==< idp >==
+      (univ GroupCat.∘ quot) a ==< pmap (\lam (z : GroupHom G H) => z a) universalKerProp >==
+      f a `qed
+
+
+  \lemma univKer-mono : isInj univ.func => univ.Kernel-injectivity-test evidTrivKer
+
+  \lemma univKer-epi (p : isSurj f): isSurj univ
+    => Triangle.surjectivity-2-out-3 p f.Kernel.quotIsSurj
+
+  \lemma FirstIsoTheorem (p : isSurj f) : univ.isIsomorphism => (univKer-mono, univKer-epi p)
+}

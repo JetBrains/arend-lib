@@ -1,0 +1,99 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Arith.Rat
+\import Arith.Real
+\import Arith.Real.Field
+\import Function.Meta
+\import Logic
+\import Meta
+\import Operations
+\import Order.Lattice
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Product
+\import Topology.MetricSpace
+\import Topology.NormedAbGroup
+\import Topology.NormedAbGroup.Real
+\import Topology.UniformSpace
+\import Topology.UniformSpace.Product
+\open Monoid(pow)
+\open LinearlyOrderedAbMonoid
+\open LinearlyOrderedSemiring
+
+\class PseudoNormedRing \extends PseudoNormedAbGroup, Ring
+  | norm_*_<= {x y : E} : norm (x * y) <= norm x RealField.* norm y
+  | norm_ide_<= : norm 1 <= 1
+
+\class PseudoNormedCRing \extends PseudoNormedRing, CRing
+
+\lemma *-locally-uniform {X : PseudoNormedRing} : LocallyUniformMap (X ⨯ X) X (\lam s => s.1 * s.2)
+  => LocallyUniformMetricMap.makeLocallyUniformMap2 (*) \lam {eps} eps>0 => inP (1, RealAbGroup.zro<ide, \lam x0 y0 =>
+      \let | lem : 0 < norm x0 + norm y0 + 3 => linarith (norm>=0 {_} {x0}, norm>=0 {_} {y0})
+           | gamma => (RealField.pinv lem * eps) ∧ 1
+           | gamma>0 : 0 < gamma => LinearOrder.<_meet-univ (RealField.<_*_positive_positive (RealField.pinv>0 lem) eps>0) zro<ide
+      \in inP (gamma, gamma>0, \lam {x} {x'} {y} {y'} x0x<1 y0y<1 xx'<gamma yy'<gamma =>
+          rewrite norm-dist at xx'<gamma $ rewrite norm-dist at yy'<gamma $ rewrite norm-dist at x0x<1 $ rewrite norm-dist at y0y<1 $ rewrite norm-dist $
+          rewrite (equation : x * y - x' * y' = x * (y - y') + (x - x') * y') $ norm_+ <∘r
+            <=_+ norm_*_<= norm_*_<= <∘r later (<=_+ (<=_*_positive-right norm>=0 $ LinearOrder.<_<= yy'<gamma) (<=_*_positive-left (LinearOrder.<_<= xx'<gamma) norm>=0) <∘r
+              rewrite {2} *-comm (transport (`< _) rdistr $ <_*_positive-left (linarith (norm_-right {_} {x0} {x}, norm_-right {_} {y0} {y}, norm_-right {_} {y} {y'}, meet-right : gamma <= 1) : norm x + norm y' < norm x0 + norm y0 + 3) gamma>0 <∘l
+                <=_*_positive-right (LinearOrder.<_<= lem) meet-left <=∘ Preorder.=_<= (inv *-assoc *> pmap (`* _) (OrderedField.pinv-right lem) *> ide-left)))))
+
+\lemma pow-cover {X : PseudoNormedRing} (n : Nat) : CoverMap X X (pow __ n) \elim n
+  | 0 => CoverMap.const 1
+  | suc n => *-locally-uniform CoverMap.∘ ProductCoverSpace.tuple (pow-cover n) CoverMap.id
+
+\class NormedRing \extends PseudoNormedRing, NormedAbGroup
+
+\class NormedCRing \extends NormedRing, PseudoNormedCRing
+
+\class CompleteNormedRing \extends NormedRing, CompleteNormedAbGroup
+
+\class CompleteNormedCRing \extends CompleteNormedRing, NormedCRing
+
+\lemma norm_zro_ide {X : PseudoNormedRing} : (X.norm 1 = (0 : Real)) || (X.norm 1 = (1 : Real))
+  => \have t => rewrite ide-left in X.norm_*_<= {1} {1}
+     \in \case RealField.locality_- (X.norm 1) \with {
+      | byLeft q => byRight $ <=-antisymmetric norm_ide_<= $ RealField.<=_Inv-cancel-left q norm>=0 $ transportInv (`<= _) ide-right t
+      | byRight q => byLeft $ <=-antisymmetric (RealField.<=_Inv-cancel-left q (linarith norm_ide_<=) $ transport2 (<=) (inv rdistr) (inv zro_*-right) $ later $ rewrite (ide-left,Ring.negative_*-left) linarith) norm>=0
+    }
+
+\lemma norm_ide=0 {X : PseudoNormedRing} (p : X.norm 1 = (0 : Real)) {x : X} : norm x = (0 : Real)
+  => pmap norm (inv ide-right) *> <=-antisymmetric (norm_*_<= <=∘ rewrite (p,RealField.zro_*-right) <=-refl) norm>=0
+
+\lemma norm_<=_pow {X : PseudoNormedRing} {x : X} {n : Nat} : norm (pow x n) <= pow (norm x) n \elim n
+  | 0 => norm_ide_<=
+  | suc n => norm_*_<= <=∘ RealField.<=_*_positive-left norm_<=_pow norm>=0
+
+\class PseudoValuedRing \extends PseudoNormedRing
+  | norm_* {x y : E} : norm (x * y) = norm x RealField.* norm y
+  | norm_ide : norm 1 = (1 : Real)
+  | norm_*_<= => Preorder.=_<= norm_*
+  | norm_ide_<= => Preorder.=_<= norm_ide
+
+\class PseudoValuedCRing \extends PseudoValuedRing, PseudoNormedCRing
+
+\class ValuedRing \extends PseudoValuedRing, NormedRing
+
+\class ValuedCRing \extends ValuedRing, NormedCRing
+
+\class CompleteValuedRing \extends ValuedRing, CompleteNormedRing
+
+\class CompleteValuedCRing \extends CompleteValuedRing, CompleteNormedCRing
+
+\lemma norm_pow {X : PseudoValuedRing} {x : X} {n : Nat} : norm (pow x n) = pow (norm x) n \elim n
+  | 0 => norm_ide
+  | suc n => norm_* *> pmap (`* _) norm_pow
+
+\instance RealValuedRing : CompleteValuedCRing Real
+  | CompleteNormedAbGroup => RealNormed
+  | CRing => RealField
+  | norm_* => RealField.abs_*
+  | norm_ide => RealField.abs-ofPos $ LinearOrder.<_<= zro<ide

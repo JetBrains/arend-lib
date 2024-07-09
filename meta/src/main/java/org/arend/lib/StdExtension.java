@@ -270,7 +270,7 @@ public class StdExtension implements ArendExtension {
     MetaDefinition apply = new ApplyMeta(this);
     ModulePath function = ModulePath.fromString("Function.Meta");
     contributor.declare(function, new LongName("$"), "`f $ a` returns `f a`", new Precedence(Precedence.Associativity.RIGHT_ASSOC, (byte) 0, true), apply);
-    contributor.declare(function, new LongName("#"), "`f # a` returns `f a`", new Precedence(Precedence.Associativity.LEFT_ASSOC, (byte) 0, true), apply);
+    contributor.declare(function, new LongName("#'"), "`f #' a` returns `f a`", new Precedence(Precedence.Associativity.LEFT_ASSOC, (byte) 0, true), apply);
     contributor.declare(function, new LongName("repeat"),
       """
         `repeat {n} f x` returns `f^n(x)

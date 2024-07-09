@@ -1,0 +1,115 @@
+\import Data.Bool
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Operations
+\import Order.Directed
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths.Meta
+\import Set.Filter
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Product
+\open Bounded(top,top-univ)
+
+\func DirectedCoverSpace (I : DirectedSet) : CoverSpace I
+  => RegPrecoverSpace precover
+  \where {
+    \func precover : PrecoverSpace I \cowith
+      | isCauchy C => \Sigma (∃ (U : C) (N : I) (\Pi {n : I} -> N <= n -> U n)) (\Pi (n : I) -> ∃ (V : C) (V n))
+      | cauchy-cover => __.2
+      | cauchy-top => \case I.isInhabitted \with {
+        | inP n => (inP (top, idp, n, \lam _ => ()), \lam n => inP (top, idp, ()))
+      }
+      | cauchy-refine Cc C<D => \case Cc.1 \with {
+          | inP (U,CU,N,g) => (\case C<D CU \with {
+            | inP (V,DV,U<=V) => inP (V, DV, N, \lam p => U<=V (g p))
+          }, \lam n => \case Cc.2 n \with {
+            | inP (V,CV,Vn) => \case C<D CV \with {
+              | inP (W,DW,V<=W) => inP (W, DW, V<=W Vn)
+            }
+          })
+        }
+      | cauchy-glue Cc Dc => (\case Cc.1 \with {
+          | inP (U,CU,N,g) => \case (Dc CU).1 \with {
+            | inP (V,DUV,M,h) => \case isDirected N M \with {
+              | inP (L,N<=L,M<=L) => inP (U ∧ V, inP (U, V, CU, DUV, idp), L, \lam L<=n => (g $ N<=L <=∘ L<=n, h $ M<=L <=∘ L<=n))
+            }
+          }
+        }, \lam n => \case Cc.2 n \with {
+          | inP (U,CU,Un) => \case (Dc CU).2 n \with {
+            | inP (V,DUV,Vn) => inP (U ∧ V, inP (U, V, CU, DUV, idp), (Un, Vn))
+          }
+        })
+
+    \lemma makePrecover (N : I) : precover.isCauchy \lam V => (V = \lam n => N <= n) || Given (n : I) (V = single n)
+      => (inP (_, byLeft idp, N, \lam p => p), \lam n => inP (single n, byRight (n, idp), idp))
+  }
+
+\func EventualityFilter {I : DirectedSet} : CauchyFilter (DirectedCoverSpace I)
+  => regPrecoverCauchyFilter (\new ProperFilter {
+    | F U => ∃ (N : I) ∀ {n} (N <= n -> U n)
+    | filter-mono p (inP (N,f)) => inP (N, \lam q => p $ f q)
+    | filter-top => \case I.isInhabitted \with {
+      | inP x => inP (x, \lam _ => ())
+    }
+    | filter-meet (inP (N,f)) (inP (M,g)) => \case isDirected N M \with {
+      | inP (L,N<=L,M<=L) => inP (L, \lam p => (f $ N<=L <=∘ p, g $ M<=L <=∘ p))
+    }
+    | isProper (inP (N,f)) => inP (N, f <=-refl)
+  }) $ later \lam (inP (U,CU,N,g), _) => inP (U, CU, inP (N, g))
+
+\func DirectProdCover {I : DirectedSet} {X : CoverSpace} (D : Set (Set (\Sigma I X))) : \Prop
+  => \Sigma (X.isCauchy \lam U => ∃ (N : I) (V : D) (\Pi {n : I} {x : X} -> N <= n -> U x -> V (n,x))) (\Pi (n : I) -> X.isCauchy \lam U => ∃ (V : D) ∀ {x : U} (V (n,x)))
+  \where {
+    \protected \func Space : PrecoverSpace (\Sigma I X) \cowith
+      | isCauchy => DirectProdCover
+      | cauchy-cover Cc s => \case cauchy-cover (Cc.2 s.1) s.2 \with {
+        | inP (U, inP (V,CV,h), Ux) => inP (V, CV, h Ux)
+      }
+      | cauchy-top => (top-cauchy \case I.isInhabitted \with {
+        | inP N => inP $ later (N, top, idp, \lam _ _ => ())
+      }, \lam n => top-cauchy $ inP $ later (top, idp, \lam _ => ()))
+      | cauchy-refine Cc C<D => (cauchy-subset Cc.1 \lam (inP (N,V,CV,p)) => \case C<D CV \with {
+        | inP (V',DV',V<=V') => inP $ later (N, V', DV', \lam N<=n Ux => V<=V' $ p N<=n Ux)
+      }, \lam n => cauchy-subset (Cc.2 n) \lam (inP (V,CV,h)) => \case C<D CV \with {
+        | inP (V',DV',V<=V') => inP $ later (V', DV', \lam Ux => V<=V' (h Ux))
+      })
+      | cauchy-glue {C} Cc {D} Dc =>
+        (cauchy-subset (cauchy-glue Cc.1 {\lam U V => ∃ (U' : C) (N : I) (Set.Prod (N <=) U ⊆ U') (V' : D U') (Set.Prod (N <=) V ⊆ V')}
+             \lam (inP (N,U',CU',Uh)) => cauchy-subset (Dc CU').1 \lam {V} (inP (M,V',DU'V',Vh)) => \case isDirected N M \with {
+               | inP (L,L<=N,L<=M) => inP $ later (U', CU', L, \lam (p1,p2) => Uh (L<=N <=∘ p1) p2, V', DU'V', \lam (p1,p2) => Vh (L<=M <=∘ p1) p2)
+             })
+           \lam {_} (inP (U, V, _, inP (U',CU',N,Uh,V',DU'V',Vh), idp)) => inP $ later (N, U' ∧ V', inP (U', V', CU', DU'V', idp), \lam p1 p2 => (Uh (p1,p2.1), Vh (p1,p2.2))),
+         \lam n => cauchy-subset (cauchy-glue (Cc.2 n) {\lam U V => ∃ (U' : C) (V' : D U') (∀ {x : U} (U' (n,x))) (∀ {x : V} (V' (n,x)))}
+           \lam (inP (U',CU',Uh)) => cauchy-subset ((Dc CU').2 n) \lam {V} (inP (V',DU'V',Vh)) => inP $ later (U', CU', V', DU'V', Uh, Vh))
+           (\lam {_} (inP (U, V, _, inP (U',CU',V',DU'V',Uh,Vh), idp)) => inP $ later (U' ∧ V', inP (U', V', CU', DU'V', idp), \lam (p1,p2) => (Uh p1, Vh p2))))
+  }
+
+\lemma directedProdCover-char {I : DirectedSet} {X : CoverSpace} {D : Set (Set (\Sigma I X))} : isCauchy {DirectedCoverSpace.precover ⨯ X} D <-> DirectProdCover D
+  => (ClosurePrecoverSpace.closure-cauchy {_} {DirectProdCover.Space} $ later \case \elim __ \with {
+        | inP (true, (inP (U, inP (V,CV,p), N, g), h)) => (top-cauchy $ inP $ later (N, V, CV, \lam s _ => p $ g s), \lam n => \case h n \with {
+          | inP (W, inP (W',CW',WW'), Wn) => top-cauchy $ inP $ later (W', CW', \lam _ => WW' Wn)
+        })
+        | inP (false, Cc) => (cauchy-subset Cc \lam (inP (V,CV,p)) => \case I.isInhabitted \with {
+          | inP N => inP $ later (N, V, CV, \lam _ s => p s)
+        }, \lam n => cauchy-subset Cc \lam (inP (V,CV,p)) => inP $ later (V, CV, p __))
+      }, \lam Dc => cauchy-refine {DirectedCoverSpace.precover ⨯ X} (cauchy-glue {DirectedCoverSpace.precover {I} ⨯ X} (ProductPrecoverSpace.proj2.func-cover Dc.1)
+        {\lam U V => ∃ (U' : Set X) (N : I) (V' : D) (Set.Prod (N <=) U' ⊆ V') (U = (\lam s => s.2) ^-1 U') (V ⊆ (\lam s => s.1) ^-1 (N <=) || Given (V' : D) (V ⊆ V'))}
+        \lam {_} (inP (U', inP (N,U,DU,U'U), idp)) => cauchy-subset {DirectedCoverSpace.precover ⨯ X} (cauchy-glue {DirectedCoverSpace.precover {I} ⨯ X} (ProductPrecoverSpace.proj1.func-cover (DirectedCoverSpace.makePrecover N))
+            {\lam U V => ∃ (U' : Set I) (U = (\lam s => s.1) ^-1 U') ((U' = (N <=)) || Given (n : I) (U' = single n) (Un : Set X) (Vn : D) (Set.Prod (single n) Un ⊆ Vn) (V = (\lam s => s.2) ^-1 Un))} \lam {V} => \case \elim __ \with {
+              | inP (V', byLeft p, VV') => top-cauchy {DirectedCoverSpace.precover ⨯ X} $ inP $ later (V', VV', byLeft p)
+              | inP (V', byRight (n,p), VV') => cauchy-subset {DirectedCoverSpace.precover {I} ⨯ X} (ProductPrecoverSpace.proj2.func-cover (Dc.2 n))
+                  \lam {W} (inP (W', inP (Vn,DVn,h), WW')) => inP $ later (V', VV', byRight (n, p, W', Vn, DVn, \lam (p1,p2) => rewrite p1 in h p2, WW'))
+            })
+          \lam {_} (inP (U1, V, _, inP (U1',U1U1',e), idp)) => \case \elim e \with {
+            | byLeft p => inP $ later (U', N, U, DU, \lam (p1,p2) => U'U p1 p2, idp, byLeft $ rewrite (U1U1',p) meet-left)
+            | byRight (n,p,Un,Vn,DVn,q,r) => inP $ later (U', N, U, DU, \lam (p1,p2) => U'U p1 p2, idp, byRight (Vn, DVn, rewrite (U1U1',r,p) q))
+          })
+      \lam {_} (inP (U, V, _, inP (U',N,V',DV',U'V',p,e), idp)) => \case \elim e \with {
+        | byLeft q => inP (V', DV', rewrite p \lam (p1,p2) => U'V' (q p2, p1))
+        | byRight (V',DV',V<=V') => inP (V', DV', meet-right <=∘ V<=V')
+      })
