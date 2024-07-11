@@ -1,0 +1,89 @@
+\import Algebra.Group
+\import Algebra.Module
+\import Algebra.Module.LinearMap
+\import Algebra.Monoid
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Operations
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Partial
+\import Set.Subset
+\import Topology.TopAbGroup
+\import Topology.TopModule
+\import Topology.TopRing
+\import Topology.TopSpace
+\import Topology.TopSpace.Product
+\open IsDiffQuot
+\open ContMap
+\open ProductTopSpace
+
+\func IsDiffQuot {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (f : Set.Total U -> Y) (f' : DerivDom U -> Y) : \Prop
+  => ∀ {x : X} (Ux : U x) {h : R} {a : X} (Ua : U (x + h *c a)) (h *c f' ((x,(h,a)),(Ux,Ua)) = f (x + h *c a, Ua) - f (x,Ux))
+  \where {
+    \func DerivDom (U : Set X) => TopSub {X ⨯ (RingTopLModule R ⨯ X)} \lam s => \Sigma (U s.1) (U (s.1 + s.2.1 *c s.2.2))
+
+    \protected \lemma unique (f : Set.Total U -> Y) (Uo : isOpen U) (f'1 f'2 : ContMap (DerivDom U) Y) (d1 : IsDiffQuot f f'1) (d2 : IsDiffQuot f f'2) {s : DerivDom U} : f'1 s = f'2 s \elim s
+      | ((x,(h,a)),(Ux,Ua)) =>
+          \have ec => TopTransfer-lift (\lam x => \Sigma (U x.1) (U (x.1 X.+ x.2.1 X.*c x.2.2))) -- _
+              (tuple (const x) (tuple id (const a)) ∘ TopTransfer-map __.1) \lam h => later (Ux,h.2)
+          \in nearField-map-unique (func-cont {+-cont ∘ tuple (const x) (*c-cont ∘ tuple id (const a))} Uo) (f'1 ∘ ec) (f'2 ∘ ec) (\lam Uh => d1 Ux Uh *> inv (d2 Ux Uh)) Ua
+  }
+
+\func HasDeriv {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y)
+  => ∃ (f' : DerivDom U -> Y) (IsDiffQuot f f') (ContMap (DerivDom U) Y f')
+
+\lemma HasDeriv-cont {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U}
+                     {f : Set.Total U -> Y} (d : HasDeriv Uo f) : ContMap (TopSub U) Y f \cowith
+  | func-cont {V} Vo => \case \elim d \with {
+    | inP (f',f'd,f'c) => TopSpace.cover-open {TopSub U} \lam {x} Vfx =>
+        \have fc : ContMap (TopSub U) Y f => transport (ContMap (TopSub U) Y)
+            (ext \lam y => pmap (`+ _) (inv ide_*c *> f'd x.2 (\box rewrite ide_*c $ simplify y.2)) *> simplify (pmap f $ ext $ rewrite ide_*c simplify))
+            (+-cont ∘ tuple (f'c ∘ TopSub-func (tuple (const x.1) (tuple (const 1) (+-cont ∘ tuple id (const (negative x.1))))) \lam {y} Uy => unfold (x.2, rewrite ide_*c $ simplify Uy)) (const (f x)))
+        \in inP (f ^-1 V, fc.func-cont Vo, Vfx, <=-refl)
+  }
+
+\func deriv-quot {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) : Partial (DerivDom U -> Y) \cowith
+  | isDefined => HasDeriv Uo f
+  | value d => (deriv-tuple Uo f d).1
+  \where {
+    \lemma deriv-tuple {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) (d : HasDeriv Uo f)
+      : \Sigma (f' : DerivDom U -> Y) (IsDiffQuot f f') (ContMap (DerivDom U) Y f')
+        \level \lam u v => exts \lam s => IsDiffQuot.unique f Uo u.3 v.3 u.2 v.2 \elim d
+      | inP r => r
+  }
+
+\lemma deriv-isQuot {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U}
+                    {f : Set.Total U -> Y} (d : HasDeriv Uo f) : IsDiffQuot f (deriv-quot Uo f d)
+  => (deriv-quot.deriv-tuple Uo f d).2
+
+\lemma deriv-quot-cont {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U} {f : Set.Total U -> Y}
+                       (gx : ContMap R X) (gh : ContMap R R) (ga : ContMap R X) (d : HasDeriv Uo f)
+                       {V : Set R} (Vc : ∀ {h : V} Given (U (gx h)) (U (gx h + gh h *c ga h)))
+  : ContMap (TopSub V) Y (\lam h => deriv-quot Uo f d ((gx h.1, (gh h.1, ga h.1)), Vc h.2))
+  => (deriv-quot.deriv-tuple Uo f d).3 ∘ TopSub-func (tuple gx (tuple gh ga)) Vc
+
+\func deriv {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) (d : HasDeriv Uo f) (x : Set.Total U) : LinearMap X Y \cowith
+  | func a => deriv-quot Uo f d ((x.1,(0,a)), atZero)
+  | func-+ {a} {b} =>
+    \have u3 {h} u => transport U (pmap (_ +) (X.*c-ldistr {h}) *> inv +-assoc) u
+    \in nearField-map-unique (open-inter (func-cont {+-cont ∘ tuple (const x.1) (*c-cont ∘ tuple id (const (a + b)))} Uo)
+                                         (func-cont {+-cont ∘ tuple (const x.1) (*c-cont ∘ tuple id (const a))} Uo))
+          (deriv-quot-cont (const x.1) id (const (a + b)) d \lam u => later (x.2, u.1))
+          (+-cont ∘ tuple (deriv-quot-cont (const x.1) id (const a) d \lam u => later (x.2, u.2))
+                          (deriv-quot-cont (+-cont ∘ tuple (const x.1) (*c-cont ∘ tuple id (const a))) id (const b) d \lam u => later (u.2, u3 u.1)))
+          (\lam {h} u => deriv-isQuot d x.2 u.1 *> simplify (+-comm *> pmap (_ + f __) (ext $ pmap (_ +) *c-ldistr *> inv +-assoc)) *> inv (*c-ldistr *> pmap2 (+) (deriv-isQuot d x.2 u.2) (deriv-isQuot d u.2 (u3 u.1))))
+          {0} (transportInv U (pmap (_ +) X.*c_zro-left *> zro-right) x.2, transportInv U (pmap (_ +) X.*c_zro-left *> zro-right) x.2)
+        *> pmap (_ + deriv-quot Uo f d __) (ext $ ext (pmap (_ +) X.*c_zro-left *> zro-right, idp))
+  | func-*c {r} {a} => (unfold, unfold, unfold, rewrite R.zro_*-left) in nearField-map-unique (func-cont {+-cont ∘ tuple (const x.1) (*c-cont ∘ tuple id (const (r *c a)))} Uo)
+                        (deriv-quot-cont (const x.1) id (const (r *c a)) d \lam u => (x.2, u))
+                        (*c-cont ∘ tuple (const r) (deriv-quot-cont (const x.1) (*-cont ∘ tuple id (const r)) (const a) d \lam u => \box (x.2, transportInv (\lam y => U (x.1 + y)) *c-assoc u)))
+                        (\lam u => deriv-isQuot d x.2 u *> pmap (f __ - _) (ext $ pmap (_ +) (inv *c-assoc)) *> inv (deriv-isQuot d x.2 $ transportInv (\lam y => U (x.1 + y)) *c-assoc u) *> *c-assoc)
+                        {0} (transportInv U (pmap (_ +) X.*c_zro-left *> zro-right) x.2)
+  \where {
+    \protected \lemma atZero {x : Set.Total U} {a : X}
+      => (((x.1,(0,a)), (x.2, transportInv U (pmap (_ +) X.*c_zro-left *> zro-right) x.2)) : DerivDom U).2
+  }

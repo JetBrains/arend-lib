@@ -1,5 +1,5 @@
+\import Function.Meta
 \import Logic
-\import Meta
 \import Paths
 \import Paths.Meta
 \import Set
@@ -8,8 +8,7 @@
   | isDefined : \Prop
   | \coerce value : isDefined -> E
   \where {
-    \lemma partial-ext {X : \Set} {u v : Partial X} (d : u.isDefined <-> v.isDefined) (e : \Pi (p : u.isDefined) -> u p = v (d.1 p)) : u = v
-      => exts (<->_=.1 d, \lam p => e p *> pmap v prop-pi)
+    \func make {X : \Set} (P : \Prop) (f : P -> X) => \new Partial X P f
   }
 
 \func defined {X : \Set} (x : X) : Partial X \cowith
@@ -20,8 +19,11 @@
   | isDefined => Empty
   | value => \case __
 
+\lemma partial-ext {X : \Set} {u v : Partial X} (d : u.isDefined <-> v.isDefined) (e : \Pi (p : u.isDefined) (q : v.isDefined) -> u p = v q) : u = v
+  => exts (<->_=.1 d, \lam p => e p _)
+
 \lemma defined-ext {X : \Set} {u : Partial X} {x : X} (d : u.isDefined) (p : u d = x) : u = defined x
-  => Partial.partial-ext (\lam _ => (), \lam _ => d) \lam q => pmap u prop-pi *> p
+  => partial-ext (\lam _ => (), \lam _ => d) \lam q q => pmap u prop-pi *> p
   \where {
     \protected \lemma isDefined (p : u = defined x) : u.isDefined
       => transportInv (\lam x => Partial.isDefined {x}) p ()
@@ -31,4 +33,18 @@
   }
 
 \lemma undefined-ext {X : \Set} {u : Partial X} (d : Not u.isDefined) : u = undefined
-  => Partial.partial-ext (d,absurd) \lam p => absurd (d p)
+  => partial-ext (d,absurd) \lam p => absurd (d p)
+
+\lemma partial-defined {X : \Set} {u v : Partial X} (p : u = v) : u.isDefined <-> v.isDefined
+  => <->_=.2 $ pmap (isDefined {__}) p
+
+\lemma partial-value {X : \Set} {u v : Partial X} (p : u = v) {d : u.isDefined} {e : v.isDefined} : u d = v e
+  => path \lam i => p i (prop-dpi _ d e i)
+
+\func plift {X Y : \Set} (f : X -> Y) (p : Partial X) : Partial Y \cowith
+  | isDefined => p.isDefined
+  | value d => f (p d)
+
+\func plift2 {X Y Z : \Set} (f : X -> Y -> Z) (p : Partial X) (q : Partial Y) : Partial Z \cowith
+  | isDefined => \Sigma p.isDefined q.isDefined
+  | value d => f (p d.1) (q d.2)

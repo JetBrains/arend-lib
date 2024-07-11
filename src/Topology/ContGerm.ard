@@ -1,0 +1,151 @@
+\import Algebra.Group
+\import Algebra.Group.Category
+\import Algebra.Module
+\import Algebra.Monoid
+\import Algebra.Ring
+\import Algebra.Semiring
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Operations
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set.Subset
+\import Topology.TopAbGroup
+\import Topology.TopModule
+\import Topology.TopRing
+\import Topology.TopSpace
+\import Topology.TopSpace.Product
+\open ContMap
+\open MeetSemilattice
+\open Bounded(top-univ)
+
+\type ContGerm (X Y : TopSpace) (x : X)
+  => Quotient (equivalence.~)
+  \where {
+    \func equivalence : Equivalence (\Sigma (U : Set X) (isOpen U) (U x) (ContMap (TopSub U) Y)) \cowith
+      | ~ f g => ∃ (V : isOpen) (V x) (p : V ⊆ f.1) (q : V ⊆ g.1) ∀ {x : X} (Vx : V x) (f.4 (x, p Vx) = g.4 (x, q Vx))
+      | ~-transitive {f} {g} {h} (inP (U,Uo,Ux,p,_,r)) (inP (V,Vo,Vx,_,q,e)) => inP (U ∧ V, open-inter Uo Vo, (Ux,Vx), meet-left <=∘ p, meet-right <=∘ q, \lam s => pmap f.4 (ext idp) *> r s.1 *> pmap g.4 (ext idp) *> e s.2 *> pmap h.4 (ext idp))
+      | ~-reflexive {f} => inP (f.1, f.2, f.3, <=-refl, <=-refl, \lam _ => idp)
+      | ~-symmetric (inP (V,Vo,Vx,p,q,r)) => inP (V, Vo, Vx, q, p, \lam Vx => inv (r Vx))
+
+    \func comp-right {X Y Z : TopSpace} {x : X} (g : ContGerm X Y x) (h : ContMap Y Z) : ContGerm X Z x \elim g
+      | in~ (U,Uo,Ux,g) => inCG Uo Ux (h ∘ g)
+      | ~-equiv y z r => \case \elim r \with {
+        | inP (V,Vo,Vx,p,q,r) => ~-cgequiv Vo Vx p q \lam Vx => pmap h (r Vx)
+      }
+
+    \func tuple {X Y Z : TopSpace} {x : X} (f : ContGerm X Y x) (g : ContGerm X Z x) : ContGerm X (Y ⨯ Z) x \elim f, g
+      | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g) => inCG (open-inter Uo Vo) (Ux,Vx) $ ProductTopSpace.tuple (f ∘ TopSub-inc meet-left) (g ∘ TopSub-inc meet-right)
+      | in~ (U,Uo,Ux,f), ~-equiv y z r => \case \elim r \with {
+        | inP (V,Vo,Vx,p,q,r) => ~-cgequiv (open-inter Uo Vo) (Ux,Vx) (meet-monotone <=-refl p) (meet-monotone <=-refl q) \lam s => ext (pmap f $ ext idp, pmap y.4 (ext idp) *> r s.2 *> pmap z.4 (ext idp))
+      }
+      | ~-equiv y z r, in~ (V,Vo,Vx,g) => \case \elim r \with {
+        | inP (U,Uo,Ux,p,q,r) => ~-cgequiv (open-inter Uo Vo) (Ux,Vx) (meet-monotone p <=-refl) (meet-monotone q <=-refl) \lam s => ext (pmap y.4 (ext idp) *> r s.1 *> pmap z.4 (ext idp), pmap g $ ext idp)
+      }
+  }
+
+\func inCG {X Y : TopSpace} {x : X} {U : Set X} (Uo : isOpen U) (Ux : U x) (f : ContMap (TopSub U) Y) : ContGerm X Y x
+  => in~ (U,Uo,Ux,f)
+
+\sfunc inCGt {X Y : TopSpace} {x : X} (f : ContMap X Y) : ContGerm X Y x
+  => inCG open-top () $ f ∘ TopTransfer-map {\Sigma X (\property \Sigma)} __.1
+
+\lemma ~-cgequiv {X Y : TopSpace} {x : X} {u v : \Sigma (U : Set X) (isOpen U) (U x) (ContMap (TopSub U) Y)}
+  {V : Set X} (Vo : isOpen V) (Vx : V x) (p : V ⊆ u.1) (q : V ⊆ v.1) (e : \Pi {x : X} (Vx : V x) -> u.4 (x, p Vx) = v.4 (x, q Vx)) : in~ u = {ContGerm X Y x} in~ v
+  => path \lam i => ~-equiv u v (inP (V,Vo,Vx,p,q,e)) i
+  \where {
+    \lemma conv {X Y : TopSpace} {x : X} {u v : \Sigma (U : Set X) (isOpen U) (U x) (ContMap (TopSub U) Y)} (p : in~ u = {ContGerm X Y x} in~ v)
+      : ∃ (V : isOpen) (Vx : V x) (p : V ⊆ u.1) (q : V ⊆ v.1) (e : \Pi {x : X} (Vx : V x) -> u.4 (x, p Vx) = v.4 (x, q Vx))
+      => Quotient.equalityEquiv ContGerm.equivalence (\lam i => (p i : Quotient (ContGerm.equivalence.~)))
+  }
+
+\func evalCG {X Y : TopSpace} {x : X} (g : ContGerm X Y x) : Y \elim g
+  | in~ (U,Uo,Ux,g) => g (x,Ux)
+  | ~-equiv y z r => \case \elim r \with {
+    | inP (V,Vo,Vx,p,q,h) => pmap (\lam t => y.4 (x,t)) prop-pi *> h Vx *> pmap (\lam t => z.4 (x,t)) prop-pi
+  }
+
+\instance ContGermAbGroup (X : TopSpace) (Y : TopAbGroup) (x : X) : AbGroup (ContGerm X Y x)
+  | zro => inCG open-top () (const 0)
+  | + f g => ContGerm.comp-right (ContGerm.tuple f g) +-cont
+  | zro-left {f} => \case \elim f \with {
+    | in~ (U,Uo,Ux,f) => ~-cgequiv Uo Ux (\lam u => ((),u)) <=-refl \lam Ux => zro-left *> pmap f (ext idp)
+  }
+  | +-assoc {f} {g} {h} => \case \elim f, \elim g, \elim h \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g), in~ (W,Wo,Wx,h) => ~-cgequiv (open-inter Uo (open-inter Vo Wo)) (Ux,(Vx,Wx)) (\lam (u,(v,w)) => ((u,v),w)) <=-refl
+                                                            \lam _ => +-assoc *> pmap2 (f __ +) (ext idp) (pmap2 (g __ + h __) (ext idp) (ext idp))
+  }
+  | negative f => ContGerm.comp-right f negative-cont
+  | negative-left {f} => \case \elim f \with {
+    | in~ (U,Uo,Ux,f) => ~-cgequiv Uo Ux (\lam u => (u,u)) top-univ \lam _ => pmap (_ + f __) (ext idp) *> negative-left
+  }
+  | +-comm {f} {g} => \case \elim f, \elim g \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g) => ~-cgequiv (open-inter Uo Vo) (Ux,Vx) <=-refl (meet-univ meet-right meet-left)
+                                           \lam _ => pmap2 (f __ + g __) (ext idp) (ext idp) *> +-comm
+  }
+
+\instance ContGermRing (X : TopSpace) (Y : TopRing) (x : X) : Ring (ContGerm X Y x)
+  | AbGroup => ContGermAbGroup X Y x
+  | ide => inCG open-top () (const 1)
+  | * f g => ContGerm.comp-right (ContGerm.tuple f g) *-cont
+  | ide-left {f} => \case \elim f \with {
+    | in~ (U,Uo,Ux,f) => ~-cgequiv Uo Ux (\lam u => ((),u)) <=-refl \lam Ux => ide-left *> pmap f (ext idp)
+  }
+  | ide-right {f} => \case \elim f \with {
+    | in~ (U,Uo,Ux,f) => ~-cgequiv Uo Ux (\lam u => (u,())) <=-refl \lam Ux => ide-right *> pmap f (ext idp)
+  }
+  | *-assoc {f} {g} {h} => \case \elim f, \elim g, \elim h \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g), in~ (W,Wo,Wx,h) => ~-cgequiv (open-inter Uo (open-inter Vo Wo)) (Ux,(Vx,Wx)) (\lam (u,(v,w)) => ((u,v),w)) <=-refl
+                                                            \lam _ => *-assoc *> pmap2 (f __ *) (ext idp) (pmap2 (g __ * h __) (ext idp) (ext idp))
+  }
+  | ldistr {f} {g} {h} => \case \elim f, \elim g, \elim h \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g), in~ (W,Wo,Wx,h) => ~-cgequiv (open-inter Uo (open-inter Vo Wo)) (Ux,(Vx,Wx)) <=-refl (\lam (u,(v,w)) => ((u,v),(u,w)))
+                                                            \lam _ => ldistr *> pmap2 (+) (pmap2 (f __ * g __) (ext idp) (ext idp)) (pmap2 (f __ * h __) (ext idp) (ext idp))
+  }
+  | rdistr {f} {g} {h} => \case \elim f, \elim g, \elim h \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g), in~ (W,Wo,Wx,h) => ~-cgequiv (open-inter Uo (open-inter Vo Wo)) (Ux,(Vx,Wx)) (\lam (u,(v,w)) => ((u,v),w)) (\lam (u,(v,w)) => ((u,w),(v,w)))
+                                                            \lam _ => rdistr *> pmap2 (+) (pmap2 (f __ * h __) (ext idp) (ext idp)) (pmap2 (g __ * h __) (ext idp) (ext idp))
+  }
+
+\instance ContGermLModule (X : TopSpace) {R : TopRing} (Y : TopLModule R) (x : X) : LModule (ContGermRing X R x) (ContGerm X Y x)
+  | AbGroup => ContGermAbGroup X Y x
+  | *c (f : ContGerm X R x) (g : ContGerm X Y x) : ContGerm X Y x \elim f, g {
+    | in~ a, in~ b => ContGerm.comp-right (ContGerm.tuple (in~ a) (in~ b)) *c-cont
+    | in~ a, ~-equiv y z r i => ContGerm.comp-right (ContGerm.tuple (in~ a) (~-equiv y z r i)) *c-cont
+    | ~-equiv y z r i, in~ b => ContGerm.comp-right (ContGerm.tuple (~-equiv y z r i) (in~ b)) *c-cont
+  }
+  | *c-assoc {f} {g} {h} => \case \elim f, \elim g, \elim h \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g), in~ (W,Wo,Wx,h) => ~-cgequiv (open-inter Uo (open-inter Vo Wo)) (Ux,(Vx,Wx)) (\lam (u,(v,w)) => ((u,v),w)) <=-refl
+        \lam _ => *c-assoc *> pmap2 (f __ LModule. *c) (ext idp) (pmap2 (g __ LModule.*c h __) (ext idp) (ext idp))
+  }
+  | *c-ldistr {f} {g} {h} => \case \elim f, \elim g, \elim h \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g), in~ (W,Wo,Wx,h) => ~-cgequiv (open-inter Uo (open-inter Vo Wo)) (Ux,(Vx,Wx)) <=-refl (\lam (u,(v,w)) => ((u,v),(u,w)))
+        \lam _ => *c-ldistr *> pmap2 (+) (pmap2 (f __ LModule.*c g __) (ext idp) (ext idp)) (pmap2 (f __ LModule.*c h __) (ext idp) (ext idp))
+  }
+  | *c-rdistr {f} {g} {h} => \case \elim f, \elim g, \elim h \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g), in~ (W,Wo,Wx,h) => ~-cgequiv (open-inter Uo (open-inter Vo Wo)) (Ux,(Vx,Wx)) (\lam (u,(v,w)) => ((u,v),w)) (\lam (u,(v,w)) => ((u,w),(v,w)))
+        \lam _ => *c-rdistr *> pmap2 (+) (pmap2 (f __ LModule.*c h __) (ext idp) (ext idp)) (pmap2 (g __ LModule.*c h __) (ext idp) (ext idp))
+  }
+  | ide_*c {f} => \case \elim f \with {
+    | in~ (U,Uo,Ux,f) => ~-cgequiv Uo Ux (\lam u => ((),u)) <=-refl \lam Ux => ide_*c *> pmap f (ext idp)
+  }
+
+\lemma evalCGAddGroupHom {X : TopSpace} {Y : TopAbGroup} {x : X} : AddGroupHom (ContGermAbGroup X Y x) Y evalCG \cowith
+  | func-+ {f} {g} => \case \elim f, \elim g \with {
+    | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g) => pmap2 (f __ + g __) (ext idp) (ext idp)
+  }
+
+\lemma evalCG-linear {X : TopSpace} {R : TopRing} {Y : TopLModule R} {x : X} {r : R} {g : ContGerm X Y x} : evalCG (inCGt (const r) *c g) = r *c evalCG g \elim g
+  | in~ (U,Uo,Ux,g) => rewrite (\peval inCGt (const r)) $ pmap (r *c g __) (ext idp)
+
+\lemma cg-module-inj {R : NearField} {Y : HausdorffTopLModule R} {f g : ContGerm R Y 0} (p : inCGt id *c f = inCGt id *c g) : f = g \elim f, g
+  | in~ (U,Uo,Ux,f), in~ (V,Vo,Vx,g) => \case ~-cgequiv.conv $ rewrite (\peval inCGt id) in p \with {
+    | inP (W,Wo,W0,p,q,r) => ~-cgequiv Wo W0 (p <=∘ meet-right) (q <=∘ meet-right) $
+        nearField-map-unique Wo (f ∘ TopSub-inc (p <=∘ meet-right)) (g ∘ TopSub-inc (q <=∘ meet-right))
+          \lam {h} Wh => pmap (h *c f __) (ext idp) *> r Wh *> pmap (h *c g __) (ext idp)
+  }
