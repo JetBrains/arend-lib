@@ -1,4 +1,5 @@
 \import Algebra.Group
+\import Algebra.Meta
 \import Algebra.Module
 \import Algebra.Module.LinearMap
 \import Algebra.Monoid
@@ -7,66 +8,68 @@
 \import Logic.Meta
 \import Meta
 \import Operations
+\import Order.Lattice
 \import Order.PartialOrder
 \import Paths
 \import Paths.Meta
-\import Set.Partial
 \import Set.Subset
 \import Topology.TopAbGroup
 \import Topology.TopModule
 \import Topology.TopRing
 \import Topology.TopSpace
 \import Topology.TopSpace.Product
-\open IsDiffQuot
+\open IsDerivQuot
 \open ContMap
 \open ProductTopSpace
 
-\func IsDiffQuot {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (f : Set.Total U -> Y) (f' : DerivDom U -> Y) : \Prop
+\func IsDerivQuot {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (f : Set.Total U -> Y) (f' : DerivDom U -> Y) : \Prop
   => ∀ {x : X} (Ux : U x) {h : R} {a : X} (Ua : U (x + h *c a)) (h *c f' ((x,(h,a)),(Ux,Ua)) = f (x + h *c a, Ua) - f (x,Ux))
   \where {
     \func DerivDom (U : Set X) => TopSub {X ⨯ (RingTopLModule R ⨯ X)} \lam s => \Sigma (U s.1) (U (s.1 + s.2.1 *c s.2.2))
 
-    \protected \lemma unique (f : Set.Total U -> Y) (Uo : isOpen U) (f'1 f'2 : ContMap (DerivDom U) Y) (d1 : IsDiffQuot f f'1) (d2 : IsDiffQuot f f'2) {s : DerivDom U} : f'1 s = f'2 s \elim s
+    \protected \lemma unique (f : Set.Total U -> Y) (Uo : isOpen U) (f'1 f'2 : ContMap (DerivDom U) Y) (d1 : IsDerivQuot f f'1) (d2 : IsDerivQuot f f'2) {s : DerivDom U} : f'1 s = f'2 s \elim s
       | ((x,(h,a)),(Ux,Ua)) =>
-          \have ec => TopTransfer-lift (\lam x => \Sigma (U x.1) (U (x.1 X.+ x.2.1 X.*c x.2.2))) -- _
-              (tuple (const x) (tuple id (const a)) ∘ TopTransfer-map __.1) \lam h => later (Ux,h.2)
+          \have ec => TopTransfer-lift (tuple (const x) (tuple id (const a)) ∘ TopTransfer-map __.1) (\lam h => later (Ux,h.2))
           \in nearField-map-unique (func-cont {+-cont ∘ tuple (const x) (*c-cont ∘ tuple id (const a))} Uo) (f'1 ∘ ec) (f'2 ∘ ec) (\lam Uh => d1 Ux Uh *> inv (d2 Ux Uh)) Ua
+
+    \lemma isDeriv (f : Set.Total U -> Y) (f' : ContMap (DerivDom U) Y) (Uo : isOpen U) (d : HasDeriv Uo f) (c : IsDerivQuot f f') {x : X} (Ux : U x) (a : X)
+      : deriv Uo f d (x,Ux) a = f' ((x,(0,a)), deriv.atZero {R} {X} {U} {x,Ux})
+      => unique f Uo (deriv-quot.deriv-tuple Uo f d).1 f' (deriv-quot.deriv-tuple Uo f d).2 c
   }
 
-\func HasDeriv {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y)
-  => ∃ (f' : DerivDom U -> Y) (IsDiffQuot f f') (ContMap (DerivDom U) Y f')
+\func HasDeriv {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y)
+  => ∃ (f' : ContMap (DerivDom U) Y) (IsDerivQuot f f')
 
-\lemma HasDeriv-cont {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U}
+\lemma HasDeriv-cont {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U}
                      {f : Set.Total U -> Y} (d : HasDeriv Uo f) : ContMap (TopSub U) Y f \cowith
   | func-cont {V} Vo => \case \elim d \with {
-    | inP (f',f'd,f'c) => TopSpace.cover-open {TopSub U} \lam {x} Vfx =>
+    | inP (f',f'd) => TopSpace.cover-open {TopSub U} \lam {x} Vfx =>
         \have fc : ContMap (TopSub U) Y f => transport (ContMap (TopSub U) Y)
             (ext \lam y => pmap (`+ _) (inv ide_*c *> f'd x.2 (\box rewrite ide_*c $ simplify y.2)) *> simplify (pmap f $ ext $ rewrite ide_*c simplify))
-            (+-cont ∘ tuple (f'c ∘ TopSub-func (tuple (const x.1) (tuple (const 1) (+-cont ∘ tuple id (const (negative x.1))))) \lam {y} Uy => unfold (x.2, rewrite ide_*c $ simplify Uy)) (const (f x)))
+            (+-cont ∘ tuple (f' ∘ TopSub-func (tuple (const x.1) (tuple (const 1) (+-cont ∘ tuple id (const (negative x.1))))) \lam {y} Uy => unfold (x.2, rewrite ide_*c $ simplify Uy)) (const (f x)))
         \in inP (f ^-1 V, fc.func-cont Vo, Vfx, <=-refl)
   }
 
-\func deriv-quot {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) : Partial (DerivDom U -> Y) \cowith
-  | isDefined => HasDeriv Uo f
-  | value d => (deriv-tuple Uo f d).1
+\func deriv-quot {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) (d : HasDeriv Uo f) (x : DerivDom U) : Y
+  => (deriv-tuple Uo f d).1 x
   \where {
-    \lemma deriv-tuple {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) (d : HasDeriv Uo f)
-      : \Sigma (f' : DerivDom U -> Y) (IsDiffQuot f f') (ContMap (DerivDom U) Y f')
-        \level \lam u v => exts \lam s => IsDiffQuot.unique f Uo u.3 v.3 u.2 v.2 \elim d
+    \lemma deriv-tuple {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) (d : HasDeriv Uo f)
+      : \Sigma (f' : ContMap (DerivDom U) Y) (IsDerivQuot f f')
+        \level \lam u v => ext $ exts \lam s => IsDerivQuot.unique f Uo u.1 v.1 u.2 v.2 \elim d
       | inP r => r
   }
 
-\lemma deriv-isQuot {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U}
-                    {f : Set.Total U -> Y} (d : HasDeriv Uo f) : IsDiffQuot f (deriv-quot Uo f d)
+\lemma deriv-isQuot {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U}
+                    {f : Set.Total U -> Y} (d : HasDeriv Uo f) : IsDerivQuot f (deriv-quot Uo f d)
   => (deriv-quot.deriv-tuple Uo f d).2
 
-\lemma deriv-quot-cont {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U} {f : Set.Total U -> Y}
+\lemma deriv-quot-cont {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} {Uo : isOpen U} {f : Set.Total U -> Y}
                        (gx : ContMap R X) (gh : ContMap R R) (ga : ContMap R X) (d : HasDeriv Uo f)
                        {V : Set R} (Vc : ∀ {h : V} Given (U (gx h)) (U (gx h + gh h *c ga h)))
   : ContMap (TopSub V) Y (\lam h => deriv-quot Uo f d ((gx h.1, (gh h.1, ga h.1)), Vc h.2))
-  => (deriv-quot.deriv-tuple Uo f d).3 ∘ TopSub-func (tuple gx (tuple gh ga)) Vc
+  => (deriv-quot.deriv-tuple Uo f d).1 ∘ TopSub-func (tuple gx (tuple gh ga)) Vc
 
-\func deriv {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) (d : HasDeriv Uo f) (x : Set.Total U) : LinearMap X Y \cowith
+\func deriv {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U) (f : Set.Total U -> Y) (d : HasDeriv Uo f) (x : Set.Total U) : LinearMap X Y \cowith
   | func a => deriv-quot Uo f d ((x.1,(0,a)), atZero)
   | func-+ {a} {b} =>
     \have u3 {h} u => transport U (pmap (_ +) (X.*c-ldistr {h}) *> inv +-assoc) u
@@ -87,3 +90,86 @@
     \protected \lemma atZero {x : Set.Total U} {a : X}
       => (((x.1,(0,a)), (x.2, transportInv U (pmap (_ +) X.*c_zro-left *> zro-right) x.2)) : DerivDom U).2
   }
+
+\func HasTDeriv {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} (f : X -> Y)
+  => HasDeriv open-top \lam s => f s.1
+  \where {
+    \protected \lemma make (f' : ContMap (ProductTopSpace X (ProductTopSpace R X)) Y) (d : IsTDerivQuot f f') : HasTDeriv f
+      => inP (f' ∘ TopTransfer-map __.1, \lam _ _ => d)
+  }
+
+\func tderiv-quot {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} (f : X -> Y) (d : HasTDeriv f) (x : X) (h : R) (a : X) : Y
+  => deriv-quot open-top (\lam s => f s.1) d ((x,(h,a)),((),()))
+
+\func IsTDerivQuot {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} (f : X -> Y) (f' : \Sigma X (\Sigma R X) -> Y) : \Prop
+  => ∀ {x : X} {h : R} {a : X} (h *c f' (x,(h,a)) = f (x + h *c a) - f x)
+  \where {
+    \lemma isTDeriv (f' : ContMap (ProductTopSpace X (ProductTopSpace R X)) Y) (d : HasTDeriv f) (c : IsTDerivQuot f f') (x a : X) : tderiv f d x a = f' (x,(0,a))
+      => IsDerivQuot.isDeriv _ (f' ∘ TopTransfer-map __.1) open-top d (\lam _ _ => c) () a
+  }
+
+\lemma tderiv-isQuot {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {f : X -> Y} (d : HasTDeriv f) {x : X} {h : R} {a : X}
+  : h *c tderiv-quot f d x h a = f (x + h *c a) - f x
+  => deriv-isQuot d () ()
+
+\lemma tderiv-quot-cont {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {f : X -> Y}
+                        (gx : ContMap R X) (gh : ContMap R R) (ga : ContMap R X) (d : HasTDeriv f)
+  : ContMap R Y (\lam h => tderiv-quot f d (gx h) (gh h) (ga h))
+  => deriv-quot-cont gx gh ga d {Bounded.top} (\lam _ => ((),())) ∘ TopTransfer-lift id (\lam _ => ())
+
+\func tderiv {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} (f : X -> Y) (d : HasTDeriv f) (x : X) : LinearMap X Y
+  => deriv open-top (\lam s => f s.1) d (x,())
+
+\lemma deriv_linear {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} (f : LinearMap X Y) (fc : ContMap X Y f) (x a : X) : tderiv f has_deriv x a = f a
+  => IsTDerivQuot.isTDeriv (fc ∘ proj2 ∘ proj2) has_deriv deriv-quot_linear x a
+  \where {
+    \lemma deriv-quot_linear : IsTDerivQuot f (\lam s => f s.2.2)
+      => \lam {x} {h} {a} => inv $ pmap (`- _) f.func-+ *> simplify f.func-*c
+
+    \lemma has_deriv : HasTDeriv f
+      => HasTDeriv.make (fc ∘ proj2 ∘ proj2) deriv-quot_linear
+  }
+
+\lemma deriv_const {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} (y : Y) (x a : X) : tderiv (\lam _ => y) has_deriv x a = 0
+  => IsTDerivQuot.isTDeriv (const 0) has_deriv deriv-quot_const x a
+  \where {
+    \lemma deriv-quot_const : IsTDerivQuot {R} {X} (\lam _ => y) (\lam _ => 0)
+      => \lam {x} {h} {a} => Y.*c_zro-right *> inv negative-right
+
+    \lemma has_deriv : HasTDeriv {R} {X} (\lam _ => y)
+      => HasTDeriv.make (const 0) deriv-quot_const
+  }
+
+\lemma deriv_+ {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U)
+               (f g : Set.Total U -> Y) (d1 : HasDeriv Uo f) (d2 : HasDeriv Uo g) {x : X} (Ux : U x) (a : X)
+  : deriv Uo (\lam x => f x + g x) has_deriv (x,Ux) a = deriv Uo f d1 (x,Ux) a + deriv Uo g d2 (x,Ux) a
+  => IsDerivQuot.isDeriv (\lam x => f x + g x) isCont Uo has_deriv deriv-quot_+ Ux a
+  \where {
+    \lemma deriv-quot_+ : IsDerivQuot (\lam x => f x + g x) (\lam s => deriv-quot Uo f d1 s + deriv-quot Uo g d2 s) =>
+      \lam Ux Ua => *c-ldistr *> pmap2 (+) (deriv-isQuot d1 Ux Ua) (deriv-isQuot d2 Ux Ua) *> equation *> pmap (_ +) (inv AddGroup.negative_+)
+
+    \lemma isCont => +-cont ∘ tuple (deriv-quot.deriv-tuple Uo f d1).1 (deriv-quot.deriv-tuple Uo g d2).1
+
+    \lemma has_deriv : HasDeriv Uo (\lam x => f x + g x)
+      => inP (isCont, deriv-quot_+)
+  }
+
+\lemma deriv_*c {R : NearField} {X : TopLModule R} {Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U)
+                     (f : Set.Total U -> Y) (d : HasDeriv Uo f) (c : R) {x : X} (Ux : U x) (a : X)
+  : deriv Uo (\lam x => c *c f x) has_deriv (x,Ux) a = c *c deriv Uo f d (x,Ux) a
+  => IsDerivQuot.isDeriv (\lam x => c *c f x) isCont Uo has_deriv deriv-quot_*c Ux a
+  \where {
+    \lemma deriv-quot_*c : IsDerivQuot (\lam x => c *c f x) (\lam s => c *c deriv-quot Uo f d s)
+      => \lam Ux Ua => inv *c-assoc *> pmap (`*c _) *-comm *> *c-assoc *> pmap (c *c) (deriv-isQuot d Ux Ua) *> Y.*c-ldistr_-
+
+    \lemma isCont => *c-cont ∘ tuple (const c) (deriv-quot.deriv-tuple Uo f d).1
+
+    \lemma has_deriv : HasDeriv Uo (\lam x => c *c f x)
+      => inP (isCont, deriv-quot_*c)
+  }
+
+\lemma deriv-quot_bilinear {R : NearSkewField} {X : TopLModule R} {X1 X2 Y : HausdorffTopLModule R} {U : Set X} (Uo : isOpen U)
+                           (b : BilinearMap X1 X2 Y) (f : Set.Total U -> X1) (g : Set.Total U -> X2) (d1 : HasDeriv Uo f) (d2 : HasDeriv Uo g)
+  : IsDerivQuot (\lam x => b (f x) (g x)) (\lam s => b (deriv-quot Uo f d1 s) (g (s.1.1 + s.1.2.1 *c s.1.2.2, s.2.2)) + b (f (s.1.1,s.2.1)) (deriv-quot Uo g d2 s))
+  => \lam Ux Ua => *c-ldistr *> pmap2 (+) (inv b.linear-left.func-*c *> pmap (b __ _) (deriv-isQuot d1 Ux Ua) *> b.linear-left.func-minus)
+                                          (inv b.linear-right.func-*c *> pmap (b _) (deriv-isQuot d2 Ux Ua) *> b.linear-right.func-minus) *> simplify
