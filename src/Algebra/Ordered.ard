@@ -493,10 +493,23 @@
 \class OrderedRing \extends Domain, LinearlyOrderedSemiring, LinearlyOrderedAbGroup {
   | ide>zro : isPos ide
   | positive_* {x y : E} : isPos x -> isPos y -> isPos (x * y)
-  | positive_*-cancel {x y : E} : isPos (x * y) -> (\Sigma (isPos x) (isPos y)) || (\Sigma (isNeg x) (isNeg y))
+  | pos_*-cancel-left {x y : E} : isPos (x * y) -> isPos x -> isPos y
+  | pos_*-cancel-right {x y : E} : isPos (x * y) -> isPos y -> isPos x
   | positive=>#0 {x : E} : isPos x -> x `#0
   | negative=>#0 {x : E} : isNeg x -> x `#0
   \field #0=>eitherPosOrNeg {x : E} : x `#0 -> isPos x || isNeg x
+
+  | positive_*-cancel {x y : E} : isPos (x * y) -> (\Sigma (isPos x) (isPos y)) || (\Sigma (isNeg x) (isNeg y))
+  | positive_*-cancel {x} {y} xy>0 => \case <-comparison x (pos_>0 xy>0) \with {
+    | byLeft x>0 => byLeft (>0_pos x>0, pos_*-cancel-left xy>0 $ >0_pos x>0)
+    | byRight x<xy => \case <_+-comparison (1 - y) y $ transportInv isPos (+-assoc *> pmap (1 +) negative-left *> zro-right) ide>zro \with {
+      | byLeft p => byRight
+          \have x<0 : isNeg x => pos_*-cancel-right (transportInv isPos negative_*-left $
+            transportInv isNeg (ldistr *> pmap2 (+) ide-right negative_*-right) $ toNeg x<xy) p
+          \in (x<0, pos_*-cancel-left (transportInv isPos Ring.negative_* xy>0) x<0)
+      | byRight y>0 => byLeft (pos_*-cancel-right xy>0 y>0, y>0)
+    }
+  }
 
   | negative_*-cancel {x y : E} : isNeg (x * y) -> (\Sigma (isPos x) (isNeg y)) || (\Sigma (isNeg x) (isPos y))
   | negative_*-cancel x*y<0 => ||.map (\lam t => (t.1, t.2))
@@ -583,20 +596,14 @@
   \lemma pos#0 {x : E} (x>0 : 0 < x) : x AddGroup.`#0
     => positive=>#0 (>0_pos x>0)
 
-  \lemma pos_*-cancel-left {x y : E} (x*y>0 : isPos (x * y)) (y>0 : isPos y) : isPos x
-    => \case positive_*-cancel x*y>0 \with {
-      | byLeft (x>0, _) => x>0
-      | byRight (_, -y>0) => absurd (zro/>0 (transport isPos negative-right (positive_+ y>0 -y>0)))
-    }
-
-  \lemma positive_*-cancel-left {x y : E} (x*y>0 : 0 < x * y) (y>0 : 0 < y) : 0 < x
-    => pos_>0 $ pos_*-cancel-left (>0_pos x*y>0) (>0_pos y>0)
-
-  \lemma positive_*-cancel-right {x y : E} (xy>0 : 0 < x * y) (x>0 : 0 < x) : 0 < y
+  \lemma positive_*-cancel-left {x y : E} (xy>0 : 0 < x * y) (x>0 : 0 < x) : 0 < y
     => \case positive_*-cancel (>0_pos xy>0) \with {
       | byLeft (_, y>0) => pos_>0 y>0
       | byRight (-x>0, _) => absurd (zro/>0 (transport isPos negative-right (positive_+ (>0_pos x>0) -x>0)))
     }
+
+  \lemma positive_*-cancel-right {x y : E} (x*y>0 : 0 < x * y) (y>0 : 0 < y) : 0 < x
+    => pos_>0 $ pos_*-cancel-right (>0_pos x*y>0) (>0_pos y>0)
 
   \func denseOrder (t : Inv (1 + 1)) : UnboundedDenseLinearOrder \cowith
     | DenseLinearOrder => LinearlyOrderedSemiring.denseOrder t
@@ -643,13 +650,10 @@
       | equals x=0 => x=0
       | greater x>0 => absurd $ x/>0 $ >0_pos x>0
     }
-    | positive_*-cancel {x} {y} x*y>0 => \case +_trichotomy x, +_trichotomy y \with {
-      | equals x=0, _ => absurd (zro/>0 (transport isPos (pmap (`* y) x=0 *> zro_*-left) x*y>0))
-      | _, equals y=0 => absurd (zro/>0 (transport isPos (pmap (x *) y=0 *> zro_*-right) x*y>0))
-      | greater x>0, greater y>0 => byLeft (>0_pos x>0, >0_pos y>0)
-      | greater x>0, less y<0 => absurd $ zro/>0 $ transport isPos negative-right $ positive_+ x*y>0 $ positive_negative_* (>0_pos x>0) (<0_neg y<0)
-      | less x<0, greater y>0 => absurd $ zro/>0 $ transport isPos negative-right $ positive_+ x*y>0 $ negative_positive_* (<0_neg x<0) (>0_pos y>0)
-      | less x<0, less y<0 => byRight (<0_neg x<0, <0_neg y<0)
+    | pos_*-cancel-left {x} {y} x*y>0 x>0 => \case +_trichotomy y \with {
+      | greater y>0 => >0_pos y>0
+      | equals y=0 => absurd (zro/>0 (transport isPos (pmap (x *) y=0 *> zro_*-right) x*y>0))
+      | less y<0 => absurd $ <-irreflexive $ pos_>0 x*y>0 <∘ neg_<0 (transport isPos negative_*-right $ positive_* x>0 $ >0_pos $ negative_positive y<0)
     }
     | nonZeroApart {x} x/=0 => \case +_trichotomy x \with {
       | less x<0 => negative=>#0 (<0_neg x<0)
@@ -668,6 +672,7 @@
 }
 
 \class OrderedCRing \extends OrderedRing, IntegralDomain, LinearlyOrderedCSemiring
+  | pos_*-cancel-right xy>0 => pos_*-cancel-left (transport isPos *-comm xy>0)
   \where
     \class Dec \extends OrderedRing.Dec, OrderedCRing, LinearlyOrderedCSemiring.Dec, IntegralDomain.Dec
 
@@ -677,12 +682,10 @@
     | byLeft x+1>0 => byRight (positive=>#0 x+1>0)
     | byRight x<0 => byLeft (negative=>#0 x<0)
   }
-  | positive_*-cancel x*y>0 =>
-    \case #0=>eitherPosOrNeg (Inv.cfactor-left (positive=>#0 x*y>0)), #0=>eitherPosOrNeg (Inv.cfactor-right (positive=>#0 x*y>0)) \with {
-      | byLeft x>0, byLeft y>0 => byLeft (x>0, y>0)
-      | byLeft x>0, byRight y<0 => absurd (zro/>0 (transport isPos negative-right (positive_+ x*y>0 (positive_negative_* x>0 y<0))))
-      | byRight x<0, byLeft y>0 => absurd (zro/>0 (transport isPos negative-right (positive_+ x*y>0 (negative_positive_* x<0 y>0))))
-      | byRight x<0, byRight y<0 => byRight (x<0, y<0)
+  | pos_*-cancel-left x*y>0 x>0 =>
+    \case #0=>eitherPosOrNeg (Inv.cfactor-right (positive=>#0 x*y>0)) \with {
+      | byLeft y>0 => y>0
+      | byRight y<0 => absurd (zro/>0 (transport isPos negative-right (positive_+ x*y>0 (positive_negative_* x>0 y<0))))
     }
   | negative=>#0 x<0 => transport #0 negative-isInv (Ring.negative_inv (positive=>#0 x<0))
 
@@ -711,7 +714,7 @@
     => \lam q => p (pinv_< y>0 x>0 q)
 
   \lemma pinv>0 {x : E} (x>0 : 0 < x) : 0 < pinv x>0
-    => positive_*-cancel-right (transportInv (0 <) (pinv-right x>0) zro<ide) x>0
+    => positive_*-cancel-left (transportInv (0 <) (pinv-right x>0) zro<ide) x>0
 
   \lemma pinv>1 {x : E} (x>0 : 0 < x) (x<1 : x < 1) : 1 < pinv x>0
     => transport (`< _) pinv_ide $ pinv_< x>0 zro<ide x<1
