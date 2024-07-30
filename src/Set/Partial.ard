@@ -1,5 +1,7 @@
+\import Algebra.Monoid
 \import Function.Meta
 \import Logic
+\import Meta
 \import Paths
 \import Paths.Meta
 \import Set
@@ -19,8 +21,8 @@
   | isDefined => Empty
   | value => \case __
 
-\lemma partial-ext {X : \Set} {u v : Partial X} (d : u.isDefined <-> v.isDefined) (e : \Pi (p : u.isDefined) (q : v.isDefined) -> u p = v q) : u = v
-  => exts (<->_=.1 d, \lam p => e p _)
+\lemma partial-ext {X : \Set} {u v : Partial X} (d : u.isDefined <-> v.isDefined) (e : \Pi (p : u.isDefined) (q : v.isDefined) -> u (\box p) = v \box q) : u = v
+  => exts (<->_=.1 d, \lam p => pmap u prop-pi *> e p (transport (\lam P => P) (<->_=.1 d) p) *> pmap v prop-pi)
 
 \lemma defined-ext {X : \Set} {u : Partial X} {x : X} (d : u.isDefined) (p : u d = x) : u = defined x
   => partial-ext (\lam _ => (), \lam _ => d) \lam q q => pmap u prop-pi *> p
@@ -48,3 +50,10 @@
 \func plift2 {X Y Z : \Set} (f : X -> Y -> Z) (p : Partial X) (q : Partial Y) : Partial Z \cowith
   | isDefined => \Sigma p.isDefined q.isDefined
   | value d => f (p d.1) (q d.2)
+
+\instance PartialAddMonoid (X : AddMonoid) : AddMonoid (Partial X)
+  | zro => defined X.zro
+  | + => plift2 (+)
+  | zro-left {x} => partial-ext {_} {plift2 (+) (defined X.zro) x} (__.2, ((),__)) \lam p q => zro-left
+  | zro-right {x} => partial-ext {_} {plift2 (+) x (defined X.zro)} (__.1, (__,())) \lam p q => zro-right
+  | +-assoc {x} {y} {z} => partial-ext {_} {plift2 (+) (plift2 (+) x y) z} (\lam s => (s.1.1,(s.1.2,s.2)), \lam s => ((s.1,s.2.1),s.2.2)) \lam p q => +-assoc
