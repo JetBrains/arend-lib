@@ -1,5 +1,6 @@
 \import Algebra.Group
 \import Algebra.Meta
+\import Algebra.Monoid
 \import Algebra.Ordered
 \import Arith.Rat
 \import Arith.Real
@@ -25,6 +26,7 @@
 \import Topology.NormedAbGroup
 \import Topology.NormedAbGroup.Real
 \import Topology.TopAbGroup
+\import Topology.TopRing
 \import Topology.TopSpace
 \import Topology.UniformSpace
 \open Bounded(top)
@@ -179,4 +181,35 @@
                          {U : Set Y} (Ua : Y.IsLimitPoint a U) {b : X} (p : g a = b) {V : Set X} (Vb : X.IsLimitPoint b V)
                          (UV : \Pi {y : Y} -> U y -> V (g y)) (d : PointDirectedSet a Ua) : PointDirectedSet b Vb
       => (f ^-1 d.1, f.func-cont d.2, transportInv d.1 (pmap f (inv p) *> h a) d.3, g d.4, transportInv d.1 (h d.4) d.5, UV d.6)
+
+    \lemma limit-id {X : TopSpace} {U : Set X} {a : X} (Ua : X.IsLimitPoint a U) : X.IsLimit {PointDirectedSet a Ua} (\lam h => h.4) a
+      => \lam {V} Vo Va => \case Ua Vo Va \with {
+        | inP (b,Ub,Vb) => inP ((V, Vo, Va, b, Vb, Ub), \lam {h} p => p h.5)
+      }
+
+    \lemma limit-char {X Y : TopSpace} {S : Set X} {a : X} (Sa : X.IsLimitPoint a S) (f : (\Sigma (x : X) (S x)) -> Y) {y : Y}
+      : Y.IsLimit {PointDirectedSet a Sa} (\lam h => f (h.4,h.6)) y <-> ∀ {V : Y.isOpen} (V y) ∃ (U : X.isOpen) (Ua : U a) ∀ {h : U} (Sh : S h) (V (f (h,Sh)))
+      => (\lam fc {V} Vo Vy => \case fc Vo Vy \with {
+        | inP ((U,Uo,Ua,_,_,_),g) => inP (U, Uo, Ua, \lam {h} Uh Sh => g {U,Uo,Ua,h,Uh,Sh} <=-refl)
+      }, \lam fc {V} Vo Vy => \case fc Vo Vy \with {
+        | inP (U,Uo,Ua,g) => \case Sa Uo Ua \with {
+          | inP (b,Sb,Ub) => inP ((U,Uo,Ua,b,Ub,Sb), \lam {h} p => g (p h.5) h.6)
+        }
+      })
+  }
+
+\func InvDirectedSet {R : NearSkewField} {S : Set R} (So : isOpen S) (S0 : S 0) : DirectedSet
+  => PointDirectedSet {R} {(\lam h => Monoid.Inv h) ∧ S} 0 (aux So S0)
+  \where {
+    \private \lemma aux (So : isOpen S) (S0 : S 0) : R.IsLimitPoint 0 ((\lam h => Monoid.Inv h) ∧ S)
+      => \lam Vo V0 => \case inv-dense (open-inter So Vo) (S0,V0) \with {
+        | inP (y,yi,(Sy,Vy)) => inP (y,(yi,Sy),Vy)
+      }
+
+    \lemma limit-id (So : isOpen S) (S0 : S 0) : R.IsLimit {InvDirectedSet So S0} (\lam h => h.4) 0
+      => PointDirectedSet.limit-id (aux So S0)
+
+    \lemma limit-char {Y : TopSpace} (So : isOpen S) (S0 : S 0) {f : \Pi (h : Monoid.Inv {R}) -> S h -> Y} {y : Y}
+      : Y.IsLimit {InvDirectedSet So S0} (\lam h => f h.6.1 h.6.2) y <-> ∀ {V : Y.isOpen} (V y) ∃ (U : R.isOpen) (Ua : U 0) ∀ {h : U} (s : \Sigma (Monoid.Inv h) (S h)) (V (f s.1 s.2))
+      => PointDirectedSet.limit-char (aux So S0) \lam h => f h.2.1 h.2.2
   }
