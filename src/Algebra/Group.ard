@@ -1,7 +1,11 @@
+\import Algebra.Group.Category
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Arith.Int
 \import Data.Array
 \import Data.Or
+\import Equiv
 \import Function.Meta ($)
 \import Logic
 \import Meta
@@ -13,30 +17,38 @@
 
 \class Group \extends CancelMonoid {
   | inverse : E -> E
+
   | inverse-left {x : E} : inverse x * x = ide
-  | inverse-right {x : E} : x * inverse x = ide
+  | inverse-right {x : E}: x * inverse x = ide
+
+  \default inverse-left {x} => Group.make-inverse-left E (*) ide inverse *-assoc ide-right inverse-right x
+  \default inverse-right {x} => Group.make-inverse-left E (\lam (x y : E) => y * x) ide inverse (\lam {x y z : E} => inv (*-assoc {_} {z} {y} {x})) ide-left inverse-left x
+
+  \default ide-left {x} => make-ide-left E (*) ide inverse *-assoc ide-right inverse-right inverse-left x
+  \default ide-right {x} => make-ide-left E (\lam (x y : E) => y * x) ide inverse (\lam {x y z : E} => inv (*-assoc {_} {z} {y} {x})) ide-left inverse-left inverse-right x
 
   | cancel_*-left x {y} {z} p =>
-      y                   ==< inv ide-left >==
-      ide * y             ==< pmap (`* y) (inv inverse-left) >==
-      (inverse x * x) * y ==< *-assoc >==
-      inverse x * (x * y) ==< pmap (inverse x *) p >==
-      inverse x * (x * z) ==< inv *-assoc >==
-      (inverse x * x) * z ==< pmap (`* z) inverse-left >==
-      ide * z             ==< ide-left >==
-      z                   `qed
+    y                   ==< inv ide-left >==
+    ide * y             ==< pmap (`* y) (inv inverse-left) >==
+    (inverse x * x) * y ==< *-assoc >==
+    inverse x * (x * y) ==< pmap (inverse x *) p >==
+    inverse x * (x * z) ==< inv *-assoc >==
+    (inverse x * x) * z ==< pmap (`* z) inverse-left >==
+    ide * z             ==< ide-left >==
+    z                   `qed
   | cancel_*-right z {x} {y} p =>
-      x                   ==< inv ide-right >==
-      x * ide             ==< pmap (x *) (inv inverse-right) >==
-      x * (z * inverse z) ==< inv *-assoc >==
-      (x * z) * inverse z ==< pmap (`* inverse z) p >==
-      (y * z) * inverse z ==< *-assoc >==
-      y * (z * inverse z) ==< pmap (y *) inverse-right >==
-      y * ide             ==< ide-right >==
-      y                   `qed
+    x                   ==< inv ide-right >==
+    x * ide             ==< pmap (x *) (inv inverse-right) >==
+    x * (z * inverse z) ==< inv *-assoc >==
+    (x * z) * inverse z ==< pmap (`* inverse z) p >==
+    (y * z) * inverse z ==< *-assoc >==
+    y * (z * inverse z) ==< pmap (y *) inverse-right >==
+    y * ide             ==< ide-right >==
+    y                   `qed
+
 
   \lemma inverse-isInv {x : E} : inverse (inverse x) = x =>
-     AddGroup.negative-isInv {AddGroup.fromGroup \this}
+    AddGroup.negative-isInv {AddGroup.fromGroup \this}
 
   \lemma inverse_ide : inverse ide = ide
     => inv ide-right *> inverse-left
@@ -74,47 +86,97 @@
     inverse g * h ==< pmap (inverse g *) (inv p) >==
     inverse g * g ==< inverse-left >==
     ide `qed
-} \where {
-  \open Monoid(Inv)
+}
+  \where {
+    \open Monoid(Inv)
 
-  \lemma inverse-equality {X : \Set} (G H : Group X) (z : G.ide = H.ide) (m : \Pi {x y : G} -> x G.* y = x H.* y) (e : G) : G.inverse e = H.inverse e
-    => pmap (\lam (x : Inv) => x.inv) (Inv.levelProp {G}
-        (\new Inv e (G.inverse e) G.inverse-left G.inverse-right)
-        (\new Inv e (H.inverse e) (m *> H.inverse-left *> inv z) (m *> H.inverse-right *> inv z)))
+    \lemma inverse-equality {X : \Set} (G H : Group X) (z : G.ide = H.ide) (m : \Pi {x y : G} -> x G.* y = x H.* y) (e : G) : G.inverse e = H.inverse e
+      => pmap (\lam (x : Inv) => x.inv) (Inv.levelProp {G}
+          (\new Inv e (G.inverse e) G.inverse-left G.inverse-right)
+          (\new Inv e (H.inverse e) (m *> H.inverse-left *> inv z) (m *> H.inverse-right *> inv z)))
 
-  \func equals (G H : Group) (p : G = {Monoid} H) : G = H
-    => exts Group {
-         | Monoid => p
-         | inverse => inverse-equality
-       }
-    \where {
-      \lemma inverse-equality (e : G) : coe (p @ __) (inverse e) right = inverse (coe (p @ __) e right)
-        => \let | h' {H' : Monoid} (q : G = {Monoid} H') => transport (\lam (H' : Monoid) => MonoidHom G H') q (MonoidCat.id G)
-                | h => transport (MonoidHom G H __) (Jl (\lam (H' : Monoid) q => func {h' q} = (\lam x => coe (q @ __) x right)) idp p) (h' p)
-                | e' => coe (p @ __) e right
-           \in MonoidHom.presInvElem h
+    \lemma mul_right {G : Group} {x y z : G} (eq : x = y) : x G.* z = y G.* z => pmap (G.`* z) eq
+
+    \lemma mul_left {G : Group} {x y z : G} (eq : x = y) : z G.* x = z G.* y => pmap (G.* z) eq
+
+    \lemma mul_right_1 {G : Group} {x z : G} (eq : x = ide) : x G.* z = z => rewrite ide-left in mul_right {G} {x} {ide} {z} eq
+
+    \lemma mul_right_2 {G : Group} {x z : G} (eq : ide = x) : z = z G.* x => rewriteI eq (rewrite ide-right idp)
+
+    \func equals (G H : Group) (p : G = {Monoid} H) : G = H
+      => exts Group {
+        | Monoid => p
+        | inverse => inverse-equality
+      }
+      \where {
+        \lemma inverse-equality (e : G) : coe (p @ __) (inverse e) right = inverse (coe (p @ __) e right)
+          => \let | h' {H' : Monoid} (q : G = {Monoid} H') => transport (\lam (H' : Monoid) => MonoidHom G H') q (MonoidCat.id G)
+                  | h => transport (MonoidHom G H __) (Jl (\lam (H' : Monoid) q => func {h' q} = (\lam x => coe (q @ __) x right)) idp p) (h' p)
+                  | e' => coe (p @ __) e right
+             \in MonoidHom.presInvElem h
                 (\new Inv e (inverse e) inverse-left inverse-right)
                 (\new Inv e' (inverse e') inverse-left inverse-right)
-    }
-}
+      }
 
-\func conjugate {E : Group} (g : E) (h : E) : E => g * h * inverse g
+    \lemma make-inverse-left (X : \Set) (* : X -> X -> X) (ide : X) (inverse : X -> X)
+                             (*-assoc : \Pi {x y z : X} -> * (* x y) z = * x (* y z))
+                             (ide-right : \Pi {x : X} -> * x ide = x)
+                             (inverse-right : \Pi {x : X} -> * x (inverse x) = ide)
+                             (x : X) : * (inverse x) x = ide =>
+      \have
+        | inverse-x-idempotent : * (* (inverse x) x) (* (inverse x) x) = * (inverse x) x =>
+          * (* (inverse x) x) (* (inverse x) x) ==< *-assoc >==
+          * (inverse x) (* x (* (inverse x) x)) ==< pmap (* (inverse x)) (inv *-assoc) >==
+          * (inverse x) (* (* x (inverse x)) x) ==< cong inverse-right >==
+          * (inverse x) (* ide x)               ==< inv *-assoc >==
+          * (* (inverse x) ide) x               ==< cong ide-right >==
+          * (inverse x) x                       `qed
+        | idempotent-is-trivial {a : X} (a-idempotent : * a a = a) : a = ide =>
+          a                     ==< inv ide-right >==
+          * a ide               ==< cong (inv inverse-right) >==
+          * a (* a (inverse a)) ==< inv *-assoc >==
+          * (* a a) (inverse a) ==< cong a-idempotent >==
+          * a (inverse a)       ==< inverse-right >==
+          ide                 `qed
+      \in idempotent-is-trivial inverse-x-idempotent
+
+    \lemma make-ide-left (X : \Set) (* : X -> X -> X) (ide : X) (inverse : X -> X)
+                         (*-assoc : \Pi {x y z : X} -> * (* x y) z = * x (* y z))
+                         (ide-right : \Pi {x : X} -> * x ide = x)
+                         (inverse-right : \Pi {x : X} -> * x (inverse x) = ide)
+                         (inverse-left : \Pi {x : X} -> * (inverse x) x = ide)
+                         (x : X) : * ide x = x =>
+      * ide x                ==< pmap (* __ x) (inv inverse-right) >==
+      * (* x (inverse x)) x  ==< *-assoc >==
+      * x (* (inverse x) x)  ==< cong inverse-left >==
+      * x ide                ==< ide-right >==
+      x                      `qed
+
+
+    \lemma inverse-inverse {G : Group} (g : G) : inverse (inverse g) = g => cancel_*-left (inverse g) (rewrite (inverse-left, inverse-right) idp)
+
+    \lemma inverse-ide {G : Group}: G.inverse G.ide = G.ide => cancel_*-left G.ide (rewrite inverse-right (rewrite ide-left idp))
+
+    \func translate-is-Equiv{G : Group}(h : G) : QEquiv {G}{G} (h *) \cowith
+      | ret => (inverse h) *
+      | ret_f _ => rewrite (inv G.*-assoc, G.inverse-left, G.ide-left) idp
+      | f_sec _ => rewrite (inv G.*-assoc, G.inverse-right, G.ide-left) idp
+  }
+
+\func conjugate {E : Group}(g : E) : GroupHom E E \cowith
+  | func h => g * h * inverse g
+  | func-ide => rewrite (E.ide-right, E.inverse-right) idp
+  | func-* {x y : E} => inv (rewrite (aux, E.inverse-left, E.ide-right) equation)
+  \where \func aux {x y z w t e : E} : x * y * z * (w * t * e) = (x * y) * (z * w) * (t * e) => equation
+
 
 \func conjugate-via-id {E : Group} (g : E) : conjugate E.ide g = g =>
   conjugate E.ide g ==< idp >==
   E.ide * g * inverse E.ide ==< E.*-assoc >==
   E.ide * (g * inverse E.ide) ==< E.ide-left >==
-  g * (inverse E.ide) ==< pmap (g * ) E.inverse_ide >==
+  g * inverse E.ide ==< pmap (g * ) E.inverse_ide >==
   g * E.ide ==< E.ide-right >==
   g `qed
-
-\func conjugate-id  {E : Group} (g : E) : conjugate g E.ide = E.ide =>
-  conjugate g E.ide ==< idp >==
-  g * E.ide * (inverse g) ==< pmap (\lam z => z * (inverse g)) E.ide-right >==
-  g * (inverse g) ==< E.inverse-right >==
-  E.ide `qed
-
-
 
 \func \infixl 7 / {G : Group} (x y : G) => x * inverse y
 
@@ -157,65 +219,66 @@
     z + ((negative y + y) - x) ==< pmap (z + (__ - x)) negative-left >==
     z + (zro - x)              ==< pmap (z +) zro-left >==
     z - x                      `qed
-} \where {
+}
+  \where {
     \use \coerce fromGroup (G : Group) => \new AddGroup G.E G.ide (G.*) G.ide-left G.ide-right G.*-assoc G.inverse G.inverse-left G.inverse-right
     \use \coerce toGroup (G : AddGroup) => \new Group G.E G.zro (G.+) G.zro-left G.zro-right G.+-assoc G.negative G.negative-left G.negative-right
 
     \lemma negative-equality {X : \Set} (A B : AddGroup X) (z : A.zro = B.zro) (m : \Pi {x y : A} -> x A.+ y = x B.+ y) (e : A) : A.negative e = B.negative e
       => Group.inverse-equality A B z m e
 
-  -- | An additive group with a tight apartness relation.
-  \class With# \extends AddGroup, Set# {
-    | \fix 8 #0 : E -> \Prop
-    | #0-zro : Not (zro `#0)
-    | #0-negative {x : E} : x `#0 -> negative x `#0
-    | #0-+ {x y : E} : (x + y) `#0 -> x `#0 || y `#0
-    | #0-tight {x : E} : Not (x `#0) -> x = zro
+    -- | An additive group with a tight apartness relation.
+    \class With# \extends AddGroup, Set# {
+      | \fix 8 #0 : E -> \Prop
+      | #0-zro : Not (zro `#0)
+      | #0-negative {x : E} : x `#0 -> negative x `#0
+      | #0-+ {x y : E} : (x + y) `#0 -> x `#0 || y `#0
+      | #0-tight {x : E} : Not (x `#0) -> x = zro
 
-    | # x y => (x - y) `#0
-    | #-irreflexive x-x#0 => #0-zro (transport #0 negative-right x-x#0)
-    | #-symmetric x-y#0 => transport #0 (negative_+ *> pmap (`+ negative _) negative-isInv) (#0-negative x-y#0)
-    | #-comparison x y z x-z#0 => #0-+ (transport #0 (inv diff_+) x-z#0)
-    | tightness x-y/#0 => fromZero (#0-tight x-y/#0)
+      | # x y => (x - y) `#0
+      | #-irreflexive x-x#0 => #0-zro (transport #0 negative-right x-x#0)
+      | #-symmetric x-y#0 => transport #0 (negative_+ *> pmap (`+ negative _) negative-isInv) (#0-negative x-y#0)
+      | #-comparison x y z x-z#0 => #0-+ (transport #0 (inv diff_+) x-z#0)
+      | tightness x-y/#0 => fromZero (#0-tight x-y/#0)
 
-    \lemma apartNonZero {x : E} (x#0 : x `#0) : x /= zro
-      => \lam x=0 => #0-zro (transport #0 x=0 x#0)
+      \lemma apartNonZero {x : E} (x#0 : x `#0) : x /= zro
+        => \lam x=0 => #0-zro (transport #0 x=0 x#0)
 
-    \lemma #0-negative-inv {x : E} (p : negative x `#0) : x `#0
-      => transport #0 negative-isInv (#0-negative p)
+      \lemma #0-negative-inv {x : E} (p : negative x `#0) : x `#0
+        => transport #0 negative-isInv (#0-negative p)
 
-    \lemma #0-+-left {x y : E} (x#0 : #0 x) : #0 (x + y) || #0 y
-      => ||.map (\lam r => r) #0-negative-inv $ #0-+ $ transportInv #0 (+-assoc *> pmap (x +) negative-right *> zro-right) x#0
+      \lemma #0-+-left {x y : E} (x#0 : #0 x) : #0 (x + y) || #0 y
+        => ||.map (\lam r => r) #0-negative-inv $ #0-+ $ transportInv #0 (+-assoc *> pmap (x +) negative-right *> zro-right) x#0
 
-    \lemma #0-+-right {x y : E} (y#0 : #0 y) : #0 (x + y) || #0 x
-      => ||.rec' (\lam r => byRight (#0-negative-inv r)) byLeft $ #0-+ {_} {negative x} {x + y} $ transportInv #0 simplify y#0
-  }
-
-  -- | An additive group with decidable equality.
-  \class Dec \extends With#, DecSet {
-    | nonZeroApart {x : E} (x/=0 : x /= zro) : x `#0
-    | #0-negative x#0 => nonZeroApart (\lam -x=0 => #0-zro (transport #0 (inv negative-isInv *> pmap negative -x=0 *> negative_zro) x#0))
-    | #0-+ {x} {y} x+y#0 => \case decideEq y zro \with {
-      | yes y=0 => byLeft (transport #0 (pmap (x +) y=0 *> zro-right) x+y#0)
-      | no y/=0 => byRight (nonZeroApart y/=0)
+      \lemma #0-+-right {x y : E} (y#0 : #0 y) : #0 (x + y) || #0 x
+        => ||.rec' (\lam r => byRight (#0-negative-inv r)) byLeft $ #0-+ {_} {negative x} {x + y} $ transportInv #0 simplify y#0
     }
-    | #0-tight {x} x/#0 => \case decideEq x zro \with {
-      | yes x=0 => x=0
-      | no x/=0 => absurd (x/#0 (nonZeroApart x/=0))
-    }
-    | nonEqualApart p => nonZeroApart (\lam x-y=0 => p (fromZero x-y=0))
 
-    \default #0 x : \Prop => x /= zro
-    \default #0-zro (zro/=0 : #0 zro) : Empty => zro/=0 idp
-    \default nonZeroApart \as notEqualApartImpl {x} x#0 : #0 x => x#0
-
-    \lemma decide#0 (a : E) : Or (a = 0) (a With#.`#0) \level Or.levelProp (\lam p q => apartNonZero q p)
-      => \case decideEq a 0 \with {
-        | yes e => inl e
-        | no q => inr (nonZeroApart q)
+    -- | An additive group with decidable equality.
+    \class Dec \extends With#, DecSet {
+      | nonZeroApart {x : E} (x/=0 : x /= zro) : x `#0
+      | #0-negative x#0 => nonZeroApart (\lam -x=0 => #0-zro (transport #0 (inv negative-isInv *> pmap negative -x=0 *> negative_zro) x#0))
+      | #0-+ {x} {y} x+y#0 => \case decideEq y zro \with {
+        | yes y=0 => byLeft (transport #0 (pmap (x +) y=0 *> zro-right) x+y#0)
+        | no y/=0 => byRight (nonZeroApart y/=0)
       }
+      | #0-tight {x} x/#0 => \case decideEq x zro \with {
+        | yes x=0 => x=0
+        | no x/=0 => absurd (x/#0 (nonZeroApart x/=0))
+      }
+      | nonEqualApart p => nonZeroApart (\lam x-y=0 => p (fromZero x-y=0))
+
+      \default #0 x : \Prop => x /= zro
+      \default #0-zro (zro/=0 : #0 zro) : Empty => zro/=0 idp
+      \default nonZeroApart \as notEqualApartImpl {x} x#0 : #0 x => x#0
+
+      \lemma decide#0 (a : E) : Or (a = 0) (a With#.`#0) \level Or.levelProp (\lam p q => apartNonZero q p)
+        => \case decideEq a 0 \with {
+          | yes e => inl e
+          | no q => inr (nonZeroApart q)
+        }
+    }
   }
-}
 
 \func \infixl 6 - {G : AddGroup} (x y : G) => x + negative y
 
@@ -235,14 +298,14 @@
   \lemma diff-cancel-left {x y z : E} : x - z - (x - y) = y - z
     => sum-cancel-left *> +-comm *> pmap (`- z) negative-isInv
 } \where {
-    \use \coerce fromCGroup (G : CGroup) => \new AbGroup G.E G.ide (G.*) G.ide-left G.ide-right G.*-assoc G.inverse G.inverse-left G.*-comm
-    \use \coerce toCGroup (G : AbGroup) => \new CGroup G.E G.zro (G.+) G.zro-left G.zro-right G.+-assoc G.negative G.negative-left G.+-comm
+  \use \coerce fromCGroup (G : CGroup) => \new AbGroup G.E G.ide (G.*) G.ide-left G.ide-right G.*-assoc G.inverse G.inverse-left G.*-comm
+  \use \coerce toCGroup (G : AbGroup) => \new CGroup G.E G.zro (G.+) G.zro-left G.zro-right G.+-assoc G.negative G.negative-left G.+-comm
 
-    \func equals (A B : AbGroup) (p : A = {AddGroup} B) : A = B
-      => path (\lam i => \new AbGroup {
-        | AddGroup => p @ i
-        | +-comm => prop-dpi (\Pi {x y : p @ __} -> x + y = y + x) A.+-comm B.+-comm @ i
-      })
-  }
+  \func equals (A B : AbGroup) (p : A = {AddGroup} B) : A = B
+    => path (\lam i => \new AbGroup {
+      | AddGroup => p @ i
+      | +-comm => prop-dpi (\Pi {x y : p @ __} -> x + y = y + x) A.+-comm B.+-comm @ i
+    })
+}
 
 \class FinGroup \extends Group, FinSet
