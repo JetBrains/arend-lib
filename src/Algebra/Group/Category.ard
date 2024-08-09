@@ -130,11 +130,6 @@
     \where \func helper : (\Sigma (isInj f)(isSurj f)) <-> (\Sigma f.TrivialKernel (isSurj f)) =>
       (\lam p => (f.Kernel-injectivity-corrolary p.1, p.2),
        \lam p => (f.Kernel-injectivity-test p.1, p.2))
-
-  \func quotient-map {S : Group} {H : NormalSubGroup S} : GroupHom S H.quotient \cowith
-    | func (s : S) => NormalSubGroup.quotient-proj-setwise s
-    | func-ide => idp
-    | func-* => idp
 }
 
 
@@ -155,7 +150,78 @@
       | func x => x
       | func-ide => idp
       | func-* => idp
+    \func ForgetSet : FaithfulFunctor GroupCat SetCat \cowith
+      | F G => G
+      | Func f => f
+      | Func-id => idp
+      | Func-o => idp
+      | isFaithful => \lam p => ext p
+    \func Iso<->Inj+Surj {G H : Group}(f : GroupHom G H) : Iso {GroupCat} f <-> f.isIsomorphism
+      => (\lam p => SetIso->Inj+Surj (Functor.Func-iso {GroupCat.ForgetSet} p),
+          \lam p => \new Iso {
+            | hinv => \new GroupHom {
+              | func => inve p
+              | func-ide => aux (this_iso p) f.func-ide
+              | func-* {x y : H} => rewrite (this_inv_ap p x, this_inv_ap p y,
+                                             inv f.func-*, inv $ inv_this_ap p (inve p x G.* inve p y),
+                                             inv $ this_inv_ap p x, inv $ this_inv_ap p y ) idp
+            }
+            | hinv_f => exts (\lam e => unfold (inv $ (inv_this_ap p e)))
+            | f_hinv => exts (\lam e => unfold (inv $ (this_inv_ap p e)))
+          } )
+      \where {
+
+        {- | some  set theoretic lemmas -}
+
+        \func this_inv_ap (p : f.isIsomorphism) (h : H) : h = Iso.f {this_iso p} (inve p h) => inv
+            (path \lam i => (Iso.f_hinv {this_iso p} i) h)
+
+        \func inv_this_ap (p : f.isIsomorphism)(g : G) : g = inve p (Iso.f {this_iso p} g) => inv
+            (path \lam i => (Iso.hinv_f {this_iso p} i) g)
+
+        \func this_iso (p : f.isIsomorphism) => Inj+Surj->SetIso f p.1 p.2
+
+        \func inve (p : f.isIsomorphism) => Iso.hinv {this_iso p}
+
+        \func aux {A B : \Set}(f : Iso {SetCat} {A} {B}) {a : A}{b : B}(p : f.f a = b) : f.hinv b = a => inv(
+          rewrite ( aux' f {a}, p) idp)
+
+        \func aux'{A B : \Set}(f : Iso {SetCat} {A} {B}) {a : A} : a = f.hinv (f.f a)
+          => inv (path (\lam i => (f.hinv_f i) a))
+
+        \func aux''{A B : \Set}(f : Iso {SetCat} {A} {B}) {b : B} : b = f.f (f.hinv b)
+          => inv (path (\lam i => (f.f_hinv i) b))
+
+        \func SetIso->Inj+Surj(f : Iso {SetCat}) : \Sigma (isInj f.f)(isSurj f.f) =>
+          (Equiv.isInj {SetIso->Equiv f}, Equiv.isSurj {SetIso->Equiv f})
+
+        \func Inj+Surj->SetIso {X Y : \Set} (f : X -> Y) (p : isInj f)(q : isSurj f) : Iso {SetCat} f => Equiv->SetIso (Equiv.fromInjSurj f p q)
+
+        \func Equiv->SetIso {X Y : \Set}{f : X -> Y} : Equiv f -> Iso {SetCat} f => \lam eq => \new Iso f {
+          | hinv => Equiv.ret {eq}
+          | hinv_f => ext (Equiv.ret_f {eq})
+          | f_hinv => ext (Equiv.f_ret {eq})
+        }
+        \func SetIso->Equiv{X Y : \Set} {f : X -> Y} : Iso {SetCat} f -> Equiv f => \lam p => \new QEquiv {
+          | ret => Iso.hinv {p}
+          | ret_f x => inv (aux' p {x})
+          | f_sec y => inv (aux'' p {y})
+        }
+      }
+
+    \lemma Iso<->TrivialKer+Surj {G H : Group}(f : GroupHom G H) :
+      Iso {GroupCat} f <-> (\Sigma f.TrivialKernel (isSurj f)) =>
+      <->trans (Iso<->Inj+Surj f) helper
+      \where \func helper : (\Sigma (isInj f)(isSurj f)) <-> (\Sigma f.TrivialKernel (isSurj f)) =>
+        (\lam p => (f.Kernel-injectivity-corrolary p.1, p.2),
+         \lam p => (f.Kernel-injectivity-test p.1, p.2))
+
+
   }
+\func quotient-map {S : Group} {H : NormalSubGroup S} : GroupHom S H.quotient \cowith
+  | func (s : S) => NormalSubGroup.quotient-proj-setwise s
+  | func-ide => idp
+  | func-* => idp
 
 \instance ImageGroup (f : GroupHom) : Group
   | Monoid => ImageMonoid f
