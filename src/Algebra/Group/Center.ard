@@ -1,0 +1,78 @@
+\import Algebra.Group
+\import Algebra.Group.GSet
+\import Algebra.Group.GSet.ExampleActions
+\import Algebra.Group.Sub
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Monoid.Sub
+\import Function.Meta
+\import Logic
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set
+
+\func Center{G : Group} : NormalSubGroup G \cowith
+  | contains z => \Pi(g : G) -> g * z = z * g
+  | contains_ide =>\lam _ =>  rewrite (G.ide-right, G.ide-left) idp
+  | contains_* {_} {_} cent1 cent2 => \lam (g : G) => rewrite (G.*-assoc, inv $ cent2 g, inv G.*-assoc, cent1 g) equation
+  | contains_inverse {e} cent => \lam (g : G) =>  inv (CentralizerGr.aux e g (rewrite (inv $ cent g, G.*-assoc, G.inverse-right) G.ide-right))
+  | isNormal (g : G) {h : G} p => \lam g1 => unfold (rewrite (p g, aux, G.inverse-right, G.ide-right, aux-2, G.inverse-right, G.ide-right, p g1) idp)
+  \where \private {
+    \lemma aux {x y z w : G} : x * (y * z * w) = (x * y) * (z * w) => equation
+    \lemma aux-2 {x y z w : G} : x * y * z * w = x * (y * z) * w => equation
+  }
+
+\func Centralizer {M : Monoid}(S : SubSet M) : SubMonoid M \cowith
+  | contains g => \Pi (s : M) -> S.contains s -> g * s = s * g
+  | contains_ide _ _ => equation
+  | contains_* cent1 cent2 s p => rewrite (M.*-assoc, cent2 s p, inv M.*-assoc, cent1 s p) M.*-assoc
+
+\func CentralizerGr {G : Group}(S : SubSet G) : SubGroup G \cowith
+  | SubMonoid => Centralizer {G} S
+  | contains_inverse {x : G} cent => \lam s p =>  aux x s (rewrite (cent s p, G.*-assoc, G.inverse-right) G.ide-right)
+  \where {
+    \private \lemma aux (x : G)(s : G)  (r : x * s * inverse x = s) : inverse x * s = s * inverse x
+      => inv (rewrite (inv $ G.ide-left {s * inverse x}, inv $ G.inverse-left {x}, aux-2, r) idp)
+
+    \private \lemma aux-2 {a b c d : G} : a * b * (c * d) = a * (b * c * d) => equation
+
+    \lemma elim {G : Group} {S : SubSet G} {g : G}(p : CentralizerGr S g){h : G}(q : S h) : conjugate g h = h => {?}
+    \lemma aux-elim {G : Group} {S : SubSet G} {g : G}(p : CentralizerGr S g){h : G}(q : S h) : conjugate (inverse g) h = h => {?}
+    \lemma aux-elim' {G : Group} {S : SubSet G} {g : G}(p : CentralizerGr S g){h : G}(q : S h) : (inverse g) * h * g = h => {?}
+  }
+
+
+{- | Note on definitions: two definitions are -}
+\func Normalizer'{G : Group}(H : SubGroup G) : SubGroup G => GroupAction.Stabilizer {ConjSubGroupAction G} H
+  \where {
+    \lemma LiesInNormalizer {G : Group}(H : SubGroup G) : H SubGroupPreorder.<= Normalizer' H
+      => \have | aux1 {g} {e} : g * conjugate (inverse g) e * inverse g = e => unfold $ rewrite (G.inverse-isInv, inv *-assoc, *-assoc, inverse-right, ide-right, inv *-assoc, inverse-right, ide-left) idp
+               | aux2 {g} {e} : inverse g * e * inverse (inverse g) = inverse g * e * g => rewrite G.inverse-isInv idp
+         \in \lam g p => exts \lam e => exts (\lam q => transport H.contains aux1 (contains_* (contains_* p q) (contains_inverse p)),
+                                              \lam q => transportInv H.contains aux2 (contains_* (contains_* (contains_inverse p) q) p))
+
+    \lemma RelativeNormal {G : Group}(H : SubGroup G) : H SubGroupPreorder.relativeNormIn Normalizer' H =>
+      \have | aux'' {g} {h} : conjugate (inverse (inverse g)) h = conjugate g h => rewrite G.inverse-isInv idp
+            | aux' {g} (q : ConjugateSubGroup (inverse g) H = H) h q'
+            => transport H aux'' $ transport (\lam (z : SubSet G) => z.contains h) (inv q) q'
+      \in (LiesInNormalizer H, \lam g p h q => aux' (SubGroup.contains_inverse {Normalizer' H} p) h q)
+  }
+
+
+\func WeilGroup {G : Group}(H : SubGroup G) : Group =>  SubGroupPreorder.QuotientGroup $ Normalizer'.RelativeNormal H
+
+\lemma Centralizer<Normalizer {G : Group}(H : SubGroup G){x : G} (p : SubGroup.contains {CentralizerGr H} x)
+  : SubGroup.contains {Normalizer' H} x => unfold (exts \lam e => exts (\lam r => aux {G} {H} {x}{p}{e}{transport (\lam z => H z) aux'' r}, -- transport (\lam z => H z) (inv $ Centralizer.aux-elim p ,
+                                                                        \lam r => unfold (transport (\lam z => H z) (inv $ CentralizerGr.aux-elim p r) r)))
+  \where \private {
+
+    \lemma aux {x : G} {p : CentralizerGr H x}{e : G}{r : H (inverse x * e * x)} : H e => {?} -- transport (\lam z => H z) (inv $ CentralizerGr.aux-elim'{G}{H}{x}p{e} r) r
+    \lemma aux' {x : G} {p : CentralizerGr H x}{e : G}{r : (**) x H e} : H (inverse x * e * x)
+      => {?}
+
+    \lemma aux'' {a b  : G} : conjugate (inverse a) b = inverse a * b * a => rewrite (G.*-assoc, G.inverse-isInv, inv G.*-assoc) idp
+
+  -- \func aux-elim' {G : Group} {S : SubSet G} {g : G}(p : CentralizerGr S g){h : G}(q : S h) : (inverse g) * h * g = h => {?}
+
+  }

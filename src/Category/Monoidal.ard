@@ -1,0 +1,74 @@
+\import Algebra.Group
+\import Category
+\import Category.Adjoint
+\import Category.Functor
+\import Category.Limit
+\import Category.Product
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\class PMonPrecat \extends Precat{
+  | MProd : Functor (ProductPrecat \this \this) \this
+  | I : Precat.Ob {\this}
+  \func \infixl 7 &(A B : Precat.Ob {\this}) => MProd (A, B)
+
+  \func \infix 7 &f {A B C D : Precat.Ob}(f : Hom A B)(g : Hom C D) : Hom (A & C) (B & D) => MProd.Func (f, g)
+
+  \func ProdWith (y : Ob) : Functor \this \this \cowith
+    | F => & y
+    | Func f => (id y) &f f
+    | Func-id => MProd.Func-id
+    | Func-o => rewrite (inv MProd.Func-o) {?}
+    \where {
+      --          \func helper {X : Ob}
+      --                       {Y : Ob}
+      --                       {Z : Ob}
+      --                       {g : Hom Y Z}
+      --                       {f : Hom X Y} : Func {MProd} ((id y, g) (id y, f)) = Func {MProd} (id y, g ∘ f) => {?}
+    }
+}
+
+
+\open PMonPrecat
+\class MonoidalPrecat \extends PMonPrecat{
+  | assoc-s{A B C : Ob} : Iso {_} {(A & B) & C} {A & (B & C)}
+  | l-units {A : Ob} : Iso {_} {I & A} {A}
+  | r-units {A : Ob} : Iso {_} {A & I} {A}
+
+  | assoc-naturality {A B C D : Precat.Ob {\this}} :
+  (id{\this} A &f (Iso.f {assoc-s {_}{B} {C} {D}})) ∘ (Iso.f {assoc-s {_} {A} {B & C} {D}}) ∘ ((Iso.f {assoc-s {_} {A} {B} {C}}) &f (id {_} D)) =
+  (Iso.f {assoc-s {_} {A} {B} {C & D}}) ∘ (Iso.f {assoc-s {_} {A & B} {C}{D}})
+  | l-r-units-naturality {A B  : Ob} : (id {_} A &f Iso.f {l-units {_}{B}}) ∘ (Iso.f {assoc-s {_} {A} {I} {B}}) = Iso.f {r-units {_} {A}} &f (id {_} B)
+
+  \func compos-1 {A B C D : Ob} : Hom (A & B & C & D) (A & (B & (C & D)))
+    => (id{\this} A &f (Iso.f {assoc-s {_}{B} {C} {D}})) ∘ (Iso.f {assoc-s {_} {A} {B & C} {D}}) ∘ ((Iso.f {assoc-s {_} {A} {B} {C}}) &f (id {_} D))
+
+  \func compos-2 {A B C D : Ob} : Hom (A & B & C & D) (A & (B & (C & D)))
+    => (Iso.f {assoc-s {_} {A} {B} {C & D}}) ∘ (Iso.f {assoc-s {_} {A & B} {C}{D}})
+}
+
+\class BraidedMonoidalPreCat\extends MonoidalPrecat{
+  | sym {A B : Ob} : Iso {_} {A & B} {B & A}
+}
+
+\class SymmetricMonoidalPreCat \extends BraidedMonoidalPreCat{
+  | sym-inv {A B : Ob} : Iso.f {sym {_} {B} {A}} ∘ Iso.f {sym {_} {A} {B}} = id (A & B)
+}
+
+
+\func CartesianPrecatIsMonoidal {C : CartesianPrecat} : MonoidalPrecat {| Precat => C} \cowith
+  | MProd => C.bprodBiFunctor
+  | I => C.terminal
+  | assoc-s => C.associator-iso
+  | l-units => Iso.reverse {C.terminal-prod-left}
+  | r-units => Iso.reverse {Iso.composite C.terminal-prod-left C.bprod-comm}
+  | assoc-naturality {A} {B} {C} {D} => {?}
+  | l-r-units-naturality => {?}
+
+
+\class ClosedMonoidalPreCat \extends MonoidalPrecat{
+  | Hom' (y : Ob) : Functor \this \this
+  | adjoint (y : Ob) : RightAdjoint \this \this (Hom' y) {| LAdj => ProdWith y}
+}
