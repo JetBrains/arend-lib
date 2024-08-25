@@ -16,9 +16,11 @@
 \import Topology.TopSpace
 \open Bounded(top)
 
-\record CauchyFilter (S : CoverSpace) \extends ProperFilter
+\record WeaklyCauchyFilter (S : CoverSpace) \extends WeaklyProperFilter
   | X => S
   | isCauchyFilter {C : Set (Set S)} : isCauchy C -> ∃ (U : C) (F U)
+
+\record CauchyFilter \extends WeaklyCauchyFilter, ProperFilter
 
 \record CauchyMap \extends ContMap {
   \override Dom : CoverSpace
@@ -48,6 +50,11 @@
     }
   }
 
+  \lemma func-weak-cauchy (F : WeaklyCauchyFilter Dom) : WeaklyCauchyFilter Cod { | WeaklyProperFilter => WeaklyProperFilter-map func F } \cowith
+    | isCauchyFilter Cc => \case isCauchyFilter {F} (func-cover Cc) \with {
+      | inP (U, inP (V, CV, p), FU) => inP (V, CV, transport F p FU)
+    }
+
   \lemma embedding->contEmbedding (e : IsEmbedding) : ContMap.IsEmbedding
     => ContMap.embedding-char.2 \lam Uo {x} Ux => \case CoverSpace.cauchy-regular-cover (e $ cauchy-open.1 Uo Ux) (func x) \with {
       | inP (V, inP (W,h,p), fx<=<V) => inP (_, CoverSpace.interior {_} {V}, fx<=<V, \lam {y} fy<=<V => h (p $ <=<_<= fx<=<V idp) (p $ <=<_<= fy<=<V idp))
@@ -75,10 +82,10 @@
   | <=-transitive f g c => g (f c)
   | <=-antisymmetric f g => exts \lam U => ext (f,g)
 
-\type \infix 4 CF~ {S : CoverSpace} (F G : CauchyFilter S) : \Prop
+\type \infix 4 CF~ {S : CoverSpace} (F G : WeaklyCauchyFilter S) : \Prop
   => \Pi {C : Set (Set S)} -> isCauchy C -> ∃ (U : C) (\Sigma (F U) (G U))
 
-\lemma CF~-sym {S : CoverSpace} {F G : CauchyFilter S} (p : F CF~ G) : G CF~ F
+\lemma CF~-sym {S : CoverSpace} {F G : WeaklyCauchyFilter S} (p : F CF~ G) : G CF~ F
   => \case p __ \with {
     | inP (U,CU,(FU,GU)) => inP (U,CU,(GU,FU))
   }
@@ -87,7 +94,7 @@
   | ProperFilter => F ∧ {ProperFilterSemilattice S} G
   | isCauchyFilter => p
 
-\lemma CF~_<= {S : CoverSpace} {F G : CauchyFilter S} (p : F ⊆ G) : F CF~ G
+\lemma CF~_<= {S : CoverSpace} {F G : WeaklyCauchyFilter S} (p : F ⊆ G) : F CF~ G
   => \lam c => \case isCauchyFilter c \with {
     | inP (U,CU,FU) => inP (U, CU, (FU, p FU))
   }
@@ -100,7 +107,7 @@
   }
 
 \instance CauchyFilterEquivalence (S : CoverSpace) : Equivalence (CauchyFilter S)
-  | ~ => CF~
+  | ~ F G => F CF~ G
   | ~-transitive p q c => \case p (isRegular c) \with {
     | inP (U, inP (V, CV, U<=<V), (FU, GU)) => inP (V, CV, (filter-mono (<=<_<= U<=<V) FU, CF~_<=< q U<=<V GU))
   }

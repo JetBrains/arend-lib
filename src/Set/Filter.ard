@@ -1,5 +1,7 @@
+\import Function.Meta
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Order.Lattice
 \import Order.PartialOrder
 \import Paths.Meta
@@ -29,8 +31,14 @@
   | filter-top => filter-top
   | filter-meet => filter-meet
 
-\record ProperFilter \extends SetFilter
+\record WeaklyProperFilter \extends SetFilter
+  | isWeaklyProper : Not (F Bounded.bottom)
+
+\record ProperFilter \extends WeaklyProperFilter
   | isProper {U : Set X} : F U -> ∃ U
+  | isWeaklyProper Fb => \case isProper Fb \with {
+    | inP (x, inP ((),_))
+  }
 
 \func pointFilter {X : \Set} (x : X) : ProperFilter X \cowith
   | F U => U x
@@ -39,9 +47,29 @@
   | filter-meet p q => (p,q)
   | isProper Ux => inP (x,Ux)
 
+\func WeaklyProperFilter-map {X Y : \Set} (f : X -> Y) (F : WeaklyProperFilter X) : WeaklyProperFilter Y \cowith
+  | SetFilter => SetFilter-map f F
+  | isWeaklyProper d => F.isWeaklyProper $ F.filter-mono (later \lam (inP ((),_))) d
+
 \func ProperFilter-map {X Y : \Set} (f : X -> Y) (F : ProperFilter X) : ProperFilter Y \cowith
   | SetFilter => SetFilter-map f F
   | isProper d => TruncP.map (isProper d) \lam s => (f s.1, s.2)
+
+\instance WeaklyProperFilterSemilattice (X : \Set) : MeetSemilattice (WeaklyProperFilter X)
+  | <= F G => F ⊆ G
+  | <=-refl c => c
+  | <=-transitive f g c => g (f c)
+  | <=-antisymmetric f g => exts \lam U => ext (f,g)
+  | meet F G => \new WeaklyProperFilter {
+    | F U => \Sigma (F U) (G U)
+    | filter-mono p s => (filter-mono p s.1, filter-mono p s.2)
+    | filter-top => (filter-top, filter-top)
+    | filter-meet s t => (filter-meet s.1 t.1, filter-meet s.2 t.2)
+    | isWeaklyProper s => isWeaklyProper s.1
+  }
+  | meet-left s => s.1
+  | meet-right s => s.2
+  | meet-univ f g c => (f c, g c)
 
 \instance ProperFilterSemilattice (X : \Set) : MeetSemilattice (ProperFilter X)
   | <= F G => F ⊆ G
