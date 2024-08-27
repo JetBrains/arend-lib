@@ -1,0 +1,95 @@
+\import Algebra.Linear.Matrix
+\import Algebra.Meta
+\import Algebra.Module
+\import Algebra.Module.LinearMap
+\import Algebra.Monoid
+\import Algebra.Ring
+\import Arith.Nat
+\import Data.Array
+\import Function.Meta
+\import Logic
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set
+\import Set.Subset
+
+\func Trace {R : Ring}{n : Nat} : LinearMap (MatrixModule R n n) (RingLModule R) \cowith
+  | func M => BigSumHom (diag M)
+  | func-+ => rewrite (diag.func-+, inv BigSumHom.func-+) idp
+  | func-*c => rewrite (diag.func-*c, inv BigSumHom.func-*c) idp
+  \where {
+    \func diag : LinearMap (MatrixModule R n n) (ArrayLModule n (RingLModule R)) \cowith
+      | func M => \lam i => M i i
+      | func-+ => exts \lam _ => idp
+      | func-*c => exts \lam _ => idp
+
+    \func BigSumHom : LinearMap (ArrayLModule n (RingLModule R)) (RingLModule R) \cowith
+      | func e => R.BigSum e
+      | func-+ {x} {y} => BigSum-+ x y
+      | func-*c {c} {x} => BigSum-*c c x
+
+    \func BigSum-+ {E : AbMonoid}{n : Nat}(l l' : Array E n) :
+      E.BigSum (\lam i => l i + l' i) = E.BigSum l + E.BigSum l' \elim n
+      | 0 => unfold E.BigSum (inv E.zro-right)
+      | suc n1 => unfold E.BigSum
+          (rewrite (BigSum-+ {E} {n1}(\new Array E n1 (\lam j => l (suc j)))(\new Array E n1 (\lam j => l' (suc j)))) aux)
+          \where {
+            \func aux  {E : AbMonoid}
+                       {n1 : Nat}
+                       {l : Array E (suc n1)}
+                       {l' : Array E (suc n1)} :
+              l 0 E.+ l' 0 E.+ (E.BigSum (\new Array E n1 (\lam j => l (suc j))) E.+ E.BigSum (\new Array E n1 (\lam j => l' (suc j)))) =
+              l 0 E.+ Big (E.+) E.zro (\new Array E n1 (\lam j => l (suc j))) E.+ (l' 0 E.+ Big (E.+) E.zro (\new Array E n1 (\lam j => l' (suc j))))
+              => equation
+
+          }
+
+    \func BigSum-*c {E : LModule R}(c : R)(l : Array E) : E.BigSum (\lam i => c *c l i) = c *c E.BigSum l \elim l
+      | nil => inv $ unfold E.BigSum E.*c_zro-right
+      | a :: l => unfold E.BigSum (rewrite (BigSum-*c c l, *c-ldistr) idp)
+  }
+
+\func Trace-transpose {R : Ring}{n : Nat} (M : MatrixModule R n n) : Trace M = Trace (transpose M) => idp
+
+\open MatrixRing
+\func Trace-prod {R : CRing}{n m : Nat}(A : MatrixModule R n m)(B : MatrixModule R m n) :
+  Trace (A product B) = Trace (B product A) => rewrite (Trace-prod-unfold A B, R.BigSum-transpose, Trace-prod-unfold B A, help) idp
+\where {
+
+  \lemma BigSum-ext {n : Nat}{l l' : Array R n} (p : \Pi(i : Fin n) -> l i = l' i) : R.BigSum l = R.BigSum l' =>
+    pmap R.BigSum (arrayExt p)
+
+  \lemma help : R.BigSum (\new Array R m (\lam (j : Fin m) =>
+  R.BigSum (\new Array R n (\lam (p0 : Fin n) => A p0 j R.* B j p0)))) =
+  R.BigSum (\new Array R m (\lam (i : Fin m) => R.BigSum (\new Array R n (\lam (j : Fin n) => B i j R.* A j i))))
+  => BigSum-ext {R}{m}
+      {\new Array R m (\lam (j : Fin m) => R.BigSum (\new Array R n (\lam (p0 : Fin n) => A p0 j R.* B j p0)))}
+      {\new Array R m (\lam (i : Fin m) => R.BigSum (\new Array R n (\lam (j : Fin n) => B i j R.* A j i)))}
+      (\lam (j : Fin m) => BigSum-ext {R} {n} {\new Array R n (\lam (p0 : Fin n) => A p0 j R.* B j p0)}
+      {\new Array R n (\lam (i : Fin n) => B j i R.* A i j)} (\lam i => R.*-comm)
+      )
+
+  \protected \func Trace-prod-unfold  {R : Ring}{n m : Nat}(X : MatrixModule R n m)(Y : MatrixModule R m n)
+    : Trace (X product Y) = R.BigSum (\lam i => R.BigSum (\lam j => X i j R.* Y j i)) => idp
+}
+
+\func Trace-conjugation {R : CRing}{n : Nat}{A B : Matrix R n n}{T : Monoid.Inv B} : Trace (T.inv product A product B) = Trace A
+  => rewrite (Trace-prod (T.inv product A) B, inv $ product-assoc B T.inv A, T.inv-right, Ring.ide-left {MatrixRing R n}) idp
+
+\func Trace-diagonal {R : Ring} {l : Array R} : Trace (diagonal l) = R.BigSum l => unfold (rewrite diag-diagonal' idp)
+\where {
+  \func diag-diagonal (l : Array R) : Trace.diag (diagonal l) = l => arrayExt (\lam _ => mcases \with {
+    | yes p => idp
+    | no n => absurd (n idp)
+  })
+  \func diag-diagonal' {n : Nat} (l : Array R n) :
+    Trace.diag {R} {n} (diagonal l) = {ArrayLModule n (RingLModule R)} l => exts (\lam _ => mcases \with {
+    | yes p => idp
+    | no n1 =>  absurd (n1 idp)
+  })
+
+}
+
+\func Trace-ide {R : Ring}{n : Nat} : Trace (Ring.ide {MatrixRing R n}) = R.natCoef n =>
+  rewrite (Trace-diagonal {R}{replicate n R.ide}, R.BigSum_replicate1) idp
