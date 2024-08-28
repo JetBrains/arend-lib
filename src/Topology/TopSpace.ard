@@ -61,6 +61,11 @@
 \func IsDenseSet {X : TopSpace} (S : Set X) : \Prop
   => \Pi {x : X} {U : Set X} -> isOpen U -> U x -> ∃ (y : S) (U y)
 
+\lemma denseSet->weaklyDense {X : TopSpace} {S : Set X} (d : IsDenseSet S) : IsWeaklyDenseSet S
+  => \lam Uo c (x,Ux) => \case d Uo Ux \with {
+    | inP s => c s
+  }
+
 \record ContMap \extends SetHom {
   \override Dom : TopSpace
   \override Cod : TopSpace
@@ -72,6 +77,9 @@
 
   \func IsDense : \Prop
     => IsDenseSet (\lam y => ∃ (x : Dom) (func x = y))
+
+  \lemma dense->weaklyDense (d : IsDense) : IsWeaklyDense
+    => denseSet->weaklyDense d
 
   \func IsEmbedding : \Prop
     => ∀ {U : isOpen} ∃ (V : isOpen) (U = func ^-1 V)
@@ -149,6 +157,14 @@
     }
 }
 
+\class StronglyHausdorffTopSpace \extends HausdorffTopSpace, SeparatedSet {
+  | isStronglyHausdorff {x y : E} : ∀ {U V : isOpen} (U x) (V y) (Not (Not (Given (U ∧ V)))) -> x = y
+  | isHausdorff p => isStronglyHausdorff \lam Uo Vo Ux Vy q => \case p Uo Vo Ux Vy \with {
+    | inP r => q r
+  }
+  | separatedEq {x} p => isStronglyHausdorff \lam Uo Vo Ux Vy q => p \lam x=y => q (x, (Ux, rewrite x=y Vy))
+}
+
 \lemma denseSet-lift-unique {X : TopSpace} {Y : HausdorffTopSpace} {S : Set X} (Sd : IsDenseSet S) (f g : ContMap X Y) (p : \Pi {x : X} -> S x -> f x = g x) {x : X} : f x = g x
   => isHausdorff \lam {U} Uo Vo Ufx Vgx => \case Sd {x} (open-inter (f.func-cont Uo) (g.func-cont Vo)) (Ufx,Vgx) \with {
     | inP (y,Sy,(Ufy,Vgy)) => inP (g y, (transport U (p Sy) Ufy, Vgy))
@@ -156,6 +172,12 @@
 
 \lemma dense-lift-unique {X Y : TopSpace} {Z : HausdorffTopSpace} (f : ContMap X Y) (fd : f.IsDense) (g h : ContMap Y Z) (p : \Pi (x : X) -> g (f x) = h (f x)) (y : Y) : g y = h y
   => denseSet-lift-unique fd g h (\lam (inP (x,q)) => rewriteI q (p x))
+
+\lemma weaklyDenseSet-lift-unique {X : TopSpace} {Y : StronglyHausdorffTopSpace} {S : Set X} (Sd : IsWeaklyDenseSet S) (f g : ContMap X Y) (f=g : \Pi {x : X} -> S x -> f x = g x) {x : X} : f x = g x
+  => isStronglyHausdorff \lam {U} Uo Vo Ufx Vgx p => Sd (open-inter (f.func-cont Uo) (g.func-cont Vo)) (\lam s => p (g s.1, (transport U (f=g s.2) s.3.1, s.3.2))) (x,(Ufx,Vgx))
+
+\lemma weaklyDense-lift-unique {X Y : TopSpace} {Z : StronglyHausdorffTopSpace} (f : ContMap X Y) (fd : f.IsWeaklyDense) (g h : ContMap Y Z) (p : \Pi (x : X) -> g (f x) = h (f x)) (y : Y) : g y = h y
+  => weaklyDenseSet-lift-unique fd g h (\lam (inP (x,q)) => rewriteI q (p x))
 
 \func TopTransfer {X : \Set} {Y : TopSpace} (f : X -> Y) : TopSpace X \cowith
   | isOpen U => ∃ (V : isOpen) (U = f ^-1 V)

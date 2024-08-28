@@ -12,8 +12,8 @@
 \import Set.Subset
 \import Topology.CoverSpace
 \import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.StronglyComplete
 \import Topology.RatherBelow
-\import Topology.TopSpace
 \import Topology.TopSpace.Product
 \open Bounded(top)
 \open CoverMap
@@ -98,6 +98,9 @@
 
         \lemma isDenseEmbedding {X X' Y Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fde : f.IsDenseEmbedding) (gde : g.IsDenseEmbedding) : CoverMap.IsDenseEmbedding {prod f g}
           => (ProductTopSpace.prod.isDense fde.1 gde.1, isEmbedding fde.2 gde.2)
+
+        \lemma isWeaklyDenseEmbedding {X X' Y Y' : CoverSpace} {f : CoverMap X Y} {g : CoverMap X' Y'} (fde : f.IsWeaklyDenseEmbedding) (gde : g.IsWeaklyDenseEmbedding) : CoverMap.IsWeaklyDenseEmbedding {prod f g}
+          => (ProductTopSpace.prod.isWeaklyDense fde.1 gde.1, isEmbedding fde.2 gde.2)
       }
 
     \lemma prod-neighborhood {X Y : CoverSpace} {x : X} {y : Y} {W : Set (\Sigma X Y)} : single (x,y) <=< {X ⨯ Y} W <-> ∃ (U : Set X) (V : Set Y) (single x <=< U) (single y <=< V) ∀ {x : U} {y : V} (W (x,y))
@@ -110,6 +113,16 @@
       : isCauchy {X ⨯ Y} \lam W => ∃ (U : C) (V : D) (W = \lam s => \Sigma (U s.1) (V s.2))
       => prodCover' Cc Dc
   }
+
+\instance ProductStronglyRegularCoverSpace (X Y : StronglyRegularCoverSpace) : StronglyRegularCoverSpace (\Sigma X Y)
+  | CoverSpace => ProductCoverSpace X Y
+  | isStronglyRegular => ClosureCoverSpace.closure-regular StronglyRatherBelow $ later \case \elim __ \with {
+    | inP (true, Cc) => closure $ inP (true, cauchy-subset (isStronglyRegular Cc) \lam {W} (inP (V, inP (U,CU,p), W<=<V)) => inP $ later (_, inP (U, CU, <=<-left (s<=<_^-1 proj1 W<=<V) p), <=-refl))
+    | inP (false, Cc) => closure $ inP (false, cauchy-subset (isStronglyRegular Cc) \lam {W} (inP (V, inP (U,CU,p), W<=<V)) => inP $ later (_, inP (U, CU, <=<-left (s<=<_^-1 proj2 W<=<V) p), <=-refl))
+  }
+
+\instance StronglyRegularCoverSpaceHasProduct : HasProduct StronglyRegularCoverSpace
+  | Product => ProductStronglyRegularCoverSpace
 
 \instance ProductSeparatedCoverSpace (X Y : SeparatedCoverSpace) : SeparatedCoverSpace (\Sigma X Y)
   | CoverSpace => ProductCoverSpace X Y
@@ -176,3 +189,13 @@
       }, \lam (inP (W',W'<=<W,V1,FV1,V2,GV2,h)) => inP (W', W'<=<W, Set.Prod (mkSet V1) (mkSet V2), \lam s => h (<=<_<= s.1 idp) (<=<_<= s.2 idp), prod-neighborhood.2 $
           inP (mkSet V1, mkSet V2, mkSet_<=<-point.2 FV1, mkSet_<=<-point.2 GV2, \lam p q => (p,q))))
   \where \open Completion
+
+\lemma strongCompletion-lift-neighborhood2 {X Y : StronglyRegularCoverSpace} {Z : StronglyCompleteCoverSpace} (g : CoverMap (X ⨯ Y) Z) (F : StrongCompletion X) (G : StrongCompletion Y) (W : Set Z)
+  : single (weaklyDense-lift (prod strongCompletion strongCompletion) (prod.isWeaklyDenseEmbedding strongCompletion.isDenseEmbedding strongCompletion.isDenseEmbedding) g (F,G)) <=< W <->
+    ∃ (W' : Set Z) (W' s<=< W) (V1 : Set X) (F V1) (V2 : Set Y) (G V2) (∀ {x : V1} {y : V2} (W' (g (x,y))))
+  => <->trans (weaklyDense-lift-neighborhood (prod.isWeaklyDenseEmbedding strongCompletion.isDenseEmbedding strongCompletion.isDenseEmbedding) (F,G) W) $ later
+     (\lam (inP (W',W'<=<W,V,p,FG<=<V)) => \case prod-neighborhood.1 FG<=<V \with {
+       | inP (V1,V2,F<=<V1,G<=<V2,g) => inP (W', W'<=<W, pointSCF ^-1 V1, pointSCF_^-1_<=< F<=<V1, pointSCF ^-1 V2, pointSCF_^-1_<=< G<=<V2, \lam V1x V2y => p $ g V1x V2y)
+     }, \lam (inP (W',W'<=<W,V1,FV1,V2,GV2,h)) => inP (W', W'<=<W, Set.Prod (mkSet V1) (mkSet V2), \lam s => h (<=<_<= s.1 idp) (<=<_<= s.2 idp), prod-neighborhood.2 $
+        inP (mkSet V1, mkSet V2, mkSet_<=<-point.2 FV1, mkSet_<=<-point.2 GV2, \lam p q => (p,q))))
+  \where \open StrongCompletion

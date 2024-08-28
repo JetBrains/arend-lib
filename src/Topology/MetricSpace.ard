@@ -18,12 +18,12 @@
 \import Set.Filter
 \import Set.Subset
 \import Topology.CoverSpace
-\import Topology.CoverSpace.Complete
-\import Topology.RatherBelow
+\import Topology.CoverSpace.StronglyComplete
 \import Topology.TopSpace
 \import Topology.UniformSpace
 \import Topology.UniformSpace.Complete
 \import Topology.UniformSpace.Product
+\import Topology.UniformSpace.StronglyComplete (StronglyCompleteUniformSpace)
 \open Bounded(top)
 \open RealAbGroup \hiding (+, join, meet, negative, zro<ide)
 \open PseudoMetricSpace \hiding (NFilter, isUniform)
@@ -53,23 +53,12 @@
       | inP (U,CU,g), inP (U',DU',g') => inP (U ∧ U', inP $ later (U, CU, U', DU', idp), \lam d => (g $ d <∘l meet-left, g' $ d <∘l meet-right))
     })
   }
-  | uniform-star Cu => \case dist-uniform.1 Cu \with {
-    | inP (eps,eps>0,h) => inP (\lam V => \Sigma (∃ V) (∀ {x y : V} (dist x y < half eps)), dist-uniform.2 $ inP (half (half eps), half>0 (half>0 eps>0), \lam x => inP (\lam y => dist x y < half (half eps), later (inP (x, rewrite dist-refl (half>0 (half>0 eps>0))), \lam {z} p q => dist-triang {_} {z} {x} <∘r rewrite dist-symm (OrderedAddMonoid.<_+ p q <∘l Preorder.=_<= (half+half {half eps}))), \lam c => c)), \case __ \with {
-      | (inP (x,Vx),g) => \case h x \with {
-        | inP (U,CU,f) => inP (U, CU, \case __ \with {
-          | (inP (y,V'y),g') => \lam (z,(Vz,V'z)) => \lam {w} V'w => f $ dist-triang <∘r OrderedAddMonoid.<_+ (g Vx Vz) (g' V'z V'w) <∘l Preorder.=_<= half+half
-        })
-      }
-    })
-  }
-  | isStronglyRegularUniform Cu => \case dist-uniform.1 Cu \with {
-    | inP (eps,eps>0,h) => dist-uniform.2 $ inP $ later (half (half eps), half>0 (half>0 eps>0), \lam x => \case h x \with {
-      | inP (U,CU,f) => inP (\lam y => dist x y < half (half eps), inP (U, CU, uniform-refine {_} {\lam U => ∃ (x : E) (U = \lam y => dist x y < half (half eps))} (dist-uniform.2 $ inP (half (half eps), half>0 (half>0 eps>0), \lam x => inP $ later (_, inP (x, idp), \lam r => r))) \lam {W} => \case __ \with {
-          | inP (y,p) => rewrite p \case real-located {dist x y} {half eps} {half eps + half (half eps)} (transport (`< _) zro-right $ <_+-right _ $ half>0 $ half>0 eps>0) \with {
-            | byLeft xy>1/2 => inP (_, byLeft idp, \lam {z} yz<1/4 => \lam xz<1/4 => <-irreflexive $ xy>1/2 <∘ (rewrite (half+half {half eps}) in dist-triang <∘r OrderedAddMonoid.<_+ xz<1/4 (rewrite dist-symm in yz<1/4)))
-            | byRight xy<3/4 => inP (_, byRight idp, \lam {z} yz<1/4 => f $ dist-triang <∘r OrderedAddMonoid.<_+ xy<3/4 yz<1/4 <∘l Preorder.=_<= (+-assoc *> pmap (_ +) (half+half {half eps}) *> half+half))
-          }
-        }), \lam r => r)
+  | uniform-strongly-star Cu => \case dist-uniform.1 Cu \with {
+    | inP (eps,eps>0,h) => inP (\lam U => ∃ (x : E) (U = \lam y => dist x y < half (half eps)), dist-uniform.2 $ inP (half (half eps), half>0 (half>0 eps>0), \lam x => inP $ later (_, inP (x,idp), \lam d => d)), \lam {_} (inP (x,idp)) => \case h x \with {
+      | inP (U,CU,g) => inP (U, CU, \lam {_} (inP (y,idp)) => \case real-located $ transport (RealAbGroup.`< _) zro-right $ <_+-right (half eps) $ half>0 (half>0 eps>0) \with {
+        | byLeft e => byLeft \lam (z,(dx,dy)) => <-irreflexive $ e <∘ transport (_ <) half+half (dist-triang <∘r RealAbGroup.<_+ dx (rewrite dist-symm in dy))
+        | byRight e => byRight \lam {z} d => g $ dist-triang <∘r transport (_ <) (+-assoc *> pmap (_ +) half+half *> half+half) (RealAbGroup.<_+ e d)
+      })
     })
   }
 
@@ -142,14 +131,22 @@
     | inP (eps,eps>0,V,h,p) => inP (eps, eps>0, p <=∘ h (x, (idp, p $ OBall-center eps>0)))
   }
 
+\lemma OBall_s<=* {X : PseudoMetricSpace} {x : X} {eps delta : Real} (delta<eps : delta < eps) : OBall delta x s<=* OBall eps x
+  => \let | d => eps - delta
+          | d>0 : 0 < d => transport (`< _) negative-right $ <_+-left (negative delta) delta<eps
+     \in unfolds $ uniform-refine (makeUniform $ half>0 $ half>0 d>0) $ later
+          \lam {_} (inP (y,idp)) => \case real-located $ <_+-cancel-right (half (half d)) $ transport2 (<) (inv $ +-assoc *> pmap (_ +) half+half) (inv $ +-assoc *> pmap (_ +) negative-left *> zro-right) $ <_+-cancel-left (negative delta) $ transport2 (<) (inv (pmap (`+ _) negative-left *> zro-left) *> +-assoc) +-comm (half<id d>0) \with {
+            | byLeft e => inP (_, byLeft idp, \lam {z} yz<d/4 xz<delta => <-irreflexive $ e <∘ dist-triang <∘r RealAbGroup.<_+ xz<delta (transport (`< _) dist-symm yz<d/4))
+            | byRight e => inP (_, byRight idp, \lam {z} yz<d/4 => transport (_ <) (+-assoc *> pmap (_ +) negative-left *> zro-right) $ dist-triang <∘r RealAbGroup.<_+ e yz<d/4)
+          }
+
 \lemma OBall_<=* {X : PseudoMetricSpace} {x : X} {eps delta : Real} (delta<eps : delta < eps) : OBall delta x <=* OBall eps x
-  => inP (_, makeUniform $ half>0 $ transport (`< _) negative-right $ <_+-left (negative delta) delta<eps,
-          \lam {y} (inP (_, (inP (z,idp), (w,(xw<delta,zw<eps-delta))), zy<eps-delta)) => transport (_ <) (+-comm *> +-assoc *> pmap (eps +) negative-left *> zro-right) $ dist-triang <∘r OrderedAddMonoid.<_+ xw<delta (halving zw<eps-delta zy<eps-delta))
+  => s<=*_<=* (OBall_s<=* delta<eps)
 
 \func IsBoundedSet {X : PseudoMetricSpace} (S : Set X) : \Prop
   => ∃ (B : Real) (0 < B) ∀ {x y : S} (dist x y < B)
 
-\class MetricSpace \extends PseudoMetricSpace, SeparatedCoverSpace
+\class MetricSpace \extends PseudoMetricSpace, StronglySeparatedCoverSpace
   | dist-ext {x y : E} : dist x y = zro -> x = y
   | isSeparatedCoverSpace {x} {y} f => dist-ext $ <=-antisymmetric (\lam d>0 => \case f (makeCauchy $ makeUniform (half>0 d>0)) \with {
     | inP (U, inP (z,p), (Ux,Uy)) =>
@@ -242,7 +239,7 @@
     })
 }
 
-\class CompleteMetricSpace \extends MetricSpace, CompleteUniformSpace
+\class CompleteMetricSpace \extends MetricSpace, StronglyCompleteUniformSpace
 
 \lemma cauchyFilter-metric-char {X : PseudoMetricSpace} {F : SetFilter X} : ∀ {C : isCauchy} ∃ (U : C) (F U) <->
   (\Pi {eps : Real} -> 0 < eps -> ∃ (x : X) (F (OBall eps x)))
