@@ -9,8 +9,6 @@
 \import Paths.Meta
 \import Set.Category
 
--- Every precategory has a fully faithful functor into the category of Presheafs
-
 \func YonedaEmbedding {C : Precat} : FullyFaithfulFunctor
 \cowith
   | Functor => functor {C}
@@ -46,19 +44,16 @@
         | trans _ f => Func {F} f p
         | natural _ => exts (\lam _ => unfold $ rewrite (Func-o {F}) idp)
       }
-      | ret_f nf => exts (\lam B => exts (\lam f =>
+      | ret_f nf => exts (\lam _ => exts (\lam f =>
           \let | nat-nf => natural {nf} f
                | nat-nf-app => path (\lam i => nat-nf i (id A))
           \in
             unfold at nat-nf-app $ inv nat-nf-app *> rewrite id-left idp))
-      | f_sec p => rewrite (Func-id {F} {A}) idp
+      | f_sec _ => rewrite (Func-id {F} {A}) idp
     }
   }
 
--- Every presheaf is a colimit of representable presheaves
--- The diagram of the colimit is given by the following category
-
-\instance category-of-elements {C : Precat} (P : PresheafCat C) : Precat
+\instance Precategory-of-elements {C : Precat} (P : PresheafCat C) : Precat
   | Ob => \Sigma (c : Precat.Ob {C}) (p : P c)
   | Hom x y => \Sigma (u : Hom x.1 y.1) (x.2 = Func {P} u y.2)
   | id (c, p) => (id c, unfold $ rewrite (Func-id {P}) idp)
@@ -67,7 +62,7 @@
   | id-right => exts id-right
   | o-assoc => exts o-assoc
   \where {
-    \func projection : Functor (category-of-elements P) C
+    \func projection : Functor (Precategory-of-elements P) C
     \cowith
       | F (x, _) => x
       | Func (f, _) => f
@@ -75,7 +70,7 @@
       | Func-o => idp
 
     \func functorial {C : Precat} (P F : PresheafCat C) (nat : Hom P F)
-      : Functor (category-of-elements P) (category-of-elements F)
+      : Functor (Precategory-of-elements P) (Precategory-of-elements F)
     \cowith
       | F (c, p) => (c, nat c p)
       | Func {(c, p)} {(c', p')} (h, eq) => (h, rewrite eq $ path (\lam i => (natural {nat} h) i p'))
@@ -86,7 +81,7 @@
 \open YonedaEmbedding
 
 \func presheaf-colimit {C : Precat} (P : PresheafCat C) :
-  Colimit (Comp (functor {C}) (category-of-elements.projection {C} {P})) => \new Limit {
+  Colimit (Comp (functor {C}) (Precategory-of-elements.projection {C} {P})) => \new Limit {
   | apex => P
   | coneMap (c, p) => \new NatTrans {
     | trans _ h => Func {P} h p
@@ -104,7 +99,6 @@
             \in
               run {
                 repeat {3} unfold,
-              -- weird error sometimes occures here, it works fine if other fields are not implemented
                 rewriteI ch,
                 repeat {3} unfold,
                 rewrite id-right,
@@ -120,7 +114,7 @@
     }
   | limUnique eq => exts (\lam X =>
       exts (\lam p =>
-          \let | elem : category-of-elements P => (X, p)
+          \let | elem : Precategory-of-elements P => (X, p)
                | eq-app => eq (X, p)
                | eq' => path (\lam i => (eq-app i) X)
                | eq'' => path (\lam i => (eq' i) (id X))
@@ -129,72 +123,115 @@
   )
 }
   \where {
-    \func diagram-functor => Comp (functor {C}) (category-of-elements.projection {C} {P})
+    \func diagram-functor => Comp (functor {C}) (Precategory-of-elements.projection {C} {P})
   }
 
-\open category-of-elements
+\open Precategory-of-elements
 
 \func embedding-universal {C : SmallPrecat} {E : CocompleteCat \levels (\suc \lp) _}
                           (A : Functor C E)
   : \Sigma (L : Functor (PresheafCat C) E) (A = Comp L YonedaEmbedding) =>
-  (L-Functor, exts (\lam x => inv $ image-of-rep-eq x, {?}))
+  (L-Functor, Equiv.ret {FunctorCat.univalence {A} {Comp L-Functor YonedaEmbedding}} functors-iso)
   \where {
+    \func functors-iso : Iso {FunctorCat {C} {E}} {A} {Comp L-Functor YonedaEmbedding}
+    \cowith
+      | f => nat
+      | hinv => NatTrans.iso {nat} (\lam {X} => image-of-rep-iso X)
+      | hinv_f => exts (\lam _ => unfold $ unfold $ Iso.hinv_f)
+      | f_hinv => exts (\lam _ => unfold $ unfold $ Iso.f_hinv)
+      \where {
+        \func nat : Hom A (Comp L-Functor YonedaEmbedding) =>
+          \new NatTrans {
+            | trans x => image-of-rep-iso x
+            | natural {X} {Y} f =>
+              unfold $ Iso.adjoint' $ rewrite o-assoc $ inv $ Iso.adjoint $
+                                                              limUnique {L-limit (hom-presheaf X)}
+                                                                  (\lam p0 => \case\elim p0 \with {
+                                                                    | (Z, p) =>
+                                                                      \let
+                                                                        | x-cone => image-of-representable X
+                                                                        | p1 : Precategory-of-elements (hom-presheaf Y) => (Z,  unfold $ f ∘ p)
+                                                                        | cone-help => L-Functor.cone-in-induced {C} {E} {A} {hom-presheaf X} {hom-presheaf Y} (Func {YonedaEmbedding} f)
+                                                                        | lim' => limBeta {L-limit (hom-presheaf X)} cone-help (Z, p)
+                                                                        | help : Func {L-Functor} {hom-presheaf X} (Func {YonedaEmbedding} {X} f) ∘ coneMap {L-limit (hom-presheaf X)} (Z, p) = coneMap {L-limit (hom-presheaf Y)} p1
+                                                                        =>
+                                                                          unfold (Func {L-Functor}) $ unfold L-Functor.induced-map $ unfold Limit.transFuncMap $
+                                                                                                                                     unfold at lim' $ rewrite lim' $ rewrite id-left idp
+                                                                      \in
+                                                                        run {
+                                                                          rewrite {2} o-assoc,
+                                                                          rewrite (limBeta {L-limit (hom-presheaf X)} {A X} x-cone (Z, p)),
+                                                                          unfold (coneMap {x-cone}),
+                                                                          rewrite o-assoc ,
+                                                                          rewrite help,
+                                                                          rewrite (limBeta {L-limit (hom-presheaf Y)} {A Y} (image-of-representable Y) p1),
+                                                                          unfold,
+                                                                          rewrite (Func-o {A}),
+                                                                          idp
+                                                                        }
+                                                                  }
+                                                                  )
+          }
+      }
+
     \func diagram-functor (P : PresheafCat C) => Comp A (projection {C} {P})
 
     \func image-of-representable (x : C) : Colimit (diagram-functor (hom-presheaf x)) { | apex => A x }
-      \cowith
-        | coneMap p0 => \case\elim p0 \with {
-          | (c, p) => Func {A} p
-        }
-        | coneCoh {i} {j} h =>\case\elim i, \elim j, \elim h \with {
-          | (c, p), (c', p'), (f, eq) => repeat {4} unfold $ rewriteI (Func-o {A}, eq) idp
-        }
-        | limMap {z} cone => coneMap {cone} (x, id x)
-        | limBeta {z} cone j => \case\elim j \with {
-          | (c, p) => coneCoh {cone} {x, id x} {c, p} (p, inv id-left)
-        }
-        | limUnique coh => unfold at coh $ \let | coh-app => coh (x, id x) \in rewrite (Func-id {A}, id-right, id-right) at coh-app $ coh-app
+    \cowith
+      | coneMap p0 => \case\elim p0 \with {
+        | (c, p) => Func {A} p
+      }
+      | coneCoh {i} {j} h =>\case\elim i, \elim j, \elim h \with {
+        | (c, p), (c', p'), (f, eq) => rewriteI (Func-o {A}, eq) idp
+      }
+      | limMap cone => coneMap {cone} (x, id x)
+      | limBeta cone j => \case\elim j \with {
+        | (c, p) => coneCoh {cone} {x, id x} {c, p} (p, inv id-left)
+      }
+      | limUnique coh => unfold at coh $ \let | coh-app => coh (x, id x) \in rewrite (Func-id {A}, id-right, id-right) at coh-app $ coh-app
 
-    \func image-of-representable-iso (x : C)
-      => Iso.op {Limit.lim_iso {_} {_} {Functor.op {diagram-functor (hom-presheaf x)}} (L $ hom-presheaf x) (image-of-representable x)}
+    \func image-of-rep-iso-op (x : C) : Iso {E.op} {A x} {L-limit (hom-presheaf x)} =>
+      Limit.lim_iso {_} {_} {Functor.op {diagram-functor (hom-presheaf x)}} (L-limit $ hom-presheaf x) (image-of-representable x)
 
-    \func image-of-rep-eq (x : C) : Limit.apex {L (hom-presheaf x)} = A x
-      => E.univalence.ret $ image-of-representable-iso x
+    \func image-of-rep-iso (x : C) : Iso {E} {A x} {L-limit (hom-presheaf x)} =>
+      Iso.reverse {Iso.op {image-of-rep-iso-op x}}
 
-    \func L (P : PresheafCat C) => E.colimit (diagram-functor P)
+    \func image-of-rep-eq (x : C) : A x = Limit.apex {L-limit (hom-presheaf x)} => E.univalence.ret $ image-of-rep-iso x
+
+    \func L-limit (P : PresheafCat C) => E.colimit (diagram-functor P)
 
     \func L-Functor : Functor (PresheafCat C) E
     \cowith
-      | F P => L P
-      | Func {X} {Y} f => induced-map f
+      | F P => L-limit P
+      | Func f => induced-map f
       | Func-id {X} =>
-        Limit.limUniqueBeta {L X} {L X} (\lam p0 => \case\elim p0 \with {
-          | (c, p) => repeat {2} unfold $ rewrite (id-right, id-left {_} {_} {L X}) $ idp
+        Limit.limUniqueBeta {L-limit X} {L-limit X} (\lam p0 => \case\elim p0 \with {
+          | (c, p) => repeat {2} unfold $ rewrite (id-right, id-left {_} {_} {L-limit X}) $ idp
         })
       | Func-o {X} {Y} {Z} {g} {f} =>
-        unfold_let $ Limit.limUniqueBeta {L X} {L Z} (\lam j => \case\elim j \with {
+        unfold_let $ Limit.limUniqueBeta {L-limit X} {L-limit Z} (\lam j => \case\elim j \with {
           | (c, p) => repeat {6} unfold
             $ id-right *> (
                             \let
-                              | limBeta1 => limBeta {L X} (cone-in-induced f) (c, p)
-                              | limBeta2 => limBeta {L Y} (cone-in-induced g) (c, f c p)
+                              | limBeta1 => limBeta {L-limit X} (cone-in-induced f) (c, p)
+                              | limBeta2 => limBeta {L-limit Y} (cone-in-induced g) (c, f c p)
                             \in
                               unfold at limBeta1 $ rewrite (o-assoc, limBeta1, id-left) $
                                                    unfold at limBeta2 $ rewrite (limBeta2, id-left) idp)
         })
       \where {
-        \func induced-map {X Y : PresheafCat C} (f : Hom X Y) =>
-          Limit.transFuncMap (L X) (L Y) (Functor.op {functorial X Y f}) $ (\new NatTrans {
-            | trans (q, a) => id (A q)
-            | natural g => repeat {4} unfold $ rewrite (id-left, id-right) idp
-          })
+        \func induced-natural {X Y : PresheafCat C} (f : Hom X Y) :
+          NatTrans (Comp (Functor.op {diagram-functor Y}) (Functor.op {functorial X Y f})) (Functor.op {diagram-functor X})
+        \cowith
+          | trans (q, a) => id (A q)
+          | natural _ => repeat {4} unfold $ rewrite (id-left, id-right) idp
+
+        \func induced-map {X Y : PresheafCat C} (f : Hom X Y) : Hom (L-limit X) (L-limit Y) =>
+          Limit.transFuncMap (L-limit X) (L-limit Y) (Functor.op {functorial X Y f}) $ induced-natural f
 
         \func cone-in-induced {X Y : PresheafCat C} (f : Hom X Y) =>
-          Limit.transFuncMap.cone {_} {L X} {L Y} {Functor.op {functorial X Y f}}
-              {\new NatTrans {
-                 | trans (q, a) => id (A q)
-                 | natural g => repeat {4} unfold $ rewrite (id-left, id-right) idp
-               }}
+          Limit.transFuncMap.cone {_} {L-limit X} {L-limit Y} {Functor.op {functorial X Y f}}
+              {induced-natural f}
       }
   }
 
