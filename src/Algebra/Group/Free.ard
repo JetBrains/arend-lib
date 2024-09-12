@@ -1,0 +1,131 @@
+\import Algebra.Group
+\import Algebra.Group.Category
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Data.Bool
+\import Data.List
+\import Function
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Algebra.Monoid
+\open Equivalence \hiding (map)
+
+\instance FreeGroup (S : \Set) : Group
+  | E => Quotient (~)
+  | ide => in~ nil
+  | * a b => \case a, b \with {
+    | in~ a, in~ b => in~ (a * b)
+    | in~ a, ~-equiv x y r => ~-equiv {_} {~} (a * x) (a * y) (equivMulLeft r)
+    | ~-equiv x y r, in~ a => ~-equiv {_} {~} (x * a) (y * a) (equivMulRight r)
+  }
+  | ide-left {x} => \case \elim x \with {
+    | in~ a => idp
+  }
+
+  | inverse x => \case \elim x \with {
+    | in~ a => in~ (inv a)
+    | ~-equiv x y r => ~-equiv {_} (inv x) (inv y) (equiv_inv r)
+  }
+
+  | inverse-left {x} => \case \elim x \with {
+    | in~ a => ~-equiv {_} _ _ (inv_mul {_} {a})
+  }
+
+  | *-assoc {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ a, in~ a1, in~ a2 => ~-equiv {_} _ _ (crefl (unfold (*) (rewrite ++-assoc idp)))
+  }
+
+  \where {
+    \func can {S : \Set} (s : S) : FreeGroup S => in~ ((s, true) :: nil)
+
+    \func W : Monoid => ListMonoid {\Sigma S Bool}
+
+    \func inv (w : W) : W \elim w
+      | nil => nil
+      | (x, deg) :: l => inv l ++ ((x, not deg) :: nil)
+
+    \lemma inv_* (x y : W) : inv (x * y) = inv y * inv x
+      | nil, y => rewrite ++_nil idp
+      | (x, p) :: xs, y => rewriteI (++-assoc, inv_*) idp
+
+    \func AreAdjacent (w_1 w_2 : W) =>
+      ∃ (u_1 u_2 : W) (x : S) (p : Bool)
+          (\Sigma
+            (w_1 = u_1 * u_2)
+            (w_2 = u_1 * ((x, p) :: nil) * ((x, not p) :: nil) * u_2))
+
+    \instance equivWords : Equivalence W => Closure.isEquivalence AreAdjacent
+
+    \lemma adjacent_cons {w1 w2 : W} {gen : \Sigma S Bool} (w1~w2 : w1 ~ w2) : gen :: w1 ~ gen :: w2 \elim w1~w2
+      | cin (inP (u1, u2, y, q, (A0, A1))) => cin (inP ((gen :: nil) * u1, u2, y, q, (rewrite A0 idp, rewrite A1 idp)))
+      | crefl p1 => crefl (rewrite p1 idp)
+      | csym c => csym (adjacent_cons c)
+      | ctrans {z} c c1 => ctrans (adjacent_cons c) (adjacent_cons c1)
+
+    \lemma adjacent_snoc {w1 w2 : W} {gen : \Sigma S Bool} (w1~w2 : w1 ~ w2) : w1 ++ (gen :: nil) ~ w2 ++ (gen :: nil) \elim w1~w2
+      | cin (inP (u1, u2, y, q, (A0, A1))) => cin (inP (u1, u2 ++ (gen :: nil), y, q, (rewrite (A0, ++-assoc) idp, rewrite (A1, ++-assoc) idp)))
+      | crefl p1 => crefl (rewrite p1 idp)
+      | csym c => csym (adjacent_snoc c)
+      | ctrans {z} c c1 => ctrans (adjacent_snoc c) (adjacent_snoc c1)
+
+    \lemma equivMulRight {a b c : W} (equiv : a ~ b) : a * c ~ b * c \elim c
+      | nil => repeat {2} (rewrite ide-right) equiv
+      | gen :: cs => repeat {2} (rewrite ++-assoc) in (equivMulRight {S} {a ++ (gen :: nil)} {b ++ (gen :: nil)} {cs}) (adjacent_snoc equiv)
+
+    \lemma equivMulLeft {a b c : W} (equiv : a ~ b) : c * a ~ c * b \elim c
+      | nil => repeat {2} (rewrite ide-left) equiv
+      | gen :: cs => adjacent_cons (equivMulLeft equiv)
+
+    \lemma equiv_inv {a b : W} (equiv : a ~ b) : inv a ~ inv b \elim equiv
+      | cin (inP (u1, u2, y, q, (A0, A1))) => rewrite (A0, A1) ((repeat {4} (rewrite inv_*)) (rewrite not-isInv (cin (inP (inv u2, inv u1, y, q, (idp, repeat {2} (rewrite *-assoc) idp))))))
+      | crefl p => crefl (rewrite p idp)
+      | csym c => csym (equiv_inv c)
+      | ctrans c c1 => ctrans (equiv_inv c) (equiv_inv c1)
+
+    \lemma inv_mul {a : W} : inv a * a ~ nil \elim a
+      | nil => crefl idp
+      | a :: l => ~-transitive {_} {_} {inv l * l} (csym (cin (inP (inv l, l, a.1, not a.2, (idp, rewrite not-isInv (repeat {3} (rewrite ++-assoc) idp)))))) (inv_mul {_} {l})
+
+    \func univ_map {G : Group} (i : S -> G) (l : List (\Sigma S Bool)) : G \elim l
+      | nil => ide
+      | (s, b) :: l => (\case b \with {
+        | true => i s
+        | false => inverse (i s) } ) G.* univ_map i l
+
+    \lemma univ_map_++ {G : Group} (i : S -> G) (l1 l2 : List (\Sigma S Bool)) : univ_map i (l1 ++ l2) = univ_map i l1 G.* univ_map i l2 \elim l1
+      | nil => rewrite ide-left idp
+      | (s, p) :: l1 => rewrite (univ_map_++ i l1 l2, *-assoc) idp
+
+    \lemma univ_equiv {G : Group} (i : S -> G) (w1 w2 : W) (equiv : w1 ~ w2)
+      : univ_map i w1 = univ_map i w2 \elim equiv
+      | cin (inP (u1, u2, y, q, (A0, A1))) => run {
+        rewrite (A0, A1),
+        repeat {4} (rewrite univ_map_++),
+        repeat {2} (rewrite ide-right),
+        cases q,
+        repeat {2} (rewrite *-assoc),
+        rewriteI {2} *-assoc,
+        rewrite (inverse-left, ide-left {G}) idp <|> rewrite (inverse-right, ide-left {G}) idp
+      }
+      | crefl p => pmap (univ_map i) p
+      | csym c => Paths.inv (univ_equiv i w2 w1 c)
+      | ctrans {z} c c1 => univ_equiv i w1 z c *> univ_equiv i z w2 c1
+
+    \func univ_map' {G : Group} (i : S -> G) (w : FreeGroup S) : G \elim w
+      | in~ a => univ_map i a
+      | ~-equiv x y p => univ_equiv {S} {G} i x y p
+  }
+
+\func FreeGroupUniversalProperty (S : \Set) (G : Group) (i : S -> G) : \Sigma (f : GroupHom (FreeGroup S) G) (f o FreeGroup.can = i) =>
+  (\new GroupHom {
+     | func => FreeGroup.univ_map' i
+     | func-ide => idp
+     | func-* {x} {y} => \case \elim x, \elim y \with {
+       | in~ x, in~ y => FreeGroup.univ_map_++ i x y
+     }
+   }, ext (\lam _ => unfold (o) (rewrite ide-right idp)))
