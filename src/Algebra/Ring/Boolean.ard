@@ -1,0 +1,52 @@
+\import Algebra.Ring
+\import Function.Meta
+\import Order.Lattice
+\import Paths
+
+\class BooleanRing \extends PseudoCRing, Lattice, Bounded.JoinSemilattice {
+  | isBooleanRing {x : E} : x * x = x
+  | <= x y => x * y = x
+  | <=-refl => isBooleanRing
+  | <=-transitive xy=x yz=y => pmap (`* _) (inv xy=x) *> *-assoc *> pmap (_ *) yz=y *> xy=x
+  | <=-antisymmetric xy=x yx=y => inv xy=x *> *-comm *> yx=y
+  | meet => *
+  | meet-left => *-comm *> inv *-assoc *> pmap (`* _) isBooleanRing
+  | meet-right => *-assoc *> pmap (_ *) isBooleanRing
+  | meet-univ zx=z zy=z => inv *-assoc *> pmap (`* _) zx=z *> zy=z
+  | join x y => x + y + x * y
+  | join-left => ldistr *> pmap2 (+) ldistr (inv *-assoc) *> +-assoc *> pmap2 (+) isBooleanRing (pmap (_ + __ * _) isBooleanRing *> sum2 isBooleanRing) *> zro-right
+  | join-right => ldistr *> pmap2 (__ + _ * __) ldistr *-comm *> +-comm *> inv +-assoc *> pmap2 (+) (pmap (`+ _) (inv *-assoc *> pmap (`* _) isBooleanRing) *> sum2 isBooleanRing) isBooleanRing *> zro-left
+  | join-univ xz=x yz=y => rdistr *> pmap2 (+) (rdistr *> pmap2 (+) xz=x yz=y) (*-assoc *> pmap (_ *) yz=y)
+  | bottom => 0
+  | bottom-univ => zro_*-left
+  | negative x => x
+
+  \default *-comm {x} {y} => inv zro-left *> pmap (`+ _) (cancel-right y $ zro-left *> cancel-left x (inv isBooleanRing *> ldistr *> pmap2 (+) rdistr rdistr *> pmap2 (__ + _ + (_ + __)) isBooleanRing isBooleanRing *> +-assoc) *> inv +-assoc) *> +-assoc *> pmap (_ +) (sum2 isBooleanRing) *> zro-right
+
+  \lemma double=0 {x : E} : x + x = 0
+    => sum2 isBooleanRing
+
+  \lemma neative=id {x : E} : negative x = x
+    => cancel-left x $ negative-right *> inv double=0
+
+  \func diff (x y : E) => x + x * y
+
+  \lemma diff<= {x y : E} : diff x y <= x
+    => rdistr *> pmap2 (+) isBooleanRing (*-comm *> inv *-assoc *> pmap (`* y) isBooleanRing)
+
+  \lemma diff_meet {x y : E} : diff x y * y = 0
+    => rdistr *> pmap (_ +) (*-assoc *> pmap (x *) isBooleanRing) *> double=0
+
+  \lemma diff_* {x y : E} : diff x y * diff y x = 0
+    => <=-antisymmetric (meet-monotone <=-refl diff<= <=∘ =_<= diff_meet) bottom-univ
+
+  \lemma +_diff {x y : E} : x + y = diff x y ∨ diff y x
+    => inv zro-right *> pmap2 (+) (inv $ +-assoc *> pmap (x +) (+-comm *> +-assoc *> pmap (y +) (pmap (_ +) *-comm *> double=0) *> zro-right)) (inv diff_*)
+} \where {
+  \private \lemma sum2 {R : PseudoRing} (br : \Pi {x : R} -> x * x = x) {x : R} : x + x = 0
+    => inv $ cancel-left (x + x) $ zro-right *> inv br *> ldistr *> pmap2 (+) rdistr rdistr *> pmap2 (+) (pmap2 (+) br br) (pmap2 (+) br br)
+}
+
+\class BooleanAlgebra \extends BooleanRing, CRing, Bounded.Lattice
+  | top => 1
+  | top-univ => ide-right

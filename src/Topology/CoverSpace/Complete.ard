@@ -16,9 +16,11 @@
 \import Topology.TopSpace
 \open Bounded(top)
 
-\record CauchyFilter (S : CoverSpace) \extends ProperFilter
+\record WeaklyCauchyFilter (S : CoverSpace) \extends WeaklyProperFilter
   | X => S
   | isCauchyFilter {C : Set (Set S)} : isCauchy C -> ∃ (U : C) (F U)
+
+\record CauchyFilter \extends WeaklyCauchyFilter, ProperFilter
 
 \record CauchyMap \extends ContMap {
   \override Dom : CoverSpace
@@ -38,11 +40,17 @@
     }
 }
 
-\record CoverMap \extends PrecoverMap, CauchyMap {
+\record StronglyCauchyMap \extends CauchyMap
+  | func-weak-cauchy (F : WeaklyCauchyFilter Dom) : WeaklyCauchyFilter Cod { | WeaklyProperFilter => WeaklyProperFilter-map func F }
+  | func-cauchy F => \new CauchyFilter {
+    | isCauchyFilter => isCauchyFilter {func-weak-cauchy F}
+  }
+
+\record CoverMap \extends PrecoverMap, StronglyCauchyMap {
   \override Dom : CoverSpace
   \override Cod : CoverSpace
 
-  | func-cauchy F => \new CauchyFilter {
+  | func-weak-cauchy F => \new WeaklyCauchyFilter {
     | isCauchyFilter Cc => \case isCauchyFilter {F} (func-cover Cc) \with {
       | inP (U, inP (V, CV, p), FU) => inP (V, CV, transport F p FU)
     }
@@ -75,10 +83,10 @@
   | <=-transitive f g c => g (f c)
   | <=-antisymmetric f g => exts \lam U => ext (f,g)
 
-\type \infix 4 CF~ {S : CoverSpace} (F G : CauchyFilter S) : \Prop
+\type \infix 4 CF~ {S : CoverSpace} (F G : WeaklyCauchyFilter S) : \Prop
   => \Pi {C : Set (Set S)} -> isCauchy C -> ∃ (U : C) (\Sigma (F U) (G U))
 
-\lemma CF~-sym {S : CoverSpace} {F G : CauchyFilter S} (p : F CF~ G) : G CF~ F
+\lemma CF~-sym {S : CoverSpace} {F G : WeaklyCauchyFilter S} (p : F CF~ G) : G CF~ F
   => \case p __ \with {
     | inP (U,CU,(FU,GU)) => inP (U,CU,(GU,FU))
   }
@@ -87,22 +95,22 @@
   | ProperFilter => F ∧ {ProperFilterSemilattice S} G
   | isCauchyFilter => p
 
-\lemma CF~_<= {S : CoverSpace} {F G : CauchyFilter S} (p : F ⊆ G) : F CF~ G
+\lemma CF~_<= {S : CoverSpace} {F G : WeaklyCauchyFilter S} (p : F ⊆ G) : F CF~ G
   => \lam c => \case isCauchyFilter c \with {
     | inP (U,CU,FU) => inP (U, CU, (FU, p FU))
   }
 
 \lemma CF~_<=< {S : CoverSpace} {F G : CauchyFilter S} (F~G : F CF~ G) {U V : Set S} (p : U <=< V) (FU : F U) : G V
   => \case F~G p \with {
-    | inP (W, f, (FW, GW)) => filter-mono (\case isProper $ filter-meet FU FW \with {
+    | inP (W, f, (FW, GW)) => filter-mono GW \case isProper $ filter-meet FU FW \with {
       | inP s => f s
-    }) GW
+    }
   }
 
 \instance CauchyFilterEquivalence (S : CoverSpace) : Equivalence (CauchyFilter S)
-  | ~ => CF~
+  | ~ F G => F CF~ G
   | ~-transitive p q c => \case p (isRegular c) \with {
-    | inP (U, inP (V, CV, U<=<V), (FU, GU)) => inP (V, CV, (filter-mono (<=<_<= U<=<V) FU, CF~_<=< q U<=<V GU))
+    | inP (U, inP (V, CV, U<=<V), (FU, GU)) => inP (V, CV, (filter-mono FU (<=<_<= U<=<V), CF~_<=< q U<=<V GU))
   }
   | ~-reflexive c => \case isCauchyFilter c \with {
     | inP (U,CU,FU) => inP (U,CU,(FU,FU))
@@ -133,7 +141,7 @@
 -- | The unique regular Cauchy filter equivalent to the given one.
 \func regCF {X : CoverSpace} (F : CauchyFilter X) : RegularCauchyFilter X \cowith
   | F U => \Pi {G : CauchyFilter X} -> G ⊆ F -> G U
-  | filter-mono p q c => filter-mono p (q c)
+  | filter-mono q p c => filter-mono (q c) p
   | filter-top _ => filter-top
   | filter-meet p q c => filter-meet (p c) (q c)
   | isProper p => F.isProper (p <=-refl)
@@ -143,14 +151,14 @@
   | isRegularFilter c =>
     \case c {\new CauchyFilter {
                    | F U => ∃ (V W : Set X) (W <=< V) (V <=< U) (F W)
-                   | filter-mono p (inP (V,W,W<=<V,V<=<U,FW)) => inP (V, W, W<=<V, <=<-left V<=<U p, FW)
+                   | filter-mono (inP (V,W,W<=<V,V<=<U,FW)) p => inP (V, W, W<=<V, <=<-left V<=<U p, FW)
                    | filter-top => inP (top, top, <=<_top, <=<_top, filter-top)
                    | filter-meet (inP (V,W,W<=<V,V<=<U,FW)) (inP (V',W',W'<=<V',V'<=<U',FW')) => inP (V ∧ V', W ∧ W', <=<_meet W<=<V W'<=<V', <=<_meet V<=<U V'<=<U', filter-meet FW FW')
                    | isProper (inP (V,W,W<=<V,V<=<U,FW)) => TruncP.map (isProper FW) \lam (x,Wx) => (x, <=<_<= V<=<U (<=<_<= W<=<V Wx))
                    | isCauchyFilter Cc => \case F.isCauchyFilter $ isRegular $ isRegular Cc \with {
                      | inP (W, inP (V, inP (U, CU, V<=<U), W<=<V), FW) => inP (U, CU, inP (V, W, W<=<V, V<=<U, FW))
                    }
-                 }} (\lam {U} (inP (V,W,W<=<V,V<=<U,FW)) => filter-mono (<=<_<= W<=<V <=∘ <=<_<= V<=<U) FW) \with {
+                 }} (\lam {U} (inP (V,W,W<=<V,V<=<U,FW)) => filter-mono FW $ <=<_<= W<=<V <=∘ <=<_<= V<=<U) \with {
       | inP (V,W,W<=<V,V<=<U,FW) => inP (V, V<=<U, \lam p => CF~_<=< (CF~-sym $ CF~_<= p) W<=<V FW)
     }
 
@@ -161,7 +169,7 @@
 
 \func pointCF {S : CoverSpace} (x : S) : RegularCauchyFilter S \cowith
   | F U => single x <=< U
-  | filter-mono p q => <=<-left q p
+  | filter-mono => <=<-left
   | filter-top => <=<_top
   | filter-meet p q => <=<-right (meet-univ <=-refl <=-refl) (<=<_meet p q)
   | isProper p => inP (x, <=<_<= p idp)
@@ -243,7 +251,7 @@
 
 \func dense-filter-lift {X Y : CoverSpace} (f : CoverMap X Y) (fd : f.IsDenseEmbedding) (F : CauchyFilter Y) : CauchyFilter X \cowith
   | F U => ∃ (V' V : Set Y) (f ^-1 V ⊆ U) (V' <=< V) (F V')
-  | filter-mono U<=U' (inP (V',V,p,V'<=<V,FV')) => inP (V', V, p <=∘ U<=U', V'<=<V, FV')
+  | filter-mono (inP (V',V,p,V'<=<V,FV')) U<=U' => inP (V', V, p <=∘ U<=U', V'<=<V, FV')
   | filter-top => inP (top, top, \lam _ => (), <=<_top, filter-top)
   | filter-meet (inP (U',U,p,U'<=<U,FU')) (inP (V',V,q,V'<=<V,FV')) => inP (U' ∧ V', U ∧ V, MeetSemilattice.meet-monotone p q, <=<_meet U'<=<U V'<=<V, filter-meet FU' FV')
   | isProper (inP (V',V,p,V'<=<V,FV')) => \case F.isProper FV' \with {
@@ -257,7 +265,7 @@
   \where {
     \lemma map-equiv (fd : f.IsDenseEmbedding) : f.func-cauchy (dense-filter-lift f fd F) CF~ F
       => \lam {C} Cc => \case isCauchyFilter (isRegular Cc) \with {
-        | inP (V', inP (V, CV, V'<=<V), FV') => inP (V, CV, (inP (V', V, <=-refl, V'<=<V, FV'), filter-mono (<=<_<= V'<=<V) FV'))
+        | inP (V', inP (V, CV, V'<=<V), FV') => inP (V, CV, (inP (V', V, <=-refl, V'<=<V, FV'), filter-mono FV' (<=<_<= V'<=<V)))
       }
   }
 
@@ -265,9 +273,9 @@
   | func y => Z.filter-point $ g.func-cauchy $ dense-filter-lift f fd (pointCF y)
   | func-cauchy F => \new CauchyFilter {
     | isCauchyFilter Cc => \case isCauchyFilter {g.func-cauchy $ dense-filter-lift f fd F} (isRegular Cc) \with {
-      | inP (U', inP (U,CU,U'<=<U), inP (V',V,p,V'<=<V,FV')) => inP (U, CU, filter-mono (\lam {y} V'y => <=<_<= (CompleteCoverSpace.filter-point-elem U'<=<U \case <=<-inter $ <=<-right (single_<= V'y) V'<=<V \with {
+      | inP (U', inP (U,CU,U'<=<U), inP (V',V,p,V'<=<V,FV')) => inP (U, CU, filter-mono FV' \lam {y} V'y => <=<_<= (Z.filter-point-elem U'<=<U \case <=<-inter $ <=<-right (single_<= V'y) V'<=<V \with {
         | inP (V'',y<=<V'',V''<=<V) => inP $ later (V'', V, p, V''<=<V, y<=<V'')
-      }) idp) FV')
+      }) idp)
     }
   }
 
@@ -295,7 +303,7 @@
 \lemma dense-lift-natural {X : CoverSpace} {Y Z : CompleteCoverSpace} {f : CoverMap X Y} (fd : f.IsDenseEmbedding) {g : CoverMap X Z} (F : CauchyFilter X)
   : dense-lift f fd g (Y.filter-point $ f.func-cauchy F) = Z.filter-point (g.func-cauchy F)
   => isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 0 7 \lam {U} c => \case (dense-lift-neighborhood fd (Y.filter-point $ f.func-cauchy F) _).1 c \with {
-    | inP (U',U'<=<U,V,p,q) => filter-point-elem U'<=<U $ filter-mono p $ later (filter-point-sub q)
+    | inP (U',U'<=<U,V,p,q) => filter-point-elem U'<=<U $ later $ filter-mono (filter-point-sub q) p
   }
 
 \lemma dense-complete {X Y : CoverSpace} {f : CoverMap X Y} (fd : f.IsDenseEmbedding) (p : \Pi (F : RegularCauchyFilter X) -> ∃ (y : Y) (pointCF y ⊆ f.func-cauchy F)) : IsCompleteCoverSpace Y
@@ -314,7 +322,7 @@
       => \lam F => F U
 
     \lemma mkSet_<= {U V : Set X} (p : U ⊆ V) : mkSet U ⊆ mkSet V
-      => \lam {F} => filter-mono p
+      => \lam {F} => filter-mono __ p
 
     \lemma mkSet-open {U : Set X} (Uo : isOpen U) : isOpen {Completion X} (mkSet U)
       => (PrecoverSpace.open-char {Completion X}).2 $ \lam {F} FU => \case isRegularFilter FU \with {
@@ -326,12 +334,12 @@
     \lemma pointCF_^-1_<=< {F : RegularCauchyFilter X} {U : Set (RegularCauchyFilter X)} (p : single F <=< {Completion X} U) : F (pointCF ^-1 U) \elim p
       | inP (C,Cc,h) => \case F.isCauchyFilter (isRegular Cc) \with {
         | inP (U', inP (U,CU,U'<=<U), FU') => \case h CU \with {
-          | inP (V,g,q) => filter-mono (\lam U'x => g (F, (idp, q $ filter-mono (<=<_<= U'<=<U) FU')) $ q $ <=<-right (single_<= U'x) U'<=<U) FU'
+          | inP (V,g,q) => filter-mono FU' \lam U'x => g (F, (idp, q $ filter-mono FU' $ <=<_<= U'<=<U)) $ q $ <=<-right (single_<= U'x) U'<=<U
         }
       }
 
     \lemma mkSet_<=<-point {F : RegularCauchyFilter X} {U : Set X} : single F <=< {Completion X} mkSet U <-> F U
-      => (\lam p => filter-mono (<=<_<= __ idp) (pointCF_^-1_<=< p), \lam FU => \case isRegularFilter FU \with {
+      => (\lam p => filter-mono (pointCF_^-1_<=< p) (<=<_<= __ idp), \lam FU => \case isRegularFilter FU \with {
         | inP (V,V<=<U,FV) => inP (_, V<=<U, \lam {W} g => inP (mkSet W, \lam (_,(idp,FW)) => mkSet_<= $ \case isProper (filter-meet FV FW) \with {
           | inP s => g s
         }, <=-refl))
@@ -359,7 +367,7 @@
                 | (inP (D',D'c,g)) => Dc CU
           \in cauchy-refine D'c \lam {V'} D'V' => \case g D'V' \with {
             | inP (V,DV,V'<=V) => inP (V', inP (U, CU, V, DV, U'<=U, V'<=V), <=-refl)
-          }, \lam {W'} (inP (U', V', C'U', inP (U, CU, V, DV, U'<=U, V'<=V), W'=U'V')) => inP (U ∧ V, inP (U, V, CU, DV, idp), rewrite W'=U'V' \lam {F} FU'V' => (U'<=U $ filter-mono meet-left FU'V', V'<=V $ filter-mono meet-right FU'V')))
+          }, \lam {W'} (inP (U', V', C'U', inP (U, CU, V, DV, U'<=U, V'<=V), W'=U'V')) => inP (U ∧ V, inP (U, V, CU, DV, idp), rewrite W'=U'V' \lam {F} FU'V' => (U'<=U $ filter-mono FU'V' meet-left, V'<=V $ filter-mono FU'V' meet-right)))
       | isRegular {D} (inP (C,Cc,f)) =>
         \have <=<_mkFilters {U' U : Set X} (p : U' <=< U) : mkSet U' <=< mkSet U
               => unfolds $ inP (_, p, \lam {W} g => inP (mkSet W, \lam (F,(FU',FW)) => \case isProper (filter-meet FU' FW) \with {
@@ -383,7 +391,7 @@
       | inP (C,Cc,f) =>
         \have | (inP (U', inP (U, CU, U'<=<U), FU')) => isCauchyFilter {F} (isRegular Cc)
               | (inP (W,g,U<=W)) => f CU
-        \in filter-mono (\lam U'x => g (F, (idp, U<=W $ filter-mono (<=<_<= U'<=<U) FU')) $ U<=W $ <=<-right (single_<= U'x) U'<=<U) FU'
+        \in filter-mono FU' \lam U'x => g (F, (idp, U<=W $ filter-mono FU' $ <=<_<= U'<=<U)) $ U<=W $ <=<-right (single_<= U'x) U'<=<U
 
     \lemma isDenseEmbedding : completion.IsDenseEmbedding
       => (dense-char.2 \lam r => isProper (dense-aux r), \lam {C} Cc => inP (C, Cc, \lam {U} CU => inP (Completion.mkSet U, inP (U, CU, <=<_<= __ idp), <=-refl)))

@@ -9,23 +9,24 @@
 \import Set.Subset
 \import Topology.CoverSpace
 \import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.StronglyComplete
 \import Topology.RatherBelow
 \import Topology.UniformSpace
 \open ClosurePrecoverSpace
 \open Bounded(top)
-\open Completion
+\open StrongCompletion
 
-\class CompleteUniformSpace \extends UniformSpace, CompleteCoverSpace
+\class StronglyCompleteUniformSpace \extends StronglyRegularUniformSpace, StronglyCompleteCoverSpace
 
-\func dense-uniform-lift {X Y : UniformSpace} {Z : CompleteUniformSpace} (f : UniformMap X Y) (fd : f.IsDenseEmbedding) (g : UniformMap X Z) : UniformMap Y Z \cowith
-  | CoverMap => dense-lift f (fd.1, f.embedding->coverEmbedding fd.2) g
-  | func-uniform Dc => uniform-refine (Y.<=<-regular $ fd.2 $ g.func-uniform $ Z.<=<-regular Dc) \lam {V'} (inP (V, inP (U, inP (W', inP (W, DW, W'<=<W), p), q), V'<=<V)) =>
+\func weaklyDense-uniform-lift {X : UniformSpace} {Y : StronglyRegularUniformSpace} {Z : StronglyCompleteUniformSpace} (f : UniformMap X Y) (fd : f.IsWeaklyDenseEmbedding) (g : UniformMap X Z) : UniformMap Y Z \cowith
+  | CoverMap => weaklyDense-lift f (fd.1, f.embedding->coverEmbedding fd.2) g
+  | func-uniform Dc => uniform-refine (Y.<=<-regular $ fd.2 $ g.func-uniform $ Z.s<=<-regular Dc) \lam {V'} (inP (V, inP (U, inP (W', inP (W, DW, W'<=<W), p), q), V'<=<V)) =>
       inP (_, inP (W, DW, idp), \lam {y} V'y => <=<_<= (Z.filter-point-elem W'<=<W \case <=<-inter (<=<-right (single_<= V'y) V'<=<V) \with {
         | inP (V'',y<=<V'',V''<=<V) => inP $ later (V'', V, rewrite p in q, V''<=<V, y<=<V'')
       }) idp)
 
-\instance UniformCompletion (X : UniformSpace) : CompleteUniformSpace
-  | CompleteCoverSpace => Completion X
+\instance UniformStrongCompletion (X : StronglyRegularUniformSpace) : StronglyCompleteUniformSpace
+  | StronglyCompleteCoverSpace => StrongCompletion X
   | isUniform D => ∃ (C : isUniform) (∀ {U : C} ∃ (V : D) (mkSet U ⊆ V))
   | uniform-cover (inP (C,Cu,p)) F =>
     \have | (inP (U,CU,FU)) => isCauchyFilter (X.makeCauchy Cu)
@@ -39,11 +40,12 @@
   | uniform-inter (inP (C',C'u,f)) (inP (D',D'u,g)) => inP (_, uniform-inter C'u D'u, \lam {U} (inP (V',C'V',W',D'W',p)) => \case f C'V', g D'W' \with {
     | inP (V,CV,eV), inP (W,DW,eW) => inP (V ∧ W, inP (V, CV, W, DW, idp), rewrite p \lam {F} c => (eV $ filter-mono c meet-left, eW $ filter-mono c meet-right))
   })
-  | uniform-star (inP (C',C'u,f)) => \case uniform-star C'u \with {
+  | uniform-strongly-star (inP (C',C'u,f)) => \case uniform-strongly-star C'u \with {
     | inP (D',D'u,g) => inP (\lam V => ∃ (V' : D') (V = mkSet V'), inP (D', D'u, \lam {V'} D'V' => inP (mkSet V', inP (V', D'V', idp), <=-refl)), \lam (inP (V',D'V',p)) => \case g D'V' \with {
       | inP (U',C'U',e) => \case f C'U' \with {
-        | inP (U,CU,q) => inP (U, CU, \lam (inP (V'',D'V'',p')) (F,(VF,WF)) => \case isProper (filter-meet (rewrite p in VF) (rewrite p' in WF)) \with {
-          | inP s => rewrite p' $ mkSet_<= (e D'V'' s) <=∘ q
+        | inP (U,CU,q) => inP (U, CU, \lam (inP (V'',D'V'',p')) => \case e D'V'' \with {
+          | byLeft r => byLeft $ rewrite (p,p') \lam (F,(FV',FV'')) => isWeaklyProper {F} $ filter-mono (filter-meet FV' FV'') \lam {x} s => absurd $ r (x,s)
+          | byRight r => byRight $ rewrite p' $ mkSet_<= r <=∘ q
         })
       }
     })
@@ -51,31 +53,26 @@
   | uniform-cauchy => (\lam (inP (C',C'c,f)) => closure-map mkSet (\lam {F} => filter-top) mkSet_<= (\lam s => filter-meet s.1 s.2) f $ uniform-cauchy.1 C'c,
                        closure-cauchy $ later \lam (inP (C',C'u,f)) => inP (C', X.makeCauchy C'u, f))
   \where {
-    \lemma properUniform (Xp : X.IsProperUniform) : UniformSpace.IsProperUniform {UniformCompletion X}
+    \lemma properUniform (Xp : X.IsProperUniform) : UniformSpace.IsProperUniform {UniformStrongCompletion X}
       => \lam (inP (D,Du,h)) => inP (_, Xp $ X.<=<-regular Du, \lam {U'} (inP (U, DU, U'<=<U), inP (x,U'x)) => \case h DU \with {
-        | inP (V,CV,p) => inP (V, (CV, inP (pointCF x, p $ <=<-right (single_<= U'x) U'<=<U)), mkSet_<= (<=<_<= U'<=<U) <=∘ p)
+        | inP (V,CV,p) => inP (V, (CV, inP (pointSCF x, p $ <=<-right (single_<= U'x) U'<=<U)), mkSet_<= (<=<_<= U'<=<U) <=∘ p)
       })
 
-    \lemma makeUniform {C : Set (Set X)} (Cu : isUniform C) : isUniform {UniformCompletion X} \lam V => ∃ (U : C) (V = mkSet U)
+    \lemma makeUniform {C : Set (Set X)} (Cu : isUniform C) : isUniform {UniformStrongCompletion X} \lam V => ∃ (U : C) (V = mkSet U)
       => inP (C, Cu, \lam CU => inP (_, inP (_, CU, idp), <=-refl))
   }
 
-\lemma mkSet_<=* {X : UniformSpace} {V U : Set X} (p : V <=* U) : mkSet V <=* mkSet U \elim p
-  | inP (C,Cu,p) => inP (_, UniformCompletion.makeUniform Cu, \lam {F} (inP (_, (inP (W,CW,idp), (G,(GV,GW))), FW)) => filter-mono FW $ (\lam Wx => \case isProper (filter-meet GV GW) \with {
-    | inP s => inP $ later (W, (CW, s), Wx)
-  }) <=∘ p)
-
-\func uniform-completion {X : UniformSpace} : UniformMap X (UniformCompletion X) \cowith
-  | CoverMap => completion
+\func uniform-strongCompletion {X : StronglyRegularUniformSpace} : UniformMap X (UniformStrongCompletion X) \cowith
+  | CoverMap => strongCompletion
   | func-uniform (inP (C,Cu,f)) => uniform-refine (X.<=<-regular Cu)
       \case __ \with {
         | inP (U',CU',U<=<U') => \case f CU' \with {
-          | inP (V,DV,p) => inP (pointCF ^-1 V, inP (V, DV, idp), \lam Ux => p $ <=<-right (single_<= Ux) U<=<U')
+          | inP (V,DV,p) => inP (pointSCF ^-1 V, inP (V, DV, idp), \lam Ux => p $ <=<-right (single_<= Ux) U<=<U')
         }
       }
   \where {
-    \lemma isDenseEmbedding : UniformMap.IsDenseEmbedding {uniform-completion {X}}
-      => (completion.isDenseEmbedding.1, \lam {C} Cu => inP (C, Cu, \lam {U} CU => inP (mkSet U, inP (U, CU, <=<_<= __ idp), <=-refl)))
+    \lemma isDenseEmbedding : UniformMap.IsWeaklyDenseEmbedding {uniform-strongCompletion {X}}
+      => (strongCompletion.isDenseEmbedding.1, \lam {C} Cu => inP (C, Cu, \lam {U} CU => inP (mkSet U, inP (U, CU, <=<_<= __ idp), <=-refl)))
   }
 
 \lemma cauchyFilter-uniform-char {X : UniformSpace} {F : SetFilter X} : ∀ {C : isCauchy} ∃ (U : C) (F U) <-> ∀ {C : isUniform} ∃ (U : C) (F U)

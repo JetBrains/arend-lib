@@ -117,6 +117,52 @@
       => rewrite (\peval join x y) <->refl
   }
 
+\instance LowerRealBiordered : BiorderedSet LowerReal
+  | < => <
+  | <-irreflexive (inP (a,a<y,p)) => <-irreflexive (p a<y)
+  | <-transitive (inP (b,b<y,p)) (inP (c,c<z,q)) => inP (c, c<z, \lam {a} a<x => p a<x <∘ q b<y)
+  | Poset => LowerRealLattice
+  | <-transitive-right e (inP (q,q<a3,p)) => inP (q, q<a3, \lam a<a1 => p $ e a<a1)
+  | <-transitive-left (inP (q,q<a2,p)) e => inP (q, e q<a2, p)
+  | <=-less (inP (r,r<a2,p)) {q} q<a1 => L-closed r<a2 (p q<a1)
+  \where {
+    \type \infix 4 < (x y : LowerReal) => ∃ (b : y.L) ∀ {a : x.L} (a RatField.< b)
+
+    \lemma zro<ide : (0 : Real) < (1 : Real) => inP (0, idp, \lam a<0 => a<0)
+
+    \lemma <_+ {a b c d : LowerReal} (p : a < c) (q : b < d) : a + b < c + d \elim p, q
+      | inP (q,q<c,p1), inP (r,r<d,p2) => inP (q + r, LowerRealAbMonoid.+_L.2 $ \case L-rounded q<c, L-rounded r<d \with {
+        | inP (q',q'<c,q<q'), inP (r',r'<d,r<r') => inP (q', q'<c, r', r'<d, RatField.<_+ q<q' r<r')
+      }, \lam {x} x<a+b => \case LowerRealAbMonoid.+_L.1 x<a+b \with {
+        | inP (q',q'<a,r',r'<b,x<q'+r') => x<q'+r' <∘ RatField.<_+ (p1 q'<a) (p2 r'<b)
+      })
+
+    \lemma <=-char {x : LowerReal} {a : Rat} (p : Not (x.L a)) : x <= Real.fromRat a
+      => \lam {b} b<x => \case LinearOrder.dec<_<= b a \with {
+        | inl b<a => b<a
+        | inr a<=b => absurd $ p $ x.L_<= b<x a<=b
+      }
+
+    \lemma <-char {x y : Real} : x < y <-> x RealAbGroup.< y
+      => (\lam (inP (b,b<y,p)) => real_<-char.2 $ \case L-rounded b<y \with {
+        | inP (c,c<y,b<c) => inP (c, (\lam b<x => <-irreflexive $ p $ real_<_L.1 b<x) <∘r real_<_L.2 b<c, real_<_L.2 c<y)
+      }, \case real_<-char.1 __ \with {
+        | inP (a,x<a,a<y) => inP (a, real_<_L.1 a<y, \lam {b} b<x => real_<_L.1 $ real_<_L.2 b<x <∘ x<a)
+      })
+
+    \lemma lowerReal_<_L {a : Rat} {x : LowerReal} : (a : Real) < x <-> x.L a
+      => (\lam (inP (b,b<x,p)) => \case L-rounded b<x \with {
+        | inP (c,c<x,b<c) => L-closed c<x \case LinearOrder.dec<_<= a c \with {
+          | inl a<c => a<c
+          | inr c<=a => absurd $ <-irreflexive $ p $ b<c <∘l c<=a
+        }
+      }, \lam a<x => inP (a, a<x, \lam p => p))
+
+    \lemma <_meet-univ {x y z : LowerReal} (x<y : x < y) (x<z : x < z) : x < y ∧ z \elim x<y, x<z
+      | inP (a,a<y,p), inP (b,b<z,q) => inP (a ∧ b, LowerRealLattice.meet_L.2 (y.L_<= a<y meet-left, z.L_<= b<z meet-right),
+                                             \lam {c} c<x => LinearOrder.<_meet-univ (p c<x) (q c<x))
+  }
+
 \record UpperReal (U : Rat -> \Prop) {
   | U-inh : ∃ U
   | U-closed {q q' : Rat} : U q -> q < q' -> U q'
@@ -130,7 +176,7 @@
 
   \lemma natBounded : ∃ (n : Nat) (U n)
     => \case U-inh \with {
-      | inP (a,Ua) => inP (iabs $ rat_ceiling a, U_<= Ua $ rat_ceiling>id <=∘ later (rewrite iabs=abs $ fromInt_<= LinearlyOrderedAbGroup.abs>=id))
+      | inP (a,Ua) => inP (iabs $ rat_ceiling a, U_<= Ua $ rat_ceiling>=id <=∘ later (rewrite iabs=abs $ fromInt_<= LinearlyOrderedAbGroup.abs>=id))
     }
 }
 
@@ -260,9 +306,9 @@
         | inP (q',r',(Lq',Ur'),p) => inP (q', Lq', U-closed Ur'
           \have | r-q>0 {q} {r} (Lq : L q) (Ur : U r) : 0 < r - q => linarith (usingOnly (LU-less Lq Ur))
                 | pr>0 => RatField.<_*_positive_positive (finv>0 eps>0) (r-q>0 Lq Ur)
-                | c>0 => fromInt_<.conv $ pr>0 <∘l rat_ceiling>id
+                | c>0 => fromInt_<.conv $ pr>0 <∘l rat_ceiling>=id
                 | s : (r' - q') * (finv eps * (r - q)) < r - q
-                    => <_*_positive-right (r-q>0 Lq' Ur') (rat_ceiling>id <∘r fromInt_<= (Preorder.=_<= $ inv $ iabs.ofPos $ <_<= c>0) <∘r pow>id _) <∘l p
+                    => <_*_positive-right (r-q>0 Lq' Ur') (rat_ceiling>=id <∘r fromInt_<= (Preorder.=_<= $ inv $ iabs.ofPos $ <_<= c>0) <∘r pow>id _) <∘l p
                 | t => transport (_ <) (pmap (_ *) finv_* *> inv *-assoc *> pmap (`* _) (finv-right $ RatField.>_/= $ r-q>0 Lq Ur) *> ide-left *> finv_finv) (<_rotate-right pr>0 s)
           \in linarith (usingOnly t))
       }
@@ -462,6 +508,9 @@
     \lemma negative-rat {x : Rat} : negative x = {Real} RatField.negative x
       => (\peval negative x) *> exts (\lam a => ext (\lam p => linarith, \lam p => linarith), \lam a => ext (\lam p => linarith, \lam p => linarith))
 
+    \lemma minus-rat {x y : Rat} : x - {RealAbGroup} y = {Real} x - y
+      => pmap (x +) negative-rat *> +-rat
+
     \sfunc meet (x y : Real) : Real \cowith
       | LowerReal => LowerRealLattice.meet x y
       | UpperReal => UpperRealLattice.meet x y
@@ -625,7 +674,7 @@
         | inP (b,b<y,a<b) => +_L.2 $ inP (b, b<y, negative a, negative_L.2 $ simplify x<a, linarith)
       })
 
-\lemma real_<-char {x y : Real} : x < y <-> ∃ (a : Real) (x < a) (a < y)
+\lemma real_<-char {x y : Real} : x < y <-> ∃ (a : Rat) (x < a) ((a : Real) < y)
   => (\lam x<y => \case real_<-rat-char.1 x<y \with {
         | (inP (a,x<a,a<y)) => inP (a, real_<_U.2 x<a, real_<_L.2 a<y)
       }, \lam (inP (a,x<a,a<y)) => x<a <∘ a<y)

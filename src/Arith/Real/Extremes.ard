@@ -1,0 +1,182 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Algebra.Pointed
+\import Arith.Rat
+\import Arith.Real
+\import Arith.Real.Field
+\import Data.Array
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Lattice
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\open LinearlyOrderedAbGroup
+
+\func IsSup (A : Set Real) (b : Real) : \Prop
+  => \Sigma (∀ {a : A} (a <= b)) (∀ {eps} (0 < eps) ∃ (x : A) (b < x + eps))
+  \where {
+    \lemma isLowest {b : Real} (s : IsSup A b) {c : Real} (Ac : ∀ {a : A} (a <= c)) : b <= c
+      => \lam c<b => \case s.2 {b - c} linarith \with {
+        | inP (x,Ax,p) => Ac Ax linarith
+      }
+
+    \lemma isUnique {b b' : Real} (bs : IsSup A b) (b's : IsSup A b') : b = b'
+      => <=-antisymmetric (isLowest bs b's.1) (isLowest b's bs.1)
+  }
+
+\func HasSup (A : Set Real) => \Sigma (B : Real) (IsSup A B)
+  \where \protected \use \level levelProp (s t : HasSup A) : s = t => ext (IsSup.isUnique s.2 t.2)
+
+\func makeSup {A : Set Real} {a0 : Real} (Aa0 : A a0) {b : Real} (Ab : ∀ {a : A} (a < b))
+              (As : \Pi {x y : Real} -> x < y -> Given (a : A) (x < a) || ∀ {a : A} (a < y)) : Real \cowith
+  | L z => ∃ (a : A) (Real.L {a} z)
+  | L-inh => \case a0.L-inh \with {
+    | inP (r,r<a0) => inP (r, inP (a0, Aa0, r<a0))
+  }
+  | L-closed (inP (a,Aa,q<a)) q'<q => inP (a, Aa, L-closed q<a q'<q)
+  | L-rounded (inP (a,Aa,q<a)) => \case L-rounded q<a \with {
+    | inP (r,r<a,q<r) => inP (r, inP (a, Aa, r<a), q<r)
+  }
+  | U z => ∃ (z' : Real) (z' < z) ∀ {a : A} (a < z')
+  | U-inh => \case b.U-inh \with {
+    | inP (r,b<r) => inP (r, inP (b, real_<_U.2 b<r, Ab))
+  }
+  | U-closed (inP (z,z<q,zb)) q<q' => inP (z, z<q <∘ real_<_L.2 q<q', zb)
+  | U-rounded (inP (z,z<q,zb)) => \case U-rounded (real_<_U.1 z<q) \with {
+    | inP (r,z<r,r<q) => inP (r, \case U-rounded z<r \with {
+      | inP (z',z<z',z'<r) => inP (z', real_<_L.2 z'<r, \lam Aa => zb Aa <∘ real_<_U.2 z<z')
+    }, r<q)
+  }
+  | LU-disjoint (inP (a,Aa,q<a)) (inP (z,z<q,zb)) => linarith (real_<_L.2 q<a, zb Aa)
+  | LU-located {q} {r} q<r => \case As $ real_<_L.2 (RatField.mid>left q<r) \with {
+    | byLeft (a,Aa,q<a) => byLeft $ inP (a, Aa, real_<_L.1 q<a)
+    | byRight rb => byRight $ inP (RatField.mid q r, real_<_L.2 $ RatField.mid<right q<r, rb)
+  }
+  \where {
+    \lemma isSup (Aa0 : A a0) (Ab : ∀ {a : A} (a < b)) (As : \Pi {x y : Real} -> x < y -> Given (a : A) (x < a) || ∀ {a : A} (a < y)) : IsSup A (makeSup Aa0 Ab As)
+      => (\lam Aa c => \case real_<-rat-char.1 c \with {
+        | inP (b, inP (z,z<b,zb), b<a) => linarith (real_<_L.2 b<a, zb Aa)
+      }, \lam eps>0 => \case L-rounded $ real_<_L.1 eps>0 \with {
+        | inP (eps',eps'<eps,eps'>0) => \case LU-focus {makeSup Aa0 Ab As} eps' eps'>0 \with {
+          | inP (x, inP (a,Aa,x<a), inP (z,z<x+eps',zb)) => inP (a, Aa, real_<-rat-char.2 $ inP (x + eps', inP $ later (z, z<x+eps', zb), real_<_L.1 $ transport (`< _) RealAbGroup.+-rat $ RealAbGroup.<_+ (real_<_L.2 x<a) (real_<_L.2 eps'<eps)))
+        }
+      })
+
+    \lemma conv {b : Real} (bs : IsSup A b) {x y : Real} (x<y : x < y) : Given (a : A) (x < a) || ∀ {a : A} (a < y)
+      => \case real-located {b} x<y \with {
+        | byLeft x<b => \case bs.2 {b - x} linarith \with {
+          | inP (a,Aa,b<a+b-x) => byLeft (a, Aa, linarith)
+        }
+        | byRight b<y => byRight \lam Aa => bs.1 Aa <∘r b<y
+      }
+  }
+
+\lemma makeSup-pair {A : Set Real} {a0 : Real} (Aa0 : A a0) {b : Real} (Ab : ∀ {a : A} (a < b))
+                    (As : \Pi {x y : Real} -> x < y -> Given (a : A) (x < a) || ∀ {a : A} (a < y)) : HasSup A
+  => (makeSup Aa0 Ab As, makeSup.isSup Aa0 Ab As)
+
+\lemma makeSupTB {A : Set Real} {a0 : Real} (Aa0 : A a0) (Ac : \Pi {eps : Real} -> 0 < eps -> ∃ (l : Array Real) (∀ (a : l) (A a)) ∀ {x : A} ∃ (y : l) (abs (x - y) < eps)) : HasSup A
+  => \case Ac zro<ide \with {
+    | inP (l,_,lb) => makeSup-pair Aa0 {Big (∨) zro l + 1} (\lam Aa => \case lb Aa \with {
+      | inP (j,c) => linarith (abs>=id <∘r c, RealAbGroup.Big_<=_join1)
+    }) \lam {x} {y} x<y =>
+        \let | eps => ratio 1 4 RealField.* (y - x)
+             | eps>0 : 0 < eps => linarith
+        \in \case Ac eps>0 \with {
+          | inP (nil, _, lb) => byRight \lam Aa => \case lb Aa \with {
+            | inP ((),_)
+          }
+          | inP (lh :: lt, Al, lb) =>
+            \let | l => lh :: lt
+                 | (inP (j,p)) => RealAbGroup.Big_join-choice {_} {l} eps>0
+            \in \case real-located {l j} {x} {x + 2 * eps} linarith \with {
+              | byLeft x<lj => byLeft (l j, Al j, x<lj)
+              | byRight lj<x+2eps => byRight \lam {a} Aa => \case lb Aa \with {
+                | inP (k,q) => linarith (abs>=id {_} {a - l k}, RealAbGroup.Big_<=_join k)
+              }
+            }
+        }
+  }
+
+\func IsInf (A : Set Real) (b : Real) : \Prop
+  => \Sigma (∀ {a : A} (b <= a)) (∀ {eps} (0 < eps) ∃ (x : A) (x < b + eps))
+  \where {
+    \lemma isGreatest {b : Real} (s : IsInf A b) {c : Real} (Ac : ∀ {a : A} (c <= a)) : c <= b
+      => \lam b<c => \case s.2 {c - b} linarith \with {
+        | inP (x,Ax,p) => Ac Ax linarith
+      }
+
+    \lemma isUnique {b b' : Real} (bs : IsInf A b) (b's : IsInf A b') : b = b'
+      => <=-antisymmetric (isGreatest b's bs.1) (isGreatest bs b's.1)
+  }
+
+\func HasInf (A : Set Real) => \Sigma (B : Real) (IsInf A B)
+  \where \protected \use \level levelProp (s t : HasInf A) : s = t => ext (IsInf.isUnique s.2 t.2)
+
+\func makeSupInf {A : Set Real} {b : Real} (bs : IsSup (\lam x => A (negative x)) (negative b)) : IsInf A b
+  => (\lam Aa => transport2 (<=) AddGroup.negative-isInv AddGroup.negative-isInv $ negative_<= $ bs.1 $ transportInv A AddGroup.negative-isInv Aa,
+      \lam eps>0 => \case bs.2 eps>0 \with {
+        | inP (x,A-x,-b<x+eps) => inP (negative x, A-x, linarith)
+      })
+
+\lemma makeHasSupInf {A : Set Real} (s : HasSup (\lam x => A (negative x))) : HasInf A \elim s
+  | (b,bs) => (negative b, makeSupInf $ rewrite AddGroup.negative-isInv bs)
+
+\func makeInf {A : Set Real} {a0 : Real} (Aa0 : A a0) {b : Real} (Ab : ∀ {a : A} (b < a))
+              (As : \Pi {x y : Real} -> x < y -> ∀ {a : A} (x < a) || Given (a : A) (a < y)) : Real \cowith
+  | L z => ∃ (z' : Real) ((z : Real) < z') ∀ {a : A} (z' < a)
+  | L-inh => \case b.L-inh \with {
+    | inP (r,r<b) => inP (r, inP (b, real_<_L.2 r<b, Ab))
+  }
+  | L-closed (inP (z,q<z,zb)) q'<q => inP (z, real_<_L.2 q'<q <∘ q<z, zb)
+  | L-rounded (inP (z,q<z,zb)) => \case L-rounded (real_<_L.1 q<z) \with {
+    | inP (r,r<z,q<r) => inP (r, \case L-rounded r<z \with {
+      | inP (z',z<z',z'<r) => inP (z', real_<_L.2 z'<r, \lam Aa => real_<_L.2 z<z' <∘ zb Aa)
+    }, q<r)
+  }
+  | U z => ∃ (a : A) (Real.U {a} z)
+  | U-inh => \case a0.U-inh \with {
+    | inP (r,a0<r) => inP (r, inP (a0, Aa0, a0<r))
+  }
+  | U-closed (inP (a,Aa,a<q)) q<q' => inP (a, Aa, U-closed a<q q<q')
+  | U-rounded (inP (a,Aa,a<q)) => \case U-rounded a<q \with {
+    | inP (r,a<r,r<q) => inP (r, inP (a, Aa, a<r), r<q)
+  }
+  | LU-disjoint (inP (z,q<z,zb)) (inP (a,Aa,a<q)) => linarith (real_<_U.2 a<q, zb Aa)
+  | LU-located {q} {r} q<r => \case As $ real_<_U.2 (RatField.mid<right q<r) \with {
+    | byLeft rb => byLeft $ inP (RatField.mid q r, real_<_U.2 $ RatField.mid>left q<r, rb)
+    | byRight (a,Aa,q<a) => byRight $ inP (a, Aa, real_<_U.1 q<a)
+  }
+  \where {
+    \lemma isInf : IsInf A (makeInf Aa0 Ab As)
+      => (\lam Aa c => \case real_<-rat-char.1 c \with {
+        | inP (b, a<b, inP (z,b<z,zb)) => linarith (real_<_U.2 a<b, zb Aa)
+      }, \lam eps>0 => \case L-rounded $ real_<_L.1 eps>0 \with {
+        | inP (eps',eps'<eps,eps'>0) => \case LU-focus {makeInf Aa0 Ab As} eps' eps'>0 \with {
+          | inP (x, inP (z,x<z,zb), inP (a,Aa,a<x+eps')) => inP (a, Aa, real_<-rat-char.2 $ inP (x + eps', a<x+eps', real_<_L.1 $ transport (`< _) RealAbGroup.+-rat $ RealAbGroup.<_+ (real_<_L.2 $ inP $ later (z, x<z, zb)) (real_<_L.2 eps'<eps)))
+        }
+      })
+
+    \lemma conv {b : Real} (bs : IsInf A b) {x y : Real} (x<y : x < y) : ∀ {a : A} (x < a) || Given (a : A) (a < y)
+      => \case real-located {b} x<y \with {
+        | byLeft x<b => byLeft \lam Aa => x<b <∘l bs.1 Aa
+        | byRight b<y => \case bs.2 {y - b} linarith \with {
+          | inP (a,Aa,a<b+y-b) => byRight (a, Aa, linarith)
+        }
+      }
+  }
+
+\lemma makeInfTB {A : Set Real} {a0 : Real} (Aa0 : A a0) (Ac : \Pi {eps : Real} -> 0 < eps -> ∃ (l : Array Real) (∀ (a : l) (A a)) ∀ {x : A} ∃ (y : l) (abs (x - y) < eps)) : HasInf A
+  => makeHasSupInf $ makeSupTB (transportInv A AddGroup.negative-isInv Aa0) \lam eps>0 => \case Ac eps>0 \with {
+    | inP (l,Al,lb) => inP (map negative l, \lam j => transportInv A AddGroup.negative-isInv (Al j), \lam A-x => \case lb A-x \with {
+      | inP (j,p) => inP (j, transport (`< _) (pmap abs (+-comm *> simplify) *> abs_negative) p)
+    })
+  }

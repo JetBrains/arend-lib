@@ -1,0 +1,68 @@
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Operations
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Partial \using (defined-ext)
+\import Set.Subset
+\import Topology.TopSpace
+\import Topology.TopSpace.Product
+\open Bounded(top,top-univ)
+
+\instance PartialTopSpace (Y : TopSpace) : TopSpace (Partial Y)
+  | isOpen U => \Pi {y : Partial Y} -> U y -> (U = {Set (Partial Y)} top) || Given (U' : Y.isOpen) (p : y.isDefined) (U' (y p)) ∀ {y' : U'} (U (defined y'))
+      -- closure of \lam U => (U = {Set (Partial Y)} top) || Given (U' : Y.isOpen) (U = \lam (y : Partial Y) => \Sigma (p : y.isDefined) (U' (y p)))
+  | open-top Uy => byLeft idp
+  | open-inter g h (Uy,Vy) => \case g Uy, h Vy \with {
+    | byLeft p, byLeft q => byLeft $ pmap2 (∧) p q *> <=-antisymmetric top-univ (meet-univ <=-refl <=-refl)
+    | byLeft p, byRight (U',U'o,yd,U'y,g) => byRight (U', U'o, yd, U'y, \lam U'y' => (rewrite p (), g U'y'))
+    | byRight (U',U'o,yd,U'y,g), byLeft p => byRight (U', U'o, yd, U'y, \lam U'y' => (g U'y', rewrite p ()))
+    | byRight (U',U'o,yd,U'y,g), byRight (V',V'o,yd',V'y,h) => byRight (U' ∧ V', open-inter U'o V'o, yd, (U'y, rewrite (prop-isProp yd yd') V'y), \lam (U'y',V'y') => (g U'y', h V'y'))
+  }
+  | open-Union h (inP (U,SU,Uy)) => \case h SU Uy \with {
+    | byLeft p => byLeft $ <=-antisymmetric top-univ \lam _ => inP (U, SU, rewrite p ())
+    | byRight (U',U'o,yd,U'y,g) => byRight (U', U'o, yd, U'y, \lam U'y' => inP (U, SU, g U'y'))
+  }
+  \where {
+    \func totalOpen {Y : TopSpace} : isOpen {PartialTopSpace Y} \lam s => isDefined {s}
+      => \lam yd => byRight (top, open-top, yd, (), \lam _ => ())
+
+    \func makeOpen {Y : TopSpace} {U : Set Y} (Uo : isOpen U) : isOpen {PartialTopSpace Y} \lam s => \Sigma (p : isDefined {s}) (U (s p))
+      => \lam yd => byRight (U, Uo, yd.1, yd.2, \lam Uy' => ((), Uy'))
+  }
+
+\lemma PartialTopSpace-char {X Y : TopSpace} {f : X -> Partial Y} : ContMap X (PartialTopSpace Y) f <->
+    (\Sigma (X.isOpen \lam x => isDefined {f x}) (ContMap (TopTransfer {Set.Total \lam x => isDefined {f x}} __.1) Y \lam x => f x.1 x.2))
+  => (\lam fc => (func-cont {fc} {\lam s => isDefined {s}} PartialTopSpace.totalOpen, \new ContMap {
+    | func-cont {U} Uo => inP (_, func-cont {fc} {\lam s => \Sigma (p : isDefined {s}) (U (s p))} (PartialTopSpace.makeOpen Uo),
+                               <=-antisymmetric (\lam {x} c => (x.2,c)) (\lam {x} c => rewrite (prop-isProp x.2 c.1) c.2))
+  }), \lam (V'o,fc) => \new ContMap {
+    | func-cont {U} h => TopSpace.cover-open \lam {x} Ux => \case h Ux \with {
+      | byLeft p => inP (top, open-top, (), \lam _ => later $ rewrite p ())
+      | byRight (U',U'o,V'x,U'fx,g) => \case func-cont {fc} U'o \with {
+        | inP (W,Wo,p) => inP $ later (_, open-inter V'o Wo, (V'x, (<->_=.2 $ pmap (__ (x,V'x)) p).1 $ transport (\lam y => U' (f x y)) prop-pi U'fx),
+                                       \lam {x'} (V'x',Wx') => transportInv U (defined-ext {_} {Partial.make _ _} (\box V'x') idp) $ g $ (<->_=.2 $ pmap (__ (x',V'x')) p).2 Wx')
+      }
+    }
+  })
+
+\lemma plift-cont {X Y : TopSpace} (f : ContMap X Y) : ContMap (PartialTopSpace X) (PartialTopSpace Y) (plift f) \cowith
+  | func-cont h => \lam {x} Ux => \case h Ux \with {
+    | byLeft p => byLeft $ <=-antisymmetric top-univ \lam _ => rewrite p ()
+    | byRight (V,Vo,d,Vx,g) => byRight (f ^-1 V, func-cont Vo, d, Vx, g __)
+  }
+
+\lemma plift2-cont {X Y Z : TopSpace} (f : ContMap (X ⨯ Y) Z) : ContMap (PartialTopSpace X ⨯ PartialTopSpace Y) (PartialTopSpace Z) (\lam s => plift2 (\lam x y => f (x,y)) s.1 s.2) \cowith
+  | func-cont {W} h => \lam {s} Ws => \case h Ws \with {
+    | byLeft p => inP (top, open-top {PartialTopSpace X}, (), top, open-top {PartialTopSpace Y}, (), \lam _ _ => rewrite p ())
+    | byRight (W',W'o,d,W's,g) => \case f.func-cont W'o W's \with {
+      | inP (U',U'o,U's,V',V'o,V's,h) => inP
+          (\lam x => \Sigma (d : isDefined {x}) (U' (x d)), \lam {x} d => byRight (U', U'o, d.1, d.2, \lam c => ((), c)), (d.1,U's),
+           \lam y => \Sigma (d : isDefined {y}) (V' (y d)), \lam {y} d => byRight (V', V'o, d.1, d.2, \lam c => ((), c)), (d.2,V's),
+                                                \lam {x} d1 {y} d2 => transportInv W (defined-ext {_} {plift2 (\lam x y => f (x,y)) x y} (d1.1,d2.1) idp) $ g $ h d1.2 d2.2)
+    }
+  }

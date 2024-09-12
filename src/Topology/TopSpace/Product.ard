@@ -1,7 +1,11 @@
+\import Function.Meta
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Operations
+\import Order.Directed
 \import Order.Lattice
+\import Order.PartialOrder
 \import Set.Subset
 \import Topology.TopSpace
 \open Bounded(top)
@@ -45,6 +49,11 @@
             }
           }
 
+        \lemma isWeaklyDense {X X' Y Y' : TopSpace} {f : ContMap X Y} {g : ContMap X' Y'} (fd : f.IsWeaklyDense) (gd : g.IsWeaklyDense) : ContMap.IsWeaklyDense {prod f g}
+          => \lam Uo c (y,Uy) => \case Uo Uy \with {
+            | inP (U1,U1o,U1y,U2,U2o,U2y,h) => fd U1o (\lam (_, inP (x1,idp), U1fx1) => gd U2o (\lam (_, inP (x2,idp), U2gx2) => c (_, inP ((x1,x2), idp), h U1fx1 U2gx2)) (y.2,U2y)) (y.1,U1y)
+          }
+
         \lemma isEmbedding {X X' Y Y' : TopSpace} {f : ContMap X Y} {g : ContMap X' Y'} (fd : f.IsEmbedding) (gd : g.IsEmbedding) : ContMap.IsEmbedding {prod f g}
           => (embedding-char {prod f g}).2 \lam Uo Uxy => \case Uo Uxy \with {
             | inP (U1,U1o,U1x,U2,U2o,U2y,h) => \case f.embedding-char.1 fd U1o U1x, g.embedding-char.1 gd U2o U2y \with {
@@ -59,3 +68,24 @@
 
 \lemma Prod-open {X Y : TopSpace} {U : Set X} (Uo : isOpen U) {V : Set Y} (Vo : isOpen V) : isOpen (Set.Prod U V)
   => \lam {s} (Us,Vs) => inP (U, Uo, Us, V, Vo, Vs, \lam Ux Vy => (Ux,Vy))
+
+\lemma contAt-tuple {X Y Z : TopSpace} {f : X -> Y} {g : X -> Z} {x : X} (fc : IsContAt f x) (gc : IsContAt g x) : IsContAt (\lam x => (f x, g x)) x
+  => \lam {W} Wo W0 => \case Wo W0 \with {
+    | inP (U,Uo,Ufx,V,Vo,Vgx,g) => \case fc Uo Ufx, gc Vo Vgx \with {
+      | inP (U',U'o,U'x,p), inP (V',V'o,V'x,q) => inP (U' ∧ V', open-inter U'o V'o, (U'x,V'x), MeetSemilattice.meet-monotone p q <=∘ \lam s => g s.1 s.2)
+    }
+  }
+
+\lemma limit-tuple {I : DirectedSet} {X Y : TopSpace} {f : I -> X} {x : X} (fl : X.IsLimit f x) {g : I -> Y} {y : Y} (gl : Y.IsLimit g y)
+  : TopSpace.IsLimit (\lam n => (f n, g n)) (x,y)
+  => \lam Wo Wxy => \case Wo Wxy \with {
+    | inP (U,Uo,Ux,V,Vo,Vy,e) => \case fl Uo Ux, gl Vo Vy \with {
+      | inP (N,Ne), inP (M,Me) => \case isDirected N M \with {
+        | inP (K,N<=K,M<=K) => inP (K, \lam K<=n => e (Ne $ N<=K <=∘ K<=n) (Me $ M<=K <=∘ K<=n))
+      }
+    }
+  }
+
+\lemma cont2-limit {I : DirectedSet} {X Y Z : TopSpace} {f : I -> X} {g : I -> Y} {lx : X} {ly : Y}
+                   (px : X.IsLimit f lx) (py : Y.IsLimit g ly) (h : ContMap (X ⨯ Y) Z) : Z.IsLimit (\lam n => h (f n, g n)) (h (lx,ly))
+  => cont-limit (limit-tuple px py) h

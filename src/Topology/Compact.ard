@@ -9,6 +9,7 @@
 \import Meta
 \import Order.Lattice
 \import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Set
@@ -19,7 +20,7 @@
 \import Topology.MetricSpace
 \import Topology.UniformSpace
 \open ClosurePrecoverSpace
-\open Bounded(top,top-univ)
+\open Bounded(top)
 
 \func IsTotallyBounded (X : CoverSpace) : \Prop
   => Cond X.isCauchy isCauchy
@@ -45,7 +46,7 @@
 
 \lemma totallyBoundedSet-char {X : CoverSpace} {U : Set X}
   : IsTotallyBoundedSet U <-> ∀ {C : isCauchy} ∃ (D : Array (Set X)) (isCauchy \lam W => ∃ (V : D) (U ∧ W ⊆ V)) (∀ (V : D) (C V))
-  => (\lam f Cc => \case f $ func-cover {PrecoverTransfer-map {Set.Total U} __.1} Cc \with {
+  => (\lam f Cc => \case f $ func-cover {PrecoverTransfer-map {\Sigma (x : X) (U x)} __.1} Cc \with {
     | inP (D,Dc,Dp) => \case FinSet.finiteAC Dp \with {
       | inP g => inP (\lam j => (g j).1, cauchy-subset Dc \lam {V} (inP (_, inP (j,idp), q)) => inP $ later (j, \lam {x} (Ux,Vx) => transport (_ ⊆) (g j).3 q {x,Ux} Vx), \lam j => (g j).2)
     }
@@ -64,6 +65,20 @@
   }) {\lam U => ∃ (V : C) (U = Set.restrict V)} (uniform-cauchy.1 $ later $ cauchy-subset Cc \lam {V} CV => inP $ later (_, inP (V, CV, idp), <=-refl)) \with {
     | inP (D,Dc,h) => \case FinSet.finiteAC h \with {
       | inP g => inP (\lam j => (g j).1, cauchy-subset Dc \lam {W} (inP (_, inP (j,idp), p)) => inP $ later (j, \lam {x} (Sx,Wx) => transport (__ (x,Sx)) (g j).3 $ p Wx), \lam j => (g j).2)
+    }
+  })
+
+\lemma totallyBoundedSet-metric-char {X : PseudoMetricSpace} {S : Set X}
+  : IsTotallyBoundedSet S <-> ∀ {eps} (0 < eps) ∃ (D : Array X) (isCauchy \lam W => ∃ (x : D) (S ∧ W ⊆ OBall eps x))
+  => <->trans totallyBoundedSet-uniform-char $ later (\lam f eps>0 => \case f (X.makeUniform eps>0) \with {
+    | inP (D,Dc,Dl) => \case FinSet.finiteAC Dl \with {
+      | inP Dh => inP (\lam j => (Dh j).1, cauchy-subset Dc \lam (inP (j,p)) => inP $ later (j, transport (_ <=) (Dh j).2 p))
+    }
+  }, \lam f Cu => \case dist-uniform.1 Cu \with {
+    | inP (eps,eps>0,h) => \case f eps>0 \with {
+      | inP (D,Dc) => \case FinSet.finiteAC (\lam j => h (D j)) \with {
+        | inP g => inP (\lam j => (g j).1, cauchy-subset Dc \lam (inP (j,p)) => inP $ later (j, p <=∘ (g j).3), \lam j => (g j).2)
+      }
     }
   })
 
@@ -151,6 +166,12 @@
     \lam c Cc => totallyBounded-uniform-char.totallyBounded-closure c (uniform-cauchy.1 Cc)
   )
 
+\lemma makeUniformMapTB {X Y : UniformSpace} (Xp : X.IsProperUniform) (Xtb : IsTotallyBounded X) (f : CoverMap X Y) : UniformMap X Y f \cowith
+  | func-uniform Eu => totallyBounded-cauchy-uniform Xp Xtb $ f.func-cover $ Y.makeCauchy Eu
+
+\lemma makeUniformMapSTB {X : StronglyRegularUniformSpace} {Y : UniformSpace} (Xp : X.IsWeaklyProperUniform) (Xtb : IsTotallyBounded X) (f : CoverMap X Y) : UniformMap X Y f \cowith
+  | func-uniform Eu => totallyBounded-cauchy-uniform-strong Xp Xtb $ f.func-cover $ Y.makeCauchy Eu
+
 \func IsLocallyUniform {X : UniformSpace} (C : Set (Set X)) (E : Set (Set X)) : \Prop
   => ∀ {U : C} (isUniform \lam V => ∃ (W : E) (U ∧ V ⊆ W))
 
@@ -162,14 +183,14 @@
 
 \lemma locallyUniform-cover-char {X : StronglyRegularUniformSpace} {C : Set (Set X)} (Cb : ∀ {U : C} (IsTotallyBoundedSet U)) (Cp : ∀ {U : C} ∃ U) {E : Set (Set X)} (Ec : isCauchy E) : IsLocallyUniform C E
   => \lam {U} CU =>
-      \have Du => totallyBounded-cauchy-uniform-strong {StronglyRegularUniformTransfer {Set.Total U} __.1} (UniformSpace.inhabited_weaklyProper $ Cp CU) (Cb CU) (PrecoverTransfer.makeCauchy Ec)
+      \have Du => totallyBounded-cauchy-uniform-strong {StronglyRegularUniformTransfer {\Sigma (x : X) (U x)} __.1} (UniformSpace.inhabited_weaklyProper $ Cp CU) (Cb CU) (PrecoverTransfer.makeCauchy Ec)
       \in uniform-subset Du \lam {V} (inP (_, inP (W,EW,idp), p)) => inP $ later (W, EW, \lam {x} (Ux,Vx) => p {x,Ux} Vx)
 
 \lemma locallyTotallyBounded-locallyUniform {X : StronglyRegularUniformSpace} (Xltb : X.isUniform IsTotallyBoundedSet) (Xd : X.IsProperUniform) : IsLocallyUniformSpace X
   => inP (\lam U => \Sigma (IsTotallyBoundedSet U) (∃ U), Xd Xltb, locallyUniform-cover-char (later __.1) (later __.2))
 
-\lemma metric-cover-char {X : PseudoMetricSpace} (Xbtb : \Pi {S : Set X} -> IsBoundedSet S -> IsTotallyBoundedSet S) : IsLocallyUniformSpace X
-  => locallyTotallyBounded-locallyUniform (uniform-subset (X.makeUniform (RealAbGroup.half>0 RealAbGroup.zro<ide)) $ later \lam {_} (inP (x,idp)) => Xbtb $ inP (1, RealAbGroup.zro<ide, \lam {y} {z} => PseudoMetricSpace.halving)) X.properUniform
+\lemma metric-cover-char {X : PseudoMetricSpace} (Xbtb : \Pi {S : Set X} -> Given S -> IsBoundedSet S -> IsTotallyBoundedSet S) : IsLocallyUniformSpace X
+  => locallyTotallyBounded-locallyUniform (uniform-subset (X.makeUniform (RealAbGroup.half>0 RealAbGroup.zro<ide)) $ later \lam {_} (inP (x,idp)) => Xbtb (x, later $ rewrite dist-refl $ RealAbGroup.half>0 RealAbGroup.zro<ide) $ inP (1, RealAbGroup.zro<ide, \lam {y} {z} => PseudoMetricSpace.halving)) X.properUniform
 
 \lemma locallyUniformMapFromCover {X Y : UniformSpace} (Xlu : IsLocallyUniformSpace X) (f : CoverMap X Y) : LocallyUniformMap X Y f \cowith
   | func-locally-uniform Eu => \case Xlu \with {

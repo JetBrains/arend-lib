@@ -1,0 +1,290 @@
+\import Function.Meta
+\import HLevel
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set.Filter
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Complete
+\import Topology.RatherBelow
+\import Topology.TopSpace
+\open Bounded(top)
+
+\instance WeaklyCauchyFilterPoset (S : CoverSpace) : Poset (WeaklyCauchyFilter S)
+  | <= F G => F ⊆ G
+  | <=-refl c => c
+  | <=-transitive f g c => g (f c)
+  | <=-antisymmetric f g => exts \lam U => ext (f,g)
+
+\func WCF~_meet {S : CoverSpace} {F G : WeaklyCauchyFilter S} (p : F CF~ G) : WeaklyCauchyFilter S \cowith
+  | WeaklyProperFilter => F ∧ {WeaklyProperFilterSemilattice S} G
+  | isCauchyFilter => p
+
+\lemma WCF~_<=< {S : CoverSpace} {F G : WeaklyCauchyFilter S} (F~G : F CF~ G) {V U : Set S} (p : V s<=< U) (FV : F V) : G U
+  => \case F~G p \with {
+    | inP (_, byLeft idp, (FnV, _)) => absurd $ F.isWeaklyProper $ filter-mono (filter-meet FnV FV) \lam s => absurd $ s.1 s.2
+    | inP (_, byRight idp, (_, GU)) => GU
+  }
+
+\instance WeaklyCauchyFilterEquivalence (S : StronglyRegularCoverSpace) : Equivalence (WeaklyCauchyFilter S)
+  | ~ => CF~
+  | ~-transitive p q c => \case p (isStronglyRegular c) \with {
+    | inP (U, inP (V, CV, U<=<V), (FU, GU)) => inP (V, CV, (filter-mono FU (s<=<_<= U<=<V), WCF~_<=< q U<=<V GU))
+  }
+  | ~-reflexive c => \case isCauchyFilter c \with {
+    | inP (U,CU,FU) => inP (U,CU,(FU,FU))
+  }
+  | ~-symmetric => CF~-sym
+
+\record StronglyRegularCauchyFilter \extends WeaklyCauchyFilter
+  | isStronglyRegularFilter {U : Set S} : F U -> ∃ (V : Set S) (V s<=< U) (F V)
+  \where {
+    \lemma Reg_CF~_<= {X : StronglyRegularCoverSpace} {F : StronglyRegularCauchyFilter X} {G : WeaklyCauchyFilter X} (p : F CF~ G) : F ⊆ G
+      => \case isStronglyRegularFilter __ \with {
+        | inP (V,V<=<U,FV) => WCF~_<=< p V<=<U FV
+      }
+
+    \lemma equality {X : StronglyRegularCoverSpace} {F G : StronglyRegularCauchyFilter X} (p : F CF~ G) : F = G
+      => exts \lam U => ext (Reg_CF~_<= p, Reg_CF~_<= (CF~-sym p))
+  }
+
+\lemma contMap-cauchy {X : StronglyCompleteCoverSpace} {Y : CoverSpace} (f : ContMap X Y) : StronglyCauchyMap X Y f \cowith
+  | func-weak-cauchy F => \new WeaklyCauchyFilter {
+    | isCauchyFilter Cc => \case Y.cauchy-regular-cover Cc (f $ X.filter-point F) \with {
+      | inP (U,CU,fx<=<U) => inP (U, CU, X.filter-point-sub $ <=<-cont fx<=<U)
+    }
+  }
+
+-- | The unique regular Cauchy filter equivalent to the given one.
+\func sregCF {X : StronglyRegularCoverSpace} (F : WeaklyCauchyFilter X) : StronglyRegularCauchyFilter X \cowith
+  | F U => \Pi {G : WeaklyCauchyFilter X} -> G ⊆ F -> G U
+  | filter-mono q p c => filter-mono (q c) p
+  | filter-top _ => filter-top
+  | filter-meet p q c => filter-meet (p c) (q c)
+  | isWeaklyProper p => F.isWeaklyProper (p <=-refl)
+  | isCauchyFilter c => \case F.isCauchyFilter (isStronglyRegular c) \with {
+    | inP (U, inP (V, CV, U<=<V), FU) => inP (V, CV, \lam p => WCF~_<=< (CF~-sym $ CF~_<= p) U<=<V FU)
+  }
+  | isStronglyRegularFilter c =>
+    \case c {\new WeaklyCauchyFilter {
+               | F U => ∃ (V W : Set X) (W s<=< V) (V s<=< U) (F W)
+               | filter-mono (inP (V,W,W<=<V,V<=<U,FW)) p => inP (V, W, W<=<V, <=<-left V<=<U p, FW)
+               | filter-top => inP (top, top, <=<_top, <=<_top, filter-top)
+               | filter-meet (inP (V,W,W<=<V,V<=<U,FW)) (inP (V',W',W'<=<V',V'<=<U',FW')) => inP (V ∧ V', W ∧ W', <=<_meet W<=<V W'<=<V', <=<_meet V<=<U V'<=<U', filter-meet FW FW')
+               | isWeaklyProper (inP (V,W,W<=<V,V<=<bot,FW)) => F.isWeaklyProper $ filter-mono FW $ s<=<_<= W<=<V <=∘ s<=<_<= V<=<bot
+               | isCauchyFilter Cc => \case F.isCauchyFilter $ isStronglyRegular $ isStronglyRegular Cc \with {
+                 | inP (W, inP (V, inP (U, CU, V<=<U), W<=<V), FW) => inP (U, CU, inP (V, W, W<=<V, V<=<U, FW))
+               }
+             }} (\lam {U} (inP (V,W,W<=<V,V<=<U,FW)) => filter-mono FW $ s<=<_<= W<=<V <=∘ s<=<_<= V<=<U) \with {
+      | inP (V,W,W<=<V,V<=<U,FW) => inP (V, V<=<U, \lam p => WCF~_<=< (CF~-sym $ CF~_<= p) W<=<V FW)
+    }
+
+\lemma sregCF_<= {S : StronglyRegularCoverSpace} {F : WeaklyCauchyFilter S} : sregCF F ⊆ F
+  => \lam u => u <=-refl
+
+\open RatherBelow
+
+\func pointSCF {S : StronglyRegularCoverSpace} (x : S) : StronglyRegularCauchyFilter S \cowith
+  | F U => single x <=< U
+  | filter-mono => <=<-left
+  | filter-top => <=<_top
+  | filter-meet p q => <=<-right (meet-univ <=-refl <=-refl) (<=<_meet p q)
+  | isWeaklyProper p => bottom-empty (<=<_<= p idp)
+  | isCauchyFilter c => S.cauchy-regular-cover c x
+  | isStronglyRegularFilter p => \case S.cauchy-regular-cover (isStronglyRegular $ unfolds in p) x \with {
+    | inP (V, inP (W, f, V<=<W), x<=<V) => inP (V, <=<-left V<=<W $ f (x, (idp, s<=<_<= V<=<W $ <=<_<= x<=<V idp)), x<=<V)
+  }
+
+\class StronglySeparatedCoverSpace \extends SeparatedCoverSpace, StronglyRegularCoverSpace, StronglyHausdorffTopSpace
+  | isStronglyHausdorff {x} {y} p => isSeparatedCoverSpace \lam Cc => \case cauchy-regular-cover (isStronglyRegular Cc) x \with {
+    | inP (V, inP (U,CU,V<=<U), x<=<V) => \case cauchy-regular-cover V<=<U y \with {
+      | inP (_, byLeft idp, y<=<nV) => absurd $ p (interior {_} {V}) (interior {_} {Compl V}) x<=<V y<=<nV \lam (z,(z<=<V,z<=<nV)) => <=<_<= z<=<nV idp (<=<_<= z<=<V idp)
+      | inP (_, byRight idp, y<=<U) => inP (U, CU, (s<=<_<= V<=<U $ <=<_<= x<=<V idp, <=<_<= y<=<U idp))
+    }
+  }
+
+\func IsStronglyCompleteCoverSpace (S : StronglyRegularCoverSpace) => \Pi (F : StronglyRegularCauchyFilter S) -> ∃ (x : S) (pointSCF x ⊆ F)
+  \where {
+    \lemma cauchyFilterToPoint (Sc : IsStronglyCompleteCoverSpace S) (F : WeaklyCauchyFilter S) : ∃ (x : S) (pointSCF x ⊆ F)
+      => \case Sc (sregCF F) \with {
+        | inP (x,p) => inP (x, p <=∘ sregCF_<=)
+      }
+  }
+
+\class StronglyCompleteCoverSpace \extends StronglySeparatedCoverSpace, CompleteCoverSpace {
+  | isStronglyComplete : IsStronglyCompleteCoverSpace \this
+  | isComplete F => \case isStronglyComplete (sregCF F) \with {
+    | inP (x,p) => inP (x, p <=∘ sregCF_<=)
+  }
+
+  \protected \lemma filter-point-unique (F : WeaklyCauchyFilter \this) : isProp (\Sigma (x : E) (pointSCF x ⊆ F))
+    => \lam s t => ext $ isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 1 7 $ ~-transitive {WeaklyCauchyFilterEquivalence \this} {_} {F} (CF~_<= {_} {_} {F} s.2) $ ~-symmetric (CF~_<= {_} {pointSCF t.1} t.2)
+
+  \protected \lemma filter-point-pair (F : WeaklyCauchyFilter \this) : \Sigma (x : E) (pointSCF x ⊆ F) \level filter-point-unique F
+    => \case isStronglyComplete (sregCF F) \with {
+      | inP (x,p) => (x, p <=∘ \lam u => u <=-refl)
+    }
+
+  \sfunc filter-point (F : WeaklyCauchyFilter \this) : E
+    => (filter-point-pair F).1
+
+  \lemma filter-point-sub {F : WeaklyCauchyFilter \this} : pointSCF (filter-point F) ⊆ F
+    => rewrite (\peval filter-point F) (filter-point-pair F).2
+
+  \lemma filter-point-elem {F : WeaklyCauchyFilter \this} {U V : Set E} (p : V s<=< U) (FV : F V) : single (filter-point F) <=< U
+    => WCF~_<=< (~-symmetric {_} {pointSCF (filter-point F)} {F} $ CF~_<= {_} {pointSCF (filter-point F)} filter-point-sub) p FV
+
+  \lemma filter-point-char {F : WeaklyCauchyFilter \this} {U : Set E} : single (filter-point F) <=< U <-> ∃ (V : Set E) (V s<=< U) (F V)
+    => (\lam p => \case s<=<-inter p \with {
+      | inP (V,q,V<=<U) => inP (V, V<=<U, filter-point-sub $ s<=<_<=< q)
+    }, \lam (inP (V,p,FV)) => filter-point-elem p FV)
+}
+
+\func weaklyDense-filter-lift {X Y : CoverSpace} (f : CoverMap X Y) (fd : f.IsWeaklyDenseEmbedding) (F : WeaklyCauchyFilter Y) : WeaklyCauchyFilter X \cowith
+  | F U => ∃ (V' V : Set Y) (f ^-1 V ⊆ U) (V' <=< V) (F V')
+  | filter-mono (inP (V',V,p,V'<=<V,FV')) U<=U' => inP (V', V, p <=∘ U<=U', V'<=<V, FV')
+  | filter-top => inP (top, top, \lam _ => (), <=<_top, filter-top)
+  | filter-meet (inP (U',U,p,U'<=<U,FU')) (inP (V',V,q,V'<=<V,FV')) => inP (U' ∧ V', U ∧ V, MeetSemilattice.meet-monotone p q, <=<_meet U'<=<U V'<=<V, filter-meet FU' FV')
+  | isWeaklyProper (inP (V',V,p,V'<=<V,FV')) => F.isWeaklyProper $ filter-mono FV' \lam {y} V'y => absurd $ fd.1 (Y.interior {V}) (\lam (_, inP (x,idp), fx<=<V) => bottom-empty $ p $ <=<_<= fx<=<V idp) (y, <=<-right (single_<= V'y) V'<=<V)
+  | isCauchyFilter Cc => \case F.isCauchyFilter $ isRegular $ fd.2 Cc \with {
+    | inP (V', inP (V, inP (U, CU, p), V'<=<V), FV') => inP (U, CU, inP (V', V, p, V'<=<V, FV'))
+  }
+  \where {
+    \lemma map-equiv (fd : f.IsWeaklyDenseEmbedding) : f.func-weak-cauchy (weaklyDense-filter-lift f fd F) CF~ F
+      => \lam {C} Cc => \case isCauchyFilter (isRegular Cc) \with {
+        | inP (V', inP (V, CV, V'<=<V), FV') => inP (V, CV, (inP (V', V, <=-refl, V'<=<V, FV'), filter-mono FV' (<=<_<= V'<=<V)))
+      }
+  }
+
+\func weaklyDense-cauchy-lift {X : CoverSpace} {Y : StronglyRegularCoverSpace} {Z : StronglyCompleteCoverSpace} (f : CoverMap X Y) (fd : f.IsWeaklyDenseEmbedding) (g : StronglyCauchyMap X Z) : StronglyCauchyMap Y Z \cowith
+  | func y => Z.filter-point $ g.func-weak-cauchy $ weaklyDense-filter-lift f fd (pointSCF y)
+  | func-weak-cauchy F => \new WeaklyCauchyFilter {
+    | isCauchyFilter Cc => \case isCauchyFilter {g.func-weak-cauchy $ weaklyDense-filter-lift f fd F} (isStronglyRegular Cc) \with {
+      | inP (U', inP (U,CU,U'<=<U), inP (V',V,p,V'<=<V,FV')) => inP (U, CU, filter-mono FV' \lam {y} V'y => <=<_<= (Z.filter-point-elem U'<=<U \case <=<-inter $ <=<-right (single_<= V'y) V'<=<V \with {
+        | inP (V'',y<=<V'',V''<=<V) => inP $ later (V'', V, p, V''<=<V, y<=<V'')
+      }) idp)
+    }
+  }
+
+\func weaklyDense-lift {X : CoverSpace} {Y : StronglyRegularCoverSpace} {Z : StronglyCompleteCoverSpace} (f : CoverMap X Y) (fd : f.IsWeaklyDenseEmbedding) (g : CoverMap X Z) : CoverMap Y Z \cowith
+  | func y => Z.filter-point $ g.func-weak-cauchy $ weaklyDense-filter-lift f fd (pointSCF y)
+  | func-cover Dc => cauchy-refine (isRegular $ fd.2 $ g.func-cover $ isStronglyRegular Dc) \lam {V'} (inP (V, inP (U, inP (W', inP (W, DW, W'<=<W), p), q), V'<=<V)) =>
+      inP (_, inP (W, DW, idp), \lam {y} V'y => <=<_<= (Z.filter-point-elem W'<=<W \case <=<-inter (<=<-right (single_<= V'y) V'<=<V) \with {
+        | inP (V'',y<=<V'',V''<=<V) => inP $ later (V'', V, rewrite p in q, V''<=<V, y<=<V'')
+      }) idp)
+
+\lemma weaklyDense-lift-char {X : CoverSpace} {Y : StronglyRegularCoverSpace} {Z : StronglyCompleteCoverSpace} {f : CoverMap X Y} (fd : f.IsWeaklyDenseEmbedding) {g : CoverMap X Z} (x : X) : weaklyDense-lift f fd g (f x) = g x
+  => isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 4 7 $ later \case StronglyCompleteCoverSpace.filter-point-sub __ \with {
+    | inP (V',V,p,V'<=<V,fx<=<V') => p $ <=<_<= V'<=<V $ <=<_<= fx<=<V' idp
+  }
+
+\lemma weaklyDense-lift-neighborhood {X : CoverSpace} {Y : StronglyRegularCoverSpace} {Z : StronglyCompleteCoverSpace} {f : CoverMap X Y} (fd : f.IsWeaklyDenseEmbedding) {g : CoverMap X Z} (y : Y) (W : Set Z)
+  : single (weaklyDense-lift f fd g y) <=< W <-> ∃ (W' : Set Z) (W' s<=< W) (V : Set Y) (f ^-1 V ⊆ g ^-1 W') (single y <=< V)
+  => <->trans Z.filter-point-char $ later (\lam (inP (W', W'<=<W, inP (V',V,p,V'<=<V,y<=<V'))) => inP (W', W'<=<W, V, p, <=<-right (<=<_<= y<=<V') V'<=<V),
+                                           \lam (inP (W',W'<=<W,V,p,y<=<V)) => \case <=<-inter y<=<V \with {
+                                             | inP (V',y<=<V',V'<=<V) => inP (W', W'<=<W, inP (V', V, p, V'<=<V, y<=<V'))
+                                           })
+
+\open StronglyCompleteCoverSpace
+
+\lemma weaklyDense-lift-natural {X : CoverSpace} {Y Z : StronglyCompleteCoverSpace} {f : CoverMap X Y} (fd : f.IsWeaklyDenseEmbedding) {g : CoverMap X Z} (F : WeaklyCauchyFilter X)
+  : weaklyDense-lift f fd g (Y.filter-point $ f.func-weak-cauchy F) = Z.filter-point (g.func-weak-cauchy F)
+  => isSeparatedCoverSpace $ SeparatedCoverSpace.separated-char 0 7 \lam {U} c => \case (weaklyDense-lift-neighborhood fd (Y.filter-point $ f.func-weak-cauchy F) _).1 c \with {
+    | inP (U',U'<=<U,V,p,q) => filter-point-elem U'<=<U $ later $ F.filter-mono (filter-point-sub q) p
+  }
+
+\lemma func-weak-cauchy_<= {X Y : CoverSpace} {f : CoverMap X Y} (F G : WeaklyCauchyFilter X) (p : F ⊆ G) : f.func-weak-cauchy F ⊆ f.func-weak-cauchy G
+  => p __
+
+\lemma dense-stronglyComplete {X Y : StronglyRegularCoverSpace} {f : CoverMap X Y} (fd : f.IsWeaklyDenseEmbedding) (p : \Pi (F : StronglyRegularCauchyFilter X) -> ∃ (y : Y) (pointSCF y ⊆ f.func-weak-cauchy F)) : IsStronglyCompleteCoverSpace Y
+  => \lam F => \case p $ sregCF $ weaklyDense-filter-lift f fd F \with {
+    | inP (y,q) => inP (y, StronglyRegularCauchyFilter.Reg_CF~_<= {_} {pointSCF y} $ ~-transitive {_} {pointSCF y} (CF~_<= {_} {pointSCF y} $ q <=∘ func-weak-cauchy_<= (sregCF $ weaklyDense-filter-lift f fd F) (weaklyDense-filter-lift f fd F) \lam u => u <=-refl) $ weaklyDense-filter-lift.map-equiv fd)
+  }
+
+\instance StrongCompletion (X : StronglyRegularCoverSpace) : StronglyCompleteCoverSpace (StronglyRegularCauchyFilter X)
+  | StronglyRegularCoverSpace => coverSpace
+  | isSeparatedCoverSpace p => StronglyRegularCauchyFilter.equality \lam Cc => \case p (makeCover Cc) \with {
+    | inP (_, inP (U,CU,idp), r) => inP (U,CU,r)
+  }
+  | isStronglyComplete => dense-stronglyComplete strongCompletion.isDenseEmbedding \lam F => inP (F, strongCompletion.dense-aux {_} {F} __)
+  \where {
+    \func mkSet (U : Set X) : Set (StronglyRegularCauchyFilter X)
+      => \lam F => F U
+
+    \lemma mkSet_<= {U V : Set X} (p : U ⊆ V) : mkSet U ⊆ mkSet V
+      => \lam {F} => filter-mono __ p
+
+    \func isCCauchy (D : Set (Set (StronglyRegularCauchyFilter X)))
+      => ∃ (C : X.isCauchy) (∀ {U : C} ∃ (V : D) (mkSet U ⊆ V))
+
+    \lemma makeCover {C : Set (Set X)} (Cc : isCauchy C) : isCCauchy \lam V => ∃ (U : C) (V = mkSet U)
+      => inP (C, Cc, \lam {U} CU => inP (mkSet U, inP (U,CU,idp), <=-refl))
+
+    \func coverSpace : StronglyRegularCoverSpace (StronglyRegularCauchyFilter X) \cowith
+      | isCauchy => isCCauchy
+      | cauchy-cover {D} (inP (C,Cc,p)) F =>
+        \have | (inP (U,CU,FU)) => isCauchyFilter Cc
+              | (inP (V,DV,q)) => p CU
+        \in inP (V, DV, q FU)
+      | cauchy-top => inP (single top, cauchy-top, \lam _ => inP (top, idp, \lam _ => ()))
+      | cauchy-refine (inP (E,Ec,g)) f => inP (E, Ec, \lam EU =>
+          \have | (inP (V,CV,p)) => g EU
+                | (inP (W,DW,q)) => f CV
+          \in inP (W, DW, p <=∘ q))
+      | cauchy-glue {C} (inP (C',C'c,f)) {D} Dc => inP (_, cauchy-glue C'c {\lam U' V' => ∃ (U : C) (V : D U) (mkSet U' ⊆ U) (mkSet V' ⊆ V)} \lam {U'} C'U' =>
+          \have | (inP (U,CU,U'<=U)) => f C'U'
+                | (inP (D',D'c,g)) => Dc CU
+          \in cauchy-refine D'c \lam {V'} D'V' => \case g D'V' \with {
+            | inP (V,DV,V'<=V) => inP (V', inP (U, CU, V, DV, U'<=U, V'<=V), <=-refl)
+          }, \lam {W'} (inP (U', V', C'U', inP (U, CU, V, DV, U'<=U, V'<=V), W'=U'V')) => inP (U ∧ V, inP (U, V, CU, DV, idp), rewrite W'=U'V' \lam {F} FU'V' => (U'<=U $ filter-mono FU'V' meet-left, V'<=V $ filter-mono FU'V' meet-right)))
+      | isStronglyRegular {D} (inP (C,Cc,f)) =>
+        \have <=<_mkFilters {U' U : Set X} (p : U' s<=< U) : mkSet U' s<=< mkSet U
+        => unfolds $ inP (_, p, \lam {W} e => \case \elim e \with {
+            | byLeft p => inP (_, byLeft idp, rewrite p \lam {F} FnU' FU' => unfolds at FnU' $ unfolds at FU' $ isWeaklyProper {F} $ filter-mono (filter-meet FnU' FU') \lam s => absurd $ s.1 s.2)
+            | byRight p => inP (mkSet W, byRight $ pmap mkSet p, <=-refl)
+          })
+        \in inP (_, isStronglyRegular Cc, \lam {U'} (inP (U,CU,U'<=<U)) => \case f CU \with {
+          | inP (V,DV,U<=V) => inP (mkSet U', inP (V, DV, <=<-left (<=<_mkFilters U'<=<U) U<=V), <=-refl)
+        })
+
+    \lemma pointSCF_^-1_<=< {F : StronglyRegularCauchyFilter X} {U : Set (StronglyRegularCauchyFilter X)} (p : single F <=< {StrongCompletion X} U) : F (pointSCF ^-1 U) \elim p
+      | inP (C,Cc,h) => \case F.isCauchyFilter (isStronglyRegular Cc) \with {
+        | inP (V', inP (V,CV,V'<=<V), FV') => \case h CV \with {
+          | inP (W,g,q) => filter-mono FV' \lam V'x => g (F, (idp, q $ filter-mono FV' (s<=<_<= V'<=<V))) $ q $ <=<-right (single_<= V'x) (s<=<_<=< V'<=<V)
+        }
+      }
+
+    \lemma mkSet_<=<-point {F : StronglyRegularCauchyFilter X} {U : Set X} : single F <=< {StrongCompletion X} mkSet U <-> F U
+      => (\lam p => filter-mono (pointSCF_^-1_<=< p) (<=<_<= __ idp), \lam FU => \case isStronglyRegularFilter FU \with {
+        | inP (V,V<=<U,FV) => inP (_, V<=<U, \lam {W} e => inP (mkSet W, \lam (_,(idp,FW)) => \case \elim e \with {
+          | byLeft r => absurd $ F.isWeaklyProper $ filter-mono (filter-meet FW FV) $ rewrite r \lam s => absurd $ s.1 s.2
+          | byRight r => mkSet_<= $ Preorder.=_<= r
+        }, <=-refl))
+      })
+  }
+
+\func strongCompletion {S : StronglyRegularCoverSpace} : CoverMap S StrongCompletion.coverSpace \cowith
+  | func => pointSCF
+  | func-cover (inP (C,Cc,f)) => cauchy-refine (isRegular Cc)
+      \case __ \with {
+        | inP (U',CU',U<=<U') => \case f CU' \with {
+          | inP (V,DV,p) => inP (pointSCF ^-1 V, inP (V, DV, idp), \lam Ux => p $ <=<-right (single_<= Ux) U<=<U')
+        }
+      }
+  \where {
+    \protected \lemma dense-aux {F : StronglyRegularCauchyFilter S} {V : Set (StronglyRegularCauchyFilter S)} (r : single F <=< {StrongCompletion.coverSpace} V) : F \lam x => V (strongCompletion x) \elim r
+      | inP (C,Cc,f) =>
+        \have | (inP (U', inP (U, CU, U'<=<U), FU')) => isCauchyFilter {F} (isRegular Cc)
+              | (inP (W,g,U<=W)) => f CU
+        \in filter-mono FU' \lam U'x => g (F, (idp, U<=W $ filter-mono FU' $ <=<_<= U'<=<U)) $ U<=W $ <=<-right (single_<= U'x) U'<=<U
+
+    \lemma isDenseEmbedding : PrecoverMap.IsWeaklyDenseEmbedding {strongCompletion {S}}
+      => (\lam {U} Uo c s => isWeaklyProper $ filter-mono (dense-aux $ StrongCompletion.coverSpace.open-char.1 Uo s.2) \lam {x} Ux => absurd $ c (_, inP (x, idp), Ux),
+          \lam {C} Cc => inP (C, Cc, \lam {U} CU => inP (StrongCompletion.mkSet U, inP (U, CU, <=<_<= __ idp), <=-refl)))
+  }
