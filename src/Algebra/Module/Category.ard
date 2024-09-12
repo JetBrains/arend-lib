@@ -12,13 +12,12 @@
 \import Category.PreAdditive
 \import Function (isInj)
 \import Logic
-\import Logic.Meta
 \import Paths
 \import Paths.Meta
 
 \instance LModuleCat (R : Ring) : Cat (LModule R)
   | Hom A B => LinearMap A B
-  | id _ => \new LinearMap {
+  | id A => \new LinearMap {
     | func a => a
     | func-+ => idp
     | func-*c => idp
@@ -31,16 +30,18 @@
   | id-left => idp
   | id-right => idp
   | o-assoc => idp
-  | univalence => sip (\lam (f : LinearMap) _ => exts (f.func-zro, \lam _ _ => f.func-+, \lam _ => f.func-negative, \lam _ _ => f.func-*c))
+  | univalence => sip (\lam (f : LinearMap) g => exts (f.func-zro, \lam x x' => f.func-+, \lam x => f.func-negative, \lam e x => f.func-*c))
 \where {
-  \func in {N : LModule R}(S : SubLModule R N) : LinearMap S.struct N \cowith
+  \func in {N : LModule R} (S : SubLModule R N) : LinearMap S.struct N \cowith
     | func x => x.1
     | func-+ => idp
     | func-*c => idp
-  \func in-mono {N : LModule R}(S : SubLModule R N) : isInj (in S) => \lam p => exts p
+
+  \lemma in-mono {N : LModule R} (S : SubLModule R N) : isInj (in S) => \lam p => exts p
 }
 
-\instance LModulePreAdditive (R : Ring) : PreAdditivePrecat{| Precat => LModuleCat R} \cowith
+\instance LModulePreAdditive (R : Ring) : PreAdditivePrecat \cowith
+  | Precat => LModuleCat R
   | AbHom => \new AbGroup {
     | zro => zeroMap
     | + => addMaps
@@ -58,35 +59,33 @@
       | func _ => N.zro
       | func-+ => inv N.zro-right
       | func-*c => inv N.*c_zro-right
+
     \func addMaps {M N : LModule R} (f g : LinearMap M N)  : LinearMap M N \cowith
       | func m => f m N.+ g m
       | func-+ => rewrite (f.func-+, g.func-+) equation
       | func-*c => rewrite (f.func-*c, g.func-*c, N.*c-ldistr) idp
 
-    \func negativeMap{M N : LModule R}(f : LinearMap M N) : LinearMap M N \cowith
+    \func negativeMap {M N : LModule R} (f : LinearMap M N) : LinearMap M N \cowith
       | func m => negative (f m)
       | func-+ => rewrite (f.func-+, inv N.neg_ide_*c, inv N.neg_ide_*c, inv N.neg_ide_*c, N.*c-ldistr) idp
       | func-*c => rewrite (f.func-*c, inv N.neg_ide_*c, inv N.neg_ide_*c, inv N.*c-assoc, inv N.*c-assoc, R.negative_ide-right, R.negative_ide-left) idp
   }
 
-\instance LinearMapLModule {R : CRing}(A B : LModule R) : LModule R \cowith
-  | AbGroup => AbHom {LModulePreAdditive R}{A} {B}
-  | *c => MultiplyBy_const
+\instance LinearMapLModule {R : CRing} (A B : LModule R) : LModule R \cowith
+  | AbGroup => AbHom {LModulePreAdditive R} {A} {B}
+  | *c (c : R) (f : LinearMap A B) : LinearMap A B \cowith {
+    | func a => c B.*c f a
+    | func-+ => rewrite (f.func-+, B.*c-ldistr) idp
+    | func-*c => rewrite (f.func-*c, inv B.*c-assoc, inv B.*c-assoc, R.*-comm) idp
+  }
   | *c-assoc => exts \lam _ => B.*c-assoc
   | *c-ldistr => exts \lam _ => B.*c-ldistr
   | *c-rdistr => exts \lam _ => B.*c-rdistr
   | ide_*c => exts \lam _ => B.ide_*c
-  \where {
-    \func MultiplyBy_const (c : R)(f : LinearMap A B) : LinearMap A B \cowith
-      | func a => c B.*c (f a)
-      | func-+ => rewrite (f.func-+, B.*c-ldistr) idp
-      | func-*c => rewrite (f.func-*c, inv B.*c-assoc, inv B.*c-assoc, R.*-comm) idp
-  }
 
-\func isZeroMod {R : Ring} (M : LModule R) => \Pi(m : M) -> m = 0
+\func IsZeroMod {R : Ring} (M : LModule R) => \Pi (m : M) -> m = 0
 
-\func isZeroMap{R : Ring}{M N : LModule R}(f : LinearMap M N) => \Pi(m : M) -> f m = 0
-
+\func IsZeroMap {R : Ring} {M N : LModule R} (f : LinearMap M N) => \Pi (m : M) -> f m = 0
 
 \instance KerLModule {R : Ring} {A B : LModule R} (f : LinearMap A B) : LModule R
   | AbGroup => KerAbGroup f
@@ -96,7 +95,7 @@
   | *c-rdistr => ext *c-rdistr
   | ide_*c => ext ide_*c
 
-\func KerLModuleHom {R : Ring} {A B : LModule R} (f : LinearMap A B) : LinearMap (KerLModule f) f.Dom \cowith
+\func KerLModuleHom {R : Ring} {A B : LModule R} (f : LinearMap A B) : LinearMap (KerLModule f) A \cowith
   | AddGroupHom => KerGroupHom f
   | func-*c => idp
 
@@ -108,11 +107,11 @@
   | *c-rdistr => ext *c-rdistr
   | ide_*c => ext ide_*c
 
-\func ImageLModuleLeftHom {R : Ring} {A B : LModule R} (f : LinearMap A B) : LinearMap f.Dom (ImageLModule f) \cowith
+\func ImageLModuleLeftHom {R : Ring} {A B : LModule R} (f : LinearMap A B) : LinearMap A (ImageLModule f) \cowith
   | AddGroupHom => ImageAddGroupLeftHom f
   | func-*c => ext func-*c
 
-\func ImageLModuleRightHom {R : Ring} {A B : LModule R} (f : LinearMap A B) : LinearMap (ImageLModule f) f.Cod \cowith
+\func ImageLModuleRightHom {R : Ring} {A B : LModule R} (f : LinearMap A B) : LinearMap (ImageLModule f) B \cowith
   | AddGroupHom => ImageAddGroupRightHom f
   | func-*c => idp
 

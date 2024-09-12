@@ -1,7 +1,7 @@
 \import Algebra.Group
 \import Algebra.Group.GSet
 \import Algebra.Group.Representation.Category
-\import Algebra.Group.Representation.Representation
+\import Algebra.Group.Representation
 \import Algebra.Group.Representation.Sub
 \import Algebra.Module
 \import Algebra.Module.Category
@@ -15,7 +15,6 @@
 \import Function \hiding (id, o)
 \import Function.Meta
 \import Logic
-\import Logic.Meta
 \import Meta \hiding (in)
 \import Paths
 \import Paths.Meta
@@ -77,28 +76,24 @@ produces an interwining linear map $f'$ via the following formula
 
     \func int : LinearMap A B => Ab.FinSum (\lam (g : G) => adjust g f)
 
-    \func group_prop (g h : G)(a : A) : adjust g f (h A.** a) = h B.** (adjust ((inverse h) * g) f a)
+    \func group_prop (g h : G)(a : A) : adjust g f (h A.** a) = h B.** adjust (inverse h * g) f a
       => unfold (inv (rewrite (B.**-assoc, inv G.*-assoc, G.inverse-right, G.ide-left, G.inverse_*, G.inverse-isInv, A.**-assoc) idp))
 
-    \func FinSum-equivariance (h : G) {x : G -> B} : h B.** (B.FinSum x) = B.FinSum (\lam z => h B.** (x z))
+    \func FinSum-equivariance (h : G) {x : G -> B} : h B.** B.FinSum x = B.FinSum (\lam z => h B.** x z)
       => \case B.FinSum_char x  \with {
-        | inP p => \case B.FinSum_char2 (\lam z => h B.** (x z)) p.1 \with {
-          | q => rewrite (p.2, q, BigSum-equivariance) idp
-        }
+        | inP p => rewrite (p.2, B.FinSum_char2 (h B.** x __) p.1, BigSum-equivariance) idp
       }
       \where {
-        \func act_array (h : G)(e : Array B) : Array B => \lam i => h B.** (e i)
+        \func act_array (h : G)(e : Array B) : Array B => \lam i => h B.** e i
 
-        \func BigSum-equivariance (e : Array B) : h B.** (B.BigSum e) = B.BigSum (act_array h e) \elim e
+        \func BigSum-equivariance (e : Array B) : h B.** B.BigSum e = B.BigSum (act_array h e) \elim e
           | nil => rewrite B.g**-zro idp
           | a :: l => rewrite (B.**-ldistr, BigSum-equivariance l) idp
       }
 
     \func FinSumEquality {E : AbMonoid} {A : FinSet} {x y : A -> E} (eq : \Pi (a : A) -> x a = y a)
       : E.FinSum x = E.FinSum y => \case E.FinSum_char x \with {
-      | inP a => \case E.FinSum_char2 y a.1 \with {
-        | p => rewrite (a.2, p, BigSumEquality) idp
-      }
+      | inP a => rewrite (a.2, E.FinSum_char2 y a.1, BigSumEquality) idp
     }\where {
       \func BigSumEquality {a : Equiv {Fin A.finCard} {A}}
         : AddMonoid.BigSum (\new Array E A.finCard (\lam j => x (a j))) =
@@ -108,14 +103,12 @@ produces an interwining linear map $f'$ via the following formula
       (\new Array E A.finCard (\lam j => y (a j))) => arrayExt (\lam j => eq (a j))
     }
 
-    \func FinSumRewrite (x : G -> Ab) (a : A) :
-      (Ab.FinSum x) a = B.FinSum (\lam e => (x e) a) => \case Ab.FinSum_char x \with {
-      | inP a1 => \case B.FinSum_char2 (\lam e => (x e) a) a1.1 \with {
-        | p => rewrite (a1.2, p, BigSumRewrite) idp
-      }
+    \func FinSumRewrite (x : G -> Ab) (a : A)
+      : (Ab.FinSum x) a = B.FinSum (\lam e => (x e) a) => \case Ab.FinSum_char x \with {
+      | inP a1 => rewrite (a1.2, B.FinSum_char2 (x __ a) a1.1, BigSumRewrite) idp
     }
       \where {
-        \func Ab_Helper {f g : Ab}{x : A} : (f + g) x = (f x) + g x => idp
+        \func Ab_Helper {f g : Ab}{x : A} : (f + g) x = f x + g x => idp
 
         \func ap_BigSum_el_wise (e : Array Ab)(a : A) : Array B => \lam i => (e i) a
 
@@ -128,26 +121,28 @@ produces an interwining linear map $f'$ via the following formula
                                  (x : A -> E)(p : A -> A)(permute : QEquiv p): E.FinSum x  = E.FinSum {A} (x Function.o p)
       => E.FinSum_Equiv {A}{A} permute
 
-    \lemma rearrange(h : G) :
-      int = (Ab.FinSum (\lam (g : G) => adjust ((inverse h) * g) f))
-      => PermutationInvariance {Ab} adjust' ((inverse h) *) (Group.translate-is-Equiv (inverse h))
+    \lemma rearrange (h : G) : int = Ab.FinSum (\lam (g : G) => adjust (inverse h * g) f)
+      => PermutationInvariance adjust' (inverse h *) (Group.translate-is-Equiv (inverse h))
 
-    \func ap-rearrange (h : G)(a : A) :
-      int a = (Ab.FinSum (\lam (g : G) => adjust ((inverse h) * g) f)) a => path (\lam i => ((rearrange h) i) a)
+    \lemma ap-rearrange (h : G) (a : A)
+      : int a = Ab.FinSum (\lam g => adjust (inverse h * g) f) a
+      => path \lam i => rearrange h i a
 
-    \func bring_h_out (h : G) (a : A) : int (h A.** a)
-      = h B.** (Ab.FinSum (\lam (g : G) => adjust ((inverse h) * g) f)) a
-      => inv $ rewrite (zero-2-step h a, FinSum-equivariance, step-4 h a, inv $ FinSumRewrite (\lam (g : G) => adjust g f) (h A.** a)) idp
+    \func bring_h_out (h : G) (a : A)
+      : int (h A.** a) = h B.** (Ab.FinSum (\lam g => adjust (inverse h * g) f)) a
+      => inv $ rewrite (zero-2-step h a, FinSum-equivariance, step-4 h a, inv $ FinSumRewrite (adjust __ f) (h A.** a)) idp
       \where {
-        \func zero-2-step(h : G)(a : A) :
-          (Ab.FinSum (\lam g => adjust (G.inverse h G.* g) f) )a = B.FinSum (\lam g => adjust (G.inverse h G.* g) f a) => FinSumRewrite (\lam g => adjust (G.inverse h G.* g) f) a
+        \lemma zero-2-step (h : G)(a : A)
+          : Ab.FinSum (\lam g => adjust (G.inverse h G.* g) f) a = B.FinSum (\lam g => adjust (G.inverse h G.* g) f a)
+          => FinSumRewrite (\lam g => adjust (G.inverse h G.* g) f) a
 
-        \func step-4 (h : G)(a : A) :
-          B.FinSum (\lam (g : G) => h B.**(adjust ((inverse h) * g) f) a) =
-          B.FinSum(\lam (g : G) => g B.** (f (inverse g A.** (h A.** a)))) => rewrite (FinSumEquality helper) idp
+        \lemma step-4 (h : G) (a : A)
+          : B.FinSum (\lam g => h B.** adjust (inverse h * g) f a) =
+            B.FinSum (\lam g => g B.** f (inverse g A.** (h A.** a)))
+          => rewrite (FinSumEquality helper) idp
           \where {
-            \func helper {h : G}{a : A}(g : G) : h B.**(adjust ((inverse h) * g) f) a = g B.** (f (inverse g A.** (h A.** a)))
-              => unfold (rewrite (G.inverse_*, G.inverse-isInv, inv A.**-assoc, B.**-assoc, inv G.*-assoc, G.inverse-right, G.ide-left) idp)
+            \func helper {h : G}{a : A}(g : G) : h B.** adjust (inverse h * g) f a = g B.** f (inverse g A.** (h A.** a))
+              => unfold $ rewrite (G.inverse_*, G.inverse-isInv, inv A.**-assoc, B.**-assoc, inv G.*-assoc, G.inverse-right, G.ide-left) idp
           }
 
       }
