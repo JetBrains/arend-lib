@@ -16,15 +16,14 @@
 
 \class Group \extends CancelMonoid {
   | inverse : E -> E
-
   | inverse-left {x : E} : inverse x * x = ide
   | inverse-right {x : E} : x * inverse x = ide
 
-  \default inverse-left => make-inverse-left inverse inverse-right
-  \default inverse-right => make-inverse-left {Monoid.op} inverse inverse-left
+  \default inverse-left => make-inverse-left ide-right inverse inverse-right
+  \default inverse-right => make-inverse-left {Semigroup.op} ide-left inverse inverse-left
 
-  \default ide-left {x} => make-ide-left E (*) ide inverse *-assoc ide-right inverse-right inverse-left x
-  \default ide-right {x} => make-ide-left E (\lam (x y : E) => y * x) ide inverse (\lam {x y z : E} => inv (*-assoc {_} {z} {y} {x})) ide-left inverse-left inverse-right x
+  \default ide-left => make-ide-left ide-right inverse inverse-right inverse-left
+  \default ide-right => make-ide-left {Semigroup.op} ide-left inverse inverse-left inverse-right
 
   | cancel_*-left x {y} {z} p =>
       y                   ==< inv ide-left >==
@@ -107,7 +106,7 @@
                 (\new Inv e' (inverse e') inverse-left inverse-right)
     }
 
-  \private \lemma make-inverse-left {M : Monoid} (inverse : M -> M) (inverse-right : \Pi {x : M} -> x * inverse x = ide) {x : M} : inverse x * x = ide
+  \private \lemma make-inverse-left {M : Semigroup} {ide : M} (ide-right : \Pi {x : M} -> x * ide = x) (inverse : M -> M) (inverse-right : \Pi {x : M} -> x * inverse x = ide) {x : M} : inverse x * x = ide
     => \have | inverse-x-idempotent : (inverse x * x) * (inverse x * x) = inverse x * x =>
                 (inverse x * x) * (inverse x * x) ==< *-assoc >==
                 inverse x * (x * (inverse x * x)) ==< pmap (inverse x *) (inv *-assoc) >==
@@ -124,19 +123,13 @@
                 ide                 `qed
        \in idempotent-is-trivial inverse-x-idempotent
 
-  -- TODO: Use semigroup
-  \private \lemma make-ide-left (X : \Set) (* : X -> X -> X) (ide : X) (inverse : X -> X)
-                       (*-assoc : \Pi {x y z : X} -> * (* x y) z = * x (* y z))
-                       (ide-right : \Pi {x : X} -> * x ide = x)
-                       (inverse-right : \Pi {x : X} -> * x (inverse x) = ide)
-                       (inverse-left : \Pi {x : X} -> * (inverse x) x = ide)
-                       (x : X) : * ide x = x =>
-    * ide x                ==< pmap (* __ x) (inv inverse-right) >==
-    * (* x (inverse x)) x  ==< *-assoc >==
-    * x (* (inverse x) x)  ==< cong inverse-left >==
-    * x ide                ==< ide-right >==
-    x                      `qed
-
+  \private \lemma make-ide-left {M : Semigroup} {ide : M} (ide-right : \Pi {x : M} -> * x ide = x) (inverse : M -> M)
+    (inverse-right : \Pi {x : M} -> x * inverse x = ide) (inverse-left : \Pi {x : M} -> inverse x * x = ide) {x : M} : * ide x = x
+    => ide * x              ==< pmap (`* x) (inv inverse-right) >==
+       (x * inverse x) * x  ==< *-assoc >==
+       x * (inverse x * x)  ==< cong inverse-left >==
+       x * ide              ==< ide-right >==
+       x                      `qed
 
   \func translate-is-Equiv {G : Group} (h : G) : QEquiv (h *) \cowith
     | ret => inverse h *
