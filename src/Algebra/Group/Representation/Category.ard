@@ -1,0 +1,118 @@
+\import Algebra.Group
+\import Algebra.Group.GSet.Category
+\import Algebra.Group.GSet
+\import Algebra.Group.Representation
+\import Algebra.Module
+\import Algebra.Module.Category
+\import Algebra.Module.LinearMap
+\import Algebra.Ring
+\import Category
+\import Category.Meta
+\import Logic
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\record InterwiningMap  {G : Group}  \extends LinearMap {
+  \override Dom : LRepres LinearMap.R G
+  \override Cod : LRepres LinearMap.R G
+  | func-** {e : Dom} {g : G} : func (g ** e) = g ** func e -- equivariance
+  }
+
+\instance RepresentationCat(R : Ring)(G : Group) : Cat (LRepres R G)
+  | Hom => InterwiningMap
+  | id => id-interwining
+  | o {X Y Z : LRepres R G} (f : InterwiningMap Y Z) (g : InterwiningMap X Y) => \new InterwiningMap {
+    | LinearMap => Cat.o {LModuleCat R} f g
+    | func-** =>  rewrite (g.func-**, f.func-**) idp
+  }
+  | id-left => ext idp
+  | id-right => ext idp
+  | o-assoc => ext idp
+  | univalence => sip (\lam (e : InterwiningMap) _ => exts (e.func-zro, \lam _ _ => e.func-+,
+                                                            \lam _ => e.func-negative, \lam _ _ => e.func-*c,
+                                                            \lam _ _ => e.func-** ))
+  \where {
+    \func id-interwining (X : LRepres R G) : InterwiningMap X X \cowith
+      | LinearMap => Cat.id {LModuleCat R} X
+      | func-** => idp
+  }
+
+\func repr+module-iso=>repr-iso {R : Ring} {G : Group}
+                                {A B : LRepres R G} {f : InterwiningMap A B}
+                                (p : Iso {LModuleCat R} f) : Iso f \cowith
+  | hinv => inverseMap {R} {G}{A}{B}{f}{p}
+    | hinv_f => unfold (ext (unfold (exts \lam _ => aux-2)))
+    | f_hinv => unfold (ext (unfold (exts \lam _ => aux)))
+    \where{
+      \func inverseMap => \new InterwiningMap B A {
+        | LinearMap => p.hinv
+        | func-** {b : B} {_ : G} => rewrite (inv (aux {R} {G} {A} {B} {f} {p}{b}),
+                                              inv f.func-**, aux-2, aux) idp
+      }
+      \func aux {b : B} : f (p.hinv b) = b => path (\lam i => (p.f_hinv i) b)
+      \func aux-2 {a : A} : p.hinv (f a) = a => path (\lam i => (p.hinv_f i) a)
+    }
+
+\func KerLRepres {R : Ring} {G : Group} {A B : LRepres R G} (f : InterwiningMap A B) : LRepres R G \cowith
+  | LModule => KerLModule f
+  | ** (g : G) (e : KerLModule f) => (g A.** e.1, rewrite (f.func-**, e.2, B.g**-zro) idp)
+  | **-assoc {_ _ : G} {_ : KerLModule f} => exts A.**-assoc
+  | id-action => exts A.id-action
+  | **-ldistr => exts A.**-ldistr
+  | **-*c => exts A.**-*c
+
+
+\func KerLRepresHom {R : Ring} {G : Group} {A B : LRepres R G} (f : InterwiningMap A B) : InterwiningMap (KerLRepres f) A \cowith
+  | LinearMap => KerLModuleHom f
+  | func-** => idp
+
+\func ImageLRepres {R : Ring} {G : Group} {A B : LRepres R G} (f : InterwiningMap A B) : LRepres R G \cowith
+  | LModule => ImageLModule f
+  | ** (g : G) (e : ImageLModule f) => (g B.** e.1, TruncP.map e.2 \lam s => (g A.** s.1, func-** *> pmap (g B.**) s.2))
+  | **-assoc => ext B.**-assoc
+  | id-action => ext B.id-action
+  | **-ldistr => ext B.**-ldistr
+  | **-*c => ext B.**-*c
+
+
+
+\func ImageLRepresRightHom{R : Ring} {G : Group} (f : InterwiningMap {| R => R | G => G}) : InterwiningMap (ImageLRepres f) f.Cod \cowith
+  | LinearMap => ImageLModuleRightHom f
+  | func-** => idp
+
+
+\func ImageLRepresLeftHom{R : Ring}{G : Group}(f : InterwiningMap {| R => R | G => G}) : InterwiningMap f.Dom (ImageLRepres f) \cowith
+  | LinearMap => ImageLModuleLeftHom f
+  | func-** {_} {_} => exts (rewrite f.func-** idp)
+
+\instance InterwiningMapLModule{R : CRing}{G : Group} (A B : LRepres R G) : LModule R (InterwiningMap A B) \cowith
+  | zro => zeroInterwining
+  | + => addInterwining
+  | zro-left => exts (\lam _ => B.zro-left)
+  | zro-right => exts (\lam _ => B.zro-right)
+  | +-assoc => exts (\lam _ => B.+-assoc)
+  | negative => negativeInterwining
+  | negative-left => exts (\lam _ => B.negative-left)
+  | +-comm => exts (\lam _ => B.+-comm)
+  | *c => mulconstInterwining
+  | *c-assoc => exts (\lam _ => B.*c-assoc)
+  | *c-ldistr => exts (\lam _ => B.*c-ldistr)
+  | *c-rdistr => exts (\lam _ => B.*c-rdistr)
+  | ide_*c => exts (\lam _ => B.ide_*c)
+  \where {
+    \func zeroInterwining : InterwiningMap A B \cowith
+      | LinearMap => LModulePreAdditive.zeroMap
+      | func-** => inv B.g**-zro
+    \func addInterwining (f g : InterwiningMap A B) : InterwiningMap A B \cowith
+      | LinearMap => LModulePreAdditive.addMaps f g
+      | func-** => unfold (rewrite (f.func-**, g.func-**, B.**-ldistr) idp)
+
+    \func negativeInterwining (f : InterwiningMap A B) : InterwiningMap A B \cowith
+      | LinearMap => LModulePreAdditive.negativeMap f
+      | func-** => unfold (rewrite (f.func-**, B.g**-negative) idp)
+
+    \func mulconstInterwining(c : R)(f : InterwiningMap A B) : InterwiningMap A B \cowith
+      | LinearMap => LModule.*c {LinearMapLModule A B} c f
+      | func-** => rewrite (B.**-*c, inv f.func-**) idp
+  }

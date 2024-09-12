@@ -11,6 +11,7 @@
 \import Algebra.Semiring
 \import Arith.Nat
 \import Category
+\import Category.Functor
 \import Data.Array
 \import Data.Fin (unfsuc)
 \import Equiv
@@ -27,6 +28,7 @@
 \import Paths
 \import Paths.Meta
 \import Set
+\import Set.Category
 \import Set.Fin
 
 \class LModule (R : Ring) \extends AbGroup {
@@ -354,6 +356,44 @@
   | *c-ldistr => pmap2 (__,__) *c-ldistr *c-ldistr
   | *c-rdistr => pmap2 (__,__) *c-rdistr *c-rdistr
   | ide_*c => pmap2 (__,__) ide_*c ide_*c
+  \where {
+    \func in1 {R : Ring} (A B : LModule R) : LinearMap A (ProductLModule R A B) \cowith
+      | func a => (a, 0)
+      | func-+ {a} {b} => rewrite (pmap (\lam z => (a A.+ b, z)) (inv B.zro-right)) idp
+      | func-*c{r} {_} => rewrite (inv $ B.*c_zro-right {r}, inv aux, B.*c_zro-right) idp
+      \where {
+        \private \lemma aux {r : R} {a : A} {b : B} : r LModule.*c {ProductLModule R A B} (a, b) = (r *c a, r *c b) => idp
+      }
+
+    \func in2 {R : Ring} (A B : LModule R) : LinearMap B (ProductLModule R A B) \cowith
+      | func b => (0, b)
+      | func-+ {a} {b} => rewrite (pmap (\lam z => (z, a B.+ b)) (inv A.zro-right)) idp
+      | func-*c {r} {_} => rewrite (inv $ A.*c_zro-right {r}, inv aux, A.*c_zro-right) idp
+      \where {
+        \private \lemma aux {r : R} {a : A} {b : B} : r LModule.*c {ProductLModule R A B} (a, b) = (r *c a, r *c b) => idp
+      }
+
+    \func proj1 {R : Ring} (A B : LModule R) : LinearMap (ProductLModule R A B) A \cowith
+      | func (a, b) => a
+      | func-+ => idp
+      | func-*c => idp
+
+    \func proj2 {R : Ring} (A B : LModule R) : LinearMap (ProductLModule R A B) B \cowith
+      | func (a, b) => b
+      | func-+ => idp
+      | func-*c => idp
+
+    \func coprod-map {R : Ring} {A B C : LModule R} (i : LinearMap A C) (j : LinearMap B C) : LinearMap (ProductLModule R A B) C \cowith
+      | func (a, b) => i a C.+ j b
+      | func-+ => rewrite (i.func-+, j.func-+) equation
+      | func-*c => rewrite (i.func-*c, j.func-*c, C.*c-ldistr) idp
+
+    \func prod-map {R : Ring} {A B C : LModule R} (a : LinearMap C A) (b : LinearMap C B) : LinearMap C (ProductLModule R A B) \cowith
+      | func c => (a c, b c)
+      | func-+ => rewrite (a.func-+, b.func-+) idp
+      | func-*c => rewrite (a.func-*c, b.func-*c) idp
+  }
+
 
 \func RingLModule (R : Ring) : LModule R R \cowith
   | AbGroup => R
@@ -377,20 +417,6 @@
       => (\lam c p (0) => inv ide-right *> inv zro-right *> p, \lam x => inP (x :: nil, simplify))
   }
 
-\instance PowerLModule {R : Ring} (J : \Set) (M : LModule R) : LModule R (J -> M)
-  | zro _ => 0
-  | + f g j => f j + g j
-  | zro-left => ext (\lam j => zro-left)
-  | zro-right => ext (\lam j => zro-right)
-  | +-assoc => ext (\lam j => +-assoc)
-  | negative f j => negative (f j)
-  | negative-left => ext (\lam j => negative-left)
-  | +-comm => ext (\lam j => +-comm)
-  | *c r f j => r *c f j
-  | *c-assoc => ext (\lam j => *c-assoc)
-  | *c-ldistr => ext (\lam j => *c-ldistr)
-  | *c-rdistr => ext (\lam j => *c-rdistr)
-  | ide_*c => ext (\lam j => ide_*c)
 
 \instance ArrayLModule {R : Ring} (n : Nat) (M : LModule R) : LModule R (Array M n)
   | zro _ => 0
