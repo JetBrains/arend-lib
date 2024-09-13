@@ -1,0 +1,64 @@
+\import Function.Meta
+\import Order.HeytingAlgebra
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\open HeytingAlebra \hiding (ldistr>=)
+
+\class BooleanAlgebra \extends Bounded.DistributiveLattice, HeytingAlebra {
+  | compl : E -> E
+  | compl-meet {a : E} : a ∧ compl a <= bottom
+  | compl-join {a : E} : top <= a ∨ compl a
+
+  | implies a b => compl a ∨ b
+  | exponent-left xa<=b => meet-univ <=-refl top-univ <=∘ meet-monotone <=-refl compl-join <=∘ ldistr>= <=∘ join-comm =<= join-monotone meet-right xa<=b
+  | exponent-right x<=a-->b => meet-monotone x<=a-->b <=-refl <=∘ rdistr>= <=∘ join-univ (meet-comm =<= compl-meet <=∘ bottom-univ) meet-left
+
+  \lemma compl-adj {a b : E} (ab : a ∧ b <= bottom) : a <= compl b
+    => meet-univ <=-refl top-univ <=∘ meet-monotone <=-refl compl-join <=∘ ldistr>= <=∘ join-univ (ab <=∘ bottom-univ) meet-right
+
+  \lemma compl-mono {a b : E} (a<=b : a <= b) : compl b <= compl a
+    => compl-adj $ meet-monotone <=-refl a<=b <=∘ meet-comm =<= compl-meet
+
+  \lemma compl_meet {a b : E} : compl (a ∧ b) = compl a ∨ compl b
+    => <=-antisymmetric (meet-univ <=-refl top-univ <=∘ meet-monotone <=-refl compl-join <=∘ ldistr>= <=∘ join-comm =<= join-monotone meet-right (compl-adj $ =_<= meet-assoc <=∘ meet-comm =<= compl-meet)) $ join-univ (compl-mono meet-left) (compl-mono meet-right)
+
+  \lemma compl_join {a b : E} : compl (a ∨ b) = compl a ∧ compl b
+    => <=-antisymmetric (meet-univ (compl-mono join-left) (compl-mono join-right)) $ compl-adj $ ldistr>= <=∘ join-univ (meet-monotone meet-left <=-refl <=∘ meet-comm =<= compl-meet) (meet-monotone meet-right <=-refl <=∘ meet-comm =<= compl-meet)
+
+  \lemma compl-inv {a : E} : compl (compl a) = a
+    => <=-antisymmetric (meet-univ <=-refl top-univ <=∘ meet-monotone <=-refl compl-join <=∘ ldistr>= <=∘ join-univ meet-right (meet-comm =<= compl-meet <=∘ bottom-univ)) (compl-adj compl-meet)
+
+  \func symm-diff (a b : E) => a ∧ compl b ∨ b ∧ compl a
+
+  \lemma compl_symm-diff {a b : E} : compl (symm-diff a b) = a ∧ b ∨ compl a ∧ compl b
+    => compl_join *> pmap2 (∧) compl_meet compl_meet *> rewrite (compl-inv,compl-inv) (<=-antisymmetric
+        (ldistr>= <=∘ join-comm =<= join-monotone (rdistr>= <=∘ join-univ (=_<= meet-comm <=∘ compl-meet <=∘ bottom-univ) (=_<= meet-comm)) (rdistr>= <=∘ join-univ <=-refl (compl-meet <=∘ bottom-univ)))
+        (join-univ (meet-comm =<= meet-monotone join-right join-right) (meet-monotone join-left join-left)))
+}
+
+\type NegatedElem (R : HeytingAlebra) => Set.Total R.IsNegated
+
+\instance HeytingBooleanAlgebra (R : HeytingAlebra) : BooleanAlgebra (NegatedElem R)
+  | <= a b => a.1 <= b.1
+  | <=-refl => <=-refl
+  | <=-transitive => <=∘
+  | <=-antisymmetric p q => ext (<=-antisymmetric p q)
+  | meet a b => (a.1 ∧ b.1, meet-negated a.2 b.2)
+  | meet-left => meet-left
+  | meet-right => meet-right
+  | meet-univ => meet-univ
+  | join a b => (neg $ neg $ a.1 ∨ b.1, neg-negated)
+  | join-left => join-left <=∘ id<=neg_neg
+  | join-right => join-right <=∘ id<=neg_neg
+  | join-univ {x} {y} {z} p q => double-->-monotone (join-univ p q) <=∘ z.2
+  | top => (R.top,R.top-univ)
+  | top-univ => R.top-univ
+  | bottom => (R.bottom,R.bottom-negated)
+  | bottom-univ => R.bottom-univ
+  | ldistr>= => rewrite (neg_join,neg_join) $ exponent-left $ (R.meet-comm *> inv R.meet-assoc) =<= R.meet-monotone (meet-univ (exponent-left $ R.meet-assoc =<= R.meet-monotone meet-left <=-refl <=∘ eval) (exponent-left $ R.meet-assoc =<= R.meet-monotone meet-right <=-refl <=∘ eval)) <=-refl <=∘ modus-ponens
+  | compl a => (neg a.1, neg-negated)
+  | compl-meet => modus-ponens
+  | compl-join => exponent-left $ meet-right <=∘ neg_join =<= modus-ponens

@@ -1,9 +1,13 @@
 \import Algebra.Ring
 \import Function.Meta
+\import Meta
+\import Order.BooleanAlgebra
+\import Order.HeytingAlgebra
 \import Order.Lattice
 \import Paths
+\import Paths.Meta
 
-\class BooleanRing \extends PseudoCRing, Lattice, Bounded.JoinSemilattice {
+\class BooleanPseudoRing \extends PseudoCRing, DistributiveLattice, Bounded.JoinSemilattice {
   | isBooleanRing {x : E} : x * x = x
   | <= x y => x * y = x
   | <=-refl => isBooleanRing
@@ -19,7 +23,7 @@
   | join-univ xz=x yz=y => rdistr *> pmap2 (+) (rdistr *> pmap2 (+) xz=x yz=y) (*-assoc *> pmap (_ *) yz=y)
   | bottom => 0
   | bottom-univ => zro_*-left
-  | negative x => x
+  | ldistr>= => pmap (_ *) (inv $ ldistr *> pmap2 (+) ldistr (pmap (`* _) (inv isBooleanRing) *> *-assoc *> pmap (_ *) (inv *-assoc *> pmap (`* _) *-comm *> *-assoc) *> inv *-assoc)) *> isBooleanRing
 
   \default *-comm {x} {y} => inv zro-left *> pmap (`+ _) (cancel-right y $ zro-left *> cancel-left x (inv isBooleanRing *> ldistr *> pmap2 (+) rdistr rdistr *> pmap2 (__ + _ + (_ + __)) isBooleanRing isBooleanRing *> +-assoc) *> inv +-assoc) *> +-assoc *> pmap (_ +) (sum2 isBooleanRing) *> zro-right
 
@@ -31,22 +35,49 @@
 
   \func diff (x y : E) => x + x * y
 
-  \lemma diff<= {x y : E} : diff x y <= x
+  \lemma diff_<= {x y : E} : diff x y <= x
     => rdistr *> pmap2 (+) isBooleanRing (*-comm *> inv *-assoc *> pmap (`* y) isBooleanRing)
 
-  \lemma diff_meet {x y : E} : diff x y * y = 0
+  \lemma diff_* {x y : E} : diff x y * y = 0
     => rdistr *> pmap (_ +) (*-assoc *> pmap (x *) isBooleanRing) *> double=0
 
-  \lemma diff_* {x y : E} : diff x y * diff y x = 0
-    => <=-antisymmetric (meet-monotone <=-refl diff<= <=∘ =_<= diff_meet) bottom-univ
+  \lemma diff_*_diff {x y : E} : diff x y * diff y x = 0
+    => <=-antisymmetric (meet-monotone <=-refl diff_<= <=∘ =_<= diff_*) bottom-univ
 
   \lemma +_diff {x y : E} : x + y = diff x y ∨ diff y x
-    => inv zro-right *> pmap2 (+) (inv $ +-assoc *> pmap (x +) (+-comm *> +-assoc *> pmap (y +) (pmap (_ +) *-comm *> double=0) *> zro-right)) (inv diff_*)
+    => inv zro-right *> pmap2 (+) (inv $ +-assoc *> pmap (x +) (+-comm *> +-assoc *> pmap (y +) (pmap (_ +) *-comm *> double=0) *> zro-right)) (inv diff_*_diff)
 } \where {
   \private \lemma sum2 {R : PseudoRing} (br : \Pi {x : R} -> x * x = x) {x : R} : x + x = 0
     => inv $ cancel-left (x + x) $ zro-right *> inv br *> ldistr *> pmap2 (+) rdistr rdistr *> pmap2 (+) (pmap2 (+) br br) (pmap2 (+) br br)
 }
 
-\class BooleanAlgebra \extends BooleanRing, CRing, Bounded.Lattice
+\class BooleanRing \extends BooleanPseudoRing, CRing, BooleanAlgebra
   | top => 1
   | top-univ => ide-right
+  | compl a => a + 1
+  | compl-meet => zro_*-right *> inv (ldistr *> pmap2 (+) isBooleanRing ide-right *> double=0)
+  | compl-join => unfold $ ide-left *> pmap2 (+) (inv +-assoc *> pmap (`+ 1) double=0 *> zro-left) (ldistr *> pmap2 (+) isBooleanRing ide-right *> double=0) *> zro-right
+  \where {
+    \use \coerce fromBooleanAlgebra (R : BooleanAlgebra) : BooleanRing R \cowith
+      | zro => bottom
+      | + a b => a ∧ compl b ∨ b ∧ compl a
+      | zro-left => <=-antisymmetric (join-univ (meet-left <=∘ bottom-univ) meet-left) $ meet-univ <=-refl (top-univ <=∘ compl-join <=∘ join-univ bottom-univ <=-refl) <=∘ join-right
+      | +-assoc => rewrite (compl_symm-diff,compl_symm-diff,R.ldistr,R.rdistr,R.ldistr,R.rdistr) $ <=-antisymmetric
+          (join-univ (join-univ (meet-assoc =<= join-right <=∘ join-left) ((meet-assoc *> pmap (_ ∧) meet-comm *> inv meet-assoc) =<= join-left <=∘ join-right)) (join-univ (meet-comm =<= meet-assoc =<= join-left <=∘ join-left) ((pmap (_ ∧) meet-comm *> inv meet-assoc) =<= join-right <=∘ join-right)))
+          (join-univ (join-univ ((inv meet-assoc *> meet-comm) =<= join-left <=∘ join-right) (inv meet-assoc =<= join-left <=∘ join-left)) (join-univ ((meet-assoc *> pmap (_ ∧) meet-comm *> inv meet-assoc) =<= join-right <=∘ join-left) ((meet-assoc *> pmap (_ ∧) meet-comm) =<= join-right <=∘ join-right)))
+      | +-comm => join-comm
+      | * => ∧
+      | *-assoc => meet-assoc
+      | ldistr => R.ldistr *> pmap2 (∨)
+          (later $ rewrite compl_meet $ inv $ R.ldistr *> pmap2 (∨) (<=-antisymmetric (meet-monotone meet-left <=-refl <=∘ compl-meet) bottom-univ) meet-assoc *> bottom-left)
+          (later $ rewrite compl_meet $ inv $ R.ldistr *> pmap2 (∨) (<=-antisymmetric (meet-monotone meet-left <=-refl <=∘ compl-meet) bottom-univ) meet-assoc *> bottom-left)
+      | negative x => x
+      | negative-left => unfold $ <=-antisymmetric (join-univ compl-meet compl-meet) bottom-univ
+      | ide => top
+      | ide-left => top-left
+      | *-comm => meet-comm
+      | isBooleanRing => meet-idemp
+  }
+
+\instance HeytingBooleanRing (R : HeytingAlebra) : BooleanRing (NegatedElem R)
+  => BooleanRing.fromBooleanAlgebra (HeytingBooleanAlgebra R)

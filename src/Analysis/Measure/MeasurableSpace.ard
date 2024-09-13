@@ -12,18 +12,17 @@
 \open Bounded (top, bottom, top-univ)
 \open JoinSemilattice (join-monotone)
 
-\record Complemented (A : \Set) (isFull : Set A -> \Prop)
+\class FullSpace \extends BaseSet
+  | isFull : WeaklyProperFilter E
+
+\record Complemented (A : FullSpace)
   | cSet : Set A
   | cCompl : Set A
   | cDisjoint : cSet ∧ cCompl <= bottom
   | cUnion : isFull (cSet ∨ cCompl)
 
-\class MeasurableSpace \extends BaseSet
-  | isFull : WeaklyProperFilter E
-  | isMeasurable : Complemented E isFull -> \Prop
-
-\instance ComplementedEquivalence (X : MeasurableSpace) : Equivalence (Complemented X isFull)
-  | ~ (A B : Complemented X isFull) => isFull (A.cSet ∧ B.cSet ∨ A.cCompl ∧ B.cCompl)
+\instance ComplementedEquivalence (X : FullSpace) : Equivalence (Complemented X)
+  | ~ (A B : Complemented X) => isFull (A.cSet ∧ B.cSet ∨ A.cCompl ∧ B.cCompl)
   | ~-transitive f1 f2 => filter-mono (filter-meet f1 f2) \case \elim __ \with {
     | (inP (true,(Ax,_)), inP (true,(_,Cx))) => inP (true,(Ax,Cx))
     | (inP (true,(_,Bx)), inP (false,(B-x,_))) => bottom-empty $ cDisjoint (Bx,B-x)
@@ -33,17 +32,17 @@
   | ~-reflexive => filter-mono cUnion $ join-monotone (meet-univ <=-refl <=-refl) (meet-univ <=-refl <=-refl)
   | ~-symmetric f => filter-mono f $ join-monotone (meet-univ meet-right meet-left) (meet-univ meet-right meet-left)
 
-\type ComplementedQuotient (X : MeasurableSpace) => Quotient {Complemented X isFull} (~)
+\type ComplementedQuotient (X : FullSpace) => Quotient {Complemented X} (~)
 
-\func inc~ {X : MeasurableSpace} (A : Complemented X isFull) : ComplementedQuotient X => in~ A
+\func inc~ {X : FullSpace} (A : Complemented X) : ComplementedQuotient X => in~ A
 
-\lemma cequiv~ {X : MeasurableSpace} {A B : Complemented X isFull} (e : isFull (A.cSet ∧ B.cSet ∨ A.cCompl ∧ B.cCompl)) : inc~ A = inc~ B
+\lemma cequiv~ {X : FullSpace} {A B : Complemented X} (e : isFull (A.cSet ∧ B.cSet ∨ A.cCompl ∧ B.cCompl)) : inc~ A = inc~ B
   => path \lam i => ~-equiv A B e i
 
-\lemma uncequiv~ {X : MeasurableSpace} {A B : Complemented X isFull} (p : inc~ A = inc~ B) : isFull (A.cSet ∧ B.cSet ∨ A.cCompl ∧ B.cCompl)
+\lemma uncequiv~ {X : FullSpace} {A B : Complemented X} (p : inc~ A = inc~ B) : isFull (A.cSet ∧ B.cSet ∨ A.cCompl ∧ B.cCompl)
   => Quotient.equalityEquiv (ComplementedEquivalence X) (path \lam i => p i)
 
-\instance ComplementedBoolean (X : MeasurableSpace) : BooleanAlgebra (ComplementedQuotient X)
+\instance ComplementedBoolean (X : FullSpace) : BooleanRing (ComplementedQuotient X)
   | zro => inc~ \new Complemented {
     | cSet => bottom
     | cCompl => top
@@ -164,6 +163,7 @@
       | (inP (false,A-x), (inP (false,B-x), inP (false,C-x))) => inP (false, (inP (false, (A-x, inP (false,(B-x,C-x)))), inP (false, (inP (false,(A-x,B-x)), inP (false,(A-x,C-x))))))
     }
   }
+  | negative x => x
   | negative-left {x} => \case \elim x \with {
     | in~ A => cequiv~ $ filter-mono cUnion $ meet-univ (join-monotone (meet-univ <=-refl <=-refl) (meet-univ <=-refl <=-refl)) top-univ <=∘ join-right
   }
@@ -179,3 +179,7 @@
   | ide-left {x} => \case \elim x \with {
     | in~ A => cequiv~ $ filter-mono cUnion $ join-monotone (meet-univ (meet-univ top-univ <=-refl) <=-refl) (meet-univ (meet-univ top-univ <=-refl <=∘ join-left <=∘ join-left) <=-refl)
   }
+
+\class MeasurableSpace \extends FullSpace
+  | isMeasurable : Complemented \this -> \Prop
+  | measurable-closed {A B : Complemented \this} : isMeasurable A -> A ~ B -> isMeasurable B
