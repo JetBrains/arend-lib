@@ -71,7 +71,7 @@
   }
 
 \instance LowerRealLattice : Lattice LowerReal
-  | <= (x y : LowerReal) => ∀ {a : x.L} (y.L a)
+  | <= => LowerRealBiordered.<=
   | <=-refl a<x => a<x
   | <=-transitive p q a<x => q (p a<x)
   | <=-antisymmetric p q => exts \lam a => ext (p,q)
@@ -128,9 +128,16 @@
   | <-transitive-left (inP (q,q<a2,p)) e => inP (q, e q<a2, p)
   | <=-less (inP (r,r<a2,p)) {q} q<a1 => L-closed r<a2 (p q<a1)
   \where {
-    \type \infix 4 < (x y : LowerReal) => ∃ (b : y.L) ∀ {a : x.L} (a RatField.< b)
+    \type \infix 4 <= (x y : LowerReal) => ∀ {a : x.L} (y.L a)
+
+    \type \infix 4 < (x y : LowerReal) => ∃ (b : y.L) (x <= (b : Real))
 
     \lemma zro<ide : (0 : Real) < (1 : Real) => inP (0, idp, \lam a<0 => a<0)
+
+    \lemma <=_+ {a b c d : LowerReal} (p : a <= c) (q : b <= d) : a + b <= c + d
+      => \lam {x} x<a+b => \case LowerRealAbMonoid.+_L.1 x<a+b \with {
+        | inP (y,y<a,z,z<b,x<y+z) => LowerRealAbMonoid.+_L.2 $ inP (y, p y<a, z, q z<b, x<y+z)
+      }
 
     \lemma <_+ {a b c d : LowerReal} (p : a < c) (q : b < d) : a + b < c + d \elim p, q
       | inP (q,q<c,p1), inP (r,r<d,p2) => inP (q + r, LowerRealAbMonoid.+_L.2 $ \case L-rounded q<c, L-rounded r<d \with {
@@ -372,15 +379,18 @@
     | LU-disjoint q<x x<q => <-irreflexive (q<x <∘ x<q)
     | LU-focus eps eps>0 => inP (x - eps * finv 2, linarith, linarith)
 
-  \lemma real-ext {x y : Real} (p : \Pi {a b : Rat} -> (\Sigma (x.L a) (x.U b)) <-> (\Sigma (y.L a) (y.U b))) : x = y
-    => \case x.L-inh, x.U-inh, y.L-inh, y.U-inh \with {
-      | inP (x1,x1<x), inP (x2,x<x2), inP (y1,y1<y), inP (y2,y<y2) =>
-          ext (ext \lam z => ext (\lam z<x => (p.1 (z<x,x<x2)).1, \lam z<y => (p.2 (z<y,y<y2)).1),
-               ext \lam z => ext (\lam x<z => (p.1 (x1<x,x<z)).2, \lam y<z => (p.2 (y1<y,y<z)).2))
-    }
+  \lemma real-ext {x y : Real} (p : \Pi {a : Rat} -> x.L a <-> y.L a) : x = y
+    => exts (\lam a => ext p, \lam b =>
+      \have lem {x y : Real} (p : \Pi {a : Rat} -> x.L a <-> y.L a) (x<b : x.U b) : y.U b => \case U-rounded x<b \with {
+          | inP (a,x<a,a<b) => \case y.LU-located a<b \with {
+            | byLeft a<y => absurd $ x.LU-disjoint {a} (p.2 a<y) x<a
+            | byRight y<b => y<b
+          }
+        }
+      \in ext (lem p, lem (\lam {_} => (p.2,p.1))))
 
-  \lemma real-lu-ext {x y : Real} (p : x = {LowerReal} y) (q : x = {UpperReal} y) : x = y
-    => ext (pmap (\lam (z : LowerReal) => z.L) p, pmap (\lam (z : UpperReal) => z.U) q)
+  \lemma real-lower-ext {x y : Real} (p : x = {LowerReal} y) : x = y
+    => real-ext \lam {a} => transport (\lam (y : LowerReal) => x.L a <-> y.L a) p <->refl
 
   \lemma fromRat-inj {x y : Rat} (p : fromRat x = fromRat y) : x = y
     => <=-antisymmetric (rat_real_<=.2 $ RealAbGroup.=_<= p) (rat_real_<=.2 $ RealAbGroup.=_<= $ inv p)
@@ -389,10 +399,9 @@
 \instance RealAbGroup : LinearlyOrderedAbGroup Real
   | zro => Real.fromRat 0
   | + => +
-  | zro-left => (\peval _ + _) *> Real.real-lu-ext zro-left zro-left
-  | +-comm => (\peval _ + _) *> Real.real-lu-ext (later +-comm) (later +-comm) *> inv (\peval _ + _)
-  | +-assoc => Real.real-lu-ext (+_L.lower *> {LowerReal} pmap {LowerReal} (LowerRealAbMonoid.`+ _) +_L.lower *> {LowerReal} LowerRealAbMonoid.+-assoc *> {LowerReal} pmap (_ LowerRealAbMonoid.+) (inv {LowerReal} +_L.lower) *> {LowerReal} inv {LowerReal} +_L.lower)
-                                (+_U.upper *> {UpperReal} pmap {UpperReal} (UpperRealAbMonoid.`+ _) +_U.upper *> {UpperReal} UpperRealAbMonoid.+-assoc *> {UpperReal} pmap (_ UpperRealAbMonoid.+) (inv {UpperReal} +_U.upper) *> {UpperReal} inv {UpperReal} +_U.upper)
+  | zro-left => (\peval _ + _) *> Real.real-lower-ext zro-left
+  | +-comm => (\peval _ + _) *> Real.real-lower-ext (later +-comm) *> inv (\peval _ + _)
+  | +-assoc => Real.real-lower-ext $ +_L.lower *> {LowerReal} pmap {LowerReal} (LowerRealAbMonoid.`+ _) +_L.lower *> {LowerReal} LowerRealAbMonoid.+-assoc *> {LowerReal} pmap (_ LowerRealAbMonoid.+) (inv {LowerReal} +_L.lower) *> {LowerReal} inv {LowerReal} +_L.lower
   | negative => negative
   | negative-left {x : Real} => exts (
       \lam a => ext (\lam r => \case +_L.1 r \with {
@@ -481,7 +490,7 @@
           => exts \lam a => <->_=.1 +_U *> inv (<->_=.1 UpperRealAbMonoid.+_U)
 
     \lemma +-rat {x y : Rat} : x + y = {Real} x RatField.+ y
-      => (\peval x + y) *> Real.real-lu-ext LowerRealAbMonoid.+-rat UpperRealAbMonoid.+-rat
+      => (\peval x + y) *> Real.real-lower-ext LowerRealAbMonoid.+-rat
 
     \sfunc negative (x : Real) : Real \cowith
       | L a => x.U (RatField.negative a)
@@ -577,19 +586,13 @@
       | LU-located p => x.LU-located linarith
 
     \lemma half+half {x : Real} : half x + half x = x
-      => Real.real-lu-ext (exts \lam a => <->_=.1 +_L *> ext (\lam (inP (b,b+b<x,c,c+c<x,a<b+c)) => \case dec<_<= a (b * 2), dec<_<= a (c * 2) \with {
+      => Real.real-lower-ext $ exts \lam a => <->_=.1 +_L *> ext (\lam (inP (b,b+b<x,c,c+c<x,a<b+c)) => \case dec<_<= a (b * 2), dec<_<= a (c * 2) \with {
         | inl a<b+b, _ => x.L-closed b+b<x a<b+b
         | _, inl a<c+c => x.L-closed c+c<x a<c+c
         | inr p, inr q => absurd linarith
       }, \lam a<x => \case x.L-rounded a<x \with {
         | inP (b,b<x,a<b) => inP (b * ratio 1 2, transport x.L linarith b<x, b * ratio 1 2, transport x.L linarith b<x, linarith)
-      })) (exts \lam a => <->_=.1 +_U *> ext (\lam (inP (b,x<b+b,c,x<c+c,b+c<a)) => \case dec<_<= (b * 2) a, dec<_<= (c * 2) a \with {
-        | inl b+b<a, _ => x.U-closed x<b+b b+b<a
-        | _, inl c+c<a => x.U-closed x<c+c c+c<a
-        | inr p, inr q => absurd linarith
-      }, \lam x<a => \case x.U-rounded x<a \with {
-        | inP (b,x<b,b<a) => inP (b * ratio 1 2, transport x.U linarith x<b, b * ratio 1 2, transport x.U linarith x<b, linarith)
-      }))
+      })
 
     \lemma half>0 {x : Real} (x>0 : 0 RealAbGroup.< x) : 0 RealAbGroup.< half x
       => real_<_L.2 $ unfolds $ real_<_L.1 x>0

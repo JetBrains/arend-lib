@@ -1,0 +1,83 @@
+\import Algebra.Group
+\import Arith.Real
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.LowerMetricSpace
+\import Topology.TopAbGroup
+\import Topology.TopAbGroup.Complete
+\import Topology.UniformSpace
+\import Topology.UniformSpace.Product
+
+\class LowerPseudoNormedAbGroup \extends LowerPseudoMetricSpace, TopAbGroup {
+  | lnorm : E -> LowerReal
+  | lnorm_zro : lnorm zro = (0 : LowerReal)
+  | lnorm_negative {x : E} : lnorm (negative x) = lnorm x
+  | lnorm_+ {x y : E} : lnorm (x + y) <= lnorm x LowerRealAbMonoid.+ lnorm y
+  | lnorm-ldist {x y : E} : ldist x y = lnorm (x - y)
+
+  | +-cont => \new UniformMap (ProductUniformSpace \this \this) \this {
+    | func s => s.1 + s.2
+    | func-uniform Eu => \case ldist-uniform-real.1 Eu \with {
+      | inP (eps,eps>0,h) => inP (_, makeUniform-real (RealAbGroup.half>0 eps>0), _, makeUniform-real (RealAbGroup.half>0 eps>0),
+                                  \lam (inP (_, inP (x,idp), _, inP (y,idp), p)) => \case h (x + y) \with {
+                                    | inP (V,EV,g) => inP (_, inP (V, EV, idp), rewrite p \lam {(x',y')} (xx'<eps/2,yy'<eps/2) =>
+                                        \have lem : x - x' + (y - y') = x + y - (x' + y') => +-assoc *> pmap (x +) (+-comm *> +-assoc *> pmap (y +) (inv negative_+)) *> inv +-assoc
+                                        \in g $ transport (_ <) RealAbGroup.half+half $ later $ rewrite (lnorm-ldist, inv lem) $ lnorm_+ <∘r transportInv (_ LowerRealBiordered.<) (\peval _ RealAbGroup.+ _) (rewrite (lnorm-ldist,lnorm-ldist) in LowerRealBiordered.<_+ xx'<eps/2 yy'<eps/2))
+                                  })
+    }
+  }
+  | negative-cont => \new UniformMap {
+    | func-uniform Eu => \case ldist-uniform.1 Eu \with {
+      | inP (eps,eps>0,h) => ldist-uniform.2 $ inP (eps, eps>0, \lam x => \case h (negative x) \with {
+        | inP (U,EU,g) => inP (_, inP $ later (U,EU,idp), \lam {y} d => g {negative y} $ transportInv (`< _) (lnorm-ldist *> simplify (pmap lnorm +-comm) *> lnorm_negative *> inv lnorm-ldist) d)
+      })
+    }
+  }
+  | neighborhood-uniform =>
+    \have lem {x} {y} : ldist 0 (x - y) = ldist x y => lnorm-ldist *> inv lnorm_negative *> pmap lnorm simplify *> inv lnorm-ldist
+    \in (\lam Cu => \case ldist-uniform-real.1 Cu \with {
+    | inP (eps,eps>0,h) => inP (LOBall eps 0, LOBall-open, LOBall-center eps>0, \lam x => \case h x \with {
+      | inP (U,CU,g) => inP (U, CU, \lam d => g $ unfold LOBall at d $ transport (LowerRealBiordered.`< _) lem d)
+    })
+  }, \lam (inP (U,Uo,U0,h)) => \case ldist_open.1 Uo U0 \with {
+      | inP (eps,eps>0,p) => ldist-uniform-real.2 $ inP (eps, eps>0, \lam x => \case h x \with {
+        | inP (U,CU,g) => inP (U, CU, \lam d => g $ p $ transportInv (LowerRealBiordered.`< _) lem d)
+      })
+    } )
+  | open-top => defaultImpl PrecoverSpace open-top
+  | open-inter {U} {V} => defaultImpl PrecoverSpace open-inter {_} {U} {V}
+  | open-Union {S} => defaultImpl PrecoverSpace open-Union {_} {S}
+  | ldist-refl => lnorm-ldist *> pmap lnorm negative-right *> lnorm_zro
+  | ldist-symm => lnorm-ldist *> simplify *> lnorm_negative *> inv lnorm-ldist
+  | ldist-triang => repeat {3} (rewrite lnorm-ldist) $ transport (lnorm __ <= _) simplify lnorm_+
+
+  \default ldist x y : LowerReal => lnorm (x - y)
+  \default lnorm-ldist \as norm-dist-impl {x} {y} : ldist x y = lnorm (x - y) => idp
+
+  \func IsUnbounded : \Prop
+    => \Pi (B : Nat) -> ∃ (x : E) ((B : Real) LowerRealBiordered.< lnorm x)
+}
+
+\class LowerNormedAbGroup \extends LowerPseudoNormedAbGroup, LowerMetricSpace
+  | lnorm-ext {x : E} : lnorm x = (0 : LowerReal) -> x = zro
+  | ldist-ext p => fromZero $ lnorm-ext $ inv lnorm-ldist *> p
+
+\lemma norm_dist {X : LowerPseudoNormedAbGroup} {x : X} : lnorm x = ldist 0 x
+  => inv lnorm_negative *> simplify *> inv lnorm-ldist
+
+\lemma norm>=0 {X : LowerPseudoNormedAbGroup} {x : X} : 0 <= lnorm x
+  => rewrite norm_dist ldist>=0
+
+\lemma norm_- {X : LowerPseudoNormedAbGroup} {x y : X} : lnorm (x - y) = lnorm (y - x)
+  => pmap lnorm (inv X.negative-isInv) *> lnorm_negative *> simplify
+
+\class CompleteLowerNormedAbGroup \extends LowerNormedAbGroup, CompleteLowerMetricSpace, CompleteTopAbGroup
