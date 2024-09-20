@@ -1,9 +1,12 @@
 \import Algebra.Group
 \import Algebra.Group.Category
 \import Algebra.Group.GSet
+\import Algebra.Group.Sub
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Function.Meta
 \import Logic
+\import Meta
 \import Paths
 \import Paths.Meta
 \import Set
@@ -26,19 +29,49 @@
   | E => G
   | ** (g : G)  => conjugate g
   | **-assoc {m : G} {n : G} {e : G} : conjugate m (conjugate n e) = conjugate (m * n) e =>
-      conjugate m (conjugate n e) ==< pmap (conjugate m) idp >==
-      conjugate m (n * e * inverse n ) ==< idp >==
-      m * (n * e * inverse n ) * inverse m ==< equation >==
-      (m * n) * e * (inverse n * inverse m) ==< pmap ((m * n * e) *) (inv G.inverse_*) >==
-      (m * n) * e * inverse (m * n) ==< idp >==
-      conjugate (m * n) e `qed
-  | id-action {e : G} : conjugate G.ide e = e => conjugate-via-id
+  conjugate m (conjugate n e) ==< pmap (conjugate m) idp >==
+  conjugate m (n * e * inverse n ) ==< idp >==
+  m * (n * e * inverse n ) * inverse m ==< equation >==
+  (m * n) * e * (inverse n * inverse m) ==< pmap ((m * n * e) *) (inv G.inverse_*) >==
+  (m * n) * e * inverse (m * n) ==< idp >==
+  conjugate (m * n) e `qed
+  | id-action {e : G} : conjugate G.ide e = e => conjugate-via-id e
 
-\func trivialAction (G : Group) (E : BaseSet) : GroupAction G E \cowith
+\func trivialAction(G : Group)(E : BaseSet) : GroupAction G E \cowith
   | ** _ e => e
   | **-assoc => idp
   | id-action => idp
 
-\func conjugate-subset {G : Group} (g : G) (S : SubSet G) : SubSet G \cowith
-  | contains h => S.contains (conjugate (inverse g) h)
+\func conjugate-subset {G : Group} (g : G)(S : SubSet G) : SubSet G => \new SubSet G{| contains h => S.contains (conjugate (inverse g) h)}
 
+\func ConjugateSubGroup{G : Group}(g : G)(H : SubGroup G) : SubGroup G {| SubSet => conjugate-subset g H} \cowith
+  | contains_ide => transport (\lam z => H.contains z) (inv $ GroupHom.func-ide {conjugate (inverse g)}) H.contains_ide
+  | contains_* a b => transport (\lam z => H.contains z) (inv GroupHom.func-*) (H.contains_* a b)
+  | contains_inverse a => transport (\lam z => H.contains z) (inv GroupHom.func-inverse) (H.contains_inverse a)
+
+\instance ConjSubGroupAction (G : Group) : GroupAction G {| E => SubGroup G}
+  | ** g H => ConjugateSubGroup g H
+  | **-assoc {_} {_} {_} => exts (\lam e => exts
+      (\lam p => helper p,
+       \lam p => helper2 p))
+  | id-action {_} => exts (\lam _ => exts (\lam p => helper3 p, \lam p => helper4 p))
+  \where \private {
+    \lemma helper {E : SubGroup G} {m n e : G}(p : ConjugateSubGroup m (ConjugateSubGroup n E) e) :
+      E.contains (conjugate (G.inverse (m G.* n)) e) => transport (\lam z => E z) (helper' {G} {E}) p
+
+    \lemma helper'{E : SubGroup G} {m n e : G}: conjugate (inverse n) (conjugate (inverse m) e) = conjugate (inverse (m * n)) e
+      => rewrite (conjAction.**-assoc, inv $ Group.inverse_*) idp
+
+
+    \lemma helper2 {E : SubGroup G} {m n e : G}(p : E.contains (conjugate (G.inverse (m G.* n)) e)) : ConjugateSubGroup m (ConjugateSubGroup n E) e
+      => transport (\lam z => E z)(inv $ helper' {G} {E}) p
+
+    \lemma helper3 {E : SubGroup G}{e : G} (p : ConjugateSubGroup G.ide E e) : E.contains e => transport (\lam z => E z) (helper3' {G} {E}) p
+
+    \lemma helper3'{E : SubGroup G}{e : G}  : conjugate (inverse G.ide) e = e => rewrite (G.inverse_ide, conjugate-via-id e) idp
+
+    \lemma helper4 {E : SubGroup G}{e : G} (p : E.contains e) : ConjugateSubGroup G.ide E e => transport (\lam z => E z) ( inv $ helper3' {G} {E}) p
+
+    \lemma conjugate-via-own-element {g : G} (H : SubGroup G)(p : H g) : g GroupAction.** {ConjSubGroupAction G} H = H
+      => exts \lam e => exts (\lam p => {?} , {?})
+  }
