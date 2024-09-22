@@ -4,6 +4,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.Biordered
 \import Order.Lattice
 \import Order.PartialOrder
 \import Order.StrictOrder
@@ -93,19 +94,6 @@
                                               (\lam y<=x => (x, E.<=-refl, y<=x, \lam z z<=x _ => z<=x))
 }
 
-\class BiorderedSet \extends StrictPoset, Poset {
-  | <-transitive-right \alias \infixr 9 <∘r {a1 a2 a3 : E} : a1 <= a2 -> a2 < a3 -> a1 < a3
-  | <-transitive-left \alias \infixl 8 <∘l {a1 a2 a3 : E} : a1 < a2 -> a2 <= a3 -> a1 < a3
-  | <=-less {a1 a2 : E} : a1 < a2 -> a1 <= a2
-
-  \func op : BiorderedSet \cowith
-    | StrictPoset => StrictPoset.op
-    | Poset => Poset.op
-    | <-transitive-right p q => q <∘l p
-    | <-transitive-left p q => q <∘r p
-    | <=-less => <=-less
-}
-
 -- | A linearly ordered set.
 \class LinearOrder \extends BiorderedSet {
   | <-comparison (y : E) {x z : E} : x < z -> x < y || y < z
@@ -168,7 +156,7 @@
     => p q
 
   -- | A linearly ordered set with decidable inequality.
-  \class Dec \extends LinearOrder, DecSet, TotalOrder {
+  \class Dec \extends LinearLattice, DecSet, TotalOrder {
     \field trichotomy (x y : E) : Tri x y
 
     | <-comparison y {x} {z} x<z => \case trichotomy x y \with {
@@ -307,37 +295,11 @@
   \lemma meet/=right {A : LinearOrder} {_ : MeetSemilattice A (<=)} {a b : A} (p : a ∧ b /= b) : a ∧ b = a
     => rewrite meet-comm $ meet/=left $ later $ rewrite meet-comm p
 
-  \lemma <_meet-univ {A : LinearOrder} {_ : MeetSemilattice A (<=)} {x y z : A} (x<y : x < y) (x<z : x < z) : x < y ∧ z
-    => \case <-comparison (y ∧ z) x<y \with {
-      | byLeft q => q
-      | byRight q => rewrite (meet/=left $ <_/= q) x<z
-    }
-
-  \lemma <_meet-monotone {A : Dec} {x x' y y' : A} (p : x < y) (q : x' < y') : x ∧ x' < y ∧ y'
-    => <_meet-univ (meet-left <∘r p) (meet-right <∘r q)
-
-  \lemma Big_<_meet-univ {A : Dec} {l : Array A} {x y : A} (p : y < x) (f : \Pi (i : Fin l.len) -> y < l i) : y < Big (∧) x l \elim l
-    | nil => p
-    | :: a l => <_meet-univ (f 0) (Big_<_meet-univ p (\lam i => f (suc i)))
-
   \lemma join/=left {A : LinearOrder} {_ : JoinSemilattice A (<=)} {a b : A} (p : a /= a ∨ b) : a ∨ b = b
     => <=-antisymmetric (join-univ (\lam b<a => p $ <=-antisymmetric join-left (join-univ <=-refl $ <_<= b<a)) <=-refl) join-right
 
   \lemma join/=right {A : LinearOrder} {_ : JoinSemilattice A (<=)} {a b : A} (p : b /= a ∨ b) : a ∨ b = a
     => rewrite join-comm $ join/=left $ later $ rewrite join-comm p
-
-  \lemma <_join-univ {A : LinearOrder} {_ : JoinSemilattice A (<=)} {x y z : A} (x<z : x < z) (y<z : y < z) : x ∨ y < z
-    => \case <-comparison (x ∨ y) x<z \with {
-      | byLeft q => rewrite (join/=left $ <_/= q) y<z
-      | byRight q => q
-    }
-
-  \lemma <_join-monotone {A : Dec} {x x' y y' : A} (p : x < y) (q : x' < y') : x ∨ x' < y ∨ y'
-    => <_join-univ (p <∘l join-left) (q <∘l join-right)
-
-  \lemma Big_<_join-univ {A : Dec} {l : Array A} {x y : A} (p : x < y) (f : \Pi (i : Fin l.len) -> l i < y) : Big (∨) x l < y \elim l
-    | nil => p
-    | :: a l => <_join-univ (f 0) (Big_<_join-univ p (\lam i => f (suc i)))
 
   \func findMin {A : Dec} {n : Nat} (l : Array A (suc n)) : \Sigma (j : Fin (suc n)) (Big_∧ l = l j) \elim n, l
     | 0, a :: l => (0, idp)
@@ -357,6 +319,17 @@
         | (suc j, p) => (suc (suc j), rewrite p $ <=-antisymmetric (join-univ (<_<= $ rewrite p in r) <=-refl) join-right)
       }
       | inr r => (1, <=-antisymmetric (join-univ <=-refl r) join-left)
+    }
+}
+
+\class LinearLattice \extends LinearOrder, BiorderedLattice {
+  | <_meet-univ {x} {y} {z} x<y x<z => \case <-comparison (y ∧ z) x<y \with {
+    | byLeft q => q
+    | byRight q => rewrite (LinearOrder.meet/=left $ <_/= q) x<z
+  }
+  | <_join-univ {x} {y} {z} x<z y<z => \case <-comparison (x ∨ y) x<z \with {
+      | byLeft q => rewrite (LinearOrder.join/=left $ <_/= q) y<z
+      | byRight q => q
     }
 }
 

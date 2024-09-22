@@ -13,7 +13,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
-\import Order.Lattice
+\import Order.Biordered
 \import Order.LinearOrder
 \import Order.StrictOrder
 \import Paths
@@ -31,27 +31,8 @@
 \class OrderedAbMonoid \extends OrderedAddMonoid, AbMonoid
   | <_+-right z x<y => transport2 (<) +-comm +-comm (<_+-left z x<y)
 
-\class LinearlyOrderedAbMonoid \extends OrderedAbMonoid, LinearOrder, Lattice {
-  | <_+-cancel-left (x : E) {y z : E} : x + y < x + z -> y < z
-  | <_+-cancel-right (z : E) {x y : E} : x + z < y + z -> x < y
-
-  \lemma <=_+ {a b c d : E} (a<=b : a <= b) (c<=d : c <= d) : a + c <= b + d
-    => \case <-comparison (b + c) __ \with {
-      | byLeft b+d<b+c => c<=d (<_+-cancel-left b b+d<b+c)
-      | byRight b+c<a+c => a<=b (<_+-cancel-right c b+c<a+c)
-    }
-
-  \lemma <=_+-left {a b c d : E} (p : a <= c) (q : b < d) : a + b < c + d
-    => <_+-right a q <∘l <=_+ p <=-refl
-
-  \lemma <=_+-right {a b c d : E} (p : a < c) (q : b <= d) : a + b < c + d
-    => <_+-left b p <∘l <=_+ <=-refl q
-
-  \lemma <_+-invert-right {a b c d : E} (p : b + d <= a + c) (q : c < d) : b < a
-    => <_+-cancel-right c $ <_+-right b q <∘l p
-
-  \lemma <_+-invert-left {a b c d : E} (p : b + d < a + c) (q : c <= d) : b < a
-    => <_+-cancel-right c $ <=_+ <=-refl q <∘r p
+\class BiorderedAddMonoid \extends AddMonoid, BiorderedSet {
+  | <=_+ {a b c d : E} : a <= b -> c <= d -> a + c <= b + d
 
   \lemma BigSum_<= {n : Nat} {l l' : Array E n} (p : \Pi (j : Fin n) -> l j <= l' j) : BigSum l <= BigSum l' \elim n, l, l'
     | 0, nil, nil => <=-refl
@@ -59,27 +40,48 @@
 
   \lemma BigSum_>=0 {l : Array E} (q : \Pi (j : Fin l.len) -> 0 <= l j) : 0 <= BigSum l
     => transport (`<= _) BigSum_replicate0 $ BigSum_<= {_} {_} {replicate l.len zro} q
+}
+
+\class BiorderedAbMonoid \extends BiorderedAddMonoid, AbMonoid
+
+\class BiorderedLatticeAbMonoid \extends BiorderedAbMonoid, BiorderedLattice
+  | meet_+-left {a b c : E} : a + b ∧ c = (a + b) ∧ (a + c)
+  | join_+-left {a b c : E} : a + (b ∨ c) = (a + b) ∨ (a + c)
+  | meet_+-right {a b c : E} : a ∧ b + c = (a + c) ∧ (b + c)
+  | meet_+-right => +-comm *> meet_+-left *> pmap2 (∧) +-comm +-comm
+  | join_+-right {a b c : E} : (a ∨ b) + c = (a + c) ∨ (b + c)
+  | join_+-right => +-comm *> join_+-left *> pmap2 (∨) +-comm +-comm
+
+\class LinearlyOrderedAbMonoid \extends BiorderedLatticeAbMonoid, LinearLattice, OrderedAbMonoid {
+  | <_+-cancel-left (x : E) {y z : E} : x + y < x + z -> y < z
+  | <_+-cancel-right (z : E) {x y : E} : x + z < y + z -> x < y
+  | <=_+ {a} {b} {c} {d} a<=b c<=d => \case <-comparison (b + c) __ \with {
+      | byLeft b+d<b+c => c<=d (<_+-cancel-left b b+d<b+c)
+      | byRight b+c<a+c => a<=b (<_+-cancel-right c b+c<a+c)
+    }
+  | meet_+-left {a} {b} {c} => <=-antisymmetric (meet-univ (<=_+ <=-refl meet-left) (<=_+ <=-refl meet-right)) \lam p =>
+      \have t => LinearOrder.meet/=left $ <_/= $ <_+-cancel-left a $ p <∘l meet-left
+      \in meet-right $ rewrite t in p
+  | join_+-left {a} {b} {c} => <=-antisymmetric (\lam p =>
+      \have t => LinearOrder.join/=left $ <_/= $ <_+-cancel-left a $ join-left <∘r p
+      \in join-right $ rewrite t in p) $ join-univ (<=_+ <=-refl join-left) (<=_+ <=-refl join-right)
+
+  \lemma <_+-invert-right {a b c d : E} (p : b + d <= a + c) (q : c < d) : b < a
+    => <_+-cancel-right c $ <_+-right b q <∘l p
+
+  \lemma <_+-invert-left {a b c d : E} (p : b + d < a + c) (q : c <= d) : b < a
+    => <_+-cancel-right c $ <=_+ <=-refl q <∘r p
+
+  \lemma <=_+-left {a b c d : E} (p : a <= c) (q : b < d) : a + b < c + d
+    => <_+-right a q <∘l <=_+ p <=-refl
+
+  \lemma <=_+-right {a b c d : E} (p : a < c) (q : b <= d) : a + b < c + d
+    => <_+-left b p <∘l <=_+ <=-refl q
 
   \lemma BigSum_>0 {l : Array E} (q : \Pi (j : Fin l.len) -> 0 <= l j) (p : ∃ (j : Fin l.len) (0 < l j)) : 0 < BigSum l \elim l, p
     | nil, inP ((),_)
     | a :: l, inP (0, p) => transport (`< _) zro-right $ <=_+-right p $ BigSum_>=0 \lam j => q (suc j)
     | a :: l, inP (suc j, p) => transport (`< _) zro-right $ <=_+-left (q 0) $ BigSum_>0 (\lam j => q (suc j)) $ inP (j,p)
-
-  \lemma meet_+-left {a b c : E} : a + b ∧ c = (a + b) ∧ (a + c)
-    => <=-antisymmetric (meet-univ (<=_+ <=-refl meet-left) (<=_+ <=-refl meet-right)) \lam p =>
-        \have t => LinearOrder.meet/=left $ <_/= $ <_+-cancel-left a $ p <∘l meet-left
-        \in meet-right $ rewrite t in p
-
-  \lemma meet_+-right {a b c : E} : a ∧ b + c = (a + c) ∧ (b + c)
-    => +-comm *> meet_+-left *> pmap2 (∧) +-comm +-comm
-
-  \lemma join_+-left {a b c : E} : a + (b ∨ c) = (a + b) ∨ (a + c)
-    => <=-antisymmetric (\lam p =>
-        \have t => LinearOrder.join/=left $ <_/= $ <_+-cancel-left a $ join-left <∘r p
-        \in join-right $ rewrite t in p) $ join-univ (<=_+ <=-refl join-left) (<=_+ <=-refl join-right)
-
-  \lemma join_+-right {a b c : E} : (a ∨ b) + c = (a + c) ∨ (b + c)
-    => +-comm *> join_+-left *> pmap2 (∨) +-comm +-comm
 
   \lemma Big_join-choice {n : Nat} {l : Array E (suc n)} {e : E} (e>0 : 0 < e) : ∃ (a : l) (Big (∨) (l 0) (tail l) < a + e) \elim n, l
     | 0, a :: l => inP (0, transport (`< _) zro-right $ <_+-right a e>0)
@@ -246,7 +248,7 @@
     => transportInv (_ <=) negative_+ (later $ rewrite negative-isInv <=-refl) <=∘ abs>=neg
 
   \lemma abs_-_< {x y z : E} (p : x - y < z) (q : y - x < z) : abs (x - y) < z
-    => LinearOrder.<_join-univ p (simplify q)
+    => <_join-univ p (simplify q)
 }
 
 \class OrderedSemiring \extends Semiring, OrderedAbMonoid {

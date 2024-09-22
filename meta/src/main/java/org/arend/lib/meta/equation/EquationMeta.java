@@ -66,7 +66,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Order.LinearOrder", name = "LinearOrder.<=")                  public CoreFunctionDefinition linearOrederLeq;
   @Dependency(module = "Order.PartialOrder", name = "Poset.<=")                       public CoreClassField lessOrEquals;
   @Dependency(module = "Order.StrictOrder", name = "StrictPoset.<")                   public CoreClassField less;
-  @Dependency(module = "Order.LinearOrder", name = "BiorderedSet.<-transitive-left")  public CoreClassField lessTransitiveLeft;
+  @Dependency(module = "Order.Biordered", name = "BiorderedSet.<-transitive-left")    public CoreClassField lessTransitiveLeft;
 
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.var")  CoreConstructor varMTerm;
   @Dependency(module = "Algebra.Monoid.Solver", name = "MonoidTerm.:ide") CoreConstructor ideMTerm;

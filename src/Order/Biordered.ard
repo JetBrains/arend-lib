@@ -1,0 +1,36 @@
+\import Data.Array
+\import Order.Lattice
+\import Order.PartialOrder
+\import Order.StrictOrder
+
+\class BiorderedSet \extends StrictPoset, Poset {
+  | <-transitive-right \alias \infixr 9 <∘r {a1 a2 a3 : E} : a1 <= a2 -> a2 < a3 -> a1 < a3
+  | <-transitive-left \alias \infixl 8 <∘l {a1 a2 a3 : E} : a1 < a2 -> a2 <= a3 -> a1 < a3
+  | <=-less {a1 a2 : E} : a1 < a2 -> a1 <= a2
+
+  \func op : BiorderedSet \cowith
+    | StrictPoset => StrictPoset.op
+    | Poset => Poset.op
+    | <-transitive-right p q => q <∘l p
+    | <-transitive-left p q => q <∘r p
+    | <=-less => <=-less
+}
+
+\class BiorderedLattice \extends BiorderedSet, Lattice {
+  | <_meet-univ {x y z : E} : x < y -> x < z -> x < y ∧ z
+  | <_join-univ {x y z : E} : x < z -> y < z -> x ∨ y < z
+
+  \lemma <_meet-monotone {x x' y y' : E} (p : x < y) (q : x' < y') : x ∧ x' < y ∧ y'
+    => <_meet-univ (meet-left <∘r p) (meet-right <∘r q)
+
+  \lemma Big_<_meet-univ {l : Array E} {x y : E} (p : y < x) (f : \Pi (i : Fin l.len) -> y < l i) : y < Big (∧) x l \elim l
+    | nil => p
+    | :: a l => <_meet-univ (f 0) (Big_<_meet-univ p (\lam i => f (suc i)))
+
+  \lemma <_join-monotone {x x' y y' : E} (p : x < y) (q : x' < y') : x ∨ x' < y ∨ y'
+    => <_join-univ (p <∘l join-left) (q <∘l join-right)
+
+  \lemma Big_<_join-univ {l : Array E} {x y : E} (p : x < y) (f : \Pi (i : Fin l.len) -> l i < y) : Big (∨) x l < y \elim l
+    | nil => p
+    | :: a l => <_join-univ (f 0) (Big_<_join-univ p (\lam i => f (suc i)))
+}
