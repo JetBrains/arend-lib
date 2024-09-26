@@ -4,8 +4,10 @@
 \import Algebra.Monoid
 \import Algebra.Ordered
 \import Algebra.Semiring
-\import Arith.Int
 \import Arith.Rat
+\import Arith.Real.InfReal
+\import Arith.Real.LowerReal
+\import Arith.Real.UpperReal
 \import Data.Or
 \import Function.Meta
 \import Logic
@@ -20,307 +22,13 @@
 \import Paths.Meta
 \open LinearOrder \hiding (<=)
 
-\record ExtendedLowerReal (L : Rat -> \Prop) {
-  | L-closed {q q' : Rat} : L q -> q' < q -> L q'
-  | L-rounded {q : Rat} : L q -> ∃ (r : L) (q < r)
-
-  \lemma L_<= {q r : Rat} (Lq : L q) (p : r <= q) : L r
-    => \case <=-dec p \with {
-      | inl r<q => L-closed Lq r<q
-      | inr r=q => transportInv L r=q Lq
-    }
-
-  \func IsLocated : \Prop => \Pi {a b : Rat} -> a < b -> L a || Not (L b)
-}
-
-\record LowerReal \extends ExtendedLowerReal
-  | L-inh : ∃ L
-
-\instance LowerRealAbMonoid : BiorderedLatticeAbMonoid LowerReal
-  | zro => Real.fromRat 0
-  | + => +
-  | zro-left => (\peval _ + _) *> exts \lam a => ext (\lam (inP (b,b<0,c,c<x,a<b+c)) => L-closed c<x linarith, \lam a<x => \case L-rounded a<x \with {
-      | inP (b,b<x,a<b) => inP ((a - b) * ratio 1 2, linarith, b, b<x, linarith)
-    })
-  | +-assoc => exts (\lam a => ext (\lam r => \case +_L.1 r \with {
-      | inP (b, r', c, c<z,a<b+c) => \case +_L.1 r' \with {
-        | inP (d,d<x,e,e<y,b<d+e) => +_L.2 $ inP (d, d<x, (a - d RatField.+ c RatField.+ e) * ratio 1 2, +_L.2 $ inP (e, e<y, c, c<z, linarith), linarith)
-      }
-    }, \lam r => \case +_L.1 r \with {
-      | inP (b, b<x, c, r', a<b+c) => \case +_L.1 r' \with {
-        | inP (d,d<y,e,e<z,c<d+e) => +_L.2 $ inP ((a - e RatField.+ b RatField.+ d) * ratio 1 2, +_L.2 $ inP (b, b<x, d, d<y, linarith), e, e<z, linarith)
-      }
-    }))
-  | +-comm => exts (\lam a => ext (\lam r => \case +_L.1 r \with {
-      | inP (b,b<x,c,c<y,a<b+c) => +_L.2 $ inP $ later (c, c<y, b, b<x, rewrite RatField.+-comm a<b+c)
-    }, \lam r => \case +_L.1 r \with {
-      | inP (c,c<y,b,b<x,a<c+b) => +_L.2 $ inP $ later (b, b<x, c, c<y, rewrite RatField.+-comm a<c+b)
-    }))
-  | < => <
-  | <-irreflexive (inP (a,a<y,p)) => <-irreflexive (p a<y)
-  | <-transitive (inP (b,b<y,p)) (inP (c,c<z,q)) => inP (c, c<z, \lam {a} a<x => p a<x <∘ q b<y)
-  | <= => <=
-  | <=-refl a<x => a<x
-  | <=-transitive p q a<x => q (p a<x)
-  | <=-antisymmetric p q => exts \lam a => ext (p,q)
-  | meet => meet
-  | meet-left s => (meet_L.1 s).1
-  | meet-right s => (meet_L.1 s).2
-  | meet-univ z<=x z<=y a<z => meet_L.2 (z<=x a<z, z<=y a<z)
-  | join => join
-  | join-left a<x => join_L.2 (byLeft a<x)
-  | join-right a<y => join_L.2 (byRight a<y)
-  | join-univ x<=z y<=z r => \case join_L.1 r \with {
-    | byLeft a<x => x<=z a<x
-    | byRight a<y => y<=z a<y
-  }
-  | <-transitive-right e (inP (q,q<a3,p)) => inP (q, q<a3, \lam a<a1 => p $ e a<a1)
-  | <-transitive-left (inP (q,q<a2,p)) e => inP (q, e q<a2, p)
-  | <=-less (inP (r,r<a2,p)) {q} q<a1 => L-closed r<a2 (p q<a1)
-  | <=_+ {a b c d : LowerReal} p q {x} x<a+b => \case LowerRealAbMonoid.+_L.1 x<a+b \with {
-    | inP (y,y<a,z,z<b,x<y+z) => LowerRealAbMonoid.+_L.2 $ inP (y, p y<a, z, q z<b, x<y+z)
-  }
-  | <_meet-univ => \case \elim __, \elim __ \with {
-    | inP (a,a<y,p), inP (b,b<z,q) => inP (a ∧ b, meet_L.2 (Real.L_<= a<y meet-left, Real.L_<= b<z meet-right),
-                                           \lam {c} c<x => BiorderedLattice.<_meet-univ (p c<x) (q c<x))
-  }
-  | <_join-univ => \case \elim __, \elim __ \with {
-    | inP (a,a<z,x<=a), inP (b,b<z,y<=b) => inP (a ∨ b, \case TotalOrder.join-isMax a b \with {
-      | byLeft p => rewrite p a<z
-      | byRight p => rewrite p b<z
-    }, \lam {c} c<xy => \case join_L.1 c<xy \with {
-      | byLeft c<x => x<=a c<x <∘l join-left
-      | byRight c<y => y<=b c<y <∘l join-right
-    })
-  }
-  | meet_+-left => exts \lam q => ext (
-    \lam p =>
-      \have | (inP (a',a'<a,d,d<bc,q<a'+d)) => +_L.1 p
-            | (d<b,d<c) => meet_L.1 d<bc
-      \in meet_L.2 (+_L.2 $ inP (a', a'<a, d, d<b, q<a'+d), +_L.2 $ inP (a', a'<a, d, d<c, q<a'+d)),
-    \lam p =>
-      \have | (p1,p2) => meet_L.1 p
-            | (inP (a1,a1<a,b',b'<b,q<a1+b')) => +_L.1 p1
-            | (inP (a2,a2<a,c',c'<c,q<a2+c')) => +_L.1 p2
-      \in +_L.2 \case totality b' c' \with {
-        | byLeft b'<=c' => inP (a1, a1<a, b', meet_L.2 (b'<b, Real.L_<= c'<c b'<=c'), q<a1+b')
-        | byRight c'<=b' => inP (a2, a2<a, c', meet_L.2 (Real.L_<= b'<b c'<=b', c'<c), q<a2+c')
-      })
-  | join_+-left => exts \lam q => ext (\lam p => \case +_L.1 p \with {
-      | inP (a',a'<a,d,d<bc,q<a'+d) => \case join_L.1 d<bc \with {
-        | byLeft d<b => join_L.2 $ byLeft $ +_L.2 $ inP (a', a'<a, d, d<b, q<a'+d)
-        | byRight d<c => join_L.2 $ byRight $ +_L.2 $ inP (a', a'<a, d, d<c, q<a'+d)
-      }
-    }, \lam p => \case join_L.1 p \with {
-    | byLeft q => \case +_L.1 q \with {
-      | inP (a',a'<a,b',b'<b,q<a'+b') => +_L.2 $ inP (a', a'<a, b', join_L.2 $ byLeft b'<b, q<a'+b')
-    }
-    | byRight q => \case +_L.1 q \with {
-      | inP (a',a'<a,c',c'<c,q<a'+c') => +_L.2 $ inP (a', a'<a, c', join_L.2 $ byRight c'<c, q<a'+c')
-    }
-  })
-  \where {
-    \sfunc \infixl 6 + (x y : LowerReal) : LowerReal \cowith
-      | L a => ∃ (b : x.L) (c : y.L) (a RatField.< b RatField.+ c)
-      | L-inh => \case x.L-inh, y.L-inh \with {
-        | inP (a,a<x), inP (b,b<y) => inP (a RatField.+ b - 1, inP (a, a<x, b, b<y, linarith))
-      }
-      | L-closed (inP (a,a<x,b,b<y,q<a+b)) q'<q => inP (a, a<x, b, b<y, q'<q <∘ q<a+b)
-      | L-rounded {q} (inP (a,a<x,b,b<y,q<a+b)) => inP (RatField.mid q (a RatField.+ b), inP (a, a<x, b, b<y, RatField.mid<right q<a+b), RatField.mid>left q<a+b)
-
-    \lemma +_L {x y : LowerReal} {a : Rat} : Real.L {x + y} a <-> ∃ (b : x.L) (c : y.L) (a RatField.< b RatField.+ c)
-      => rewrite (\peval x + y) <->refl
-
-    \lemma +-rat {x y : Rat} : Real.fromRat x + Real.fromRat y = {LowerReal} Real.fromRat (x RatField.+ y)
-      => (\peval _ + _) *> {LowerReal} exts \lam a => ext (\lam (inP (b,b<x,c,c<y,a<b+c)) => a<b+c <∘ OrderedAddMonoid.<_+ b<x c<y,
-            \lam a<x+y => inP (x - (x RatField.+ y - a) * ratio 1 3, linarith, y - (x RatField.+ y - a) * ratio 1 3, linarith, linarith))
-
-    \type \infix 4 <= (x y : LowerReal) => ∀ {a : x.L} (y.L a)
-
-    \type \infix 4 < (x y : LowerReal) => ∃ (b : y.L) (x <= (b : Real))
-
-    \sfunc meet (x y : LowerReal) : LowerReal \cowith
-      | L a => \Sigma (x.L a) (y.L a)
-      | L-inh => \case x.L-inh, y.L-inh \with {
-        | inP (a,a<x), inP (b,b<y) => inP (a ∧ b, (x.L_<= a<x meet-left, y.L_<= b<y meet-right))
-      }
-      | L-closed (q<x,q<y) q'<q => (x.L-closed q<x q'<q, y.L-closed q<y q'<q)
-      | L-rounded (q<x,q<y) => \case x.L-rounded q<x, y.L-rounded q<y \with {
-        | inP (r,r<x,q<r), inP (r',r'<y,q<r') => inP (r ∧ r', (x.L_<= r<x meet-left, y.L_<= r'<y meet-right), <_meet-univ q<r q<r')
-      }
-
-    \lemma meet_L {x y : LowerReal} {a : Rat} : Real.L {meet x y} a <-> (\Sigma (x.L a) (y.L a))
-      => rewrite (\peval meet x y) <->refl
-
-    \sfunc join (x y : LowerReal) : LowerReal \cowith
-      | L a => x.L a || y.L a
-      | L-inh => \case x.L-inh \with {
-        | inP (a,a<x) => inP (a, byLeft a<x)
-      }
-      | L-closed e q'<q => ||.map (x.L-closed __ q'<q) (y.L-closed __ q'<q) e
-      | L-rounded => \case \elim __ \with {
-        | byLeft q<x => \case x.L-rounded q<x \with {
-          | inP (r,r<x,q<r) => inP (r, byLeft r<x, q<r)
-        }
-        | byRight q<y => \case y.L-rounded q<y \with {
-          | inP (r,r<y,q<r) => inP (r, byRight r<y, q<r)
-        }
-      }
-
-    \lemma join_L {x y : LowerReal} {a : Rat} : Real.L {join x y} a <-> x.L a || y.L a
-      => rewrite (\peval join x y) <->refl
-
-    \lemma zro<ide : (0 : Real) < (1 : Real) => inP (0, idp, \lam a<0 => a<0)
-
-    \lemma <=-char {x : LowerReal} {a : Rat} (p : Not (x.L a)) : x <= Real.fromRat a
-      => \lam {b} b<x => \case LinearOrder.dec<_<= b a \with {
-        | inl b<a => b<a
-        | inr a<=b => absurd $ p $ x.L_<= b<x a<=b
-      }
-
-    \lemma <-char {x y : Real} : x < y <-> x RealAbGroup.< y
-      => (\lam (inP (b,b<y,p)) => real_<-char.2 $ \case L-rounded b<y \with {
-        | inP (c,c<y,b<c) => inP (c, (\lam b<x => <-irreflexive $ p $ real_<_L.1 b<x) <∘r real_<_L.2 b<c, real_<_L.2 c<y)
-      }, \case real_<-char.1 __ \with {
-        | inP (a,x<a,a<y) => inP (a, real_<_L.1 a<y, \lam {b} b<x => real_<_L.1 $ real_<_L.2 b<x <∘ x<a)
-      })
-
-    \lemma lowerReal_<_L {a : Rat} {x : LowerReal} : (a : Real) < x <-> x.L a
-      => (\lam (inP (b,b<x,p)) => \case L-rounded b<x \with {
-        | inP (c,c<x,b<c) => L-closed c<x \case LinearOrder.dec<_<= a c \with {
-          | inl a<c => a<c
-          | inr c<=a => absurd $ <-irreflexive $ p $ b<c <∘l c<=a
-        }
-      }, \lam a<x => inP (a, a<x, \lam p => p))
-
-    \lemma <_+ {a b c d : LowerReal} (p : a < c) (q : b < d) : a + b < c + d \elim p, q
-      | inP (q,q<c,p1), inP (r,r<d,p2) => inP (q RatField.+ r, LowerRealAbMonoid.+_L.2 $ \case L-rounded q<c, L-rounded r<d \with {
-        | inP (q',q'<c,q<q'), inP (r',r'<d,r<r') => inP (q', q'<c, r', r'<d, RatField.<_+ q<q' r<r')
-      }, \lam {x} x<a+b => \case LowerRealAbMonoid.+_L.1 x<a+b \with {
-        | inP (q',q'<a,r',r'<b,x<q'+r') => x<q'+r' <∘ RatField.<_+ (p1 q'<a) (p2 r'<b)
-      })
-  }
-
-\record ExtendedUpperReal (U : Rat -> \Prop) {
-  | U-closed {q q' : Rat} : U q -> q < q' -> U q'
-  | U-rounded {q : Rat} : U q -> ∃ (r : U) (r < q)
-
-  \lemma U_<= {q r : Rat} (Uq : U q) (p : q <= r) : U r
-    => \case <=-dec p \with {
-      | inl q<r => U-closed Uq q<r
-      | inr q=r => transport U q=r Uq
-    }
-}
-
-\record UpperReal \extends ExtendedUpperReal {
-  | U-inh : ∃ U
-
-  \lemma natBounded : ∃ (n : Nat) (U n)
-    => \case U-inh \with {
-      | inP (a,Ua) => inP (iabs $ rat_ceiling a, U_<= Ua $ rat_ceiling>=id <=∘ later (rewrite iabs=abs $ fromInt_<= LinearlyOrderedAbGroup.abs>=id))
-    }
-}
-
-\instance UpperRealAbMonoid : AbMonoid UpperReal
-  | zro => Real.fromRat 0
-  | + => +
-  | zro-left => (\peval _ + _) *> exts \lam a => ext (\lam (inP (b,b<0,c,c<x,a<b+c)) => U-closed c<x linarith, \lam a<x => \case U-rounded a<x \with {
-    | inP (b,b<x,a<b) => inP ((a - b) * ratio 1 2, linarith, b, b<x, linarith)
-  })
-  | +-assoc => exts \lam a => ext (\lam r => \case +_U.1 r \with {
-    | inP (b, r', c, c<z,a<b+c) => \case +_U.1 r' \with {
-      | inP (d,d<x,e,e<y,b<d+e) => +_U.2 $ inP (d, d<x, (a - d RatField.+ c RatField.+ e) * ratio 1 2, +_U.2 $ inP (e, e<y, c, c<z, linarith), linarith)
-    }
-  }, \lam r => \case +_U.1 r \with {
-    | inP (b, b<x, c, r', a<b+c) => \case +_U.1 r' \with {
-      | inP (d,d<y,e,e<z,c<d+e) => +_U.2 $ inP ((a - e RatField.+ b RatField.+ d) * ratio 1 2, +_U.2 $ inP (b, b<x, d, d<y, linarith), e, e<z, linarith)
-    }
-  })
-  | +-comm => exts \lam a => ext (\lam r => \case +_U.1 r \with {
-    | inP (b,b<x,c,c<y,a<b+c) => +_U.2 $ inP $ later (c, c<y, b, b<x, rewrite RatField.+-comm a<b+c)
-  }, \lam r => \case +_U.1 r \with {
-    | inP (c,c<y,b,b<x,a<c+b) => +_U.2 $ inP $ later (b, b<x, c, c<y, rewrite RatField.+-comm a<c+b)
-  })
-  \where {
-    \sfunc \infixl 6 + (x y : UpperReal) : UpperReal \cowith
-      | U a => ∃ (b : x.U) (c : y.U) (b RatField.+ c < a)
-      | U-inh => \case x.U-inh, y.U-inh \with {
-        | inP (a,x<a), inP (b,y<b) => inP (a RatField.+ b RatField.+ 1, inP (a, x<a, b, y<b, linarith))
-      }
-      | U-closed (inP (a,a<x,b,b<y,a+b<q)) q<q' => inP (a, a<x, b, b<y, a+b<q <∘ q<q')
-      | U-rounded {q} (inP (a,a<x,b,b<y,a+b<q)) => inP (RatField.mid (a RatField.+ b) q, inP (a, a<x, b, b<y, RatField.mid>left a+b<q), RatField.mid<right a+b<q)
-
-    \lemma +_U {x y : UpperReal} {a : Rat} : Real.U {x + y} a <-> ∃ (b : x.U) (c : y.U) (b RatField.+ c < a)
-      => rewrite (\peval x + y) <->refl
-
-    \lemma +-rat {x y : Rat} : Real.fromRat x + Real.fromRat y = {UpperReal} Real.fromRat (x RatField.+ y)
-      => (\peval _ + _) *> {UpperReal} exts \lam a => ext (\lam (inP (b,x<b,c,y<c,b+c<a)) => OrderedAddMonoid.<_+ x<b y<c <∘ b+c<a,
-            \lam a<x+y => inP (x - (x RatField.+ y - a) * ratio 1 3, linarith, y - (x RatField.+ y - a) * ratio 1 3, linarith, linarith))
-  }
-
-\instance UpperRealLattice : Lattice UpperReal
-  | <= (x y : UpperReal) => ∀ {a : y.U} (x.U a)
-  | <=-refl x<a => x<a
-  | <=-transitive p q x<a => p (q x<a)
-  | <=-antisymmetric p q => exts \lam a => ext (q,p)
-  | meet => meet
-  | meet-left x<a => meet_U.2 (byLeft x<a)
-  | meet-right y<a => meet_U.2 (byRight y<a)
-  | meet-univ x<=z y<=z r => \case meet_U.1 r \with {
-    | byLeft a<x => x<=z a<x
-    | byRight a<y => y<=z a<y
-  }
-  | join => join
-  | join-left s => (join_U.1 s).1
-  | join-right s => (join_U.1 s).2
-  | join-univ z<=x z<=y a<z => join_U.2 (z<=x a<z, z<=y a<z)
-  \where {
-    \sfunc meet (x y : UpperReal) : UpperReal \cowith
-      | U a => x.U a || y.U a
-      | U-inh => \case x.U-inh \with {
-        | inP (a,x<a) => inP (a, byLeft x<a)
-      }
-      | U-closed e q'<q => ||.map (x.U-closed __ q'<q) (y.U-closed __ q'<q) e
-      | U-rounded => \case \elim __ \with {
-        | byLeft q<x => \case x.U-rounded q<x \with {
-          | inP (r,r<x,q<r) => inP (r, byLeft r<x, q<r)
-        }
-        | byRight q<y => \case y.U-rounded q<y \with {
-          | inP (r,r<y,q<r) => inP (r, byRight r<y, q<r)
-        }
-      }
-
-    \lemma meet_U {x y : UpperReal} {a : Rat} : Real.U {meet x y} a <-> x.U a || y.U a
-      => rewrite (\peval meet x y) <->refl
-
-    \sfunc join (x y : UpperReal) : UpperReal \cowith
-      | U a => \Sigma (x.U a) (y.U a)
-      | U-inh => \case x.U-inh, y.U-inh \with {
-        | inP (a,a<x), inP (b,b<y) => inP (a ∨ b, (x.U_<= a<x join-left, y.U_<= b<y join-right))
-      }
-      | U-closed (q<x,q<y) q'<q => (x.U-closed q<x q'<q, y.U-closed q<y q'<q)
-      | U-rounded (q<x,q<y) => \case x.U-rounded q<x, y.U-rounded q<y \with {
-        | inP (r,r<x,q<r), inP (r',r'<y,q<r') => inP (r ∨ r', (x.U_<= r<x join-left, y.U_<= r'<y join-right), <_join-univ q<r q<r')
-      }
-
-    \lemma join_U {x y : UpperReal} {a : Rat} : Real.U {join x y} a <-> (\Sigma (x.U a) (y.U a))
-      => rewrite (\peval join x y) <->refl
-  }
-
 \func \infix 4 <LU (x : UpperReal) (y : LowerReal) : \Prop
   => ∃ (a : Rat) (x.U a) (y.L a)
 
-\func \infix 4 <=L (x y : LowerReal) : \Prop
-  => \Pi {a : Rat} -> x.L a -> y.L a
-
-\lemma <LU-transitive {x : UpperReal} {y z : LowerReal} (p : x <LU y) (q : y <=L z) : x <LU z \elim p
+\lemma <LU-transitive {x : UpperReal} {y z : LowerReal} (p : x <LU y) (q : y <= z) : x <LU z \elim p
   | inP (a,x<a,a<y) => inP (a, x<a, q a<y)
 
-\record ExtendedReal \extends ExtendedLowerReal, ExtendedUpperReal
-
-\record Real \extends ExtendedReal, LowerReal, UpperReal {
-  | LU-disjoint {q : Rat} : L q -> U q -> Empty
-  | LU-located {q r : Rat} : q < r -> L q || U r
+\record Real \extends InfReal, UpperReal {
   | LU-focus (eps : Rat) : eps > 0 -> ∃ (a : L) (U (a + eps))
 
   \default LU-located {q} {r} q<r => \case LU-focus (r - q) (RatField.pos_>0 q<r) \with {
@@ -335,33 +43,12 @@
 
   \default U-inh => TruncP.map (LU-focus 1 idp) (\lam x => (x.1 + 1, x.3))
 
-  \default LU-focus \as LU-focus-impl (eps : Rat) (eps>0 : eps > 0) : ∃ (a : L) (U (a + eps)) => \case L-inh, U-inh \with {
-    | inP (q,Lq), inP (r,Ur) =>
-      \let | m r q => (r - q) * finv 3
-           | LU-less {q} {r} (Lq : L q) (Ur : U r) : q < r => \case dec<_<= q r \with {
-             | inl q<r => q<r
-             | inr r<=q => absurd $ LU-disjoint Lq (U_<= Ur r<=q)
-           }
-      \in \case focus-iter (ratio 3 2) rat_<=-dec (\lam q r => \Sigma (L q) (U r)) (\lam q r (Lq,Ur) => \case LU-located (linarith (usingOnly (LU-less Lq Ur))) \with {
-        | byLeft Lq+m => inP (q + m r q, r, (Lq+m,Ur), linarith)
-        | byRight Ur-m => inP (q, r - m r q, (Lq,Ur-m), linarith)
-      }) (iabs $ rat_ceiling $ finv eps * (r - q)) q r (Lq,Ur) \with {
-        | inP (q',r',(Lq',Ur'),p) => inP (q', Lq', U-closed Ur'
-          \have | r-q>0 {q} {r} (Lq : L q) (Ur : U r) : 0 < r - q => linarith (usingOnly (LU-less Lq Ur))
-                | pr>0 => RatField.<_*_positive_positive (finv>0 eps>0) (r-q>0 Lq Ur)
-                | c>0 => fromInt_<.conv $ pr>0 <∘l rat_ceiling>=id
-                | s : (r' - q') * (finv eps * (r - q)) < r - q
-                    => <_*_positive-right (r-q>0 Lq' Ur') (rat_ceiling>=id <∘r fromInt_<= (Preorder.=_<= $ inv $ iabs.ofPos $ <_<= c>0) <∘r pow>id _) <∘l p
-                | t => transport (_ <) (pmap (_ *) finv_* *> inv *-assoc *> pmap (`* _) (finv-right $ RatField.>_/= $ r-q>0 Lq Ur) *> ide-left *> finv_finv) (<_rotate-right pr>0 s)
-          \in linarith (usingOnly t))
-      }
-  }
-
-  \lemma LU-less {q r : Rat} (Lq : L q) (Ur : U r) : q < r
-    => \case dec<_<= q r \with {
-      | inl q<r => q<r
-      | inr r<=q => absurd $ LU-disjoint Lq (U_<= Ur r<=q)
+  \default LU-focus eps eps>0 => \case U-inh \with {
+    | inP (r,Ur) => \case LU-focus-bound r eps>0 \with {
+      | byLeft Lr => absurd (LU-disjoint Lr Ur)
+      | byRight s => inP s
     }
+  }
 
   \lemma LU_*-focus-right (x>0 : L 0) {d : Rat} (d>1 : 1 < d) : ∃ (a : Rat) (0 < a) (L a) (U (a * d))
     => \case L-rounded x>0 \with {
@@ -384,39 +71,14 @@
   \open DiscreteField
   \open LinearlyOrderedSemiring
 
-  \func focus-iter (rat : Rat) (rat>=0 : 0 <= rat) (P : Rat -> Rat -> \Prop) (f : \Pi (q r : Rat) -> P q r -> ∃ (q' r' : P) ((r' - q') * rat <= r - q)) (n : Nat) (q r : Rat) (Pqr : P q r) : ∃ (q' r' : P) ((r' - q') * Monoid.pow rat n <= r - q) \elim n
-    | 0 => inP (q, r, Pqr, transportInv (`<= _) ide-right <=-refl)
-    | suc n => \case f q r Pqr \with {
-      | inP (q',r',Pq'r',c) => \case focus-iter rat rat>=0 P f n q' r' Pq'r' \with {
-        | inP (q'',r'',Pq''r'',d) => inP (q'', r'', Pq''r'', Preorder.=_<= (inv *-assoc) <=∘ RatField.<=_*_positive-left d rat>=0 <=∘ c)
-      }
-    }
-
-  \lemma pow>id (n : Nat) : Monoid.pow (ratio 3 2) n > n \elim n
-    | 0 => idp
-    | 1 => idp
-    | 2 => idp
-    | suc (suc (suc n)) => linarith <∘r <_*_positive-left (pow>id (suc (suc n))) idp
-
   \use \coerce fromRat (x : Rat) : Real \cowith
-    | L => `< x
-    | L-closed s t => t <∘ s
-    | L-rounded q<x => TruncP.map (isDense q<x) (\lam t => (t.1,t.3,t.2))
-    | U => x <
-    | U-closed => <∘
-    | U-rounded => isDense
-    | LU-disjoint q<x x<q => <-irreflexive (q<x <∘ x<q)
+    | InfReal => InfReal.fromRat x
+    | UpperReal => UpperReal.fromRat x
     | LU-focus eps eps>0 => inP (x - eps * finv 2, linarith, linarith)
 
   \lemma real-ext {x y : Real} (p : \Pi {a : Rat} -> x.L a <-> y.L a) : x = y
-    => exts (\lam a => ext p, \lam b =>
-      \have lem {x y : Real} (p : \Pi {a : Rat} -> x.L a <-> y.L a) (x<b : x.U b) : y.U b => \case U-rounded x<b \with {
-          | inP (a,x<a,a<b) => \case y.LU-located a<b \with {
-            | byLeft a<y => absurd $ x.LU-disjoint {a} (p.2 a<y) x<a
-            | byRight y<b => y<b
-          }
-        }
-      \in ext (lem p, lem (\lam {_} => (p.2,p.1))))
+    => \have t => InfReal.real-ext p
+       \in ext (pmap (\lam z => Real.L {z}) t, pmap (\lam z => Real.U {z}) t)
 
   \lemma real-lower-ext {x y : Real} (p : x = {LowerReal} y) : x = y
     => real-ext \lam {a} => transport (\lam (y : LowerReal) => x.L a <-> y.L a) p <->refl
@@ -428,8 +90,8 @@
 \instance RealAbGroup : LinearlyOrderedAbGroup Real
   | zro => Real.fromRat 0
   | + => +
-  | zro-left => (\peval _ + _) *> Real.real-lower-ext zro-left
-  | +-comm => (\peval _ + _) *> Real.real-lower-ext (later +-comm) *> inv (\peval _ + _)
+  | zro-left => Real.real-lower-ext $ +_L.lower *> {LowerReal} zro-left
+  | +-comm => Real.real-lower-ext $ +_L.lower *> {LowerReal} +-comm *> {LowerReal} inv {LowerReal} +_L.lower
   | +-assoc => Real.real-lower-ext $ +_L.lower *> {LowerReal} pmap {LowerReal} (LowerRealAbMonoid.`+ _) +_L.lower *> {LowerReal} LowerRealAbMonoid.+-assoc *> {LowerReal} pmap (_ LowerRealAbMonoid.+) (inv {LowerReal} +_L.lower) *> {LowerReal} inv {LowerReal} +_L.lower
   | negative => negative
   | negative-left {x : Real} => exts (
@@ -497,29 +159,25 @@
     \open OrderedSemiring
 
     \sfunc \infixl 6 + (x y : Real) : Real \cowith
-      | LowerReal => x LowerRealAbMonoid.+ y
-      | UpperReal => x UpperRealAbMonoid.+ y
-      | LU-disjoint r r' => \case LowerRealAbMonoid.+_L.1 r, UpperRealAbMonoid.+_U.1 r' \with {
-        | inP (a,a<x,b,b<y,q<a+b), inP (c,x<c,d,y<d,c+d<q) => linarith (x.LU-less a<x x<c, y.LU-less b<y y<d)
-      }
-      | LU-focus eps eps>0 => \case x.LU-focus (eps * ratio 1 4) linarith, y.LU-focus (eps * ratio 1 4) linarith \with {
-        | inP (a,a<x,x<a+e/4), inP (b,b<y,y<b+e/4) => inP (a RatField.+ b - eps * ratio 1 4, LowerRealAbMonoid.+_L.2 $ inP (a, a<x, b, b<y, linarith), UpperRealAbMonoid.+_U.2 $ inP (_, x<a+e/4, _, y<b+e/4, linarith))
+      | InfReal => x InfRealAbMonoid.+ y
+      | U-inh => \case x.U-inh, y.U-inh \with {
+        | inP (a,x<a), inP (b,y<b) => inP (a RatField.+ b RatField.+ 1, InfRealAbMonoid.+_U.2 $ inP (a, x<a, b, y<b, linarith))
       }
 
     \lemma +_L {x y : Real} {a : Rat} : Real.L {x + y} a <-> ∃ (b : x.L) (c : y.L) (a < b RatField.+ c)
-      => rewrite (\peval x + y, \peval x LowerRealAbMonoid.+ y) <->refl
+      => rewrite (\peval x + y, \peval x InfRealAbMonoid.+ y, \peval x LowerRealAbMonoid.+ y) <->refl
       \where
         \lemma lower {x y : Real} : x + y = {LowerReal} x LowerRealAbMonoid.+ y
           => exts \lam a => <->_=.1 +_L *> inv (<->_=.1 LowerRealAbMonoid.+_L)
 
     \lemma +_U {x y : Real} {a : Rat} : Real.U {x + y} a <-> ∃ (b : x.U) (c : y.U) (b RatField.+ c < a)
-      => rewrite (\peval x + y, \peval x UpperRealAbMonoid.+ y) <->refl
+      => rewrite (\peval x + y, \peval x InfRealAbMonoid.+ y, \peval x ExtendedUpperRealAbMonoid.+ y) <->refl
       \where
-        \lemma upper {x y : Real} : x + y = {UpperReal} x UpperRealAbMonoid.+ y
-          => exts \lam a => <->_=.1 +_U *> inv (<->_=.1 UpperRealAbMonoid.+_U)
+        \lemma upper {x y : Real} : x + y = {ExtendedUpperReal} x ExtendedUpperRealAbMonoid.+ y
+          => exts \lam a => <->_=.1 +_U *> inv (<->_=.1 ExtendedUpperRealAbMonoid.+_U)
 
     \lemma +-rat {x y : Rat} : x + y = {Real} x RatField.+ y
-      => (\peval x + y) *> Real.real-lower-ext LowerRealAbMonoid.+-rat
+      => Real.real-lower-ext $ +_L.lower *> {LowerReal} LowerRealAbMonoid.+-rat
 
     \sfunc negative (x : Real) : Real \cowith
       | L a => x.U (RatField.negative a)
@@ -557,42 +215,34 @@
       => pmap (x +) negative-rat *> +-rat
 
     \sfunc meet (x y : Real) : Real \cowith
-      | LowerReal => LowerRealAbMonoid.meet x y
-      | UpperReal => UpperRealLattice.meet x y
-      | LU-disjoint s r => \case UpperRealLattice.meet_U.1 r \with {
-        | byLeft x<q => <-irreflexive (x.LU-less (LowerRealAbMonoid.meet_L.1 s).1 x<q)
-        | byRight y<q => <-irreflexive (y.LU-less (LowerRealAbMonoid.meet_L.1 s).2 y<q)
+      | InfReal => InfRealAbMonoid.meet x y
+      | U-inh => \case x.U-inh \with {
+        | inP (a,x<a) => inP (a, InfRealAbMonoid.meet_U.2 $ byLeft x<a)
       }
-      | LU-located q<r => \case x.LU-located q<r, y.LU-located q<r \with {
-        | byLeft q<x, byLeft q<y => byLeft $ LowerRealAbMonoid.meet_L.2 (q<x,q<y)
-        | _, byRight y<r => byRight $ UpperRealLattice.meet_U.2 (byRight y<r)
-        | byRight x<r, _ => byRight $ UpperRealLattice.meet_U.2 (byLeft x<r)
-      }
+
+    \lemma meet-inf {x y : Real} : meet x y = InfRealAbMonoid.meet x y
+      => \peval meet x y
 
     \lemma meet_L {x y : Real} {a : Rat} : Real.L {meet x y} a <-> (\Sigma (x.L a) (y.L a))
-      => rewrite (\peval meet x y, \peval LowerRealAbMonoid.meet x y) <->refl
+      => <->trans (<->_=.2 $ pmap (\lam z => Real.L {z} a) meet-inf) InfRealAbMonoid.meet_L
 
     \lemma meet_U {x y : Real} {a : Rat} : Real.U {meet x y} a <-> x.U a || y.U a
-      => rewrite (\peval meet x y, \peval UpperRealLattice.meet x y) <->refl
+      => <->trans (<->_=.2 $ pmap (\lam z => Real.U {z} a) meet-inf) InfRealAbMonoid.meet_U
 
     \sfunc join (x y : Real) : Real \cowith
-      | LowerReal => LowerRealAbMonoid.join x y
-      | UpperReal => UpperRealLattice.join x y
-      | LU-disjoint e s => \case LowerRealAbMonoid.join_L.1 e \with {
-        | byLeft q<x => <-irreflexive $ x.LU-less q<x (UpperRealLattice.join_U.1 s).1
-        | byRight q<y => <-irreflexive $ y.LU-less q<y (UpperRealLattice.join_U.1 s).2
+      | InfReal => InfRealAbMonoid.join x y
+      | U-inh => \case x.U-inh, y.U-inh \with {
+        | inP (a,x<a), inP (b,y<b) => inP (a ∨ b, InfRealAbMonoid.join_U.2 (x.U_<= x<a join-left, y.U_<= y<b join-right))
       }
-      | LU-located q<r => \case x.LU-located q<r, y.LU-located q<r \with {
-        | byLeft q<x, _ => byLeft $ LowerRealAbMonoid.join_L.2 (byLeft q<x)
-        | _, byLeft q<y => byLeft $ LowerRealAbMonoid.join_L.2 (byRight q<y)
-        | byRight x<r, byRight y<r => byRight $ UpperRealLattice.join_U.2 (x<r,y<r)
-      }
+
+    \lemma join-inf {x y : Real} : join x y = InfRealAbMonoid.join x y
+      => \peval join x y
 
     \lemma join_L {x y : Real} {a : Rat} : Real.L {join x y} a <-> x.L a || y.L a
-      => rewrite (\peval join x y, \peval LowerRealAbMonoid.join x y) <->refl
+      => <->trans (<->_=.2 $ pmap (\lam z => Real.L {z} a) join-inf) InfRealAbMonoid.join_L
 
     \lemma join_U {x y : Real} {a : Rat} : Real.U {join x y} a <-> (\Sigma (x.U a) (y.U a))
-      => rewrite (\peval join x y, \peval UpperRealLattice.join x y) <->refl
+      => <->trans (<->_=.2 $ pmap (\lam z => Real.U {z} a) join-inf) InfRealAbMonoid.join_U
 
     \func half (x : Real) : Real \cowith
       | L a => x.L (a * 2)
@@ -631,6 +281,13 @@
 
     \lemma zro<ide : 0 RealAbGroup.< 1
       => real_<-rat-char.2 $ inP $ later (ratio 1 2, idp, idp)
+
+    \lemma lower_<-char {x y : Real} : x LowerRealAbMonoid.< y <-> x RealAbGroup.< y
+      => (\lam (inP (b,b<y,p)) => real_<-char.2 $ \case L-rounded b<y \with {
+        | inP (c,c<y,b<c) => inP (c, (\lam b<x => <-irreflexive $ p $ real_<_L.1 b<x) <∘r real_<_L.2 b<c, real_<_L.2 c<y)
+      }, \case real_<-char.1 __ \with {
+        | inP (a,x<a,a<y) => inP (a, real_<_L.1 a<y, \lam {b} b<x => real_<_L.1 $ real_<_L.2 b<x <∘ x<a)
+      })
 
     {-
     \lemma *'-char {x y : Real} {a : Rat} {b : Rat} (b<x : x.L b) {c : Rat} (c<y : y.L c) (b>=0 : 0 <= b) (c>=0 : 0 <= c) (a<=bc : a <= b * c)
@@ -800,10 +457,4 @@
   => \case TotalOrder.join-isMax a b \with {
     | byLeft p => rewrite p a<x
     | byRight p => rewrite p b<x
-  }
-
-\lemma real_meet_U {a b : Rat} {x : Real} (x<a : x.U a) (x<b : x.U b) : x.U (a ∧ b)
-  => \case TotalOrder.meet-isMin a b \with {
-    | byLeft p => rewrite p x<a
-    | byRight p => rewrite p x<b
   }

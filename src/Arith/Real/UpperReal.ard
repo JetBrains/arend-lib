@@ -1,0 +1,169 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Arith.Int
+\import Arith.Rat
+\import Data.Or
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Biordered
+\import Order.Lattice
+\import Order.LinearOrder
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+
+\record ExtendedUpperReal (U : Rat -> \Prop) {
+  | U-closed {q q' : Rat} : U q -> q < q' -> U q'
+  | U-rounded {q : Rat} : U q -> ∃ (r : U) (r < q)
+
+  \lemma U_<= {q r : Rat} (Uq : U q) (p : q <= r) : U r
+    => \case LinearOrder.<=-dec p \with {
+      | inl q<r => U-closed Uq q<r
+      | inr q=r => transport U q=r Uq
+    }
+} \where {
+  \use \coerce fromRat (x : Rat) : ExtendedUpperReal \cowith
+    | U => x <
+    | U-closed => <∘
+    | U-rounded => isDense
+}
+
+\instance ExtendedUpperRealAbMonoid : BiorderedLatticeAbMonoid ExtendedUpperReal
+  | zro => UpperReal.fromRat 0
+  | + => +
+  | zro-left => (\peval _ + _) *> exts \lam a => ext (\lam (inP (b,b<0,c,c<x,a<b+c)) => U-closed c<x linarith, \lam a<x => \case U-rounded a<x \with {
+    | inP (b,b<x,a<b) => inP ((a - b) * ratio 1 2, linarith, b, b<x, linarith)
+  })
+  | +-assoc => exts \lam a => ext (\lam r => \case +_U.1 r \with {
+    | inP (b, r', c, c<z,a<b+c) => \case +_U.1 r' \with {
+      | inP (d,d<x,e,e<y,b<d+e) => +_U.2 $ inP (d, d<x, (a - d RatField.+ c RatField.+ e) * ratio 1 2, +_U.2 $ inP (e, e<y, c, c<z, linarith), linarith)
+    }
+  }, \lam r => \case +_U.1 r \with {
+    | inP (b, b<x, c, r', a<b+c) => \case +_U.1 r' \with {
+      | inP (d,d<y,e,e<z,c<d+e) => +_U.2 $ inP ((a - e RatField.+ b RatField.+ d) * ratio 1 2, +_U.2 $ inP (b, b<x, d, d<y, linarith), e, e<z, linarith)
+    }
+  })
+  | +-comm => exts \lam a => ext (\lam r => \case +_U.1 r \with {
+    | inP (b,b<x,c,c<y,a<b+c) => +_U.2 $ inP $ later (c, c<y, b, b<x, rewrite RatField.+-comm a<b+c)
+  }, \lam r => \case +_U.1 r \with {
+    | inP (c,c<y,b,b<x,a<c+b) => +_U.2 $ inP $ later (b, b<x, c, c<y, rewrite RatField.+-comm a<c+b)
+  })
+  | <= => <=
+  | <=-refl x<a => x<a
+  | <=-transitive p q x<a => p (q x<a)
+  | <=-antisymmetric p q => exts \lam a => ext (q,p)
+  | meet => meet
+  | meet-left x<a => meet_U.2 (byLeft x<a)
+  | meet-right y<a => meet_U.2 (byRight y<a)
+  | meet-univ x<=z y<=z r => \case meet_U.1 r \with {
+    | byLeft a<x => x<=z a<x
+    | byRight a<y => y<=z a<y
+  }
+  | join => join
+  | join-left s => (join_U.1 s).1
+  | join-right s => (join_U.1 s).2
+  | join-univ z<=x z<=y a<z => join_U.2 (z<=x a<z, z<=y a<z)
+  | < => <
+  | <-irreflexive (inP (b,y<b,p)) => <-irreflexive (p y<b)
+  | <-transitive (inP (a,x<a,a<=y)) (inP (b,y<b,b<=z)) => inP (a, x<a, \lam {c} z<c => a<=y y<b <∘ b<=z z<c)
+  | <-transitive-right e (inP (b,a2<b,b<=a3)) => inP (b, e a2<b, b<=a3)
+  | <-transitive-left (inP (b,a1<b,b<=a2)) e => inP (b, a1<b, \lam {c} a3<c => b<=a2 (e a3<c))
+  | <=-less (inP (b,a1<b,b<=a2)) a2<a => U-closed a1<b (b<=a2 a2<a)
+  | <=_+ p q {x} r => \case +_U.1 r \with {
+    | inP (b',b<b',d',d<d',b'+d'<x) => +_U.2 $ inP (b', p b<b', d', q d<d', b'+d'<x)
+  }
+  | <_meet-univ (inP (a,x<a,a<=y)) (inP (b,x<b,b<=z)) => inP (a ∧ b, real_meet_U x<a x<b, \lam {w} r => \case meet_U.1 r \with {
+    | byLeft y<w => meet-left <∘r a<=y y<w
+    | byRight z<w => meet-right <∘r b<=z z<w
+  })
+  | <_join-univ (inP (a,x<a,a<=z)) (inP (b,y<b,b<=z)) => inP (a ∨ b, join_U.2 (U_<= x<a join-left, U_<= y<b join-right), \lam {w} z<w => <_join-univ (a<=z z<w) (b<=z z<w))
+  | meet_+-left => exts \lam x => ext (\lam r => \case +_U.1 r \with {
+    | inP (a',a<a',d,bc<d,a'+d<x) => \case meet_U.1 bc<d \with {
+      | byLeft b<d => meet_U.2 $ byLeft $ +_U.2 $ inP (a', a<a', d, b<d, a'+d<x)
+      | byRight c<d => meet_U.2 $ byRight $ +_U.2 $ inP (a', a<a', d, c<d, a'+d<x)
+    }
+  }, \lam r => \case meet_U.1 r \with {
+    | byLeft a+b<x => \case +_U.1 a+b<x \with {
+      | inP (a',a<a',b',b<b',a'+b'<x) => +_U.2 $ inP (a', a<a', b', meet_U.2 $ byLeft b<b', a'+b'<x)
+    }
+    | byRight a+c<x => \case +_U.1 a+c<x \with {
+      | inP (a',a<a',c',c<c',a'+c'<x) => +_U.2 $ inP (a', a<a', c', meet_U.2 $ byRight c<c', a'+c'<x)
+    }
+  })
+  | join_+-left => exts \lam x => ext (\lam r => \case +_U.1 r \with {
+    | inP (a',a<a',d,bc<d,a'+d<x) => \case join_U.1 bc<d \with {
+      | (b<d,c<d) => join_U.2 (+_U.2 $ inP (a', a<a', d, b<d, a'+d<x), +_U.2 $ inP (a', a<a', d, c<d, a'+d<x))
+    }
+  }, \lam r => \case join_U.1 r \with {
+    | (a+b<x,a+c<x) => \case +_U.1 a+b<x, +_U.1 a+c<x \with {
+      | inP (a1,a<a1,b',b<b',a1+b'<x), inP (a2,a<a2,c',c<c',a2+c'<x) => +_U.2 $ inP (a1 ∧ a2, real_meet_U a<a1 a<a2, b' ∨ c', join_U.2 (U_<= b<b' join-left, U_<= c<c' join-right), later $ rewrite RatField.join_+-left $ <_join-univ (<=_+ meet-left <=-refl <∘r a1+b'<x) (<=_+ meet-right <=-refl <∘r a2+c'<x))
+    }
+  })
+  \where {
+    \open ExtendedUpperReal
+
+    \sfunc \infixl 6 + (x y : ExtendedUpperReal) : ExtendedUpperReal \cowith
+      | U a => ∃ (b : x.U) (c : y.U) (b RatField.+ c RatField.< a)
+      | U-closed (inP (a,a<x,b,b<y,a+b<q)) q<q' => inP (a, a<x, b, b<y, a+b<q <∘ q<q')
+      | U-rounded {q} (inP (a,a<x,b,b<y,a+b<q)) => inP (RatField.mid (a RatField.+ b) q, inP (a, a<x, b, b<y, RatField.mid>left a+b<q), RatField.mid<right a+b<q)
+
+    \lemma +_U {x y : ExtendedUpperReal} {a : Rat} : UpperReal.U {x + y} a <-> ∃ (b : x.U) (c : y.U) (b RatField.+ c RatField.< a)
+      => rewrite (\peval x + y) <->refl
+
+    \lemma +-rat {x y : Rat} : UpperReal.fromRat x + UpperReal.fromRat y = UpperReal.fromRat (x RatField.+ y)
+      => (\peval _ + _) *> exts \lam a => ext (\lam (inP (b,x<b,c,y<c,b+c<a)) => OrderedAddMonoid.<_+ x<b y<c <∘ b+c<a,
+                                               \lam a<x+y => inP (x - (x RatField.+ y - a) * ratio 1 3, linarith, y - (x RatField.+ y - a) * ratio 1 3, linarith, linarith))
+
+    \type \infix 4 <= (x y : ExtendedUpperReal) => ∀ {b : y.U} (x.U b)
+
+    \type \infix 4 < (x y : ExtendedUpperReal) => ∃ (a : x.U) (a <= y)
+
+    \sfunc meet (x y : ExtendedUpperReal) : ExtendedUpperReal \cowith
+      | U a => x.U a || y.U a
+      | U-closed e q'<q => ||.map (x.U-closed __ q'<q) (y.U-closed __ q'<q) e
+      | U-rounded => \case \elim __ \with {
+        | byLeft q<x => \case x.U-rounded q<x \with {
+          | inP (r,r<x,q<r) => inP (r, byLeft r<x, q<r)
+        }
+        | byRight q<y => \case y.U-rounded q<y \with {
+          | inP (r,r<y,q<r) => inP (r, byRight r<y, q<r)
+        }
+      }
+
+    \lemma meet_U {x y : ExtendedUpperReal} {a : Rat} : UpperReal.U {meet x y} a <-> x.U a || y.U a
+      => rewrite (\peval meet x y) <->refl
+
+    \sfunc join (x y : ExtendedUpperReal) : ExtendedUpperReal \cowith
+      | U a => \Sigma (x.U a) (y.U a)
+      | U-closed (q<x,q<y) q'<q => (x.U-closed q<x q'<q, y.U-closed q<y q'<q)
+      | U-rounded (q<x,q<y) => \case x.U-rounded q<x, y.U-rounded q<y \with {
+        | inP (r,r<x,q<r), inP (r',r'<y,q<r') => inP (r ∨ r', (x.U_<= r<x join-left, y.U_<= r'<y join-right), RatField.<_join-univ q<r q<r')
+      }
+
+    \lemma join_U {x y : ExtendedUpperReal} {a : Rat} : UpperReal.U {join x y} a <-> (\Sigma (x.U a) (y.U a))
+      => rewrite (\peval join x y) <->refl
+  }
+
+\record UpperReal \extends ExtendedUpperReal {
+  | U-inh : ∃ U
+
+  \lemma natBounded : ∃ (n : Nat) (U n)
+    => \case U-inh \with {
+      | inP (a,Ua) => inP (iabs $ rat_ceiling a, U_<= Ua $ rat_ceiling>=id <=∘ later (rewrite iabs=abs $ fromInt_<= LinearlyOrderedAbGroup.abs>=id))
+    }
+} \where {
+  \use \coerce fromRat (x : Rat) : UpperReal \cowith
+    | ExtendedUpperReal => ExtendedUpperReal.fromRat x
+    | U-inh => inP (x + 1, linarith)
+}
+
+\lemma real_meet_U {a b : Rat} {x : ExtendedUpperReal} (x<a : x.U a) (x<b : x.U b) : x.U (a ∧ b)
+  => \case TotalOrder.meet-isMin a b \with {
+    | byLeft p => rewrite p x<a
+    | byRight p => rewrite p x<b
+  }
