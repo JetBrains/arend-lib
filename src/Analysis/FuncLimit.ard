@@ -7,6 +7,7 @@
 \import Meta
 \import Operations
 \import Order.Directed
+\import Order.Lattice
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
@@ -124,4 +125,40 @@
 \lemma funcCovergent-uni {I : DirectedSet} {X : CoverSpace} {Y : UniformSpace} (f : I -> CoverMap X Y) (fc : IsUniFuncConvergent \lam n => f n) : IsFuncConvergent \lam n => f n
   => funcConvergent-uniform-char f \lam Eu => top-cauchy \case fc Eu \with {
     | inP (N,h) => inP $ later (N, \lam {x} _ => h x)
+  }
+
+\type IsCoverLimit {I : DirectedSet} {X : CoverSpace} {Y : TopAbGroup} (S : Set (\Sigma I X)) (f : Set.Total S -> Y) {T : Set X} (L : Set.Total T -> Y) : \Prop
+  => ∀ {V : Y.isOpen} (V 0) (X.isCauchy \lam U => ∃ (N : I) ∀ {x : U} (Tx : T x) {n} (N <= n) (Sh : S (n,x)) (V (L (x,Tx) - f ((n,x),Sh))))
+  \where {
+    \lemma unique {Y : HausdorffTopAbGroup} {f : Set.Total S -> Y} {T : Set X} {L L' : Set.Total T -> Y} (Ll : IsCoverLimit S f L) (L'l : IsCoverLimit S f L')
+                  {x : Set.Total T} (Sh : ∀ N ∃ (n : I) (N <= n) (S (n,x.1))) : L x = L' x
+      => Y.isHausdorff \lam {V} {V'} Vo V'o VLx V'L'x =>
+          \have | (inP (U, inP (N,g), Ux)) => cauchy-cover (Ll (Y.UBall-open Vo) (Y.UBall-point {V} VLx)) x.1
+                | (inP (U', inP (M,g'), U'x)) => cauchy-cover (L'l (Y.UBall-open V'o) (Y.UBall-point {V'} V'L'x)) x.1
+                | (inP (K,N<=K,M<=K)) => isDirected N M
+                | (inP (K',K<=K',SK')) => Sh K
+          \in inP (f ((K',x.1),SK'), (simplify in g Ux x.2 (N<=K <=∘ K<=K') SK', simplify in g' U'x x.2 (M<=K <=∘ K<=K') SK'))
+  }
+
+\func PointDirectedSet {X : TopSpace} (a : X) : DirectedSet \cowith
+  | E => Given (V : isOpen) (V a) (b : X) (V b)
+  | <= S T => T.1 ⊆ S.1
+  | <=-refl => <=-refl
+  | <=-transitive p q => q <=∘ p
+  | isInhabitted => inP (Bounded.top, open-top, (), a, ())
+  | isDirected (V,Vo,Va,_,_) (W,Wo,Wa,_,_) => inP ((V ∧ W, open-inter Vo Wo, (Va,Wa), a, (Va,Wa)), meet-left, meet-right)
+
+\func IsOpenLimit {Z : TopSpace} (c : Z) {X : CoverSpace} {Y : TopAbGroup} (S : Set (\Sigma Z X)) (f : Set.Total S -> Y) {T : Set X} (L : Set.Total T -> Y) : \Prop
+  => IsCoverLimit {PointDirectedSet c} (\lam h => S (h.1.4,h.2)) (\lam x => f (_,x.2)) L
+
+\lemma openLimit-char {Z : TopSpace} {c : Z} {X : CoverSpace} {Y : TopAbGroup} {S : Set (\Sigma Z X)} {f : Set.Total S -> Y} {T : Set X} {L : Set.Total T -> Y}
+  : IsOpenLimit c S f L <-> ∀ {V : Y.isOpen} (V 0) (X.isCauchy \lam U => ∃ (W : Z.isOpen) (W c) ∀ {x : U} (Tx : T x) {z : W} (Sh : S (z,x)) (V (L (x,Tx) - f ((z,x),Sh))))
+  => (\lam fc Vo V0 => cauchy-subset (fc Vo V0) \lam (inP (N,g)) => inP $ later (N.1, N.2, N.3, \lam Ux Tx {z} Nz Sz => g Ux Tx {N.1,N.2,N.3,z,Nz} <=-refl Sz),
+      \lam fc Vo V0 => cauchy-subset (fc Vo V0) \lam (inP (W,Wo,Wc,g)) => inP $ later ((W,Wo,Wc,c,Wc), \lam Ux Tx {h} p Sh => g Ux Tx (p h.5) Sh))
+  \where {
+    \lemma unique {Y : HausdorffTopAbGroup} {f : Set.Total S -> Y} {L L' : Set.Total T -> Y} (Ll : IsOpenLimit c S f L) (L'l : IsOpenLimit c S f L')
+                  {x : Set.Total T} (Sh : ∀ {W : Z.isOpen} ∃ (z : W) (S (z,x.1))) : L x = L' x
+      => IsCoverLimit.unique Ll L'l \lam N => \case Sh N.2 \with {
+        | inP (z,Wz,Sz) => inP ((N.1,N.2,N.3,z,Wz), <=-refl, Sz)
+      }
   }

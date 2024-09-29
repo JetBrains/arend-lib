@@ -45,9 +45,7 @@
 
   \lemma proper_weaklyProper (p : IsProperUniform) : IsWeaklyProperUniform
     => \lam Cu => uniform-subset (p Cu) \case __ \with {
-      | (byLeft e, inP (x,Ux)) => \case rewrite e in Ux \with {
-        | inP ((),_)
-      }
+      | (byLeft e, inP (x,Ux)) => bottom-empty (rewrite e in Ux)
       | (byRight CU, _) => CU
     }
 
@@ -89,7 +87,7 @@
   \lemma uniform-separated {x y : E} : ∀ {C : CoverSpace.isCauchy} ∃ (U : C) (\Sigma (U x) (U y)) <-> ∀ {C : isUniform} ∃ (U : C) (\Sigma (U x) (U y))
     => (\lam sf Cu => sf $ makeCauchy Cu, \lam sf Cc => closure-filter (\new SetFilter E {
       | F U => \Sigma (U x) (U y)
-      | filter-mono p (Ux,Uy) => (p Ux, p Uy)
+      | filter-mono (Ux,Uy) p => (p Ux, p Uy)
       | filter-top => ((), ())
       | filter-meet (Ux,Uy) (Vx,Vy) => ((Ux, Vx), (Uy, Vy))
     }) sf $ uniform-cauchy.1 Cc)
@@ -151,6 +149,9 @@
 
   \func IsDenseEmbedding : \Prop
     => \Sigma IsDense IsEmbedding
+
+  \func IsWeaklyDenseEmbedding : \Prop
+    => \Sigma IsWeaklyDense IsEmbedding
 } \where {
   \func compose \alias \infixl 8 ∘ {X Y Z : UniformSpace} (g : UniformMap Y Z) (f : UniformMap X Y) : UniformMap X Z \cowith
     | func x => g (f x)
@@ -181,6 +182,15 @@
 \type \infix 4 s<=* {X : UniformSpace} (V U : Set X) : \Prop
   => isUniform \lam W => (W = Compl V) || (W = U)
 
+\lemma s<=*_s<=< {X : UniformSpace} {V U : Set X} (p : V s<=* U) : V s<=< U
+  => X.makeCauchy p
+
+\lemma s<=*_<=* {X : UniformSpace} {V U : Set X} (p : V s<=* U) : V <=* U
+  => <=*-char.2 $ uniform-subset (unfolds in p) \lam {W} e s => \case \elim e \with {
+    | byLeft q => absurd $ later $ (rewrite q in s.2.2) s.2.1
+    | byRight q => Preorder.=_<= q
+  }
+
 \instance StronglyStarRatherBelow {X : UniformSpace} : RatherBelow (s<=* {X})
   | <=<_top => unfolds $ top-uniform $ byRight idp
   | <=<-left p q => uniform-refine (unfolds in p) \lam {U'} => later \case __ \with {
@@ -198,14 +208,50 @@
   }
 
 \class StronglyRegularUniformSpace \extends UniformSpace, StronglyRegularCoverSpace {
-  | isStronglyRegularUniform {C : Set (Set E)} : isUniform C -> isUniform \lam V => ∃ (U : C) (V s<=* U)
-  | isStronglyRegular Cc => uniform-cauchy.2 $ ClosureCoverSpace.closure-regular StronglyRatherBelow (\lam Cu => closure $ uniform-subset (isStronglyRegularUniform Cu) \lam {V} (inP (U,CU,p)) => inP $ later (U, CU, uniform-cauchy.2 $ closure p)) (uniform-cauchy.1 Cc)
+  | uniform-strongly-star {C : Set (Set E)} : isUniform C -> ∃ (D : isUniform) ∀ {V : D} ∃ (U : C) ∀ {W : D} (Not (Given (V ∧ W)) || W ⊆ U)
+  | uniform-star Cu => \case uniform-strongly-star Cu \with {
+    | inP (D,Du,h) => inP (D, Du, \lam DV => \case h DV \with {
+      | inP (U,CU,g) => inP (U, CU, \lam DW s {y} Wy => \case g DW \with {
+        | byLeft e => absurd (e s)
+        | byRight e => e Wy
+      })
+    })
+  }
+  | isStronglyRegular {C} Cc => cauchy-subset (uniform-cauchy.2 $ ClosureCoverSpace.closure-regular {ClosurePrecoverSpace isUniform uniform-cover} StronglyRatherBelow (\lam Cu => closure \case uniform-strongly-star Cu \with {
+    | inP (D,Du,h) => uniform-subset Du \lam {V} DV => \case h DV \with {
+      | inP (U,CU,g) => inP $ later (U, CU, closure $ uniform-refine Du \lam {W} DW => \case g DW \with {
+        | byLeft e => inP (_, byLeft idp, \lam {x} Wx Vx => e (x,(Vx,Wx)))
+        | byRight e => inP (_, byRight idp, e)
+      })
+    }
+  }) (uniform-cauchy.1 Cc)) \lam {V} (inP (U,CU,V<=<U)) => inP $ later (U, CU, uniform-cauchy.2 V<=<U)
+
+  \lemma s<=*-regular {C : Set (Set E)} (Cu : isUniform C) : isUniform \lam V => ∃ (U : C) (V s<=* U)
+    => \case uniform-strongly-star Cu \with {
+      | inP (D,Du,h) => uniform-subset Du \lam {V} DV => \case h DV \with {
+        | inP (U,CU,g) => inP $ later (U, CU, uniform-refine Du \lam {W} DW => \case g DW \with {
+          | byLeft e => inP (_, byLeft idp, \lam {x} Wx Vx => e (x,(Vx,Wx)))
+          | byRight e => inP (_, byRight idp, e)
+        })
+      }
+    }
 
   \lemma s<=*-cauchy-regular {C : Set (Set E)} (Cc : CoverSpace.isCauchy C) : CoverSpace.isCauchy \lam V => ∃ (U : C) (V s<=* U)
-    => uniform-cauchy.2 $ ClosureCoverSpace.closure-regular StronglyStarRatherBelow (\lam Cu => closure $ isStronglyRegularUniform Cu) (uniform-cauchy.1 Cc)
+    => uniform-cauchy.2 $ ClosureCoverSpace.closure-regular StronglyStarRatherBelow (\lam Cu => closure $ s<=*-regular Cu) (uniform-cauchy.1 Cc)
+
+  \lemma s<=<-regular {C : Set (Set E)} (Cu : isUniform C) : isUniform \lam V => ∃ (U : C) (V s<=< U)
+    => uniform-subset (s<=*-regular Cu) \lam {V} (inP (U,CU,p)) => inP $ later (U, CU, makeCauchy p)
 }
 
 \func StronglyRegularUniformTransfer {X : \Set} {Y : StronglyRegularUniformSpace} (f : X -> Y) : StronglyRegularUniformSpace X \cowith
   | UniformSpace => UniformTransfer f
-  | isStronglyRegularUniform Cu => uniform-subset (isStronglyRegularUniform Cu) \lam {V} (inP (U, inP (W,CW,p), V<=<U)) => inP $ later
-      (_, inP (W, CW, <=<-left (uniform-subset (unfolds in V<=<U) \lam {W} e => inP $ later (_, ||.map (pmap (f ^-1)) (pmap (f ^-1)) e, <=-refl)) p), <=-refl)
+  | uniform-strongly-star Cu => \case uniform-strongly-star Cu \with {
+    | inP (D',D'u,h) => inP (\lam V => ∃ (V' : D') (V = f ^-1 V'), uniform-subset D'u \lam {V'} D'V' => \case h D'V' \with {
+      | inP (V, inP (U,CU,p), g) => inP $ later (_, inP (V', D'V', idp), <=-refl)
+    }, \lam {_} (inP (V',D'V',idp)) => \case h D'V' \with {
+      | inP (V, inP (U,CU,p), g) => inP (U, CU, \lam {_} (inP (W',D'W',idp)) => \case g D'W' \with {
+        | byLeft e => byLeft \lam s => e (f s.1, s.2)
+        | byRight e => byRight $ ^-1_<= f e <=∘ p
+      })
+    })
+  }

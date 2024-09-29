@@ -1,25 +1,19 @@
 \import Algebra.Group
+\import Algebra.Group.Category
 \import Algebra.Group.Sub
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
 \import Algebra.Pointed
 \import Algebra.Pointed.Category
-\import Category (Cat, Precat)
-\import Category.Functor
-\import Category.Meta
-\import Category.Subcat
-\import Equiv
-\import Function
-\import Function.Meta
+\import Category
+\import Function \hiding (id, o)
 \import Logic
 \import Logic.Meta
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
 \import Set.Category
-\import Algebra.Group.Category
 \open Group
-\open Algebra.Group.Sub
 
 \func \infix 7 // (G : Group) (H : NormalSubGroup G) : Group => H.quotient
 
@@ -47,13 +41,13 @@
    - $$G \xrightarrow{\pi} G/N \xrightarrow{\text{this\,  function}} H $$ -}
   \func universalQuotientMorphismSetwise (a : N.quotient) : H \elim a
     | in~ n => f n
-    | ~-equiv y x r => equality-check (inverse (f y) * (f x) ==< pmap (\lam y => y * (f x)) (inv f.func-inverse) >==
-    f (inverse y) * (f x) ==< inv func-* >==
+    | ~-equiv y x r => equality-check (inverse (f y) * f x ==< pmap (\lam y => y * f x) (inv f.func-inverse) >==
+    f (inverse y) * f x ==< inv func-* >==
     f (inverse y * x) ==< lemma' f N p r >== ide `qed)
     \where
       \lemma lemma' {x y : G} (f : GroupHom G H) (N : NormalSubGroup G) (p : N SubGroupPreorder.<= f.Kernel)
-                    (r : N.contains ((inverse y) * x)) : f (inverse y * x) = ide =>
-        f (inverse y * x) ==< p ((inverse y) * x) r >== ide `qed
+                    (r : N.contains (inverse y * x)) : f (inverse y * x) = ide =>
+        f (inverse y * x) ==< p (inverse y * x) r >== ide `qed
 
 
   {- | this a synonym for universalQuotientMorphismSetwise used because it is shorter-}
@@ -62,13 +56,13 @@
 
   {- | this is a proof that in the previous assumptions the function
    - universalQuotientMorphismSetwise is multiplicative -}
-  \lemma universalQuotientMorphismMultiplicative (x y : N.quotient) : uqms (x N.quotient.* y) = (uqms x) * (uqms y) \elim x, y
-    | in~ a, in~ a1 => uqms  ((in~ a) N.quotient.* (in~ a1)) ==< idp >==
+  \lemma universalQuotientMorphismMultiplicative (x y : N.quotient) : uqms (x N.quotient.* y) = uqms x * uqms y \elim x, y
+    | in~ a, in~ a1 => uqms  (in~ a N.quotient.* in~ a1) ==< idp >==
                     uqms (in~ (a * a1)) ==< idp >==
                     f (a * a1) ==< f.func-* >==
-                    (f a) * (f a1) ==< pmap ((f a)*) idp >==
-                    (f a) * uqms  (in~ a1) ==< pmap (\lam x => x * uqms (in~ a1)) idp >==
-                   (uqms  (in~ a)) * (uqms (in~ a1)) `qed
+                    f a * f a1 ==< pmap (f a *) idp >==
+                    f a * uqms  (in~ a1) ==< pmap (\lam x => x * uqms (in~ a1)) idp >==
+                   uqms  (in~ a) * uqms (in~ a1) `qed
 
 
   {- | this is a function which gives the homomorphism in the universal property
@@ -142,5 +136,29 @@
   \lemma univKer-epi (p : isSurj f): isSurj univ
     => Triangle.surjectivity-2-out-3 p f.Kernel.quotIsSurj
 
-  \lemma FirstIsoTheorem (p : isSurj f) : univ.isIsomorphism => (univKer-mono, univKer-epi p)
+  \lemma FirstIsoTheorem (p : isSurj f) : univ.IsIsomorphism => (univKer-mono, univKer-epi p)
 }
+
+-- application of first Isomorphism theorem without need to define local instances
+\func GroupFirstIsoCorollary-setwise{G H : Group} {N : NormalSubGroup G} (f : GroupHom G H) (p : N = f.Kernel) (q : isSurj f):
+  \Sigma(h : GroupHom (G // N) H) h.IsIsomorphism =>
+  transport {NormalSubGroup G} (\lam X => \Sigma (f : GroupHom (G // X) H)f.IsIsomorphism) (inv p) (GroupFirstIsoCorollary-24 f q)
+    \where{
+
+      \func GroupFirstIsoCorollary-2 {G H : Group}(f : GroupHom G H) :
+        GroupHom (G // f.Kernel) H => FirstIsomorphismTheorem.univ {\new FirstIsomorphismTheorem {| G => G | H => H | f => f}}
+
+      \func GroupFirstIsoCorollary-24 {G H : Group}(f : GroupHom G H)(q : isSurj f) :
+        \Sigma (a : GroupHom (G // f.Kernel) H) a.IsIsomorphism => (GroupFirstIsoCorollary-2 f,
+                                                                    FirstIsomorphismTheorem.FirstIsoTheorem {\new FirstIsomorphismTheorem {| G => G | H => H | f => f}} q)
+
+
+      \func GroupFirstIsoCorollary-3 {G H : Group} {N : NormalSubGroup G} (f : GroupHom G H) (p : N = f.Kernel) :
+        GroupHom (G // N) H => transport {NormalSubGroup G} (\lam X => GroupHom (G // X) H) (inv p) (GroupFirstIsoCorollary-2 f)
+
+    }
+
+\func GroupFirstIsoCorollary{G H : Group} {N : NormalSubGroup G} (f : GroupHom G H) (p : N = f.Kernel) (q : isSurj f):
+  \Sigma (f : GroupHom (G // N) H) (Iso {GroupCat} {G // N} {H} f) => ((GroupFirstIsoCorollary-setwise f p q).1,
+                                                                       (GroupCat.Iso<->Inj+Surj (GroupFirstIsoCorollary-setwise f p q).1).2
+                                                                      (GroupFirstIsoCorollary-setwise f p q).2)

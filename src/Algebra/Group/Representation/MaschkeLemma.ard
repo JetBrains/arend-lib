@@ -1,0 +1,158 @@
+\import Algebra.Group
+\import Algebra.Group.GSet
+\import Algebra.Group.Representation.Category
+\import Algebra.Group.Representation
+\import Algebra.Group.Representation.Sub
+\import Algebra.Module
+\import Algebra.Module.Category
+\import Algebra.Module.LinearMap
+\import Algebra.Monoid
+\import Algebra.Ring
+\import Category
+\import Category.PreAdditive
+\import Data.Array
+\import Equiv
+\import Function \hiding (id, o)
+\import Function.Meta
+\import Logic
+\import Meta \hiding (in)
+\import Paths
+\import Paths.Meta
+\import Set.Fin
+
+\class Maschke'sLemma{R : CRing}{G : FinGroup}{|G|^-1 : R}(q : R.natCoef G.finCard R.* |G|^-1 = R.ide)
+                     {E : LRepres R G}{S : SubLRepres E}{
+
+  \func mean_func {E W : LRepres R G} (f : LinearMap E W):
+    InterwiningMap E W => LModule.*c |G|^-1 (SumOverGroup f)
+
+  \func retracts (p : SplitMono {LModuleCat R} S.in) : SplitMono {RepresentationCat R G} {S} {E} S.in \cowith
+    | hinv => mean_func p.hinv
+    | hinv_f => exts \lam e => rewrite (mean-func-preserve p-hinv-decypher e) idp
+    \where {
+      \func p-hinv-decypher (s : S) : p.hinv (S.in s) = s => path (\lam i => (p.hinv_f i) s)
+        }
+
+  \func mean-func-preserve {f : LinearMap E S} (p : \Pi(s : S) -> f (S.in s) = s) (t : S)
+    : mean_func f (S.in t) = t =>
+    unfold (rewrite (SumOverGroup-multiply, inv $ LModule.*c-assoc {S.S}, R.*-comm, q, ide_*c) idp)
+    \where {
+
+    \func SumOverGroup-multiply : SumOverGroup f (S.in t) = R.natCoef G.finCard *c t
+            => rewrite (SumOverGroup_same-elements, SumOverGroup.FinSumEqual-multiply t) idp
+    \where {
+      \func SumOverGroup_Sub :  SumOverGroup f (S.in t) = AbMonoid.FinSum {S}
+        (\lam (g : G) => g S.**'in f (inverse {G} g E.** S.in t)) => SumOverGroup.FinSumRewrite (\lam g => SumOverGroup.adjust g f) (in {S} t)
+
+      \func SumOverGroup_same-elements :
+        SumOverGroup f (S.in t) = AbMonoid.FinSum {S} (\lam (_ : G) => t)
+        => rewrite (SumOverGroup_Sub, SumOverGroup.FinSumEquality (\lam (g : G) => SumOverGroup_subrepr-property g t)) idp
+
+      \func SumOverGroup_subrepr-property (g : G) (t : S) : g S.**'in f (inverse g E.** S.in t) = t
+        => rewrite (inv $ InterwiningMap.func-** {S.in}, p (inverse g S.**'in t), **-assoc, G.inverse-right, id-action) idp
+    }
+
+    }
+}
+
+
+
+{- | It is a function that given a linear map $f : A \to B$ between two representations of a finite group $G$
+produces an interwining linear map $f'$ via the following formula
+ $f' a := \sum_{g : G} g f (g^{ -1} a)$
+ -}
+\func SumOverGroup{R : CRing}{G : FinGroup} {A B : LRepres R G}(f : LinearMap A B) : InterwiningMap A B \cowith
+  | LinearMap => int
+  | func-** {a} {h} => rewrite (bring_h_out h a, inv $ ap-rearrange h a) idp
+  \where {
+    \func Ab : AbGroup => PreAdditivePrecat.AbHom {LModulePreAdditive R} {A} {B}
+
+    \func adjust(g : G) (f : LinearMap A B) : LinearMap A B \cowith
+      | func a => g B.** f ( inverse g A.** a)
+      | func-+ => rewrite (A.**-ldistr, f.func-+, B.**-ldistr) idp
+      | func-*c => rewrite (A.**-*c, f.func-*c, B.**-*c) idp
+
+    \func adjust' : G -> LinearMap A B => \lam g => adjust g f
+
+    \func int : LinearMap A B => Ab.FinSum (\lam (g : G) => adjust g f)
+
+    \func group_prop (g h : G)(a : A) : adjust g f (h A.** a) = h B.** adjust (inverse h * g) f a
+      => unfold (inv (rewrite (B.**-assoc, inv G.*-assoc, G.inverse-right, G.ide-left, G.inverse_*, G.inverse-isInv, A.**-assoc) idp))
+
+    \func FinSum-equivariance (h : G) {x : G -> B} : h B.** B.FinSum x = B.FinSum (\lam z => h B.** x z)
+      => \case B.FinSum_char x  \with {
+        | inP p => rewrite (p.2, B.FinSum_char2 (h B.** x __) p.1, BigSum-equivariance) idp
+      }
+      \where {
+        \func act_array (h : G)(e : Array B) : Array B => \lam i => h B.** e i
+
+        \func BigSum-equivariance (e : Array B) : h B.** B.BigSum e = B.BigSum (act_array h e) \elim e
+          | nil => rewrite B.g**-zro idp
+          | a :: l => rewrite (B.**-ldistr, BigSum-equivariance l) idp
+      }
+
+    \func FinSumEquality {E : AbMonoid} {A : FinSet} {x y : A -> E} (eq : \Pi (a : A) -> x a = y a)
+      : E.FinSum x = E.FinSum y => \case E.FinSum_char x \with {
+      | inP a => rewrite (a.2, E.FinSum_char2 y a.1, BigSumEquality) idp
+    }\where {
+      \func BigSumEquality {a : Equiv {Fin A.finCard} {A}}
+        : AddMonoid.BigSum (\new Array E A.finCard (\lam j => x (a j))) =
+      AddMonoid.BigSum (\new Array E A.finCard (\lam j => y (a j))) =>
+        pmap AddMonoid.BigSum ArrayEquality
+      \func ArrayEquality  {a : Equiv {Fin A.finCard} {A}}: (\new Array E A.finCard (\lam j => x (a j))) =
+      (\new Array E A.finCard (\lam j => y (a j))) => arrayExt (\lam j => eq (a j))
+    }
+
+    \func FinSumRewrite (x : G -> Ab) (a : A)
+      : (Ab.FinSum x) a = B.FinSum (\lam e => (x e) a) => \case Ab.FinSum_char x \with {
+      | inP a1 => rewrite (a1.2, B.FinSum_char2 (x __ a) a1.1, BigSumRewrite) idp
+    }
+      \where {
+        \func Ab_Helper {f g : Ab}{x : A} : (f + g) x = f x + g x => idp
+
+        \func ap_BigSum_el_wise (e : Array Ab)(a : A) : Array B => \lam i => (e i) a
+
+        \func BigSumRewrite (e : Array Ab)(a : A) : (Ab.BigSum e) a = B.BigSum (ap_BigSum_el_wise e a) \elim e
+          | nil => idp
+          | a1 :: l => rewrite (Ab_Helper, BigSumRewrite l a) idp
+      }
+
+    \lemma PermutationInvariance {E : AbMonoid}{A : FinSet}
+                                 (x : A -> E)(p : A -> A)(permute : QEquiv p): E.FinSum x  = E.FinSum {A} (x Function.o p)
+      => E.FinSum_Equiv {A}{A} permute
+
+    \lemma rearrange (h : G) : int = Ab.FinSum (\lam (g : G) => adjust (inverse h * g) f)
+      => PermutationInvariance adjust' (inverse h *) (Group.translate-is-Equiv (inverse h))
+
+    \lemma ap-rearrange (h : G) (a : A)
+      : int a = Ab.FinSum (\lam g => adjust (inverse h * g) f) a
+      => path \lam i => rearrange h i a
+
+    \func bring_h_out (h : G) (a : A)
+      : int (h A.** a) = h B.** (Ab.FinSum (\lam g => adjust (inverse h * g) f)) a
+      => inv $ rewrite (zero-2-step h a, FinSum-equivariance, step-4 h a, inv $ FinSumRewrite (adjust __ f) (h A.** a)) idp
+      \where {
+        \lemma zero-2-step (h : G)(a : A)
+          : Ab.FinSum (\lam g => adjust (G.inverse h G.* g) f) a = B.FinSum (\lam g => adjust (G.inverse h G.* g) f a)
+          => FinSumRewrite (\lam g => adjust (G.inverse h G.* g) f) a
+
+        \lemma step-4 (h : G) (a : A)
+          : B.FinSum (\lam g => h B.** adjust (inverse h * g) f a) =
+            B.FinSum (\lam g => g B.** f (inverse g A.** (h A.** a)))
+          => rewrite (FinSumEquality helper) idp
+          \where {
+            \func helper {h : G}{a : A}(g : G) : h B.** adjust (inverse h * g) f a = g B.** f (inverse g A.** (h A.** a))
+              => unfold $ rewrite (G.inverse_*, G.inverse-isInv, inv A.**-assoc, B.**-assoc, inv G.*-assoc, G.inverse-right, G.ide-left) idp
+          }
+
+      }
+    \func FinSumEqual-multiply {E : LModule R} {A : FinSet} (e : E) : E.FinSum (\lam (_ : A) => e) = R.natCoef A.finCard *c e =>
+      \case E.FinSum_char (\lam (_ : A) => e) \with {
+        | inP a => rewrite (a.2, BigSumEqual A.finCard) idp
+      }
+      \where {
+        \func BigSumEqual (n : Nat) : AddMonoid.BigSum (\new Array E n (\lam _ => e)) = R.natCoef n *c e \elim n
+          | 0 => rewrite (R.natCoefZero, E.*c_zro-left) idp
+          | suc n => rewrite (R.natCoefSuc n, E.*c-rdistr, inv $ BigSumEqual n, E.ide_*c, E.+-comm) idp
+      }
+  }

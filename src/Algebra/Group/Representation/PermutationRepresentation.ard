@@ -1,0 +1,110 @@
+\import Algebra.Group
+\import Algebra.Group.GSet
+\import Algebra.Group.Representation.Category
+\import Algebra.Group.Representation.Irreducible
+\import Algebra.Group.Representation
+\import Algebra.Group.Representation.Sub
+\import Algebra.Module
+\import Algebra.Module.LinearMap
+\import Algebra.Module.PowerLModule
+\import Algebra.Monoid
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Category.Functor \hiding (trans)
+\import Function.Meta ($)
+\import Logic
+\import Meta (cases, unfold)
+\import Paths
+\import Paths.Meta
+\import Set
+
+{- | Action given as $$g \cdot \left( \sum \lambda_i x_i \right) := \sum \lambda_{g^{-1}(i)}x_i $$  for a basis of $x_i$'s -} -}
+\func PermRepr {R : Ring} {G : Group} (X : GroupAction G) : LRepres R G \cowith
+  | LModule => Module
+  | ** g f j => f (inverse g X.** j)
+  | **-assoc => ext (\lam _ => rewrite (X.**-assoc, inverse_prod) idp)
+  | **-ldistr => idp
+  | **-*c => ext (\lam _ => idp)
+  | id-action => ext (\lam _ => rewrite (G.inverse_ide, X.id-action) idp)
+  \where{
+    \func inverse_prod {m n : G} : inverse (m * n) = inverse n * inverse m =>
+      inv (G.check-for-inv ( rewrite (G.*-assoc, pmap (m `*) (inv G.*-assoc) , G.inverse-right, G.ide-left, G.inverse-right) idp))
+    \func R_m : LModule R => RingLModule R
+    \func Module : LModule R => PowerLModule X R_m -- product module of |X| copies of R
+  }
+
+{- |
+Here we prove that $span(1, 1, \ldots)$ is an invariant and non-trivial subspace in $\prod_X R$ as an $R$-module.
+For this proof to work one needs to know that there are at least two points in $X$.
+Also, without some decidability constraint for X this fact will not be true
+(one cannot prove that representation of $G = \mathbb{Z}$ over $R = \mathbb{Z}$ induced by action of
+$\mathbb{Z}$ on $\mathbb{R}$ by translations is reducible. That is because one cannot construct
+a non-constant function $\mathbb{R} \to \mathbb{Z}$ in constructive mathematics).
+Also, this does not make much sense over a trivial ring, thus we eliminate this case as well.
+ -}
+\class PermutationRepresReducible {R : Ring} {G : Group} (X : GroupAction G) {
+  | somepoint : X
+  | somepoint' : X
+  | different-points : somepoint' /= somepoint
+  | not-trivial-ring : R.zro /= R.ide
+  | decideEq-somepoint (x : X) : Dec (x = somepoint)
+  \func somepoints-equality-1 : decideEq-somepoint somepoint = yes idp => cases (decideEq-somepoint somepoint) \with {
+    | yes e => exts
+    | no n => absurd (n idp)
+  }
+  \func somepoints-equality-2 : decideEq-somepoint somepoint' = no different-points => cases (decideEq-somepoint somepoint') \with {
+    | yes e => absurd (different-points e)
+    | no n => exts
+  }
+  -- basic definitions to work easier
+  \func R_m : LModule R => RingLModule R
+  \func R_m-triv : LRepres R G => TrivialAction R_m G
+
+  \func Module : LModule R => PowerLModule X R_m -- product module of |X| copies of R
+  \func Repr : LRepres R G => PermRepr {R} {G} X
+  \func vectorOnes : Module => \lam _ => R.ide -- vector with coordinates (1,1,1,...)
+
+  \func invSubMod : LinearMap R_m Module \cowith
+    | func (r : R) => \lam _ => r
+    | func-+ => ext (\lam _ => idp)
+    | func-*c => ext (\lam _ => idp)
+
+  \func inv-rev (r : R_m-triv)  : (invSubMod r) somepoint = r => idp
+
+
+  \func fixed-submodule (g : G) (r : R) : g Repr.** invSubMod r = invSubMod r => ext (\lam j => aux r j (inverse g X.** j) )
+      \where{
+        \func aux(r : R)(j j' : X) : invSubMod r j = invSubMod r j' => idp
+      }
+
+  \func invSubRepr : SubLRepres Repr \cowith
+    | S => R_m-triv
+    | in => \new InterwiningMap {
+      | LinearMap => invSubMod
+      | func-** {e : R_m-triv}{g : G} => ext (\lam _ => rewrite (fixed-submodule g e) idp)
+    }
+    | in-mono => \lam {a a' : R} (p : invSubMod a = invSubMod a') => rewrite (inv (inv-rev a), inv (inv-rev a'), p) idp
+
+\func Non-constant-vector : Repr => \lam (j : X) => \case decideEq-somepoint j \with {
+  | yes e => R.ide
+  | no n => R.zro
+}\where {
+    \func equation-1 : Non-constant-vector somepoint = R.ide => unfold Non-constant-vector $ rewrite somepoints-equality-1 idp
+    \func equation-2 : Non-constant-vector somepoint' = R.zro => unfold Non-constant-vector $ rewrite somepoints-equality-2 idp
+  }
+
+{- | We prove that $span(1,1,\ldots)$ is neither zero submodule nor does it
+   - contain the whole space. To prove the second claim we show that
+  Non-constant-vector does not lie in the image of invSubMod map.  -}
+  \func SubRepr-non-trivial : Not invSubRepr.isTrivial => \lam p => \case \elim p \with {
+    | byLeft zeromod => not-trivial-ring (inv (zeromod R.ide))
+    | byRight isSurj-in => \case isSurj-in Non-constant-vector \with {
+      | inP a => not-trivial-ring (rewrite (inv Non-constant-vector.equation-1,
+                                            inv Non-constant-vector.equation-2, inv a.2, fixed-submodule.aux a.1 somepoint' somepoint) idp)
+    }
+  }
+
+  \func Not-Irreducible : Not (Irreducible Repr) => \lam prf-irred => SubRepr-non-trivial (prf-irred invSubRepr)
+
+}
+

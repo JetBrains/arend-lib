@@ -20,10 +20,10 @@
 \import Topology.CoverSpace
 \import Topology.CoverSpace.Complete
 \import Topology.CoverSpace.Product
+\import Topology.CoverSpace.StronglyComplete
 \import Topology.MetricSpace
 \import Topology.NormedAbGroup
 \import Topology.RatherBelow
-\import Topology.UniformSpace
 \open LinearlyOrderedAbGroup
 \open RealNormed
 \open ProductCoverSpace
@@ -39,15 +39,15 @@
 
 \instance RealNormed : CompleteNormedAbGroup
   | NormedAbGroup => RealNormedAbGroup
-  | isComplete => dense-complete (rat_real.dense, rat_real.embedding->coverEmbedding (rat_real.dense->uniformEmbedding rat_real.dense).2)
+  | isStronglyComplete => dense-stronglyComplete (rat_real.dense->weaklyDense rat_real.dense, rat_real.embedding->coverEmbedding (rat_real.dense->uniformEmbedding rat_real.dense).2)
       \lam F => inP (fromCF F, \lam {U} => \case <=<-ball __ \with {
         | inP (eps,eps>0,p) =>
           \let | x => fromCF F
                | (inP (a, x-eps<a, inP (y1,eps1,eps1>0,Fy1,a<y1-eps1))) => (real_<-rat-char {x - eps} {x}).1 $ transport (_ <) zro-right $ <_+-right x $ RealAbGroup.positive_negative eps>0
                | (inP (b, inP (y2,eps2,eps2>0,Fy2,y2+eps2<b), b<x+eps)) => (real_<-rat-char {x} {x + eps}).1 $ transport {Real} (`< _) zro-right $ <_+-right x eps>0
-          \in filter-mono ((later \lam {z} (|y1-z|<eps1,|y2-z|<eps2) => abs_-_<
+          \in filter-mono (filter-meet Fy1 Fy2) $ (\lam {z} (|y1-z|<eps1,|y2-z|<eps2) => abs_-_<
             (RealAbGroup.<-diff-left $ real_<_U.2 x-eps<a <∘ real_<_L.2 (linarith $ abs>=id <∘r real_<_L.1 (transport (`< _) norm-dist |y1-z|<eps1)))
-            (RealAbGroup.<-diff-mid-conv $ rewrite +-comm $ real_<_L.2 (linarith $ RatField.abs>=neg {y2 - z} <∘r real_<_L.1 (transport (`< _) norm-dist |y2-z|<eps2)) <∘ real_<_L.2 b<x+eps)) <=∘ ^-1_<= rat_real p) (filter-meet Fy1 Fy2)
+            (RealAbGroup.<-diff-mid-conv $ rewrite +-comm $ real_<_L.2 (linarith $ RatField.abs>=neg {y2 - z} <∘r real_<_L.1 (transport (`< _) norm-dist |y2-z|<eps2)) <∘ real_<_L.2 b<x+eps)) <=∘ ^-1_<= rat_real p
       })
   \where {
     \func RealNormedAbGroup : NormedAbGroup \cowith
@@ -58,7 +58,7 @@
       | norm_+ => abs_+
       | norm-ext => abs_zro-ext
 
-    \func fromCF (F : RegularCauchyFilter RatNormed) : Real \cowith
+    \func fromCF (F : StronglyRegularCauchyFilter RatNormed) : Real \cowith
       | L a => ∃ (x eps : Rat) (0 < eps) (F (OBall eps x)) (a < x - eps)
       | L-inh => \case cauchyFilter-metric-char.1 F.isCauchyFilter {1} RealAbGroup.zro<ide \with {
         | inP (x,FB) => inP (x - 2, inP (x, 1, idp, FB, linarith))
@@ -71,12 +71,10 @@
       }
       | U-closed (inP (x,eps,eps>0,FB,x+eps<q)) q<q' => inP (x, eps, eps>0, FB, x+eps<q <∘ q<q')
       | U-rounded {a} (inP (x,eps,eps>0,FB,x+eps<a)) => inP (RatField.mid (x + eps) a, inP (x, eps, eps>0, FB, RatField.mid>left x+eps<a), RatField.mid<right x+eps<a)
-      | LU-disjoint (inP (x,eps,eps>0,Feps,q<x-eps)) (inP (y,delta,delta>0,Fdelta,x+eps<q)) => \case F.isProper (F.filter-meet Feps Fdelta) \with {
-        | inP (z,(|x-z|<eps,|y-z|<delta)) =>
+      | LU-disjoint (inP (x,eps,eps>0,Feps,q<x-eps)) (inP (y,delta,delta>0,Fdelta,x+eps<q)) => F.isWeaklyProper $ filter-mono (filter-meet Feps Fdelta) \lam {z} (|x-z|<eps,|y-z|<delta) => absurd
           \have | t => abs>=id <∘r real_<_L.1 (transport (`< _) norm-dist |x-z|<eps)
                 | s => RatField.abs>=neg {y - z} <∘r real_<_L.1 (transport (`< _) norm-dist |y-z|<delta)
           \in linarith
-      }
       | LU-focus eps eps>0 => \case cauchyFilter-metric-char.1 F.isCauchyFilter {eps * ratio 1 4} (real_<_L.2 linarith) \with {
         | inP (x,FB) => inP (x - eps * ratio 1 2, inP (x, _, linarith, FB, linarith), inP (x, _, linarith, FB, linarith))
       }

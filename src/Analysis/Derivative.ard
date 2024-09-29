@@ -1,0 +1,173 @@
+\import Algebra.Group
+\import Algebra.Module
+\import Algebra.Module.LinearMap
+\import Algebra.Monoid
+\import Analysis.Limit
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Operations
+\import Order.Lattice
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\import Topology.TopAbGroup
+\import Topology.TopModule
+\import Topology.TopRing
+\import Topology.TopSpace
+\import Topology.TopSpace.Product
+\open ContMap
+\open ProductTopSpace
+\open Monoid(Inv)
+
+-- | # Directed derivative
+
+\func dquot {R : NearSkewField} {X Y : TopLModule R} {S : Set X} (f : Set.Total S -> Y) {x : Set.Total S} (h : Inv {R}) (a : X) (\property s : S (x.1 + h.val *c a))
+  => h.inv *c (f (_,s) - f x)
+  \where {
+    \lemma dquot_*c (S : Set X) {f : Set.Total S -> Y} {x : Set.Total S} {h : Inv {R}} (c : Inv {R}) (Sh : S (x.1 + h.val *c (c.val *c a)))
+      : dquot f h _ Sh = c.val *c dquot f (Inv.prod h c) a (transportInv S (pmap (_ +) *c-assoc) Sh)
+      => inv (pmap2 (\lam y z => y *c (f z - _)) (inv *-assoc *> pmap (`* _) c.inv-right *> ide-left) (ext $ pmap (_ +) *c-assoc)) *> *c-assoc
+
+    \lemma dquot_+ (S : Set X) {f g : Set.Total S -> Y} {x : Set.Total S} {h : Inv {R}} (Sh : S (x.1 + h.val *c a))
+      : dquot (\lam x => f x + g x) h a Sh = dquot f h a Sh + dquot g h a Sh
+      => Y.*c-ldistr_- *> pmap2 (-) Y.*c-ldistr Y.*c-ldistr *> +-assoc *> pmap (_ +) (pmap (_ +) Y.negative_+ *> inv +-assoc *> +-comm) *> inv +-assoc *> inv (pmap2 (+) Y.*c-ldistr_- Y.*c-ldistr_-)
+
+    \lemma dquot_bilinear {R : NearSkewField} {X X1 X2 Y : TopLModule R} (S : Set X) {f : Set.Total S -> X1} {g : Set.Total S -> X2} {x : Set.Total S} {a : X} (b : BilinearMap X1 X2 Y)
+                          (h : Inv {R}) (Sh : S (x.1 + h.val *c a)) : dquot (\lam x => b (f x) (g x)) h a Sh = b (dquot f h a Sh) (g (x.1 + h.val *c a, Sh)) + b (f x) (dquot g h a Sh)
+      => pmap (_ *c) (simplify *> inv (pmap2 (+) b.linear-left.func-minus b.linear-right.func-minus)) *> *c-ldistr *> inv (pmap2 (+) b.linear-left.func-*c b.linear-right.func-*c)
+
+    \lemma dquot-comp {R : NearSkewField} {X Y Z : TopLModule R} (S : Set X) {f : Set.Total S -> Y} (T : Set Y) {g : Set.Total T -> Z} (Tf : \Pi (x : Set.Total S) -> T (f x)) {x : Set.Total S} {a : X}
+                      (h : Inv {R}) (Sh : S (x.1 + h.val *c a)) : dquot (\lam x => g (f x, Tf x)) h a Sh = dquot g {f x, Tf x} h (dquot f h a Sh) (transportInv T (pmap (_ +) (inv *c-assoc *> pmap (`*c _) h.inv-right *> ide_*c)) $ simplify $ Tf (_,Sh))
+      => pmap (\lam z => _ *c (g z - _)) $ ext $ simplify *> pmap (_ +) (inv ide_*c *> pmap (`*c _) (inv h.inv-right) *> *c-assoc)
+  }
+
+\func IsDirDerivAt {R : NearSkewField} {X Y : TopLModule R} {S : Set X} (So : isOpen S) (f : Set.Total S -> Y) (x : Set.Total S) (a : X) (d : Y) : \Prop
+  => Y.IsLimit {DirSet So} (\lam h => dquot f h.6.1 _ h.6.2) d
+  \where {
+    \private \lemma aux1 (So : isOpen S) => func-cont {+-cont ∘ tuple (const x.1) (*c-cont ∘ tuple id (const a))} So
+
+    \private \lemma aux2 => transportInv S (pmap (x.1 +) (X.*c_zro-left {a}) *> zro-right) x.2
+
+    \protected \func DirSet (So : isOpen S) => InvDirectedSet (aux1 So) aux2
+
+    \lemma limit-id (So : isOpen S) => InvDirectedSet.limit-id (aux1 So) aux2
+
+    \lemma limit-char (So : isOpen S)
+      : IsDirDerivAt So f x a d <-> ∀ {V : Y.isOpen} (V 0) ∃ (W : R.isOpen) (W 0) ∀ {h : W} (hi : Inv h) (s : S (x.1 + h *c a)) (V (d - dquot f hi a s))
+      => <->trans (InvDirectedSet.limit-char (aux1 So) aux2 {dquot f __ a}) $ later
+          (\lam fc {V} Vo V0 => \case fc (Y.UBall-open Vo) (Y.UBall-center {V} V0) \with {
+            | inP (W,Wo,W0,g) => inP (W, Wo, W0, \lam Uh hi Sh => g Uh (hi,Sh))
+          }, \lam fc {V} Vo Vd => \case fc (Y.UBall-open Vo) (Y.UBall-point {V} Vd) \with {
+            | inP (W,Wo,W0,g) => inP (W, Wo, W0, \lam Wh s => simplify in g Wh s.1 s.2)
+          })
+
+    \protected \lemma unique {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {S : Set X} (So : isOpen S) (f : Set.Total S -> Y)
+                             (x : Set.Total S) (a : X) {d d' : Y} (dd : IsDirDerivAt So f x a d) (d'd : IsDirDerivAt So f x a d') : d = d'
+      => Y.limit-unique dd d'd
+  }
+
+\lemma dirDeriv_zro {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} {S : Set X} (So : isOpen S) {f : Set.Total S -> Y} {x : Set.Total S} : IsDirDerivAt So f x 0 0
+  => (IsDirDerivAt.limit-char So).2 \lam Vo V0 => inP (Bounded.top, open-top, (), \lam _ _ _ => unfold dquot $ rewrite (zro-left,X.*c_zro-right,zro-right,negative-right,Y.*c_zro-right,Y.negative_zro) V0)
+
+\lemma dirDeriv_+ {R : NearSkewField} {X Y : TopLModule R} {S : Set X} (So : isOpen S) {f g : Set.Total S -> Y} {x : Set.Total S} {a : X}
+                  (Df Dg : Y) (fd : IsDirDerivAt So f x a Df) (gd : IsDirDerivAt So g x a Dg) : IsDirDerivAt So (\lam x => f x + g x) x a (Df + Dg)
+  => limit-transport (cont2-limit fd gd +-cont) (\lam h => dquot.dquot_+ S h.6.2)
+
+\lemma dirDeriv_bilinear {R : NearSkewField} {X X1 X2 Y : TopLModule R} {S : Set X} (So : isOpen S) {f : Set.Total S -> X1} {g : Set.Total S -> X2} {x : Set.Total S} (gc : IsContAt {TopSub S} g x) {a : X}
+                         (b : BilinearMap X1 X2 Y) (bc : ContMap (X1 ⨯ X2) Y \lam s => b s.1 s.2) (Df : X1) (Dg : X2) (fd : IsDirDerivAt So f x a Df) (gd : IsDirDerivAt So g x a Dg)
+  : IsDirDerivAt So (\lam x => b (f x) (g x)) x a (b Df (g x) + b (f x) Dg)
+  => limit-transport
+      (cont2-limit (cont2-limit fd (contAt-limit {_} {TopSub S} (TopSub-limit $ transport (X.IsLimit _) (pmap (_ +) X.*c_zro-left *> zro-right) $ cont-limit (IsDirDerivAt.limit-id So) (+-cont ∘ tuple (const x.1) (*c-cont ∘ tuple id (const a)))) gc) bc) (cont-limit gd (bc ∘ tuple (const _) id)) +-cont)
+      (\lam h => dquot.dquot_bilinear S b h.6.1 h.6.2)
+
+-- | # Derivative at a point
+
+\func IsDerivAt {R : NearSkewField} {X Y : TopLModule R} {S : Set X} (So : isOpen S) (f : Set.Total S -> Y) (x : Set.Total S) (Df : X -> Y) : \Prop
+  => \Pi (a0 : X) -> Y.IsLimit {DirSet So a0} (\lam h => dquot f h.6.1 _ h.6.2) (Df a0)
+  \where {
+    \protected \lemma isLimitPoint (So : isOpen S) {a : X} : TopSpace.IsLimitPoint {ProductTopSpace R X} (0, a) (\lam s => \Sigma (Inv s.1) (S (x.1 + s.1 *c s.2)))
+      => \lam {V} Vo V0 => \case Vo V0 \with {
+        | inP (W,Wo,W0,W',W'o,W'a,g) => \case R.inv-dense (open-inter Wo $ func-cont {+-cont ∘ tuple (const x.1) (*c-cont ∘ tuple id (const a))} So) (W0, transportInv S (pmap (_ +) X.*c_zro-left *> zro-right) x.2) \with {
+          | inP (h,hi,(Wh,Sh)) => inP ((h,a), (hi,Sh), g Wh W'a)
+        }
+      }
+
+    \protected \func DirSet (So : isOpen S) (a : X) => SubPointDirectedSet {ProductTopSpace R X}
+        {\lam s => \Sigma (Monoid.Inv s.1) (S (x.1 + s.1 *c s.2))} (0,a) (isLimitPoint So)
+
+    \lemma limit-char (So : isOpen S)
+      : IsDerivAt So f x Df <-> ∀ a0 {V : Y.isOpen} (V 0) ∃ (W : R.isOpen) (W 0) (U : X.isOpen) (U 0) ∀ {h : W} {a} (U (a0 - a)) (hi : Inv h) (s : S (x.1 + h *c a)) (V (Df a0 - dquot f hi a s))
+      => (\lam fc a0 {V} Vo V0 => \case (SubPointDirectedSet.limit-char (isLimitPoint So) \lam h => dquot f h.2.1 _ h.2.2).1 (fc a0) (Y.UBall-open Vo {Df a0}) (Y.UBall-center {V} V0) \with {
+        | inP (V',V'o,V'0,g') => \case V'o V'0 \with {
+          | inP (W,Wo,W0,U,Uo,Ua0,g) => inP (W, Wo, W0, X.UBall U a0, X.UBall-open Uo, X.UBall-point {U} Ua0, \lam Wh Ua hi Sh => g' (g Wh $ simplify in Ua) (hi,Sh))
+        }
+      }, \lam fc a0 => (SubPointDirectedSet.limit-char (isLimitPoint So) \lam h => dquot f h.2.1 _ h.2.2).2 \lam {V} Vo VDfa0 => \case fc a0 (Y.UBall-open Vo {Df a0}) (Y.UBall-point {V} VDfa0) \with {
+        | inP (W,Wo,W0,U,Uo,U0,g) => inP (Set.Prod W (X.UBall U a0), Prod-open Wo (X.UBall-open Uo), (W0, X.UBall-center {U} U0), \lam {h} (Wh,Uh) Sh => simplify in g Wh Uh Sh.1 Sh.2)
+      })
+
+    \lemma limit-id (So : isOpen S) {a0 : X} => SubPointDirectedSet.limit-id (isLimitPoint So {a0})
+  }
+
+\lemma deriv-isDirDeriv {R : NearSkewField} {X Y : TopLModule R} {S : Set X} (So : isOpen S) {f : Set.Total S -> Y} {x : Set.Total S} {Df : X -> Y} (Dfd : IsDerivAt So f x Df) (a : X) : IsDirDerivAt So f x a (Df a)
+  => (IsDirDerivAt.limit-char So).2 \lam Vo V0 => \case (IsDerivAt.limit-char So).1 Dfd a Vo V0 \with {
+    | inP (W,Wo,W0,U,Uo,U0,g) => inP (W, Wo, W0, \lam Wh hi Sh => g Wh (transportInv U negative-right U0) hi Sh)
+  }
+
+\lemma deriv-isCont {R : NearSkewField} {X Y : TopLModule R} {S : Set X} (So : isOpen S) {f : Set.Total S -> Y} {x : Set.Total S} {Df : X -> Y} (Dfd : IsDerivAt So f x Df) : IsContAt {TopSub S} f x
+  => topAb-sub-contAt.2 \lam {V} Vo V0 => \case Y.*c-cont.func-cont Vo {0,0} $ transportInv V Y.*c_zro-left V0 \with {
+        | inP (W,Wo,W0,V',V'o,V'0,g) =>
+          \have | (inP (V'',V''o,V''0,V''<=<V')) => Y.shrink V'o V'0
+                | (inP (W',W'o,W'0,U',U'o,U'0,g')) => (IsDerivAt.limit-char So).1 Dfd 0 V''o V''0
+                | (inP (h,hi : Inv,(Wh,W'h))) => R.inv-dense (open-inter Wo W'o) (W0,W'0)
+          \in inP (_, func-cont {*c-cont ∘ tuple (const hi.inv) id} U'o, transportInv U' X.*c_zro-right U'0 ,
+                   \lam {x'} U'x' => transport V (inv *c-assoc *> pmap (`*c _) hi.inv-right *> ide_*c) $ g Wh
+                      \let | a => negative (hi.inv *c (x.1 - x'.1))
+                           | q : x.1 + h *c a = x'.1 => rewrite (inv X.*c_negative-right, inv *c-assoc, hi.inv-right, ide_*c) simplify
+                      \in transport V' (simplify $ inv Y.*c_negative-right *> pmap (_ *c) (simplify $ pmap (_ - f __) $ ext q)) $ V''<=<V' (g' W'h (simplify U'x') hi (transportInv S q x'.2)) (deriv_zro V''o V''0)
+                  )
+      }
+  \where {
+    \lemma deriv_zro {V : Set Y} (Vo : isOpen V) (V0 : V 0) : V (Df 0)
+      => \case (IsDerivAt.limit-char So).1 Dfd 0 Vo V0 \with {
+        | inP (W,Wo,W0,U,Uo,U0,g) => \case inv-dense Wo W0 \with {
+          | inP (h,hi,Wh) => transport V (pmap (_ +) (pmap negative (pmap (_ *c) (pmap (f __ - _) (ext $ pmap (_ +) X.*c_zro-right *> zro-right) *> negative-right) *> Y.*c_zro-right) *> Y.negative_zro) *> zro-right) $ g Wh (transportInv U negative-right U0) hi (transportInv S (pmap (_ +) X.*c_zro-right *> zro-right) x.2)
+        }
+      }
+  }
+
+\lemma deriv-linear {R : NearSkewField} {X : TopLModule R} {Y : HausdorffTopLModule R} (S : Set X) (So : isOpen S) (f : Set.Total S -> Y) (x : Set.Total S) (Df : TopAbGroupMap X Y) (Dfd : IsDerivAt So f x Df) : LinearMap X Y Df \cowith
+  | func-+ => Df.func-+
+  | func-*c {_} {a} => denseSet-lift-unique R.inv-dense (Df ∘ *c-cont ∘ tuple id (const a)) (*c-cont ∘ tuple id (const _))
+      \lam {c} ci => IsDirDerivAt.unique So f x (c *c a) (deriv-isDirDeriv So Dfd _) $ dirDeriv-*c So (deriv-isDirDeriv So Dfd a) ci
+  \where {
+    \lemma dirDeriv-*c (So : isOpen S) {a : X} {d : Y} (p : IsDirDerivAt So f x a d) (c : Inv {R})
+      : IsDirDerivAt So f x (c.val *c a) (c.val *c d)
+      => (IsDirDerivAt.limit-char So).2 \lam {V} Vo V0 => \case (IsDirDerivAt.limit-char So).1 p (func-cont {*c-cont ∘ tuple (const c.val) id} Vo) (transportInv V Y.*c_zro-right V0) \with {
+        | inP (U,Uo,U0,g) => inP (_, func-cont {*-cont ∘ tuple id (const c.val)} Uo, transportInv U R.zro_*-left U0, \lam Uh hi Sh =>
+            transport V (Y.*c-ldistr_- *> pmap (_ -) (inv $ dquot.dquot_*c S c Sh)) $ g Uh (Inv.prod hi c) _)
+      }
+  }
+
+\lemma deriv_+ {R : NearSkewField} {X Y : TopLModule R} {S : Set X} (So : isOpen S) {f g : Set.Total S -> Y} {x : Set.Total S}
+               (Df Dg : X -> Y) (fd : IsDerivAt So f x Df) (gd : IsDerivAt So g x Dg) : IsDerivAt So (\lam x => f x + g x) x (\lam a => Df a + Dg a)
+  => \lam a0 => limit-transport (cont2-limit (fd a0) (gd a0) +-cont) (\lam h => dquot.dquot_+ S h.6.2)
+
+\lemma deriv_bilinear {R : NearSkewField} {X X1 X2 Y : TopLModule R} {S : Set X} (So : isOpen S) {x : Set.Total S} {f : Set.Total S -> X1} {g : Set.Total S -> X2}
+                      (b : BilinearMap X1 X2 Y) (bc : ContMap (ProductTopSpace X1 X2) Y \lam s => b s.1 s.2) (Df : X -> X1) (Dg : X -> X2) (fd : IsDerivAt So f x Df) (gd : IsDerivAt So g x Dg)
+  : IsDerivAt So (\lam x => b (f x) (g x)) x (\lam a => b (Df a) (g x) + b (f x) (Dg a))
+  => \lam a0 => limit-transport
+      (cont2-limit (cont2-limit (fd a0) (contAt-limit {_} {TopSub S} (TopSub-limit $ transport (X.IsLimit _) (pmap (_ +) (X.*c_zro-left {a0}) *> zro-right) $ cont-limit (IsDerivAt.limit-id So) (+-cont ∘ tuple (const x.1) *c-cont)) (deriv-isCont So gd)) bc) (cont-limit (gd a0) (bc ∘ tuple (const _) id)) +-cont)
+      (\lam h => dquot.dquot_bilinear S b h.6.1 h.6.2)
+
+\lemma deriv-comp {R : NearSkewField} {X Y Z : TopLModule R} {S : Set X} (So : isOpen S) {T : Set Y} (To : isOpen T) {f : Set.Total S -> Y} (Tf : \Pi (x : Set.Total S) -> T (f x)) {g : Set.Total T -> Z} {x : Set.Total S}
+                  (Df : X -> Y) (fd : IsDerivAt So f x Df) (Dg : Y -> Z) (gd : IsDerivAt To g (f x, Tf x) Dg) : IsDerivAt So (\lam x => g (f x, Tf x)) x (\lam a => Dg (Df a))
+  => \lam a0 => limit-transport (SubPointDirectedSet.limit-comp {IsDerivAt.DirSet So a0}
+        (IsDerivAt.isLimitPoint {_} {_} {_} {f x, Tf x} To)
+        {\lam h => (h.4.1, dquot f {x} h.6.1 _ h.6.2)}
+        (\lam h => (h.6.1, transportInv T (pmap (_ +) (inv *c-assoc *> pmap (`*c _) Inv.inv-right *> ide_*c)) $ simplify $ Tf (_,h.6.2)))
+        (limit-tuple (cont-limit (IsDerivAt.limit-id So) proj1) (fd a0))
+        {\lam s => dquot g s.2.1 _ s.2.2}
+        (limit-transport (gd (Df a0)) \lam h => pmap (\lam (z : Inv h.6.1) => z.inv `*c _) (Inv.levelProp _ _)))
+      (\lam h => dquot.dquot-comp S T Tf h.6.1 h.6.2 *> pmap (\lam (z : Inv h.6.1) => z.inv `*c _) (Inv.levelProp _ _))

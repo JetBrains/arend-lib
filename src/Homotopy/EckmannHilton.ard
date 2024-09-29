@@ -1,0 +1,108 @@
+\import Function.Meta
+\import Homotopy.Loop
+\import Homotopy.Pointed \using  (Pointed \as HPointed)
+\import Meta
+\import Paths
+\import Paths.Meta
+
+{- | This is an algebraic formulation of Eckmann Hilton argument.
+ - It is used, for example, to prove that a monoid object in category of monoids is commutative
+ - -}
+\class Algebraic-Eckmann-Hilton (X : \Type){
+  | \infix 7 o : X -> X -> X
+  | \infix 7 # : X -> X -> X
+  | id_o : X
+  | id_o-left {x : X} : id_o o x = x
+  | id_o-right {x : X} : x o id_o = x
+
+  | id_# : X
+  | id_#-left {x : X} : id_# # x = x
+  | id_#-right {x : X} : x # id_# = x
+
+  | rel {a b c d : X} : (a # b) o (c # d) = (a o c) # (b o d)
+
+  \func units-coincide : id_o = id_#
+    => rewrite (inv id_o-right, pmap (o id_o) (inv $ id_#-left),
+                pmap (`o (id_# # id_o)) (inv $ id_#-right), rel, id_o-left, id_o-right) id_#-right
+
+  \func binop_rels_1 {a b : X} : a o b = b # a
+    => rewrite (pmap (\lam z => z o b) (inv $ id_#-left {\this} {a}),
+                pmap (\lam z => (id_# # a) o z) (inv $ id_#-right {\this} {b}), rel, inv units-coincide,
+                id_o-left, id_o-right) idp
+  \func binop_rels_2 {a b : X} : b # a = b o a
+    => rewrite (pmap (\lam z => z # a) (inv $ id_o-right {\this} {b}),
+                pmap (\lam z => (b o id_o) # z) (inv $ id_o-left {\this} {a}), inv rel,
+                units-coincide, id_#-right, id_#-left) idp
+
+  \func comm {a b : X} : a o b = b o a => binop_rels_1 *> binop_rels_2
+
+  \func binops_coincide {a b : X} : a o b = a # b => comm *> binop_rels_1 {\this} {b} {a}
+
+  \func comm-# {a b : X} : a # b = b # a => rewrite (inv binops_coincide, binop_rels_1) idp
+
+  \func rel-o {a b c d : X} : (a o b) o (c o d) = (a o c) o (b o d) =>
+    rewrite (binops_coincide {\this} {a} {b}, binops_coincide {\this} {c} {d}, rel, inv binops_coincide) idp
+
+  \func assoc {a b c : X} : (a o b) o c = a o (b o c) => rewrite (inv $ id_o-left {\this} {c}, rel-o, id_o-left, id_o-right) idp
+}
+
+\func RightHorizontalWhiskering{X : \Type}{a b c : X}{p q : a = b}(alp : p = q)(r : b = c)
+  : p *> r = q *> r => path (\lam i => (alp @ i) *> r)
+
+\func RightHorizontalWhiskering-relation{X : \Type} {a b : X}{p q : a = b}(alp : p = q) :
+  RightHorizontalWhiskering alp (idp {X} {b}) = alp => idp
+
+\func LeftHorizontalWhiskering{X : \Type} {a b c : X}(q : a = b){r s : b = c}(bet : r = s)
+  : q *> r = q *> s => path (\lam i => q *> (bet @ i))
+
+
+{- | This is the proof that Omega^2 X given the composition structure
+ - forms a commutative monoid. This proof follows the proof from the HoTT Book
+ - It has some minor changes that are possible with Arend features.
+ - -}
+\class Omega^2-Commutative (X : HPointed){
+
+  \func Omega^2_X => Omega^ 2 X
+
+  \func LeftHorizontalWhiskering-relation {b c : X}{r s : b = c}(bet : r = s)
+    : LeftHorizontalWhiskering (idp {X} {b}) bet = (idp_*> r *> bet *> (inv $ idp_*> s)) \elim bet
+    | idp => unfold LeftHorizontalWhiskering (rewrite (inv $ *>-assoc (idp_*> r) idp (inv (idp_*> r)), aux, aux-2) idp)
+    \where {
+      \func aux : path (\lam _ => idp *> r) = idp => idp
+      \func aux-2 {f : b = c} : idp_*> f *> inv (idp_*> f) = idp \elim f
+        | idp => idp
+    }
+
+  \func \infix 7 st1 {a b c : X}{p q : a = b}{r s : b = c}(alp : p = q)(bet : r = s) : p *> r = q *> s =>
+    RightHorizontalWhiskering alp r *> LeftHorizontalWhiskering q bet
+
+  \func \infix 7 st2 {a b c : X}{p q : a = b}{r s : b = c}(alp : p = q)(bet : r = s) : p *> r = q *> s =>
+    LeftHorizontalWhiskering p bet *> RightHorizontalWhiskering alp s
+
+  \func Relation {a b c : X}{p q : a = b}{r s : b = c}(alp : p = q)(bet : r = s) : alp st1 bet = alp st2 bet \elim alp, bet
+    | idp, idp => helper
+    \where {
+      \func helper{a b c : X}{p : a = b}{r : b = c}:
+        idp {a = b} {p} st1 idp {b = c}{r} = idp {a = b} {p} st2 idp {b = c}{r} \elim p, r
+        | idp, idp => idp
+    }
+
+  \func Commutative (alp bet : Omega^2_X) : alp *> bet = bet *> alp => rewrite (inv Relation1, Relation3, Relation2) idp
+    \where {
+      \func Relation1 : alp st1 bet = alp *> bet
+        => rewrite (helper, pmap (\lam z => alp *> z) (LeftHorizontalWhiskering-relation bet), helper-2, idp_*>) idp
+        \where {
+          \func helper : alp st1 bet = alp *> LeftHorizontalWhiskering idp bet => idp
+          \func helper-2 : path (\lam _ => path (\lam _ => base {X})) = idp => idp
+        }
+
+      \func Relation2  : alp st2 bet = bet *> alp
+        => rewrite (helper, pmap (\lam z => z *> alp) (LeftHorizontalWhiskering-relation bet), helper-2, idp_*>)idp
+        \where {
+          \func helper : alp st2 bet = LeftHorizontalWhiskering idp bet *> alp => idp
+          \func helper-2 : path (\lam _ => path (\lam _ => base {X})) = idp => idp
+        }
+
+      \func Relation3  : alp st1 bet = alp st2 bet => Relation alp bet
+    }
+}
