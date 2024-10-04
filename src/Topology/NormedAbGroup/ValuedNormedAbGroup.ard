@@ -1,0 +1,78 @@
+\import Algebra.Group
+\import Algebra.Ordered
+\import Function.Meta
+\import Logic
+\import Meta
+\import Order.Biordered
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.MetricSpace.ValuedMetricSpace
+\import Topology.TopAbGroup
+\import Topology.UniformSpace
+\import Topology.UniformSpace.Product
+
+\class ValuedPseudoNormedAbGroup \extends ValuedPseudoMetricSpace, TopAbGroup {
+  | norm : E -> V
+  | norm_zro : norm zro = 0
+  | norm_negative {x : E} : norm (negative x) = norm x
+  | norm_+ {x y : E} : norm (x + y) <= norm x V.+ norm y
+  | norm-dist {x y : E} : dist x y = norm (x - y)
+
+  | +-cont => \new UniformMap (ProductUniformSpace \this \this) \this {
+    | func s => s.1 + s.2
+    | func-uniform Eu => \case dist-uniform.1 Eu \with {
+      | inP (eps,eps>0,h) => \case V.shrink2 eps>0 \with {
+        | inP (delta,delta>0,delta<eps,delta+delta<eps) => inP (_, makeUniform delta>0, _, makeUniform delta>0, \lam (inP (_, inP (x,idp), _, inP (y,idp), p)) => \case h (x + y) \with {
+          | inP (V,EV,g) => inP (_, inP (V, EV, idp), rewrite p \lam {(x',y')} (xx'<eps/2,yy'<eps/2) =>
+              \have lem : x - x' + (y - y') = x + y - (x' + y') => +-assoc *> pmap (x +) (+-comm *> +-assoc *> pmap (y +) (inv negative_+)) *> inv +-assoc
+              \in g $ rewrite (norm-dist, inv lem) $ norm_+ <∘r <=_+ (<=-less $ rewrite norm-dist in xx'<eps/2) (<=-less $ rewrite norm-dist in yy'<eps/2) <∘r delta+delta<eps
+          )
+        })
+      }
+    }
+  }
+  | negative-cont => \new UniformMap {
+    | func-uniform Eu => \case dist-uniform.1 Eu \with {
+      | inP (eps,eps>0,h) => dist-uniform.2 $ inP (eps, eps>0, \lam x => \case h (negative x) \with {
+        | inP (U,EU,g) => inP (_, inP $ later (U,EU,idp), \lam {y} d => g {negative y} $ transportInv (`< _) (norm-dist *> simplify (pmap norm +-comm) *> norm_negative *> inv norm-dist) d)
+      })
+    }
+  }
+  | neighborhood-uniform =>
+    \have lem {x} {y} : dist 0 (x - y) = dist x y => norm-dist *> inv norm_negative *> pmap norm simplify *> inv norm-dist
+    \in (\lam Cu => \case dist-uniform.1 Cu \with {
+      | inP (eps,eps>0,h) => inP (VOBall eps 0, OBall-open, OBall-center eps>0, \lam x => \case h x \with {
+        | inP (U,CU,g) => inP (U, CU, \lam d => g $ unfold VOBall at d $ transport (`< _) lem d)
+      })
+    }, \lam (inP (U,Uo,U0,h)) => \case dist_open.1 Uo U0 \with {
+      | inP (eps,eps>0,p) => dist-uniform.2 $ inP (eps, eps>0, \lam x => \case h x \with {
+        | inP (U,CU,g) => inP (U, CU, \lam d => g $ p $ transportInv (`< _) lem d)
+      })
+    })
+  | open-top => defaultImpl PrecoverSpace open-top
+  | open-inter {U} {V} => defaultImpl PrecoverSpace open-inter {_} {U} {V}
+  | open-Union {S} => defaultImpl PrecoverSpace open-Union {_} {S}
+  | dist-refl => norm-dist *> pmap norm negative-right *> norm_zro
+  | dist-symm => norm-dist *> simplify *> norm_negative *> inv norm-dist
+  | dist-triang => repeat {3} (rewrite norm-dist) $ transport (norm __ <= _) simplify norm_+
+
+  \default dist x y : V => norm (x - y)
+  \default norm-dist \as norm-dist-impl {x} {y} : dist x y = norm (x - y) => idp
+}
+
+\lemma norm_dist {X : ValuedPseudoNormedAbGroup} {x : X} : norm x = dist 0 x
+  => inv norm_negative *> simplify *> inv norm-dist
+
+\lemma norm_- {X : ValuedPseudoNormedAbGroup} {x y : X} : norm (x - y) = norm (y - x)
+  => pmap norm (inv X.negative-isInv) *> norm_negative *> simplify
+
+\class LinearlyValuedPseudoNormedAbGroup \extends ValuedPseudoNormedAbGroup, LinearlyValuedPseudoMetricSpace
+
+\lemma norm>=0 {X : LinearlyValuedPseudoNormedAbGroup} {x : X} : 0 <= norm x
+  => rewrite norm_dist dist>=0
+
+\class LinearlyValuedNormedAbGroup \extends LinearlyValuedPseudoNormedAbGroup, LinearlyValuedMetricSpace
