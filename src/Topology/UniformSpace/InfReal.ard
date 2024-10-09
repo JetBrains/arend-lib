@@ -1,0 +1,81 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
+\import Arith.Rat
+\import Arith.Real
+\import Arith.Real.Field
+\import Arith.Real.InfReal
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Biordered
+\import Order.Lattice
+\import Order.PartialOrder
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set.Subset
+\import Topology.UniformSpace
+
+\instance InfRealUniformSpace : StronglyRegularUniformSpace InfReal
+  | isUniform (C : Set (Set InfReal)) : \Prop => ∃ (eps B : Real) (0 < eps) (V : C) ((B InfRealAbMonoid.<) ⊆ V) ∀ x ∃ (U : C) ∀ {y : Real} (RealAbGroup.abs (x - y) < eps -> U y)
+  | uniform-cover (inP (eps,B,eps>0,V,CV,BV,h)) x => \case LU-focus-bound-real B eps>0 \with {
+    | byLeft B<x => inP (V, CV, BV B<x)
+    | byRight (a,a<x,x<a+eps) => \case h (a + half eps) \with {
+      | inP (U,CU,g) => inP (U, CU,
+          \let y => infRealToReal x x<a+eps
+          \in g {y} $ RealAbGroup.abs_-_< (linarith (real_<-rat-char.2 (later a<x) : a < y)) (linarith (real_<-rat-char.2 (later x<a+eps) : y < a + eps)))
+    }
+  }
+  | uniform-top => inP (1, 1, zro<ide, Bounded.top, idp, Bounded.top-univ, \lam x => inP (Bounded.top, idp, \lam _ => ()))
+  | uniform-refine (inP (eps,B,eps>0,V,CV,BV,h)) C<D => \case C<D CV \with {
+    | inP (W,DW,V<=W) => inP (eps, B, eps>0, W, DW, BV <=∘ V<=W, \lam x => \case h x \with {
+      | inP (U,CU,g) => \case C<D CU \with {
+        | inP (V,DV,U<=V) => inP (V, DV, \lam d => U<=V (g d))
+      }
+    })
+  }
+  | uniform-inter (inP (eps1,B1,eps1>0,V1,CV1,BV1,h1)) (inP (eps2,B2,eps2>0,V2,DV2,BV2,h2)) =>
+    inP (eps1 ∧ eps2, B1 ∨ B2, <_meet-univ eps1>0 eps2>0, V1 ∧ V2, inP (V1, CV1, V2, DV2, idp),
+         meet-univ ((\lam s => (\lam p => RealAbGroup.join-left $ real_<-rat-char.2 p) InfRealAbMonoid.<∘r s) <=∘ BV1)
+                   ((\lam s => (\lam p => RealAbGroup.join-right $ real_<-rat-char.2 p) InfRealAbMonoid.<∘r s) <=∘ BV2),
+         \lam x => \case h1 x, h2 x \with {
+           | inP (U1,CU1,g1), inP (U2,DU2,g2) => inP (U1 ∧ U2, inP (U1,CU1,U2,DU2,idp), \lam d => (g1 $ d <∘l meet-left, g2 $ d <∘l meet-right))
+         })
+  | uniform-strongly-star (inP (eps,B,eps>0,V0,CV0,BV0,h)) => inP (_, makeUniform (B + eps * 2) {eps * ratio 1 4} linarith, \lam {V} => \case \elim V, \elim __ \with {
+    | _, byLeft idp => inP (V0, CV0, \lam {W} => \case \elim W, \elim __ \with {
+      | _, byLeft idp => byRight $ (\lam B+2eps<x => transport2 (<=) InfRealAbMonoid.zro-right (inv RealAbGroup.+-inf) (<=_+ <=-refl $ <=-less $ InfRealAbMonoid.<_L.2 $ real_<_L.1 linarith) InfRealAbMonoid.<∘r B+2eps<x) <=∘ BV0
+      | _, byRight (x,idp) => \case real-located {x} {B + eps * ratio 1 2} {B + eps} linarith \with {
+        | byLeft x>B+eps/2 => byRight $ (\lam {z1} (inP (z,z=z1,d)) => rewriteI z=z1 $ later $ real_<_InfReal.1 $ linarith (RealAbGroup.abs>=id <∘r d)) <=∘ BV0
+        | byRight x<B+eps => byLeft \lam (y, (B+2eps<y, inP (z,z=y,d))) => linarith (real_<_InfReal.2 $ rewriteI z=y in B+2eps<y, RealAbGroup.abs>=_- <∘r d)
+      }
+    })
+    | _, byRight (x,idp) => \case real-located {B} {x - eps * ratio 3 2} {x - eps} linarith \with {
+      | byLeft B>x-3/2eps => \case h x \with {
+        | inP (U,CU,g) => inP (U, CU, \lam {W} => \case \elim W, \elim __ \with {
+          | _, byLeft idp => byLeft \lam (_,(inP (z,idp,d),B+2eps<z)) => linarith (RealAbGroup.abs>=_- <∘r d, real_<_InfReal.2 B+2eps<z)
+          | _, byRight (y,idp) => \case real-located {RealAbGroup.abs (x - y)} {eps * ratio 1 2} {eps * ratio 3 4} linarith \with {
+            | byLeft |x-y|>eps/2 => byLeft \lam (z, (inP (z1,z1=z,d1), inP (z2,z2=z,d2))) => <-irreflexive $ |x-y|>eps/2 <∘ <_join-univ
+                (linarith (RealAbGroup.abs>=id <∘r d1, RealAbGroup.abs>=_- <∘r d2, Real.real-lower-ext $ z1=z *> inv z2=z))
+                (linarith (RealAbGroup.abs>=_- <∘r d1, RealAbGroup.abs>=id <∘r d2, Real.real-lower-ext $ z1=z *> inv z2=z))
+            | byRight |x-y|<3/4eps => byRight \lam {z1} (inP (z,z=z1,d)) => rewriteI z=z1 $ g $ <_join-univ
+                (linarith (RealAbGroup.abs>=id <∘r |x-y|<3/4eps, RealAbGroup.abs>=id <∘r d))
+                (linarith (RealAbGroup.abs>=_- <∘r |x-y|<3/4eps, RealAbGroup.abs>=_- <∘r d))
+          }
+        })
+      }
+      | byRight B<x-eps => inP (V0, CV0, \lam {W} => \case \elim W, \elim __ \with {
+        | _, byLeft idp => byRight $ (\lam B+2eps<x => transport2 (<=) InfRealAbMonoid.zro-right (inv RealAbGroup.+-inf) (<=_+ <=-refl $ <=-less $ InfRealAbMonoid.<_L.2 $ real_<_L.1 linarith) InfRealAbMonoid.<∘r B+2eps<x) <=∘ BV0
+        | _, byRight (y,idp) => \case real-located {y} {x - eps * ratio 3 4} {x - eps * ratio 1 2} linarith \with {
+          | byLeft y>x-eps3/4 => byRight $ (\lam {z1} (inP (z,z=z1,d)) => rewriteI z=z1 $ later $ real_<_InfReal.1 $ linarith (RealAbGroup.abs>=id <∘r d)) <=∘ BV0
+          | byRight y<x-eps/2 => byLeft \lam (z, (inP (z1,z1=z,d1), inP (z2,z2=z,d2))) => linarith (RealAbGroup.abs>=id <∘r d1, RealAbGroup.abs>=_- <∘r d2, Real.real-lower-ext $ z1=z *> inv z2=z)
+        }
+      })
+    }
+  })
+  \where {
+    \func makeUniform (B : Real) {eps : Real} (eps>0 : 0 < eps) : isUniform \lam U => ((B InfRealAbMonoid.<) = U) || Given (x : Real) (U = \lam y => ∃ (z : Real) (z = y) (RealAbGroup.abs (x - z) < eps))
+      => inP (eps, B, eps>0, _, byLeft idp, <=-refl, \lam x => inP (_, byRight (x,idp), \lam {y} d => inP (y,idp,d)))
+  }

@@ -1,17 +1,32 @@
+\import Algebra.Monoid
 \import Algebra.Ordered
 \import Algebra.Ring.Boolean
+\import Algebra.Semiring
+\import Analysis.Series
 \import Arith.Real.InfReal
 \import Function.Meta
+\import Logic
+\import Meta
+\import Order.Lattice
+\import Order.PartialOrder
 \import Paths
 \import Topology.MetricSpace.ExtendedMetricSpace
 \import Topology.NormedAbGroup.ValuedNormedAbGroup
+\import Topology.UniformSpace.InfReal
+\open BooleanPseudoRing \hiding (<=)
 
-\class PseudoMeasureRing \extends BooleanPseudoRing, LinearlyValuedPseudoNormedAbGroup, ExtendedPseudoMetricSpace
+\class PseudoPremeasureRing \extends BooleanPseudoRing, LinearlyValuedPseudoNormedAbGroup, ExtendedPseudoMetricSpace
   | norm-positive {x : E} : 0 InfRealAbMonoid.<= norm x
-  | norm-measure {x y : E} : norm x InfRealAbMonoid.+ norm y = norm (x ∨ y) InfRealAbMonoid.+ norm (x ∧ y)
+  | norm-disjoint {x y : E} : x * y = 0 -> norm (x ∨ y) = norm x InfRealAbMonoid.+ norm y
   | norm-mono {x y : E} : x <= y -> norm x InfRealAbMonoid.<= norm y
-  | norm-mono p => transport2 (InfRealAbMonoid.<=) InfRealAbMonoid.zro-left (norm-measure *> pmap2 (norm __ InfRealAbMonoid.+ __) (pmap2 (+) (+-assoc *> pmap (_ +) (pmap (`+ _) (*-comm *> p) *> double=0) *> zro-right) diff_* *> zro-right) (pmap norm diff_* *> norm_zro) *> InfRealAbMonoid.zro-right) $ <=_+ norm-positive InfRealAbMonoid.<=-refl
+  | norm-mono p => transport2 (InfRealAbMonoid.<=) InfRealAbMonoid.zro-left (inv (norm-disjoint (rdistr *> pmap (_ +) (*-assoc *> pmap (_ *) isBooleanRing) *> double=0)) *> pmap norm (inv (split_<= p))) $ <=_+ norm-positive InfRealAbMonoid.<=-refl
   | norm_negative => pmap norm neative=id
-  | norm_+ => transport (InfRealAbMonoid.`<= _) (norm-measure *> pmap2 (norm __ InfRealAbMonoid.+ __) (inv +_diff) (pmap norm diff_*_diff *> norm_zro) *> InfRealAbMonoid.zro-right) $ <=_+ (norm-mono diff_<=) (norm-mono diff_<=)
+  | norm_+ {x} {y} => transportInv (InfRealAbMonoid.`<= _) (pmap norm +_diff *> norm-disjoint diff_*_diff) $ <=_+ (norm-mono diff_<=) (norm-mono diff_<=)
+
+\lemma norm-measure {X : PseudoPremeasureRing} {x y : X} : norm x + norm y = norm (x ∨ y) + norm (x ∧ y)
+  => pmap (_ +) (pmap norm (later $ split *> pmap (_ ∨) *-comm) *> norm-disjoint (inv *-assoc *> pmap (`* y) diff_* *> zro_*-left)) *> inv +-assoc *> inv (pmap (`+ _) $ pmap norm (<=-antisymmetric (join-univ join-left $ transportInv (`<= _) split $ join-univ join-right $ meet-right <=∘ join-left) $ join-univ join-left $ diff_<= <=∘ join-right) *> X.norm-disjoint (*-comm *> diff_*))
+
+\class PseudoMeasureRing \extends PseudoPremeasureRing
+  | norm-countable {x : Nat -> E} {a : E} {v : InfReal} : (\Pi (i j : Nat) -> i /= j -> x i * x j = 0) -> IsJoin x a -> IsSeriesSum (\lam n => norm (x n)) v -> norm a = v
 
 \class PseudoMeasureAlgebra \extends PseudoMeasureRing, BooleanRing

@@ -90,9 +90,9 @@
 \instance RealAbGroup : LinearlyOrderedAbGroup Real
   | zro => Real.fromRat 0
   | + => +
-  | zro-left => Real.real-lower-ext $ +_L.lower *> {LowerReal} zro-left
-  | +-comm => Real.real-lower-ext $ +_L.lower *> {LowerReal} +-comm *> {LowerReal} inv {LowerReal} +_L.lower
-  | +-assoc => Real.real-lower-ext $ +_L.lower *> {LowerReal} pmap {LowerReal} (LowerRealAbMonoid.`+ _) +_L.lower *> {LowerReal} LowerRealAbMonoid.+-assoc *> {LowerReal} pmap (_ LowerRealAbMonoid.+) (inv {LowerReal} +_L.lower) *> {LowerReal} inv {LowerReal} +_L.lower
+  | zro-left => Real.real-lower-ext $ +-lower *> {LowerReal} zro-left
+  | +-comm => Real.real-lower-ext $ +-lower *> {LowerReal} +-comm *> {LowerReal} inv {LowerReal} +-lower
+  | +-assoc => Real.real-lower-ext $ +-lower *> {LowerReal} pmap {LowerReal} (LowerRealAbMonoid.`+ _) +-lower *> {LowerReal} LowerRealAbMonoid.+-assoc *> {LowerReal} pmap (_ LowerRealAbMonoid.+) (inv {LowerReal} +-lower) *> {LowerReal} inv {LowerReal} +-lower
   | negative => negative
   | negative-left {x : Real} => exts (
       \lam a => ext (\lam r => \case +_L.1 r \with {
@@ -166,9 +166,6 @@
 
     \lemma +_L {x y : Real} {a : Rat} : Real.L {x + y} a <-> ∃ (b : x.L) (c : y.L) (a < b RatField.+ c)
       => rewrite (\peval x + y, \peval x InfRealAbMonoid.+ y, \peval x LowerRealAbMonoid.+ y) <->refl
-      \where
-        \lemma lower {x y : Real} : x + y = {LowerReal} x LowerRealAbMonoid.+ y
-          => exts \lam a => <->_=.1 +_L *> inv (<->_=.1 LowerRealAbMonoid.+_L)
 
     \lemma +_U {x y : Real} {a : Rat} : Real.U {x + y} a <-> ∃ (b : x.U) (c : y.U) (b RatField.+ c < a)
       => rewrite (\peval x + y, \peval x InfRealAbMonoid.+ y, \peval x ExtendedUpperRealAbMonoid.+ y) <->refl
@@ -176,8 +173,14 @@
         \lemma upper {x y : Real} : x + y = {ExtendedUpperReal} x ExtendedUpperRealAbMonoid.+ y
           => exts \lam a => <->_=.1 +_U *> inv (<->_=.1 ExtendedUpperRealAbMonoid.+_U)
 
+    \lemma +-lower {x y : Real} : x + y = {LowerReal} x LowerRealAbMonoid.+ y
+      => exts \lam a => <->_=.1 +_L *> inv (<->_=.1 LowerRealAbMonoid.+_L)
+
     \lemma +-rat {x y : Rat} : x + y = {Real} x RatField.+ y
-      => Real.real-lower-ext $ +_L.lower *> {LowerReal} LowerRealAbMonoid.+-rat
+      => Real.real-lower-ext $ +-lower *> {LowerReal} LowerRealAbMonoid.+-rat
+
+    \lemma +-inf {x y : Real} : x + y = x InfRealAbMonoid.+ y
+      => InfReal.real-lower-ext $ +-lower *> {LowerReal} inv {LowerReal} InfRealAbMonoid.+-lower
 
     \sfunc negative (x : Real) : Real \cowith
       | L a => x.U (RatField.negative a)
@@ -383,6 +386,9 @@
 \lemma real_<_U {a : Rat} {x : Real} : x < a <-> x.U a
   => <->trans real_<-rat-char (\lam (inP (b,x<b,b<a)) => x.U-closed x<b b<a, x.U-rounded)
 
+\lemma real_<_InfReal {x y : Real} : x < y <-> x InfRealAbMonoid.< y
+  => (\lam p => real_<-rat-char.1 p, \lam p => real_<-rat-char.2 p)
+
 \lemma rat_real_< {a b : Rat} : a < b <-> Real.fromRat a < Real.fromRat b
   => <->sym real_<_L
 
@@ -457,4 +463,18 @@
   => \case TotalOrder.join-isMax a b \with {
     | byLeft p => rewrite p a<x
     | byRight p => rewrite p b<x
+  }
+
+\lemma LU-focus-bound-real {x : InfReal} (B : Real) {eps : Real} (eps>0 : eps > 0) : B InfRealAbMonoid.< x || Given (a : Real) (a InfRealAbMonoid.< x) (x < a + eps)
+  => \case B.U-inh, real_<-rat-char.1 eps>0 \with {
+    | inP (Bq,B<Bq), inP (delta,delta>0,delta<eps) => \case x.LU-focus-bound Bq delta>0 \with {
+      | byLeft Bq<x => byLeft $ InfRealAbMonoid.<_U.2 B<Bq InfRealAbMonoid.<∘ InfRealAbMonoid.<_L.2 Bq<x
+      | byRight (a,a<x,x<a+delta) => byRight (a, InfRealAbMonoid.<_L.2 a<x, InfRealAbMonoid.<_U.2 x<a+delta <∘l transport2 (<=) InfRealAbMonoid.+-rat (inv RealAbGroup.+-inf) (<=_+ <=-refl $ <=-less $ later $ InfRealAbMonoid.<_L.2 delta<eps))
+    }
+  }
+
+\func infRealToReal (x : InfReal) {B : Real} (x<B : x < B) : Real \cowith
+  | InfReal => x
+  | U-inh => \case x<B, B.U-inh \with {
+    | inP (a,x<a,a<B), inP (q,B<q) => inP (q, U-closed x<a $ B.LU-less a<B B<q)
   }
