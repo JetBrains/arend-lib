@@ -1,32 +1,63 @@
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Ordered
 \import Algebra.Ring.Boolean
 \import Algebra.Semiring
 \import Analysis.Series
+\import Arith.Real
 \import Arith.Real.InfReal
 \import Function.Meta
 \import Logic
+\import Logic.Meta
 \import Meta
 \import Order.Lattice
 \import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Topology.MetricSpace.ExtendedMetricSpace
 \import Topology.NormedAbGroup.ValuedNormedAbGroup
 \import Topology.UniformSpace.InfReal
 \open BooleanPseudoRing \hiding (<=)
 
-\class PseudoPremeasureRing \extends BooleanPseudoRing, LinearlyValuedPseudoNormedAbGroup, ExtendedPseudoMetricSpace
+\class PseudoPremeasureRing \extends BooleanPseudoRing, LinearlyValuedPseudoNormedAbGroup, ExtendedPseudoMetricSpace {
   | norm-positive {x : E} : 0 InfRealAbMonoid.<= norm x
   | norm-disjoint {x y : E} : x * y = 0 -> norm (x ∨ y) = norm x InfRealAbMonoid.+ norm y
   | norm-mono {x y : E} : x <= y -> norm x InfRealAbMonoid.<= norm y
   | norm-mono p => transport2 (InfRealAbMonoid.<=) InfRealAbMonoid.zro-left (inv (norm-disjoint (rdistr *> pmap (_ +) (*-assoc *> pmap (_ *) isBooleanRing) *> double=0)) *> pmap norm (inv (split_<= p))) $ <=_+ norm-positive InfRealAbMonoid.<=-refl
   | norm_negative => pmap norm neative=id
-  | norm_+ {x} {y} => transportInv (InfRealAbMonoid.`<= _) (pmap norm +_diff *> norm-disjoint diff_*_diff) $ <=_+ (norm-mono diff_<=) (norm-mono diff_<=)
+  | norm_+ => transportInv (InfRealAbMonoid.`<= _) (pmap norm +_diff *> norm-disjoint diff_*_diff) $ <=_+ (norm-mono diff_<=) (norm-mono diff_<=)
+
+  \func IsFinite : \Prop
+    => \Pi (x : E) -> ∃ (B : Real) (norm x < B)
+
+  \func IsSigmaFinite : \Prop
+    => \Pi (x : E) -> ∃ (a : Nat -> E) (IsJoin a x) ∀ n ∃ (B : Real) (norm (a n) < B)
+}
 
 \lemma norm-measure {X : PseudoPremeasureRing} {x y : X} : norm x + norm y = norm (x ∨ y) + norm (x ∧ y)
   => pmap (_ +) (pmap norm (later $ split *> pmap (_ ∨) *-comm) *> norm-disjoint (inv *-assoc *> pmap (`* y) diff_* *> zro_*-left)) *> inv +-assoc *> inv (pmap (`+ _) $ pmap norm (<=-antisymmetric (join-univ join-left $ transportInv (`<= _) split $ join-univ join-right $ meet-right <=∘ join-left) $ join-univ join-left $ diff_<= <=∘ join-right) *> X.norm-disjoint (*-comm *> diff_*))
 
 \class PseudoMeasureRing \extends PseudoPremeasureRing
   | norm-countable {x : Nat -> E} {a : E} {v : InfReal} : (\Pi (i j : Nat) -> i /= j -> x i * x j = 0) -> IsJoin x a -> IsSeriesSum (\lam n => norm (x n)) v -> norm a = v
+  | norm-disjoint {x} {y} xy=0 =>
+    norm-countable {_} {\case __ \with { | 0 => x | 1 => y | suc (suc _) => 0 }} (\case \elim __, \elim __ \with {
+      | 0, 0 => \case __ idp
+      | 0, 1 => \lam _ => xy=0
+      | 1, 0 => \lam _ => *-comm *> xy=0
+      | 1, 1 => \case __ idp
+      | 0, suc (suc m) => \lam _ => zro_*-right
+      | 1, suc (suc m) => \lam _ => zro_*-right
+      | suc (suc n), 0 => \lam _ => zro_*-left
+      | suc (suc n), 1 => \lam _ => zro_*-left
+      | suc (suc n), suc (suc m) => \lam _ => zro_*-right
+    }) (\case \elim __ \with {
+      | 0 => join-left
+      | 1 => join-right
+      | suc (suc n) => bottom-univ
+    }, \lam f => join-univ (f 0) (f 1)) $ transport (IsSeriesSum _) (inv InfRealAbMonoid.+-assoc *> InfRealAbMonoid.zro-right) $ seriesSum-fin 2 \lam {j} => \case \elim j \with {
+      | 0 => \lam p => absurd linarith
+      | 1 => \lam p => absurd linarith
+      | suc (suc n) => \lam _ => norm_zro
+    }
 
 \class PseudoMeasureAlgebra \extends PseudoMeasureRing, BooleanRing
