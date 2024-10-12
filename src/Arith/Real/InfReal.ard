@@ -5,7 +5,6 @@
 \import Algebra.Ordered
 \import Arith.Int
 \import Arith.Rat
-\import Arith.Real
 \import Arith.Real.LowerReal
 \import Arith.Real.UpperReal
 \import Data.Or
@@ -181,13 +180,18 @@
     \lemma +_L {x y : InfReal} {a : Rat} : InfReal.L {x + y} a <-> ∃ (b : x.L) (c : y.L) (a RatField.< b RatField.+ c)
       => <->trans (<->_=.2 $ pmap {LowerReal} (\lam t => InfReal.L {t} a) +-lower) LowerRealAbMonoid.+_L
 
+    \lemma +_L_<= {x y : InfReal} {a b : Rat} (b<x : x.L b) {c : Rat} (c<y : y.L c) (a<=b+c : a RatField.<= b RatField.+ c) : InfReal.L {x + y} a
+      => \case L-rounded b<x \with {
+        | inP (b',x<b',b<b') => +_L.2 $ inP (b', x<b', c, c<y, a<=b+c <∘r <_+-left c b<b')
+      }
+
     \lemma +-upper {x y : InfReal} : x + y = {ExtendedUpperReal} x ExtendedUpperRealAbMonoid.+ y
       => \peval _ + _
 
     \lemma +_U {x y : InfReal} {a : Rat} : InfReal.U {x + y} a <-> ∃ (b : x.U) (c : y.U) (b RatField.+ c RatField.< a)
       => <->trans (<->_=.2 $ pmap {ExtendedUpperReal} (\lam t => InfReal.U {t} a) +-upper) ExtendedUpperRealAbMonoid.+_U
 
-    \lemma +_U_<= {x y : InfReal} {a b : Rat} (c : Rat) (x<b : x.U b) (y<c : y.U c) (b+c<=a : b RatField.+ c RatField.<= a) : InfReal.U {x + y} a
+    \lemma +_U_<= {x y : InfReal} {a b : Rat} (x<b : x.U b) {c : Rat} (y<c : y.U c) (b+c<=a : b RatField.+ c RatField.<= a) : InfReal.U {x + y} a
       => \case U-rounded x<b \with {
         | inP (b',x<b',b'<b) => +_U.2 $ inP (b', x<b', c, y<c, <_+-left c b'<b <∘l b+c<=a)
       }
@@ -266,14 +270,15 @@
       => (\lam (inP (b,x<b,b<a)) => U-closed x<b b<a, \lam x<a => \case U-rounded x<a \with {
         | inP (b,x<b,b<a) => inP (b,x<b,b<a)
       })
+
+    \lemma <_+ {a b c d : InfReal} (p : a < c) (q : b < d) : a + b < c + d \elim p, q
+      | inP (q,a<q,q<c), inP (r,b<r,r<d) => inP (q RatField.+ r, +_U_<= a<q b<r <=-refl, +_L_<= q<c r<d <=-refl)
   }
 
-\lemma inf-real-located {x : InfReal} {a b : Real} (p : a < b) : a InfRealAbMonoid.< x || x < b
-  => \case real_<-rat-char.1 p \with {
-    | inP (a',a<a',a'<b) => \case L-rounded a'<b \with {
-      | inP (b',b'<b,a'<b') => \case x.LU-located a'<b' \with {
-        | byLeft a'<x => byLeft $ inP (a', a<a', a'<x)
-        | byRight x<b' => byRight $ inP (b', x<b', b'<b)
-      }
-    }
-  }
+\lemma inf-real_<_LowerReal {x y : InfReal} : x < y <-> x LowerRealAbMonoid.< y
+  => (\lam (inP (a,x<a,a<y)) => inP (a, a<y, \lam {b} b<x => x.LU-less b<x x<a), \lam (inP (b,b<y,x<=b)) => \case L-rounded b<y \with {
+    | inP (a,a<y,b<a) => inP (a, \case x.LU-located b<a \with {
+      | byLeft b<x => absurd $ <-irreflexive (x<=b b<x)
+      | byRight x<a => x<a
+    }, a<y)
+  })

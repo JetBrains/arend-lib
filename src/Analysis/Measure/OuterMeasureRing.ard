@@ -1,14 +1,75 @@
+\import Algebra.Group
+\import Algebra.Group.Category
+\import Algebra.Meta
+\import Algebra.Monoid
+\import Algebra.Ordered
 \import Algebra.Ring.Boolean
+\import Algebra.Semiring
+\import Analysis.Measure.MeasureRing
+\import Arith.Rat
+\import Arith.Real
+\import Arith.Real.Field
+\import Arith.Real.InfReal
 \import Arith.Real.LowerReal
 \import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.Biordered
+\import Order.PartialOrder
+\import Order.StrictOrder
 \import Paths
 \import Paths.Meta
+\import Set.Filter
+\import Topology.CoverSpace.Complete
 \import Topology.MetricSpace.ExtendedMetricSpace
+\import Topology.MetricSpace.ValuedMetricSpace
 \import Topology.NormedAbGroup.ValuedNormedAbGroup
+\import Topology.TopSpace
+\import Topology.UniformSpace.InfReal
 
-\class PseudoOuterMeasureRing \extends BooleanPseudoRing, ValuedPseudoNormedAbGroup
+\class PseudoOuterPremeasureRing \extends BooleanPseudoRing, ValuedPseudoNormedAbGroup
   | V => ExtendedPseudoMetricSpace.LowerRealMetricValueOrder
   | norm-outer-measure {x y : E} : norm (x ∨ y) LowerRealAbMonoid.<= norm x LowerRealAbMonoid.+ norm y
   | norm-outer-mono {x y : E} : x <= y -> norm x LowerRealAbMonoid.<= norm y
   | norm_negative => pmap norm neative=id
   | norm_+ => rewrite +_diff $ norm-outer-measure LowerRealAbMonoid.<=∘ LowerRealAbMonoid.<=_+ (norm-outer-mono diff_<=) (norm-outer-mono diff_<=)
+
+\class ExtendedMeasure \noclassifying (R : PseudoOuterPremeasureRing) (M : PseudoPremeasureRing) (inc : AddGroupHom M R) (comp : \Pi (a : M) -> norm a LowerRealAbMonoid.<= norm (inc a)) {
+  \func IsMeasurable (a : R) : \Prop
+    => ∃ (F : ProperFilter M) (R.IsFilterLimit (SetFilter-map inc F) a) (IsCauchyFilter (SetFilter-map norm F))
+
+  \lemma measure-pair {a : R} (m : IsMeasurable a) : Given (v : InfReal) ∃ (F : ProperFilter M) (R.IsFilterLimit (SetFilter-map inc F) a) (TopSpace.IsFilterLimit (SetFilter-map norm F) v)
+    \level \lam (u, inP s1) (v, inP s2) =>
+      \have aux {u v : InfReal} {F1 : ProperFilter M} (F1a : R.IsFilterLimit (SetFilter-map inc F1) a) (F1u : TopSpace.IsFilterLimit (SetFilter-map norm F1) u)
+                                {F2 : ProperFilter M} (F2a : R.IsFilterLimit (SetFilter-map inc F2) a) (F2v : TopSpace.IsFilterLimit (SetFilter-map norm F2) v)
+                                (v<u : v < u) : Empty
+        => hiding (s1,s2) \case \elim v<u \with {
+          | inP (q,v<q,q<u) => \case L-rounded q<u \with {
+            | inP (r,r<u,q<r) =>
+              \let | eps => r - {RealAbGroup} q
+                   | eps>0 : 0 < eps => linarith (rat_real_<.1 q<r)
+                   | v' => infRealToReal v {q} (InfRealAbMonoid.<_U.2 v<q)
+              \in \case F1a OBall-open $ OBall-center $ (RealAbGroup.lower_<-char {0} {eps * ratio 1 4}).2 linarith,
+                        F2a OBall-open $ OBall-center $ (RealAbGroup.lower_<-char {0} {eps * ratio 1 4}).2 linarith,
+                        F1u (infReal-half-open r) (InfRealAbMonoid.<_L.2 r<u),
+                        F2v (infReal-ball-open (half eps) v') (inP (v', idp, rewrite (negative-right,RealAbGroup.abs_zro) $ half>0 eps>0))
+              \with {
+                | inP (V1,F1V1,d1), inP (V2,F2V2,d2), inP (W1,F1W1,e1), inP (W2,F2W2,e2) => hiding (F1a,F2a,F1u,F2v) $
+                  F1.isWeaklyProper $ filter-mono (filter-meet F1V1 F1W1) \lam {x1} (V1x1,W1x1) => absurd $
+                  F2.isWeaklyProper $ filter-mono (filter-meet F2V2 F2W2) \lam {x2} (V2x2,W2x2) => absurd
+                    \have | |x1-x2|<eps/2 => comp (x1 - x2) LowerRealAbMonoid.<∘r transport2 (<) (R.norm-dist *> inv (pmap norm inc.func-minus)) (inv {LowerReal} $ (pmap (eps *) (inv RealAbGroup.+-rat) *> ldistr) *> {LowerReal} RealAbGroup.+-lower) (R.dist-triang <∘r LowerRealAbMonoid.<_+ (transport (LowerRealAbMonoid.`< _) dist-symm $ d1 V1x1) (d2 V2x2))
+                          | r<|x1| => e1 W1x1
+                          | (inP (|x2|,p2,e2')) => e2 W2x2
+                          | |x2|<eps/2+v' : |x2| < half eps + v' => linarith (RealAbGroup.abs>=id <∘r e2')
+                    \in linarith $ usingOnly (real_<_InfReal.2 $ r<|x1| InfRealAbMonoid.<∘ transportInv (_ <) RealAbGroup.+-inf (simplify in M.norm_+ <∘r InfRealAbMonoid.<_+ (inf-real_<_LowerReal.2 |x1-x2|<eps/2) (rewrite p2 in real_<_InfReal.1 |x2|<eps/2+v')), real_<_U.2 (later v<q) : v' < q)
+              }
+          }
+        }
+      \in ext $ <=-antisymmetric (aux s1.2 s1.3 s2.2 s2.3) (aux s2.2 s2.3 s1.2 s1.3)
+    \elim m
+    | inP (F,al,Fc) => \let CF => \new CauchyFilter InfRealUniformSpace {
+      | ProperFilter => ProperFilter-map norm F
+      | isCauchyFilter => Fc
+    } \in (CompleteCoverSpace.filter-point CF, inP (F, al, CompleteCoverSpace.filter-point-limit))
+}
