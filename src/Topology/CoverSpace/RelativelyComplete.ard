@@ -1,0 +1,125 @@
+\import Category.Factorization
+\import Equiv
+\import Function.Meta
+\import HLevel
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+\import Set.Filter
+\import Set.Subset
+\import Topology.CoverSpace
+\import Topology.CoverSpace.Category
+\import Topology.CoverSpace.Complete
+\import Topology.CoverSpace.Product
+\import Topology.RatherBelow
+\import Topology.TopSpace
+
+\func IsRelativelyComplete {X Y : CoverSpace} (p : X -> Y) : \Prop
+  => \Pi (F : CauchyFilter X) {y : Y} -> pointCF y ⊆ SetFilter-map p F -> ∃ (x : X) (p x = y) (pointCF x ⊆ F)
+  \where {
+    \lemma dense-complete {X Y Z : CoverSpace} {f : CoverMap X Y} (fd : f.IsDenseEmbedding) (p : CauchyMap Y Z)
+                          (q : \Pi (F : RegularCauchyFilter X) {z : Z} -> pointCF z ⊆ p.func-cauchy (f.func-cauchy F) -> ∃ (y : Y) (p y = z) (pointCF y ⊆ f.func-cauchy F)) : IsRelativelyComplete p
+      => \lam F {z} z<=F => \case q (regCF $ dense-filter-lift f fd F) {z} $ RegularCauchyFilter.Reg_CF~_<= {_} {pointCF z} {p.func-cauchy $ f.func-cauchy $ regCF _} $ ~-transitive {_} {pointCF z} (CF~_<= {_} {_} {p.func-cauchy F} z<=F) $ p.func-CF~ $ CF~-sym $ ~-transitive (f.func-CF~ $ CF~_<= {_} {_} {dense-filter-lift f fd F} regCF_<=) (dense-filter-lift.map-equiv fd) \with {
+        | inP (y,py=z,c) => inP (y, py=z, RegularCauchyFilter.Reg_CF~_<= {_} {pointCF y} $ ~-transitive {_} {pointCF y} (CF~_<= {_} {pointCF y} $ c <=∘ func-cauchy_<= (regCF $ dense-filter-lift f fd F) (dense-filter-lift f fd F) \lam u => u <=-refl) $ dense-filter-lift.map-equiv fd)
+      }
+  }
+
+\lemma relativelyCompleteAndSeparated {X Y : CoverSpace} (p : X -> Y) (pc : IsRelativelyComplete p) (ph : IsRelativelyHausdorff p)
+                                      (F : CauchyFilter X) {y : Y} (ys : pointCF y ⊆ SetFilter-map p F) : Contr (\Sigma (x : X) (p x = y) (pointCF x ⊆ F))
+  => isProp'=>isContr (\lam s t => ext $ ph (SeparatedCoverSpace.separated-char 1 6 $ ~-transitive {CauchyFilterEquivalence X} (CF~_<= s.3) $ CF~-sym (CF~_<= t.3)) (s.2 *> inv t.2)) (pc F ys)
+  \where {
+    \lemma neighborhood (F : CauchyFilter X) {ys : pointCF y ⊆ SetFilter-map p F} {V U : Set X} (V<=<U : V <=< U) (FV : F V) : single (Contr.center {relativelyCompleteAndSeparated p pc ph F ys}).1 <=< U
+      => \let | c => Contr.center {relativelyCompleteAndSeparated p pc ph F ys}
+              | G => pointCF c.1
+         \in CF~_<=< (CF~-sym $ CF~_<= {_} {G} $ c.3) V<=<U FV
+
+    \lemma filter-lift {X Y Z : CoverSpace} {i : CoverMap X Y} {f : CauchyMap X Z} (id : i.IsDenseEmbedding) {y : Y}
+      => f.func-cauchy $ dense-filter-lift i id (pointCF y)
+
+    \func lift-contr {X Y Z T : CoverSpace} {p : Z -> T} (pc : IsRelativelyComplete p) (ph : IsRelativelyHausdorff p) {i : CoverMap X Y} {f : CauchyMap X Z} {g : ContMap Y T} (id : i.IsDenseEmbedding) (sq : \Pi (x : X) -> g (i x) = p (f x)) (y : Y) : \Sigma (z : Z) (p z = g y) (pointCF z ⊆ filter-lift id)
+      => Contr.center {relativelyCompleteAndSeparated p pc ph (filter-lift id) {g y} \lam {V} gy<=<V => \case <=<-inter (<=<-cont gy<=<V) \with {
+        | inP (V',y<=<V',V'<=<V) => inP (V', g ^-1 V, transport V (sq _) __, V'<=<V, y<=<V')
+      }}
+  }
+
+\open relativelyCompleteAndSeparated
+
+\func dense-cauchy-relative-lift {X Y Z T : CoverSpace} (p : Z -> T) (pc : IsRelativelyComplete p) (ph : IsRelativelyHausdorff p) (i : CoverMap X Y) (f : CauchyMap X Z) (g : ContMap Y T) (id : i.IsDenseEmbedding) (sq : \Pi (x : X) -> g (i x) = p (f x)) : CauchyMap Y Z \cowith
+  | func y => (lift-contr pc ph id sq y).1
+  | func-cauchy F => \new CauchyFilter {
+    | isCauchyFilter Cc => \case isCauchyFilter {f.func-cauchy (dense-filter-lift i id F)} (isRegular Cc) \with {
+      | inP (U', inP (U,CU,U'<=<U), inP (V',V,q,V'<=<V,FV')) => inP (U, CU, filter-mono FV' \lam {y} V'y =>
+          <=<_<= (neighborhood (filter-lift id) U'<=<U \case <=<-inter $ <=<-right (single_<= V'y) V'<=<V \with {
+            | inP (V'',y<=<V'',V''<=<V) => inP $ later (V'', V, q, V''<=<V, y<=<V'')
+          }) idp)
+    }
+  }
+
+\func dense-relative-lift {X Y Z T : CoverSpace} (p : Z -> T) (pc : IsRelativelyComplete p) (ph : IsRelativelyHausdorff p) (i : CoverMap X Y) (f : CoverMap X Z) (g : ContMap Y T) (id : i.IsDenseEmbedding) (sq : \Pi (x : X) -> g (i x) = p (f x)) : CoverMap Y Z \cowith
+  | func y => (lift-contr pc ph id sq y).1
+  | func-cover Dc => cauchy-refine (isRegular $ id.2 $ f.func-cover $ isRegular Dc) \lam {V'} (inP (V, inP (U, inP (W', inP (W, DW, W'<=<W), p), q), V'<=<V)) =>
+      inP (_, inP (W, DW, idp), \lam {y} V'y => <=<_<= (neighborhood (filter-lift id) W'<=<W \case <=<-inter (<=<-right (single_<= V'y) V'<=<V) \with {
+        | inP (V'',y<=<V'',V''<=<V) => inP $ later (V'', V, rewrite p in q, V''<=<V, y<=<V'')
+      }) idp)
+
+\lemma dense-relative-lift-proj {X Y Z T : CoverSpace} {p : Z -> T} {pc : IsRelativelyComplete p} (ph : IsRelativelyHausdorff p) {i : CoverMap X Y} {f : CauchyMap X Z} {g : ContMap Y T} {id : i.IsDenseEmbedding} (sq : \Pi (x : X) -> g (i x) = p (f x)) {y : Y} : p (lift-contr pc ph id sq y).1 = g y
+  => (lift-contr pc ph id sq y).2
+
+\lemma dense-relative-lift-char {X Y Z T : CoverSpace} {p : Z -> T} {pc : IsRelativelyComplete p} {ph : IsRelativelyHausdorff p} {f : CauchyMap X Z} {i : CoverMap X Y} {g : ContMap Y T} {id : i.IsDenseEmbedding} (sq : \Pi (x : X) -> g (i x) = p (f x)) {x : X} : dense-cauchy-relative-lift p pc ph i f g id sq (i x) = f x
+  => ph (SeparatedCoverSpace.separated-char 4 6 \lam d => \case (lift-contr pc ph id sq (i x)).3 d \with {
+    | inP (V',V,q,V'<=<V,ix<=<V') => q $ <=<_<= V'<=<V $ <=<_<= ix<=<V' idp
+  }) $ dense-relative-lift-proj ph sq *> sq x
+
+\type RelativeCompletion {X Y : CoverSpace} (f : X -> Y)
+  => \Sigma (F : RegularCauchyFilter X) (y : Y) (\property pointCF y ⊆ SetFilter-map f F)
+  \where {
+    \protected \func inc (s : RelativeCompletion f) : \Sigma (RegularCauchyFilter X) Y
+      => (s.1,s.2)
+  }
+
+\instance RelativeCompletionCoverSpace {X Y : CoverSpace} (f : X -> Y) : CoverSpace (RelativeCompletion f)
+  => CoverTransfer RelativeCompletion.inc
+
+\func relativeCompletion {X Y : CoverSpace} (f : CoverMap X Y) : CoverMap X (RelativeCompletionCoverSpace f)
+  => CoverTransfer-univ (\lam x => later (pointCF x, f x, <=<-cont __)) RelativeCompletion.inc (ProductCoverSpace.tuple completion f)
+  \where {
+    \protected \func toCompletion {X Y : CoverSpace} {f : ContMap X Y} : CoverMap (RelativeCompletionCoverSpace f) (Completion X)
+      => ProductCoverSpace.proj1 CoverMap.∘ CoverTransfer-map RelativeCompletion.inc
+
+    \lemma isDenseEmbedding : CoverMap.IsDenseEmbedding {relativeCompletion f}
+      => (\lam {s} {W'} (inP (W,Wo,p)) W's => \case Wo (rewrite p in W's) \with {
+        | inP (U,Uo,Us,V,Vo,Vs,h) => \case isProper $ filter-meet (completion.dense-aux ((PrecoverSpace.open-char {Completion X}).1 Uo Us)) (s.3 (PrecoverSpace.open-char.1 Vo Vs)) \with {
+          | inP (x,(Ux,Vfx)) => inP (_, inP (x,idp), rewrite p $ h Ux Vfx)
+        }
+      }, PrecoverMap.embedding-left (relativeCompletion f) toCompletion completion.isDenseEmbedding.2)
+  }
+
+\func relativeCompletion-proj {X Y : CoverSpace} (f : CoverMap X Y) : CoverMap (RelativeCompletionCoverSpace f) Y
+  => ProductCoverSpace.proj2 CoverMap.∘ CoverTransfer-map RelativeCompletion.inc
+  \where {
+    \lemma isHausdorff : IsRelativelyHausdorff (relativeCompletion-proj f)
+      => \lam c p => ext (RegularCauchyFilter.equality \lam Cc =>
+          \case SeparatedCoverSpace.separated-char 6 7 c $ func-cover {CoverTransfer-map RelativeCompletion.inc} $ ProductCoverSpace.prodCover {Completion X} (Completion.makeCover Cc) cauchy-top \with {
+            | inP (_, inP (_, inP (_, inP (U,CU,idp), V, V=top, idp), idp), ((xU,_),(x'U,_))) => inP (U, CU, (xU,x'U))
+          }, p)
+
+    \lemma isCompletion : IsRelativelyComplete (relativeCompletion-proj f)
+      => IsRelativelyComplete.dense-complete relativeCompletion.isDenseEmbedding (relativeCompletion-proj f) \lam F {y} y<=F =>
+          inP ((F, y, y<=F), idp, \lam {W} Fy<=<W => \case CoverTransfer_<=< Fy<=<W \with {
+            | inP (W',W'<=W,Fy<=<W') => \case ProductCoverSpace.prod-neighborhood.1 Fy<=<W' \with {
+              | inP (U,V,F<=<U,y<=<V,h) => filter-mono (filter-meet (completion.dense-aux F<=<U) (y<=F y<=<V)) \lam s => W'<=W (h s.1 s.2)
+            }
+          })
+  }
+
+\func CompletionOFS : OFS {CoverSpaceCat} \cowith
+  | L i => CoverMap.IsDenseEmbedding {i}
+  | R p => \Sigma (IsRelativelyHausdorff p) (IsRelativelyComplete p)
+  | factors h => (RelativeCompletionCoverSpace h, relativeCompletion h, relativeCompletion-proj h, idp, relativeCompletion.isDenseEmbedding, (relativeCompletion-proj.isHausdorff, relativeCompletion-proj.isCompletion))
+  | unique-lift {X} {Y} {Z} {T} f g fd gc => Equiv.fromInjSurj _ (\lam {l1} {l2} q => exts $ dense-relative-lift-unique g gc.1 f fd.1 l1 l2 (\lam x => pmap (__.1 x) q) \lam {y} => pmap (__.2 y) q) \lam r =>
+      \have sq x => inv $ pmap {CoverMap X T} (__ x) r.3
+      \in inP (dense-relative-lift g gc.2 gc.1 f r.1 r.2 fd sq, ext (exts \lam x => dense-relative-lift-char sq, exts \lam y => dense-relative-lift-proj gc.1 sq))

@@ -16,12 +16,13 @@
 \import Logic.Meta
 \import Meta
 \import Order.Biordered
+\import Order.Lattice
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
 \import Set.Filter
-\import Set.Subset (^-1)
+\import Set.Subset
 \import Topology.CoverSpace.Complete
 \import Topology.MetricSpace.ExtendedMetricSpace
 \import Topology.MetricSpace.ValuedMetricSpace
@@ -32,6 +33,9 @@
 \import Topology.UniformSpace.Complete
 \import Topology.UniformSpace.InfReal
 
+\class LowerPseudoNormedAbGroup \extends ValuedPseudoNormedAbGroup
+  | V => ExtendedPseudoMetricSpace.LowerRealMetricValueOrder
+
 \class PseudoOuterPremeasureRing \extends BooleanPseudoRing, ValuedPseudoNormedAbGroup
   | V => ExtendedPseudoMetricSpace.LowerRealMetricValueOrder
   | norm-outer-measure {x y : E} : norm (x ∨ y) LowerRealAbMonoid.<= norm x LowerRealAbMonoid.+ norm y
@@ -39,7 +43,7 @@
   | norm_negative => pmap norm neative=id
   | norm_+ => rewrite +_diff $ norm-outer-measure LowerRealAbMonoid.<=∘ LowerRealAbMonoid.<=_+ (norm-outer-mono diff_<=) (norm-outer-mono diff_<=)
 
-\class ExtendedMeasure \noclassifying (R : PseudoOuterPremeasureRing) (M : PseudoPremeasureRing) (inc : AddGroupHom M R) (comp : \Pi (a : M) -> norm a LowerRealAbMonoid.<= norm (inc a)) {
+\class ExtendedMeasure \noclassifying (R : LowerPseudoNormedAbGroup) (M : PseudoPremeasureRing) (inc : AddGroupHom M R) (comp : \Pi (a : M) -> norm a LowerRealAbMonoid.<= norm (inc a)) {
   \func IsMeasurable (a : R) : \Prop
     => ∃ (F : ProperFilter M) (R.IsFilterLimit (SetFilter-map inc F) a)
 
@@ -88,4 +92,31 @@
       | ProperFilter => ProperFilter-map norm F
       | isCauchyFilter {C} => measurable-cauchy (filter-limit-cauchy al) {C}
     } \in (CompleteCoverSpace.filter-point CF, inP (F, al, CompleteCoverSpace.filter-point-limit))
+
+  \lemma measurable-closed {a b c : R} (op : M -> M -> M) (am : IsMeasurable a) (bm : IsMeasurable b) : IsMeasurable c \elim am, bm
+    | inP (F,Fa), inP (G,Gb) =>
+      \let H : ProperFilter M => \new ProperFilter {
+        | F W => ∃ (U : Set M) (F U) (V : Set M) (G V) ∀ {x : U} {y : V} (W (op x y))
+        | filter-mono (inP (U,FU,V,GV,h)) p => inP (U, FU, V, GV, \lam Ux Vy => p (h Ux Vy))
+        | filter-top => inP (Bounded.top, filter-top, Bounded.top, filter-top, \lam _ _ => ())
+        | filter-meet (inP (U,FU,V,GV,h)) (inP (U',FU',V',GV',h')) => inP (U ∧ U', filter-meet FU FU', V ∧ V', filter-meet GV GV', \lam s t => (h s.1 t.1, h' s.2 t.2))
+        | isProper {W} (inP (U,FU,V,GV,h)) => \case isProper FU, isProper GV \with {
+          | inP (x,Ux), inP (y,Vy) => inP (op x y, h Ux Vy)
+        }
+      }
+      \in inP (H, \lam {W} Wo Wc => inP {?})
+
+  \lemma measurable-closed' {a b : R} (op : R -> R -> R) (am : IsMeasurable a) (bm : IsMeasurable b) : IsMeasurable (op a b) \elim am, bm
+    | inP (F,Fa), inP (G,Gb) =>
+      \let H : ProperFilter M => \new ProperFilter {
+        | F W => ∃ (U : Set M) (F U) (V : Set M) (G V) ∀ {x : U} {y : V} {z} (inc z = op (inc x) (inc y) -> W z)
+        | filter-mono (inP (U,FU,V,GV,h)) p => inP (U, FU, V, GV, \lam Ux Vy q => p (h Ux Vy q))
+        | filter-top => inP (Bounded.top, filter-top, Bounded.top, filter-top, \lam _ _ _ => ())
+        | filter-meet (inP (U,FU,V,GV,h)) (inP (U',FU',V',GV',h')) => inP (U ∧ U', filter-meet FU FU', V ∧ V', filter-meet GV GV', \lam s t q => (h s.1 t.1 q, h' s.2 t.2 q))
+        | isProper {W} (inP (U,FU,V,GV,h)) => \case isProper FU, isProper GV \with {
+          | inP (x,Ux), inP (y,Vy) => inP {?}
+        }
+      }
+      \in inP (H, \lam {W} Wo Wc => inP {?})
+
 }
