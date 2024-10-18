@@ -1,0 +1,113 @@
+\import Category
+\import Category.Limit
+\import Category.Subobj
+\import Data.Or
+\import Function.Meta
+\import Logic
+\import Meta
+\import Order.Lattice
+\import Order.PartialOrder
+\import Paths
+\import Paths.Meta
+\import Relation.Equivalence
+
+\func SubobjectPoset {C : Precat} (c : C) => Preorder.PosetC {SubobjPreorder {C} c}
+
+\record widePullback {D : Precat} {J : \Set} {z : D} {objs : J -> D} (maps : \Pi (j : J) -> Hom (objs j) z) {
+  | wpbLim : LimitDiagram { | Diagram => diagram maps }
+}
+  \where {
+    \instance Shape (J : \Set) : Graph\cowith
+      | V => Or (\Sigma) J
+      | E => \case __, __ \with {
+        | inr i, inl _ => \Sigma
+        | _, _ => Empty
+      }
+
+    \func diagram {D : Precat} {J : \Set} {z : D} {objs : J -> D} (maps : \Pi (j : J) -> Hom (objs j) z)
+      : Diagram (Shape J) D
+    \cowith
+      | F x => \case x \with {
+        | inl _ => z
+        | inr i => objs i
+      }
+      | Func {a} {b} e => \case\elim a, \elim b, \elim e \with {
+        | inr i, inl _, e => maps i
+      }
+
+    \func widepullback-of-mono {D : Precat} {J : \Set} {z : D} {objs : J -> D}
+                               (monomaps : \Pi (j : J) -> Mono {D} {objs j} {z}) (wpb : widePullback {D} {J} {z} (\lam (j : J) => Mono.f {monomaps j})) : Mono (coneMap {wpb.wpbLim} (inl ())) =>
+      \new Mono {
+        | isMono {_} {g} {h} p => unfold at p $ limUnique (\lam j => unfold at j $ \case\elim j \with {
+          | inl () => p
+          | inr i =>
+            \let | eq : (Mono.f {monomaps i} ∘ coneMap {wpb.wpbLim} (inr i)) ∘ g = (Mono.f {monomaps i} ∘ coneMap {wpb.wpbLim} (inr i)) ∘ h => unfold $ rewrite (diagramCoh {wpb.wpbLim} {inr i} {inl ()} ()) p
+            \in
+              Mono.isMono {monomaps i} $ rewriteI (o-assoc, o-assoc) eq
+        })
+      }
+  }
+
+\open Pullback
+
+\instance SubobjectMeetsemilatice (C : PrecatWithPullbacks) (c : C) : Bounded.MeetSemilattice
+  | Poset => SubobjectPoset c
+  | meet => meet'
+  | meet-left {x} {y} => \case\elim x, \elim y \with {
+    | in~ sx, in~ sy => \case\elim sx, \elim sy \with {
+      | subobj _ mx, subobj _ my => inP (pbProj1, pbCoh)
+    }
+  }
+  | meet-right {x} {y} => \case\elim x, \elim y \with {
+    | in~ sx, in~ sy => \case\elim sx, \elim sy \with {
+      | subobj _ mx, subobj _ my => inP (pbProj2, idp)
+    }
+  }
+  | meet-univ {x} {y} {z} z<=x z<=y => \case\elim x, \elim y, \elim z, \elim z<=x, z<=y \with {
+    | in~ sx, in~ sy, in~ sz, z<=x', z<=y' => \case\elim sx, \elim sy, \elim sz, \elim z<=x', \elim z<=y' \with {
+      | subobj _ mx, subobj _ my, subobj _ mz, inP (f, eqf), inP (q, eqq)
+      => inP (pbMap f q (unfold $ rewrite (eqf, eqq) idp),
+              unfold $ unfold $ rewrite (o-assoc, pbBeta2 {pullback (Mono.f {mx}) (Mono.f {my})}) eqq)
+    }
+  }
+  | top => in~ (subobj _ idIso)
+  | top-univ {x} => \case\elim x \with {
+    | in~ a => \case\elim a \with {
+      | subobj sub m => inP (Mono.f {m}, rewrite id-left idp)
+    }
+  }
+  \where {
+    \func mono-from-pullback {a b d : C} (f : Mono {C} {a} {d}) (g : Mono {C} {b} {d})
+      : Mono {C} {pullback f.f g.f} {d} => Mono.comp g (pullback-of-mono (pullback f.f g.f))
+
+    \func subobj-product \alias\infix 7 xx {a b d : C} (f : Mono {C} {a} {d}) (g : Mono {C} {b} {d}) : Subobj d =>
+      subobj _ (mono-from-pullback f g)
+
+    \func product-comm {x y z : C} (f : Mono {C} {x} {z}) (g : Mono {C} {y} {z}) : f xx g <= g xx f =>
+      unfold (xx) $ inP (pbMap pbProj2 pbProj1 (inv pbCoh), rewrite (o-assoc, pbBeta2 {pullback g.f f.f}) pbCoh)
+
+    \func product-monotone {x y z w : C} (f : Mono {C} {x} {z}) (g : Mono {C} {y} {z})
+                           (h : Mono {C} {w} {z}) (f<=g : subobj _ f <= subobj _ g) : f xx h <= g xx h
+    \elim f<=g
+      | inP (q, eq) =>
+        \let pmap' : Hom (pullback f.f h.f) (pullback g.f h.f) => pbMap (q ∘ pbProj1) pbProj2
+            (unfold $ rewriteI o-assoc $ rewrite (eq, pbCoh {pullback f.f h.f}) idp) \in
+          inP (pmap', unfold $ unfold $ rewrite (o-assoc, pbBeta2 {pullback g.f h.f}) idp)
+
+    \func product-monotone' {x y z w : C} (f : Mono {C} {x} {z}) (g : Mono {C} {y} {z}) (h : Mono {C} {w} {z})
+                            (f<=g : subobj _ f <= subobj _ g) : h xx f <= h xx g =>
+      product-comm h f <=∘ {SubobjPreorder z} {h xx f} {f xx h} {h xx g}
+          (product-monotone f g h f<=g <=∘ {SubobjPreorder z} {f xx h} {g xx h} {h xx g} product-comm g h)
+
+    \func meet' (a b : SubobjectPoset c) : SubobjectPoset c
+    \elim a, b
+      | in~ (subobj _ m), in~ (subobj _ n) => in~ $ m xx n
+      | in~ (subobj _ m), ~-equiv (subobj _ mx) (subobj _ my) (r1, r2) i =>
+        ~-equiv (m xx mx) (m xx my) (product-monotone' mx my m r1, product-monotone' my mx m r2) i
+      | ~-equiv (subobj _ mx) (subobj _ my) (r1, r2) i, in~ (subobj _ m) =>
+        ~-equiv (mx xx m) (my xx m) (product-monotone mx my m r1, product-monotone my mx m r2) i
+  }
+
+ \instance SubobjectJoinSemilattice {C : Precat} (has-pushouts : PrecatWithPullbacks C.op) (c : C)
+ : JoinSemilattice (SubobjectPoset c)
+ => MeetSemilattice.op {SubobjectMeetsemilatice has-pushouts c}
