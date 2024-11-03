@@ -1,0 +1,145 @@
+\import Algebra.Group
+\import Algebra.Group.Representation
+\import Algebra.Group.Representation.Category
+\import Algebra.Group.Representation.Irreducible
+\import Algebra.Group.Representation.MaschkeLemma
+\import Algebra.Linear.BilinearForm
+\import Algebra.Linear.Matrix
+\import Algebra.Meta
+\import Algebra.Module
+\import Algebra.Module.Category
+\import Algebra.Module.LinearMap
+\import Algebra.Module.PowerLModule
+\import Algebra.Module.Trace
+\import Algebra.Monoid
+\import Algebra.Ring
+\import Category
+\import Equiv
+\import Function.Meta
+\import Logic
+\import Meta
+\import Paths
+\import Paths.Meta
+\import Set
+
+\class InvFieldWithInvertible (G : FinGroup) \extends FieldWithInvolution{
+  | |G|^-1 : E
+  | |G|-inv : natCoef G.finCard * |G|^-1 = ide
+}
+
+\func Funcs(G : FinGroup)(F : InvFieldWithInvertible G) : LModule F => PowerLModule G (RingLModule F)
+
+\func FuncForm{G : FinGroup}(F : InvFieldWithInvertible G)(f g : G -> F) => |G|^-1 F.* F.FinSum (\lam x => f x F.* g (inverse x))
+
+\func FuncFormAdd {G : FinGroup}(F : InvFieldWithInvertible G) : BilinearMap (Funcs G F) (Funcs G F) (RingLModule F) \cowith
+  | func => FuncForm F
+  | linear-left {b} => \new LinearMap {
+    | func-+ {a} {c} => FuncFormAddLeft a c b
+    | func-*c {r}{f} => FuncFormScalarLeft f b r
+  }
+  | linear-right {b} => \new LinearMap {
+    | func-+ {a}{c} => FuncFormAddRight b a c
+    | func-*c {r} {f} => FuncFormScalarRight b f r
+  }
+  \where {
+    \func FuncFormScalarLeft (f g : Funcs G F)(r : F) : FuncForm F (r LModule.*c {Funcs G F} f) g =
+    r F.* FuncForm F f g => unfold FuncForm (rewrite (inv F.*-assoc, F.*-comm {r} {|G|^-1}, pmap (\lam z => |G|^-1 F.* z) (unfold helper')) equation)
+      \where {
+        \protected \func helper' : F.FinSum (\lam x => (r F.* f x) F.* g (G.inverse x)) = r F.* F.FinSum (\lam x => f x F.* g (G.inverse x))
+          => \case F.FinSum_char (\lam x => (r F.* f x) F.* g (G.inverse x)) \with {
+            | inP (e, p) => \case F.FinSum_char2 (\lam x => f x F.* g (G.inverse x)) e \with {
+              | p1 => rewrite (p, p1, BigSumScalarLeft e) idp
+            }
+          }
+        \protected \func BigSumScalarLeft (e : Equiv {Fin G.finCard} {G}) :
+          F.BigSum (\lam j => r F.* f (e j) F.* g (G.inverse (e j))) =
+          r F.* F.BigSum (\lam j => f (e j) F.* g (G.inverse (e j)))
+          =>  rewrite (BigSumScalarLeftHelp e, BigSumScalarLeft' G.finCard (\lam j => f (e j) F.* g (G.inverse (e j)))) idp
+        \protected \lemma BigSumScalarLeftHelp(e : Equiv {Fin G.finCard} {G}) :
+          F.BigSum (\lam j => r F.* f (e j) F.* g (G.inverse (e j))) = F.BigSum (\lam j => r F.* (f (e j) F.* g (G.inverse (e j))))
+          => F.BigSum-ext (\lam _ => F.*-assoc)
+        \protected \func BigSumScalarLeft' (n : Nat)(a : Array F n)(r : F) :
+          F.BigSum (\lam j => r F.* a j) = r F.* F.BigSum a => inv $ F.BigSum-ldistr
+      }
+
+    \protected \func FuncFormAddLeft (f g h : Funcs G F) : FuncForm F (f LModule.+ g) h =
+    FuncForm F f h F.+ FuncForm F g h => rewrite (inv $ F.ldistr, pmap (\lam z => |G|^-1 F.* z) (unfold helper')) idp
+      \where {
+        \protected \func helper' : F.FinSum (\lam x => (f x F.+ g x) F.* h (inverse x)) =
+        F.FinSum (\lam x => f x F.* h(inverse x)) F.+ F.FinSum (\lam x => g x F.* h(inverse x)) => \case AbMonoid.FinSum_char (\lam x => (f x F.+ g x) F.* h (inverse x)) \with {
+          | inP (e, p) => \case AbMonoid.FinSum_char2 (\lam x => f x F.* h(inverse x)) e \with {
+            | p1 => \case AbMonoid.FinSum_char2(\lam x => g x F.* h(inverse x)) e \with {
+              | p2 => rewrite (p, p1, p2, BigSumAddLeft e) idp
+            }
+          }
+        }
+        \protected \func BigSumAddLeft (e : Equiv {Fin G.finCard} {G}) :
+          F.BigSum (\lam j => (f (e j) F.+ g (e j)) F.* h (G.inverse (e j))) =
+          F.BigSum (\lam j => f (e j) F.* h (G.inverse (e j))) F.+ F.BigSum (\lam j => g (e j) F.* h (G.inverse (e j)))
+          => BigSumAddLeft' G.finCard (\lam j => f (e j)) (\lam j => g (e j)) (\lam j => h (G.inverse (e j)))
+        \protected \func BigSumAddLeft' (n : Nat) (a b c : Array F n) :
+          F.BigSum (\lam j => (a j + b j) F.* c j) = F.BigSum (\lam j => a j * c j) + F.BigSum (\lam j => b j * c j) \elim n
+          | 0 => unfold AddMonoid.BigSum (inv F.zro-right)
+          | suc n => unfold AddMonoid.BigSum (rewrite (F.rdistr, BigSumAddLeft' n (\lam j => a (suc j)) (\lam j => b (suc j)) (\lam j => c (suc j))) equation)
+      }
+
+    \protected \func FuncFormAddRight (f g h : Funcs G F) : FuncForm F f (g LModule.+ h) =
+    FuncForm F f g F.+ FuncForm F f h => rewrite (inv $ F.ldistr, pmap (\lam z => |G|^-1 F.* z) (unfold helper')) idp
+      \where {
+        \protected \func helper' : F.FinSum (\lam x => f x F.* (g (inverse x) + h (inverse x))) =
+        F.FinSum (\lam x => f x F.* g(inverse x)) F.+ F.FinSum (\lam x => f x F.* h(inverse x)) => \case F.FinSum_char (\lam x => f x F.* (g (inverse x) + h (inverse x))) \with {
+          | inP (e, p) => \case F.FinSum_char2 (\lam x => f x F.* g(inverse x)) e \with {
+            | p1 => \case F.FinSum_char2 (\lam x => f x F.* h(inverse x)) e \with {
+              | p2 => rewrite (p, p1, p2, BigSumAddRight e) idp
+            }
+          }
+        }
+
+        \protected \func BigSumAddRight (e : Equiv {Fin G.finCard} {G}) :
+          F.BigSum (\lam j => f (e j) F.* (g (G.inverse(e j)) + h (G.inverse (e j)))) =
+          F.BigSum (\lam j => f (e j) F.* g (G.inverse(e j))) +  F.BigSum (\lam j => f (e j) F.* h (G.inverse (e j)))
+          => BigSumAddRight' G.finCard (\lam j => f (e j))(\lam j => g (G.inverse(e j)))(\lam j => h (G.inverse(e j)))
+
+        \protected \func BigSumAddRight' (n : Nat) (a b c : Array F n) :
+          F.BigSum (\lam j => a j F.* (b j + c j)) =
+          F.BigSum (\lam j => a j * b j) + F.BigSum (\lam j => a j * c j)  \elim n
+          | 0 => unfold F.BigSum (inv F.zro-right)
+          | suc n => unfold F.BigSum (rewrite (F.ldistr, BigSumAddRight' n (\lam j => a (suc j)) (\lam j => b (suc j)) (\lam j => c (suc j))) equation)
+
+      }
+
+    \protected \func FuncFormScalarRight (f g : Funcs G F)(r : F) : FuncForm F f (r LModule.*c {Funcs G F} g) =
+    r F.* FuncForm F f g => unfold FuncForm (rewrite (inv $ F.*-assoc {r}, F.*-comm {r} {|G|^-1}, pmap (\lam z => |G|^-1 * z) (unfold helper')) equation)
+      \where {
+        \protected \func helper' : F.FinSum (\lam x => f x * (r * g (G.inverse x))) = r F.* F.FinSum (\lam x => f x * g (G.inverse x))
+          => \case F.FinSum_char (\lam x => f x * (r * g (G.inverse x))) \with {
+            | inP (e, p) => \case F.FinSum_char2 (\lam x => f x * g (G.inverse x)) e \with {
+              | p1 => rewrite (p, p1, BigSumScalarRight e) idp
+            }
+          }
+        \protected \func BigSumScalarRight (e : Equiv {Fin G.finCard} {G}) :
+          F.BigSum (\lam j => f (e j) F.* (r F.* g (G.inverse (e j)))) = r F.* F.BigSum (\lam j => f (e j) F.* g (G.inverse (e j)))
+          => rewrite (BigSumScalarRightHelp e, BigSumScalarRight' G.finCard (\lam j => f (e j) F.* g (G.inverse (e j)))) idp
+        \protected \lemma BigSumScalarRightHelp(e : Equiv {Fin G.finCard} {G}) :
+          F.BigSum (\lam j => f (e j) F.* (r * g (G.inverse (e j)))) = F.BigSum (\lam j => r * (f (e j) * g (G.inverse (e j))))
+          => F.BigSum-ext (\lam _ => equation)
+        \protected \func BigSumScalarRight' (n : Nat)(a : Array F n)(r : F) :
+          F.BigSum (\lam j => r * a j) = r * F.BigSum a => inv $ F.BigSum-ldistr
+      }
+  }
+
+{- | Sesquilinear space of all functions from the finite group $G$ to the -}
+\func GroupFieldFunctions (G : FinGroup)(F : InvFieldWithInvertible G) : SesquilinearSpace
+  => BilinearSpace {F}(PowerLModule G (RingLModule F)) (FuncFormAdd F)
+  \where {
+    \open SesquilinearSpace
+    \protected \func helper{f g : GroupFieldFunctions G F}
+                           (p : F.FinSum (\lam x => f x F.* g (inverse x)) = 0)
+      : F.natCoef G.finCard F.* (F.|G|^-1 F.* FuncForm F f g) = F.zro => unfold (FuncForm)
+          (rewrite (p, F.zro_*-right, F.zro_*-right, F.zro_*-right) idp)
+
+    \func OrthogonalityCondition {f g : GroupFieldFunctions G F}
+                                 (p : F.FinSum (\lam x => f x F.* g (inverse x)) = 0) :
+      f SesquilinearSpace.orthogonal {GroupFieldFunctions G F} g =>
+      unfold (orthogonal) (rewrite (inv $ ide-left {_}{FuncForm F f g}, inv $ |G|-inv {F}, *-assoc, helper {_}{_}{f}{g} p) idp)
+  }

@@ -1,0 +1,151 @@
+\import Algebra.Domain
+\import Algebra.Field
+\import Algebra.Group
+\import Algebra.Linear.Matrix
+\import Algebra.Meta
+\import Algebra.Module
+\import Algebra.Module.LinearMap
+\import Algebra.Monoid
+\import Function.Meta
+\import Logic
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\class RingWithInvolution \extends IntegralDomain{
+  | invol : E -> E
+  | invol-+ {a b : E} : invol (a + b) = invol a + invol b
+  | invol-* {a b : E} : invol (a * b) = invol a * invol b
+  | invol-is-invol {a : E} : invol (invol a) = a
+  | invol-#0 {x : E} (p : x `#0) : (invol x) `# 0
+}\where{
+  \use \coerce fromRing (R : IntegralDomain) : RingWithInvolution {| IntegralDomain => R} \cowith
+    | invol x => x
+    | invol-+ => idp
+    | invol-* => idp
+    | invol-is-invol => idp
+    | invol-#0 p => transport (\lam z => z `#0) (inv help) p
+    \where {
+      \protected \func help {x : R} : x - R.zro = x => unfold(-) (rewrite (negative_zro {R}, R.zro-right) idp)
+    }
+}
+
+\class FieldWithInvolution \extends Field, RingWithInvolution
+  \where {
+    \func coerc (F : Field) : IntegralDomain => F
+
+    \use \coerce fromField (F : Field) : FieldWithInvolution {| Field => F} \cowith
+      | RingWithInvolution => RingWithInvolution.fromRing F
+  }
+
+
+\func conjugateMatrix {R : RingWithInvolution}{n m : Nat}(M : Matrix R n m) : Matrix R m n
+  => makeMatrix \lam i j => R.invol (M j i)
+
+\open AddGroup
+\class SesquilinearSpace \extends LModule{
+  \override R : RingWithInvolution
+  | B : E -> E -> R
+  | B-left-++ {x y z : E} : B (x + y) z = B x z R.+ B y z
+  | B-right-++ {x y z : E} : B x (y + z) = B x y R.+ B x z
+  | B-*c-left {x y : E}{c : R} : B (c *c x) y = invol c R.* B x y
+  | B-*c-right {x y : E}{c : R} : B x (c *c y) = c R.* B x y
+
+  \lemma B-zro-left {x : E} : B 0 x = 0 => cancel-right {_} (B zro x) (rewrite (zro-left{_}, inv B-left-++, zro-left) idp)
+  \lemma B-zro-right {x : E} : B x 0 = 0 => cancel-right {_} (B x zro)(rewrite(zro-left{_}, inv B-right-++, zro-left) idp)
+
+  \func Quad (x : E) : R => B x x
+
+  \func isIsotropic (x : E) => Quad x = 0
+  \func nonIsotropic (x : E) => Quad x `#0
+
+  \func \infix 2 orthogonal (x y : E) : \Prop => B x y = 0
+
+  \func IsOrthogonalArray (v : Array E) => \Pi{i j : Fin v.len} -> i /= j -> (v.at i) orthogonal (v j)
+
+  \func IsOrthogonalBasis (v : Array E) => \Sigma (IsOrthogonalArray v)(IsBasis v)
+
+  {- | $B\left(\sum_{i=1}^n x_i, \sum_{i = 1}^m y_i\right) = \sum_{i = 1}^n \sum_{j = 1}^m B(x_i, y_j) $ -}
+  \lemma BigSum-lin (a : Array E)(b : Array E):
+    B (BigSum \lam i => a i) (BigSum \lam i => b i) =
+    R.BigSum (\lam i => R.BigSum (\lam j => B (a i) (b j) )) => rewrite (FirstArgument, helper) idp
+    \where {
+      \lemma FirstArgument(a : Array E)(b : E) :
+        B (BigSum \lam i => a i) b = R.BigSum \lam i => B (a i) b \elim a
+        | nil => unfold BigSum B-zro-left
+        | a1 :: l => unfold BigSum (rewrite (B-left-++, FirstArgument l b) idp)
+
+      \lemma SecondArgument (a : E)(b : Array E):
+        B a (BigSum \lam i => b i) = R.BigSum \lam i => B a (b i) \elim b
+        | nil => unfold BigSum B-zro-right
+        | a1 :: l => unfold BigSum (rewrite (B-right-++, SecondArgument a l) idp)
+
+      \protected \lemma helper(a : Array E)(b : Array E) :
+        R.BigSum (\lam i => B (a i) (BigSum b)) = R.BigSum (\lam i => R.BigSum \lam j => B (a i) (b j))
+        =>  R.BigSum-ext {a.len}{\lam i => B (a i) (BigSum b)}
+            {\lam i => R.BigSum \lam j => B (a i) (b j)}(\lam i => SecondArgument (a i) (b))
+    }
+
+
+  {- | $B\left(\sum_{i=1}^n r_i \cdot a_i, \sum_{i = 1}^m s_i \cdot b_i\right) = \sum_{i = 1}^n \sum_{j = 1}^m \overline {r_i} B(x_i, y_j) s_i $ -}
+  \lemma BigSum-lin-scalar {n m : Nat}(a : Array E n)(b : Array E m)(r : Array R n)(s : Array R m) :
+    B (BigSum \lam i => r i *c a i) (BigSum \lam i => s i *c b i) =
+    R.BigSum (\lam i => R.BigSum (\lam j => (invol $ r i) R.* B (a i) (b j) R.* s j))
+    => rewrite (BigSum-lin (\lam i => r i *c a i)(\lam j => s j *c b j), helper) idp
+    \where {
+      \protected \lemma helper : R.BigSum (\lam i => R.BigSum (\lam j => B (r i *c a i) (s j *c b j))) =
+      R.BigSum (\lam i => R.BigSum (\lam j => invol {R} (r i) * B (a i) (b j) * s j))
+        =>  R.BigSum-ext {_}{\lam i => R.BigSum (\lam j => B (r i *c a i) (s j *c b j))}
+            {\lam i => R.BigSum (\lam j => invol {R} (r i) * B (a i) (b j) * s j)} (\lam i =>
+                R.BigSum-ext {_}{\lam j => B (r i *c a i) (s j *c b j)}
+                    {\lam j => invol {R} (r i) * B (a i) (b j) * s j}(\lam j => rewrite (B-*c-right, B-*c-left) equation))
+    }
+}
+
+\func BilinearSpace {R : IntegralDomain}(E : LModule R)(B : BilinearMap E E (RingLModule R)) :
+  SesquilinearSpace {| R => R | LModule  => E} \cowith
+  | B => B
+  | B-left-++ => B.linear-left.func-+
+  | B-right-++ => B.linear-right.func-+
+  | B-*c-left => B.linear-left.func-*c
+  | B-*c-right => B.linear-right.func-*c
+
+\open MatrixRing
+{- | for $l : Array \;E\;$ builds a matrix $\{B(l\, i, \;l\, j)\}_{i, j \; : \; Fin\,  l.len}$ -}
+\func GramMatrix {R : RingWithInvolution}{E : SesquilinearSpace R}(v : Array E) : Matrix R v.len v.len
+  => mkMatrix \lam i j => E.B (v i) (v j)
+  \where {
+    \protected \func v-len : Array E v.len => \lam i => v i
+
+    \protected \func B => E.B
+
+    \lemma MatrixDescription{x y : E}{x_v y_v : Array R v.len}
+                            (x_v-prop : x = E.BigSum (\lam i => x_v i *c v i))
+                            (y_v-prop : y = E.BigSum (\lam i => y_v i *c v i)) :
+      E.B x y = ((conjugateMatrix (mkColumn x_v)) product (GramMatrix v) product (mkColumn y_v)) 0 0
+      => rewrite (x_v-prop, y_v-prop, SesquilinearSpace.BigSum-lin-scalar v-len v-len x_v y_v, helper) idp
+
+    \protected \lemma helper  (x_v y_v : Array R v.len) :
+      R.BigSum (\lam i => R.BigSum (\lam j => R.invol (x_v i) R.* E.B (v i) (v j) R.* y_v j))
+        = R.BigSum (\lam j => R.BigSum (\lam j1 => R.invol (x_v j1) R.* E.B (v j1) (v j)) R.* y_v j)
+      => rewrite (change-BigSum-Order $ mkMatrix \lam i => \lam j => R.invol (x_v i) R.* E.B (v i) (v j) R.* y_v j, step3 x_v y_v) idp
+
+
+    \protected \lemma change-BigSum-Order {n m : Nat} (a : Matrix R n m ) :
+      R.BigSum (\lam (i : Fin n) => R.BigSum \lam (j : Fin m) => a i j) = R.BigSum (\lam (j : Fin m) => R.BigSum (\lam (i : Fin n) => a i j))
+      => R.BigSum-transpose (\lam i => \lam j => a i j)
+
+    \protected \lemma step3  (x_v y_v : Array R v.len) :
+      R.BigSum (\lam j => R.BigSum (\lam i => R.invol (x_v i) R.* E.B (v i) (v j) R.* y_v j)) =
+      R.BigSum (\lam j => R.BigSum (\lam i => R.invol (x_v i) R.* E.B (v i) (v j)) R.* y_v j)
+      => R.BigSum-ext {v.len} (\lam j => BigSum-Distr (mkMatrix $ \lam i j => R.invol (x_v i) R.* E.B (v i) (v j)) y_v j)
+
+
+    \protected \func BigSum-Distr (a : Matrix R v.len v.len) (y : Array R v.len) (j : Fin v.len) :
+      R.BigSum (\lam i => (a i j) R.* (y j)) = R.BigSum (\lam i => a i j) R.* (y j) => SimpleDistr (\lam i => a i j) (y j)
+
+    \protected \func SimpleDistr (x : Array R) (y : R) :
+      R.BigSum (\lam i => (x i) R.* y) = R.BigSum (\lam i => x i) * y \elim x
+      | nil => unfold AddMonoid.BigSum (rewrite R.zro_*-left idp) -- R.zro_*-left)
+      | a1 :: l => unfold AddMonoid.BigSum (rewrite (SimpleDistr l y, inv $ R.rdistr) idp)
+  }

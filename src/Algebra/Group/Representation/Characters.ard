@@ -1,11 +1,31 @@
 \import Algebra.Group
 \import Algebra.Group.Representation
+\import Algebra.Group.Representation.Category
+\import Algebra.Group.Representation.FieldFunctions
+\import Algebra.Group.Representation.Irreducible
+\import Algebra.Group.Representation.MaschkeLemma
+\import Algebra.Linear.BilinearForm
 \import Algebra.Linear.Matrix
+\import Algebra.Meta
+\import Algebra.Module
+\import Algebra.Module.Category
 \import Algebra.Module.LinearMap
+\import Algebra.Module.PowerLModule
 \import Algebra.Module.Trace
+\import Algebra.Monoid
 \import Algebra.Ring
+\import Category
+\import Equiv
+\import Function.Meta
+\import Logic
 \import Meta
+\import Paths
 \import Paths.Meta
+\import Set
+\import Set.Fin
+
+\func toMatrix_zro {R : Ring}{U V : LModule R}{lv : Array V}(lu : Array U)(bv : V.IsBasis lv)(f : LinearMap U V)(f-zro : isZeroMap f) :
+  LinearMap.toMatrix lu bv f = AbGroup.zro {MatrixAbGroup R lu.len lv.len} => {?}
 
 \func Character {R : Ring}{G : Group}(E : LRepres R G)
                 {lv : Array E} (bv : E.IsBasis lv)
@@ -17,3 +37,56 @@
 
       \func Matrix-of-1 : LinearMap.toMatrix lv bv (E.toLinearMap G.ide) = MatrixRing.ide => rewrite (E.toLinearMap-ide, LinearMap.toMatrix_ide) idp
     }
+
+{- | Having a presentation $E$ with given basis $l$ this function for each group element $g$
+  writes it in basis $l$ and takes $(i, j)$ element returning a field element. -}
+\func MatrixElements {G : FinGroup}{F : InvFieldWithInvertible G}{E : LRepres F G}
+                     {l : Array E}(l-bas : E.IsBasis l)(i j : Fin l.len) : GroupFieldFunctions G F =>
+  \lam g => (LinearMap.toMatrix l l-bas (E.toLinearMap g)) i j
+
+\func OrthogonalityRelation {G : FinGroup}{F : InvFieldWithInvertible G}{E1 E2 : LRepres F G}
+                            {E1-irr : Irreducible E1}
+                            {E2-irr : Irreducible E2} -- given 2 irreducible representations
+                            {l1 : Array E1}(l1-bas : E1.IsBasis l1) -- a basis of the first one
+                            {l2 : Array E2}(l2-bas : E2.IsBasis l2) -- a basis of the second one
+                            (i j : Fin l1.len)(k h : Fin l2.len) -- two different pairs of indices
+                            {not-eq : Not(Iso {RepresentationCat F G} {E1}{E2})} -- representations are not isomorphic
+                            :
+  MatrixElements l1-bas i j SesquilinearSpace.orthogonal {GroupFieldFunctions G F} MatrixElements l2-bas k h -- matrix elements functions are orthogonal
+  => GroupFieldFunctions.OrthogonalityCondition {G}{F}{MatrixElements l1-bas i j}{MatrixElements l2-bas k h}
+      (transport (\lam z => z = 0) (inv BilinearForm=MatrixElement)
+          (extract_zero (LinearMap.toMatrix l1 l2-bas (SumOverGroup Ejk-lin)) MatrixOrthogonality i h))
+  \where {
+    \func B => SesquilinearSpace.B {GroupFieldFunctions G F}
+
+    \func Ejk : Matrix F l1.len l2.len => mkMatrix \lam (a : Fin l1.len) (b : Fin l2.len) => \case decideEq a j \with {
+      | no n => F.zro
+      | yes e => \case decideEq b k \with {
+        | no n => F.zro
+        | yes e1 => F.ide
+      }
+    }
+
+    \func Ejk-lin : LinearMap E1 E2 => LinearMap.toLinearMap l1-bas l2 Ejk
+
+    \func Ejk-computation (A : Matrix F l1.len l1.len)(B : Matrix F l2.len l2.len)(alp : Fin l1.len)(bet : Fin l2.len) :
+      (MatrixRing.product (MatrixRing.product A Ejk) B) alp bet = A alp j * B k bet => {?}
+
+{- | If we denote by $f$ the $(i, j)$ matrix element of $E_1$ and
+ - by $h$ the $(k,h)$ matrix element of $E_2$ then \\
+ -  $\sum_{g : G} f(g)h(g^{ -1}) = \text{(matrix form of SumOverGroup Ejk)}(i, h)$ -}
+    \func BilinearForm=MatrixElement :
+      F.FinSum (\lam g => MatrixElements l1-bas i j g * MatrixElements l2-bas k h (inverse g)) =
+      (LinearMap.toMatrix l1 l2-bas (SumOverGroup Ejk-lin)) i h => inv (unfold {?})
+    \where \protected{
+      \lemma matrix-lemma : 5 = 5 => idp
+    }
+
+    \func MatrixOrthogonality :
+      LinearMap.toMatrix l1 l2-bas (SumOverGroup Ejk-lin) = AbGroup.zro {MatrixAbGroup F l1.len l2.len}
+      => toMatrix_zro l1 l2-bas (SumOverGroup Ejk-lin) (SumOverGroupSchur {F} {G} {E1}{E2} E1-irr E2-irr not-eq Ejk-lin)
+
+    \func extract_zero (A : Matrix F l1.len l2.len)
+                       (p : A = AbGroup.zro {MatrixAbGroup F l1.len l2.len})
+                       (x : Fin l1.len)(y : Fin l2.len) : A x y = 0 => transport (\lam z => z x y = 0) (inv p) idp
+  }
