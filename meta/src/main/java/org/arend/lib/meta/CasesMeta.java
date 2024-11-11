@@ -8,7 +8,6 @@ import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreExpressionPattern;
 import org.arend.ext.core.context.CoreEvaluatingBinding;
 import org.arend.ext.core.context.CoreParameter;
-import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.CoreDataCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreReferenceExpression;
@@ -275,12 +274,12 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
     List<ConcreteParameter> concreteParameters = defaultExpr == null ? null : new ArrayList<>();
     for (int i = 0; i < argParametersList.size(); i++) {
       ArgParameters argParams = argParametersList.get(i);
-      boolean isLocalRef = argParams.expression instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) argParams.expression).getReferent().isLocalRef();
-      boolean isElim = isLocalRef && !argParams.addPath && argParams.name == null && defaultExpr == null && !(typechecker.getFreeBinding(((ConcreteReferenceExpression) argParams.expression).getReferent()) instanceof CoreEvaluatingBinding);
       ConcreteExpression argExpr = argParams.expression;
       ConcreteExpression argType = argParams.type;
+      boolean isLocalRef = argParams.expression instanceof ConcreteReferenceExpression && ((ConcreteReferenceExpression) argParams.expression).getReferent().isLocalRef();
+      boolean isElim = isLocalRef && !argParams.addPath && argParams.name == null && defaultExpr == null && !(typechecker.getFreeBinding(((ConcreteReferenceExpression) argParams.expression).getReferent()) instanceof CoreEvaluatingBinding) && argType == null && searchPairs.isEmpty();
       ArendRef caseArgRef = argParams.name != null ? argParams.name : !isElim ? factory.local("x") : null;
-      if (!isElim || argParams.type == null && !searchPairs.isEmpty()) {
+      if (!isElim || argType == null && !searchPairs.isEmpty()) {
         TypedExpression typed = typedArgs != null ? typedArgs.get(i) : typechecker.typecheck(argParams.expression, null);
         if (typed == null) return null;
         if (!isLocalRef) {
@@ -291,7 +290,7 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         }
         searchPairs.add(new Pair<>(typed, isElim ? ((ConcreteReferenceExpression) argParams.expression).getReferent() : caseArgRef));
       }
-      caseArgs.add(isElim ? factory.caseArg((ConcreteReferenceExpression) argExpr, argType) : factory.caseArg(argExpr, caseArgRef, argType));
+      caseArgs.add(isElim ? factory.caseArg((ConcreteReferenceExpression) argExpr, null) : factory.caseArg(argExpr, caseArgRef, argType));
       if (concreteParameters != null) {
         concreteParameters.add(factory.param(Collections.singletonList(caseArgRef), argType != null ? argType : factory.core(typedArgs.get(i).getType().computeTyped())));
       }
