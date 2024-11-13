@@ -1,6 +1,7 @@
 \import Equiv.Fiber
 \import Equiv.Path
 \import Function
+\import Function.Meta
 \import HLevel
 \import Homotopy.Fibration
 \import Logic
@@ -22,11 +23,14 @@
                    idpe
                    idpe)
 
-    \lemma isContr (e : Equiv) : Contr (Section e)
-      => rewrite (=Fiber e) (Equiv=>contrFibers (-o_Equiv e) id)
-
     \lemma levelProp (r : Retraction) : isProp (Section r)
-      => \lam s => isContr=>isProp (isContr (\new Equiv { | Section => s | Retraction => r })) s
+      => \lam (s : Section r) => isContr=>isProp (transportInv Contr (=Fiber r) $ Equiv=>contrFibers.fromSection (\new Section (-o r) {
+        | ret => -o r.sec
+        | ret_f g => path \lam i x => g (r.f_sec x i)
+      }) (\new Retraction {
+        | sec => -o s.ret
+        | f_sec g => path \lam i x => g (s.ret_f x i)
+      }) id) s
   }
 
 \record Retraction \extends Map
@@ -39,11 +43,17 @@
                    idpe
                    idpe)
 
-    \lemma isContr (e : Equiv) : Contr (Retraction e)
-      => rewrite (=Fiber e) (Equiv=>contrFibers (o-_Equiv e) id)
-
     \lemma levelProp (s : Section) : isProp (Retraction s)
-      => \lam r => isContr=>isProp (isContr (\new Equiv { | Section => s | Retraction => r })) r
+      => \lam (r : Retraction s) => isContr=>isProp (transportInv Contr (=Fiber s) (Equiv=>contrFibers.fromSection (\new Section (s `o-) {
+        | ret => s.ret `o-
+        | ret_f g => path \lam i x => s.ret_f (g x) i
+      }) (\new Retraction {
+        | sec => r.sec `o-
+        | f_sec g => path \lam i x => r.f_sec (g x) i
+      }) id)) r
+
+    \lemma isContr (e : Equiv) : Contr (Retraction e)
+      => isProp=>isContr (levelProp e) e
   }
 
 \record Equiv \extends Section, Retraction {
@@ -63,23 +73,19 @@
     => pmap f p *> f_ret b
 }
   \where {
-    \use \level levelProp {A B : \Type} {f : A -> B} (e e' : Equiv f) : e = e' =>
-      {?} {- TODO: path (\lam i => \new Equiv {
-        | Section => isContr=>isProp {Section f} (Section.isContr e) e e' @ i
-        | Retraction => isContr=>isProp {Retraction f} (Retraction.isContr e) e e' @ i
-      }) -}
+    \use \level levelProp {A B : \Type} {f : A -> B} (e e' : Equiv f) : e = e'
+      => path \lam i => \new Equiv {
+        | Section => Section.levelProp e e e' i
+        | Retraction => Retraction.levelProp e e e' i
+      }
 
-    \func equals {A B : \Type} {e e' : Equiv {A} {B}} (p : e.f = e'.f) : e = e' =>
-      path (\lam i => \new Equiv {
-        | Section => pathOver (isContr=>isProp (Section.isContr e')
-                                               (rewriteI p (\new Section e.f e.ret e.ret_f))
-                                               (\new Section e'.f e'.ret e'.ret_f)) @ i
-        | Retraction => pathOver (isContr=>isProp (Retraction.isContr e')
-                                                  (rewriteI p (\new Retraction e.f e.sec e.f_sec))
-                                                  (\new Retraction e'.f e'.sec e'.f_sec)) @ i
-      })
+    \func equals {A B : \Type} {e e' : Equiv {A} {B}} (p : e.f = e'.f) : e = e'
+      => path \lam i => \new Equiv {
+        | Section => pathOver (Section.levelProp e' (rewriteI p (\new Section e.f e.ret e.ret_f)) (\new Section e'.f e'.ret e'.ret_f)) @ i
+        | Retraction => pathOver (Retraction.levelProp e' (rewriteI p (\new Retraction e.f e.sec e.f_sec)) (\new Retraction e'.f e'.sec e'.f_sec)) @ i
+      }
 
-    \lemma fromInjSurj {A B : \Set} (f : A -> B) (inj : Function.isInj f) (surj : Function.isSurj f) : Equiv {A} {B} f
+    \lemma fromInjSurj {A B : \Set} (f : A -> B) (inj : Function.isInj f) (surj : Function.isSurj f) : Equiv f
       => \new ESEquiv {
         | Embedding => Embedding.fromInjection inj
         | isSurjMap => surj

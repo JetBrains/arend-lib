@@ -1,6 +1,7 @@
 \import Equiv
 \import Equiv.Fiber
 \import Equiv.Univalence
+\import Function.Meta
 \import HLevel
 \import Homotopy.Fibration
 \import Paths
@@ -9,14 +10,19 @@
 \record HAEquiv \extends QEquiv
   | f_ret_f=f_sec_f : \Pi (x : A) -> pmap f (ret_f x) = f_sec (f x)
   \where {
+    \protected \func coh_f_sec (s : Section) (r : \Pi (y : s.B) -> s (s.ret y) = y) (y : s.B) : s (s.ret y) = y
+      => inv (r (s (s.ret y))) *> pmap s (s.ret_f (s.ret y)) *> r y
+
+    \protected \func coh_f_ret_f=f_sec_f (s : Section) (r : \Pi (y : s.B) -> s (s.ret y) = y) (x : s.A) : pmap s (s.ret_f x) = coh_f_sec s r (s x)
+      => inv $ rotatePathLeft $
+          pmap s (s.ret_f (s.ret (s x))) *> r (s x)               ==< pmap (pmap s __ *> r (s x)) (homotopy_app-comm (\lam x => s.ret (s x)) s.ret_f x) >==
+          pmap (\lam x => s (s.ret (s x))) (s.ret_f x) *> r (s x) ==< homotopy-isNatural (\lam y => s (s.ret y)) (\lam y => y) r (pmap s (s.ret_f x))   >==
+          r (s (s.ret (s x))) *> pmap s (s.ret_f x)               `qed
+
     \use \coerce fromQEquiv (e : QEquiv) : HAEquiv \cowith
       | Section => e
-      | f_sec y => inv (e.f_sec (e (e.ret y))) *> pmap e (e.ret_f (e.ret y)) *> e.f_sec y
-      | f_ret_f=f_sec_f x => inv (rotatePathLeft (
-        pmap e (e.ret_f (e.ret (e x))) *> e.f_sec (e x)               ==< pmap (pmap e __ *> e.f_sec (e x)) (homotopy_app-comm (\lam x => e.ret (e x)) e.ret_f x) >==
-        pmap (\lam x => e (e.ret (e x))) (e.ret_f x) *> e.f_sec (e x) ==< homotopy-isNatural (\lam y => e (e.sec y)) (\lam y => y) e.f_sec (pmap e (e.ret_f x))              >==
-        e.f_sec (e (e.ret (e x))) *> pmap e (e.ret_f x)               `qed
-      ))
+      | f_sec => coh_f_sec e e.f_sec
+      | f_ret_f=f_sec_f => coh_f_ret_f=f_sec_f e e.f_sec
 
     \lemma levelProp {A B : \Type} {f : A -> B} : isProp (HAEquiv f)
       => \lam e e' =>
