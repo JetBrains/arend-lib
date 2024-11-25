@@ -125,7 +125,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver", name = "CAlgData.terms-equality")   CoreFunctionDefinition commSemiringTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "CRingData.terms-equality")  CoreFunctionDefinition commRingTermsEq;
   @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.terms-equality")  CoreFunctionDefinition latticeTermsEq;
-  @Dependency(module = "Algebra.Ring.Solver", name = "RingData.interpret")        CoreFunctionDefinition ringInterpret;
+  @Dependency(module = "Algebra.Ring.Solver", name = "AlgData.interpret")         CoreFunctionDefinition ringInterpret;
   @Dependency(module = "Algebra.Ring.Solver", name = "gensZeroToIdealZero")       CoreFunctionDefinition gensZeroToIdealZero;
 
   @Dependency(module = "Algebra.Group.Solver", name = "NatData")           public CoreClassDefinition GroupData;

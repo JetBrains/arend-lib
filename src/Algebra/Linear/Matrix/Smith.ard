@@ -5,6 +5,7 @@
 
 \import Algebra.Domain
 \import Algebra.Domain.Bezout
+\import Algebra.Group
 \import Algebra.Group.Symmetric
 \import Algebra.Linear.Matrix
 \import Algebra.Meta
@@ -37,7 +38,8 @@
 \import Relation.Equivalence
 \import Set
 \import Set.Fin
-\open Monoid \hiding (equals)
+\open Monoid \hiding (equals, op)
+\open AddMonoid
 
 \type \infix 4 M~ {R : Ring} {n m : Nat} (A B : Matrix R n m) : \Prop
   => ∃ (C : Inv {MatrixRing R n}) (D : Inv {MatrixRing R m}) (B = C.val MatrixRing.product A MatrixRing.product D.val)
@@ -115,10 +117,10 @@
     \Pi {n m : Nat} (A : Matrix R n m) -> ∃ (B : Matrix R n m) (IsSmith B) (A M~ B)
   ) => TFAE.cycle (\lam (bez,kap) => (bez, \lam A A10=0 Ac =>
       \let | (inP (t,s,kc)) => kap (A 0 0) (A 0 1) (A 1 1) Ac
-           | (inP (x1,y1,kd)) => gcd_bezout {\new StrictBezoutRing { | CRing => R | isStrictBezout => bez }} (IsCoprime.=>gcd kc)
+           | (inP (x1,y1,kd)) => BezoutRing.gcd_bezout {\new StrictBezoutRing { | CRing => R | isStrictBezout => bez }} (IsCoprime.=>gcd kc)
            | C => makeMatrix ((t, s), (negative (A 1 1 * y1), A 0 0 * x1 + A 0 1 * y1))
            | D => makeMatrix ((x1, negative (t * A 0 1 + s * A 1 1)), (y1, t * A 0 0))
-      \in inP (makeMatrix {E} ((1, 0), (0, A 0 0 * A 1 1)), \lam {i} {j} => \case \elim i, \elim j \with {
+      \in inP (makeMatrix {R} ((1, 0), (0, A 0 0 * A 1 1)), \lam {i} {j} => \case \elim i, \elim j \with {
         | 0, 0 => \lam p => absurd (p idp)
         | 0, 1 => \lam _ => idp
         | 1, 0 => \lam _ => idp
@@ -246,12 +248,12 @@
                                         | 0, k => idp
                                         | 1, 0 => idp
                                         | 1, suc k => Bs.1 {suc k} {0} \case __
-                                      }) (blockMatrix.elem00 {_} {2} {2} {suc m} {suc m} {Q2.val} {MatrixRing.ide} i' 0)) (BigSum_zro {_} {\new Array E (suc m) \lam j => BigSum (\lam k => P2.val i k * B k (suc j)) * zro} \lam j => zro_*-right) *> zro-right
+                                      }) (blockMatrix.elem00 {_} {2} {2} {suc m} {suc m} {Q2.val} {MatrixRing.ide} i' 0)) (BigSum_zro {_} {\new Array R (suc m) \lam j => BigSum (\lam k => P2.val i k * B k (suc j)) * zro} \lam j => zro_*-right) *> zro-right
                                       | 1 => inv $ BigSum-split {_} {2} {suc m} {\lam j => BigSum (\lam k => P2.val i k * (::) (BigSum (\lam j => P1.val k j * A j 0)) (B k) j) * blockMatrix Q2.val MatrixRing.ide j 1} *> pmap2 (+) (cong $ ext \lam j => pmap2 (*) (cong $ ext \lam k => pmap (_ *) \case \elim j, \elim k \with {
                                         | 0, k => idp
                                         | 1, 0 => idp
                                         | 1, suc k => Bs.1 {suc k} {0} \case __
-                                      }) (blockMatrix.elem00 {_} {2} {2} {suc m} {suc m} {Q2.val} {MatrixRing.ide} j 1)) (BigSum_zro {_} {\new Array E (suc m) \lam j => BigSum (\lam k => P2.val i k * B k (suc j)) * zro} \lam j => zro_*-right) *> zro-right
+                                      }) (blockMatrix.elem00 {_} {2} {2} {suc m} {suc m} {Q2.val} {MatrixRing.ide} j 1)) (BigSum_zro {_} {\new Array R (suc m) \lam j => BigSum (\lam k => P2.val i k * B k (suc j)) * zro} \lam j => zro_*-right) *> zro-right
                                       | suc (suc j) => inv ide-right *> pmap (_ *) (later $ rewrite (decideEq=_reduce idp) idp) *> inv (BigSum-unique {_} {\lam k => BigSum (\lam j => P2.val i j * (::) (BigSum (\lam k => P1.val j k * A k 0)) (B j) k) * blockMatrix Q2.val MatrixRing.ide k (suc (suc j))} (suc (suc j)) \lam k j+2/=k => pmap (_ *) (later \case ++'.split-index {2} k \with {
                                         | inl (k',p) => rewrite p $ blockMatrix.elem01 {_} {2} {2} {suc m} {suc m} {Q2.val} {MatrixRing.ide} k' j
                                         | inr (k',p) => rewrite p $ mcases \with {
@@ -265,7 +267,7 @@
                | 0 => IsSmith.div00 Fs i 0
                | 1 => IsSmith.div00 Fs i 1
                | suc (suc j) => \case M~_LDiv (~-symmetric D~F) (IsSmith.div00 Fs) (0 : Fin (suc n)) 1, FinSet.finiteAC (\lam k => IsSmith.div00 Bs k (suc j)) \with {
-                 | inP d1, inP d2 => inP $ LDiv.trans d1 $ LDiv_BigSum {_} {_} {\lam k => P2.val i k * B k (suc j)} \lam k => LDiv.factor-right (d2 k)
+                 | inP d1, inP d2 => inP $ LDiv.trans d1 $ R.LDiv_BigSum {_} {\lam k => P2.val i k * B k (suc j)} \lam k => LDiv.factor-right (d2 k)
                }
              }
         \in inP (K, Ks, A~C `~-transitive` C~H `~-transitive` H~K)
@@ -284,7 +286,7 @@
             \lam i => BigSum-unique2 {_} {\lam j => (::) (negative (LDiv.inv {d i})) (MatrixRing.ide i) j * A j 0} {0} {suc i} NatSemiring.zero<suc (\case \elim __ \with {
               | 0 => \lam p => absurd (p idp)
               | suc k => \lam _ k/=i => rewrite (decideEq/=_reduce \lam p => k/=i (inv (pmap fsuc p))) zro_*-left
-            }) *> rewrite (decideEq=_reduce idp) (pmap2 (+) (negative_*-left *> pmap negative (*-comm *> LDiv.inv-right {d i})) ide-left *> negative-left),
+            }) *> rewrite (decideEq=_reduce idp) (pmap2 (+) (R.negative_*-left *> pmap negative (*-comm *> LDiv.inv-right {d i})) ide-left *> negative-left),
             \lam j => BigSum-unique {_} {\lam k => (::) ide (replicate n zro) k * A k j} 0 (\case \elim __ \with {
               | 0 => \lam p => absurd (p idp)
               | suc k => \lam _ => zro_*-left
@@ -307,12 +309,12 @@
                  (d : \Pi (i : Fin n) (j : Fin m) -> TruncP (LDiv a (A i j)))
                  (i : Fin n) (j : Fin m) : TruncP (LDiv a (B i j)) \elim A~B
     | inP (C : Inv, D : Inv, A~B) => rewrite A~B $ TruncP.map (choice {_} {\lam (s : \Sigma (Fin n) (Fin m)) => LDiv a (A s.1 s.2)} \lam s => d s.1 s.2)
-                                         \lam f => LDiv_BigSum \lam k => LDiv.factor-left {_} {_} {BigSum \lam j => C.val i j * A j k} {D.val k j} $ LDiv_BigSum \lam j => later $ LDiv.factor-right $ f (j,k)
+                                         \lam f => R.LDiv_BigSum \lam k => LDiv.factor-left {_} {_} {BigSum \lam j => C.val i j * A j k} {D.val k j} $ R.LDiv_BigSum \lam j => later $ LDiv.factor-right $ f (j,k)
 
   \lemma ind-step {R : CRing} {n m : Nat} (A : Matrix R (suc n) (suc m))
-                  (IH : \Pi (B : Matrix R n m) -> ∃ (C : Matrix E n m) (IsSmith C) (B M~ C))
+                  (IH : \Pi (B : Matrix R n m) -> ∃ (C : Matrix R n m) (IsSmith C) (B M~ C))
                   (d00 : \Pi (i : Fin (suc n)) (j : Fin (suc m)) -> TruncP (LDiv (A 0 0) (A i j)))
-    : ∃ (B : Matrix E (suc n) (suc m)) (IsSmith B) (A M~ B)
+    : ∃ (B : Matrix R (suc n) (suc m)) (IsSmith B) (A M~ B)
     => \let | (inP d1) => FinSet.finiteAC (\lam i => d00 i 0)
             | (inP d2) => FinSet.finiteAC (d00 0)
             | (B,A~B,B00=A00,c,d) => elimRowColumn A (\lam i => d1 (suc i)) (\lam j => d2 (suc j))
