@@ -44,12 +44,12 @@
   | alg-comm (x : C) (y : R) : alg x R.* y = y R.* alg x
   \field mData : Data {R} vars
 
-  \func interpretNF (l : List (\Sigma (List V) C)) : R \elim l
+  \func interpretRingNF (l : List (\Sigma (List V) C)) : R \elim l
     | nil => 0
     | :: x nil => alg x.2 * mData.interpretNF x.1
-    | :: x l => alg x.2 * mData.interpretNF x.1 + interpretNF l
+    | :: x l => alg x.2 * mData.interpretNF x.1 + interpretRingNF l
 
-  \lemma cons (x : \Sigma (List V) C) (l : List (\Sigma (List V) C)) : interpretNF (x :: l) = alg x.2 * mData.interpretNF x.1 + interpretNF l \elim l
+  \lemma cons (x : \Sigma (List V) C) (l : List (\Sigma (List V) C)) : interpretRingNF (x :: l) = alg x.2 * mData.interpretNF x.1 + interpretRingNF l \elim l
     | nil => inv zro-right
     | :: a l => idp
 }
@@ -57,7 +57,7 @@
 \class AlgData \extends BaseData {
   | pnegative : R -> R
   | negate : List (\Sigma (List V) C) -> List (\Sigma (List V) C)
-  | interpretNF_negate (l : List (\Sigma (List V) C)) : pnegative (interpretNF l) = interpretNF (negate l)
+  | interpretNF_negate (l : List (\Sigma (List V) C)) : pnegative (interpretRingNF l) = interpretRingNF (negate l)
 
   \func interpret (t : RingTerm C V) : R \elim t
     | coef c => alg c
@@ -68,15 +68,15 @@
     | :+ t s => interpret t + interpret s
     | :* t s => interpret t * interpret s
 
-  \lemma interpretNF_++ (l1 l2 : List (\Sigma (List V) C)) : interpretNF (l1 ++ l2) = interpretNF l1 + interpretNF l2 \elim l1
+  \lemma interpretRingNF_++ (l1 l2 : List (\Sigma (List V) C)) : interpretRingNF (l1 ++ l2) = interpretRingNF l1 + interpretRingNF l2 \elim l1
     | nil => inv zro-left
     | :: a l1 => run {
       repeat {2} (rewrite BaseData.cons),
-      rewrite interpretNF_++,
+      rewrite interpretRingNF_++,
       inv +-assoc
     }
 
-  \lemma interpretNF_map (a1 : C) (a2 a3 : List V) (l : List (\Sigma (List V) C)) : interpretNF (map (\lam b => (a2 ++ b.1 ++ a3, a1 * b.2)) l) = alg a1 * mData.interpretNF a2 * interpretNF l * Data.interpretNF {mData} a3 \elim l
+  \lemma interpretNF_map (a1 : C) (a2 a3 : List V) (l : List (\Sigma (List V) C)) : interpretRingNF (map (\lam b => (a2 ++ b.1 ++ a3, a1 * b.2)) l) = alg a1 * mData.interpretNF a2 * interpretRingNF l * mData.interpretNF a3 \elim l
     | nil => inv (pmap (`* _) zro_*-right *> zro_*-left)
     | :: a l => run {
       repeat {2} (rewrite BaseData.cons),
@@ -85,30 +85,30 @@
       pmap (`+ _) (equation {Monoid} {usingOnly (alg-comm a.2 (mData.interpretNF a2))})
     }
 
-  \lemma interpretNF_map-left (a1 : C) (a2 : List V) (l : List (\Sigma (List V) C)) : interpretNF (map (\lam b => (a2 ++ b.1, a1 * b.2)) l) = alg a1 * mData.interpretNF a2 * interpretNF l
-    => inv (path (\lam i => interpretNF (map (\lam b => (a2 ++ (++_nil {_} {b.1} @ i), a1 * b.2)) l))) *> interpretNF_map a1 a2 nil l *> ide-right
+  \lemma interpretNF_map-left (a1 : C) (a2 : List V) (l : List (\Sigma (List V) C)) : interpretRingNF (map (\lam b => (a2 ++ b.1, a1 * b.2)) l) = alg a1 * mData.interpretNF a2 * interpretRingNF l
+    => inv (path (\lam i => interpretRingNF (map (\lam b => (a2 ++ (++_nil {_} {b.1} @ i), a1 * b.2)) l))) *> interpretNF_map a1 a2 nil l *> ide-right
 
-  \lemma interpretNF_multiply (l1 l2 : List (\Sigma (List V) C)) {acc : List (\Sigma (List V) C)} : interpretNF (multiply l1 l2 acc) = interpretNF l1 * interpretNF l2 + interpretNF acc \elim l1
+  \lemma interpretNF_multiply (l1 l2 : List (\Sigma (List V) C)) {acc : List (\Sigma (List V) C)} : interpretRingNF (multiply l1 l2 acc) = interpretRingNF l1 * interpretRingNF l2 + interpretRingNF acc \elim l1
     | nil => rewrite zro_*-left (inv zro-left)
     | :: a l1 => run {
-      rewrite (interpretNF_multiply, interpretNF_++),
+      rewrite (interpretNF_multiply, interpretRingNF_++),
       rewriteI +-assoc,
       cong,
       rewrite (BaseData.cons, rdistr, interpretNF_map-left),
       +-comm
     }
 
-  \lemma interpretNF_multiply' (l1 l2 : List (\Sigma (List V) C)) : interpretNF (multiply' l1 l2) = interpretNF l1 * interpretNF l2 \elim l2
+  \lemma interpretNF_multiply' (l1 l2 : List (\Sigma (List V) C)) : interpretRingNF (multiply' l1 l2) = interpretRingNF l1 * interpretRingNF l2 \elim l2
     | nil => inv zro_*-right
     | :: a l2 => interpretNF_multiply l1 (a :: l2) *> zro-right
 
-  \lemma perm-consistent {l l' : List (\Sigma (List V) C)} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
+  \lemma perm-consistent {l l' : List (\Sigma (List V) C)} (p : Perm l l') : interpretRingNF l = interpretRingNF l' \elim l, l', p
     | nil, nil, perm-nil => idp
     | :: a1 l1, :: a2 l2, perm-:: idp p => repeat {2} (rewrite BaseData.cons) (pmap (_ +) (perm-consistent p))
-    | :: a1 (:: a1' l1), :: a2 (:: a2' l2), perm-swap idp idp idp => repeat {2} (rewrite BaseData.cons) (inv +-assoc *> pmap (`+ interpretNF l1) +-comm *> +-assoc)
+    | :: a1 (:: a1' l1), :: a2 (:: a2' l2), perm-swap idp idp idp => repeat {2} (rewrite BaseData.cons) (inv +-assoc *> pmap (`+ interpretRingNF l1) +-comm *> +-assoc)
     | l1, l2, perm-trans p1 p2 => perm-consistent p1 *> perm-consistent p2
 
-  \lemma sort-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (sort l)
+  \lemma sort-consistent (l : List (\Sigma (List V) C)) : interpretRingNF l = interpretRingNF (sort l)
     => rewrite (sort=insert l) (perm-consistent (Insertion.sort-perm l))
 
   \func collapse1 (m : List V) (c : C) (l : List (\Sigma (List V) C)) : List (\Sigma (List V) C) \elim l
@@ -122,17 +122,17 @@
     | nil => nil
     | :: a l => collapse1 a.1 a.2 l
 
-  \lemma collapse1-consistent (m : List V) (c : C) (l : List (\Sigma (List V) C)) : alg c * mData.interpretNF m + interpretNF l = interpretNF (collapse1 m c l) \elim l
+  \lemma collapse1-consistent (m : List V) (c : C) (l : List (\Sigma (List V) C)) : alg c * mData.interpretNF m + interpretRingNF l = interpretRingNF (collapse1 m c l) \elim l
     | nil => zro-right
     | :: a l => mcases \with {
       | yes p => rewrite BaseData.cons $
           inv +-assoc *>
-          pmap (`+ interpretNF l) (pmap (alg c * mData.interpretNF __ + _) p *> inv (pmap (`* _) alg.func-+ *> rdistr)) *>
+          pmap (`+ interpretRingNF l) (pmap (alg c * mData.interpretNF __ + _) p *> inv (pmap (`* _) alg.func-+ *> rdistr)) *>
           collapse1-consistent a.1 (c + a.2) l
       | no _ => repeat {2} (rewrite BaseData.cons) (pmap (_ +) (collapse1-consistent a.1 a.2 l))
     }
 
-  \lemma collapse-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (collapse l)
+  \lemma collapse-consistent (l : List (\Sigma (List V) C)) : interpretRingNF l = interpretRingNF (collapse l)
     | nil => idp
     | :: a l => rewrite BaseData.cons (collapse1-consistent a.1 a.2 l)
 
@@ -143,7 +143,7 @@
       | no n => a :: remove0 l
     }
 
-  \lemma remove0-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (remove0 l)
+  \lemma remove0-consistent (l : List (\Sigma (List V) C)) : interpretRingNF l = interpretRingNF (remove0 l)
     | nil => idp
     | :: a l => rewrite BaseData.cons $ mcases \with {
       | yes e => rewrite e $ pmap (__ * _ + _) alg.func-zro *> pmap (`+ _) zro_*-left *> zro-left *> remove0-consistent l
@@ -159,36 +159,36 @@
     | :+ t s => normalize' t ++ normalize' s
     | :* t s => remove0 (collapse (multiply' (normalize' t) (normalize' s)))
 
-  \lemma normalize-consistent' (t : RingTerm C V) : interpret t = interpretNF (normalize' t)
+  \lemma normalize-consistent' (t : RingTerm C V) : interpret t = interpretRingNF (normalize' t)
     | coef c => inv ide-right
     | var v => rewrite alg.func-ide (inv ide-left)
     | :zro => idp
     | :ide => inv (ide-right *> alg.func-ide)
     | :negative t => rewrite normalize-consistent' (interpretNF_negate (normalize' t))
-    | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_++ (normalize' t) (normalize' s)))
+    | :+ t s => repeat {2} (rewrite normalize-consistent') (inv (interpretRingNF_++ (normalize' t) (normalize' s)))
     | :* t s => repeat {2} (rewrite normalize-consistent') (inv (interpretNF_multiply' (normalize' t) (normalize' s)) *> collapse-consistent _ *> remove0-consistent _)
 
   \func normalize (t : RingTerm C V) => remove0 (collapse (sort (normalize' t)))
 
-  \lemma normalizeList-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (remove0 (collapse (sort l)))
+  \lemma normalizeList-consistent (l : List (\Sigma (List V) C)) : interpretRingNF l = interpretRingNF (remove0 (collapse (sort l)))
     => sort-consistent _ *> collapse-consistent _ *> remove0-consistent _
 
-  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
+  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretRingNF (normalize t)
     => normalize-consistent' t *> normalizeList-consistent _
 
-  \lemma terms-equality (t s : RingTerm C V) (p : interpretNF (normalize t) = interpretNF (normalize s)) : interpret t = interpret s
+  \lemma terms-equality (t s : RingTerm C V) (p : interpretRingNF (normalize t) = interpretRingNF (normalize s)) : interpret t = interpret s
     => normalize-consistent t *> p *> inv (normalize-consistent s)
 
   \lemma replace-consistent (list : List (\Sigma (List V) C)) (l r : RingTerm C V) (is : List Nat) (a b : List V) (c : C)
-                            (p : interpretNF (remove0 (collapse (sort (CData.indices is list)))) = interpretNF (remove0 (collapse (sort (map (\lam t => (a ++ t.1 ++ b, c * t.2)) (normalize' l))))))
+                            (p : interpretRingNF (remove0 (collapse (sort (CData.indices is list)))) = interpretRingNF (remove0 (collapse (sort (map (\lam t => (a ++ t.1 ++ b, c * t.2)) (normalize' l))))))
                             (rule : interpret l = interpret r)
-    : interpretNF list = interpretNF (map (\lam t => (a ++ t.1 ++ b, c * t.2)) (normalize' r) ++ CData.removeIndices is list)
+    : interpretRingNF list = interpretRingNF (map (\lam t => (a ++ t.1 ++ b, c * t.2)) (normalize' r) ++ CData.removeIndices is list)
     => replace-consistent-lem is list *>
-       interpretNF_++ _ _ *>
+       interpretRingNF_++ _ _ *>
        pmap (`+ _) (normalizeList-consistent _ *> p *> inv (normalizeList-consistent _) *> interpretNF_map c a b _ *> pmap (_ * __ * _) (inv (normalize-consistent' l) *> rule *> normalize-consistent' r) *> inv (interpretNF_map c a b _)) *>
-       inv (interpretNF_++ _ _)
+       inv (interpretRingNF_++ _ _)
 
-  \lemma replace-consistent-lem (is : List Nat) (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (CData.indices is l ++ CData.removeIndices is l)
+  \lemma replace-consistent-lem (is : List Nat) (l : List (\Sigma (List V) C)) : interpretRingNF l = interpretRingNF (CData.indices is l ++ CData.removeIndices is l)
     | nil, l => idp
     | :: 0 is, nil => idp
     | :: (suc _) is, nil => idp
@@ -215,32 +215,32 @@
 
   \func normalize (t : RingTerm C V) => remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (normalize' t))))
 
-  \lemma map_sort-consistent (l : List (\Sigma (List V) C)) : interpretNF l = interpretNF (map (\lam p => (sort p.1, p.2)) l)
+  \lemma map_sort-consistent (l : List (\Sigma (List V) C)) : interpretRingNF l = interpretRingNF (map (\lam p => (sort p.1, p.2)) l)
     | nil => idp
     | :: a l => repeat {2} (rewrite BaseData.cons) $ pmap2 (_ * __ + __) (CData.sort-consistent {mData} a.1) (map_sort-consistent l)
 
-  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
+  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretRingNF (normalize t)
     => normalize-consistent' t *> map_sort-consistent _ *> normalizeList-consistent _
 
-  \lemma terms-equality (t s : RingTerm C V) (p : interpretNF (normalize t) = interpretNF (normalize s)) : interpret t = interpret s
+  \lemma terms-equality (t s : RingTerm C V) (p : interpretRingNF (normalize t) = interpretRingNF (normalize s)) : interpret t = interpret s
     => normalize-consistent t *> p *> inv (normalize-consistent s)
 
   \lemma replace-consistent (list : List (\Sigma (List V) C)) (l r : RingTerm C V) (is : List Nat) (a : List V) (c : C)
-                            (p : interpretNF (remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (CData.indices is list))))) = interpretNF (remove0 (collapse (sort (map (\lam t => (sort (a ++ t.1), c * t.2)) (normalize' l))))))
+                            (p : interpretRingNF (remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (CData.indices is list))))) = interpretRingNF (remove0 (collapse (sort (map (\lam t => (sort (a ++ t.1), c * t.2)) (normalize' l))))))
                             (rule : interpret l = interpret r)
-    : interpretNF list = interpretNF (map (\lam t => (a ++ t.1, c * t.2)) (normalize' r) ++ CData.removeIndices is list)
+    : interpretRingNF list = interpretRingNF (map (\lam t => (a ++ t.1, c * t.2)) (normalize' r) ++ CData.removeIndices is list)
     => replace-consistent-lem is list *>
-       interpretNF_++ _ _ *>
+       interpretRingNF_++ _ _ *>
        pmap (`+ _) (map_sort-consistent _ *>
                     normalizeList-consistent _ *>
                     p *>
                     inv (normalizeList-consistent _) *>
-                    pmap interpretNF (map_comp (\lam (t : \Sigma (List V) C) => (sort t.1, t.2)) (\lam t => (a ++ t.1, c * t.2)) (normalize' l)) *>
+                    pmap interpretRingNF (map_comp (\lam (t : \Sigma (List V) C) => (sort t.1, t.2)) (\lam t => (a ++ t.1, c * t.2)) (normalize' l)) *>
                     inv (map_sort-consistent _) *>
                     interpretNF_map-left c a _ *>
                     pmap (_ *) (inv (normalize-consistent' l) *> rule *> normalize-consistent' r) *>
                     inv (interpretNF_map-left c a _)) *>
-       inv (interpretNF_++ _ _)
+       inv (interpretRingNF_++ _ _)
 } \where {
   \open Sort.RedBlack
   \open AlgData
@@ -318,38 +318,38 @@
       | uncomparable => a :: insert m l
     }
 
-  \lemma insert-consistent (m : List V) (l : List (List V)) : mData.interpretNF m ∨ interpretNF l = interpretNF (insert m l) \elim l
+  \lemma insert-consistent (m : List V) (l : List (List V)) : mData.interpretNF m ∨ interpretLatticeNF l = interpretLatticeNF (insert m l) \elim l
     | nil => zro-right
     | :: a l => mcases \with {
-      | lessOrEquals p => rewrite interpretNF.cons $ inv +-assoc *> pmap (`∨ _) (+-comm *> p)
-      | greater p => repeat {2} (rewrite interpretNF.cons) $ inv +-assoc *> pmap (`∨ _) (+-comm *> p)
-      | uncomparable => repeat {2} (rewrite interpretNF.cons) $ inv +-assoc *> pmap (`∨ _) +-comm *> +-assoc *> pmap (_ ∨) (insert-consistent m l)
+      | lessOrEquals p => rewrite interpretLatticeNF.cons $ inv +-assoc *> pmap (`∨ _) (+-comm *> p)
+      | greater p => repeat {2} (rewrite interpretLatticeNF.cons) $ inv +-assoc *> pmap (`∨ _) (+-comm *> p)
+      | uncomparable => repeat {2} (rewrite interpretLatticeNF.cons) $ inv +-assoc *> pmap (`∨ _) +-comm *> +-assoc *> pmap (_ ∨) (insert-consistent m l)
     }
 
   \func collapse (l : List (List V)) : List (List V)
     | nil => nil
     | :: a l => insert a (collapse l)
 
-  \lemma collapse-consistent (l : List (List V)) : interpretNF l = interpretNF (collapse l)
+  \lemma collapse-consistent (l : List (List V)) : interpretLatticeNF l = interpretLatticeNF (collapse l)
     | nil => idp
-    | :: a l => rewrite interpretNF.cons (pmap (_ ∨) (collapse-consistent l) *> insert-consistent a (collapse l))
+    | :: a l => rewrite interpretLatticeNF.cons (pmap (_ ∨) (collapse-consistent l) *> insert-consistent a (collapse l))
 
   \func remove0 (l : List (\Sigma (List V) C)) : List (List V)
     | nil => nil
     | :: (_,false) l => remove0 l
     | :: (m,true) l => m :: remove0 l
 
-  \lemma remove0-consistent (l : List (\Sigma (List V) C)) : AlgData.interpretNF l = interpretNF (remove0 l)
+  \lemma remove0-consistent (l : List (\Sigma (List V) C)) : interpretRingNF l = interpretLatticeNF (remove0 l)
     | nil => idp
     | :: (_,false) l => rewrite BaseData.cons $ pmap (`∨ _) zro_*-left *> zro-left *> remove0-consistent l
-    | :: (_,true) l => rewrite (BaseData.cons, interpretNF.cons) $ pmap2 (∨) ide-left (remove0-consistent l)
+    | :: (_,true) l => rewrite (BaseData.cons, interpretLatticeNF.cons) $ pmap2 (∨) ide-left (remove0-consistent l)
 
-  \func interpretNF (l : List (List V)) : L \elim l
+  \func interpretLatticeNF (l : List (List V)) : L \elim l
     | nil => bottom
     | :: x nil => mData.interpretNF x
-    | :: x l => mData.interpretNF x ∨ interpretNF l
+    | :: x l => mData.interpretNF x ∨ interpretLatticeNF l
     \where
-      \lemma cons (x : List V) (l : List (List V)) : interpretNF (x :: l) = mData.interpretNF x ∨ interpretNF l \elim l
+      \lemma cons (x : List V) (l : List (List V)) : interpretLatticeNF (x :: l) = mData.interpretNF x ∨ interpretLatticeNF l \elim l
         | nil => inv zro-right
         | :: a l => idp
 
@@ -357,27 +357,27 @@
 
   \func normalize (t : RingTerm C V) => sort (collapse (map (\lam l => LData.removeDuplicates {lData} (sort l)) (remove0 (normalize' t))))
 
-  \lemma perm-consistent {l l' : List (List V)} (p : Perm l l') : interpretNF l = interpretNF l' \elim l, l', p
+  \lemma perm-consistent {l l' : List (List V)} (p : Perm l l') : interpretLatticeNF l = interpretLatticeNF l' \elim l, l', p
     | nil, nil, perm-nil => idp
-    | :: a1 l1, :: a2 l2, perm-:: idp p => repeat {2} (rewrite interpretNF.cons) (pmap (_ +) (perm-consistent p))
-    | :: a1 (:: a1' l1), :: a2 (:: a2' l2), perm-swap idp idp idp => repeat {2} (rewrite interpretNF.cons) (inv +-assoc *> pmap (`+ interpretNF l1) +-comm *> +-assoc)
+    | :: a1 l1, :: a2 l2, perm-:: idp p => repeat {2} (rewrite interpretLatticeNF.cons) (pmap (_ +) (perm-consistent p))
+    | :: a1 (:: a1' l1), :: a2 (:: a2' l2), perm-swap idp idp idp => repeat {2} (rewrite interpretLatticeNF.cons) (inv +-assoc *> pmap (`+ interpretLatticeNF l1) +-comm *> +-assoc)
     | l1, l2, perm-trans p1 p2 => perm-consistent p1 *> perm-consistent p2
 
-  \lemma sort-consistent (l : List (List V)) : interpretNF l = interpretNF (sort l)
+  \lemma sort-consistent (l : List (List V)) : interpretLatticeNF l = interpretLatticeNF (sort l)
     => rewrite (sort=insert l) (perm-consistent (Insertion.sort-perm l))
 
-  \lemma map_sort-consistent (l : List (List V)) : interpretNF l = interpretNF (map sort l)
+  \lemma map_sort-consistent (l : List (List V)) : interpretLatticeNF l = interpretLatticeNF (map sort l)
     | nil => idp
-    | :: a l => repeat {2} (rewrite interpretNF.cons) $ pmap2 (+) (CData.sort-consistent {mData} a) (map_sort-consistent l)
+    | :: a l => repeat {2} (rewrite interpretLatticeNF.cons) $ pmap2 (+) (CData.sort-consistent {mData} a) (map_sort-consistent l)
 
-  \lemma map_removeDuplicates-consistent (l : List (List V)) : interpretNF l = interpretNF (map (LData.removeDuplicates {lData}) l)
+  \lemma map_removeDuplicates-consistent (l : List (List V)) : interpretLatticeNF l = interpretLatticeNF (map (LData.removeDuplicates {lData}) l)
     | nil => idp
-    | :: a l => repeat {2} (rewrite interpretNF.cons) $ pmap2 (∨) (LData.removeDuplicates-consistent {lData} a) (map_removeDuplicates-consistent l)
+    | :: a l => repeat {2} (rewrite interpretLatticeNF.cons) $ pmap2 (∨) (LData.removeDuplicates-consistent {lData} a) (map_removeDuplicates-consistent l)
 
-  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretNF (normalize t)
-    => normalize-consistent' t *> remove0-consistent _ *> map_sort-consistent _ *> map_removeDuplicates-consistent _ *> inv (pmap interpretNF (map_comp (LData.removeDuplicates {lData}) sort _)) *> collapse-consistent _ *> sort-consistent _
+  \lemma normalize-consistent (t : RingTerm C V) : interpret t = interpretLatticeNF (normalize t)
+    => normalize-consistent' t *> remove0-consistent _ *> map_sort-consistent _ *> map_removeDuplicates-consistent _ *> inv (pmap interpretLatticeNF (map_comp (LData.removeDuplicates {lData}) sort _)) *> collapse-consistent _ *> sort-consistent _
 
-  \lemma terms-equality (t s : RingTerm C V) (p : interpretNF (normalize t) = interpretNF (normalize s)) : interpret t = interpret s
+  \lemma terms-equality (t s : RingTerm C V) (p : interpretLatticeNF (normalize t) = interpretLatticeNF (normalize s)) : interpret t = interpret s
     => normalize-consistent t *> p *> inv (normalize-consistent s)
 } \where {
   \open Bounded \hiding (JoinSemilattice)
@@ -397,7 +397,7 @@
   \default mData => \new Data
   | pnegative => negative
   | negate => BaseRingData.negate
-  \default interpretNF_negate (l : List (\Sigma (List V) C)) : negative (interpretNF l) = interpretNF (negate l) \elim l {
+  \default interpretNF_negate (l : List (\Sigma (List V) C)) : negative (interpretRingNF l) = interpretRingNF (negate l) \elim l {
     | nil => AddGroup.negative_zro
     | :: a l => repeat {2} (rewrite BaseData.cons) (AddGroup.negative_+ *> +-comm *> pmap2 (+) (inv (pmap (`* _) (AddGroupHom.func-negative {alg}) *> Ring.negative_*-left)) (interpretNF_negate l))
   }
@@ -433,28 +433,28 @@
 
   \func normalize (t : RingTerm C V) => remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (RingData.normalize' t))))
 
-  \lemma normalize-consistent (t : RingTerm C V) : RingData.interpret t = interpretNF (normalize t)
+  \lemma normalize-consistent (t : RingTerm C V) : RingData.interpret t = interpretRingNF (normalize t)
     => RingData.normalize-consistent' t *> CAlgData.map_sort-consistent _ *> normalizeList-consistent _
 
-  \lemma terms-equality (t s : RingTerm C V) (p : interpretNF (normalize t) = interpretNF (normalize s)) : RingData.interpret t = RingData.interpret s
+  \lemma terms-equality (t s : RingTerm C V) (p : interpretRingNF (normalize t) = interpretRingNF (normalize s)) : RingData.interpret t = RingData.interpret s
     => normalize-consistent t *> p *> inv (normalize-consistent s)
 
   \lemma replace-consistent (list : List (\Sigma (List V) C)) (l r : RingTerm C V) (is : List Nat) (a : List V) (c : C)
-                            (p : interpretNF (remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (CData.indices is list))))) = interpretNF (remove0 (collapse (sort (map (\lam t => (sort (a ++ t.1), c * t.2)) (normalize' l))))))
+                            (p : interpretRingNF (remove0 (collapse (sort (map (\lam p => (sort p.1, p.2)) (CData.indices is list))))) = interpretRingNF (remove0 (collapse (sort (map (\lam t => (sort (a ++ t.1), c * t.2)) (normalize' l))))))
                             (rule : interpret l = interpret r)
-    : interpretNF list = interpretNF (map (\lam t => (a ++ t.1, c * t.2)) (normalize' r) ++ CData.removeIndices is list)
+    : interpretRingNF list = interpretRingNF (map (\lam t => (a ++ t.1, c * t.2)) (normalize' r) ++ CData.removeIndices is list)
     => replace-consistent-lem is list *>
-       interpretNF_++ _ _ *>
+       interpretRingNF_++ _ _ *>
        pmap (`+ _) (CAlgData.map_sort-consistent _ *>
                     normalizeList-consistent _ *>
                     p *>
                     inv (normalizeList-consistent _) *>
-                    pmap interpretNF (map_comp (\lam (t : \Sigma (List V) C) => (sort t.1, t.2)) (\lam t => (a ++ t.1, c * t.2)) (normalize' l)) *>
+                    pmap interpretRingNF (map_comp (\lam (t : \Sigma (List V) C) => (sort t.1, t.2)) (\lam t => (a ++ t.1, c * t.2)) (normalize' l)) *>
                     inv (CAlgData.map_sort-consistent _) *>
                     interpretNF_map-left c a _ *>
                     pmap (_ *) (inv (normalize-consistent' l) *> rule *> normalize-consistent' r) *>
                     inv (interpretNF_map-left c a _)) *>
-       inv (interpretNF_++ _ _)
+       inv (interpretRingNF_++ _ _)
 } \where {
   \open AlgData
   \open Sort.RedBlack

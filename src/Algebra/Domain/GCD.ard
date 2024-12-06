@@ -3,6 +3,7 @@
 \import Algebra.Group
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Monoid.GCD
 \import Algebra.Monoid.Sub
 \import Algebra.Ring
@@ -25,25 +26,25 @@
 \class GCDDomain \extends IntegralDomain {
   | isGCDDomain (x y : E) : x `#0 -> y `#0 -> TruncP (GCD x y)
 
-  \func nonZeroMonoid : CancelGCDMonoid \cowith
-    | CancelCMonoid => IntegralDomain.nonZeroMonoid
+  \func nonZeroGCDMonoid : CancelGCDMonoid \cowith
+    | CancelCMonoid => nonZeroCMonoid
     | isGCD x y =>
       \have | (inP (g : GCD x.1 y.1)) => isGCDDomain x.1 y.1 x.2 y.2
-            | g*x#0 => transport #0 (inv g.gcd|val1.inv-right) x.2
+            | g*x#0 => transport #0 (inv g.res|val1.inv-right) x.2
             | g#0 => #0-*-left g*x#0
       \in inP (\new GCD {
-                 | gcd => (g.gcd, g#0)
-                 | gcd|val1 => \new LDiv {
-                   | inv => (g.gcd|val1.inv, #0-*-right g*x#0)
-                   | inv-right => ext g.gcd|val1.inv-right
+                 | res => (g, g#0)
+                 | res|val1 => \new LDiv {
+                   | inv => (g.res|val1.inv, #0-*-right g*x#0)
+                   | inv-right => ext g.res|val1.inv-right
                  }
-                 | gcd|val2 => \new LDiv {
-                   | inv => (g.gcd|val2.inv, #0-*-right (transport #0 (inv g.gcd|val2.inv-right) y.2))
-                   | inv-right => ext g.gcd|val2.inv-right
+                 | res|val2 => \new LDiv {
+                   | inv => (g.res|val2.inv, #0-*-right (transport #0 (inv g.res|val2.inv-right) y.2))
+                   | inv-right => ext g.res|val2.inv-right
                  }
-                 | gcd-univ h (h|x : LDiv h x) (h|y : LDiv h y) =>
-                   \have h|g : LDiv h.1 g.gcd => g.gcd-univ h.1 (\new LDiv h.1 x.1 h|x.inv.1 (pmap __.1 h|x.inv-right))
-                                                                (\new LDiv h.1 y.1 h|y.inv.1 (pmap __.1 h|y.inv-right))
+                 | res-univ h (h|x : LDiv h x) (h|y : LDiv h y) =>
+                   \have h|g : LDiv h.1 g => g.res-univ h.1 (\new LDiv h.1 x.1 h|x.inv.1 (pmap __.1 h|x.inv-right))
+                                                            (\new LDiv h.1 y.1 h|y.inv.1 (pmap __.1 h|y.inv-right))
                    \in \new LDiv {
                      | inv => (h|g.inv, #0-*-right (transport #0 (inv h|g.inv-right) g#0))
                      | inv-right => ext h|g.inv-right
@@ -51,23 +52,23 @@
                })
 
   \func gcd_0 (x : E) : GCD x 0 x \cowith
-    | gcd|val1 => \new LDiv {
+    | res|val1 => \new LDiv {
       | inv => 1
       | inv-right => ide-right
     }
-    | gcd|val2 => \new LDiv {
+    | res|val2 => \new LDiv {
       | inv => 0
       | inv-right => zro_*-right
     }
-    | gcd-univ g g|a _ => g|a
+    | res-univ g g|a _ => g|a
 
-  \func gcd_sum (d : E) (g : GCD {\this}) : GCD (g.val1 + g.val2 * d) g.val2 g.gcd \cowith
-    | gcd|val1 => \new LDiv {
-      | inv => g.gcd|val1.inv + g.gcd|val2.inv * d
-      | inv-right => ldistr *> pmap2 (+) g.gcd|val1.inv-right (inv *-assoc *> pmap (`* d) g.gcd|val2.inv-right)
+  \func gcd_sum (d : E) (g : GCD {\this}) : GCD (g.val1 + g.val2 * d) g.val2 g \cowith
+    | res|val1 => \new LDiv {
+      | inv => g.res|val1.inv + g.res|val2.inv * d
+      | inv-right => ldistr *> pmap2 (+) g.res|val1.inv-right (inv *-assoc *> pmap (`* d) g.res|val2.inv-right)
     }
-    | gcd|val2 => g.gcd|val2
-    | gcd-univ g' (g'|a+bd : LDiv) (g'|b : LDiv) => g.gcd-univ g' (\new LDiv {
+    | res|val2 => g.res|val2
+    | res-univ g' (g'|a+bd : LDiv) (g'|b : LDiv) => g.res-univ g' (\new LDiv {
       | inv => g'|a+bd.inv - g'|b.inv * d
       | inv-right => ldistr *> pmap2 (+) g'|a+bd.inv-right (Ring.negative_*-right *> pmap negative (inv *-assoc *> pmap (`* d) g'|b.inv-right)) *> simplify
     }) g'|b
@@ -76,9 +77,9 @@
     | isGCD => gcd nonZeroApart
     | gcd-ldistr c {x} {y} g => \case decideEq c 0 \with {
       | yes c=0 => rewrite c=0 $ simplify $ inP \new GCD {
-        | gcd|val1 => LDiv.id-div
-        | gcd|val2 => LDiv.id-div
-        | gcd-univ g g|0 _ => g|0
+        | res|val1 => LDiv.id-div
+        | res|val2 => LDiv.id-div
+        | res-univ g g|0 _ => g|0
       }
       | no c/=0 => TruncP.map (gcd nonZeroApart (c * x) (c * y)) $ GCDMonoid.gcd-ldistr_cancel (\lam {a} {b} => nonZero-cancel-left c/=0) g
     }
@@ -86,11 +87,11 @@
       | inP c, inP d => \case loc_poly (\lam s p => nonZero-cancel-right (apartNonZero s) p) d.1 d.2 (rewrite c.5 in d.3) \with {
         | inP e => rewrite c.5 \case decide#0 c.1 \with {
           | inl q => inP (0, LocRing.equals1 equation)
-          | inr c1#0 => inP (_, inv $ div_loc $ nonZero_ldiv $ nonZeroMonoid.gcd_pow_div {c.2,c.3} {c.1,c1#0} {e.1}
+          | inr c1#0 => inP (_, inv $ div_loc $ nonZero_ldiv $ CancelGCDMonoid.gcd_pow_div {nonZeroGCDMonoid} {c.2,c.3} {c.1,c1#0} {e.1}
                           (transport (LDiv _) (ext $ inv subMonoid.embed.func-pow) $ ldiv_nonZero {_} {_} {_, pow_#0 c1#0} e.2) $ IsCoprime.<=gcd $ later \new GCD {
-                            | gcd|val1 => LDiv.ide-div
-                            | gcd|val2 => LDiv.ide-div
-                            | gcd-univ g g|c2 g|c1 => ldiv_nonZero $ GCD.gcd-univ {c.4} g.1 (nonZero_ldiv g|c1) (nonZero_ldiv g|c2)
+                            | res|val1 => LDiv.ide-div
+                            | res|val2 => LDiv.ide-div
+                            | res-univ g g|c2 g|c1 => ldiv_nonZero $ GCD.res-univ {c.4} g.1 (nonZero_ldiv g|c1) (nonZero_ldiv g|c2)
                           })
         }
       }
@@ -103,12 +104,12 @@
         | inP (g : GCD) => \case decideEq a 0 \with {
           | yes a=0 => inP (1, 1, 1, 0, equation, simplify)
           | no a/=0 =>
-            \let | u => g.gcd|val2.inv
-                 | v => g.gcd|val1.inv
-                 | g' : GCD v u 1 => g.reduce $ LDiv_IsRegular g.gcd|val1 (IsRegular_/=0.2 a/=0)
-                 | (inP (c,n,p)) => oneDimensional-char.1 d v u $ ldiv/=0 a/=0 (LDiv.swap g.gcd|val1)
+            \let | u => g.res|val2.inv
+                 | v => g.res|val1.inv
+                 | g' : GCD v u 1 => g.reduce $ LDiv_IsRegular g.res|val1 (IsRegular_/=0.2 a/=0)
+                 | (inP (c,n,p)) => oneDimensional-char.1 d v u $ ldiv/=0 a/=0 (LDiv.swap g.res|val1)
                  | (inP (d,q)) => coprime_*_div p (IsCoprime_pow-right $ IsCoprime.<=gcd g')
-            \in inP (c, d, u, v, rewriteI (g.gcd|val1.inv-right,g.gcd|val2.inv-right) equation, equation)
+            \in inP (c, d, u, v, rewriteI (g.res|val1.inv-right,g.res|val2.inv-right) equation, equation)
         }
       }
 
@@ -125,7 +126,7 @@
           }, \lam f a b => \case decide#0 a, decide#0 b \with {
             | _, inl b=0 => yes $ inP $ LDiv.make 0 $ zro_*-right *> inv b=0
             | inl a=0, inr b#0 => no \lam (inP a|b) => #0-zro $ transport #0 (ldiv=0 a|b a=0) b#0
-            | inr a#0, inr b#0 => \case nonZeroMonoid.div_unit.2 (\lam x => \case f x.1 \with {
+            | inr a#0, inr b#0 => \case nonZeroGCDMonoid.div_unit.2 (\lam x => \case f x.1 \with {
               | yes e => yes (inv_nonZero e)
               | no q => no \lam e => q (nonZero_inv e)
             }) (a,a#0) (b,b#0) \with {
@@ -146,9 +147,9 @@
       | in~ (x,y,y#0) => \case decideEq x 0 \with {
         | yes x=0 => inP (0, 1, zro#ide, GCD.swap {div_gcd LDiv.ide-div}, LocRing.equals1 equation)
         | no x/=0 => TruncP.map (isGCDDomain x y (dec.nonZeroApart x/=0) y#0) \lam (gcd : GCD x y) =>
-            (gcd.gcd|val1.inv, gcd.gcd|val2.inv, D.#0-*-right $ transportInv D.#0 gcd.gcd|val2.inv-right y#0,
-             gcd.reduce \lam {x} {y} => D.nonZero-cancel-left \lam gcd=0 => x/=0 $ inv gcd.gcd|val1.inv-right *> equation,
-             LocRing.equals1 $ equation {usingOnly (gcd.gcd|val1.inv-right, gcd.gcd|val2.inv-right)})
+            (gcd.res|val1.inv, gcd.res|val2.inv, D.#0-*-right $ transportInv D.#0 gcd.res|val2.inv-right y#0,
+             gcd.reduce \lam {x} {y} => D.nonZero-cancel-left \lam gcd=0 => x/=0 $ inv gcd.res|val1.inv-right *> equation,
+             LocRing.equals1 $ equation {usingOnly (gcd.res|val1.inv-right, gcd.res|val2.inv-right)})
       }
 
     \lemma loc_poly {R : CRing} {S : SubMonoid R} (nt : \Pi {a : R} -> S a -> \Pi {x y : R} -> x * a = y * a -> x = y)
