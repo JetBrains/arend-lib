@@ -120,9 +120,9 @@
   -- | The "weakly rather below" relation: `x <=<w y` if and only if the weak closure of {x} is contained in {y}.
   \type \infix 4 <=<w (x y : E) => open y <= {NucleusFrame _} FrameHom.wclosed-image {Nucleus.map {open x}}
 
-  \type isRegular => \Pi (x : E) -> x <= SJoin (`<=< x)
+  \type IsRegularLocale => \Pi (x : E) -> x <= SJoin (`<=< x)
 
-  \type isWeaklyRegular => \Pi (x : E) -> x <= SJoin (`<=<w x)
+  \type IsWeaklyRegularLocale => \Pi (x : E) -> x <= SJoin (`<=<w x)
 
   \func open (a : E) : Nucleus (a --> __) \cowith
     | nucleus-meet => <=-antisymmetric
@@ -135,7 +135,7 @@
     => <=-antisymmetric (Join-univ \lam p => exponent.1 $ exponent.1 (=_<= (meet-assoc *> pmap (_ ∧) meet-comm *> inv meet-assoc) <=∘ meet-monotone p.2 <=-refl <=∘ Join-rdistr>= <=∘ Join-univ __.2) <=∘ y.2)
                         (Join-univ \lam p => exponent.1 $ exponent.1 (meet-left <=∘ meet-left) <=∘ Join-cond (later ((a --> p.1, nucleus-join>=), exponent.1 (meet-univ (meet-monotone meet-left <=-refl <=∘ eval) (meet-left <=∘ meet-right) <=∘ p.2) <=∘ y.2)))
 
-  \lemma open-isOpen (a : E) : isOpen {Nucleus.map {open a}}
+  \lemma open-isOpen (a : E) : IsOpen {Nucleus.map {open a}}
     => \lam x => inP (a ∧ x.1, \lam y => rewrite Nucleus.map_direct $ open_exp x (a --> y, nucleus-join>=) *> exponent-double *> pmap (__ --> y) meet-comm)
 
   \func closed (a : E) : Nucleus (a ∨ __) \cowith
@@ -280,12 +280,12 @@
     | func-Join>= => direct-counit <=∘ func-Join>=
 
   -- | A map is dense if and only if its image is dense.
-  \func isDense => \Pi {x : Dom} -> func x <= bottom -> x <= bottom
+  \protected \func IsDense => \Pi {x : Dom} -> func x <= bottom -> x <= bottom
 
-  \lemma dense_direct (d : isDense) : direct bottom <= bottom
+  \lemma dense_direct (d : IsDense) : direct bottom <= bottom
     => Join-univ (\lam j => d j.2)
 
-  \lemma direct_dense (d : direct bottom <= bottom) : isDense
+  \lemma direct_dense (d : direct bottom <= bottom) : IsDense
     => \lam {x} p => Join-cond (later (x,p)) <=∘ d
 
   \type isStronglyDense => \Pi {P : \Prop} {x : Dom} -> func x <= pHat P -> x <= pHat P
@@ -324,7 +324,7 @@
     }
 
   -- | A map is open if and only if the image of an open sublocale is open.
-  \func isOpen => \Pi (x : Cod) -> ∃ (z : Dom) ∀ y (direct (x --> func y) = z --> y)
+  \func IsOpen => \Pi (x : Cod) -> ∃ (z : Dom) ∀ y (direct (x --> func y) = z --> y)
 
   \lemma surjective-split (s : isSurj func) (x : Cod) : func (direct x) = x
     => \case s x \with {
@@ -410,7 +410,7 @@
 
   \func isClosed => \Pi {x : L} -> nucleus x <= nucleus bottom ∨ x
 
-  \func isDense => nucleus bottom <= bottom
+  \protected \func IsDense => nucleus bottom <= bottom
 }
 
 -- | The order of nuclei is inversed. That is, `n <= m` iff `m.locale` is a sublocale of `n.locale`.
@@ -654,7 +654,7 @@
       => cover-trans (cover-idemp {_} {_} {_} {\lam _ => conj x x} () idp) \lam _ => cover-conj c d (\lam {i1} {i2} => inP ((),idp))
 
     \lemma map {F : FramePresPrehom} {x : F.Dom} {J : \Set} {g : J -> F.Dom} (c : Cover x g) : Cover (F x) (\lam j => F (g j)) \elim c
-      | cover-basic b => cover-basic (func-cover b)
+      | cover-basic b => cover-basic (func-basicCover b)
       | cover-inj j p => cover-inj j (pmap F p)
       | cover-trans c g => cover-trans (map c) (\lam i => map (g i))
       | cover-proj1 p j q => cover-proj1 (pmap F p *> func-conj) j (pmap F q)
@@ -742,7 +742,7 @@
   \override Dom : FramePres
   \override Cod : FramePres
   | func-conj {x y : Dom} : func (conj x y) = conj (func x) (func y)
-  | func-cover {J : \Set} {x : Dom} {f : J -> Dom} : BasicCover x f -> BasicCover (func x) (\lam j => func (f j))
+  | func-basicCover {J : \Set} {x : Dom} {f : J -> Dom} : BasicCover x f -> BasicCover (func x) (\lam j => func (f j))
 
   \func functor : Functor (framePresSite Dom) (framePresSite Cod) \cowith
     | F => func
@@ -759,13 +759,13 @@
   | id X => \new FramePresHom {
     | func x => x
     | func-conj => idp
-    | func-cover c => c
+    | func-basicCover c => c
     | func-image {x} => cover-inj x idp
   }
   | o g f => \new FramePresHom {
     | func x => g (f x)
     | func-conj => pmap g func-conj *> func-conj
-    | func-cover c => func-cover (func-cover c)
+    | func-basicCover c => func-basicCover (func-basicCover c)
     | func-image => cover-trans func-image (\lam y => Cover.map func-image)
   }
   | id-left => idp
@@ -773,7 +773,7 @@
   | o-assoc => idp
   | univalence => sip \lam {X} {S1} {S2} (h1 : FramePresHom) (h2 : FramePresHom) => exts FramePres {
     | conj x y => h1.func-conj
-    | BasicCover x f => ext (h1.func-cover, h2.func-cover)
+    | BasicCover x f => ext (h1.func-basicCover, h2.func-basicCover)
   }
 
 {- | We can define the underlying set of {PresentedFrame} as the quotient of the set `P -> \Prop`
@@ -873,7 +873,7 @@
   | o-assoc => idp
   | univalence => sip \lam {X} {S1} {S2} (h1 : FrameUPresHom) (h2 : FrameUPresHom) => exts FrameUPres {
     | conj x y => h1.func-conj
-    | BasicCover x f => ext (h1.func-cover, h2.func-cover)
+    | BasicCover x f => ext (h1.func-basicCover, h2.func-basicCover)
     | unit => h1.func-unit
   }
 
@@ -924,7 +924,7 @@
     \func colimitMap {J : SmallPrecat} (G : Functor J FrameUPresCat) (j : J) : FrameUPresHom (G j) (colimit-obj G) \cowith
       | func => finj
       | func-conj => path (fconj-eq _ _)
-      | func-cover b => byLeft (_, _, _, b, idp, \lam k => idp)
+      | func-basicCover b => byLeft (_, _, _, b, idp, \lam k => idp)
       | func-unit => path funit-eq
 
     \func colimit-func {J : SmallPrecat} (G : Functor J FrameUPresCat) {Z : FrameUPres} (c : Cone G.op Z) (t : FTerm G) : Z \elim t
@@ -938,8 +938,8 @@
     \func colimit-univ {J : SmallPrecat} (G : Functor J FrameUPresCat) {Z : FrameUPres} (c : Cone G.op Z) : FrameUPresHom (colimit-obj G) Z \cowith
       | func => colimit-func G c
       | func-conj => idp
-      | func-cover => \case __ \with {
-        | byLeft (j,y,g,b,p,q) => rewrite p $ coe (\lam i => BasicCover _ (\lam k => colimit-func G c (inv (q k) @ i))) (func-cover {c.coneMap j} b) right
+      | func-basicCover => \case __ \with {
+        | byLeft (j,y,g,b,p,q) => rewrite p $ coe (\lam i => BasicCover _ (\lam k => colimit-func G c (inv (q k) @ i))) (func-basicCover {c.coneMap j} b) right
         | byRight p => transportInv (\lam q => BasicCover _ (\lam k => colimit-func G c (q.2 k))) p isUnit
       }
       | func-unit => idp
@@ -968,7 +968,7 @@
   | Func {X Y : Locale} (h : FrameHom X Y) : FrameUPresHom (F X) (F Y) \cowith {
     | func => h
     | func-conj => func-meet
-    | func-cover c => transport (_ <=) func-Join (FrameHom.func-<= c)
+    | func-basicCover c => transport (_ <=) func-Join (FrameHom.func-<= c)
     | func-unit => func-top
   }
   | Func-id => idp
@@ -978,7 +978,7 @@
       | func => h
       | func-top => func-unit
       | func-meet => func-conj
-      | func-Join>= => func-cover {h} <=-refl
+      | func-Join>= => func-basicCover {h} <=-refl
     }
     | ret_f h => idp
     | f_sec h => idp
@@ -998,7 +998,7 @@
       | func => h
       | func-top>= => locale_cover (func-image {h}) <=∘ Join-univ (\lam x => rewrite (inv (pmap (func {h}) (meet_<= top-univ)) *> func-conj) meet-right)
       | func-meet => func-conj
-      | func-Join>= => func-cover {h} <=-refl
+      | func-Join>= => func-basicCover {h} <=-refl
     }
     | ret_f h => idp
     | f_sec h => idp
@@ -1009,7 +1009,7 @@
     | func-conj {x} {y} => <=-antisymmetric
         (cover-trans __ \lam _ => cover-inj (x, y, cover-inj () idp, cover-inj () idp) idp)
         (cover-trans __ \lam t => Cover.cover-conj t.3 t.4 (\lam {_} {_} => inP ((),idp)))
-    | func-cover {_} {_} {f} b c => cover-trans c \lam _ => cover-trans (cover-basic b) \lam j => cover-inj (j, f j, cover-inj () idp) idp
+    | func-basicCover {_} {_} {f} b c => cover-trans c \lam _ => cover-trans (cover-basic b) \lam j => cover-inj (j, f j, cover-inj () idp) idp
     | func-image => cover-basic (\lam {x} _ => cover-inj (x, x, cover-inj () idp) idp)
   }
   | isReflective {X : FramePres} {Y : Locale} => \new QEquiv {
@@ -1212,15 +1212,15 @@
 \open FrameHom
 
 -- | Open maps are closed under pullbacks.
-\lemma pullback_open (P : Pullback {LocaleCat}) (o : isOpen {P.g}) : isOpen {P.pbProj1}
+\lemma pullback_open (P : Pullback {LocaleCat}) (o : IsOpen {P.g}) : IsOpen {P.pbProj1}
   => {?} -- [2, Theorem 1.6.4]
 
 -- | Strongly dense maps are closed under pullbacks along open maps.
-\lemma pullback_sdense (P : Pullback {LocaleCat}) (o : isOpen {P.f}) (d : isStronglyDense {P.g}) : isStronglyDense {P.pbProj1}
+\lemma pullback_sdense (P : Pullback {LocaleCat}) (o : IsOpen {P.f}) (d : isStronglyDense {P.g}) : isStronglyDense {P.pbProj1}
   => {?} -- [3, Lemma 1.9]
 
 -- | A locale {L} is overt if and only the unique map from L to the terminal locale is open.
-\lemma overt=open {L : Locale} : L.isOvert <-> isOpen {LocaleCat.terminalMap {L}}
+\lemma overt=open {L : Locale} : L.isOvert <-> IsOpen {LocaleCat.terminalMap {L}}
   => coe2 (\lam i => L.isOvert <-> (\Pi (x : L) -> ∃ (P : \Sigma -> \Prop) ∀ (Q : \Sigma -> \Prop) (LocaleCat.terminal-direct (x --> pHat (Q ())) i = discrete.exponent P Q @ i))) right
       (\lam o x => inP (\lam _ => isPositive x, \lam Q => ext \lam _ => ext (\lam x<=Q x>0 => x>0 (Q ()) $ meet-univ top-univ <=-refl <=∘ exponent.2 x<=Q, \lam f => exponent.1 $ meet-right <=∘ o x <=∘ pHat-impl f)),
        \lam f x => \case f x \with {
@@ -1228,7 +1228,7 @@
        }) left
 
 -- | Open maps are closed under composition.
-\lemma open-comp {L M K : Locale} (f : Hom L M) (fo : isOpen {f}) (g : Hom M K) (go : isOpen {g}) : isOpen {g LocaleCat.∘ f}
+\lemma open-comp {L M K : Locale} (f : Hom L M) (fo : IsOpen {f}) (g : Hom M K) (go : IsOpen {g}) : IsOpen {g LocaleCat.∘ f}
   => {?} -- [2, Corollary 1.6.3]
 
 \lemma regular_surj {L M : Locale} {f : Hom L M} (reg : isRegularMono {LocaleCat} f) : isSurj f \elim reg
@@ -1333,13 +1333,13 @@
   }
 
 -- | Regular locales are Hausdorff
-\lemma regular_Hausdorff {L : Locale} (reg : L.isRegular) : isHausdorffLocale L
+\lemma regular_Hausdorff {L : Locale} (reg : L.IsRegularLocale) : isHausdorffLocale L
   => generalized reg (LocaleCat.Bprod L L) LocaleCat.proj1 LocaleCat.proj2
   \where {
     \open isHausdorffLocale (extend)
     \open FrameHom
 
-    \lemma generalized {L : Locale} (reg : L.isRegular) (M : Locale) (p1 p2 : LocaleCat.Hom M L) : isHausdorffLocale.generalized L M p1 p2
+    \lemma generalized {L : Locale} (reg : L.IsRegularLocale) (M : Locale) (p1 p2 : LocaleCat.Hom M L) : isHausdorffLocale.generalized L M p1 p2
       => \lam a b U p =>
          \have | lem1 {d x y : L} (p : d <=< x) (q : p1 (y ∧ x) ∧ p2 d <= extend p1 p2 U) : p1 y ∧ p2 d <= extend p1 p2 U
                  => meet-monotone (func-<= (meet-univ <=-refl (top-univ <=∘ later p) <=∘ ldistr>=) <=∘ func-Join>=) <=-refl <=∘ Join-rdistr>= <=∘ Join-univ (\case \elim __ \with {
@@ -1358,7 +1358,7 @@
   }
 
 \func dense_closed_ofs : OFS {LocaleCat} \cowith
-  | L f => isDense {f}
+  | L f => FrameHom.IsDense {f}
   | R (f : FrameHom) => \Sigma f.image.isClosed (isSurj f)
   | factors {L} {M} (h : FrameHom) =>
     \have n : Nucleus => closed (h.direct bottom)
@@ -1399,7 +1399,7 @@
 \type isWeaklyHausdorff (L : Locale) => isWeaklyClosed {LocaleCat.diagonal L}
 
 -- | A weakly regular locale is weakly Hausdorff
-\lemma wregular_wHausdorff {L : Locale} (reg : L.isWeaklyRegular) : isWeaklyHausdorff L
+\lemma wregular_wHausdorff {L : Locale} (reg : L.IsWeaklyRegularLocale) : isWeaklyHausdorff L
   => {?} -- [4, Corollary 3.4]
 
 \lemma overt-fromPres {P : FramePres} (o : P.isOvert) : isOvert {PresentedFrame P}
@@ -1451,7 +1451,7 @@
   | <=<_meet p q => unfolds $ meet-univ <=-refl <=-refl <=∘ MeetSemilattice.meet-monotone (unfolds in p) q <=∘ ldistr>= <=∘
       join-univ (meet-right <=∘ L.neg-inverse meet-right <=∘ join-left) (L.rdistr>= <=∘ join-univ (meet-left <=∘ L.neg-inverse meet-left <=∘ join-left) join-right)
 
-\lemma regular-fromPres {P : FramePres} (reg : \Pi (x : P) -> FramePres.SCover x (embed __ <=< embed x)) : isRegular {PresentedFrame P}
+\lemma regular-fromPres {P : FramePres} (reg : \Pi (x : P) -> FramePres.SCover x (embed __ <=< embed x)) : IsRegularLocale {PresentedFrame P}
   => \lam U {x} u => cover-trans (reg x) \lam t => cover-inj ((embed t.1, <=<-left t.2 (embed<= (cover-inj (x,u) idp))), t.1, cover-inj () idp) idp
 
 -- | If {R} is a relation that satisfies conditions {basic}, {leq}, {dense}, and {comm}, then `R x y` implies `x << y`
