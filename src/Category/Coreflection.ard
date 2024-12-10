@@ -11,49 +11,6 @@
 \import Paths
 \import Paths.Meta
 
--- TODO: Merge with RightAdjoint
-\class RightAdjointCounit \extends Functor {
-  | LAdj : Functor D C
-  | epsilon : NatTrans (Comp LAdj \this) Id
-  \field isAdjoint-inv {X : D} {Y : C} : Equiv {Hom X (F Y)} {Hom (LAdj X) Y} (epsilon Y ∘ LAdj.Func __)
-
-  \use \func eta : NatTrans Id (Comp \this LAdj) \cowith
-    | trans X => isAdjoint-inv.ret (id (LAdj X))
-    | natural {_} {_} _ => isAdjoint-inv.isInj $ unfold $ rewrite (Func-o {LAdj}, Func-o {LAdj}) $
-                                                          rewriteI (o-assoc, o-assoc) $
-                                                          rewrite (isAdjoint-inv.f_ret, id-left, epsilon.natural) $
-                                                          rewrite (o-assoc, isAdjoint-inv.f_ret, id-right) idp
-
-  \use \func adjoint-eta  {X : D} {Y : C} (g : Hom (LAdj X) Y) : isAdjoint-inv.ret g = Func g ∘ eta X =>
-    isAdjoint-inv.isInj $ unfold $ rewrite (isAdjoint-inv.f_ret _, Func-o {LAdj}) $
-                                   rewriteI o-assoc $ rewrite (epsilon.natural, o-assoc, isAdjoint-inv.f_ret _, id-right) idp
-} \where {
-  \use \coerce fromAdjoint (F : RightAdjoint) : RightAdjointCounit \cowith
-    | Functor => F
-    | LAdj => F.LAdj
-    | epsilon => F.epsilon
-    | isAdjoint-inv => \new Equiv {
-      | ret => F.isAdjoint
-      | ret_f => F.eta_eps_equiv.f_sec
-      | sec => F.isAdjoint
-      | f_sec => F.eta_eps_equiv.ret_f
-    }
-
-  \use \coerce toAdjoint (F : RightAdjointCounit) : RightAdjoint \cowith
-    | Functor => F
-    | LAdj => LAdj
-    | eta => F.eta
-    | isAdjoint => \new QEquiv {
-      | ret => isAdjoint-inv
-      | ret_f _ => unfold $ rewriteI (F.adjoint-eta _) $ isAdjoint-inv.f_ret _
-      | f_sec _ => isAdjoint-inv.isInj $ unfold $ run {
-        rewrite (Func-o {LAdj}),
-        rewriteI o-assoc,
-        rewrite (epsilon.natural, o-assoc, isAdjoint-inv.f_ret _, id-right) idp
-      }
-    }
-}
-
 \func comma-precat {C D : Precat} (L : Functor D C) (b : C) => commaPrecat {D} {TrivialCat} {C} L (Const b)
 
 \func comma-cat {C : Precat} {D : Cat} (L : Functor D C) (b : C) => commaCat {D} {TrivialCat} {C} L (Const b)
@@ -61,7 +18,7 @@
 \class Coreflection {C D : Precat} (L : Functor D C) (B : C) {
   | \classifying Coreflected : D
   | corefl-map : Hom (L Coreflected) B
-  \property isCoreflection {Z : D} : Equiv {Hom Z Coreflected} {Hom (L Z) B} (\lam x => corefl-map ∘ (L.Func x))
+  \property isCoreflection {Z : D} : Equiv {Hom Z Coreflected} {Hom (L Z) B} (\lam x => corefl-map ∘ L.Func x)
 
   \func to-comma : comma-precat L B => (Coreflected, (), corefl-map)
 
@@ -135,17 +92,17 @@
     => isCoreflection
 }
   \where {
-    \use \coerce toAdjointCounit (F : RightAdjointCoreflection) : RightAdjointCounit \cowith
+    \use \coerce toAdjoint (F : RightAdjointCoreflection) : RightAdjointCounit \cowith
       | Functor => F
       | LAdj => F.L
       | epsilon => F.eval-trans
-      | isAdjoint-inv => F.is-adjoint-counit
+      | epsilon-adjoint => F.is-adjoint-counit
 
-    \use \coerce fromAdjointCounit (F : RightAdjointCounit) : RightAdjointCoreflection F.C F.D F.LAdj \cowith
+    \use \coerce fromAdjoint (F : RightAdjoint) : RightAdjointCoreflection F.C F.D F.LAdj \cowith
       | coreflection Z => \new Coreflection {
         | Coreflected => F Z
         | corefl-map => F.epsilon Z
-        | isCoreflection => F.isAdjoint-inv
+        | isCoreflection => symQEquiv F.eta_epsilon-equiv
       }
 
     \sfunc isProp {C : Precat} {D : Cat} (L : Functor D C) (adj1 adj2 : RightAdjointCoreflection C D L) : adj1 = adj2 \elim adj1, adj2

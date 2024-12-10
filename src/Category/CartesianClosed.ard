@@ -1,7 +1,6 @@
-\import Algebra.Meta
 \import Category
 \import Category.Adjoint
-\import Category.Coreflection \hiding (LAdj)
+\import Category.Coreflection
 \import Category.Functor
 \import Category.Limit
 \import Category.Product
@@ -21,22 +20,19 @@
   | exp (X : Ob) : isExponential X
 
   \func is-exponentiable (X : Ob) : isExponentiable X
-    => \lam Y => coreflection {RightAdjointCoreflection.fromAdjointCounit (RightAdjointCounit.fromAdjoint $ exp Y)} X
+    => \lam Y => coreflection {RightAdjointCoreflection.fromAdjoint (exp Y)} X
 
-  \func transpose {X Y Z : Ob} : Hom (Bprod X Y) Z -> Hom X (exp Y Z)
-    => isAdjoint
+  \func transpose {X Y Z : Ob} (f : Hom (Bprod X Y) Z) : Hom X (exp Y Z)
+    => Func f ∘ eta X
 
-  \func antitranspose {X Y Z : Ob} : Hom X (exp Y Z) -> Hom (Bprod X Y) Z
-    => isAdjoint.ret
-
-  \func antitranpose-eq {X Y Z : Ob} (f : Hom (Bprod X Y) Z) : antitranspose (transpose f) = f
-    => isAdjoint.ret_f f
+  \func antitranspose {X Y Z : Ob} (f : Hom X (exp Y Z)) : Hom (Bprod X Y) Z
+    => epsilon {exp Y} Z ∘ prodMap f (id Y)
 
   \func eval-map {Y Z : Ob} : Hom (Bprod (exp Y Z) Y) Z
-    => antitranspose (id (exp Y Z))
+    => epsilon {exp Y} Z
 
   \func eval-transpose {X Y Z : Ob} (g : Hom (Bprod X Y) Z) : eval-map ∘ prodMap (transpose g) (id Y) = g
-    => rewrite (inv $ RightAdjoint.adjoint_epsilon {exp Y} _) $ antitranpose-eq g
+    => RightAdjoint.eta_epsilon-equiv.ret_f g
 
   \func eval-map-eq {X Y : Ob} (f : Hom X Y) : eval-map ∘ prodMap (name f) (id X) ∘ pair terminalMap (id X) = f
     =>
@@ -56,32 +52,25 @@
 
   \func global-elements-iso {X Y : Ob} : Equiv {Hom X Y} {Hom terminal (exp X Y)} name
     => \new QEquiv {
-      | ret f => (antitranspose f) ∘ terminal-prod-left.f
-      | ret_f _ => unfold name $ rewrite (antitranpose-eq _, o-assoc, terminal-prod-left.hinv_f, id-right) idp
-      | f_sec y => unfold name $ rewrite (o-assoc, terminal-prod-left.f_hinv, id-right) $ isAdjoint.f_ret y
+      | ret f => antitranspose f ∘ terminal-prod-left.f
+      | ret_f _ => unfold name $ rewrite (eval-transpose _, o-assoc, terminal-prod-left.hinv_f, id-right) idp
+      | f_sec y => unfold name $ rewrite (o-assoc, terminal-prod-left.f_hinv, id-right) $ RightAdjoint.eta_epsilon-equiv.f_ret y
     }
 
-  \func internal-homFunctor : Functor (ProductPrecat (Precat.op {\this}) \this) \this
-    => \new Functor {
-      | F (X, Y) => exp X Y
-      | Func {(a, b)} {(c, d)} (f, g) => unfold at f $ transpose $ g ∘ eval-map ∘ prodMap (id _) f
-      | Func-id {(a, b)} => isAdjoint.adjointInv $ unfold $ rewrite (id-left, prod-id, id-right) idp
-      | Func-o {(a1, b1)} {(a2, b2)} {(a3, b3)} {(f,g)} {(p,q)} =>
-        run {
-          isAdjoint.adjointInv,
-          unfold,
-          rewrite (RightAdjoint.adjoint_epsilon {exp a3} _),
-          rewrite (prod-id-right _ _, inv o-assoc, eval-transpose),
-          rewrite {3} o-assoc ,
-          rewrite (inv $ prodMap-comp _ _ _ _, id-left, id-right),
-          rewrite {2} (prodMap-split-right _ _),
-          rewrite {3} o-assoc,
-          rewriteI {2} o-assoc,
-          rewrite eval-transpose ,
-          rewrite {3} o-assoc ,
-          rewrite (inv $ prod-id-left _ _),
-          equation
-        }
+  \func internal-homFunctor : Functor (ProductPrecat (Precat.op {\this}) \this) \this \cowith
+    | F (X, Y) => exp X Y
+    | Func (f, g) => transpose $ g ∘ eval-map ∘ prodMap (id _) f
+    | Func-id => rewrite (id-left, prod-id, id-right) eta_epsilon-left
+    | Func-o {(a1, b1)} {(a2, b2)} {(a3, b3)} {(f,g)} {(p,q)} => run {
+      RightAdjoint.eta_epsilon-equiv.adjointInv,
+      unfold,
+      rewrite (prod-id-right, inv o-assoc, eval-transpose),
+      o-assoc *> o-assoc *> pmap (g ∘) (later $ run {
+        rewriteI prodMap-comp,
+        rewrite (id-left, id-right),
+        rewrite {2} prodMap-split-right,
+        pmap (q ∘ (_ ∘ __)) (prod-id-left p f) *> inv o-assoc *> inv o-assoc *> pmap (`∘ _) (inv (eval-transpose _)) *> o-assoc
+      }) *> inv (o-assoc *> o-assoc)
     }
 }
 
@@ -89,7 +78,7 @@
 
 \instance SetCartesianClosed : CartesianClosedPrecat SetBicat
   | CartesianPrecat => SetBicat
-  | exp X => RightAdjointCoreflection.toAdjointCounit (exp-coreflection X)
+  | exp X => RightAdjointCoreflection.toAdjoint (exp-coreflection X)
   \where {
     \func exp-coreflection (X : SetBicat) : RightAdjointCoreflection SetBicat SetBicat (SetBicat.bprodFunctorRight X)
     \cowith
