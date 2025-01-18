@@ -96,7 +96,7 @@ public class EqualitySolver extends BaseEqualitySolver {
       return algebraSolver.solve(hint, leftExpr, rightExpr, errorReporter);
     }
 
-    ValuesRelationClosure closure = new ValuesRelationClosure(values, new EquivalenceClosure<>(factory.ref(meta.ext.prelude.getIdp().getRef()), factory.ref(meta.ext.inv.getRef()), factory.ref(meta.ext.concat.getRef()), factory));
+    ValuesRelationClosure closure = new ValuesRelationClosure(values, new EquivalenceClosure<>(factory.ref(meta.ext.prelude.getIdpRef()), factory.ref(meta.ext.inv.getRef()), factory.ref(meta.ext.concat.getRef()), factory));
     if (useHypotheses) {
       ContextHelper helper = new ContextHelper(hint);
       for (CoreBinding binding : helper.getAllBindings(typechecker)) {

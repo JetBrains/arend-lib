@@ -170,13 +170,13 @@ public class SIPMeta extends BaseMetaDefinition {
       factory.app(factory.ref(ext.concat.getRef()), true, Arrays.asList(
         factory.appBuilder(factory.ref(ext.Jl.getRef()))
           .app(factory.core(obTyped), false)
-          .app(factory.lam(Arrays.asList(factory.param(jRef1), factory.param(jRef2)), factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(
+          .app(factory.lam(Arrays.asList(factory.param(jRef1), factory.param(jRef2)), factory.app(factory.ref(ext.prelude.getEqualityRef()), true, Arrays.asList(
             factory.appBuilder(factory.ref(homFunc.getRef()))
               .app(factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(transportRef)), factory.app(factory.core(homTyped), true, Arrays.asList(eDom, factory.ref(transportRef)))), factory.ref(jRef2), factory.app(factory.core(idTyped), true, Collections.singletonList(eDom)))), false)
               .app(factory.ref(extRef))
               .build(),
-            factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(factory.ref(jRef2), factory.ref(iRef)))), factory.ref(extRef), factory.ref(ext.prelude.getRight().getRef())))))))
-          .app(factory.ref(ext.prelude.getIdp().getRef()))
+            factory.app(factory.ref(ext.prelude.getCoerceRef()), true, Arrays.asList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(ext.prelude.getAtRef()), true, Arrays.asList(factory.ref(jRef2), factory.ref(iRef)))), factory.ref(extRef), factory.ref(ext.prelude.getRightRef())))))))
+          .app(factory.ref(ext.prelude.getIdpRef()))
           .app(factory.ref(pathRef))
           .build(),
         factory.app(factory.proj(factory.ref(sipRef), 2), true, Collections.singletonList(factory.ref(extRef))))))))))))).build(), contextData.getExpectedType());

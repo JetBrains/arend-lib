@@ -4,11 +4,9 @@ import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
 import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.expr.ConcreteExpression;
-import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreFunCallExpression;
 import org.arend.ext.reference.ArendRef;
-import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.TypedExpression;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.util.Values;
@@ -51,7 +49,7 @@ public abstract class DataFactoryBase implements DataFactory {
     for (int i = 0; i < valueList.size(); i++) {
       caseClauses[i] = factory.clause(singletonList(factory.numberPattern(i)), factory.core(valueList.get(i).computeTyped()));
     }
-    return factory.lam(singletonList(factory.param(singletonList(lamParam), makeFin(valueList.size(), factory, meta.ext.prelude.getFin().getRef()))),
+    return factory.lam(singletonList(factory.param(singletonList(lamParam), makeFin(valueList.size(), factory, meta.ext.prelude.getFinRef()))),
             factory.caseExpr(false, singletonList(factory.caseArg(factory.ref(lamParam), null, null)), null, null, caseClauses));
   }
 
@@ -76,9 +74,9 @@ public abstract class DataFactoryBase implements DataFactory {
     List<CoreExpression> valueList = values.getValues();
 
     ConcreteExpression instanceArg = factory.core(instance);
-    ConcreteExpression dataArg = factory.ref(meta.ext.prelude.getEmptyArray().getRef());
+    ConcreteExpression dataArg = factory.ref(meta.ext.prelude.getEmptyArrayRef());
     for (int i = valueList.size() - 1; i >= 0; i--) {
-      dataArg = factory.app(factory.ref(meta.ext.prelude.getArrayCons().getRef()), true, factory.core(null, valueList.get(i).computeTyped()), dataArg);
+      dataArg = factory.app(factory.ref(meta.ext.prelude.getArrayConsRef()), true, factory.core(null, valueList.get(i).computeTyped()), dataArg);
     }
 
     letClauses.set(0, factory.letClause(dataRef, Collections.emptyList(), null, factory.newExpr(getDataClass(instanceArg, dataArg))));

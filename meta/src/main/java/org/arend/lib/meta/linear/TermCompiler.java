@@ -325,7 +325,7 @@ public class TermCompiler extends BaseTermCompiler {
   }
 
   public static CoreExpression toPos(CoreExpression expr, ExpressionTypechecker typechecker, ConcreteFactory factory, StdExtension ext) {
-    TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(factory.ref(ext.prelude.getPos().getRef()), true, factory.core(expr.computeTyped())), null));
+    TypedExpression result = Utils.tryTypecheck(typechecker, tc -> tc.typecheck(factory.app(factory.ref(ext.prelude.getPosRef()), true, factory.core(expr.computeTyped())), null));
     return result == null ? null : result.getExpression();
   }
 

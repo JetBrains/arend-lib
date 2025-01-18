@@ -8,7 +8,6 @@ import org.arend.ext.concrete.expr.*;
 import org.arend.ext.core.body.CoreExpressionPattern;
 import org.arend.ext.core.context.CoreEvaluatingBinding;
 import org.arend.ext.core.context.CoreParameter;
-import org.arend.ext.core.definition.CoreConstructor;
 import org.arend.ext.core.expr.CoreDataCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CoreReferenceExpression;
@@ -296,8 +295,8 @@ public class CasesMeta extends BaseMetaDefinition implements MetaResolver {
         concreteParameters.add(factory.param(Collections.singletonList(caseArgRef), argType != null ? argType : factory.core(typedArgs.get(i).getType().computeTyped())));
       }
       if (argParams.addPath) {
-        ConcreteExpression type = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.hole(), factory.ref(caseArgRef)));
-        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, type));
+        ConcreteExpression type = factory.app(factory.ref(ext.prelude.getEqualityRef()), true, Arrays.asList(factory.hole(), factory.ref(caseArgRef)));
+        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdpRef()), null, type));
         if (concreteParameters != null) {
           concreteParameters.add(factory.param(Collections.singletonList(caseArgRef), type));
         }

@@ -50,8 +50,7 @@ public class PiTreeMaker {
     int k = lamParams.size();
     List<Integer> indices1 = new ArrayList<>();
     loop:
-    while (codomain instanceof CorePiExpression) {
-      CorePiExpression piExpr = (CorePiExpression) codomain;
+    while (codomain instanceof CorePiExpression piExpr) {
       Set<? extends CoreBinding> codomainFreeVars = piExpr.getCodomain().findFreeBindings();
       for (CoreParameter param = piExpr.getParameters(); param.hasNext(); param = param.getNext(), k++) {
         ArendRef lamRef = factory.local("x" + (k + 1));
@@ -254,7 +253,7 @@ public class PiTreeMaker {
         return typechecker.typecheck(headArgs != null ? factory.app(useLet ? tree.getAltHead() : tree.head, true, args) : makeConcrete((PiTreeRoot) tree, useLet, args), null);
       }
     }));
-    return factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(coeLam, arg, factory.ref(ext.prelude.getRight().getRef())));
+    return factory.app(factory.ref(ext.prelude.getCoerceRef()), true, Arrays.asList(coeLam, arg, factory.ref(ext.prelude.getRightRef())));
   }
 
   private ConcreteExpression etaExpand(BasePiTree tree, ConcreteExpression fun, List<ConcreteArgument> args, List<ConcreteArgument> topArgs, boolean insertCoe, boolean useLet, List<PathExpression> pathRefs) {
@@ -315,6 +314,6 @@ public class PiTreeMaker {
     }
     args.add(factory.arg(leftArg, true));
     args.add(factory.arg(rightArg, true));
-    return factory.pi(piParams, factory.app(factory.ref(ext.prelude.getEquality().getRef()), args));
+    return factory.pi(piParams, factory.app(factory.ref(ext.prelude.getEqualityRef()), args));
   }
 }

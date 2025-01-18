@@ -1,8 +1,6 @@
 package org.arend.lib.meta.equation;
 
-import org.arend.ext.concrete.ConcreteClause;
 import org.arend.ext.concrete.ConcreteFactory;
-import org.arend.ext.concrete.ConcreteLetClause;
 import org.arend.ext.concrete.expr.ConcreteExpression;
 import org.arend.ext.concrete.expr.ConcreteReferenceExpression;
 import org.arend.ext.core.expr.CoreExpression;
@@ -17,12 +15,8 @@ import org.arend.lib.util.Values;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.singletonList;
 
 public abstract class BaseEqualitySolver implements EquationSolver {
   protected final EquationMeta meta;
@@ -73,7 +67,7 @@ public abstract class BaseEqualitySolver implements EquationSolver {
   @Override
   public @Nullable Maybe<CoreExpression> getEqType(@Nullable TypedExpression leftExpr, @Nullable TypedExpression rightExpr) {
     if (leftExpr != null && rightExpr != null) {
-      TypedExpression result = typechecker.typecheck(factory.app(factory.ref(meta.ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.core(leftExpr), factory.core(rightExpr))), null);
+      TypedExpression result = typechecker.typecheck(factory.app(factory.ref(meta.ext.prelude.getEqualityRef()), true, Arrays.asList(factory.core(leftExpr), factory.core(rightExpr))), null);
       return result == null ? null : new Maybe<>(result.getExpression());
     } else {
       return new Maybe<>(null);
@@ -82,7 +76,7 @@ public abstract class BaseEqualitySolver implements EquationSolver {
 
   @Override
   public TypedExpression getTrivialResult(TypedExpression expression) {
-    return typechecker.typecheck(factory.app(factory.ref(meta.ext.prelude.getIdp().getRef()), false, Arrays.asList(factory.hole(), factory.core(expression))), null);
+    return typechecker.typecheck(factory.app(factory.ref(meta.ext.prelude.getIdpRef()), false, Arrays.asList(factory.hole(), factory.core(expression))), null);
   }
 
   @Override

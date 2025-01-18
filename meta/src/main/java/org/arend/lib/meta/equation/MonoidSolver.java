@@ -375,7 +375,7 @@ public class MonoidSolver extends BaseEqualitySolver {
       ConcreteExpression expr1 = trace1.isEmpty() ? null : traceToExpr(term1.nf, trace1, dataRef, factory);
       ConcreteExpression expr2 = trace2.isEmpty() ? null : factory.app(factory.ref(meta.ext.inv.getRef()), true, singletonList(traceToExpr(term2.nf, trace2, dataRef, factory)));
       if (expr1 == null && expr2 == null) {
-        lastArgument = factory.ref(meta.ext.prelude.getIdp().getRef());
+        lastArgument = factory.ref(meta.ext.prelude.getIdpRef());
       } else if (expr2 == null) {
         lastArgument = expr1;
       } else if (expr1 == null) {
@@ -384,7 +384,7 @@ public class MonoidSolver extends BaseEqualitySolver {
         lastArgument = factory.appBuilder(factory.ref(meta.ext.concat.getRef())).app(expr1).app(expr2).build();
       }
     } else {
-      lastArgument = factory.ref(meta.ext.prelude.getIdp().getRef());
+      lastArgument = factory.ref(meta.ext.prelude.getIdpRef());
     }
 
     ConcreteAppBuilder builder = factory.appBuilder(factory.ref((isCat ? meta.catTermsEq : semilattice ? meta.semilatticeTermsEq : commutative ? meta.commTermsEq : meta.termsEq).getRef()))
@@ -524,7 +524,7 @@ public class MonoidSolver extends BaseEqualitySolver {
       }
 
       if (proofTerm == null) {
-        proofTerm = factory.ref(meta.ext.prelude.getIdp().getRef());
+        proofTerm = factory.ref(meta.ext.prelude.getIdpRef());
       } else {
         ConcreteExpression sortProof = factory.appBuilder(factory.ref(meta.sortDef.getRef())).app(computeNFTerm(curWord)).build();
         proofTerm = factory.app(factory.ref(meta.ext.concat.getRef()), true, Arrays.asList(proofTerm, sortProof));
@@ -661,7 +661,7 @@ public class MonoidSolver extends BaseEqualitySolver {
 
   private ConcreteExpression computeNFTerm(List<Integer> nf) {
     if (isCat) {
-      ConcreteExpression result = factory.appBuilder(factory.ref(meta.nilCatNF.getRef())).app(factory.ref(meta.ext.prelude.getIdp().getRef())).build();
+      ConcreteExpression result = factory.appBuilder(factory.ref(meta.nilCatNF.getRef())).app(factory.ref(meta.ext.prelude.getIdpRef())).build();
       ConcreteExpression hdata = factory.appBuilder(factory.ref(meta.HDataFunc.getRef())).app(factory.ref(dataRef), false).build();
       ConcreteExpression vdata = factory.appBuilder(factory.ref(meta.VDataFunc.getRef())).app(factory.ref(dataRef), false).build();
       Integer domNF = null;
@@ -823,11 +823,11 @@ public class MonoidSolver extends BaseEqualitySolver {
                   .app(factory.number(dom), false)
                   .app(factory.number(cod), false)
                   .app(hdata, false)
-                  .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
+                  .app(factory.ref(meta.ext.prelude.getIdpRef()))
                   .build();
         }
       }
-      return isCat ? factory.app(factory.ref(meta.idCTerm.getRef()), true, singletonList(factory.ref(meta.ext.prelude.getIdp().getRef()))) : factory.ref(meta.ideMTerm.getRef());
+      return isCat ? factory.app(factory.ref(meta.idCTerm.getRef()), true, singletonList(factory.ref(meta.ext.prelude.getIdpRef()))) : factory.ref(meta.ideMTerm.getRef());
     }
 
 

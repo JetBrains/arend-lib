@@ -68,7 +68,7 @@ public class ConstructorMeta extends BaseMetaDefinition {
       Boolean isEmpty = Utils.isArrayEmpty(classCall, ext);
       if (isEmpty != null) {
         if (withImplicit) {
-          return typechecker.typecheck(factory.app(factory.ref(isEmpty ? ext.prelude.getEmptyArray().getRef() : ext.prelude.getArrayCons().getRef()), args), type);
+          return typechecker.typecheck(factory.app(factory.ref(isEmpty ? ext.prelude.getEmptyArrayRef() : ext.prelude.getArrayConsRef()), args), type);
         }
 
         boolean hasElementsType = classCall.isImplemented(ext.prelude.getArrayElementsType());
@@ -88,7 +88,7 @@ public class ConstructorMeta extends BaseMetaDefinition {
         for (int i = hasElementsType ? 0 : 1; i < args.size(); i++) {
           newArgs.add(factory.arg(args.get(i).getExpression(), true));
         }
-        return typechecker.typecheck(factory.app(factory.ref(isEmpty ? ext.prelude.getEmptyArray().getRef() : ext.prelude.getArrayCons().getRef()), newArgs), type);
+        return typechecker.typecheck(factory.app(factory.ref(isEmpty ? ext.prelude.getEmptyArrayRef() : ext.prelude.getArrayConsRef()), newArgs), type);
       }
 
       if (withImplicit) {

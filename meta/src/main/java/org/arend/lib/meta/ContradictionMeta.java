@@ -380,7 +380,7 @@ public class ContradictionMeta extends BaseMetaDefinition {
     }
 
     if (contr == null) {
-      BunchedEquivalenceClosure<Integer> equivalenceClosure = new BunchedEquivalenceClosure<>(factory.ref(ext.prelude.getIdp().getRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef()), factory);
+      BunchedEquivalenceClosure<Integer> equivalenceClosure = new BunchedEquivalenceClosure<>(factory.ref(ext.prelude.getIdpRef()), factory.ref(ext.inv.getRef()), factory.ref(ext.concat.getRef()), factory);
       ValuesRelationClosure closure = new ValuesRelationClosure(values, equivalenceClosure);
       List<Edge<Integer>> equalities = new ArrayList<>();
       Values<CoreExpression> typeValues = new Values<>(typechecker, marker);

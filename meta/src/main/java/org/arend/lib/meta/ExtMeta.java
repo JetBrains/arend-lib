@@ -199,7 +199,7 @@ public class ExtMeta extends BaseMetaDefinition {
           substitution.add(new SubstitutionPair(piParam.getBinding(), refExpr));
         }
 
-        TypedExpression piEqType = typechecker.typecheck(factory.pi(concretePiParams, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(factory.app(left, args), factory.app(right, args)))), null);
+        TypedExpression piEqType = typechecker.typecheck(factory.pi(concretePiParams, factory.app(factory.ref(ext.prelude.getEqualityRef()), true, Arrays.asList(factory.app(left, args), factory.app(right, args)))), null);
         if (piEqType == null) return null;
         TypedExpression result = hidingIRef(arg, piEqType.getExpression());
         return result == null ? null : factory.lam(concreteLamParams, applyAt(factory.app(factory.core(result), args)));
@@ -281,7 +281,7 @@ public class ExtMeta extends BaseMetaDefinition {
                     return null;
                   }
 
-                  TypedExpression superEquality = typechecker.typecheck(factory.appBuilder(factory.ref(ext.prelude.getEquality().getRef())).app(factory.ref(implClass.getRef()), false).app(left).app(right).build(), null);
+                  TypedExpression superEquality = typechecker.typecheck(factory.appBuilder(factory.ref(ext.prelude.getEqualityRef())).app(factory.ref(implClass.getRef()), false).app(left).app(right).build(), null);
                   if (superEquality == null) {
                     return null;
                   }
@@ -456,7 +456,7 @@ public class ExtMeta extends BaseMetaDefinition {
               CoreBinding binding = used.size() > 1 ? null : used.iterator().next();
               PathExpression pathExpr = binding == null ? null : sigmaRefs.get(binding);
               if (pathExpr == null || !pathExpr.getClass().equals(PathExpression.class)) {
-                leftExpr = factory.app(factory.ref(ext.prelude.getCoerce().getRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, propBindings.get(paramBinding), used, sigmaRefs, factory), leftExpr, factory.ref(ext.prelude.getRight().getRef())));
+                leftExpr = factory.app(factory.ref(ext.prelude.getCoerceRef()), true, Arrays.asList(makeCoeLambda(typeParams, paramBinding, propBindings.get(paramBinding), used, sigmaRefs, factory), leftExpr, factory.ref(ext.prelude.getRightRef())));
               } else {
                 leftExpr = factory.app(factory.ref(ext.transport.getRef()), true, Arrays.asList(SubstitutionMeta.makeLambda(paramBinding.getTypeExpr(), binding, factory), pathExpr.pathExpression, leftExpr));
               }
@@ -479,7 +479,7 @@ public class ExtMeta extends BaseMetaDefinition {
                 }
                 leftExpr = factory.lam(lamParams, factory.app(leftExpr, lamArgs));
               }
-              lastSigmaParam = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftExpr, makeProj(factory, right, i, classFields)));
+              lastSigmaParam = factory.app(factory.ref(ext.prelude.getEqualityRef()), true, Arrays.asList(leftExpr, makeProj(factory, right, i, classFields)));
             }
             sigmaParams.add(factory.param(Collections.singletonList(sigmaRef), lastSigmaParam));
           }
@@ -647,10 +647,10 @@ public class ExtMeta extends BaseMetaDefinition {
 
                     ArendRef pathRef = factory.local("q" + (j + 1));
                     pathRefs.add(new PathExpression(factory.ref(pathRef)));
-                    caseArgs.add(factory.caseArg(fieldsList.get(j), pathRef, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(makeProj(factory, left, j, classFields), factory.ref(rightRef)))));
+                    caseArgs.add(factory.caseArg(fieldsList.get(j), pathRef, factory.app(factory.ref(ext.prelude.getEqualityRef()), true, Arrays.asList(makeProj(factory, left, j, classFields), factory.ref(rightRef)))));
 
                     casePatterns.add(factory.refPattern(null, null));
-                    casePatterns.add(factory.conPattern(ext.prelude.getIdp().getRef()));
+                    casePatterns.add(factory.conPattern(ext.prelude.getIdpRef()));
                   }
                 }
 
@@ -662,7 +662,7 @@ public class ExtMeta extends BaseMetaDefinition {
                 casePatterns.add(factory.refPattern(null, null));
                 casePatterns.add(factory.refPattern(lastCaseRef, null));
 
-                ConcreteExpression caseResultType = factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(piTreeMaker.makeCoe(piTree, true, pathRefs, leftFun), factory.ref(rightFunRef)));
+                ConcreteExpression caseResultType = factory.app(factory.ref(ext.prelude.getEqualityRef()), true, Arrays.asList(piTreeMaker.makeCoe(piTree, true, pathRefs, leftFun), factory.ref(rightFunRef)));
                 proj = factory.caseExpr(false, caseArgs, caseResultType, null, factory.clause(casePatterns, factory.app(factory.meta("ext", ExtMeta.this), true, Collections.singletonList(factory.ref(lastCaseRef)))));
               }
             }
@@ -685,7 +685,7 @@ public class ExtMeta extends BaseMetaDefinition {
         if (type instanceof CoreClassCallExpression) {
           List<ConcreteClassElement> classElements = new ArrayList<>(classFields.size());
           if (arrayLength != null) {
-            classElements.add(factory.implementation(ext.prelude.getArrayLength().getRef(), arrayLength));
+            classElements.add(factory.implementation(ext.prelude.getArrayLengthRef(), arrayLength));
           }
           for (int j = 0; j < classFields.size(); j++) {
             classElements.add(factory.implementation(classFields.get(j).getRef(), fields.get(j)));

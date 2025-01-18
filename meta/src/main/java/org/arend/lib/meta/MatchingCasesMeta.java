@@ -503,7 +503,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       for (Boolean addPath : addPathList) {
         if (!param.hasNext()) break;
         if (addPath) {
-          CoreParameter addPathParam = typechecker.typecheckParameters(Collections.singletonList(factory.param(true, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, factory.core(allMatchedArgs.get(i)), factory.core(param.getBinding().makeReference().computeTyped())))));
+          CoreParameter addPathParam = typechecker.typecheckParameters(Collections.singletonList(factory.param(true, factory.app(factory.ref(ext.prelude.getEqualityRef()), true, factory.core(allMatchedArgs.get(i)), factory.core(param.getBinding().makeReference().computeTyped())))));
           if (addPathParam == null) return null;
           addPathMap.put(param, addPathParam);
         }
@@ -984,12 +984,12 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
             })
           ));
           if (totalArgs < addPathList.size() && addPathList.get(totalArgs)) {
-            ConcreteAppBuilder builder = factory.appBuilder(factory.ref(ext.prelude.getEquality().getRef()));
+            ConcreteAppBuilder builder = factory.appBuilder(factory.ref(ext.prelude.getEqualityRef()));
             CoreExpression type = typed.getType().normalize(NormalizationMode.WHNF);
             if (type instanceof CoreDataCallExpression && ((CoreDataCallExpression) type).getDefinition() == ext.prelude.getFin()) {
-              builder.app(factory.ref(ext.prelude.getNat().getRef()), false);
+              builder.app(factory.ref(ext.prelude.getNatRef()), false);
             }
-            caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, builder.app(factory.core(typed)).app(factory.ref(ref)).build()));
+            caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdpRef()), null, builder.app(factory.core(typed)).app(factory.ref(ref)).build()));
           }
           totalArgs++;
           exprs.add(typed.getExpression());
@@ -1014,7 +1014,7 @@ public class MatchingCasesMeta extends BaseMetaDefinition implements MetaResolve
       ArendRef ref = argParamsList.get(i).name != null ? argParamsList.get(i).name : factory.local("arg" + (i + 1));
       caseArgs.add(factory.caseArg(factory.core(additionalArgs.get(i).proj1), ref, factory.meta("case_additional_arg_" + (i + 1), new ReplaceSubexpressionsMeta(additionalArgs.get(i).proj2, substPairs))));
       if (totalArgs < addPathList.size() && addPathList.get(totalArgs)) {
-        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdp().getRef()), null, factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, factory.core(additionalArgs.get(i).proj1), factory.ref(ref))));
+        caseArgs.add(factory.caseArg(factory.ref(ext.prelude.getIdpRef()), null, factory.app(factory.ref(ext.prelude.getEqualityRef()), true, factory.core(additionalArgs.get(i).proj1), factory.ref(ref))));
       }
       totalArgs++;
       substPairs.add(new Pair<>(additionalArgs.get(i).proj1, ref));

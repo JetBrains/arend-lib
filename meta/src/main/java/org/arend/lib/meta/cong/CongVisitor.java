@@ -81,8 +81,8 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
           ConcreteExpression arg1 = expr1 instanceof CoreIntegerExpression ? factory.number(((CoreIntegerExpression) expr1).getBigInteger()) : factory.core(expr1.computeTyped());
           ConcreteExpression arg2 = other instanceof CoreIntegerExpression ? factory.number(((CoreIntegerExpression) other).getBigInteger()) : factory.core(other.computeTyped());
           arg = factory.typed(arg, typeArg.expression != null
-            ? factory.app(factory.ref(prelude.getPath().getRef()), true, Arrays.asList(typeArg.expression, arg1, arg2))
-            : factory.app(factory.ref(prelude.getEquality().getRef()), true, Arrays.asList(arg1, arg2)));
+            ? factory.app(factory.ref(prelude.getPathRef()), true, Arrays.asList(typeArg.expression, arg1, arg2))
+            : factory.app(factory.ref(prelude.getEqualityRef()), true, Arrays.asList(arg1, arg2)));
         }
         return new Result(factory.app(factory.ref(prelude.getAtRef()), true, Arrays.asList(arg, iRef)));
       }
@@ -152,7 +152,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
       arg1 = expr1;
     }
     Result arg = arg1.accept(this, new ParamType(() -> new Result(null), arg2));
-    return arg == null ? null : arg.expression != null ? new Result(factory.app(factory.ref(prelude.getPlus().getRef()), true, Arrays.asList(arg.getExpression(arg1, factory), factory.number(s)))) : new Result(null);
+    return arg == null ? null : arg.expression != null ? new Result(factory.app(factory.ref(prelude.getPlusRef()), true, Arrays.asList(arg.getExpression(arg1, factory), factory.number(s)))) : new Result(null);
   }
 
   @Override
@@ -168,11 +168,10 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
       return visitInteger(conCall1, (CoreIntegerExpression) other, false);
     }
 
-    if (!(other instanceof CoreConCallExpression)) {
+    if (!(other instanceof CoreConCallExpression conCall2)) {
       return visit(conCall1, param);
     }
 
-    CoreConCallExpression conCall2 = (CoreConCallExpression) other;
     if (conCall1.getDefinition() != conCall2.getDefinition()) {
       return visit(conCall1, param);
     }
@@ -186,24 +185,22 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   @Override
   public Result visitPath(@NotNull CorePathExpression expr, ParamType param) {
     CoreExpression other = param.other.getUnderlyingExpression();
-    if (!(other instanceof CorePathExpression)) {
+    if (!(other instanceof CorePathExpression path2)) {
       return visit(expr, param);
     }
 
-    CorePathExpression path2 = (CorePathExpression) other;
     Result arg = expr.getArgumentType().accept(this, new ParamType(() -> new Result(null), path2.getArgumentType()));
     if (arg == null) return null;
-    Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), ((CorePathExpression) other).getArgument()));
+    Result result = expr.getArgument().accept(this, new ParamType(() -> new Result(null), path2.getArgument()));
     return result == null ? null : new Result(arg.expression == null || result.expression == null ? null : factory.path(result.expression));
   }
 
   @Override
   public Result visitAt(@NotNull CoreAtExpression expr, ParamType param) {
     CoreExpression other = param.other.getUnderlyingExpression();
-    if (!(other instanceof CoreAtExpression)) {
+    if (!(other instanceof CoreAtExpression atExpr2)) {
       return visit(expr, param);
     }
-    CoreAtExpression atExpr2 = (CoreAtExpression) other;
     Result pathArg = expr.getPathArgument().accept(this, new ParamType(() -> new Result(null), atExpr2.getPathArgument()));
     if (pathArg == null) return null;
     Result intervalArg = expr.getIntervalArgument().accept(this, new ParamType(() -> new Result(null), atExpr2.getIntervalArgument()));
@@ -212,12 +209,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
 
   private Result visitDefCall(@NotNull CoreDefCallExpression defCall1, ParamType param) {
     CoreExpression other = param.other.getUnderlyingExpression();
-    if (!(other instanceof CoreDefCallExpression)) {
-      return visit(defCall1, param);
-    }
-
-    CoreDefCallExpression defCall2 = (CoreDefCallExpression) other;
-    if (defCall1.getDefinition() != defCall2.getDefinition()) {
+    if (!(other instanceof CoreDefCallExpression defCall2) || defCall1.getDefinition() != defCall2.getDefinition()) {
       return visit(defCall1, param);
     }
 
@@ -239,12 +231,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   @Override
   public Result visitClassCall(@NotNull CoreClassCallExpression expr, ParamType param) {
     CoreExpression otherExpr = param.other.getUnderlyingExpression();
-    if (!(otherExpr instanceof CoreClassCallExpression)) {
-      return visit(expr, param);
-    }
-
-    CoreClassCallExpression other = (CoreClassCallExpression) otherExpr;
-    if (expr.getDefinition() != other.getDefinition() || expr.getImplementations().size() != other.getImplementations().size()) {
+    if (!(otherExpr instanceof CoreClassCallExpression other) || expr.getDefinition() != other.getDefinition() || expr.getImplementations().size() != other.getImplementations().size()) {
       return visit(expr, param);
     }
 
@@ -286,10 +273,9 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   @Override
   public Result visitTuple(@NotNull CoreTupleExpression expr, ParamType param) {
     CoreExpression otherExpr = param.other.getUnderlyingExpression();
-    if (!(otherExpr instanceof CoreTupleExpression)) {
+    if (!(otherExpr instanceof CoreTupleExpression other)) {
       return visit(expr, param);
     }
-    CoreTupleExpression other = (CoreTupleExpression) otherExpr;
     List<ConcreteArgument> args = new ArrayList<>();
     boolean abstracted = visitArgs(expr.getFields(), other.getFields(), Collections.singletonList(expr.getSigmaType().getParameters()), true, args);
     if (args.size() != expr.getFields().size()) {
@@ -305,11 +291,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   @Override
   public Result visitProj(@NotNull CoreProjExpression expr, ParamType param) {
     CoreExpression otherExpr = param.other.getUnderlyingExpression();
-    if (!(otherExpr instanceof CoreProjExpression)) {
-      return visit(expr, param);
-    }
-    CoreProjExpression other = (CoreProjExpression) otherExpr;
-    if (expr.getField() != other.getField()) {
+    if (!(otherExpr instanceof CoreProjExpression other) || expr.getField() != other.getField()) {
       return visit(expr, param);
     }
 
@@ -386,11 +368,7 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
   @Override
   public Result visitArray(@NotNull CoreArrayExpression expr, ParamType parameter) {
     CoreExpression other = parameter.other.getUnderlyingExpression();
-    if (!(other instanceof CoreArrayExpression)) {
-      return visit(expr, parameter);
-    }
-    CoreArrayExpression array2 = (CoreArrayExpression) other;
-    if (!(expr.getElements().size() == array2.getElements().size() && (expr.getTail() == null) == (array2.getTail() == null) && typechecker.compare(expr.getElementsType(), array2.getElementsType(), CMP.EQ, marker, false, true, false))) {
+    if (!(other instanceof CoreArrayExpression array2) || !(expr.getElements().size() == array2.getElements().size() && (expr.getTail() == null) == (array2.getTail() == null) && typechecker.compare(expr.getElementsType(), array2.getElementsType(), CMP.EQ, marker, false, true, false))) {
       return visit(expr, parameter);
     }
 
@@ -419,9 +397,9 @@ public class CongVisitor extends BaseCoreExpressionVisitor<CongVisitor.ParamType
       return new Result(null);
     }
 
-    ConcreteExpression result = tail != null ? tail : factory.ref(prelude.getEmptyArray().getRef());
+    ConcreteExpression result = tail != null ? tail : factory.ref(prelude.getEmptyArrayRef());
     for (int i = elements.size() - 1; i >= 0; i--) {
-      result = factory.app(factory.ref(prelude.getArrayCons().getRef()), true, Arrays.asList(elements.get(i), result));
+      result = factory.app(factory.ref(prelude.getArrayConsRef()), true, Arrays.asList(elements.get(i), result));
     }
     return new Result(result);
   }

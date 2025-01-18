@@ -145,7 +145,7 @@ public class StdLevelProver implements LevelProver {
                 }
                 result = factory.app(factory.ref(ext.prelude.getPathConRef()), true, Collections.singletonList(factory.lam(Collections.singletonList(factory.param(iRef)), factory.app(factory.ref(def1.getRef()), args))));
               } else {
-                result = factory.ref(ext.prelude.getIdp().getRef());
+                result = factory.ref(ext.prelude.getIdpRef());
               }
             } else {
               result = ext.contradictionMeta.check(null, null, true, marker, typechecker);
@@ -155,6 +155,6 @@ public class StdLevelProver implements LevelProver {
         })));
       }
     }
-    return factory.caseExpr(false, Arrays.asList(factory.caseArg(leftExpr, null), factory.caseArg(rightExpr, null)), factory.app(factory.ref(ext.prelude.getEquality().getRef()), true, Arrays.asList(leftExpr, rightExpr)), null, clauses);
+    return factory.caseExpr(false, Arrays.asList(factory.caseArg(leftExpr, null), factory.caseArg(rightExpr, null)), factory.app(factory.ref(ext.prelude.getEqualityRef()), true, Arrays.asList(leftExpr, rightExpr)), null, clauses);
   }
 }

@@ -237,7 +237,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
           refs.add(factory.local("j" + (arrayIndex == 0 ? "" : arrayIndex)));
           arrayIndex++;
         }
-        ConcreteParameter varParam = produceParam(param.isExplicit(), refs, factory.app(factory.ref(ext.prelude.getFin().getRef()), true, Collections.singletonList(factory.app(factory.ref(ext.prelude.getArrayLength().getRef()), false, Collections.singletonList(aType)))), param.getData());
+        ConcreteParameter varParam = produceParam(param.isExplicit(), refs, factory.app(factory.ref(ext.prelude.getFinRef()), true, Collections.singletonList(factory.app(factory.ref(ext.prelude.getArrayLengthRef()), false, Collections.singletonList(aType)))), param.getData());
         varParams = Collections.singletonList(varParam);
         sigmaParams.add(varParam);
 
@@ -266,7 +266,7 @@ public class ExistsMeta implements MetaResolver, MetaDefinition {
         }
         List<Pair<ArendRef, CoreBinding>> list = new ArrayList<>(refs.size());
         for (int i = 0; i < refs.size(); i++) {
-          TypedExpression result = tc.typecheck(factory.app(factory.ref(ext.prelude.getArrayIndex().getRef()), true, Arrays.asList(factory.withData(cType.getData()).core(typedType), factory.ref(refs.get(i)))), null);
+          TypedExpression result = tc.typecheck(factory.app(factory.ref(ext.prelude.getArrayIndexRef()), true, Arrays.asList(factory.withData(cType.getData()).core(typedType), factory.ref(refs.get(i)))), null);
           if (result == null) return null;
           ArendRef ref = param.getRefList().get(i);
           list.add(new Pair<>(ref, result.makeEvaluatingBinding(ref != null ? ref.getRefName() : ext.renamerFactory.getNameFromType(result.getType(), null))));

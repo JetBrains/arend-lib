@@ -80,15 +80,15 @@ public class ConstructorGoalSolver implements InteractiveGoalSolver {
         }
         result = factory.newExpr(factory.classExt(factory.ref(classCall.getDefinition().getRef()), classElements));
       } else if (isEmptyArray) {
-        result = factory.ref(ext.prelude.getEmptyArray().getRef());
+        result = factory.ref(ext.prelude.getEmptyArrayRef());
       } else {
-        result = factory.app(factory.ref(ext.prelude.getArrayCons().getRef()), true, Arrays.asList(factory.goal(), factory.goal()));
+        result = factory.app(factory.ref(ext.prelude.getArrayConsRef()), true, Arrays.asList(factory.goal(), factory.goal()));
       }
     } else if (type instanceof CoreDataCallExpression dataCall) {
       if (dataCall.getDefinition() == ext.prelude.getPath()) {
         CoreFunCallExpression eq = dataCall.toEquality();
         if (eq != null && eq.getDefCallArguments().get(1).compare(eq.getDefCallArguments().get(2), CMP.EQ)) {
-          callback.accept(factory.ref(ext.prelude.getIdp().getRef()));
+          callback.accept(factory.ref(ext.prelude.getIdpRef()));
           return;
         }
       }

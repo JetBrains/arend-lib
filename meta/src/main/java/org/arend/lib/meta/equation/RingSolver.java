@@ -144,7 +144,7 @@ public class RingSolver extends BaseEqualitySolver {
       .app(factory.ref(dataRef), false)
       .app(term1.concrete)
       .app(term2.concrete)
-      .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
+      .app(factory.ref(meta.ext.prelude.getIdpRef()))
       .build();
   }
 
@@ -352,7 +352,7 @@ public class RingSolver extends BaseEqualitySolver {
         .app(factory.ref(dataRef), false)
         .app(minusRingTerm(term1.concrete, term2.concrete))
         .app(idealGenDecompRingTerm(idealCoeffs, axiomDiffs))
-        .app(factory.ref(meta.ext.prelude.getIdp().getRef()))
+        .app(factory.ref(meta.ext.prelude.getIdpRef()))
         .build();
 
       /*

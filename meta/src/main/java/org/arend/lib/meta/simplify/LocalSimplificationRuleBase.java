@@ -7,7 +7,6 @@ import org.arend.ext.core.expr.CoreClassCallExpression;
 import org.arend.ext.core.expr.CoreExpression;
 import org.arend.ext.core.expr.CorePiExpression;
 import org.arend.ext.core.ops.CMP;
-import org.arend.ext.core.ops.NormalizationMode;
 import org.arend.ext.typechecking.ContextData;
 import org.arend.ext.typechecking.ExpressionTypechecker;
 import org.arend.ext.typechecking.MetaDefinition;
@@ -18,7 +17,6 @@ import org.arend.lib.meta.RewriteMeta;
 import org.arend.lib.util.Utils;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Collections;
 
 public abstract class LocalSimplificationRuleBase implements SimplificationRule {
@@ -51,8 +49,7 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
       TypedExpression finalSimplifiedExpression = simplifiedExpression;
       simplifiedExpression.getExpression().processSubexpression(subexpr -> {
         if (!subexpr.computeType().compare(expression.getType(), CMP.EQ)) {
-          if (subexpr.computeType() instanceof CorePiExpression) {
-            var type = (CorePiExpression)subexpr.computeType();
+          if (subexpr.computeType() instanceof CorePiExpression type) {
             var params = type.getParameters();
             while (true) {
               if (!params.getBinding().getTypeExpr().compare(expression.getType(), CMP.EQ)) {
@@ -98,7 +95,7 @@ public abstract class LocalSimplificationRuleBase implements SimplificationRule 
     var simplifyRes = simplifySubexpression(subexpr);
     if (simplifyRes != null) {
       var var = factory.local("i");
-      var typeParam = factory.ref(ext.prelude.getInterval().getRef());
+      var typeParam = factory.ref(ext.prelude.getIntervalRef());
       ConcreteExpression lam = factory.lam(Collections.singletonList(factory.param(true, Collections.singletonList(var), typeParam)),
               factory.meta("\\lam i => {!}", new MetaDefinition() {
                 @Override
