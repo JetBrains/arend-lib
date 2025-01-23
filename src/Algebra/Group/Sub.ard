@@ -4,8 +4,7 @@
 \import Algebra.Monoid.Sub
 \import Algebra.Pointed
 \import Algebra.Pointed.Sub
-\import Algebra.Group.Category (GroupCat, GroupHom)
-\import Category
+\import Algebra.Group.Category (GroupHom)
 \import Function
 \import Function.Meta
 \import Logic
@@ -34,26 +33,34 @@
     \func inj : isInj embed => \lam P => ext P
   }
 
-  \func equivalence : Equivalence S \cowith
+  \func leftAdjacency : Equivalence S \cowith
     | ~ x y => contains (inverse x * y)
     | ~-reflexive => transportInv contains inverse-left contains_ide
     | ~-symmetric c => transport contains (inverse_* *> pmap (_ *) inverse-isInv) (contains_inverse c)
     | ~-transitive {_} {y} c1 c2 => rewriteEq (inverse-right {S} {y}, ide-left) in contains_* c1 c2
 
-  \func Cosets => Quotient (equivalence.~)
+  \func rightAdjacency : Equivalence S \cowith
+    | ~ x y => contains (x * inverse y)
+    | ~-reflexive => transportInv contains inverse-right contains_ide
+    | ~-symmetric c => rewrite (inverse_*, inverse-isInv) in contains_inverse c
+    | ~-transitive {_} {y} c1 c2 => rewriteEq (inverse-left {S} {y}, ide-left) in contains_* c1 c2
 
-  \lemma contains->equiv {x : S} (p : contains x) : 1 equivalence.~ x =>
+  \func LeftCosetSet => Quotient (leftAdjacency.~)
+
+  \func RightCosetSet => Quotient (rightAdjacency.~)
+
+  \lemma contains->equiv {x : S} (p : contains x) : 1 leftAdjacency.~ x =>
     transport (\lam x => contains x) (x ==< inv ide-left >== ide * x ==< pmap (\lam z => z * x) (inv inverse_ide)) p
 
-  \lemma equiv->contains {x : S} (p : 1 equivalence.~ x) : contains x =>
+  \lemma equiv->contains {x : S} (p : 1 leftAdjacency.~ x) : contains x =>
     transport contains helper p
     \where
       \func helper {x : S} : inverse ide * x = x => inverse ide * x ==<  pmap (\lam z => z * x) inverse_ide >==
       ide * x        ==<  ide-left >==
       x `qed
 
-  \lemma invariant-right-multiplication {x y : S} (p : 1 equivalence.~ y)
-    : in~{S} {equivalence.~} x = in~ {S} {equivalence.~} (x * y) =>
+  \lemma invariant-right-multiplication {x y : S} (p : 1 leftAdjacency.~ y)
+    : in~{S} {leftAdjacency.~} x = in~ {S} {leftAdjacency.~} (x * y) =>
     ~-pequiv (transport contains *-assoc contains-x^-1*x*y)
     \where{
       \func helper : inverse x * x * y = y =>
@@ -64,7 +71,7 @@
       \func contains-x^-1*x*y : contains (inverse x * x * y) => transport contains (inv helper) (equiv->contains p)
     }
 
-  \lemma equivalence-to-1 {x y : S} (p : x equivalence.~ y) : 1 equivalence.~ inverse x * y =>
+  \lemma equivalence-to-1 {x y : S} (p : x leftAdjacency.~ y) : 1 leftAdjacency.~ inverse x * y =>
     contains->equiv p
   --  \lemma equivalence-reverse {x y : S} (p : 1 equivalence.~ inverse x * y) : x equivalence.~ y
 
@@ -72,7 +79,51 @@
   \func cStruct {G : CGroup} (S : SubGroup G) : CGroup \cowith
     | Group => S.struct
     | *-comm => ext *-comm
+
+  {- | If $A \leq G$ and $B \leq A$ then $B \leq G$. -}
+  \func subgroup-trans {G : Group} (A : SubGroup G) (B : SubGroup A.struct) : SubGroup G \cowith {
+    | contains x => \Sigma (a : A x) (B (x, a))
+    | contains_ide => (A.contains_ide, B.contains_ide)
+    | contains_* (x1, x2) (y1, y2) => (contains_* x1 y1, B.contains_* x2 y2)
+    | contains_inverse (x1, x2) => (contains_inverse x1, B.contains_inverse x2)
+  }
+
+  {- | If $A \subseteq B$ and $A, B \leq G$ then $A \leq B$ -}
+  \func subgroup-res {G : Group} (A B : SubGroup G) (A<B : \Pi (a : A.struct) -> B.contains a.1) : SubGroup B.struct \cowith {
+    | contains b => A b.1
+    | contains_ide => contains_ide
+    | contains_* => contains_*
+    | contains_inverse => contains_inverse
+  }
+
+  {- | If $A \subseteq B$ and $A, B \leq G$ then $A \leq B$ -}
+  \func subgroup-res-normal {G : Group} (A : NormalSubGroup G) (B : SubGroup G) (A<B : \Pi (a : A.struct) -> B.contains a.1) : NormalSubGroup B.struct \cowith {
+    | SubGroup => subgroup-res A B A<B
+    | isNormal a p => A.isNormal a.1 p
+  }
+
+  \func subgroup-res-trans {G : Group} (A B : SubGroup G) (A<B : \Pi (a : A.struct) -> B.contains a.1) : subgroup-trans B (subgroup-res A B A<B) = A =>
+    exts (\lam e => ext (\lam (p1, p2) => p2, \lam p => (A<B (e, p), p)))
+
+  \func subgroup-trans-res {G : Group} (A : SubGroup G) (B : SubGroup A.struct) : subgroup-res (subgroup-trans A B) A (\lam x => x.2.1) = B =>
+    exts ( \lam (x, c) => ext (\lam (p1, p2) => transport (\lam q => B (x, q)) {p1} {c} ext p2, \lam p => (c, p)))
+
+  \func subgroup-eq {G : Group} {A B : SubGroup G} (P : \Pi (x : G) -> A.contains x <-> B.contains x) : A = B =>
+    exts (\lam g => ext (P g))
+
+  \func normal-subgroup-eq {G : Group} {A B : NormalSubGroup G} (P : \Pi (x : G) -> A.contains x <-> B.contains x) : A = B =>
+    exts (\lam g => ext (P g))
 }
+
+\class OverGroup {G : Group} (H : SubGroup G) \extends SubGroup
+  | S => G
+  | isOvergroup : \Pi (g : S) -> H.contains g -> contains g
+  \where {
+    \func inverse-image-overgroup {G1 G2 : Group} {f : GroupHom G1 G2} (H : SubGroup G2) : OverGroup f.Ker \cowith {
+      | SubGroup => GroupHom.sbgp-inverse-image {f} H
+      | isOvergroup g g-in-Ker => rewrite g-in-Ker contains_ide
+    }
+  }
 
 \class DecSubGroup \extends SubGroup, DecSubMonoid {
   \override S : Group
@@ -99,13 +150,16 @@
   | contains_ide => (contains_ide, contains_ide)
   | contains_* (x-A, x-B) (y-A, y-B) => (contains_* x-A y-A, contains_* x-B y-B)
   | contains_inverse (x-A, x-B) => (contains_inverse x-A, contains_inverse x-B) \where {
-}
 
-\func restrict {G : Group} {H2 : SubGroup G} (H : SubGroup G) (P : H SubGroupMeetSemilattice.<= H2) : SubGroup H2.struct \cowith {
-  | contains x => H.contains {?}
-  | contains_ide => {?}
-  | contains_* => {?}
-  | contains_inverse => {?}
+  \func \infixl 7 as-sbgp-1 (A B : SubGroup G) : SubGroup A.struct =>
+    SubGroup.subgroup-res (A ∩ B) A (\lam (x1, x2) => x2.1)
+
+  \func \infixl 7 as-sbgp-1' (A : SubGroup G) (B : NormalSubGroup G) : NormalSubGroup A.struct \cowith
+    | SubGroup => as-sbgp-1 A B
+    | isNormal g (p1, p2) => (contains_* (contains_* g.2 p1) (contains_inverse g.2), isNormal {B} g.1 p2)
+
+  \func \infixl 7 as-sbgp-2 (A B : SubGroup G) : SubGroup B.struct =>
+    SubGroup.subgroup-res (A ∩ B) B (\lam (x1, x2) => x2.2)
 }
 
 \instance SubGroupMeetSemilattice {G : Group} : MeetSemilattice (SubGroup G)
@@ -122,21 +176,25 @@
   | meet-univ z<=x z<=y g g-in-z => (z<=x g g-in-z, z<=y g g-in-z) \where {
 }
 
-\func kernelEquivProp {G : Group} (N : NormalSubGroup G) (a : G) (p : N.contains a) : N.Quotient.ide = in~ a =>
-  N.Quotient.ide ==< idp >==
+\func kernelEquivProp {G : Group} {N : NormalSubGroup G} (a : G) (p : N.contains a) : N.QuotientGroup.ide = in~ a =>
+  N.QuotientGroup.ide ==< idp >==
   in~ ide ==< inv (~-pequiv help-condition) >==
   in~ a `qed
   \where
-    \func help-condition : a N.equivalence.~ 1 => N.equivalence.~-symmetric {1} {a} (N.contains->equiv p)
+    \func help-condition : a N.leftAdjacency.~ 1 => N.leftAdjacency.~-symmetric {1} {a} (N.contains->equiv p)
 
 \class NormalSubGroup \extends SubGroup {
   | isNormal (g : S) {h : S} : contains h -> contains (conjugate g h)
 
   \lemma isNormal' (g : S) {h : S} (c : contains h) : contains (inverse g * h * g) => simplify in isNormal (inverse g) c
 
-  \func Quotient : Group Cosets \cowith
+  \lemma rightAdj=leftAdj : leftAdjacency = rightAdjacency =>
+    ext (ext (\lam g _ => ext (\lam LA => \let A0 => rewrite (inv *-assoc, inverse-right, ide-left) (unfold conjugate (isNormal g LA)) \in ~-symmetric A0,
+                               \lam RA => \let A0 => rewrite (inverse-isInv, inv *-assoc, inverse-left, ide-left) (unfold conjugate (isNormal (inverse g) RA)) \in ~-symmetric A0)))
+
+  \func QuotientGroup : Group LeftCosetSet \cowith
     | ide => in~ 1
-    | * (x y : Cosets) : Cosets \with {
+    | * (x y : LeftCosetSet) : LeftCosetSet \with {
       | in~ g, in~ g' => in~ (g Group.* g')
       | in~ g, ~-equiv x y r => ~-pequiv $ rewriteEq (inverse_*, inverse-left {S} {g}, ide-left) r
       | ~-equiv x y r, in~ g => ~-pequiv $ rewriteEq inverse_* $ transport contains equation (isNormal' g r)
@@ -150,7 +208,7 @@
     | *-assoc {x} {y} {z} => cases (x,y,z) \with {
       | in~ x, in~ y, in~ z => pmap in~ *-assoc
     }
-    | inverse (x : Cosets) : Cosets \with {
+    | inverse (x : LeftCosetSet) : LeftCosetSet \with {
       | in~ g => in~ (Group.inverse g)
       | ~-equiv x y r => ~-pequiv $ rewrite inverse-isInv $ rewriteEq (inverse_*, inverse-isInv) in
                                                             contains_inverse (rewriteEq (inverse-right {S} {x}, ide-left) in isNormal x r)
@@ -162,19 +220,23 @@
       | in~ a => pmap in~ inverse-right
     }
 
-  \func quotient : GroupHom S Quotient \cowith
+  \func quotient : GroupHom S QuotientGroup \cowith
     | func s => in~ s
-    | func-* {x} {y} => idp \where {
+    | func-* => idp \where {
+
     \func surj : isSurj quotient =>
-      \lam (z : Quotient) => \case \elim z \with{
+      \lam (z : QuotientGroup) => \case \elim z \with{
         | in~ a => inP (a, quotient a ==< idp >== in~ a `qed)
       }
+
+    \func quotient-Ker : GroupHom.Ker {quotient} = {SubGroup S} \this => SubGroup.subgroup-eq {S}
+        (\lam g => (Ker->contains g, contains->Ker g))
+
+    \lemma Ker->contains (g : S) (p : GroupHom.Ker {quotient} g) : contains g => equiv->contains (Relation.Equivalence.Quotient.equalityEquiv SubGroup.leftAdjacency (inv p))
+
+    \lemma contains->Ker (g : S) (p : contains g) : GroupHom.Ker {quotient} g => inv (kernelEquivProp g p)
   }
 
-  \func criterionForKernel (a : S) (p : contains a) : Quotient.ide = in~ a =>
-    rewrite (inv (~-pequiv help-condition)) idp
-    \where
-      \func help-condition : a equivalence.~ 1 => equivalence.~-symmetric {1} {a} (contains->equiv p)
 }
 
 \class SubAddGroup \extends SubAddMonoid {
@@ -219,36 +281,43 @@
   | contains_inverse (inP (g1, h1, eq1)) =>
     \let | A0 : SubSet.contains {prod-Minkowski S T} (inverse h1.1 * inverse g1.1) =>
       rewrite p (inP ((inverse h1.1, contains_inverse {T} h1.2), (inverse g1.1, contains_inverse {S} g1.2), idp))
-    \in rewrite (eq1, inverse_*) A0
+    \in rewrite (eq1, inverse_*) A0 \where {
+  \func embed1 : GroupHom S.struct (SubGroup.struct {FrobeniusProduct S T p}) \cowith
+    | func x => (x.1, inP (x, T.struct.ide, inv ide-right))
+    | func-* => ext idp
+
+  \func embed2 : GroupHom T.struct (SubGroup.struct {FrobeniusProduct S T p}) \cowith
+    | func x => (x.1, inP (S.struct.ide, x, inv ide-left))
+    | func-* => ext idp
+}
 
 {- | Let $G$ be a group. Let $S$ be a subgroup of $G$, and let $N$ be a normal subgroup of $G$. Then the following hold:
 + The product $SN$ is a subgroup of $G$ -}
-\func FrobeniusProductN {G : Group} (S : SubGroup G) (N : NormalSubGroup G) : SubGroup G =>
-  FrobeniusProduct S N (exts (\lam _ => propExt (\lam h1 => \case \elim h1 \with {
-    | inP (s, n, eq) => inP ((conjugate s.1 n.1, N.isNormal s.1 n.2), s,
-                             unfold conjugate (rewrite (*-assoc, inverse-left, ide-right) eq))
-  }) (\lam h2 => \case \elim h2 \with {
-    | inP (n, s, eq) => inP (s, (conjugate (inverse s.1) n.1, N.isNormal (inverse s.1) n.2),
-                             unfold conjugate (rewrite (inverse-isInv, inv *-assoc, inv *-assoc, inverse-right, ide-left) eq))
-  }))) \where {
+\func FrobeniusProductN \alias \infixl 5 *F {G : Group} (S : SubGroup G) (N : NormalSubGroup G) : SubGroup G => FrobeniusProduct S N SN=NS \where {
+  \func SN=NS : prod-Minkowski {G} S N = prod-Minkowski {G} N S =>
+    exts (\lam _ => propExt (\lam h1 => \case \elim h1 \with {
+      | inP (s, n, eq) => inP ((conjugate s.1 n.1, N.isNormal s.1 n.2), s,
+                               unfold conjugate (rewrite (*-assoc, inverse-left, ide-right) eq))
+    }) (\lam h2 => \case \elim h2 \with {
+      | inP (n, s, eq) => inP (s, (conjugate (inverse s.1) n.1, N.isNormal (inverse s.1) n.2),
+                               unfold conjugate (rewrite (inverse-isInv, inv *-assoc, inv *-assoc, inverse-right, ide-left) eq))
+    }))
+
+  \func embedS : GroupHom S.struct (SubGroup.struct {S *F N}) => FrobeniusProduct.embed1 {_} {_} {_} {SN=NS}
+
+  \func sbgp-S(S : SubGroup G) (N : NormalSubGroup G) : SubGroup (SubGroup.struct {S *F N}) \cowith
+  | contains x => S x.1
+  | contains_ide => S.contains_ide
+  | contains_* => S.contains_*
+  | contains_inverse => S.contains_inverse
+
+  \func embedN : GroupHom N.struct (SubGroup.struct {S *F N}) => FrobeniusProduct.embed2 {_} {_} {_} {SN=NS}
+
   {- | The subgroup $N$ is a normal subgroup of $SN$ -}
-  \func N<=SN(S : SubGroup G) (N : NormalSubGroup G) : NormalSubGroup (SubGroup.struct {FrobeniusProductN S N}) \cowith
+  \func sbgp-N (S : SubGroup G) (N : NormalSubGroup G) : NormalSubGroup (SubGroup.struct {S *F N}) \cowith
     | contains x => N x.1
     | contains_ide => N.contains_ide
     | contains_* => N.contains_*
     | contains_inverse => N.contains_inverse
     | isNormal x n => N.isNormal x.1 n
-
-  \func S<=SN(S : SubGroup G) (N : NormalSubGroup G) : SubGroup (SubGroup.struct {FrobeniusProductN S N}) \cowith
-    | contains x => S x.1
-    | contains_ide => S.contains_ide
-    | contains_* => S.contains_*
-    | contains_inverse => S.contains_inverse
-
-  {- | The intersection $S \cap N$ is a normal subgroup of S -}
-  \func N-cap-S<=S : NormalSubGroup S.struct (\lam x => N x.1) \cowith
-    | contains_ide => N.contains_ide
-    | contains_* => N.contains_*
-    | contains_inverse => N.contains_inverse
-    | isNormal s n => N.isNormal s.1 n
-}
+  }

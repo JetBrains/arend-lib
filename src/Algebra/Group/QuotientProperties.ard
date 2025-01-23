@@ -16,7 +16,7 @@
 \import Set.Category
 \open Group
 
-\func \infix 7 // (G : Group) (H : NormalSubGroup G) : Group => H.Quotient
+\func \infix 7 // (G : Group) (H : NormalSubGroup G) : Group => H.QuotientGroup
 
 {- | properties needed from a commutative triangle $$X \to Y \to Z$$ in the category of groups -}
 \class GroupTriangle \noclassifying (X Y Z : Group) (f : GroupHom X Y) (g : GroupHom Y Z) (h : GroupHom X Z) (comm : h = g GroupCat.∘ f) {
@@ -37,7 +37,7 @@
     | in~ n => (f n, inP (n, idp))
     | ~-equiv y x r => ext (equality-check (rewriteI (f.func-inverse, f.func-*) (p (inverse y * x) r)))
 
-  \lemma univ-* (x y : G // N) : univ (x N.Quotient.* y) = univ x f.Im.struct.* univ y \elim x, y
+  \lemma univ-* (x y : G // N) : univ (x N.QuotientGroup.* y) = univ x f.Im.struct.* univ y \elim x, y
     | in~ _, in~ _ => ext (unfold (SubSemigroup.struct.*) f.func-*)
 
   \func univ_img : GroupHom (G // N) f.Im.struct \cowith
@@ -63,16 +63,42 @@
   | N => f.Ker
   | p => SubGroupMeetSemilattice.<=-refl
 
-  \func statement : GroupHom.IsIsomorphism {univ_img} =>
-    (\lam {a a' : SubGroup.Cosets {f.Ker}} p => \case \elim a, \elim a', p \with {
+  \func statement : (G // N) ≃ f.Im.struct \cowith
+    | GroupHom => univ_img
+    | isIso =>  (\lam {a a' : SubGroup.LeftCosetSet {f.Ker}} p => \case \elim a, \elim a', p \with {
       | in~ b1, in~ b2, p2 => ~-equiv {G} b1 b2 (GroupHom.same-images-test (pmap (\lam x => x.1) p2))
     }, univ_map_surj)
 }
+
 {- | The quotient groups $SN/N$ and $S/(S \cap N)$ are isomorphic.-}
 \class TheoremB (G : Group) (S : SubGroup G) (N : NormalSubGroup G) {
-     \func f : GroupHom => (NormalSubGroup.quotient {FrobeniusProductN.N<=SN S N}) ∘ (SubGroup.embed {FrobeniusProductN.S<=SN S N})
+  \func SN : SubGroup G => S *F N
 
-     --\func Kerf=S-cap-N : GroupHom.Ker {f} = S ∩1 N
+  \func N-as-sbgp-SN : NormalSubGroup SN.struct => *F.sbgp-N S N
+
+  {- | Morphism S -> SN -> SN/N -}
+  \func f : GroupHom S.struct N-as-sbgp-SN.QuotientGroup => (NormalSubGroup.quotient {N-as-sbgp-SN}) ∘ *F.embedS {G} {S} {N}
+
+  \lemma f-surj : isSurj f =>
+    \lam y => \case \elim y \with {
+      | in~ (x, inP (s, n, p)) => inP (s,
+        \let | A0 : N (inverse s.1 * x) => rewrite (p, inv *-assoc, inverse-left, ide-left) n.2
+        \in (~-pequiv {Set.SubSet.S {N-as-sbgp-SN}} {(~) {SubGroup.leftAdjacency {N-as-sbgp-SN}}}) A0)
+    }
+
+  \lemma Kerf=S-cap-N : f.Ker = S ∩.as-sbgp-1' N => SubGroup.normal-subgroup-eq {S.struct}
+      (\lam s => (\lam p => (s.2, NormalSubGroup.quotient.Ker->contains {N-as-sbgp-SN} (*F.embedS {G} {S} {N} s) p),
+                  \lam p => NormalSubGroup.quotient.contains->Ker {N-as-sbgp-SN} (s.1, inP (s, N.struct.ide, inv ide-right)) p.2))
+
+  \func statement1 : (S.struct // (S ∩.as-sbgp-1' N)) ≃ (SubGroup.struct {GroupHom.Im {f}}) =>
+      rewrite (inv Kerf=S-cap-N) (TheoremA.statement {\new TheoremA S.struct N-as-sbgp-SN.QuotientGroup f})
+
+  \func statement2 : (S.struct // (S ∩.as-sbgp-1' N)) ≃ SN.struct // N-as-sbgp-SN =>
+    rewrite (GroupHom.Im.Im=Cod f-surj) in statement1
+}
+
+\class TheoremD (G : Group) (N : NormalSubGroup G) {
+
 }
 
 {- | Now we apply all of these universal properties to the case when $N = \ker f$ and we get the first isomorphism theorem in the end-}
@@ -94,13 +120,13 @@
 
   \lemma universalKerProp : univ GroupCat.∘ quot = f => UniversalProperty.universalProperty
 
-  \lemma universalQuotientKernel (g : G // f.Ker) (q : univ g = ide) : g = f.Ker.Quotient.ide =>
-    \case g \as b, idp : g = b \return b = f.Ker.Quotient.ide \with {
-      | in~ a, p => inv (f.Ker.criterionForKernel a (universalQuotientKernel' a (transport (\lam z => univ z = ide) p q))
+  \lemma universalQuotientKernel (g : G // f.Ker) (q : univ g = ide) : g = f.Ker.QuotientGroup.ide =>
+    \case g \as b, idp : g = b \return b = f.Ker.QuotientGroup.ide \with {
+      | in~ a, p => inv (kernelEquivProp {G} {f.Ker} a (universalQuotientKernel' a (transport (\lam z => univ z = ide) p q))
       )
     } \where {
-      \lemma helper-1 (a : G) (q : univ (in~ a) = ide) : in~ a = f.Ker.Quotient.ide =>
-        inv (f.Ker.criterionForKernel a (universalQuotientKernel' a q))
+      \lemma helper-1 (a : G) (q : univ (in~ a) = ide) : in~ a = f.Ker.QuotientGroup.ide =>
+        inv (kernelEquivProp {G} {f.Ker} a (universalQuotientKernel' a q))
     }
 
   \lemma evidTrivKer : univ.TrivialKernel =>
@@ -120,14 +146,14 @@
 
   \lemma univKer-epi (p : isSurj f): isSurj univ => Triangle.surjectivity-2-out-3 p (NormalSubGroup.quotient.surj {f.Ker})
 
-  \lemma FirstIsoTheorem (p : isSurj f) : univ.IsIsomorphism => (univKer-mono, univKer-epi p)
+  \lemma FirstIsoTheorem (p : isSurj f) : univ.isIsomorphism => (univKer-mono, univKer-epi p)
 }
 
 -- application of first Isomorphism theorem without need to define local instances
 
 \func GroupFirstIsoCorollary-setwise {G H : Group} {N : NormalSubGroup G} (f : GroupHom G H) (p : N = f.Ker) (q : isSurj f):
-  \Sigma(h : GroupHom (G // N) H) h.IsIsomorphism =>
-  transport {NormalSubGroup G} (\lam X => \Sigma (f : GroupHom (G // X) H) f.IsIsomorphism) (inv p) (GroupFirstIsoCorollary-24 f q)
+  \Sigma(h : GroupHom (G // N) H) h.isIsomorphism =>
+  transport {NormalSubGroup G} (\lam X => \Sigma (f : GroupHom (G // X) H) f.isIsomorphism) (inv p) (GroupFirstIsoCorollary-24 f q)
   \where{
     \func GroupFirstIsoCorollary-2 {G H : Group} (f : GroupHom G H) :
       GroupHom (G // f.Ker) H => FirstIsomorphismTheorem.univ {\new FirstIsomorphismTheorem {
@@ -135,7 +161,7 @@
                                                                   }}
 
     \func GroupFirstIsoCorollary-24 {G H : Group} (f : GroupHom G H) (q : isSurj f) :
-      \Sigma (a : GroupHom (G // f.Ker) H) a.IsIsomorphism => (GroupFirstIsoCorollary-2 f,
+      \Sigma (a : GroupHom (G // f.Ker) H) a.isIsomorphism => (GroupFirstIsoCorollary-2 f,
                                                                   FirstIsomorphismTheorem.FirstIsoTheorem {\new FirstIsomorphismTheorem {
                                                                                                              | G => G | H => H | f => f
                                                                                                            }} q)

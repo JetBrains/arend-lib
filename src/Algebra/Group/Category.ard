@@ -6,6 +6,7 @@
 \import Algebra.Monoid.Sub
 \import Algebra.Pointed
 \import Algebra.Pointed.Category
+\import Algebra.Pointed.Sub
 \import Category (Cat, Iso)
 \import Category.Functor
 \import Category.Meta
@@ -59,20 +60,46 @@
       func y           ==< q >==
       ide `qed
 
+  \func sbgp-image (H : SubGroup Dom) : SubGroup Cod \cowith {
+    | contains y => ∃ (x : Dom) (H x) (func x = y)
+    | contains_ide => inP (ide, contains_ide, func-ide)
+    | contains_* (inP (x0, A0, B0)) (inP (x1, A1, B1)) => inP (x0 * x1, contains_* A0 A1, rewrite (func-*, B0, B1) idp)
+    | contains_inverse (inP (x0, A0, B0)) => inP (inverse x0, contains_inverse A0, rewrite (func-inverse, B0) idp)
+  }
+
+  \func sbgp-inverse-image (H : SubGroup Cod) : SubGroup Dom \cowith {
+    | contains y => H.contains (func y)
+    | contains_ide => rewrite func-ide contains_ide
+    | contains_* x y => rewrite func-* (contains_* x y)
+    | contains_inverse x => rewrite func-inverse (contains_inverse x)
+  }
+
   \func Im : SubGroup Cod \cowith
     | contains y => ∃ (x : Dom) (func x = y)
     | contains_ide => inP (ide, func-ide)
     | contains_* (inP (x0, A0)) (inP (x1, A1)) => inP (x0 * x1, rewrite (func-*, A0, A1) idp)
-    | contains_inverse (inP (x0, A0)) => inP (inverse x0, rewrite (func-inverse, A0) idp)
+    | contains_inverse (inP (x0, A0)) => inP (inverse x0, rewrite (func-inverse, A0) idp) \where {
 
-  \func ker : GroupHom Ker.struct Dom \cowith {
+    \func Im=Cod (p : isSurj func) : Im.struct = Cod =>
+      Cat.isotoid {GroupCat} {Im.struct} {Cod} ((GroupCat.Iso<->Inj+Surj im).2 (im.inj, im.surj p))
+  }
+
+   \func ker : GroupHom Ker.struct Dom \cowith {
     | func (x, Ax) => x
     | func-* => unfold (SubSemigroup.struct.*) idp
-  }
+  } \where {
+     \func inj : isInj ker => \lam p => ext p
+   }
 
   \func im : GroupHom Im.struct Cod \cowith {
     | func (x, Ax) => x
     | func-* => unfold (SubSemigroup.struct.*) idp
+  } \where {
+    \func inj : isInj im => \lam p => ext p
+
+    \func surj (s : isSurj func) : isSurj im => \lam y => \let A0 => s y \in \case \elim A0 \with {
+      | inP (x, p) => inP ((func x, inP (x, idp)), p)
+    }
   }
 
   \func TrivialKernel : \Prop => \Pi {g : Dom} -> Ker g -> g = ide
@@ -86,11 +113,14 @@
   \lemma Kernel-injectivity-test (p : TrivialKernel) : isInj func =>
     \lam q => equality-check (p (same-images-test q))
 
-  \lemma Kernel-injectivity-corrolary (p : isInj func) : TrivialKernel =>
+  \lemma Kernel-injectivity-corollary (p : isInj func) : TrivialKernel =>
     \lam q => p (q *> inv func-ide)
 
-  \func IsIsomorphism : \Prop => \Sigma (isInj func) (isSurj func)
+  \func isIsomorphism : \Prop => \Sigma (isInj func) (isSurj func)
 }
+
+\class GroupIso \alias \infixl 1 ≃ \extends GroupHom
+  | isIso : isIsomorphism
 
 \instance GroupCat : Cat Group
   | Hom => GroupHom
@@ -117,7 +147,7 @@
       | isFaithful => \lam p => ext p
 
     -- TODO: Prove this more generally for algebraic theories?
-    \lemma Iso<->Inj+Surj {G H : Group} (f : GroupHom G H) : Iso {GroupCat} f <-> f.IsIsomorphism
+    \lemma Iso<->Inj+Surj {G H : Group} (f : GroupHom G H) : Iso {GroupCat} f <-> f.isIsomorphism
       => (\lam p => SetIso->Inj+Surj (ForgetSet.Func-iso p),
           \lam p => \new Iso {
             | hinv => \new GroupHom {
@@ -133,15 +163,15 @@
       \where \private {
       {- | some  set theoretic lemmas -}
 
-        \lemma this_inv_ap (p : f.IsIsomorphism) (h : H) : h = f (inve p h)
+        \lemma this_inv_ap (p : f.isIsomorphism) (h : H) : h = f (inve p h)
           => inv (path \lam i => (Iso.f_hinv {this_iso p} i) h)
 
-        \lemma inv_this_ap (p : f.IsIsomorphism) (g : G) : g = inve p (f g)
+        \lemma inv_this_ap (p : f.isIsomorphism) (g : G) : g = inve p (f g)
           => inv (path \lam i => (Iso.hinv_f {this_iso p} i) g)
 
-        \func this_iso (p : f.IsIsomorphism) => Inj+Surj->SetIso f p.1 p.2
+        \func this_iso (p : f.isIsomorphism) => Inj+Surj->SetIso f p.1 p.2
 
-        \func inve (p : f.IsIsomorphism) => Iso.hinv {this_iso p}
+        \func inve (p : f.isIsomorphism) => Iso.hinv {this_iso p}
 
         \lemma aux {A B : \Set} (f : Iso {SetCat} {A} {B}) {a : A} {b : B} (p : f.f a = b) : f.hinv b = a
           => inv $ rewrite (aux' f, p) idp
@@ -174,11 +204,11 @@
       : Iso {GroupCat} f <-> (\Sigma f.TrivialKernel (isSurj f))
       => <->trans (Iso<->Inj+Surj f) helper
       \where \private \func helper : (\Sigma (isInj f)(isSurj f)) <-> (\Sigma f.TrivialKernel (isSurj f)) =>
-        (\lam p => (f.Kernel-injectivity-corrolary p.1, p.2),
+        (\lam p => (f.Kernel-injectivity-corollary p.1, p.2),
          \lam p => (f.Kernel-injectivity-test p.1, p.2))
   }
 
-\func quotient-map {S : Group} {H : NormalSubGroup S} : GroupHom S H.Quotient \cowith
+\func quotient-map {S : Group} {H : NormalSubGroup S} : GroupHom S H.QuotientGroup \cowith
   | func (s : S) => NormalSubGroup.quotient s
   | func-ide => idp
   | func-* => idp
