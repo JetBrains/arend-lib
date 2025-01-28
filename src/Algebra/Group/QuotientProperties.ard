@@ -7,7 +7,7 @@
 \import Algebra.Pointed
 \import Algebra.Pointed.Sub
 \import Category
-\import Equiv (Equiv, QEquiv)
+\import Equiv (QEquiv)
 \import Function \hiding (id, o)
 \import Logic
 \import Logic.Meta
@@ -66,11 +66,13 @@
   | N => f.Ker
   | p => SubGroupMeetSemilattice.<=-refl
 
-  \func statement : (G // N) ≃ f.Im.struct \cowith
-    | GroupHom => univ_img
-    | isIso =>  (\lam {a a' : SubGroup.LeftCosetSet {f.Ker}} p => \case \elim a, \elim a', p \with {
-      | in~ b1, in~ b2, p2 => ~-equiv {G} b1 b2 (GroupHom.same-images-test (pmap (\lam x => x.1) p2))
-    }, univ_map_surj)
+  \func statement : Iso {_} {G // f.Ker} {f.Im.struct} univ_img => univ_img.asIso
+      (\lam {a a' : SubGroup.LeftCosetSet {f.Ker}} p => \case \elim a, \elim a', p \with {
+        | in~ b1, in~ b2, p2 => ~-equiv {G} b1 b2 (GroupHom.same-images-test (pmap (\lam x => x.1) p2))
+      }, univ_map_surj)
+
+  \func statement' (p : isSurj f) : Iso {_} {G // f.Ker} {H} ((GroupHom.im {f}) ∘ univ_img) =>
+    Iso.composite statement (GroupHom.im.im_iso p)
 }
 
 {- | The quotient groups $SN/N$ and $S/(S \cap N)$ are isomorphic.-}
@@ -93,11 +95,13 @@
       (\lam s => (\lam p => (s.2, NormalSubGroup.quotient.Ker->contains {N-as-sbgp-SN} (*F.embedS {G} {S} {N} s) p),
                   \lam p => NormalSubGroup.quotient.contains->Ker {N-as-sbgp-SN} (s.1, inP (s, N.struct.ide, inv ide-right)) p.2))
 
-  \func statement1 : (S.struct // (S ∩.as-sbgp-1' N)) ≃ (SubGroup.struct {GroupHom.Im {f}}) =>
-      rewrite (inv Kerf=S-cap-N) (TheoremA.statement {\new TheoremA S.struct N-as-sbgp-SN.QuotientGroup f})
+  \func thmA : TheoremA => \new TheoremA S.struct N-as-sbgp-SN.QuotientGroup f
 
-  \func statement2 : (S.struct // (S ∩.as-sbgp-1' N)) ≃ SN.struct // N-as-sbgp-SN =>
-    rewrite (GroupHom.Im.Im=Cod f-surj) in statement1
+  \func statement : Iso {_} {S.struct // f.Ker} {N-as-sbgp-SN.QuotientGroup} ((GroupHom.im {f}) ∘ thmA.univ_img ) =>
+    TheoremA.statement' {thmA} f-surj
+
+  \func statement' : Iso {_} {S.struct // (S ∩.as-sbgp-1' N)} {SN.struct // N-as-sbgp-SN} =>
+    transport (\lam Q => Iso {_} {S.struct // Q} {SN.struct // N-as-sbgp-SN}) Kerf=S-cap-N statement
 }
 
 \class TheoremC (G : Group) (N : NormalSubGroup G) (K : NormalOverGroup { | G => G | H => N }) {
@@ -107,6 +111,24 @@
       inP (conjugate g h, K.isNormal g (rewrite (inv *-assoc, inverse-right, ide-left) in
         contains_* c (isOvergroup {K} _ (NormalSubGroup.quotient.Ker->contains {N} _ (GroupHom.same-images-test p)))), idp)
   }
+
+  \func univ : GroupHom G ((G // N) // K/N) => K/N.quotient ∘ N.quotient
+
+  \lemma univ_surj : isSurj univ => isSurj.comp (NormalSubGroup.quotient.surj {N}) (NormalSubGroup.quotient.surj {K/N})
+
+  \func Ker-univ : univ.Ker = {NormalSubGroup G} K =>
+    exts (\lam e => ext (\lam e-in-Ker =>
+      \let | P : ∃ (x : G) (K x) (NormalSubGroup.quotient {N} x = NormalSubGroup.quotient {N} e) => NormalSubGroup.quotient.Ker->contains _ e-in-Ker
+      \in \case \elim P \with {
+        | inP (x, c, e) => rewrite (inv *-assoc, inverse-right, ide-left) in contains_* c (K.isOvergroup _ (NormalSubGroup.quotient.Ker->contains _ (GroupHom.same-images-test {NormalSubGroup.quotient {N}} e)))
+      }, \lam e-in-K => NormalSubGroup.quotient.contains->Ker {K/N} (in~ e) (inP (e, e-in-K, idp))))
+
+  \func thmA : TheoremA => \new TheoremA G ((G // N) // K/N) univ
+
+  \func statement : Iso {_} {G // univ.Ker} {(G // N) // K/N} => thmA.statement' univ_surj
+
+  \func statement' : Iso {_} {G // K} {(G // N) // K/N} =>
+    transport (\lam (Q : NormalSubGroup G) => Iso {_} {G // Q} {(G // N) // K/N}) Ker-univ statement
 }
 
 \class TheoremD (G : Group) (N : NormalSubGroup G) {
