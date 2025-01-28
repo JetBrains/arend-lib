@@ -1,0 +1,168 @@
+\import Arith.Int
+\import Arith.Nat
+\import Category
+\import Category.Functor
+\import Category.Limit
+\import Data.Bool
+\import Data.Maybe
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
+
+\record Algebra {C : Precat} (F : Functor C C)
+  | \coerce carrier : C
+  | morphism : Hom (F carrier) carrier
+
+\instance AlgebraPrecat {C : Precat} (F : Functor C C) : Precat (Algebra F)
+  | Hom X Y => \Sigma (m : C.Hom X Y) (m ∘ morphism {X} = morphism {Y} ∘ Func {F} m)
+  | id X => (id X, rewrite (id-left, Func-id {F}, id-right) idp)
+  | o (m1, eq1) (m2, eq2) => (m1 ∘ m2, rewrite (o-assoc, eq2, inv o-assoc, eq1, o-assoc, inv (Func-o {F})) idp)
+  | id-left => exts id-left
+  | id-right => exts id-right
+  | o-assoc => exts o-assoc
+
+-- CMonoid objects as initial algebras
+
+{- Lambek's theorem. If the F-algebra is initial, the carrier is a fixed point of the functor
+The proof is contained in the diagram
+ - F X  -> X
+ - |       |
+ - v       v
+ - FF X -> FX
+ - |       |
+ - v       v
+ - F X  -> X
+-}
+
+\func Lambek-fixed-point {C : Precat} (F : Functor C C)
+                         (init : initial-obj (AlgebraPrecat F))
+  : Iso {C} {F (carrier {init})} {carrier {init}} =>
+  \let | induced-algebra => \new Algebra {C} F {
+    | carrier => F (carrier {init})
+    | morphism => Func (morphism {init})
+  }
+       | s => initialMap' {_} {init} {induced-algebra}
+       | inverse-s : Hom {AlgebraPrecat F} induced-algebra init
+       => (morphism {init}, idp)
+       | id-map : Hom {AlgebraPrecat F} init init => id {AlgebraPrecat F} init
+       | comp => inverse-s ∘ {AlgebraPrecat F} {init} {induced-algebra} s
+       | comp-is-id : comp = id-map => initial-unique' {AlgebraPrecat F}
+       | comp-eq : inverse-s.1 ∘ s.1 = id (carrier {init}) =>
+         unfold at comp-is-id $ pmap (\lam (x,y) => x) comp-is-id
+       | comp-eq-f : s.1 ∘ morphism {init} = id (F (carrier {init})) => rewrite s.2 $ unfold $ rewrite (inv $ Func-o {F}, comp-eq, Func-id {F}) idp
+  \in
+    \new Iso {
+      | f => morphism {init}
+      | hinv => s.1
+      | hinv_f => comp-eq-f
+      | f_hinv => comp-eq
+    }
+
+{-
+Adamek's theorem
+
+If the precategory has an initial object 0, and if the diagram 0 -> F 0 -> ...
+has a colimit, and in addition this colimit is preserved by F, then this colimit is the carrier of the initial algebra
+-}
+
+--- A rather lengthy definition of the required diagram
+\func omega-chain {C : PrecatWithInitial} (F : Functor C C) : Functor NatSemiring C
+\cowith
+  | F => iterate-f C.initial
+  | Func {n} {m} n<=m => f-func {C} {F} n m n<=m
+  | Func-id {n} => f-func-id n
+  | Func-o {_} {_} {_} {y<=z} {x<=y} => func-o y<=z x<=y
+  \where {
+    \func iterate-f (ob : C) (n : Nat) : C
+    \elim n
+      | 0 => ob
+      | suc n => F (iterate-f ob n)
+
+    \func iterate-eq (ob : C) (n m : Nat) : iterate-f ob (m Nat.+ n) = iterate-f (iterate-f ob n) m
+    \elim n,m
+      | 0, _ => idp
+      | _, 0 => idp
+      | suc n, suc m => rewrite (iterate-eq ob n m) $ rewrite (iterate-lem {C} {F} (iterate-f ob n) m) idp
+      \where {
+        \func iterate-lem (ob : C) (n : Nat) : iterate-f (F ob) n = F (iterate-f ob n)
+        \elim n
+          | 0 => idp
+          | suc n => rewrite (iterate-lem ob n) idp
+      }
+
+    \func iterate-func (n : Nat) {a b : C} (f : Hom a b) : Hom (iterate-f a n) (iterate-f b n)
+    \elim n
+      | 0 => f
+      | suc n => Func {F} (iterate-func n f)
+
+    \func f-func (n m : Nat) (n<=m : n NatBSemilattice.<= m) : Hom (iterate-f initial n) (iterate-f initial m)
+    \elim n, m, n<=m
+      | 0, 0, _ => id C.initial
+      | 0, suc m, _ => C.initialMap
+      | suc n, suc m, n'<=m' =>
+        \let n<=m => suc<=suc.conv n'<=m' \in
+          Func {F} (f-func n m n<=m)
+      | suc n, 0, n'<=0 => absurd $ (lemma n) n'<=0
+      \where {
+        \func lemma (n : Nat) : Not (suc n NatBSemilattice.<= 0) => \lam contr => contr NatSemiring.zero<suc
+      }
+
+  \func f-func-id (n : Nat) : f-func n n (id n) = id (iterate-f initial n)
+    \elim n
+      | 0 => idp
+      | suc n => rewrite (f-func-id n, Func-id {F}) idp
+
+  \func func-o {x y z : Nat} (y<=z : y NatBSemilattice.<= z) (x<=y : x NatBSemilattice.<= y)
+    : f-func x z (y<=z ∘ x<=y) = f-func y z y<=z ∘ f-func x y x<=y
+    \elim x, y, z
+      | 0, 0, 0 => rewrite id-left idp
+      | 0, _, _ => C.initial-unique
+      | suc x, 0, 0 => absurd (x<=y NatSemiring.zero<suc)
+      | suc x, 0, suc z => absurd (x<=y NatSemiring.zero<suc)
+      | suc x, suc y, 0 => absurd (y<=z NatSemiring.zero<suc)
+      | suc x, suc y, suc z => rewriteI (Func-o {F}) $
+      \let y<=z => suc<=suc.conv y<=z
+      | x<=y => suc<=suc.conv x<=y \in
+      rewrite (func-o {_} {_} {x} {y} {z} y<=z x<=y) idp
+  }
+
+
+\func Adamek-theorem {C : PrecatWithInitial} (F : Functor C C) (colimit : Colimit (omega-chain F))
+  (f-preserves : PreservesLimit (Functor.op {F}) (Functor.op {omega-chain F})):
+  initial-obj (AlgebraPrecat F) omega-chain-algebra
+  => isInitial {AlgebraPrecat F} omega-chain-algebra {?}
+\where {
+  -- Step 1: Exhibit a map [limit -> F (limit)], using that F (limit) is a cone of the omega-chain
+  \func f-cone : Cone (Functor.op {omega-chain F}) (F colimit)
+    \cowith
+      | coneMap n => help-f n
+      | coneCoh {n} {m} n>=m => help-coh n m n>=m
+  \where {
+    \func help-f (n : Nat) : Hom (omega-chain F n) (F colimit)
+      \elim n
+        | 0 => C.initialMap
+        | suc n => unfold $ Func {F} $ coneMap {colimit} n
+
+    \func help-coh (n m : Nat) (m<=n : m NatBSemilattice.<= n) :
+      help-f n ∘ Func {omega-chain F} {m} m<=n = help-f m
+      \elim n,m, m<=n
+        | _, 0, m<=n => C.initial-unique
+        | 0, suc m, m<=n => absurd (m<=n NatSemiring.zero<suc)
+        | suc n, suc m, m<=n => rewriteI (Func-o {F}) $ rewrite (coneCoh {colimit}) idp
+  }
+
+  \func omega-chain-coalgebra : Hom colimit (F colimit)  => colimit.limMap f-cone
+
+  \func f-limit  => f-preserves colimit
+  \where {
+    \func test => \let s => f-limit \in unfold at s $ {?}
+  }
+  -- Step 2: using that F preserves colimits of omega-chains, show that F(limit) is also a limit of the same diagram
+
+  \func omega-chain-algebra : Algebra F => {?}
+}
+
+-- Kleene's fixed point theorem

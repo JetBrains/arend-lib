@@ -8,6 +8,8 @@
 \import Equiv
 \import Function.Meta
 \import HLevel
+\import Logic
+\import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
@@ -32,11 +34,17 @@
   \func antitranpose-eq {X Y Z : Ob} (f : Hom (Bprod X Y) Z) : antitranspose (transpose f) = f
     => isAdjoint.ret_f f
 
+  \func transpose-eq {X Y Z : Ob} (g : Hom X (exp Y Z)) : transpose (antitranspose g) = g
+    => isAdjoint.f_ret g
+
   \func eval-map {Y Z : Ob} : Hom (Bprod (exp Y Z) Y) Z
     => antitranspose (id (exp Y Z))
 
   \func eval-transpose {X Y Z : Ob} (g : Hom (Bprod X Y) Z) : eval-map ∘ prodMap (transpose g) (id Y) = g
     => rewrite (inv $ RightAdjoint.adjoint_epsilon {exp Y} _) $ antitranpose-eq g
+
+  \func name {X Y : Ob} (f : Hom X Y) : Hom terminal (exp X Y)
+    => transpose $ f ∘ terminal-prod-left.hinv
 
   \func eval-map-eq {X Y : Ob} (f : Hom X Y) : eval-map ∘ prodMap (name f) (id X) ∘ pair terminalMap (id X) = f
     =>
@@ -51,9 +59,6 @@
   \func internal-comp {X Y Z : Ob} : Hom (Bprod (exp Y Z) (exp X Y)) (exp X Z)
     => transpose $ (eval-map ∘ prodMap (id (exp Y Z)) eval-map) ∘ associator
 
-  \func name {X Y : Ob} (f : Hom X Y) : Hom terminal (exp X Y)
-    => transpose $ f ∘ terminal-prod-left.hinv
-
   \func global-elements-iso {X Y : Ob} : Equiv {Hom X Y} {Hom terminal (exp X Y)} name
     => \new QEquiv {
       | ret f => (antitranspose f) ∘ terminal-prod-left.f
@@ -64,7 +69,7 @@
   \func internal-homFunctor : Functor (ProductPrecat (Precat.op {\this}) \this) \this
     => \new Functor {
       | F (X, Y) => exp X Y
-      | Func {(a, b)} {(c, d)} (f, g) => unfold at f $ transpose $ g ∘ eval-map ∘ prodMap (id _) f
+      | Func {(a, b)} {(c, d)} (f, g) => transpose $ g ∘ eval-map ∘ prodMap (id _) f
       | Func-id {(a, b)} => isAdjoint.adjointInv $ unfold $ rewrite (id-left, prod-id, id-right) idp
       | Func-o {(a1, b1)} {(a2, b2)} {(a3, b3)} {(f,g)} {(p,q)} =>
         run {
@@ -83,6 +88,52 @@
           equation
         }
     }
+
+\record NaturalNumbersObject {C : CartesianClosedPrecat} (N : C)
+  | zero : Hom C.terminal N
+  | succ : Hom N N
+
+
+{-
+- This section comes from "Diagonal arguments and Cartesian Closed Categories" by F.W. Lawvere
+- It is shown that any object with a "weak surjection" onto it has the fixed point property: all its endomorphisms have
+- a fixed point. The usual diagonal argument then is simply the contraposition of this theorem.
+- -}
+
+  \func has-fixed-point (Y : Ob) => \Pi (t : Hom Y Y) -> ∃ (y : Hom terminal Y) (t ∘ y = y)
+  \func weakly-surjective {A X Y : Ob} (g : Hom X (exp A Y))
+    => \Pi (f : Hom A Y) -> ∃ (x : Hom terminal X) (\Pi (a : Hom terminal A) -> eval-map ∘ (pair (g ∘ x) a) = f ∘ a)
+  \func Lawvere-fixed-point (Y : Ob) (weak-surjectivity : ∃ (A : Ob) (g : Hom A (exp A Y)) (w : weakly-surjective g))
+    : has-fixed-point Y
+    \elim weak-surjectivity
+      | inP (A, g, surj-g) =>
+        \let transp-g => antitranspose g  \in
+          \lam t =>
+              \let f => t ∘ transp-g ∘ (diagonal A)
+              | x => surj-g f
+              \in
+                \case\elim x \with {
+                  | inP (x, eq) =>
+                    \let eq-x => eq x
+                    | eqq : eval-map ∘ prodMap g (id A) = transp-g => rewrite (transpose-eq _) in eval-transpose transp-g
+                    | step : diagonal A ∘ x = pair x x =>
+                      pair-unique (rewrite beta1 $ rewriteI o-assoc $ rewrite (beta1, id-left) idp)
+                          (rewrite beta2 $ rewriteI o-assoc $ rewrite (beta2, id-left) idp)
+                    | goal : pair (g ∘ x) x  = prodMap g (id A) ∘ diagonal A ∘ x =>
+                      rewrite (o-assoc, step) $ rewrite pair-comp $ pair-unique (rewrite (beta1, beta1, o-assoc, beta1) idp)
+                                                                          (rewrite (beta2, beta2, id-left, beta2) idp)
+                    \in
+                  unfold f at eq-x $ rewrite (goal, inv o-assoc, inv o-assoc, eqq) at eq-x $
+                    inP (transp-g ∘ diagonal A ∘ x, rewrite (inv o-assoc, inv o-assoc) $ inv eq-x)
+                }
+
+  \func diagonal-argument {Y : Ob} (t : Hom Y Y) (no-fixed-point : \Pi (y : Hom terminal Y) -> Not (t ∘ y = y))
+    : \Pi (A : Ob) (g : Hom A (exp A Y)) -> Not (weakly-surjective g)
+    => \lam A g w =>
+        \let fix-point => Lawvere-fixed-point Y (inP (A, g, w)) t \in
+        \case\elim fix-point \with {
+          | inP (y, eq) => no-fixed-point y eq
+        }
 }
 
 \open PrecatWithBprod
