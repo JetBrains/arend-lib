@@ -3,8 +3,10 @@
 \import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Algebra.Monoid.Sub
 \import Algebra.Pointed
 \import Algebra.Pointed.Category
+\import Algebra.Pointed.Sub
 \import Category (Cat, Iso)
 \import Category.Functor
 \import Category.Meta
@@ -32,7 +34,7 @@
     func ide                    ==< func-ide >==
     ide `qed
 
-  \func Kernel : NormalSubGroup Dom \cowith
+  \func Ker : NormalSubGroup Dom \cowith
     | contains x => func x = ide
     | contains_ide => func-ide
     | contains_inverse {x : Dom} (p : func x = ide) =>
@@ -58,9 +60,50 @@
       func y           ==< q >==
       ide `qed
 
-  \func TrivialKernel : \Prop => \Pi {g : Dom} -> Kernel g -> g = ide
+  \func sbgp-image (H : SubGroup Dom) : SubGroup Cod \cowith {
+    | contains y => ∃ (x : Dom) (H x) (func x = y)
+    | contains_ide => inP (ide, contains_ide, func-ide)
+    | contains_* (inP (x0, A0, B0)) (inP (x1, A1, B1)) => inP (x0 * x1, contains_* A0 A1, rewrite (func-*, B0, B1) idp)
+    | contains_inverse (inP (x0, A0, B0)) => inP (inverse x0, contains_inverse A0, rewrite (func-inverse, B0) idp)
+  }
 
-  \func same-images-test {a b : Dom} (p : func a = func b) : Kernel (inverse a * b) =>
+  \func sbgp-inverse-image (H : SubGroup Cod) : SubGroup Dom \cowith {
+    | contains y => H.contains (func y)
+    | contains_ide => rewrite func-ide contains_ide
+    | contains_* x y => rewrite func-* (contains_* x y)
+    | contains_inverse x => rewrite func-inverse (contains_inverse x)
+  } \where {
+    \func normal (n : SubGroup.isNormalSubGroup {H}) : SubGroup.isNormalSubGroup {sbgp-inverse-image H} =>
+      \lam g {h} c => rewriteI (func-*, func-inverse, func-*) in (unfold conjugate in n (func g) {func h} c)
+  }
+
+  \func Im : SubGroup Cod \cowith
+    | contains y => ∃ (x : Dom) (func x = y)
+    | contains_ide => inP (ide, func-ide)
+    | contains_* (inP (x0, A0)) (inP (x1, A1)) => inP (x0 * x1, rewrite (func-*, A0, A1) idp)
+    | contains_inverse (inP (x0, A0)) => inP (inverse x0, rewrite (func-inverse, A0) idp) \where {
+
+    \func Im=Cod (p : isSurj func) : Im.struct = Cod =>
+      Cat.isotoid {GroupCat} {Im.struct} {Cod} (im.im_iso p)
+  }
+
+   \func ker : GroupHom Ker.struct Dom => Ker.embed \where {
+     \func inj : isInj ker => \lam p => ext p
+   }
+
+  \func im : GroupHom Im.struct Cod => Im.embed \where {
+    \func inj : isInj im => \lam p => ext p
+
+    \func surj (s : isSurj func) : isSurj im => \lam y => \let A0 => s y \in \case \elim A0 \with {
+      | inP (x, p) => inP ((func x, inP (x, idp)), p)
+    }
+
+    \func im_iso (p : isSurj func) : Iso {GroupCat} {Im.struct} {Cod} => (GroupCat.Iso<->Inj+Surj im).2 (inj, surj p)
+  }
+
+  \func TrivialKernel : \Prop => \Pi {g : Dom} -> Ker g -> g = ide
+
+  \func same-images-test {a b : Dom} (p : func a = func b) : Ker (inverse a * b) =>
     func (inverse a * b)          ==< func-* >==
     func (inverse a) * func b     ==< pmap (`* func b) func-inverse >==
     inverse (func a) * func b     ==< equality-corrolary (func a) (func b) p >==
@@ -69,10 +112,12 @@
   \lemma Kernel-injectivity-test (p : TrivialKernel) : isInj func =>
     \lam q => equality-check (p (same-images-test q))
 
-  \lemma Kernel-injectivity-corrolary (p : isInj func) : TrivialKernel =>
+  \lemma Kernel-injectivity-corollary (p : isInj func) : TrivialKernel =>
     \lam q => p (q *> inv func-ide)
 
-  \func IsIsomorphism : \Prop => \Sigma (isInj func) (isSurj func)
+  \func isIsomorphism : \Prop => \Sigma (isInj func) (isSurj func)
+
+  \func asIso (p : isIsomorphism) : Iso {GroupCat} {Dom} {Cod} => (GroupCat.Iso<->Inj+Surj _).2 p
 }
 
 \instance GroupCat : Cat Group
@@ -100,7 +145,7 @@
       | isFaithful => \lam p => ext p
 
     -- TODO: Prove this more generally for algebraic theories?
-    \lemma Iso<->Inj+Surj {G H : Group} (f : GroupHom G H) : Iso {GroupCat} f <-> f.IsIsomorphism
+    \lemma Iso<->Inj+Surj {G H : Group} (f : GroupHom G H) : Iso {GroupCat} f <-> f.isIsomorphism
       => (\lam p => SetIso->Inj+Surj (ForgetSet.Func-iso p),
           \lam p => \new Iso {
             | hinv => \new GroupHom {
@@ -116,15 +161,15 @@
       \where \private {
       {- | some  set theoretic lemmas -}
 
-        \lemma this_inv_ap (p : f.IsIsomorphism) (h : H) : h = f (inve p h)
+        \lemma this_inv_ap (p : f.isIsomorphism) (h : H) : h = f (inve p h)
           => inv (path \lam i => (Iso.f_hinv {this_iso p} i) h)
 
-        \lemma inv_this_ap (p : f.IsIsomorphism) (g : G) : g = inve p (f g)
+        \lemma inv_this_ap (p : f.isIsomorphism) (g : G) : g = inve p (f g)
           => inv (path \lam i => (Iso.hinv_f {this_iso p} i) g)
 
-        \func this_iso (p : f.IsIsomorphism) => Inj+Surj->SetIso f p.1 p.2
+        \func this_iso (p : f.isIsomorphism) => Inj+Surj->SetIso f p.1 p.2
 
-        \func inve (p : f.IsIsomorphism) => Iso.hinv {this_iso p}
+        \func inve (p : f.isIsomorphism) => Iso.hinv {this_iso p}
 
         \lemma aux {A B : \Set} (f : Iso {SetCat} {A} {B}) {a : A} {b : B} (p : f.f a = b) : f.hinv b = a
           => inv $ rewrite (aux' f, p) idp
@@ -157,14 +202,9 @@
       : Iso {GroupCat} f <-> (\Sigma f.TrivialKernel (isSurj f))
       => <->trans (Iso<->Inj+Surj f) helper
       \where \private \func helper : (\Sigma (isInj f)(isSurj f)) <-> (\Sigma f.TrivialKernel (isSurj f)) =>
-        (\lam p => (f.Kernel-injectivity-corrolary p.1, p.2),
+        (\lam p => (f.Kernel-injectivity-corollary p.1, p.2),
          \lam p => (f.Kernel-injectivity-test p.1, p.2))
   }
-
-\func quotient-map {S : Group} {H : NormalSubGroup S} : GroupHom S H.quotient \cowith
-  | func (s : S) => NormalSubGroup.quotient-proj-setwise s
-  | func-ide => idp
-  | func-* => idp
 
 \instance ImageGroup (f : GroupHom) : Group
   | Monoid => ImageMonoid f
@@ -177,16 +217,6 @@
 
 \func ImageGroupRightHom (f : GroupHom) : GroupHom (ImageGroup f) f.Cod \cowith
   | MonoidHom => ImageMonoidRightHom f
-
-\func ImageSubGroup (f : GroupHom) : SubGroup f.Cod \cowith
-  | contains h => ∃(g : f.Dom)(f g = h)
-  | contains_ide => inP (Group.ide {f.Dom}, f.func-ide)
-  | contains_* cont1 cont2 => \case \elim  cont1, \elim  cont2 \with {
-    | inP a, inP b => inP(a.1 * b.1, rewrite (f.func-*, a.2, b.2) idp)
-  }
-  | contains_inverse cont1 => \case \elim cont1 \with {
-    | inP a => inP (inverse a.1, rewrite (f.func-inverse, a.2) idp)
-  }
 
 \record AddGroupHom \extends AddMonoidHom {
   \override Dom : AddGroup
@@ -213,7 +243,7 @@
   | id-left => idp
   | id-right => idp
   | o-assoc => idp
-  | univalence => sip (\lam {X} {A} {B} (p1 : AddGroupHom) p2 => exts (p1.func-zro, \lam _ _ => p1.func-+, AddGroup.negative-equality A B p1.func-zro p1.func-+))
+  | univalence => sip (\lam {_} {A} {B} (p1 : AddGroupHom) _ => exts (p1.func-zro, \lam _ _ => p1.func-+, AddGroup.negative-equality A B p1.func-zro p1.func-+))
   \where {
     \func id (G : AddGroup) : AddGroupHom G G \cowith
       | func x => x
@@ -290,7 +320,7 @@
 \func conjugateHom {E : Group} (g : E) : GroupHom E E \cowith
   | func => conjugate g
   | func-ide => unfold conjugate $ rewrite (E.ide-right, E.inverse-right) idp
-  | func-* {x y : E} =>
+  | func-* {_ _ : E} =>
     \have aux {x y z w t e : E} : x * y * z * (w * t * e) = (x * y) * (z * w) * (t * e) => equation
     \in inv $ rewrite (aux, E.inverse-left, E.ide-right) equation
 

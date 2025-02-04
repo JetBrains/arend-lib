@@ -3,162 +3,170 @@
 \import Algebra.Group.Sub
 \import Algebra.Monoid
 \import Algebra.Monoid.Category
+\import Algebra.Monoid.Sub
 \import Algebra.Pointed
-\import Algebra.Pointed.Category
+\import Algebra.Pointed.Sub
 \import Category
+\import Equiv (QEquiv)
 \import Function \hiding (id, o)
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Paths
 \import Paths.Meta
 \import Relation.Equivalence
+\import Set (SubSet)
 \import Set.Category
 \open Group
 
-\func \infix 7 // (G : Group) (H : NormalSubGroup G) : Group => H.quotient
+\func \infix 7 // (G : Group) (H : NormalSubGroup G) : Group => H.QuotientGroup
 
-{- | properties needed from a commutative triangle $$X \to Y \to Z$$ in the category of groups -}
-\class GroupTriangle \noclassifying (X Y Z : Group) (f : GroupHom X Y) (g : GroupHom Y Z) (h : GroupHom X Z)(comm : h = g GroupCat.∘ f){
+\lemma universalProperty (G H : Group) (f : GroupHom G H) (N : NormalSubGroup G) (p : N SubGroupMeetSemilattice.<= f.Ker) : univ_hom GroupCat.∘ N.quotient = f =>
+  exts (\lam (x : G) => (univ_hom GroupCat.∘ N.quotient) x ==< idp >==
+  univ_hom (N.quotient x) ==< idp >==
+  univ_hom (in~ x) ==< idp >== f x `qed) \where {
+  \func univ (a : G // N) : f.Im.struct \elim a
+    | in~ n => (f n, inP (n, idp))
+    | ~-equiv y x r => ext (equality-check (rewriteI (f.func-inverse, f.func-*) (p (inverse y * x) r)))
 
-  \lemma surjectivity-2-out-3  (p : isSurj h) (q : isSurj f) : isSurj g
-  => \lam (z : Z) => surjectivity-2-out-3-pw p q z
+  \lemma univ-* (x y : G // N) : univ (x N.QuotientGroup.* y) = univ x f.Im.struct.* univ y \elim x, y
+    | in~ _, in~ _ => ext (unfold (SubSemigroup.struct.*) f.func-*)
 
-    \lemma surjectivity-2-out-3-pw  (p : isSurj h) (q : isSurj f) (z : Z): ∃ (y : Y) (g y = z) =>
-      \case p z \with {
-        | inP a => inP (f a.1, g (f a.1) ==< helper >== h a.1 ==<  a.2 >== z `qed)
-      }
-      \where \lemma helper {a : X} : g (f a) = h a =>
-        g (f a)             ==< idp >==
-        (g GroupCat.∘ f) a  ==< pmap (\lam (e : GroupHom X Z) => e a) (inv comm) >==
-        h a `qed
+  \func univ_img : GroupHom (G // N) f.Im.struct \cowith
+    | func => univ
+    | func-* => rewrite univ-* idp
+
+  \func univ_map_surj : isSurj univ => \lam g => \case \elim g \with {
+    | (y, inP x) => inP (in~ x.1, ext x.2)
+  }
+
+  \func univ_hom : GroupHom (G // N) H \cowith
+    | func x => f.im.func (univ x)
+    | func-* => rewrite (univ-*, f.im.func-*) idp \where {
+  }
 }
 
+{- | Let G and H be groups, and $f \colon G \to H$ be a homomorphism.
+ -   The image of $f$ is isomorphic to the quotient group $G/Ker(f)$ -}
+\func theoremA {G H : Group} (f : GroupHom G H) : Iso {_} {G // f.Ker} {f.Im.struct} univ_img => univ_img.asIso
+    (\lam {a a' : SubGroup.LeftCosetSet {f.Ker}} p => \case \elim a, \elim a', p \with {
+      | in~ b1, in~ b2, p2 => ~-equiv {G} b1 b2 (GroupHom.same-images-test (pmap (\lam x => x.1) p2))
+    }, universalProperty.univ_map_surj) \where {
+  \func univ_img : GroupHom (G // f.Ker) f.Im.struct =>
+    universalProperty.univ_img {G} {H} {f} {f.Ker} {SubGroupMeetSemilattice.<=-refl  }
 
-\class UniversalGroupQuotient \noclassifying  (G H : Group)(f : GroupHom G H)(N : NormalSubGroup G)(p : N SubGroupPreorder.<= f.Kernel){
-  {- | a set function that having $G, H$ and $f : G \to H$ and a
-   -    normal subgroup $N \leq G$ s.t. $N \leqslant \ker(f)$ produces for each element of $G/N$ an element of $H$.
-   - One gets a diagram of the form
-   - $$G \xrightarrow{\pi} G/N \xrightarrow{\text{this\,  function}} H $$ -}
-  \func universalQuotientMorphismSetwise (a : N.quotient) : H \elim a
-    | in~ n => f n
-    | ~-equiv y x r => equality-check (inverse (f y) * f x ==< pmap (\lam y => y * f x) (inv f.func-inverse) >==
-    f (inverse y) * f x ==< inv func-* >==
-    f (inverse y * x) ==< lemma' f N p r >== ide `qed)
-    \where
-      \lemma lemma' {x y : G} (f : GroupHom G H) (N : NormalSubGroup G) (p : N SubGroupPreorder.<= f.Kernel)
-                    (r : N.contains (inverse y * x)) : f (inverse y * x) = ide =>
-        f (inverse y * x) ==< p (inverse y * x) r >== ide `qed
-
-
-  {- | this a synonym for universalQuotientMorphismSetwise used because it is shorter-}
-  \func uqms  => universalQuotientMorphismSetwise
-
-
-  {- | this is a proof that in the previous assumptions the function
-   - universalQuotientMorphismSetwise is multiplicative -}
-  \lemma universalQuotientMorphismMultiplicative (x y : N.quotient) : uqms (x N.quotient.* y) = uqms x * uqms y \elim x, y
-    | in~ a, in~ a1 => uqms  (in~ a N.quotient.* in~ a1) ==< idp >==
-                    uqms (in~ (a * a1)) ==< idp >==
-                    f (a * a1) ==< f.func-* >==
-                    f a * f a1 ==< pmap (f a *) idp >==
-                    f a * uqms  (in~ a1) ==< pmap (\lam x => x * uqms (in~ a1)) idp >==
-                   uqms  (in~ a) * uqms (in~ a1) `qed
-
-
-  {- | this is a function which gives the homomorphism in the universal property
-   - of quotient groups. Basically, it proves
-   - that the function universalQuotientMorphismSetwise
-   - indeed gives a group homomorphism. Thus the arrow $G/N \xrightarrow{\text{uqms}} H$ indeed lies in Group-}
-  \func universalQuotientMorph  : GroupHom (G // N) H \cowith
-    | func => uqms
-    | func-ide => uqms  N.quotient.ide ==< idp >== uqms  (in~ 1) ==< idp >== f ide ==< f.func-ide >== ide `qed
-    | func-* {x y : N.quotient} => universalQuotientMorphismMultiplicative x y
-
-
-  \lemma universalQuotientProperty :  universalQuotientMorph GroupCat.∘ quotient-map = f
-    => exts (\lam (x : G) => (universalQuotientMorph GroupCat.∘ quotient-map) x ==< idp >==
-    universalQuotientMorph (quotient-map x) ==< idp >==
-    universalQuotientMorph (in~ x) ==< idp >== f x `qed)
+  {- | In particular, if $f$ is surjective then $H$ is isomorphic to $G/Ker(f)$. -}
+  \func corollary (p : isSurj f) : Iso {_} {G // f.Ker} {H} ((GroupHom.im {f}) ∘ univ_img) =>
+    Iso.composite (theoremA f) (GroupHom.im.im_iso p)
 }
 
-{- | Now we apply all of these universal properties to the case when $N = \ker f$ and we get the first isomorphism theorem in the end-}
-\class FirstIsomorphismTheorem \noclassifying (G : Group) (H : Group) (f : GroupHom G H) {
+{- | Let $G$ be a group. Let $S$ be a subgroup of $G$, and let $N$ be a normal subgroup of $G$.
+ -   Then the quotient groups $SN/N$ and $S/(S \cap N)$ are isomorphic. -}
+\func theoremB (G : Group) (S : SubGroup G) (N : NormalSubGroup G) :
+  Iso {_} {S.struct // (S ∩.as-sbgp-1' N)} {SN.struct // N-as-sbgp-SN} =>
+  transport (\lam Q => Iso {_} {S.struct // Q} {SN.struct // N-as-sbgp-SN}) Kerf=S-cap-N statement \where {
+  \func SN : SubGroup G => S *F N
 
-  \func UniversalProperties : UniversalGroupQuotient {| G => G | H => H | f => f} \cowith
-    | N => f.Kernel
-    | p => SubGroupPreorder.<=-refl
+  {- | $N$ can be considered as a normal subgroup of $SN$. -}
+  \func N-as-sbgp-SN : NormalSubGroup SN.struct => *F.sbgp-N S N
 
-  \func Triangle : GroupTriangle \cowith
-    | X => G
-    | Y => G // f.Kernel
-    | Z => H
-    | f => quot
-    | g => UniversalProperties.universalQuotientMorph
-    | h => f
-    | comm => UniversalProperties.universalQuotientProperty
+  {- | Morphism f : S -> SN -> SN/N -}
+  \func f : GroupHom S.struct N-as-sbgp-SN.QuotientGroup =>
+    (NormalSubGroup.quotient {N-as-sbgp-SN}) ∘ *F.embedS {G} {S} {N}
 
-  \func univ : GroupHom (G // f.Kernel) H => UniversalProperties.universalQuotientMorph
-  \func quot : GroupHom G (G // f.Kernel) => quotient-map
-
-  \lemma universalKerProp : univ GroupCat.∘ quot = f
-    => UniversalProperties.universalQuotientProperty
-
-  \lemma universalQuotientKernel (g : G // f.Kernel)
-                                 (q : univ g = ide) : g = f.Kernel.quotient.ide
-    => \case g \as b, idp : g = b \return b = f.Kernel.quotient.ide\with{
-      | in~ a, p => inv (f.Kernel.criterionForKernel a (universalQuotientKernel' a  (transport (\lam z => univ z = ide) p q))
-                        )
-    }
-    \where{
-      \lemma helper-1 (a : G) (q : univ (in~ a) = ide) : in~ a = f.Kernel.quotient.ide =>
-        inv (f.Kernel.criterionForKernel a (universalQuotientKernel' a q))
+  {- | f is surjective -}
+  \lemma f-surj : isSurj f =>
+    \lam y => \case \elim y \with {
+      | in~ (x, inP (s, n, p)) =>
+        inP (s,
+             \let | A0 : N (inverse s.1 * x) => rewrite (p, inv *-assoc, inverse-left, ide-left) n.2
+             \in (~-pequiv {SubSet.S {N-as-sbgp-SN}} {(~) {SubGroup.leftAdjacency {N-as-sbgp-SN}}}) A0)
     }
 
+  {- | One has $Ker(f) = S \cap N$ -}
+  \lemma Kerf=S-cap-N : f.Ker = S ∩.as-sbgp-1' N => SubGroup.normal-subgroup-eq {S.struct}
+      (\lam s => (\lam p => (s.2, NormalSubGroup.quotient.Ker->contains {N-as-sbgp-SN} (*F.embedS {G} {S} {N} s) p),
+                  \lam p => NormalSubGroup.quotient.contains->Ker {N-as-sbgp-SN} (s.1, inP (s, N.struct.ide, inv ide-right)) p.2))
 
-  \lemma evidTrivKer : univ.TrivialKernel =>
-    \lam {g : G // f.Kernel} (p : univ.Kernel.contains g) => universalQuotientKernel g p
-
-  \lemma universalQuotientKernel'  (a : G)
-                                  (q : univ (in~ a) = ide) : f.Kernel.contains a
-    =>
-      f a ==< inv (technical-helper a) >==
-      univ (in~ a) ==< q >==
-      ide `qed
-    \where \lemma technical-helper  (a : G) : univ (in~ a) = f a =>
-      univ (in~ a) ==< pmap univ {in~ a} {quot a} idp >==
-      univ (quot a) ==< idp >==
-      (univ GroupCat.∘ quot) a ==< pmap (\lam (z : GroupHom G H) => z a) universalKerProp >==
-      f a `qed
-
-
-  \lemma univKer-mono : isInj univ.func => univ.Kernel-injectivity-test evidTrivKer
-
-  \lemma univKer-epi (p : isSurj f): isSurj univ
-    => Triangle.surjectivity-2-out-3 p f.Kernel.quotIsSurj
-
-  \lemma FirstIsoTheorem (p : isSurj f) : univ.IsIsomorphism => (univKer-mono, univKer-epi p)
+  \func statement : Iso {_} {S.struct // f.Ker} {N-as-sbgp-SN.QuotientGroup} ((GroupHom.im {f}) ∘ theoremA.univ_img ) =>
+    theoremA.corollary {_} {_} {f} f-surj
 }
 
--- application of first Isomorphism theorem without need to define local instances
-\func GroupFirstIsoCorollary-setwise{G H : Group} {N : NormalSubGroup G} (f : GroupHom G H) (p : N = f.Kernel) (q : isSurj f):
-  \Sigma(h : GroupHom (G // N) H) h.IsIsomorphism =>
-  transport {NormalSubGroup G} (\lam X => \Sigma (f : GroupHom (G // X) H)f.IsIsomorphism) (inv p) (GroupFirstIsoCorollary-24 f q)
-    \where{
+{- | Let $G$ be a group, and $N$, $K$ be normal subgroups of $G$ such that $N \subseteq K$.
+ -   Then the quotient group $(G/N)/(K/N)$ is isomorphic to $G/K$. -}
+\func theoremC (G : Group) (N : NormalSubGroup G) (K : NormalOverGroup { | G => G | H => N }) :
+  Iso {_} {G // K} {(G // N) // K/N-as-sbgp-G/N} =>
+  transport (\lam (Q : NormalSubGroup G) => Iso {_} {G // Q} {(G // N) // K/N-as-sbgp-G/N}) Ker-univ statement \where {
+  \func N-as-sbgp-K : NormalSubGroup K.struct => SubGroup.subgroup-res-normal N K (\lam x => K.isOvergroup x.1 x.2)
 
-      \func GroupFirstIsoCorollary-2 {G H : Group}(f : GroupHom G H) :
-        GroupHom (G // f.Kernel) H => FirstIsomorphismTheorem.univ {\new FirstIsomorphismTheorem {| G => G | H => H | f => f}}
+  {- | The image of $K$ under the quotient map $G \to G/N$ is a normal subgroup -}
+  \func K/N-as-sbgp-G/N : NormalSubGroup (G // N) \cowith {
+    | SubGroup => GroupHom.sbgp-image {NormalSubGroup.quotient {N}} K
+    | isNormal (in~ g) {in~ h} (inP (_, c, p)) =>
+      inP (conjugate g h, K.isNormal g (rewrite (inv *-assoc, inverse-right, ide-left) in
+      contains_* c (isOvergroup {K} _ (NormalSubGroup.quotient.Ker->contains {N} _ (GroupHom.same-images-test p)))), idp)
+  }
 
-      \func GroupFirstIsoCorollary-24 {G H : Group}(f : GroupHom G H)(q : isSurj f) :
-        \Sigma (a : GroupHom (G // f.Kernel) H) a.IsIsomorphism => (GroupFirstIsoCorollary-2 f,
-                                                                    FirstIsomorphismTheorem.FirstIsoTheorem {\new FirstIsomorphismTheorem {| G => G | H => H | f => f}} q)
+  {- | This subgroup is isomorphic to the usual quotient $K / N$  -}
+  \func subfactor-def-compatible : Iso {GroupCat} {NormalSubGroup.QuotientGroup {N-as-sbgp-K}} {K/N-as-sbgp-G/N.struct} =>
+    GroupHom.asIso
+        {\new GroupHom (NormalSubGroup.QuotientGroup {N-as-sbgp-K}) K/N-as-sbgp-G/N.struct {
+           | func x => \case \elim x \with {
+             | in~ (x : G, c) => (in~ x, inP (x, c, idp))
+             | ~-equiv x y r => ext (path (~-equiv x.1 y.1 r))
+           }
+           | func-* {x} {y} => \case \elim x, \elim y \with {
+             | in~ a, in~ a1 => ext idp
+           }
+         } } (\lam {in~ a} {in~ a'} p =>
+                  ~-equiv {Set.BaseSet.E {SubSet.S {N-as-sbgp-K}}} {Equivalence.~ {N-as-sbgp-K.leftAdjacency}} a a' (Quotient.equalityEquiv _ (pmap (\lam x => x.1) p)),
+              \lam (in~ a, inP (x, c, p)) => inP (in~ (x, c), ext p))
 
+  {- | Define a map $f$ as a composition of quotient maps $G \to G/N \to G/N/(K/N) $  -}
+  \func f : GroupHom G ((G // N) // K/N-as-sbgp-G/N) => K/N-as-sbgp-G/N.quotient ∘ N.quotient
 
-      \func GroupFirstIsoCorollary-3 {G H : Group} {N : NormalSubGroup G} (f : GroupHom G H) (p : N = f.Kernel) :
-        GroupHom (G // N) H => transport {NormalSubGroup G} (\lam X => GroupHom (G // X) H) (inv p) (GroupFirstIsoCorollary-2 f)
+  {- | The map $f$ is surjective -}
+  \lemma univ_surj : isSurj f =>
+    isSurj.comp (NormalSubGroup.quotient.surj {N}) (NormalSubGroup.quotient.surj {K/N-as-sbgp-G/N})
 
-    }
+  {- | One has $\mathrm{Ker}(f) = K$ -}
+  \func Ker-univ : f.Ker = {NormalSubGroup G} K =>
+    exts (\lam e =>
+        ext (\lam e-in-Ker =>
+                 \let | P : ∃ (x : G) (K x) (NormalSubGroup.quotient {N} x = NormalSubGroup.quotient {N} e) => NormalSubGroup.quotient.Ker->contains _ e-in-Ker
+                 \in \case \elim P \with {
+                   | inP (x, c, e) => rewrite (inv *-assoc, inverse-right, ide-left) in contains_* c (K.isOvergroup _ (NormalSubGroup.quotient.Ker->contains _ (GroupHom.same-images-test {NormalSubGroup.quotient {N}} e)))
+                 }, \lam e-in-K => NormalSubGroup.quotient.contains->Ker {K/N-as-sbgp-G/N} (in~ e) (inP (e, e-in-K, idp))))
 
-\func GroupFirstIsoCorollary{G H : Group} {N : NormalSubGroup G} (f : GroupHom G H) (p : N = f.Kernel) (q : isSurj f):
-  \Sigma (f : GroupHom (G // N) H) (Iso {GroupCat} {G // N} {H} f) => ((GroupFirstIsoCorollary-setwise f p q).1,
-                                                                       (GroupCat.Iso<->Inj+Surj (GroupFirstIsoCorollary-setwise f p q).1).2
-                                                                      (GroupFirstIsoCorollary-setwise f p q).2)
+  \func statement : Iso {_} {G // f.Ker} {(G // N) // K/N-as-sbgp-G/N} => theoremA.corollary {_} {_} {f} univ_surj
+}
+
+{- | Let $G$ be a group, and $N$ be a normal subgroup of $G$.
+ -   The canonical projection homomorphism $G \to G / N$ defines a bijective correspondence between the set of subgroups of $G$ containing $N$ and the set of all subgroups of $G / N$. -}
+\func theoremD (G : Group) (N : NormalSubGroup G) : QEquiv {SubGroup (G // N)} {OverGroup N} \cowith
+  | f Q => \new OverGroup {
+    | SubGroup => GroupHom.sbgp-inverse-image {NormalSubGroup.quotient} Q
+    | isOvergroup g g-in-N => rewrite (NormalSubGroup.quotient.contains->Ker g g-in-N) contains_ide
+  }
+  | ret K => GroupHom.sbgp-image {NormalSubGroup.quotient} K
+  | ret_f _ => SubGroup.subgroup-eq (\lam q => (\lam c => \case \elim c \with {
+    | inP (x, c, p) => rewrite p in c
+  }, \lam q-in-Q => \case \elim q, \elim q-in-Q \with {
+    | in~ a, q-in-Q => inP (a, q-in-Q, idp)
+  }))
+  | f_sec K => ext OverGroup { | SubGroup => SubGroup.subgroup-eq (\lam g => (\lam c => \case \elim c \with {
+    | inP (x, c, p) => rewrite (inv *-assoc, inverse-right, ide-left) in contains_* c (OverGroup.isOvergroup {K} _
+        (rewrite NormalSubGroup.quotient.quotient-Ker in GroupHom.same-images-test p))
+  }, \lam c => inP (g, c, idp))) }
+
+{- | Under the correspondence of {theoremD} normal subgroups correspond to normal subgroups. -}
+\func theoremD-normal (G : Group) (N : NormalSubGroup G) : QEquiv {NormalSubGroup (G // N)} {NormalOverGroup { | G => G | H => N }} \cowith {
+  | f Q => \new NormalOverGroup {
+    | OverGroup => QEquiv.f {theoremD G N} Q
+    | isNormal g h-in-Q => \let | q => NormalSubGroup.quotient {N} \in
+      unfold conjugate (rewrite (func-* {q}, func-* {q} {g}, GroupHom.func-inverse {q}) (NormalSubGroup.isNormal {Q} (in~ g) h-in-Q))
+  }
+  | ret Q => theoremC.K/N-as-sbgp-G/N {G} {N} {Q}
+  | ret_f Q => ext NormalSubGroup { | SubGroup => QEquiv.ret_f {theoremD G N} Q }
+  | f_sec Q => ext NormalOverGroup { | OverGroup => QEquiv.f_sec {theoremD G N} Q }
+}
