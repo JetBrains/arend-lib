@@ -32,15 +32,15 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition CMonoid;
   @Dependency(module = "Algebra.Monoid")                       public CoreClassDefinition AddMonoid;
   @Dependency(module = "Algebra.Monoid")                       CoreClassDefinition AbMonoid;
-  @Dependency(module = "Algebra.Monoid", name = "Monoid.*")    public CoreClassField mul;
-  @Dependency(module = "Algebra.Monoid", name = "Monoid.ide") public CoreClassField ide;
+  @Dependency(module = "Algebra.Monoid", name = "Semigroup.*") public CoreClassField mul;
+  @Dependency(module = "Algebra.Pointed", name = "Pointed.ide") public CoreClassField ide;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.LDiv") CoreClassDefinition ldiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.RDiv") CoreClassDefinition rdiv;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.ide-left") public CoreClassField ideLeft;
   @Dependency(module = "Algebra.Monoid", name = "Monoid.ide-right") public CoreClassField ideRight;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.+") public CoreClassField plus;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-right") public CoreClassField addMonZroRight;
-  @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro") public CoreClassField zro;
+  @Dependency(module = "Algebra.Pointed", name = "AddPointed.zro") public CoreClassField zro;
   @Dependency(module = "Algebra.Monoid", name = "AddMonoid.zro-left") public CoreClassField addMonZroLeft;
   @Dependency(module = "Algebra.Group", name = "Group.inverse-isInv")    public CoreFunctionDefinition invIsInv;
   @Dependency(module = "Algebra.Group", name = "Group.inverse_ide")    public CoreFunctionDefinition invIde;
@@ -64,7 +64,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ordered", name = "OrderedAddGroup.<")                 public CoreFunctionDefinition addGroupLess;
   @Dependency(module = "Order.LinearOrder")                                           public CoreClassDefinition LinearOrder;
   @Dependency(module = "Order.LinearOrder", name = "LinearOrder.<=")                  public CoreFunctionDefinition linearOrederLeq;
-  @Dependency(module = "Order.PartialOrder", name = "Poset.<=")                       public CoreClassField lessOrEquals;
+  @Dependency(module = "Order.PartialOrder", name = "Preorder.<=")                    public CoreClassField lessOrEquals;
   @Dependency(module = "Order.StrictOrder", name = "StrictPoset.<")                   public CoreClassField less;
   @Dependency(module = "Order.Biordered", name = "BiorderedSet.<-transitive-left")    public CoreClassField lessTransitiveLeft;
 
@@ -110,7 +110,7 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition RingData;
   @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition CSemiringData;
   @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition CRingData;
-  @Dependency(module = "Algebra.Ring.Solver", name = "SemiringData.R")                public CoreClassField RingDataCarrier;
+  @Dependency(module = "Algebra.Ring.Solver", name = "BaseData.R")                    public CoreClassField RingDataCarrier;
   @Dependency(module = "Algebra.Ring.Solver")                                         public CoreClassDefinition LatticeData;
   @Dependency(module = "Algebra.Ring.Solver", name = "LatticeData.L")                 public CoreClassField LatticeDataCarrier;
 
@@ -150,8 +150,8 @@ public class EquationMeta extends BaseMetaDefinition {
   @Dependency(module = "Algebra.Semiring")                                public CoreClassDefinition Semiring;
   @Dependency(module = "Algebra.Ring")                                    public CoreClassDefinition Ring;
   @Dependency(module = "Algebra.Semiring", name = "Semiring.natCoef")     public CoreClassField natCoef;
-  @Dependency(module = "Algebra.Semiring", name = "Semiring.zro_*-right") public CoreClassField zeroMulRight;
-  @Dependency(module = "Algebra.Semiring", name = "Semiring.zro_*-left")  public CoreClassField zeroMulLeft;
+  @Dependency(module = "Algebra.Semiring", name = "PseudoSemiring.zro_*-right") public CoreClassField zeroMulRight;
+  @Dependency(module = "Algebra.Semiring", name = "PseudoSemiring.zro_*-left")  public CoreClassField zeroMulLeft;
   @Dependency(module = "Algebra.Ring", name = "Ring.intCoef")             public CoreFunctionDefinition intCoef;
   @Dependency(module = "Algebra.Ring", name = "Ring.negative_*-left")     public CoreFunctionDefinition negMulLeft;
   @Dependency(module = "Algebra.Ring", name = "Ring.negative_*-right")    public CoreFunctionDefinition negMulRight;

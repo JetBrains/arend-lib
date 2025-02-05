@@ -37,9 +37,9 @@ public class SIPMeta extends BaseMetaDefinition {
   @Dependency(module = "Category", name = "Map.cod")          public CoreClassField mapCod;
   @Dependency(module = "Category", name = "Map.f")            public CoreClassField mapFunc;
   @Dependency(module = "Category")                            public CoreClassDefinition Iso;
-  @Dependency(module = "Category", name = "Iso.hinv")         public CoreClassField isoInv;
+  @Dependency(module = "Category", name = "SplitMono.hinv")   public CoreClassField isoInv;
   @Dependency(module = "Category", name = "Iso.f_hinv")       public CoreClassField isoFuncInv;
-  @Dependency(module = "Category", name = "Iso.hinv_f")       public CoreClassField isoInvFunc;
+  @Dependency(module = "Category", name = "SplitMono.hinv_f") public CoreClassField isoInvFunc;
   @Dependency(module = "Category", name = "Precat.Ob")        public CoreClassField catOb;
   @Dependency(module = "Category", name = "Precat.Hom")       public CoreClassField catHom;
   @Dependency(module = "Category", name = "Precat.id")        public CoreClassField catId;
