@@ -4,6 +4,7 @@
 \import Algebra.Semiring
 \import Arith.Fin (FinLinearOrder)
 \import Arith.Nat \using (NatSemiring, pred \as pred')
+\import Data.Array
 \import Data.Bool
 \import Data.Fin (fpred, fsuc, fsuc/=, nat_fin_=)
 \import Data.Or
@@ -18,7 +19,6 @@
 \import Logic.Meta
 \import Meta
 \import Order.Biordered
-\import Order.LinearOrder
 \import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
@@ -362,21 +362,24 @@
       => transport (\lam x => Equiv {Fin x} {_}) Semiring.BigSum_replicate $ SigmaFin.aux {n} {\lam _ => m}
   }
 
-\func DecFin {P : \Prop} (d : Dec P) : FinSet P \cowith
-  | finCard => Dec.rec (\lam _ => 1) (\lam _ => 0) d
-  | finEq => inP $ \case \elim d \with {
-    | yes e => \new QEquiv {
-                 | f _ => e
-                 | ret _ => 0
-                 | ret_f (0) => idp
-                 | f_sec => prop-isProp e
-               }
-    | no q => \new QEquiv {
-                | f => \lam ()
-                | ret e => absurd (q e)
-                | ret_f => \lam ()
-                | f_sec e => absurd (q e)
-              }
+\lemma DecFin {P : \Prop} (d : Dec P) : FinSet P
+  => withCard d
+  \where {
+    \lemma withCard {P : \Prop} (d : Dec P) : FinSet P (Dec.rec (\lam _ => 1) (\lam _ => 0) d) \cowith
+      | finEq => inP $ \case \elim d \with {
+        | yes e => \new QEquiv {
+          | f _ => e
+          | ret _ => 0
+          | ret_f (0) => idp
+          | f_sec => prop-isProp e
+        }
+        | no q => \new QEquiv {
+          | f => \lam ()
+          | ret e => absurd (q e)
+          | ret_f => \lam ()
+          | f_sec e => absurd (q e)
+        }
+      }
   }
 
 \lemma fin_transport {n m : Nat} {j : Fin n} {p : n = m} : transport Fin p j = {Nat} j \elim p
@@ -401,3 +404,18 @@
         | no p, _ => no \lam f => p (f 0)
       }
   }
+
+\lemma fibreFin {n : Nat} {D : DecSet} (f : Fin n -> D) (d : D) :
+  FinSet (\Sigma (i : Fin n) (d = f i)) (count (\new Array D n f) d)
+ => transport {Nat} (\lam card => FinSet (\Sigma (k : Fin n) (DecFin.withCard (decideEq d (f k)))) card)
+     (fibre-size f d) (SigmaFin (FinFin n) (\lam k => DecFin.withCard (decideEq d (f k))))
+  \where {
+  \lemma fibre-size {n : Nat} {D : DecSet} (f : Fin n -> D) (d : D) :
+    AbMonoid.FinSum (\lam k => finCard {DecFin.withCard (decideEq d (f k))}) = count (\new Array D n f) d \elim n
+    | 0 => rewrite AbMonoid.FinSum=BigSum idp
+    | suc n1 => rewriteI (fibre-size {n1}) (rewrite (AbMonoid.FinSum=BigSum, AddMonoid.suc_BigSum, AbMonoid.FinSum=BigSum)
+        (\case D.decideEq d (f 0) \as df0, idp : D.decideEq d (f 0) = df0 \with {
+          | yes _, A0 => rewrite A0 idp
+          | no _, A0 => rewrite A0 idp
+        } ))
+}

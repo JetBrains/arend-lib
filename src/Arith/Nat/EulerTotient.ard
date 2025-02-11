@@ -1,0 +1,88 @@
+\import Algebra.Domain.Euclidean
+\import Algebra.Group
+\import Algebra.Group.Sub
+\import Algebra.Group.Symmetric
+\import Algebra.Monoid
+\import Algebra.Monoid.GCD
+\import Algebra.Pointed
+\import Algebra.Ring.Ideal
+\import Algebra.Semiring
+\import Arith.Fin
+\import Arith.Int
+\import Arith.Nat
+\import Equiv
+\import Function.Meta
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Order.StrictOrder
+\import Paths
+\import Paths.Meta
+\import Set
+\import Set.Fin
+\import Set.Fin.Pigeonhole
+\import Relation.Equivalence
+
+\func coPrimes (n : Nat) : FinSet => fibreFin {n} (\lam (x : Fin n) => EuclideanSemiringData.gcd x n) 1
+
+\func coPrimes-Inv (n : Nat) : SubSet (FinRing {suc n}) \cowith
+  | contains x => ∃ (Monoid.Inv x)
+
+\func multiples_of_1+ (n : Nat) : Ideal IntDomain \cowith
+  | contains x => ∃ (Monoid.LDiv {IntDomain} (suc n) x)
+  | contains_zro => inP Semiring.zero-div
+  | contains_+ (inP A) (inP B) => inP (Semiring.LDiv_+ A B)
+  | ideal-left (inP A) => inP (Monoid.LDiv.factor-right A)
+
+\func Z/nZ=FinRing (n : Nat) : QEquiv {FactorRing (multiples_of_1+ n)} {FinRing {n}} \cowith
+  | f x => \case \elim x \with {
+    | in~ a => IntEuclidean.mod a (suc n)
+    | ~-equiv x y r i => mod-eq x y n r @ i
+  }
+  | ret x => in~ x
+  | ret_f x => \case \elim x \with {
+    | in~ a => FactorRing.fequiv ({?})
+  }
+  | f_sec x => rewrite IntEuclidean.natMod=mod (\case \elim x \with {
+    | 0 => idp
+    | suc x => repeat {2} (rewrite fin_mod_id) idp
+  })
+  \where {
+    \open IntEuclidean
+
+    \func mod-eq (x y : Int) (n : Nat) (p : ∃ (Monoid.LDiv {IntDomain} (suc n) (x - y))) : x mod suc n = y mod suc n \elim p
+      | inP (e, p) => rewrite (rewrite (+-assoc, negative-left, zro-right) in inv (pmap (`+` y) p))
+          (rewrite (ldistr, +-assoc, natDivModProp y n) in int_n*_+_mod_n {n} {y mod suc n} {e + y div pos (suc n)} (natMod<right y n))
+  }
+
+\func coPrimes-eq (n : Nat) : QEquiv {coPrimes n} {SubSet.struct {coPrimes-Inv n}} \cowith {
+  | f (k, p) => \let A0 => {?} \in
+    (k, inP (\new Monoid.Inv {
+      | inv => {?}
+      | inv-left => {?}
+      | inv-right => {?}
+    }))
+  | ret => {?}
+  | ret_f => {?}
+  | f_sec => {?}
+}
+
+\func EulerTotient (n : Nat) : Nat => finCard {coPrimes n}
+
+\func function (n m : Nat) (p : IsCoprime n m) (n>0 : 0 < n) (m>0 : 0 < m) (x : coPrimes (n Nat.* m)) : \Sigma (coPrimes n) (coPrimes m) \elim x
+  | (x, p) => \let A0 : EuclideanSemiringData.gcd x (n Nat.* m) = 1 => inv p \in (
+    (mod_Fin x n>0, \let
+      | Am1 => mod_Fin=mod {x} {_} {n>0}
+      | A1 : IsCoprime x (n Nat.* m) => IsCoprime.<=gcd (transport (GCD _ _) A0 (EuclideanSemiringData.gcd-isGCD x (n Nat.* m)))
+      | A2 : IsCoprime (mod_Fin x n>0) n => \lam z l l1 => A1 z (rewriteI (Nat.divModProp x n) (Semiring.LDiv_+ (Monoid.LDiv.factor-left l1) (transport (Monoid.LDiv {NatSemiring} _) Am1 l))) (Monoid.LDiv.factor-left l1)
+      | A2' => IsCoprime.=>gcd A2
+      | A2'' => transport (\lam k => GCD k n ide) Am1 A2'
+      | A3 => {?} -- gcd-isUnique {_} {x Nat.mod n} {n} (EuclideanSemiringData.gcd-isGCD _ _) A2''
+                    \in
+      unfold ({?})), (mod_Fin x m>0, {?}))
+
+-- EuclideanSemiringData.gcd x (n Nat.* m) = 1
+-- IsCoprime x (n Nat.* m) = \Pi (z : M) -> LDiv z x -> LDiv z (n Nat.* m) -> Inv z
+
+-- \Pi (z : M) -> LDiv z x -> LDiv z n -> Inv z
+-- EuclideanSemiringData.gcd x n = 1
