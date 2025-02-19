@@ -2,8 +2,10 @@
 \import Algebra.Group
 \import Algebra.Group.Sub
 \import Algebra.Group.Symmetric
+\import Algebra.Meta
 \import Algebra.Monoid
 \import Algebra.Monoid.GCD
+\import Algebra.Ordered
 \import Algebra.Pointed
 \import Algebra.Ring
 \import Algebra.Ring.Ideal
@@ -17,6 +19,7 @@
 \import Logic
 \import Logic.Meta
 \import Meta
+\import Order.PartialOrder
 \import Order.StrictOrder
 \import Paths
 \import Paths.Meta
@@ -40,14 +43,22 @@
 \func intMap-FinRing (n : Nat) (k : Int) : intMap {FinRing {n}} k = k IntEuclidean.mod suc n \elim k {
   | pos zero => idp
   | pos (suc n1) => unfold func (rewrite natCoefSuc (unfold Fin.fromNat (rewrite (fin_mod_id {n} (_ Nat.mod suc n)) idp)))
-  | neg n1 => {?}
+  | neg (suc n1) => unfold (unfold (Z/nZ=FinRing.mod-fin (inP (\case (suc n1 Nat.mod suc n : Nat) \as r, idp : suc n1 Nat.mod suc n = {Nat} r \with {
+    | zero, P => \new Monoid.LDiv {
+      | inv => 1
+      | inv-right => unfold (rewrite P idp)
+    }
+    | suc r, P => \new Monoid.LDiv {
+      | inv => 0
+      | inv-right => unfold (rewrite (P, IntRing.minus__) idp)
+    }
+  }))))
 }
 
 \func ker-int-Coef (n : Nat) : RingHom.Ker' (intMap {FinRing {n}}) = {Ideal IntEuclidean} Ideal.closure1 {IntEuclidean} (suc n) =>
-  ext (ext (\lam i => ext (\lam (c : intMap i = zro) => inP ((i , ()) :: nil, simplify ( {?} )),
+  ext (ext (\lam i => ext (\lam (c : intMap i = zro) => inP ((i , ()) :: nil, simplify (\let A0 => (rewrite intMap-FinRing in c) \in {?} )),
                            \lam c => {?})))
 
-\func test : Nat => {?}
 
 \func Z/nZ=FinRing (n : Nat) : QEquiv {FactorRing (multiples_of_1+ n)} {FinRing {n}} \cowith
   | f x => \case \elim x \with {
@@ -71,15 +82,15 @@
 
     \lemma helper (a b : Int) : a - (b + a) = negative b => simplify
 
-    \lemma mod-mod (a : Int) : a mod pos (suc n) Nat.mod suc n = {Nat} a mod pos (suc n) =>
+    \lemma mod-mod (a : Int) (n : Nat) : a mod pos (suc n) Nat.mod suc n = {Nat} a mod pos (suc n) =>
       mod_< {a mod pos (suc n)} {suc n} (natMod<right _ _)
-
-    \lemma mod-inv (a : Nat) : a Nat.mod suc n Nat.mod suc n = a Nat.mod suc n =>
-      \let A0 => IntEuclidean.natMod=mod a (suc n) | A1 => rewrite A0 in mod-mod a \in unfold Fin.fromNat {?}
 
     \func mod-eq (x y : Int) (n : Nat) (p : ∃ (Monoid.LDiv {IntDomain} (suc n) (x - y))) : x mod suc n = y mod suc n \elim p
       | inP (e, p) => rewrite (rewrite (+-assoc, negative-left, zro-right) in inv (pmap (`+` y) p))
           (rewrite (ldistr, +-assoc, natDivModProp y n) in int_n*_+_mod_n {n} {y mod suc n} {e + y div pos (suc n)} (natMod<right y n))
+
+    \lemma mod-fin {x y : Nat} {n : Nat} (p : ∃ (Monoid.LDiv {IntDomain} (suc n) (x Nat.- y))) : x = {Fin (suc n)} y =>
+      fin_nat-inj (repeat {2} (rewrite natMod=mod) in mod-eq (pos x) (pos y) n p)
   }
 
 \func coPrimes-eq (n : Nat) : QEquiv {coPrimes n} {SubSet.struct {coPrimes-Inv n}} \cowith {
