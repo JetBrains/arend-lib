@@ -9,6 +9,7 @@
 \import Algebra.Ring.Ideal
 \import Algebra.Ring.MPoly
 \import Algebra.Ring.Poly
+\import Algebra.Ring.Sub
 \import Algebra.Semiring
 \import Arith.Int
 \import Arith.Nat
@@ -33,49 +34,57 @@
 \record RingHom \extends SemiringHom, AddGroupHom {
   \override Dom : Ring
   \override Cod : Ring
+
+  \func Im : SubRing Cod \cowith {
+    | contains s => ∃ (r : Dom) (func r = s)
+    | contains_zro => inP (0, func-zro)
+    | contains_+ (inP (x, Ax)) (inP (y, Ay)) => inP (x + y, rewrite (func-+, Ax, Ay) idp)
+    | contains_* (inP (x, Ax)) (inP (y, Ay)) => inP (x * y, rewrite (func-*, Ax, Ay) idp)
+    | contains_negative (inP (x, Ax)) => inP (negative x, rewrite (func-negative, Ax) idp)
+    | contains_ide => inP (ide, func-ide)
+  }
+
+  \func Ker' : TIdeal Dom \cowith
+    | contains x => func x = zro
+    | contains_zro => func-zro
+    | contains_+ A B => rewrite (AddMonoidHom.func-+, A, B) zro-left
+    | ideal-left A => rewrite (MonoidHom.func-*, A) zro_*-right
+    | ideal-right A => rewrite (MonoidHom.func-*, A) zro_*-left
+
 } \where {
-    \func equals {R S : Ring} {f g : RingHom R S} (p : \Pi (x : R) -> f x = g x) : f = g
-      => exts p
+  \func equals {R S : Ring} {f g : RingHom R S} (p : \Pi (x : R) -> f x = g x) : f = g => exts p
 
-    \lemma contr-isTerm {R S : Ring} (c : Contr S) : Contr (RingHom R S) \cowith
-      | center => \new RingHom {
-        | func _ => c.center
-        | func-+ => c.contraction _
-        | func-ide => c.contraction _
-        | func-* => c.contraction _
-      }
-      | contraction f => exts \lam e => c.contraction _
+  \lemma contr-isTerm {R S : Ring} (c : Contr S) : Contr (RingHom R S) \cowith
+    | center => \new RingHom {
+      | func _ => c.center
+      | func-+ => c.contraction _
+      | func-ide => c.contraction _
+      | func-* => c.contraction _
+    }
+    | contraction f => exts \lam e => c.contraction _
 
-    \lemma field-isInj {K : Field} {R : NonZeroRing} {f : RingHom K R} : isInj f
-      => f.injective \lam p => K.#0-tight \lam a#0 => R.inv-nonZero (f.func-Inv a#0) p
+  \lemma field-isInj {K : Field} {R : NonZeroRing} {f : RingHom K R} : isInj f =>
+    f.injective \lam p => K.#0-tight \lam a#0 => R.inv-nonZero (f.func-Inv a#0) p
 
-    \type isAlgebraGenerated {R E : CRing} (f : RingHom R E) (l : Array E) : \Prop
-      => \Pi (x : E) -> ∃ (p : MPoly (Fin l.len) R) (x = mPolyEval l (mPoly-map f p))
+  \type isAlgebraGenerated {R E : CRing} (f : RingHom R E) (l : Array E) : \Prop =>
+    \Pi (x : E) -> ∃ (p : MPoly (Fin l.len) R) (x = mPolyEval l (mPoly-map f p))
 
-    \type isFiniteAlgebra {R E : CRing} (f : RingHom R E) : \Prop
-      => ∃ (l : Array E) (isAlgebraGenerated f l)
+  \type isFiniteAlgebra {R E : CRing} (f : RingHom R E) : \Prop => ∃ (l : Array E) (isAlgebraGenerated f l)
 
-    \lemma isAlgebraGenerated-comp {R E S : CRing} {f : RingHom R E} {g : RingHom E S} {a : E} {l : Array S}
-                                   (fg : \Pi (x : E) -> ∃ (p : Poly R) (polyMapEval f p a = x)) (gg : isAlgebraGenerated g l) : isAlgebraGenerated (g ∘ f) (g a :: l)
-      => \lam x =>
-          \have | (inP (p,pq)) => gg x
-                | (inP ((s : MPoly (Fin l.len) (PolyAlgebra R)),sq)) => MPoly-surj {Fin l.len} (polyMapEvalRingHom f a) fg p
-          \in inP (MPoly_Fin-suc'.retHom s, pq *> rewrite (inv sq, MPoly_Fin-suc'.map-comm) (pmap (mPolyEval l)
-              (inv mPoly-map-comp *> pmap (mPoly-map __ s) (exts \lam p => inv polyEval_polyMap *> pmap (polyEval __ _) (polyMap-comp f g)) *> mPoly-map-comp {_} {PolyAlgebra R} {PolyAlgebra S}) *> inv MPoly_Fin-suc'.eval-comm))
+  \lemma isAlgebraGenerated-comp {R E S : CRing} {f : RingHom R E} {g : RingHom E S} {a : E} {l : Array S}
+                                 (fg : \Pi (x : E) -> ∃ (p : Poly R) (polyMapEval f p a = x)) (gg : isAlgebraGenerated g l) : isAlgebraGenerated (g ∘ f) (g a :: l) =>
+    \lam x =>
+        \have | (inP (p,pq)) => gg x
+              | (inP ((s : MPoly (Fin l.len) (PolyAlgebra R)),sq)) => MPoly-surj {Fin l.len} (polyMapEvalRingHom f a) fg p
+        \in inP (MPoly_Fin-suc'.retHom s, pq *> rewrite (inv sq, MPoly_Fin-suc'.map-comm) (pmap (mPolyEval l)
+            (inv mPoly-map-comp *> pmap (mPoly-map __ s) (exts \lam p => inv polyEval_polyMap *> pmap (polyEval __ _) (polyMap-comp f g)) *> mPoly-map-comp {_} {PolyAlgebra R} {PolyAlgebra S}) *> inv MPoly_Fin-suc'.eval-comm))
 
-    \lemma isAlgebraGenerated-poly {R E : CRing} {f : RingHom R E} {a : E}
-                                   (fg : \Pi (x : E) -> ∃ (p : Poly R) (polyMapEval f p a = x)) : isAlgebraGenerated f (a :: nil)
-      => isAlgebraGenerated-comp {R} {E} {E} {f} {id E} {a} {nil} fg \lam x => inP (mConst x, simplify)
+  \lemma isAlgebraGenerated-poly {R E : CRing} {f : RingHom R E} {a : E}
+                                 (fg : \Pi (x : E) -> ∃ (p : Poly R) (polyMapEval f p a = x)) : isAlgebraGenerated f (a :: nil) =>
+    isAlgebraGenerated-comp {R} {E} {E} {f} {id E} {a} {nil} fg \lam x => inP (mConst x, simplify)
 
-    \func Ker' {R S : Ring} (f : RingHom R S) : TIdeal R \cowith
-      | contains x => f x = S.zro
-      | contains_zro => func-zro
-      | contains_+ A B => rewrite (AddMonoidHom.func-+ {f}, A, B) zro-left
-      | ideal-left A => rewrite (MonoidHom.func-* {f}, A) zro_*-right
-      | ideal-right A => rewrite (MonoidHom.func-* {f}, A) zro_*-left
-
-    \func Ker {R : CRing} {S : Ring} (f : RingHom R S ) : Ideal R \cowith
-      | TIdeal => Ker' f
+  \func Ker {R : CRing} {S : Ring} (f : RingHom R S) : Ideal R \cowith
+    | TIdeal => Ker' {f}
 }
 
 \func natMap {R : Semiring} : SemiringHom NatSemiring R \cowith
@@ -111,7 +120,7 @@
     | neg (suc _ \as n), neg m => natMap.func-* *> inv (pmap (negative (natCoef n) *) (intCoef_neg m) *> negative_*)
   }
   \where {
-    \open AddGroup(negative_zro,negative_+)
+    \open AddGroup (negative_zro, negative_+)
     \open Ring
 
     \lemma intCoef_diff {R : Ring} (n m : Nat) : R.intCoef (n Nat.- m) = intCoef n - intCoef m \elim n, m

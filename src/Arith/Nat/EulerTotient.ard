@@ -1,19 +1,25 @@
 \import Algebra.Domain.Euclidean
 \import Algebra.Group
+\import Algebra.Group.Category
 \import Algebra.Group.Sub
 \import Algebra.Group.Symmetric
 \import Algebra.Meta
 \import Algebra.Monoid
+\import Algebra.Monoid.Category
 \import Algebra.Monoid.GCD
 \import Algebra.Pointed
 \import Algebra.Ring
+\import Algebra.Ring.Category
 \import Algebra.Ring.Ideal
 \import Algebra.Ring.RingHom
+\import Algebra.Ring.Sub
 \import Algebra.Semiring
 \import Arith.Fin
 \import Arith.Int
 \import Arith.Nat
+\import Category
 \import Equiv
+\import Function (isInj, isSurj)
 \import Function.Meta
 \import Logic
 \import Logic.Meta
@@ -27,6 +33,7 @@
 \import Set.Fin
 \import Set.Fin.Pigeonhole
 \import Relation.Equivalence
+\open IntEuclidean
 
 \func coPrimes (n : Nat) : FinSet => fibreFin {n} (\lam (x : Fin n) => EuclideanSemiringData.gcd x n) 1
 
@@ -42,7 +49,7 @@
 \func intMap-FinRing (n : Nat) (k : Int) : intMap {FinRing {n}} k = k IntEuclidean.mod suc n \elim k {
   | pos zero => idp
   | pos (suc n1) => unfold func (rewrite natCoefSuc (unfold Fin.fromNat (rewrite (fin_mod_id {n} (_ Nat.mod suc n)) idp)))
-  | neg (suc n1) => unfold (unfold (Z/nZ=FinRing.mod-fin (inP (\case (suc n1 Nat.mod suc n : Nat) \as r, idp : suc n1 Nat.mod suc n = {Nat} r \with {
+  | neg (suc n1) => unfold (unfold (ldiv-finEq (inP (\case (suc n1 Nat.mod suc n : Nat) \as r, idp : suc n1 Nat.mod suc n = {Nat} r \with {
     | zero, P => \new Monoid.LDiv {
       | inv => 1
       | inv-right => unfold (rewrite P idp)
@@ -56,16 +63,39 @@
 
 \func ker-int-Coef (n : Nat) : RingHom.Ker (intMap {FinRing {n}}) = {Ideal IntEuclidean} Ideal.closure1 {IntEuclidean} (suc n) =>
   ext (ext (\lam i => ext
-      (\lam (c : intMap i = zro) => \case (rewrite Z/nZ=FinRing.mod-zro in Z/nZ=FinRing.mod-eq2 i 0 n)
-                                              (rewriteI Z/nZ=FinRing.mod-mod (Z/nZ=FinRing.mod-fin2 {i IntEuclidean.mod pos (suc n)} {0} {n} (rewrite intMap-FinRing in c))) \with {
-             | inP (a, p) => inP ((a , ()) :: nil, simplify (rewrite (*-comm {IntRing}, p) linarith))
-           },
-       \lam c => unfold (rewrite (intMap-FinRing) {?}))))
+      (\lam (c : intMap i = zro) => \case (modEq-ldiv i 0 n) (rewriteI mod-mod (finEq-modeq {i IntEuclidean.mod pos (suc n)} {0} {n} (rewrite intMap-FinRing in c))) \with {
+        | inP (a, p) => inP ((a , ()) :: nil, simplify (rewrite (*-comm {IntRing}, p) linarith))
+      },
+       \lam c => unfold (rewrite (intMap-FinRing, (rewrite AddGroup.minus_zro in ldiv-modEq i 0 n) (Ideal.closure1_LDiv.1 c)) idp))))
+
+\func univ_img {R : CRing} {S : Ring} (f : RingHom R S) : RingHom (FactorRing (RingHom.Ker f)) (SubRing.struct {f.Im}) \cowith {
+  | func => univ
+  | func-+ => univ_+
+  | func-ide => ext (unfold (Algebra.Group.Category.GroupHom.func-ide {f}))
+  | func-* => univ_*
+} \where {
+  \func univ (x : FactorRing (RingHom.Ker f)) : SubRing.struct {f.Im} \elim x
+    | in~ a => (f a, inP (a, idp))
+    | ~-equiv x1 y r => ext \let A0 => rewrite (zro-left, +-assoc, negative-left, zro-right) (pmap (\lam z => z S.+ f y) (rewrite r in AddGroupHom.func-minus {f} {x1} {y})) \in inv A0
+
+  \func univ_+ {x y : FactorRing (RingHom.Ker f)} : univ (x + y) = univ x + {SubRing.struct {f.Im}} univ y \elim x, y
+    | in~ a, in~ a1 => ext (rewrite (func-+ {f}) idp)
+
+  \func univ_* {x y : FactorRing (RingHom.Ker f)} : univ (x * y) = univ x * {SubRing.struct {f.Im}} univ y \elim x, y
+    | in~ a, in~ a1 => ext (rewrite (func-* {f}) idp)
+
+  \func univ_surj : isSurj univ => \lam (x, inP (r, A)) => inP (in~ r, ext A)
+
+  \func univ_inj : isInj univ => {?}
+}
+
+\func theoremA {R : CRing} {S : Ring} (f : RingHom R S) : Iso {RingCat} {FactorRing (RingHom.Ker f)} {SubRing.struct {RingHom.Im {f}}} (univ_img f)
+  => {?}
 
 \func Z/nZ=FinRing (n : Nat) : QEquiv {FactorRing (multiples_of_1+ n)} {FinRing {n}} \cowith
   | f x => \case \elim x \with {
     | in~ a => IntEuclidean.mod a (suc n)
-    | ~-equiv x y r i => mod-eq x y n r @ i
+    | ~-equiv x y r i => ldiv-modEq x y n r @ i
   }
   | ret x => in~ x
   | ret_f x => \case \elim x \with {
@@ -80,34 +110,7 @@
     | suc x => repeat {2} (rewrite fin_mod_id) idp
   })
   \where {
-    \open IntEuclidean
-
     \lemma helper (a b : Int) : a - (b + a) = negative b => simplify
-
-    \lemma mod-mod (a : Int) (n : Nat) : a mod pos (suc n) Nat.mod suc n = {Nat} a mod pos (suc n) =>
-      mod_< {a mod pos (suc n)} {suc n} (natMod<right _ _)
-
-    \func mod-eq (x y : Int) (n : Nat) (p : ∃ (Monoid.LDiv {IntDomain} (suc n) (x - y))) : x mod suc n = y mod suc n \elim p
-      | inP (e, p) => rewrite (rewrite (+-assoc, negative-left, zro-right) in inv (pmap (`+` y) p))
-          (rewrite (ldistr, +-assoc, natDivModProp y n) in int_n*_+_mod_n {n} {y mod suc n} {e + y div pos (suc n)} (natMod<right y n))
-
-    \func mod-eq2 (x y : Int) (n : Nat) (p : x mod suc n = y mod suc n) : ∃ (Monoid.LDiv {IntDomain} (suc n) (x - y)) =>
-      \let | Ax => divModProp x (suc n) (\lam p => \case p)
-           | Ay => divModProp y (suc n) (\lam p => \case p)
-      \in rewriteI (Ax, Ay, p) (inP (\new Monoid.LDiv {
-        | inv => x div pos (suc n) - y div pos (suc n)
-        | inv-right => rewrite AbGroup.sum-cancel-right Ring.ldistr_-
-      }))
-
-    \func mod-fin2 {x y : Nat} {n : Nat} (p : x = {Fin (suc n)} y) : x Nat.mod suc n = {Nat} y Nat.mod suc n =>
-      pmap (\lam (x : Fin (suc n)) => x) p
-
-    \lemma mod-fin {x y : Nat} {n : Nat} (p : ∃ (Monoid.LDiv {IntDomain} (suc n) (x Nat.- y))) : x = {Fin (suc n)} y =>
-      fin_nat-inj (repeat {2} (rewrite natMod=mod) in mod-eq (pos x) (pos y) n p)
-
-    \lemma mod-zro {n : Nat} : zro mod n = zro => unfold idp
-
-    \func toNat (x : Fin (suc n)) : Nat => x
   }
 
 \func coPrimes-eq (n : Nat) : QEquiv {coPrimes n} {SubSet.struct {coPrimes-Inv n}} \cowith {
