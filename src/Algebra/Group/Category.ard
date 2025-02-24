@@ -98,7 +98,7 @@
       | inP (x, p) => inP ((func x, inP (x, idp)), p)
     }
 
-    \func im_iso (p : isSurj func) : Iso {GroupCat} {Im.struct} {Cod} => (GroupCat.Iso<->Inj+Surj im).2 (inj, surj p)
+    \func im_iso (p : isSurj func) : Iso {GroupCat} {Im.struct} {Cod} => (GroupCat.Iso<->Bijective im).2 (inj, surj p)
   }
 
   \func TrivialKernel : \Prop => \Pi {g : Dom} -> Ker g -> g = ide
@@ -115,9 +115,7 @@
   \lemma Kernel-injectivity-corollary (p : isInj func) : TrivialKernel =>
     \lam q => p (q *> inv func-ide)
 
-  \func isIsomorphism : \Prop => \Sigma (isInj func) (isSurj func)
-
-  \func asIso (p : isIsomorphism) : Iso {GroupCat} {Dom} {Cod} => (GroupCat.Iso<->Inj+Surj _).2 p
+  \func asIso (p : isBijective) : Iso {GroupCat} {Dom} {Cod} => (GroupCat.Iso<->Bijective _).2 p
 }
 
 \instance GroupCat : Cat Group
@@ -145,34 +143,29 @@
       | isFaithful => \lam p => ext p
 
     -- TODO: Prove this more generally for algebraic theories?
-    \lemma Iso<->Inj+Surj {G H : Group} (f : GroupHom G H) : Iso {GroupCat} f <-> f.isIsomorphism
+    \lemma Iso<->Bijective {G H : Group} (f : GroupHom G H) : Iso {GroupCat} f <-> f.isBijective
       => (\lam p => SetIso->Inj+Surj (ForgetSet.Func-iso p),
           \lam p => \new Iso {
             | hinv => \new GroupHom {
-              | func => inve p
-              | func-ide => aux (this_iso p) f.func-ide
+              | func => Iso.hinv {this_iso p}
+              | func-ide => inv $ rewrite (aux' (this_iso p), f.func-ide) idp
               | func-* {x y : H} => rewrite (this_inv_ap p x, this_inv_ap p y,
-                                             inv f.func-*, inv $ inv_this_ap p (inve p x G.* inve p y),
+                                             inv f.func-*, inv $ inv_this_ap p (Iso.hinv {this_iso p} x G.* Iso.hinv {this_iso p} y),
                                              inv $ this_inv_ap p x, inv $ this_inv_ap p y ) idp
             }
             | hinv_f => exts \lam e => inv (inv_this_ap p e)
             | f_hinv => exts \lam e => inv (this_inv_ap p e)
           })
-      \where \private {
+      \where {
       {- | some  set theoretic lemmas -}
 
-        \lemma this_inv_ap (p : f.isIsomorphism) (h : H) : h = f (inve p h)
+        \lemma this_inv_ap (p : f.isBijective) (h : H) : h = f (Iso.hinv {this_iso p} h)
           => inv (path \lam i => (Iso.f_hinv {this_iso p} i) h)
 
-        \lemma inv_this_ap (p : f.isIsomorphism) (g : G) : g = inve p (f g)
+        \lemma inv_this_ap (p : f.isBijective) (g : G) : g = Iso.hinv {this_iso p} (f g)
           => inv (path \lam i => (Iso.hinv_f {this_iso p} i) g)
 
-        \func this_iso (p : f.isIsomorphism) => Inj+Surj->SetIso f p.1 p.2
-
-        \func inve (p : f.isIsomorphism) => Iso.hinv {this_iso p}
-
-        \lemma aux {A B : \Set} (f : Iso {SetCat} {A} {B}) {a : A} {b : B} (p : f.f a = b) : f.hinv b = a
-          => inv $ rewrite (aux' f, p) idp
+        \func this_iso (p : f.isBijective) => Inj+Surj->SetIso f p.1 p.2
 
         \lemma aux' {A B : \Set} (f : Iso {SetCat} {A} {B}) {a : A} : a = f.hinv (f.f a)
           => inv (path (\lam i => (f.hinv_f i) a))
@@ -200,7 +193,7 @@
 
     \lemma Iso<->TrivialKer+Surj {G H : Group} (f : GroupHom G H)
       : Iso {GroupCat} f <-> (\Sigma f.TrivialKernel (isSurj f))
-      => <->trans (Iso<->Inj+Surj f) helper
+      => <->trans (Iso<->Bijective f) helper
       \where \private \func helper : (\Sigma (isInj f)(isSurj f)) <-> (\Sigma f.TrivialKernel (isSurj f)) =>
         (\lam p => (f.Kernel-injectivity-corollary p.1, p.2),
          \lam p => (f.Kernel-injectivity-test p.1, p.2))
