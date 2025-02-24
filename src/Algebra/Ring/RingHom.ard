@@ -14,11 +14,12 @@
 \import Arith.Int
 \import Arith.Nat
 \import Category
-\import Function (isInj)
+\import Function (isInj, isSurj)
 \import Function.Meta
 \import HLevel
 \import Logic
 \import Logic.Meta
+\import Meta
 \import Paths
 \import Paths.Meta
 
@@ -35,6 +36,21 @@
   \override Dom : Ring
   \override Cod : Ring
 
+  \func im : RingHom Im.struct Cod \cowith
+    | func x => x.1
+    | func-+ => idp
+    | func-ide => idp
+    | func-* => idp \where {
+    \func inj : isInj im => \lam p => ext p
+
+    \func surj (s : isSurj func) : isSurj im => \lam y => \let A0 => s y \in \case \elim A0 \with {
+      | inP (x, p) => inP ((func x, inP (x, idp)), p)
+    }
+
+    \func im_iso (p : isSurj func) : Iso {RingCat} {Im.struct} {Cod} =>
+      (RingCat.Iso<->Bijective im).2 (inj, surj p)
+  }
+
   \func Im : SubRing Cod \cowith {
     | contains s => ∃ (r : Dom) (func r = s)
     | contains_zro => inP (0, func-zro)
@@ -43,6 +59,9 @@
     | contains_negative (inP (x, Ax)) => inP (negative x, rewrite (func-negative, Ax) idp)
     | contains_ide => inP (ide, func-ide)
   }
+
+  \func Im=Cod (p : isSurj func) : Im.struct = Cod =>
+    Cat.isotoid {RingCat} {Im.struct} {Cod} (im.im_iso p)
 
   \func Ker' : TIdeal Dom \cowith
     | contains x => func x = zro
@@ -87,6 +106,13 @@
 
   \func Ker {R : CRing} {S : Ring} (f : RingHom R S) : Ideal R \cowith
     | TIdeal => Ker' {f}
+
+  \func ImC {R : Ring} {S : CRing} (f : RingHom R S) : CSubRing S \cowith {
+    | SubRing => f.Im
+  }
+
+  \func Im=CodC {R : Ring} {S : CRing} (f : RingHom R S) (p : isSurj f) : CSubRing.struct {ImC f} = {CRing} S =>
+    ext CRing { | Ring => f.Im=Cod p }
 }
 
 \func natMap {R : Semiring} : SemiringHom NatSemiring R \cowith
@@ -133,6 +159,9 @@
       pmap (natCoef n +) (inv (pmap (ide +) negative_+ *> inv +-assoc *> pmap (`- natCoef m) negative-right *> zro-left)) *>
       inv (pmap2 (__ + negative __) (natCoefSuc n) (natCoefSuc m) *> +-assoc)
   }
+
+\func intMapC {R : CRing} : RingHom IntRing R \cowith
+  | RingHom => intMap {R}
 
 \lemma intComm {R : Ring} (n : Int) (x : R) : intMap n * x = x * intMap n \elim n
   | pos n => natComm n x
