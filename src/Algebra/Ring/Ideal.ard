@@ -342,7 +342,7 @@
       => meet-univ product-left product-right
   }
 
-\instance FactorRing (I : Ideal) : CRing
+\instance FactorRing (I : TIdeal) : Ring
   | E => Type I
   | zro => inF 0
   | + (x y : Type I) : Type I \with {
@@ -368,10 +368,16 @@
   | ide-left {x} => \case \elim x \with {
     | in~ a => fequiv (simplify contains_zro)
   }
+  | ide-right {x} => \case \elim x \with {
+    | in~ a => fequiv (simplify contains_zro)
+  }
   | *-assoc {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
     | in~ a, in~ b, in~ c => fequiv (transport I equation contains_zro)
   }
   | ldistr {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
+    | in~ a, in~ b, in~ c => fequiv (transport I equation contains_zro)
+  }
+  | rdistr {x} {y} {z} => \case \elim x, \elim y, \elim z \with {
     | in~ a, in~ b, in~ c => fequiv (transport I equation contains_zro)
   }
   | natCoef n => inF (natCoef n)
@@ -384,39 +390,42 @@
   | negative-left {x} => \case \elim x \with {
     | in~ a => fequiv (simplify contains_zro)
   }
-  | *-comm {x} {y} => \case \elim x, \elim y \with {
-    | in~ a, in~ b => fequiv (transport I equation contains_zro)
-  }
   \where {
-    \type Type (I : Ideal) => Quotient {I.S} (\lam a b => I (a - b))
+    \type Type (I : TIdeal) => Quotient {I.S} (\lam a b => I (a - b))
 
-    \func inF {I : Ideal} (a : I.S) : Type I => in~ a
+    \func inF {I : TIdeal} (a : I.S) : Type I => in~ a
 
-    \lemma fequiv {I : Ideal} {a b : I.S} (p : I (a - b)) : inF a = inF b
+    \lemma fequiv {I : TIdeal} {a b : I.S} (p : I (a - b)) : inF {I} a = inF b
       => path (\lam i => ~-equiv a b p i)
 
-    \lemma fequiv0 {I : Ideal} {a : I.S} (p : I a) : inF a = inF 0
+    \lemma fequiv0 {I : TIdeal} {a : I.S} (p : I a) : inF a = inF 0
       => fequiv $ transportInv I (pmap (a Ring.+) AddGroup.negative_zro *> zro-right) p
 
-    \lemma unfequiv {I : Ideal} {a b : I.S} (p : inF a = inF b) : I (a - b)
+    \lemma unfequiv {I : TIdeal} {a b : I.S} (p : inF a = inF b) : I (a - b)
       => Quotient.equalityEquiv (\new Equivalence I.S (\lam a b => I (a - b)) {
         | ~-transitive c d => transport I equation (contains_+ c d)
         | ~-reflexive => simplify contains_zro
         | ~-symmetric c => transport I equation (I.ideal-left { -1} c)
       }) $ path (\lam i => p i)
 
-    \lemma unfequiv0 {I : Ideal} {a : I.S} (p : inF a = inF 0) : I a
+    \lemma unfequiv0 {I : TIdeal} {a : I.S} (p : inF a = inF 0) : I a
       => transport I (pmap (a Ring.+) AddGroup.negative_zro *> zro-right) (unfequiv p)
   }
 
-\func factorHom {I : Ideal} : RingHom I.S (FactorRing I) \cowith
+\instance CFactorRing (I : Ideal) : CRing
+  | Ring => FactorRing I
+  | *-comm {x} {y} => \case \elim x, \elim y \with {
+    | in~ a, in~ b => FactorRing.fequiv {I} (transport I equation contains_zro)
+  }
+
+\func factorHom {I : Ideal} : RingHom I.S (CFactorRing I) \cowith
   | func => FactorRing.inF
   | func-+ => idp
   | func-ide => idp
   | func-* => idp
 
-\func factor-lift {I : Ideal} {R : Ring} (f : RingHom I.S R) (p : \Pi {a : I.S} -> I a -> f a = 0) : RingHom (FactorRing I) R \cowith
-  | func (x : FactorRing I) : R \with {
+\func factor-lift {I : Ideal} {R : Ring} (f : RingHom I.S R) (p : \Pi {a : I.S} -> I a -> f a = 0) : RingHom (CFactorRing I) R \cowith
+  | func (x : CFactorRing I) : R \with {
     | in~ a => f a
     | ~-equiv a b r => R.fromZero $ inv (f.func-+ *> pmap (_ +) f.func-negative) *> p r
   }
@@ -429,7 +438,7 @@
   }
 
 \instance FactorField {I : Ideal} (Im : I.IsMaximal) : DiscreteField
-  | CRing => FactorRing I
+  | CRing => CFactorRing I
   | zro/=ide p => Im.1 $ unfequiv0 (inv p)
   | eitherZeroOrInv => \case \elim __ \with {
     | in~ a => \case Im.2 a \with {
@@ -440,7 +449,7 @@
   \where {
     \open FactorRing
 
-    \lemma conv {I : Ideal} (p : 0 /= {FactorRing I} 1) (q : \Pi (x : FactorRing I) -> (x = 0) || Monoid.Inv x) : I.IsMaximal
+    \lemma conv {I : Ideal} (p : 0 /= {CFactorRing I} 1) (q : \Pi (x : CFactorRing I) -> (x = 0) || Monoid.Inv x) : I.IsMaximal
       => (\lam c => p $ inv $ fequiv0 c, \lam x => \case q (inF x) \with {
             | byLeft r => byLeft $ unfequiv0 r
             | byRight (in~ y, s, _) => byRight $ (y, unfequiv $ inv s)
@@ -448,7 +457,7 @@
   }
 
 \instance FactorIrrField (R : BezoutRing) (p : Irr {R}) : DiscreteField
-  | CRing => FactorRing (Ideal.closure1 p)
+  | CRing => CFactorRing (Ideal.closure1 p)
   | zro/=ide q => p.notInv (trivial_Inv.1 q)
   | eitherZeroOrInv => zeroOrInv-char.2 \lam a => \case isBezout p a \with {
     | inP (s, t, d|p : Monoid.LDiv, d|a : Monoid.LDiv) => \case p.isIrr (inv d|p.inv-right) \with {
@@ -462,12 +471,12 @@
   \where {
     \open FactorRing \hiding (+,*,negative)
 
-    \lemma trivial_Inv {R : CRing} {p : R} : (0 = {FactorRing (Ideal.closure1 p)} 1) <-> Inv p
+    \lemma trivial_Inv {R : CRing} {p : R} : (0 = {CFactorRing (Ideal.closure1 p)} 1) <-> Inv p
       => (\lam q => \case Ideal.closure1-lem.1 $ unfequiv (inv q) \with {
         | inP t => Inv.lmake t.1 (*-comm *> inv t.2 *> simplify)
       }, \lam (e : Inv p) => inv $ fequiv $ Ideal.closure1-lem.2 $ simplify $ inP (e.inv, inv e.inv-right))
 
-    \lemma zeroOrInv-char {R : CRing} {p : R} : (\Pi (a : FactorRing (Ideal.closure1 p)) -> (a = 0) || Inv a) <-> (\Pi (a : R) -> Monoid.LDiv p a || (\Sigma (s t : R) (s * a + t * p = 1)))
+    \lemma zeroOrInv-char {R : CRing} {p : R} : (\Pi (a : CFactorRing (Ideal.closure1 p)) -> (a = 0) || Inv a) <-> (\Pi (a : R) -> Monoid.LDiv p a || (\Sigma (s t : R) (s * a + t * p = 1)))
       => (\lam f a => \case f (in~ a) \with {
         | byLeft a~0 => \case Ideal.closure1-lem.1 (unfequiv a~0) \with {
           | inP s => byLeft (\new Monoid.LDiv {
@@ -483,7 +492,7 @@
             (\lam (s,t,q) => Inv.lmake {_} {inF a} (inF s) $ fequiv $ (Ideal.closure1-lem {R} {p} {s * a - 1}).2 $ inP (negative t, equation)) (f a)
       })
 
-    \lemma conv {R : CRing} {p : R} (c : \Pi {x y : R} -> p * x = p * y -> x = y) (d : DiscreteField { | CRing => FactorRing (Ideal.closure1 p) }) : Prime p \cowith
+    \lemma conv {R : CRing} {p : R} (c : \Pi {x y : R} -> p * x = p * y -> x = y) (d : DiscreteField { | CRing => CFactorRing (Ideal.closure1 p) }) : Prime p \cowith
       | notInv pi => zro/=ide (trivial_Inv.2 pi)
       | isCancelable-left => c
       | isPrime {x} {y} (z,pz=xy) => \case zeroOrInv-char.1 d.eitherZeroOrInv x, zeroOrInv-char.1 d.eitherZeroOrInv y \with {
