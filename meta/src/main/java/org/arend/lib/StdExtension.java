@@ -22,6 +22,7 @@ import org.arend.lib.meta.*;
 import org.arend.lib.meta.cong.CongruenceMeta;
 import org.arend.lib.meta.debug.PrintMeta;
 import org.arend.lib.meta.debug.RandomMeta;
+import org.arend.lib.meta.debug.SleepMeta;
 import org.arend.lib.meta.debug.TimeMeta;
 import org.arend.lib.meta.equation.EquationMeta;
 import org.arend.lib.meta.linear.LinearSolverMeta;
@@ -340,6 +341,7 @@ public class StdExtension implements ArendExtension {
     ModulePath debug = ModulePath.fromString("Debug.Meta");
     contributor.declare(text("Returns current time in milliseconds"), makeRef(debug, "time"), new TimeMeta(this));
     contributor.declare(text("Prints the argument to the console"), makeRef(debug, "println"), new PrintMeta(this));
+    contributor.declare(text("`sleep m` waits for `m` milliseconds"), makeRef(debug, "sleep"), new SleepMeta(this));
     contributor.declare(multiline("""
         `random` returns a random number.
         `random n` returns a random number between 0 and `n`.
